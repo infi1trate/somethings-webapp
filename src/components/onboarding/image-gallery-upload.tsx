@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ImagePlus, X } from "lucide-react";
-import { readFileAsDataUrl, clientId } from "@/lib/files";
+import { readFileAsDataUrl, downscaleImageToWebP, clientId } from "@/lib/files";
 import type { UploadedImage } from "@/lib/types";
 
 interface Props {
@@ -24,7 +24,11 @@ export function ImageGalleryUpload({ value, onChange, max = 6 }: Props) {
       picked.map(async (file) => ({
         id: clientId("img"),
         name: file.name,
-        dataUrl: await readFileAsDataUrl(file),
+        // Downscale to keep the persisted draft under the localStorage quota;
+        // fall back to the raw file if the browser can't decode it (e.g. HEIC).
+        dataUrl: await downscaleImageToWebP(file).catch(() =>
+          readFileAsDataUrl(file)
+        ),
       }))
     );
     onChange([...value, ...added]);

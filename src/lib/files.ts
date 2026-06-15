@@ -7,6 +7,30 @@ export function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+// Downscale an image to a capped dimension and encode as WebP, so gallery
+// photos stay small enough to persist (a few full-res data URLs blow the
+// ~5MB localStorage quota). High-quality resampling keeps them crisp.
+export async function downscaleImageToWebP(
+  file: Blob,
+  maxDim = 1080,
+  quality = 0.82
+): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no 2d context");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close?.();
+  return canvas.toDataURL("image/webp", quality);
+}
+
 // Simple id generator for client-side gallery items (no crypto needed for a prototype).
 let counter = 0;
 export function clientId(prefix = "id") {

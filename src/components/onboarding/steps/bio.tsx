@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { useDraftSync } from "@/lib/onboarding/use-live-sync";
+import { CyclingExamples } from "@/components/onboarding/cycling-examples";
+import { BIO_EXAMPLES } from "@/lib/onboarding/guidance";
 
 const MAX = 400;
 
@@ -80,6 +82,7 @@ export function BioStep() {
           </FormItem>
         )}
       />
+      <CyclingExamples label="Need a starting point?" items={BIO_EXAMPLES} />
     </StepScaffold>
   );
 }

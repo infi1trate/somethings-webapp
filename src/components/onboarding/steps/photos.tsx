@@ -3,6 +3,8 @@
 import { useForm } from "react-hook-form";
 import { StepScaffold } from "@/components/onboarding/step-scaffold";
 import { ImageGalleryUpload } from "@/components/onboarding/image-gallery-upload";
+import { StepTips } from "@/components/onboarding/step-tips";
+import { GALLERY_TIPS } from "@/lib/onboarding/guidance";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 
@@ -30,6 +32,7 @@ export function PhotosStep() {
         max={6}
       />
       <p className="text-xs text-muted-foreground">Up to 6 photos.</p>
+      <StepTips dos={GALLERY_TIPS.dos} donts={GALLERY_TIPS.donts} />
     </StepScaffold>
   );
 }

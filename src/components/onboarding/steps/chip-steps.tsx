@@ -57,7 +57,7 @@ export function InterestsStep() {
       min={3}
       max={8}
       minMessage="Pick at least 3."
-      hint="Choose 3–8."
+      hint="Choose 3–8 — the ones you'd actually love talking about."
     />
   );
 }

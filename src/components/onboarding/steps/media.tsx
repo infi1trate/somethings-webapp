@@ -2,7 +2,9 @@
 
 import { useForm } from "react-hook-form";
 import { StepScaffold } from "@/components/onboarding/step-scaffold";
+import { Sparkles } from "lucide-react";
 import { MediaIntroField } from "@/components/onboarding/media-intro-field";
+import { INTRO_FRAMEWORK } from "@/lib/onboarding/guidance";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 
@@ -26,6 +28,26 @@ export function MediaStep() {
       onSkip={() => goNext()}
     >
       <MediaIntroField value={media} onChange={(m) => update({ media: m })} />
+      <div className="space-y-2 rounded-xl border bg-muted/40 px-3.5 py-3">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Sparkles className="size-3.5 text-brand" />
+          {INTRO_FRAMEWORK.eyebrow}
+        </p>
+        <ol className="space-y-1.5">
+          {INTRO_FRAMEWORK.beats.map((beat, i) => (
+            <li
+              key={beat}
+              className="flex gap-2.5 text-[13.5px] leading-relaxed text-foreground/80"
+            >
+              <span className="mt-px text-xs font-semibold tabular-nums text-brand/70">
+                {i + 1}
+              </span>
+              <span>{beat}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-muted-foreground/80">{INTRO_FRAMEWORK.note}</p>
+      </div>
     </StepScaffold>
   );
 }

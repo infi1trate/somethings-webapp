@@ -9,6 +9,8 @@ import { Moodie } from "@/components/doodles";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { cutoutBackground } from "@/lib/cutout";
+import { StepTips } from "@/components/onboarding/step-tips";
+import { PHOTO_TIPS } from "@/lib/onboarding/guidance";
 
 type Mode = "idle" | "camera" | "processing" | "denied";
 
@@ -62,7 +64,8 @@ export function ProfilePhotoStep() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
-    canvas.toBlob((b) => b && process(b), "image/jpeg", 0.92);
+    // Near-lossless WebP keeps the captured frame crisp before background removal.
+    canvas.toBlob((b) => b && process(b), "image/webp", 0.95);
   };
 
   const onFile = (file: File | undefined) => {
@@ -90,6 +93,10 @@ export function ProfilePhotoStep() {
       optional={optional}
       onSkip={() => goNext()}
     >
+      {!profilePhoto && (mode === "idle" || mode === "denied") && (
+        <StepTips dos={PHOTO_TIPS.dos} donts={PHOTO_TIPS.donts} note={PHOTO_TIPS.note} />
+      )}
+
       {/* Saved */}
       {profilePhoto && mode === "idle" && (
         <div className="space-y-3">

@@ -166,33 +166,17 @@ export function MentorProfilePreview({
         <div
           data-region="identity"
           className={cn(
-            "relative overflow-hidden px-5 pb-7 pt-16",
+            "relative overflow-hidden px-5 pt-16",
             dof("hero")
           )}
           style={{ background: PURPLE }}
         >
           <StatusBar />
 
-          {/* Profile cutout on a cyan spray-paint contour, bottom-right */}
-          <div className="pointer-events-none absolute bottom-0 right-0 z-0 h-[72%] w-[58%]">
-            {cutout ? (
-              <CutoutSpray cutout={cutout} />
-            ) : (
-              <div
-                className="absolute inset-x-4 bottom-0 top-8 rounded-t-[120px] text-white/25"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(currentColor 1.1px, transparent 1.3px)",
-                  backgroundSize: "8px 8px",
-                }}
-              />
-            )}
-          </div>
-
           <div className="relative z-10 flex flex-col gap-3.5 text-white">
             <div className="text-center">
               {name ? (
-                <h2 className="text-[34px] font-bold leading-[1.1] tracking-[-0.02em] text-white">
+                <h2 className="text-[34px] font-bold leading-[1.1] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">
                   {name}
                 </h2>
               ) : (
@@ -207,13 +191,13 @@ export function MentorProfilePreview({
               )}
             </div>
 
-            {/* Intro bubble */}
+            {/* Intro bubble — sits vertically above the photo */}
             <div
               data-region="bio"
               className="w-full rounded-[16px] rounded-bl-[4px] bg-white/15 px-3.5 py-2.5 text-left backdrop-blur-sm"
             >
               {draft.bio ? (
-                <p className="text-[15px] leading-[1.4] text-white">
+                <p className="text-[15px] leading-[1.4] text-white [overflow-wrap:anywhere]">
                   {draft.bio}
                 </p>
               ) : (
@@ -224,44 +208,64 @@ export function MentorProfilePreview({
               )}
             </div>
 
-            {/* Interest chips — left column so the cutout sits to the right */}
-            <div
-              data-region="interests"
-              className="flex max-w-[60%] flex-col items-start gap-2"
-            >
-              {heroInterests.length > 0
-                ? heroInterests.map((interest) => {
-                    const Icon = iconFor(interest);
-                    return (
+            {/* Lower row: interest chips on the left, profile photo on the
+                right. The photo sits BELOW the bio (no z-index overlap) and
+                bleeds to the card's bottom + right edge. */}
+            <div className="relative flex items-stretch gap-2">
+              <div
+                data-region="interests"
+                className="relative z-10 flex flex-1 flex-col items-start gap-2 pb-7"
+              >
+                {heroInterests.length > 0
+                  ? heroInterests.map((interest) => {
+                      const Icon = iconFor(interest);
+                      return (
+                        <span
+                          key={interest}
+                          className="inline-flex items-center gap-2 rounded-full border border-white/45 bg-[#b164ff]/40 px-3 py-1.5 text-sm text-white backdrop-blur-sm"
+                        >
+                          <Icon className="size-4" />
+                          {interest}
+                        </span>
+                      );
+                    })
+                  : [44, 60, 52].map((w, i) => (
                       <span
-                        key={interest}
-                        className="inline-flex items-center gap-2 rounded-full border border-white/45 bg-[#b164ff]/40 px-3 py-1.5 text-sm text-white backdrop-blur-sm"
+                        key={i}
+                        className="inline-flex items-center gap-2 rounded-full border border-dashed border-white/30 px-3 py-1.5"
                       >
-                        <Icon className="size-4" />
-                        {interest}
+                        <span className="size-4 rounded-full bg-white/30" />
+                        <span
+                          className="block h-2.5 rounded-full bg-white/30"
+                          style={{ width: w }}
+                        />
                       </span>
-                    );
-                  })
-                : [44, 60, 52].map((w, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-2 rounded-full border border-dashed border-white/30 px-3 py-1.5"
-                    >
-                      <span className="size-4 rounded-full bg-white/30" />
-                      <span
-                        className="block h-2.5 rounded-full bg-white/30"
-                        style={{ width: w }}
-                      />
-                    </span>
-                  ))}
+                    ))}
+              </div>
+
+              {/* Profile cutout on a cyan spray-paint contour */}
+              <div className="pointer-events-none relative z-0 -mr-5 min-h-[232px] w-[56%] shrink-0 self-stretch">
+                {cutout ? (
+                  <CutoutSpray cutout={cutout} />
+                ) : (
+                  <div
+                    className="absolute inset-x-1 bottom-0 top-3 rounded-t-[100px] text-white/25"
+                    style={{
+                      backgroundImage:
+                        "radial-gradient(currentColor 1.1px, transparent 1.3px)",
+                      backgroundSize: "8px 8px",
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* ── Below the hero ───────────────────────────────────────────── */}
         <div className="space-y-6 px-5 pb-12 pt-6">
-          {/* Spotify */}
-          <div data-region="spotify" className={dof("spotify")}>
+          {/* Spotify — the record straddles up onto the hero, so this sits above it */}
+          <div data-region="spotify" className={cn("relative z-10", dof("spotify"))}>
             {draft.spotifyUrl ? (
               <SpotifySong key={draft.spotifyUrl} url={draft.spotifyUrl} />
             ) : (
@@ -393,31 +397,47 @@ function SkeletonRow({
   );
 }
 
-// Cyan spray-paint contour via an SVG turbulence filter. Fractal noise is
-// coupled to the silhouette's blurred edge, then hard-thresholded to a binary,
-// fully-opaque alpha and flooded cyan — so it reads as a SOLID band hugging the
-// person that frays into small, organic, varied flecks a short distance off the
-// edge (no grid, no soft/see-through dots). A solid core sits behind to keep the
-// band dense; the spray img is dilated so its broken rim shows just past the
-// core; the crisp photo sits on top.
+// Cyan spray-paint contour via SVG filters. Two layers, both derived from the
+// cutout's alpha and uniformly dilated with feMorphology (so the band thickness
+// is even all around — not scaled from one origin like before):
+//   • #cutoutBand — a thick SOLID cyan band hugging the silhouette, and
+//   • #cutoutSpray — organic, fully-opaque flecks that fray just BEYOND that
+//     band's edge (dilate → soft falloff → fractal-noise hard threshold → flood).
+// The crisp photo sits on top. R sets the band thickness / where the speckle
+// begins (px in the img's CSS space — the filter is NOT scale-invariant, so
+// calibrate at the real phone render size, not magnified).
 function CutoutSpray({ cutout }: { cutout: string }) {
-  const mask: React.CSSProperties = {
-    WebkitMaskImage: `url("${cutout}")`,
-    maskImage: `url("${cutout}")`,
-    WebkitMaskSize: "contain",
-    maskSize: "contain",
-    WebkitMaskPosition: "bottom center",
-    maskPosition: "bottom center",
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
-    transformOrigin: "bottom center",
-  };
+  const R = 10; // dilation radius ≈ solid-band thickness; flecks fray beyond it
   return (
     <>
-      {/* Filter rendered once (duplicate identical defs across preview instances
-          are harmless — url(#cutoutSpray) resolves to the first match). */}
+      {/* Filters rendered once (duplicate identical defs across preview
+          instances are harmless — url(#id) resolves to the first match). */}
       <svg aria-hidden width="0" height="0" className="absolute">
         <defs>
+          {/* Solid, uniform cyan band: dilate the silhouette evenly, soften the
+              morphology corners, flood cyan. */}
+          <filter
+            id="cutoutBand"
+            x="-50%"
+            y="-50%"
+            width="200%"
+            height="200%"
+            colorInterpolationFilters="sRGB"
+          >
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius={R}
+              result="fat"
+            />
+            {/* no blur — a crisp solid band; the scatter masks its edge */}
+            <feFlood floodColor={CYAN} result="paint" />
+            <feComposite in="paint" in2="fat" operator="in" />
+          </filter>
+
+          {/* Organic opaque flecks fraying off the band's outer edge: dilate to
+              the band edge first so the speckle starts there, then the soft
+              falloff + noise threshold paint broken cyan specks beyond it. */}
           <filter
             id="cutoutSpray"
             x="-50%"
@@ -426,27 +446,34 @@ function CutoutSpray({ cutout }: { cutout: string }) {
             height="200%"
             colorInterpolationFilters="sRGB"
           >
-            {/* silhouette alpha → soft edge falloff (how far flecks can reach) */}
-            <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="soft" />
-            {/* fractal noise: multi-scale → organic, varied fleck sizes/shapes */}
+            {/* push the falloff out to the band edge so speckle starts there */}
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius={R}
+              result="fat"
+            />
+            {/* wide soft falloff → dramatic scatter reaching well past the band */}
+            <feGaussianBlur in="fat" stdDeviation="15" result="soft" />
+            {/* fine fractal noise → small, varied organic spots/blotches */}
             <feTurbulence
               type="fractalNoise"
-              baseFrequency="0.28"
+              baseFrequency="0.55"
               numOctaves="4"
               seed="7"
               stitchTiles="noStitch"
               result="noise"
             />
-            {/* couple noise to the falloff: solid deep inside, broken at the
-                fringe, gone past it (alpha = k1·soft·noise + k2·soft + k4) */}
+            {/* couple noise to the falloff: dense crisp spots at the band edge
+                thinning outward (alpha = k1·soft·noise + k2·soft + k4) */}
             <feComposite
               in="soft"
               in2="noise"
               operator="arithmetic"
-              k1="2.1"
-              k2="0.62"
+              k1="2"
+              k2="0.1"
               k3="0"
-              k4="-0.42"
+              k4="0.24"
               result="mix"
             />
             {/* hard threshold → fully opaque specks, zero transparency */}
@@ -460,27 +487,21 @@ function CutoutSpray({ cutout }: { cutout: string }) {
         </defs>
       </svg>
 
-      {/* 1 · solid core — clean dense band hugging the person */}
-      <div
-        className="absolute inset-0"
-        style={{
-          ...mask,
-          background: CYAN,
-          transform: "scale(1.04)",
-          filter: "blur(0.5px)",
-        }}
-      />
-      {/* 2 · spray — organic opaque flecks fraying off the dilated edge */}
+      {/* 1 · thick solid band hugging the person */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={cutout}
         alt=""
         className="absolute inset-0 size-full object-contain object-bottom"
-        style={{
-          transform: "scale(1.08)",
-          transformOrigin: "bottom center",
-          filter: "url(#cutoutSpray)",
-        }}
+        style={{ filter: "url(#cutoutBand)" }}
+      />
+      {/* 2 · organic opaque flecks fraying off the band edge */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cutout}
+        alt=""
+        className="absolute inset-0 size-full object-contain object-bottom"
+        style={{ filter: "url(#cutoutSpray)" }}
       />
       {/* 3 · the person, crisp, on top */}
       {/* eslint-disable-next-line @next/next/no-img-element */}

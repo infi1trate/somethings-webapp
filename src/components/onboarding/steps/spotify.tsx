@@ -70,7 +70,7 @@ export function SpotifyStep() {
                 {...field}
               />
             </FormControl>
-            <FormDescription>A playlist, artist, or song works.</FormDescription>
+            <FormDescription>A playlist, artist, or song — a current favorite is perfect.</FormDescription>
             <FormMessage />
           </FormItem>
         )}

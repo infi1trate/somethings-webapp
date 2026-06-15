@@ -75,7 +75,28 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: "somethings.mentor-onboarding",
-      storage: createJSONStorage(() => localStorage),
+      // Quota-resilient: if a write exceeds the localStorage limit (or storage
+      // is unavailable, e.g. SSR / private mode), keep working in-memory
+      // instead of throwing.
+      storage: createJSONStorage(() => ({
+        getItem: (name) =>
+          typeof localStorage === "undefined"
+            ? null
+            : localStorage.getItem(name),
+        setItem: (name, value) => {
+          if (typeof localStorage === "undefined") return;
+          try {
+            localStorage.setItem(name, value);
+          } catch {
+            // Out of quota / private mode — the draft stays in memory.
+          }
+        },
+        removeItem: (name) => {
+          if (typeof localStorage !== "undefined") {
+            localStorage.removeItem(name);
+          }
+        },
+      })),
       // Never persist the password, or the recorded clip's blob URL (dead after
       // reload, and large) — both stay in-memory only.
       partialize: (state) => ({

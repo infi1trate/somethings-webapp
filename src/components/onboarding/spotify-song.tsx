@@ -6,7 +6,7 @@ import { Music, Play, ExternalLink } from "lucide-react";
 const PURPLE = "#b164ff";
 // Vinyl disc: a dark base with fine concentric grooves + a soft sheen.
 const VINYL =
-  "repeating-radial-gradient(circle at 50% 50%, #0b0b0d 0px, #0b0b0d 1px, #1d1d20 1px, #1d1d20 2.4px), radial-gradient(circle at 38% 32%, rgba(255,255,255,0.14), rgba(255,255,255,0) 45%)";
+  "repeating-radial-gradient(circle at 50% 50%, #0b0b0d 0px, #0b0b0d 1px, #1d1d20 1px, #1d1d20 2.4px), radial-gradient(circle at 36% 30%, rgba(255,255,255,0.16), rgba(255,255,255,0) 42%)";
 
 type Parsed = { type: string; id: string } | null;
 
@@ -53,59 +53,63 @@ export function SpotifySong({ url }: { url: string }) {
       className="flex size-full items-center justify-center text-white"
       style={{ background: PURPLE }}
     >
-      <Music className="size-5" />
+      <Music className="size-6" />
     </div>
   );
 
   return (
-    <div className="rounded-2xl border bg-card p-3">
-      <div className="flex items-center gap-3.5">
-        {/* Record sliding out of its sleeve — spins gently while "on repeat" */}
+    <div className="relative">
+      {/* A big record sitting on top of the hero/section boundary: the album
+          sleeve tucked behind, a picture-disc sliding out and spinning. The
+          disc is pulled up (negative margin) so it straddles the purple→card
+          edge with depth; the caption sits on the card below it. */}
+      <div className="flex items-end gap-4">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? "Hide player" : "Play song"}
-          className="group relative h-14 w-[74px] shrink-0"
+          className="group relative -mt-[64px] h-[150px] w-[156px] shrink-0"
         >
-          {/* Vinyl peeking out behind the sleeve */}
+          {/* album sleeve, tucked behind + tilted for depth */}
+          <div className="absolute left-0 top-2 size-[116px] -rotate-[7deg] overflow-hidden rounded-md shadow-[0_12px_26px_rgba(31,30,29,0.32)] ring-1 ring-black/10">
+            {cover}
+          </div>
+
+          {/* picture-disc, in front, sliding out to the right */}
           <div
-            className="absolute right-0 top-1 size-12 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.35)] motion-safe:animate-[spin_5s_linear_infinite]"
+            className="absolute bottom-0 right-0 size-[138px] rounded-full shadow-[0_16px_32px_rgba(0,0,0,0.42)] ring-1 ring-black/25 motion-safe:animate-[spin_7s_linear_infinite]"
             style={{ background: VINYL }}
           >
-            {/* center label */}
-            <div className="absolute inset-0 m-auto size-[44%] overflow-hidden rounded-full ring-1 ring-black/30">
+            {/* large album-art center (picture disc) */}
+            <div className="absolute inset-0 m-auto size-[62%] overflow-hidden rounded-full ring-1 ring-black/40">
               {cover}
             </div>
             {/* spindle hole */}
-            <span className="absolute inset-0 m-auto size-[5px] rounded-full bg-neutral-900 ring-1 ring-white/50" />
+            <span className="absolute inset-0 m-auto size-[7px] rounded-full bg-neutral-900 ring-1 ring-white/40" />
           </div>
 
-          {/* Album sleeve in front */}
-          <div className="absolute left-0 top-1 z-10 size-12 overflow-hidden rounded-md shadow-[0_3px_10px_rgba(31,30,29,0.25)] ring-1 ring-black/5">
-            {cover}
-          </div>
-          {/* play hint */}
-          <span className="absolute left-0 top-1 z-20 flex size-12 items-center justify-center rounded-md bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-            <Play className="size-4 fill-white text-white" />
+          {/* play hint on the disc */}
+          <span className="absolute bottom-0 right-0 flex size-[138px] items-center justify-center rounded-full bg-black/25 opacity-0 transition-opacity group-hover:opacity-100">
+            <Play className="size-7 fill-white text-white" />
           </span>
         </button>
 
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">On repeat</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {title ?? "Tap to play on Spotify"}
+        <div className="min-w-0 flex-1 pb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            On repeat
           </p>
+          <p className="truncate text-[15px] font-semibold text-foreground">
+            {title ?? "Tap to play"}
+          </p>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Open in Spotify <ExternalLink className="size-3" />
+          </a>
         </div>
-
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Open in Spotify"
-          className="text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ExternalLink className="size-4" />
-        </a>
       </div>
 
       {open && (
