@@ -1,51 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Music,
-  Gamepad2,
-  Palette,
-  Trophy,
-  BookOpen,
-  Clapperboard,
-  ChefHat,
-  Camera,
-  Shirt,
-  Dumbbell,
-  Mountain,
-  Code,
-  Sparkles,
-  HeartHandshake,
-  Play,
-  Pause,
-  CalendarClock,
-  Disc3,
-  Wifi,
-  type LucideIcon,
-} from "lucide-react";
+import { Play, Pause, CalendarClock, Disc3, Wifi } from "lucide-react";
 import { SpotifySong } from "@/components/onboarding/spotify-song";
 import { cn } from "@/lib/utils";
+import { iconFor } from "@/lib/interest-icons";
 import { WEEKDAYS, type MediaIntro, type MentorDraft } from "@/lib/types";
-
-const INTEREST_ICONS: Record<string, LucideIcon> = {
-  Music,
-  Gaming: Gamepad2,
-  "Art & drawing": Palette,
-  Sports: Trophy,
-  Reading: BookOpen,
-  "Movies & TV": Clapperboard,
-  Cooking: ChefHat,
-  Photography: Camera,
-  Fashion: Shirt,
-  "Working out": Dumbbell,
-  Anime: Sparkles,
-  "Hiking & outdoors": Mountain,
-  Coding: Code,
-  Dance: Music,
-  Skateboarding: Trophy,
-  Volunteering: HeartHandshake,
-};
-const iconFor = (i: string) => INTEREST_ICONS[i] ?? Sparkles;
 
 function formatTime(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -173,6 +133,71 @@ export function MentorProfilePreview({
         >
           <StatusBar />
 
+          {/* Empty state: a CRISP dot-matrix portrait bust flush to the hero's
+              bottom. Three dot layers share ONE aligned grid (only the circle
+              radius changes) + two erode masks carve an inner core / mid band,
+              so the dots are normal-size + opaque in the core and shrink + fade
+              through the contour to the edge — a halftone dissolve. No blur, no
+              opacity mask (those caused the fuzz). */}
+          {!cutout && (
+            <div className="pointer-events-none absolute bottom-0 right-[-1%] z-0 h-[62%] w-[54%] text-white">
+              {/* The torso runs PAST the bottom of the viewBox, so the SVG crops
+                  it flat at y=120 (like a real cropped photo) with full-strength
+                  dots — the graphic sits flush on the hero's bottom edge instead
+                  of fading into a gap. The halftone fade then only touches the
+                  head + sides (true silhouette), never the bottom crop. */}
+              <svg
+                viewBox="0 0 100 120"
+                preserveAspectRatio="xMidYMax meet"
+                className="size-full"
+                aria-hidden
+              >
+                <defs>
+                  {/* one clean bust: round head · wider neck · broad shoulders,
+                      torso extended below y=120 to crop flush at the bottom */}
+                  <path
+                    id="bust"
+                    d="M50 6 C63 6 73 16 73 29 C73 39 68 46 61 49 C61 54 61 58 61 63 C73 67 84 74 91 86 C97 95 99 107 99 120 L99 132 L1 132 L1 120 C1 107 3 95 9 86 C16 74 27 67 39 63 C39 58 39 54 39 49 C32 46 27 39 27 29 C27 16 37 6 50 6 Z"
+                  />
+                  {/* identical grid + dot center across all three — only the
+                      radius differs, so dots stay concentric and shrink core→edge */}
+                  <pattern id="bustDotsLg" width="7" height="7" patternUnits="userSpaceOnUse">
+                    <circle cx="3.5" cy="3.5" r="1.2" fill="currentColor" />
+                  </pattern>
+                  <pattern id="bustDotsMd" width="7" height="7" patternUnits="userSpaceOnUse">
+                    <circle cx="3.5" cy="3.5" r="0.8" fill="currentColor" />
+                  </pattern>
+                  <pattern id="bustDotsSm" width="7" height="7" patternUnits="userSpaceOnUse">
+                    <circle cx="3.5" cy="3.5" r="0.45" fill="currentColor" />
+                  </pattern>
+                  {/* erode the bust to carve an inner "core" + a "mid" region.
+                      Keep the band THIN so thin features (head, neck) retain a
+                      bright core and the whole figure stays legible — only the
+                      outer ring dissolves. */}
+                  <filter id="bustErodeMid">
+                    <feMorphology operator="erode" radius="2.5" />
+                  </filter>
+                  <filter id="bustErodeCore">
+                    <feMorphology operator="erode" radius="5.5" />
+                  </filter>
+                  <mask id="bustMaskMid">
+                    <use href="#bust" fill="#fff" filter="url(#bustErodeMid)" />
+                  </mask>
+                  <mask id="bustMaskCore">
+                    <use href="#bust" fill="#fff" filter="url(#bustErodeCore)" />
+                  </mask>
+                </defs>
+                {/* edge — full bust · small dots · faint (but visible enough to
+                    read the silhouette, incl. the head) */}
+                <use href="#bust" fill="url(#bustDotsSm)" opacity="0.24" />
+                {/* mid — medium dots, inset from the edge */}
+                <use href="#bust" fill="url(#bustDotsMd)" mask="url(#bustMaskMid)" opacity="0.42" />
+                {/* core — normal-size dots, deep interior (opacity stacks) */}
+                <use href="#bust" fill="url(#bustDotsLg)" mask="url(#bustMaskCore)" opacity="0.52" />
+              </svg>
+            </div>
+          )}
+
           <div className="relative z-10 flex flex-col gap-3.5 text-white">
             <div className="text-center">
               {name ? (
@@ -245,18 +270,7 @@ export function MentorProfilePreview({
 
               {/* Profile cutout on a cyan spray-paint contour */}
               <div className="pointer-events-none relative z-0 -mr-5 min-h-[232px] w-[56%] shrink-0 self-stretch">
-                {cutout ? (
-                  <CutoutSpray cutout={cutout} />
-                ) : (
-                  <div
-                    className="absolute inset-x-1 bottom-0 top-3 rounded-t-[100px] text-white/25"
-                    style={{
-                      backgroundImage:
-                        "radial-gradient(currentColor 1.1px, transparent 1.3px)",
-                      backgroundSize: "8px 8px",
-                    }}
-                  />
-                )}
+                {cutout && <CutoutSpray cutout={cutout} />}
               </div>
             </div>
           </div>
@@ -287,16 +301,30 @@ export function MentorProfilePreview({
             <SectionLabel>Photos</SectionLabel>
             <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {draft.additionalImages.length > 0
-                ? draft.additionalImages.map((img, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={img.id}
-                      src={img.dataUrl}
-                      alt={img.name}
-                      className="aspect-[3/4] w-28 shrink-0 rounded-xl border-4 border-white object-cover shadow-[0_4px_14px_rgba(31,30,29,0.12)]"
-                      style={{ transform: `rotate(${TILT[i % TILT.length]}deg)` }}
-                    />
-                  ))
+                ? draft.additionalImages.map((img, i) => {
+                    const tag = img.interests[0];
+                    const TagIcon = tag ? iconFor(tag) : null;
+                    return (
+                      <div
+                        key={img.id}
+                        className="relative aspect-[3/4] w-28 shrink-0 overflow-hidden rounded-xl border-4 border-white shadow-[0_4px_14px_rgba(31,30,29,0.12)]"
+                        style={{ transform: `rotate(${TILT[i % TILT.length]}deg)` }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.dataUrl}
+                          alt={img.name}
+                          className="size-full object-cover"
+                        />
+                        {tag && TagIcon && (
+                          <span className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                            <TagIcon className="size-3 shrink-0" />
+                            <span className="truncate">{tag}</span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
                 : [0, 1, 2].map((i) => (
                     <div
                       key={i}

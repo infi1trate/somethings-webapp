@@ -13,6 +13,7 @@ export interface UploadedImage {
   id: string;
   name: string;
   dataUrl: string; // base64 — mock for a real upload + URL
+  interests: string[]; // interest tags this photo shows (from INTEREST_OPTIONS)
 }
 
 export interface MediaIntro {
@@ -63,7 +64,6 @@ export interface MentorDraft {
   media: MediaIntro;
   lifeExperiences: string[];
   interests: string[];
-  interestImages: Record<string, string>; // interest -> dataUrl
   additionalImages: UploadedImage[];
   messages: { online: string; offline: string };
   schedule: WeeklySchedule;
@@ -95,7 +95,6 @@ export function emptyDraft(): MentorDraft {
     media: { kind: null, name: null, url: null, durationSec: null },
     lifeExperiences: [],
     interests: [],
-    interestImages: {},
     additionalImages: [],
     messages: { online: "", offline: "" },
     schedule: emptySchedule(),
