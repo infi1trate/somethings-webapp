@@ -75,20 +75,25 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: "somethings.mentor-onboarding",
-      // v2: interests went from string[] → InterestEntry[] (1:1 interest↔photo)
-      // and the separate additionalImages gallery was removed. Convert old
+      // v2: interests string[] → InterestEntry[] (1:1 interest↔photo) + drop the
+      // additionalImages gallery. v3: add the "vibe board" field. Convert old
       // persisted drafts in place so a reload doesn't break on the new shape.
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const s = persisted as { draft?: Record<string, unknown> };
-        if (s?.draft && version < 2) {
+        if (s?.draft) {
           const d = s.draft;
-          if (Array.isArray(d.interests)) {
-            d.interests = (d.interests as unknown[]).map((it) =>
-              typeof it === "string" ? { name: it, photo: null } : it
-            );
+          if (version < 2) {
+            if (Array.isArray(d.interests)) {
+              d.interests = (d.interests as unknown[]).map((it) =>
+                typeof it === "string" ? { name: it, photo: null } : it
+              );
+            }
+            delete d.additionalImages;
           }
-          delete d.additionalImages;
+          if (version < 3 && !Array.isArray(d.vibe)) {
+            d.vibe = []; // new field — backfill so reads don't break
+          }
         }
         return s as unknown as OnboardingState;
       },

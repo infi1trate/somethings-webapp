@@ -10,6 +10,7 @@ import {
   PronounsStep,
   LanguagesStep,
 } from "@/components/onboarding/steps/chip-steps";
+import { VibeStep } from "@/components/onboarding/steps/vibe";
 import { InterestsStep } from "@/components/onboarding/steps/interests";
 
 export const STEP_COMPONENTS: Record<string, ComponentType> = {
@@ -22,5 +23,6 @@ export const STEP_COMPONENTS: Record<string, ComponentType> = {
   bio: BioStep,
   spotify: SpotifyStep,
   media: MediaStep,
+  vibe: VibeStep,
   interests: InterestsStep,
 };

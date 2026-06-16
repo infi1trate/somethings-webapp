@@ -23,6 +23,7 @@ const REGION_BY_STEP: Record<string, string> = {
   interests: "interests",
   spotify: "spotify",
   media: "media",
+  vibe: "vibe",
   languages: "languages",
 };
 

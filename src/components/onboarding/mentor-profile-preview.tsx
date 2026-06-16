@@ -30,6 +30,7 @@ export function MentorProfilePreview({
   const name = draft.nickname || draft.firstName || "";
   const cutout = draft.profilePhoto;
   const heroInterests = draft.interests.slice(0, 4);
+  const vibe = draft.vibe ?? [];
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -154,7 +155,7 @@ export function MentorProfilePreview({
                       torso extended below y=120 to crop flush at the bottom */}
                   <path
                     id="bust"
-                    d="M50 6 C63 6 73 16 73 29 C73 39 68 46 61 49 C61 54 61 58 61 63 C73 67 84 74 91 86 C97 95 99 107 99 120 L99 132 L1 132 L1 120 C1 107 3 95 9 86 C16 74 27 67 39 63 C39 58 39 54 39 49 C32 46 27 39 27 29 C27 16 37 6 50 6 Z"
+                    d="M50 4 C65 4 78 15 78 31 C78 42 72 49 65 51 C65 55 65 59 65 64 C78 68 88 75 93 87 C98 96 99 108 99 120 L99 132 L1 132 L1 120 C1 108 2 96 7 87 C12 75 22 68 35 64 C35 59 35 55 35 51 C28 49 22 42 22 31 C22 15 35 4 50 4 Z"
                   />
                   {/* identical grid + dot center across all three — only the
                       radius differs, so dots stay concentric and shrink core→edge */}
@@ -288,6 +289,36 @@ export function MentorProfilePreview({
             ) : (
               <SkeletonRow icon={<Play className="size-5 text-foreground/30" />} label={`Hear from ${name || "you"}`} waveform />
             )}
+          </div>
+
+          {/* My vibe — an all-at-once carousel board, sitting directly above the
+              interests stack (deliberately a different shape: a scannable row vs.
+              the interests z-stack).
+              Vibe reflection slot (v2, OUT of scope now): a short, dismissable
+              read of the BOARD could later sit just below this carousel — reflect
+              the board not the person, keep it editable ("sounds right / not
+              quite"), use provisional language ("so far this reads…"), and NO
+              completion/strength meter. Don't build the model call yet. */}
+          <div data-region="vibe" className={dof("vibe")}>
+            <SectionLabel>My vibe</SectionLabel>
+            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {vibe.length > 0
+                ? vibe.map((v) => (
+                    <div
+                      key={v.id}
+                      className="aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border-2 border-white shadow-[0_4px_14px_rgba(31,30,29,0.12)]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={v.photo} alt="" className="size-full object-cover" />
+                    </div>
+                  ))
+                : [0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="aspect-[3/4] w-24 shrink-0 rounded-xl border-2 border-dashed border-foreground/15 bg-foreground/[0.03]"
+                    />
+                  ))}
+            </div>
           </div>
 
           {/* My interests — stacked, swipeable photo deck */}

@@ -16,6 +16,15 @@ export interface InterestEntry {
   photo: string | null; // downscaled WebP data URL of "me doing {name}", or null
 }
 
+/** One image on the "vibe board" — a feeling/aesthetic photo from the mentor's
+ *  own camera roll, optionally framed by the prompt that surfaced it. The board
+ *  reads as a curated set; see steps/vibe.tsx + vibe-board-field.tsx. */
+export interface VibePhoto {
+  id: string;
+  photo: string; // downscaled WebP data URL
+  prompt: string | null; // the prompt that framed this pick (context; null if free-added)
+}
+
 export interface MediaIntro {
   kind: "audio" | null;
   name: string | null;
@@ -43,6 +52,7 @@ export interface MentorDraft {
   bio: string;
   spotifyUrl: string;
   media: MediaIntro;
+  vibe: VibePhoto[]; // the "vibe board" — sits above interests on the profile
   interests: InterestEntry[];
 }
 
@@ -63,6 +73,7 @@ export function emptyDraft(): MentorDraft {
     bio: "",
     spotifyUrl: "",
     media: { kind: null, name: null, url: null, durationSec: null },
+    vibe: [],
     interests: [],
   };
 }

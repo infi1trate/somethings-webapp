@@ -25,6 +25,7 @@ export const STEP_ORDER: StepMeta[] = [
   { slug: "bio", section: "Your profile" },
   { slug: "spotify", section: "Your profile", optional: true },
   { slug: "media", section: "Your profile", optional: true },
+  { slug: "vibe", section: "Your profile", optional: true },
   { slug: "interests", section: "Your profile" },
 ];
 

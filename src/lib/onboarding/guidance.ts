@@ -34,6 +34,23 @@ export const INTRO_FRAMEWORK = {
   note: "Keep it warm and real. Under a minute is plenty.",
 };
 
+// The vibe step's prompt deck — playful, oddly-specific prompts that surface a
+// feeling/aesthetic/personality photo (not an activity photo) from the mentor's
+// own camera roll. A ROTATABLE set: swap or reorder freely (seasonal refresh).
+// Voice: calm, warm, low-pressure — never hype. Loosely ordered easy → effortful
+// so there's always an answerable one.
+export const VIBE_PROMPTS = [
+  "a screenshot you've never deleted",
+  "the most “your room” photo on your phone",
+  "something you'd put on a poster",
+  "the last thing that made you laugh",
+  "your wallpaper, right now",
+  "a photo only you would've taken",
+];
+
+// Shown once the curated prompts run out — keeps the door open without pressure.
+export const VIBE_CATCHALL = "anything else that feels like you";
+
 // Example bios that cycle one at a time on the bio step.
 export const BIO_EXAMPLES = [
   "I'm a 22-year-old grad student studying social work, and I've always been passionate about creating spaces where people feel heard. I became a mentor because I remember how isolating high school felt, and I want to be the person I wish I had back then — someone who just gets it.",
