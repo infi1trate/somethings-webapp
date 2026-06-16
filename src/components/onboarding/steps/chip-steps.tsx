@@ -1,12 +1,7 @@
 "use client";
 
 import { ChipsStep } from "@/components/onboarding/steps/chips-step";
-import {
-  PRONOUN_OPTIONS,
-  LANGUAGE_OPTIONS,
-  LIFE_EXPERIENCE_OPTIONS,
-  INTEREST_OPTIONS,
-} from "@/lib/options";
+import { PRONOUN_OPTIONS, LANGUAGE_OPTIONS } from "@/lib/options";
 
 export function PronounsStep() {
   return (
@@ -30,34 +25,6 @@ export function LanguagesStep() {
       options={LANGUAGE_OPTIONS}
       min={1}
       minMessage="Pick at least one."
-    />
-  );
-}
-
-export function LifeExperienceStep() {
-  return (
-    <ChipsStep
-      fieldKey="lifeExperiences"
-      title="What have you been through that you could help with?"
-      subtitle="Teens often look for someone who gets it. Choose what you're comfortable speaking to — no need to share details here."
-      options={LIFE_EXPERIENCE_OPTIONS}
-      min={1}
-      minMessage="Pick at least one you'd feel okay supporting."
-    />
-  );
-}
-
-export function InterestsStep() {
-  return (
-    <ChipsStep
-      fieldKey="interests"
-      title="What are you into?"
-      subtitle="Shared interests make the first conversation way easier. Pick a few."
-      options={INTEREST_OPTIONS}
-      min={3}
-      max={8}
-      minMessage="Pick at least 3."
-      hint="Choose 3–8 — the ones you'd actually love talking about."
     />
   );
 }

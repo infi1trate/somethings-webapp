@@ -21,7 +21,7 @@ export function MediaStep() {
       form={form}
       onSubmit={() => goNext()}
       title="Add a quick intro"
-      subtitle="Hearing or seeing a real person lands differently than text. This is optional, but teens love it."
+      subtitle="Hearing a real voice lands differently than text. This is optional, but teens love it."
       canGoBack={canGoBack}
       onBack={goBack}
       optional={optional}

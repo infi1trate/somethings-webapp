@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Video, Square, X, RotateCcw, Check, Upload } from "lucide-react";
+import { Mic, Square, X, RotateCcw, Check, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Moodie } from "@/components/doodles";
 import { cn } from "@/lib/utils";
@@ -12,15 +12,11 @@ interface Props {
   onChange: (next: MediaIntro) => void;
 }
 
-type Kind = "audio" | "video";
 type Mode = "idle" | "recording" | "review" | "denied";
 
-function pickMime(kind: Kind): string | undefined {
+function pickMime(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
-  const candidates =
-    kind === "video"
-      ? ["video/webm;codecs=vp9,opus", "video/webm", "video/mp4"]
-      : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
   return candidates.find((t) => MediaRecorder.isTypeSupported(t));
 }
 
@@ -34,7 +30,6 @@ const MAX_SECONDS = 60;
 
 export function MediaIntroField({ value, onChange }: Props) {
   const [mode, setMode] = useState<Mode>("idle");
-  const [kind, setKind] = useState<Kind>("audio");
   const [elapsed, setElapsed] = useState(0);
   const [clip, setClip] = useState<{ url: string; durationSec: number } | null>(
     null
@@ -45,7 +40,6 @@ export function MediaIntroField({ value, onChange }: Props) {
   const chunksRef = useRef<BlobPart[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
-  const liveVideoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopTracks = () => {
@@ -73,7 +67,7 @@ export function MediaIntroField({ value, onChange }: Props) {
     if (rec && rec.state !== "inactive") rec.stop();
   };
 
-  const startRecording = async (k: Kind) => {
+  const startRecording = async () => {
     if (
       typeof navigator === "undefined" ||
       !navigator.mediaDevices?.getUserMedia ||
@@ -83,30 +77,21 @@ export function MediaIntroField({ value, onChange }: Props) {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(
-        k === "video"
-          ? { audio: true, video: { facingMode: "user" } }
-          : { audio: true }
-      );
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      setKind(k);
       setElapsed(0);
       elapsedRef.current = 0;
       chunksRef.current = [];
       setMode("recording");
 
-      if (k === "video" && liveVideoRef.current) {
-        liveVideoRef.current.srcObject = stream;
-      }
-
-      const recorder = new MediaRecorder(stream, { mimeType: pickMime(k) });
+      const recorder = new MediaRecorder(stream, { mimeType: pickMime() });
       recorderRef.current = recorder;
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || (k === "video" ? "video/webm" : "audio/webm"),
+          type: recorder.mimeType || "audio/webm",
         });
         const url = URL.createObjectURL(blob);
         stopTracks();
@@ -145,7 +130,7 @@ export function MediaIntroField({ value, onChange }: Props) {
   const save = () => {
     if (!clip) return;
     onChange({
-      kind,
+      kind: "audio",
       name: "Your recording",
       url: clip.url,
       durationSec: clip.durationSec,
@@ -156,9 +141,8 @@ export function MediaIntroField({ value, onChange }: Props) {
 
   const onFile = (file: File | undefined) => {
     if (!file) return;
-    const k: Kind = file.type.startsWith("video") ? "video" : "audio";
     onChange({
-      kind: k,
+      kind: "audio",
       name: file.name,
       url: URL.createObjectURL(file),
       durationSec: null,
@@ -176,7 +160,7 @@ export function MediaIntroField({ value, onChange }: Props) {
     <input
       ref={fileInputRef}
       type="file"
-      accept="audio/*,video/*"
+      accept="audio/*"
       className="hidden"
       onChange={(e) => onFile(e.target.files?.[0])}
     />
@@ -188,16 +172,12 @@ export function MediaIntroField({ value, onChange }: Props) {
       <div className="space-y-3 rounded-2xl border bg-card p-4">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
-            {value.kind === "video" ? (
-              <Video className="size-5" />
-            ) : (
-              <Mic className="size-5" />
-            )}
+            <Mic className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{value.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">
-              {value.kind} intro
+            <p className="text-xs text-muted-foreground">
+              Audio intro
               {value.durationSec ? ` · ${fmt(value.durationSec)}` : ""}
             </p>
           </div>
@@ -206,16 +186,7 @@ export function MediaIntroField({ value, onChange }: Props) {
             Replace
           </Button>
         </div>
-        {value.url &&
-          (value.kind === "video" ? (
-            <video
-              src={value.url}
-              controls
-              className="w-full rounded-xl bg-black"
-            />
-          ) : (
-            <audio src={value.url} controls className="w-full" />
-          ))}
+        {value.url && <audio src={value.url} controls className="w-full" />}
         {hiddenFileInput}
       </div>
     );
@@ -225,22 +196,12 @@ export function MediaIntroField({ value, onChange }: Props) {
   if (mode === "recording") {
     return (
       <div className="space-y-4 rounded-2xl border bg-card p-4">
-        {kind === "video" ? (
-          <video
-            ref={liveVideoRef}
-            muted
-            autoPlay
-            playsInline
-            className="aspect-video w-full rounded-xl bg-black object-cover"
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <span className="relative flex size-20 items-center justify-center rounded-full bg-brand/15 text-brand">
-              <span className="absolute inset-0 animate-ping rounded-full bg-brand/20" />
-              <Mic className="size-8" />
-            </span>
-          </div>
-        )}
+        <div className="flex flex-col items-center gap-3 py-8">
+          <span className="relative flex size-20 items-center justify-center rounded-full bg-brand/15 text-brand">
+            <span className="absolute inset-0 animate-ping rounded-full bg-brand/20" />
+            <Mic className="size-8" />
+          </span>
+        </div>
         <div className="flex items-center justify-center gap-2 text-sm">
           <span className="size-2 animate-pulse rounded-full bg-destructive" />
           <span className="font-medium tabular-nums">{fmt(elapsed)}</span>
@@ -264,15 +225,7 @@ export function MediaIntroField({ value, onChange }: Props) {
   if (mode === "review" && clip) {
     return (
       <div className="space-y-4 rounded-2xl border bg-card p-4">
-        {kind === "video" ? (
-          <video
-            src={clip.url}
-            controls
-            className="aspect-video w-full rounded-xl bg-black object-cover"
-          />
-        ) : (
-          <audio src={clip.url} controls className="w-full" />
-        )}
+        <audio src={clip.url} controls className="w-full" />
         <div className="flex items-center justify-center gap-3">
           <Button type="button" variant="ghost" onClick={retake}>
             <RotateCcw className="size-4" />
@@ -292,8 +245,8 @@ export function MediaIntroField({ value, onChange }: Props) {
     return (
       <div className="space-y-4 rounded-2xl border bg-card p-5 text-center">
         <p className="text-sm text-muted-foreground text-pretty">
-          We couldn&apos;t reach your mic or camera. Check your browser permissions,
-          or upload a file instead.
+          We couldn&apos;t reach your mic. Check your browser permissions, or
+          upload a file instead.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Button type="button" variant="ghost" onClick={() => setMode("idle")}>
@@ -316,28 +269,14 @@ export function MediaIntroField({ value, onChange }: Props) {
       <div className="space-y-1">
         <p className="text-sm font-medium">Record a quick hello</p>
         <p className="text-xs text-muted-foreground">
-          A short audio or video intro helps teens get a feel for you. 30–60 seconds
-          is plenty.
+          A short audio intro helps teens get a feel for you. 30–60 seconds is
+          plenty.
         </p>
       </div>
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => startRecording("audio")}
-        >
-          <Mic className="size-4" />
-          Record audio
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => startRecording("video")}
-        >
-          <Video className="size-4" />
-          Record video
-        </Button>
-      </div>
+      <Button type="button" variant="secondary" onClick={() => startRecording()}>
+        <Mic className="size-4" />
+        Record audio
+      </Button>
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}

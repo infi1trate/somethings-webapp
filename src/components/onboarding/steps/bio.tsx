@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { StepScaffold } from "@/components/onboarding/step-scaffold";
@@ -19,14 +19,11 @@ import { useDraftSync } from "@/lib/onboarding/use-live-sync";
 import { CyclingExamples } from "@/components/onboarding/cycling-examples";
 import { BIO_EXAMPLES } from "@/lib/onboarding/guidance";
 
-const MAX = 400;
-
 const schema = z.object({
   bio: z
     .string()
     .trim()
-    .min(40, "A couple of sentences helps teens get a feel for you.")
-    .max(MAX, `Keep it under ${MAX} characters.`),
+    .min(1, "Add a short bio so teens can get to know you."),
 });
 
 type Values = z.infer<typeof schema>;
@@ -40,9 +37,6 @@ export function BioStep() {
     resolver: zodResolver(schema),
     defaultValues: { bio: draft.bio },
   });
-
-  const bioValue = useWatch({ control: form.control, name: "bio" });
-  const count = bioValue?.length ?? 0;
 
   useDraftSync(form.control, (v) => ({ bio: v.bio }));
 
@@ -67,17 +61,14 @@ export function BioStep() {
             <FormControl>
               <Textarea
                 rows={6}
-                maxLength={MAX}
                 placeholder="What you're about, what you like talking about, why you wanted to mentor…"
                 {...field}
               />
             </FormControl>
-            <div className="flex items-center justify-between">
-              <FormDescription>No pressure to be polished.</FormDescription>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {count}/{MAX}
-              </span>
-            </div>
+            <FormDescription>
+              Around two sentences is the sweet spot — no pressure to be
+              polished.
+            </FormDescription>
             <FormMessage />
           </FormItem>
         )}

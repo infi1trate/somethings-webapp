@@ -75,6 +75,23 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: "somethings.mentor-onboarding",
+      // v2: interests went from string[] → InterestEntry[] (1:1 interest↔photo)
+      // and the separate additionalImages gallery was removed. Convert old
+      // persisted drafts in place so a reload doesn't break on the new shape.
+      version: 2,
+      migrate: (persisted, version) => {
+        const s = persisted as { draft?: Record<string, unknown> };
+        if (s?.draft && version < 2) {
+          const d = s.draft;
+          if (Array.isArray(d.interests)) {
+            d.interests = (d.interests as unknown[]).map((it) =>
+              typeof it === "string" ? { name: it, photo: null } : it
+            );
+          }
+          delete d.additionalImages;
+        }
+        return s as unknown as OnboardingState;
+      },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
       // is unavailable, e.g. SSR / private mode), keep working in-memory
       // instead of throwing.

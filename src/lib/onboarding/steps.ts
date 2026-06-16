@@ -2,11 +2,7 @@
 // workflow diagram. Pure data — the slug -> component mapping lives in
 // components/onboarding/stepRegistry.ts so this stays importable anywhere.
 
-export type StepSection =
-  | "Account"
-  | "About you"
-  | "Your profile"
-  | "Availability";
+export type StepSection = "Account" | "About you" | "Your profile";
 
 export interface StepMeta {
   slug: string;
@@ -29,12 +25,7 @@ export const STEP_ORDER: StepMeta[] = [
   { slug: "bio", section: "Your profile" },
   { slug: "spotify", section: "Your profile", optional: true },
   { slug: "media", section: "Your profile", optional: true },
-  { slug: "life-experience", section: "Your profile" },
   { slug: "interests", section: "Your profile" },
-  { slug: "photos", section: "Your profile", optional: true },
-  { slug: "messages", section: "Your profile" },
-
-  { slug: "schedule", section: "Availability" },
 ];
 
 export const FIRST_STEP = STEP_ORDER[0].slug;

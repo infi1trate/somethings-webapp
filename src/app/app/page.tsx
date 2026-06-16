@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Home, MessageCircle, Settings, CalendarClock } from "lucide-react";
+import { Home, MessageCircle, Settings } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { Moodie } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { label: "Home", icon: Home },
   { label: "Messages", icon: MessageCircle },
-  { label: "Availability", icon: CalendarClock },
   { label: "Settings", icon: Settings, active: true },
 ];
 

@@ -9,39 +9,20 @@ export type ProfileStatus =
   | "published" // approved & live (Published / Active)
   | "rejected"; // sent back for changes
 
-export interface UploadedImage {
-  id: string;
-  name: string;
-  dataUrl: string; // base64 — mock for a real upload + URL
-  interests: string[]; // interest tags this photo shows (from INTEREST_OPTIONS)
+/** One chosen interest and the photo the mentor attached to it (1:1 — the DB
+ *  models interests this way: one representative photo per interest). */
+export interface InterestEntry {
+  name: string; // from INTEREST_OPTIONS
+  photo: string | null; // downscaled WebP data URL of "me doing {name}", or null
 }
 
 export interface MediaIntro {
-  kind: "audio" | "video" | null;
+  kind: "audio" | null;
   name: string | null;
   /** In-memory object URL for the recorded/uploaded clip (not persisted). */
   url: string | null;
   durationSec: number | null;
 }
-
-export interface DayAvailability {
-  enabled: boolean;
-  start: string; // "HH:MM"
-  end: string; // "HH:MM"
-}
-
-export type WeeklySchedule = Record<Weekday, DayAvailability>;
-
-export const WEEKDAYS = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-] as const;
-export type Weekday = (typeof WEEKDAYS)[number];
 
 export interface MentorDraft {
   // Account
@@ -62,18 +43,7 @@ export interface MentorDraft {
   bio: string;
   spotifyUrl: string;
   media: MediaIntro;
-  lifeExperiences: string[];
-  interests: string[];
-  additionalImages: UploadedImage[];
-  messages: { online: string; offline: string };
-  schedule: WeeklySchedule;
-}
-
-export function emptySchedule(): WeeklySchedule {
-  return WEEKDAYS.reduce((acc, day) => {
-    acc[day] = { enabled: false, start: "16:00", end: "19:00" };
-    return acc;
-  }, {} as WeeklySchedule);
+  interests: InterestEntry[];
 }
 
 export function emptyDraft(): MentorDraft {
@@ -93,10 +63,6 @@ export function emptyDraft(): MentorDraft {
     bio: "",
     spotifyUrl: "",
     media: { kind: null, name: null, url: null, durationSec: null },
-    lifeExperiences: [],
     interests: [],
-    additionalImages: [],
-    messages: { online: "", offline: "" },
-    schedule: emptySchedule(),
   };
 }

@@ -12,7 +12,7 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
 // Which region of the live profile each step is filling in. Drives the
-// preview's zoom-to-focus; messages/account aren't on the profile, so they
+// preview's zoom-to-focus; the account steps aren't on the profile, so they
 // zoom out to the whole card.
 const REGION_BY_STEP: Record<string, string> = {
   confirm: "identity",
@@ -23,11 +23,7 @@ const REGION_BY_STEP: Record<string, string> = {
   interests: "interests",
   spotify: "spotify",
   media: "media",
-  "life-experience": "life",
   languages: "languages",
-  photos: "photos",
-  messages: "all",
-  schedule: "schedule",
 };
 
 // Start zoomed in, then ease out over the flow to reveal the whole profile.

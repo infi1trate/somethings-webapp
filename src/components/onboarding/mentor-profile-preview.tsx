@@ -1,20 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, CalendarClock, Disc3, Wifi } from "lucide-react";
+import { Play, Pause, Disc3, Wifi } from "lucide-react";
 import { SpotifySong } from "@/components/onboarding/spotify-song";
 import { cn } from "@/lib/utils";
 import { iconFor } from "@/lib/interest-icons";
-import { WEEKDAYS, type MediaIntro, type MentorDraft } from "@/lib/types";
-
-function formatTime(t: string) {
-  const [h, m] = t.split(":").map(Number);
-  const hour12 = ((h + 11) % 12) + 1;
-  return `${hour12}:${String(m).padStart(2, "0")}${h < 12 ? "am" : "pm"}`;
-}
+import { SwipeDeck } from "@/components/onboarding/swipe-deck";
+import {
+  type InterestEntry,
+  type MediaIntro,
+  type MentorDraft,
+} from "@/lib/types";
 
 const PURPLE = "#b164ff";
-const TILT = [-3, 2.5, -1.5, 3, -2, 1.5]; // organic polaroid angles
 const CYAN = "#71e0ff";
 
 export interface PreviewFocus {
@@ -32,7 +30,6 @@ export function MentorProfilePreview({
   const name = draft.nickname || draft.firstName || "";
   const cutout = draft.profilePhoto;
   const heroInterests = draft.interests.slice(0, 4);
-  const availableDays = WEEKDAYS.filter((d) => draft.schedule[d].enabled);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -43,7 +40,7 @@ export function MentorProfilePreview({
   // hero (name/bio/interests) is one focus group; each section below is its own.
   const activeGroup = !focused
     ? null
-    : ["identity", "bio", "interests"].includes(focus!.region)
+    : ["identity", "bio"].includes(focus!.region)
       ? "hero"
       : focus!.region;
   const dof = (group: string) =>
@@ -75,7 +72,7 @@ export function MentorProfilePreview({
     // Hero steps anchor the purple block to the very top (fills behind the
     // status bar / Dynamic Island, like the real profile). Lower sections frame
     // just below the top edge.
-    const isHero = ["identity", "bio", "interests"].includes(focus.region);
+    const isHero = ["identity", "bio"].includes(focus.region);
     const region =
       stage.querySelector<HTMLElement>(
         `[data-region="${isHero ? "identity" : focus.region}"]`
@@ -94,7 +91,7 @@ export function MentorProfilePreview({
 
   useEffect(() => {
     applyFocus();
-  }, [applyFocus, name, draft.bio, heroInterests.length, availableDays.length]);
+  }, [applyFocus, name, draft.bio, heroInterests.length]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -237,20 +234,17 @@ export function MentorProfilePreview({
                 right. The photo sits BELOW the bio (no z-index overlap) and
                 bleeds to the card's bottom + right edge. */}
             <div className="relative flex items-stretch gap-2">
-              <div
-                data-region="interests"
-                className="relative z-10 flex flex-1 flex-col items-start gap-2 pb-7"
-              >
+              <div className="relative z-10 flex flex-1 flex-col items-start gap-2 pb-7">
                 {heroInterests.length > 0
-                  ? heroInterests.map((interest) => {
-                      const Icon = iconFor(interest);
+                  ? heroInterests.map((entry) => {
+                      const Icon = iconFor(entry.name);
                       return (
                         <span
-                          key={interest}
+                          key={entry.name}
                           className="inline-flex items-center gap-2 rounded-full border border-white/45 bg-[#b164ff]/40 px-3 py-1.5 text-sm text-white backdrop-blur-sm"
                         >
                           <Icon className="size-4" />
-                          {interest}
+                          {entry.name}
                         </span>
                       );
                     })
@@ -287,7 +281,7 @@ export function MentorProfilePreview({
             )}
           </div>
 
-          {/* Audio / video intro */}
+          {/* Audio intro */}
           <div data-region="media" className={dof("media")}>
             {draft.media.kind ? (
               <MediaNote name={name || "you"} media={draft.media} />
@@ -296,91 +290,18 @@ export function MentorProfilePreview({
             )}
           </div>
 
-          {/* Photos — tilted polaroid carousel */}
-          <div data-region="photos" className={dof("photos")}>
-            <SectionLabel>Photos</SectionLabel>
-            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {draft.additionalImages.length > 0
-                ? draft.additionalImages.map((img, i) => {
-                    const tag = img.interests[0];
-                    const TagIcon = tag ? iconFor(tag) : null;
-                    return (
-                      <div
-                        key={img.id}
-                        className="relative aspect-[3/4] w-28 shrink-0 overflow-hidden rounded-xl border-4 border-white shadow-[0_4px_14px_rgba(31,30,29,0.12)]"
-                        style={{ transform: `rotate(${TILT[i % TILT.length]}deg)` }}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={img.dataUrl}
-                          alt={img.name}
-                          className="size-full object-cover"
-                        />
-                        {tag && TagIcon && (
-                          <span className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-                            <TagIcon className="size-3 shrink-0" />
-                            <span className="truncate">{tag}</span>
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })
-                : [0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="aspect-[3/4] w-28 shrink-0 rounded-xl border-4 border-white text-foreground/15 shadow-[0_4px_14px_rgba(31,30,29,0.08)]"
-                      style={{
-                        transform: `rotate(${TILT[i % TILT.length]}deg)`,
-                        backgroundImage:
-                          "radial-gradient(currentColor 1.1px, transparent 1.3px)",
-                        backgroundSize: "8px 8px",
-                      }}
-                    />
-                  ))}
-            </div>
+          {/* My interests — stacked, swipeable photo deck */}
+          <div data-region="interests" className={dof("interests")}>
+            <SectionLabel>My interests</SectionLabel>
+            <InterestPhotoDeck entries={draft.interests} />
           </div>
 
-          <ChipRegion
-            dataRegion="life"
-            className={dof("life")}
-            title="Can relate to"
-            items={draft.lifeExperiences}
-          />
           <ChipRegion
             dataRegion="languages"
             className={dof("languages")}
             title="Languages"
             items={draft.languages}
           />
-
-          {/* Availability */}
-          <div data-region="schedule" className={dof("schedule")}>
-            <SectionLabel>Usually free</SectionLabel>
-            {availableDays.length > 0 ? (
-              <div className="flex items-start gap-2 text-sm">
-                <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <div className="space-y-0.5">
-                  {availableDays.map((d) => (
-                    <div key={d} className="capitalize">
-                      {d}{" "}
-                      <span className="text-muted-foreground">
-                        {formatTime(draft.schedule[d].start)}–
-                        {formatTime(draft.schedule[d].end)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2">
-                <CalendarClock className="mt-0.5 size-4 shrink-0 text-foreground/25" />
-                <div className="flex-1 space-y-1.5 pt-0.5">
-                  <Bar className="w-2/3" />
-                  <Bar className="w-1/2" />
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -621,18 +542,61 @@ function ChipRegion({
   );
 }
 
-function MediaNote({ name, media }: { name: string; media: MediaIntro }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
+// "My interests" — a stacked, swipe-one-at-a-time deck of the mentor's interest
+// photos (each card = the photo + its interest pill, mirroring the editing step).
+function InterestPhotoDeck({ entries }: { entries: InterestEntry[] }) {
+  const withPhoto = entries.filter((e) => e.photo);
+  const [index, setIndex] = useState(0);
 
-  if (media.kind === "video" && media.url) {
+  if (withPhoto.length === 0) {
     return (
-      <div className="space-y-1.5">
-        <SectionLabel>Meet {name}</SectionLabel>
-        <video src={media.url} controls className="w-full rounded-2xl bg-black" />
+      <div className="relative mx-auto aspect-[3/4] w-[72%] max-w-[230px]">
+        {[2, 1, 0].map((o) => (
+          <div
+            key={o}
+            className="absolute inset-0 rounded-2xl border-4 border-white text-foreground/15 shadow-[0_6px_16px_rgba(31,30,29,0.08)]"
+            style={{
+              transform: `translateY(${o * 8}px) scale(${1 - o * 0.05}) rotate(${o === 1 ? 3 : o === 2 ? -2.5 : 0}deg)`,
+              zIndex: 3 - o,
+              backgroundImage:
+                "radial-gradient(currentColor 1.1px, transparent 1.3px)",
+              backgroundSize: "8px 8px",
+            }}
+          />
+        ))}
       </div>
     );
   }
+
+  const i = Math.min(index, withPhoto.length - 1);
+  return (
+    <SwipeDeck
+      count={withPhoto.length}
+      index={i}
+      onIndexChange={setIndex}
+      controls={false}
+      className="mx-auto aspect-[3/4] w-[72%] max-w-[230px]"
+      renderCard={(idx) => {
+        const e = withPhoto[idx];
+        const Icon = iconFor(e.name);
+        return (
+          <div className="relative size-full overflow-hidden rounded-2xl border-4 border-white shadow-[0_10px_26px_rgba(31,30,29,0.18)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={e.photo!} alt={e.name} className="size-full object-cover" />
+            <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-black/35 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <Icon className="size-3.5" />
+              {e.name}
+            </span>
+          </div>
+        );
+      }}
+    />
+  );
+}
+
+function MediaNote({ name, media }: { name: string; media: MediaIntro }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
 
   const toggle = () => {
     const a = audioRef.current;
