@@ -264,13 +264,12 @@ export function MediaIntroField({ value, onChange }: Props) {
 
   // ── Choose (idle, nothing saved) ───────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed bg-card px-6 py-8 text-center">
-      <Moodie name="face-happy" className="size-12" />
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-card px-6 py-6 text-center">
+      <Moodie name="face-happy" className="size-10" />
       <div className="space-y-1">
         <p className="text-sm font-medium">Record a quick hello</p>
         <p className="text-xs text-muted-foreground">
-          A short audio intro helps teens get a feel for you. 30–60 seconds is
-          plenty.
+          Around 30–60 seconds is plenty.
         </p>
       </div>
       <Button type="button" variant="secondary" onClick={() => startRecording()}>

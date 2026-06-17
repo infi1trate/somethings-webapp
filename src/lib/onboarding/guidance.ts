@@ -34,22 +34,64 @@ export const INTRO_FRAMEWORK = {
   note: "Keep it warm and real. Under a minute is plenty.",
 };
 
-// The vibe step's prompt deck — playful, oddly-specific prompts that surface a
-// feeling/aesthetic/personality photo (not an activity photo) from the mentor's
-// own camera roll. A ROTATABLE set: swap or reorder freely (seasonal refresh).
-// Voice: calm, warm, low-pressure — never hype. Loosely ordered easy → effortful
-// so there's always an answerable one.
-export const VIBE_PROMPTS = [
-  "a screenshot you've never deleted",
-  "the most “your room” photo on your phone",
-  "something you'd put on a poster",
-  "the last thing that made you laugh",
-  "your wallpaper, right now",
-  "a photo only you would've taken",
+// The vibe step's prompt pool. Each empty frame on the board carries one of these
+// as its caption; a shuffle control swaps it. Grouped INTERNALLY (groups are never
+// shown to the user) and interleaved so any few-at-a-time slice reads as a varied
+// mix — that's how 20+ prompts get used without ever surfacing more than a handful
+// at once. Rotatable config: edit/extend freely. Voice: light + playful (the one
+// playful moment in the flow). A prompt is always a suggestion, never a gate.
+const VIBE_PROMPT_GROUPS = [
+  // Screenshots & saves
+  [
+    "a screenshot you've never deleted",
+    "a meme that's a little too accurate",
+    "the last thing you saved because it was funny",
+    "a text that lives in your head rent-free",
+    "something you screenshotted to send someone later",
+  ],
+  // Aesthetic & atmosphere
+  [
+    "your wallpaper energy",
+    "a color that feels like you",
+    "the most “your room” photo on your phone",
+    "a sky you stopped to take a photo of",
+    "light you liked enough to keep",
+  ],
+  // Comfort & character
+  [
+    "the photo you'd show a friend first",
+    "something that makes you feel like a kid again",
+    "a place you feel most like yourself",
+    "your comfort rewatch, in one image",
+    "a snack situation you stand by",
+  ],
+  // Funny & specific
+  [
+    "a photo nobody else would think to take",
+    "the most chaotic photo you'll admit to",
+    "something you'd put on a poster, no explanation",
+    "proof you have a weird sense of humor",
+    "a photo that needs context (don't give it)",
+  ],
+  // Open / easy outs
+  [
+    "anything that just feels like you",
+    "a photo you like for no reason",
+    "pick whatever, no overthinking",
+  ],
 ];
 
-// Shown once the curated prompts run out — keeps the door open without pressure.
-export const VIBE_CATCHALL = "anything else that feels like you";
+// Interleave round-robin across groups → any contiguous slice is a varied mix.
+export const VIBE_PROMPTS: string[] = (() => {
+  const out: string[] = [];
+  const longest = Math.max(...VIBE_PROMPT_GROUPS.map((g) => g.length));
+  for (let i = 0; i < longest; i++) {
+    for (const group of VIBE_PROMPT_GROUPS) {
+      if (group[i]) out.push(group[i]);
+    }
+  }
+  return out;
+})();
 
 // Example bios that cycle one at a time on the bio step.
 export const BIO_EXAMPLES = [

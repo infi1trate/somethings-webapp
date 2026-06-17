@@ -14,6 +14,8 @@ import {
 
 const PURPLE = "#b164ff";
 const CYAN = "#71e0ff";
+// Slight polaroid-style angles for the "My vibe" photos.
+const VIBE_TILT = [-3.5, 2.5, -1.5, 3, -2.5];
 
 export interface PreviewFocus {
   region: string;
@@ -301,12 +303,13 @@ export function MentorProfilePreview({
               completion/strength meter. Don't build the model call yet. */}
           <div data-region="vibe" className={dof("vibe")}>
             <SectionLabel>My vibe</SectionLabel>
-            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {vibe.length > 0
-                ? vibe.map((v) => (
+                ? vibe.map((v, i) => (
                     <div
                       key={v.id}
                       className="aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border-2 border-white shadow-[0_4px_14px_rgba(31,30,29,0.12)]"
+                      style={{ transform: `rotate(${VIBE_TILT[i % VIBE_TILT.length]}deg)` }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={v.photo} alt="" className="size-full object-cover" />
@@ -316,6 +319,7 @@ export function MentorProfilePreview({
                     <div
                       key={i}
                       className="aspect-[3/4] w-24 shrink-0 rounded-xl border-2 border-dashed border-foreground/15 bg-foreground/[0.03]"
+                      style={{ transform: `rotate(${VIBE_TILT[i % VIBE_TILT.length]}deg)` }}
                     />
                   ))}
             </div>

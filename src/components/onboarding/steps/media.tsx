@@ -28,16 +28,16 @@ export function MediaStep() {
       onSkip={() => goNext()}
     >
       <MediaIntroField value={media} onChange={(m) => update({ media: m })} />
-      <div className="space-y-2 rounded-xl border bg-muted/40 px-3.5 py-3">
+      <div className="space-y-1.5 rounded-xl border bg-muted/40 px-3.5 py-2.5">
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Sparkles className="size-3.5 text-brand" />
           {INTRO_FRAMEWORK.eyebrow}
         </p>
-        <ol className="space-y-1.5">
+        <ol className="space-y-1">
           {INTRO_FRAMEWORK.beats.map((beat, i) => (
             <li
               key={beat}
-              className="flex gap-2.5 text-[13.5px] leading-relaxed text-foreground/80"
+              className="flex gap-2.5 text-[13px] leading-snug text-foreground/80"
             >
               <span className="mt-px text-xs font-semibold tabular-nums text-brand/70">
                 {i + 1}
