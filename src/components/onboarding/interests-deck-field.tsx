@@ -10,7 +10,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
-import { SwipeDeck } from "@/components/onboarding/swipe-deck";
 import { INTEREST_OPTIONS } from "@/lib/options";
 import { iconFor } from "@/lib/interest-icons";
 import { downscaleImageToWebP, readFileAsDataUrl } from "@/lib/files";
@@ -30,7 +29,6 @@ type Verdict =
   | { state: "mismatch"; suggested: string };
 
 export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props) {
-  const [index, setIndex] = useState(0);
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const targetRef = useRef<string | null>(null); // interest a photo is being added to
@@ -57,15 +55,7 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
   // Toggle interests → keep entries (and their photos), append new, drop removed.
   const onChips = (next: string[]) => {
     const byName = new Map(value.map((e) => [e.name, e]));
-    const merged = next.map((n) => byName.get(n) ?? { name: n, photo: null });
-    onChange(merged);
-    const added = next.find((n) => !byName.has(n));
-    if (added) {
-      const i = merged.findIndex((e) => e.name === added);
-      if (i >= 0) setIndex(i);
-    } else {
-      setIndex((cur) => Math.max(0, Math.min(cur, merged.length - 1)));
-    }
+    onChange(next.map((n) => byName.get(n) ?? { name: n, photo: null }));
   };
 
   const pickPhotoFor = (name: string) => {
@@ -125,15 +115,16 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
             </p>
           </div>
 
-          <SwipeDeck
-            count={value.length}
-            index={Math.min(index, value.length - 1)}
-            onIndexChange={setIndex}
-            className="mx-auto aspect-[3/4] w-[84%] max-w-[300px]"
-            renderCard={(i) => {
-              const entry = value[i];
-              if (!entry) return null;
-              return (
+          {/* One labeled card per selected interest — every interest↔photo pair
+              is visible at once, so the 1:1 bond is explicit (vs. one-at-a-time
+              swiping). A grid (not a scroll row) also keeps this clearly distinct
+              from the vibe step. */}
+          <div className="grid grid-cols-2 gap-3">
+            {value.map((entry) => (
+              <div
+                key={entry.name}
+                className="aspect-[3/4] animate-in fade-in zoom-in-95 duration-300"
+              >
                 <InterestCard
                   entry={entry}
                   Icon={iconFor(entry.name)}
@@ -142,9 +133,9 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
                   onClearPhoto={() => clearPhoto(entry.name)}
                   onKeep={() => setVerdict(entry.name, { state: "match" })}
                 />
-              );
-            }}
-          />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -589,15 +589,26 @@ function InterestPhotoDeck({ entries }: { entries: InterestEntry[] }) {
         {[2, 1, 0].map((o) => (
           <div
             key={o}
-            className="absolute inset-0 rounded-2xl border-4 border-white text-foreground/15 shadow-[0_6px_16px_rgba(31,30,29,0.08)]"
+            className="absolute inset-0 overflow-hidden rounded-2xl border-4 border-white bg-muted shadow-[0_6px_16px_rgba(31,30,29,0.08)]"
             style={{
               transform: `translateY(${o * 8}px) scale(${1 - o * 0.05}) rotate(${o === 1 ? 3 : o === 2 ? -2.5 : 0}deg)`,
               zIndex: 3 - o,
-              backgroundImage:
-                "radial-gradient(currentColor 1.1px, transparent 1.3px)",
-              backgroundSize: "8px 8px",
             }}
-          />
+          >
+            {/* Opaque cards (so the stack doesn't bleed into a busy moiré); a
+                faint, sparse dot texture on just the top card reads as a
+                placeholder without the noise. */}
+            {o === 0 && (
+              <div
+                className="size-full text-foreground/[0.08]"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(currentColor 1px, transparent 1.5px)",
+                  backgroundSize: "11px 11px",
+                }}
+              />
+            )}
+          </div>
         ))}
       </div>
     );

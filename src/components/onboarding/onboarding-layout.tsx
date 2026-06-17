@@ -92,15 +92,19 @@ export function OnboardingLayout({ children, progress, preview }: Props) {
 
   // ── 2-column: build on the left, live phone preview on the right ────────
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-gradient-to-b from-[#fff2ea] to-[#f6f4f1] sm:px-6 sm:py-10">
+    // overflow-CLIP (not hidden) clips the doodles without creating a scroll
+    // container — so the sticky preview below can pin to the viewport.
+    <div className="relative min-h-dvh overflow-clip bg-gradient-to-b from-[#fff2ea] to-[#f6f4f1] sm:px-6 sm:py-10">
       <DoodleScatter className="hidden opacity-40 lg:block" />
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0">{panel}</div>
 
-        {/* Desktop: sticky live preview — fades in once it reveals, and the
-            device dissolves at the bottom so the zoom never cuts hard. */}
-        <div className="hidden lg:block">
-          <div className="sticky top-10 flex animate-in flex-col items-center gap-3 fade-in slide-in-from-bottom-6 duration-700">
+        {/* Desktop: sticky live preview — pins to the viewport while a long
+            left column scrolls. Sticky sits on the GRID ITEM (its containing
+            block is the full-height grid area), and it fades in once it reveals
+            with the device dissolving at the bottom so the zoom never cuts hard. */}
+        <div className="hidden self-start lg:sticky lg:top-10 lg:block">
+          <div className="flex animate-in flex-col items-center gap-3 fade-in slide-in-from-bottom-6 duration-700">
             <p className="text-xs text-muted-foreground">
               Live preview · what teens see
             </p>
