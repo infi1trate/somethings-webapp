@@ -35,6 +35,8 @@ export interface InvitedProfile {
   dob: string; // YYYY-MM-DD
   phone: string;
   sex: string;
+  genderIdentity: string;
+  pronouns: string[];
   races: string[];
 }
 
@@ -48,6 +50,8 @@ export async function getInvitedProfile(
     dob: "1999-04-12",
     phone: "(415) 555-0188",
     sex: "female",
+    genderIdentity: "woman",
+    pronouns: ["she/her"],
     races: ["Hispanic or Latino"],
   });
 }

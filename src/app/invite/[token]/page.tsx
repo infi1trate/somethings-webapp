@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Wordmark } from "@/components/brand";
 import { DoodleScatter } from "@/components/doodles";
 import { WelcomeIntro } from "@/components/onboarding/intro/welcome-intro";
-import { ExamplesIntro } from "@/components/onboarding/intro/examples-intro";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import {
   validateInvite,
@@ -26,7 +25,6 @@ export default function InvitePage({
   const acceptInvite = useOnboardingStore((s) => s.acceptInvite);
   const [info, setInfo] = useState<InviteInfo | null>(null);
   const [profile, setProfile] = useState<InvitedProfile | null>(null);
-  const [view, setView] = useState<"welcome" | "examples">("welcome");
 
   useEffect(() => {
     validateInvite(token).then(setInfo);
@@ -66,10 +64,7 @@ export default function InvitePage({
     );
   }
 
-  // Valid invite → a two-screen intro: Welcome → example profiles → the flow.
-  return view === "welcome" ? (
-    <WelcomeIntro onStart={() => setView("examples")} />
-  ) : (
-    <ExamplesIntro onBack={() => setView("welcome")} onContinue={start} />
-  );
+  // Valid invite → Welcome intro, then straight into the flow. (The example
+  // profiles now live in the flow itself, right after the Quick check step.)
+  return <WelcomeIntro onStart={start} />;
 }

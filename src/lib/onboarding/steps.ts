@@ -9,6 +9,12 @@ export interface StepMeta {
   section: StepSection;
   /** Whether this step can be skipped without blocking submission. */
   optional?: boolean;
+  /**
+   * Interstitial screens (e.g. the "Here's what you're building" intro) sit in
+   * the flow but aren't counted in the "Step X of Y" progress — see
+   * useOnboardingNav.
+   */
+  interstitial?: boolean;
 }
 
 export const STEP_ORDER: StepMeta[] = [
@@ -18,9 +24,14 @@ export const STEP_ORDER: StepMeta[] = [
   // confirmed (and editable) on one screen — see steps/confirm.tsx.
   { slug: "confirm", section: "About you" },
 
+  // Example-profiles intro — kicks off the profile-building phase right after the
+  // mentor confirms their basics. Rendered full-bleed by the wizard.
+  { slug: "examples", section: "Your profile", interstitial: true },
+
   { slug: "profile-photo", section: "Your profile", optional: true },
   { slug: "nickname", section: "Your profile", optional: true },
-  { slug: "pronouns", section: "Your profile" },
+  // Pronouns are pulled from the application and confirmed on the Quick-check
+  // (confirm) screen, so there's no standalone pronouns step.
   { slug: "languages", section: "Your profile" },
   { slug: "bio", section: "Your profile" },
   { slug: "spotify", section: "Your profile", optional: true },

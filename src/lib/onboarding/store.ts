@@ -76,9 +76,10 @@ export const useOnboardingStore = create<OnboardingState>()(
     {
       name: "somethings.mentor-onboarding",
       // v2: interests string[] → InterestEntry[] (1:1 interest↔photo) + drop the
-      // additionalImages gallery. v3: add the "vibe board" field. Convert old
+      // additionalImages gallery. v3: add the "vibe board" field. v4: add
+      // genderIdentity (pulled + confirmed on the Quick-check screen). Convert old
       // persisted drafts in place so a reload doesn't break on the new shape.
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const s = persisted as { draft?: Record<string, unknown> };
         if (s?.draft) {
@@ -93,6 +94,9 @@ export const useOnboardingStore = create<OnboardingState>()(
           }
           if (version < 3 && !Array.isArray(d.vibe)) {
             d.vibe = []; // new field — backfill so reads don't break
+          }
+          if (version < 4 && typeof d.genderIdentity !== "string") {
+            d.genderIdentity = ""; // new field — backfill so reads don't break
           }
         }
         return s as unknown as OnboardingState;

@@ -8,6 +8,17 @@ export const SEX_OPTIONS = [
   { value: "prefer_not", label: "Prefer not to say" },
 ];
 
+export const GENDER_IDENTITY_OPTIONS = [
+  { value: "woman", label: "Woman" },
+  { value: "man", label: "Man" },
+  { value: "non_binary", label: "Non-binary" },
+  { value: "transgender", label: "Transgender" },
+  { value: "genderqueer", label: "Genderqueer / Gender fluid" },
+  { value: "agender", label: "Agender" },
+  { value: "self_describe", label: "Prefer to self-describe" },
+  { value: "prefer_not", label: "Prefer not to say" },
+];
+
 export const PRONOUN_OPTIONS = [
   "she/her",
   "he/him",

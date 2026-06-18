@@ -35,10 +35,10 @@ export function StepScaffold<T extends FieldValues>({
   const { section, index } = useOnboardingNav();
 
   return (
-    <div
-      key={index}
-      className="flex flex-1 flex-col animate-in fade-in slide-in-from-bottom-3 duration-300"
-    >
+    // No per-step enter animation here — the wizard cross-fades between steps
+    // via the View Transitions API, so the content must be fully opaque when the
+    // transition snapshots it.
+    <div className="flex flex-1 flex-col">
       <div className="mb-7 space-y-4">
         <SectionDoodle section={section} seed={index} />
         <div className="space-y-2">

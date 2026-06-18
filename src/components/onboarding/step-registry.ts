@@ -6,10 +6,7 @@ import { NicknameStep } from "@/components/onboarding/steps/nickname";
 import { BioStep } from "@/components/onboarding/steps/bio";
 import { SpotifyStep } from "@/components/onboarding/steps/spotify";
 import { MediaStep } from "@/components/onboarding/steps/media";
-import {
-  PronounsStep,
-  LanguagesStep,
-} from "@/components/onboarding/steps/chip-steps";
+import { LanguagesStep } from "@/components/onboarding/steps/chip-steps";
 import { VibeStep } from "@/components/onboarding/steps/vibe";
 import { InterestsStep } from "@/components/onboarding/steps/interests";
 
@@ -18,7 +15,6 @@ export const STEP_COMPONENTS: Record<string, ComponentType> = {
   confirm: ConfirmStep,
   "profile-photo": ProfilePhotoStep,
   nickname: NicknameStep,
-  pronouns: PronounsStep,
   languages: LanguagesStep,
   bio: BioStep,
   spotify: SpotifyStep,

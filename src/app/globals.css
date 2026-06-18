@@ -183,3 +183,53 @@
     animation: none;
   }
 }
+
+/*
+ * ── Device deck: scale-in + fan-out ───────────────────────────────────────
+ * On "Here's what you're building", the phone mockups start stacked and small
+ * at center, then scale up and fan out to their resting positions. Each phone's
+ * final placement is driven by CSS vars (--fx/--fy/--fr/--fs) so a single
+ * keyframe handles the whole deck; stagger comes from per-phone animation-delay.
+ */
+@keyframes device-fan-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(16px) rotate(0deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%)
+      translate(var(--fx, 0px), var(--fy, 0px)) rotate(var(--fr, 0deg))
+      scale(var(--fs, 1));
+  }
+}
+
+.device-fan {
+  /* Resting state mirrors the keyframe's "to", so reduced-motion (animation
+     disabled) still lands the deck in its fanned layout. */
+  transform: translate(-50%, -50%)
+    translate(var(--fx, 0px), var(--fy, 0px)) rotate(var(--fr, 0deg))
+    scale(var(--fs, 1));
+  animation: device-fan-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .device-fan {
+    animation: none;
+  }
+}
+
+/*
+ * ── Step cross-fade (View Transitions API) ─────────────────────────────────
+ * onboarding-wizard drives a document view transition on each step change, so
+ * the whole step view cross-fades smoothly (and the background dissolves across
+ * the account → profile phase boundary). Tuned longer + softer than the UA
+ * default. Disabled for reduced motion (the wizard also skips it in JS).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 420ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

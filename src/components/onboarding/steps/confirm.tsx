@@ -16,7 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { SEX_OPTIONS, RACE_OPTIONS } from "@/lib/options";
+import {
+  SEX_OPTIONS,
+  GENDER_IDENTITY_OPTIONS,
+  PRONOUN_OPTIONS,
+  RACE_OPTIONS,
+} from "@/lib/options";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { useDraftSync } from "@/lib/onboarding/use-live-sync";
@@ -61,6 +66,8 @@ const schema = z.object({
     .string()
     .refine((v) => v.replace(/\D/g, "").length === 10, "Enter a 10-digit number."),
   sex: z.string().min(1, "Pick one."),
+  genderIdentity: z.string().min(1, "Pick one."),
+  pronouns: z.array(z.string()).min(1, "Pick at least one."),
   races: z.array(z.string()),
 });
 
@@ -83,6 +90,8 @@ export function ConfirmStep() {
       email: draft.email,
       phone: draft.phone,
       sex: draft.sex,
+      genderIdentity: draft.genderIdentity ?? "",
+      pronouns: draft.pronouns ?? [],
       races: draft.races,
     },
   });
@@ -94,6 +103,8 @@ export function ConfirmStep() {
     email: v.email,
     phone: v.phone,
     sex: v.sex,
+    genderIdentity: v.genderIdentity,
+    pronouns: v.pronouns,
     races: v.races,
   }));
 
@@ -119,6 +130,9 @@ export function ConfirmStep() {
   const values = useWatch({ control: form.control }) as Values;
   const sexLabel =
     SEX_OPTIONS.find((o) => o.value === values.sex)?.label ?? "—";
+  const genderLabel =
+    GENDER_IDENTITY_OPTIONS.find((o) => o.value === values.genderIdentity)
+      ?.label ?? "—";
 
   return (
     <StepScaffold
@@ -128,15 +142,19 @@ export function ConfirmStep() {
         goNext();
       }}
       title="Quick check — does this look right?"
-      subtitle="We pulled these from your application. Fix anything that's off — teens never see this part."
+      subtitle="We pulled these from your application — give them a quick look and fix anything that's off."
       continueLabel="Yep, this is right"
       canGoBack={canGoBack}
       onBack={goBack}
     >
-      <div className="divide-y divide-border overflow-hidden rounded-2xl border bg-card">
-        <Row
+      {/* Compact two-column review grid: collapsed fields scan quickly; the one
+          being edited expands in place. Hairlines come from the gap over a
+          border-colored track. */}
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-2">
+        <Field
           label="Name"
           value={`${values.firstName} ${values.lastName}`.trim() || "—"}
+          span
           editing={isOpen("name")}
           onToggle={() => toggle("name")}
           error={errors.firstName?.message ?? errors.lastName?.message}
@@ -145,29 +163,30 @@ export function ConfirmStep() {
             <Input placeholder="First name" {...form.register("firstName")} />
             <Input placeholder="Last name" {...form.register("lastName")} />
           </div>
-        </Row>
+        </Field>
 
-        <Row
+        <Field
+          label="Email"
+          value={values.email || "—"}
+          span
+          editing={isOpen("email")}
+          onToggle={() => toggle("email")}
+          error={errors.email?.message}
+        >
+          <Input type="email" {...form.register("email")} />
+        </Field>
+
+        <Field
           label="Date of birth"
           value={values.dob ? formatDob(values.dob) : "—"}
           editing={isOpen("dob")}
           onToggle={() => toggle("dob")}
           error={errors.dob?.message}
         >
-          <Input type="date" className="w-fit" {...form.register("dob")} />
-        </Row>
+          <Input type="date" className="w-full" {...form.register("dob")} />
+        </Field>
 
-        <Row
-          label="Email"
-          value={values.email || "—"}
-          editing={isOpen("email")}
-          onToggle={() => toggle("email")}
-          error={errors.email?.message}
-        >
-          <Input type="email" {...form.register("email")} />
-        </Row>
-
-        <Row
+        <Field
           label="Phone"
           value={values.phone || "—"}
           editing={isOpen("phone")}
@@ -176,13 +195,12 @@ export function ConfirmStep() {
         >
           <Input
             inputMode="tel"
-            className="w-fit"
             value={values.phone}
             onChange={(e) => form.setValue("phone", formatPhone(e.target.value))}
           />
-        </Row>
+        </Field>
 
-        <Row
+        <Field
           label="Sex"
           value={sexLabel}
           editing={isOpen("sex")}
@@ -204,11 +222,56 @@ export function ConfirmStep() {
               ))}
             </SelectContent>
           </Select>
-        </Row>
+        </Field>
 
-        <Row
+        <Field
+          label="Gender identity"
+          value={genderLabel}
+          editing={isOpen("genderIdentity")}
+          onToggle={() => toggle("genderIdentity")}
+          error={errors.genderIdentity?.message}
+        >
+          <Select
+            value={values.genderIdentity}
+            onValueChange={(v) =>
+              form.setValue("genderIdentity", v, { shouldValidate: true })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Choose one" />
+            </SelectTrigger>
+            <SelectContent>
+              {GENDER_IDENTITY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field
+          label="Pronouns"
+          value={values.pronouns.length ? values.pronouns.join(", ") : "—"}
+          hint="Shows on your profile"
+          multiline
+          editing={isOpen("pronouns")}
+          onToggle={() => toggle("pronouns")}
+          error={errors.pronouns?.message}
+        >
+          <MultiSelectChips
+            options={PRONOUN_OPTIONS}
+            value={values.pronouns}
+            onChange={(next) =>
+              form.setValue("pronouns", next, { shouldValidate: true })
+            }
+          />
+        </Field>
+
+        <Field
           label="Race"
           value={values.races.length ? values.races.join(", ") : "—"}
+          multiline
           editing={isOpen("races")}
           onToggle={() => toggle("races")}
         >
@@ -217,15 +280,18 @@ export function ConfirmStep() {
             value={values.races}
             onChange={(next) => form.setValue("races", next)}
           />
-        </Row>
+        </Field>
       </div>
     </StepScaffold>
   );
 }
 
-function Row({
+function Field({
   label,
   value,
+  span,
+  multiline,
+  hint,
   editing,
   onToggle,
   error,
@@ -233,27 +299,43 @@ function Row({
 }: {
   label: string;
   value: string;
+  /** Span both columns (for wide fields like name, email, race). */
+  span?: boolean;
+  /** Let the value wrap instead of truncating (for multi-select fields). */
+  multiline?: boolean;
+  /** Small caption under the value (e.g. teen-visibility note). */
+  hint?: string;
   editing: boolean;
   onToggle: () => void;
   error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="px-4 py-3.5 sm:px-5">
-      <div className="flex items-start gap-3">
+    <div className={cn("bg-card px-4 py-3.5 sm:px-5", span && "sm:col-span-2")}>
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {label}
           </p>
           {!editing && (
-            <p className="mt-0.5 truncate text-[15px] text-foreground">{value}</p>
+            <p
+              className={cn(
+                "mt-0.5 text-[15px] text-foreground",
+                !multiline && "truncate"
+              )}
+            >
+              {value}
+            </p>
+          )}
+          {hint && !editing && (
+            <p className="mt-0.5 text-xs text-muted-foreground/80">{hint}</p>
           )}
         </div>
         <button
           type="button"
           onClick={onToggle}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors",
             editing
               ? "bg-foreground text-background"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -271,7 +353,11 @@ function Row({
         </button>
       </div>
 
-      {editing && <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">{children}</div>}
+      {editing && (
+        <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          {children}
+        </div>
+      )}
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </div>
   );

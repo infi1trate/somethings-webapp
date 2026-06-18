@@ -1,12 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import {
   MentorProfilePreview,
   type PreviewFocus,
 } from "@/components/onboarding/mentor-profile-preview";
+import { ExamplesIntro } from "@/components/onboarding/intro/examples-intro";
 import { STEP_COMPONENTS } from "@/components/onboarding/step-registry";
+import { STEP_ORDER, stepIndex, getStep } from "@/lib/onboarding/steps";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
@@ -18,7 +22,6 @@ const REGION_BY_STEP: Record<string, string> = {
   confirm: "identity",
   "profile-photo": "identity",
   nickname: "identity",
-  pronouns: "identity",
   bio: "bio",
   interests: "interests",
   spotify: "spotify",
@@ -26,6 +29,9 @@ const REGION_BY_STEP: Record<string, string> = {
   vibe: "vibe",
   languages: "languages",
 };
+
+// Real (non-interstitial) step count, for "Step X of Y".
+const TOTAL_STEPS = STEP_ORDER.filter((s) => !s.interstitial).length;
 
 // Start zoomed in, then ease out over the flow to reveal the whole profile.
 function focusFor(slug: string, index: number): PreviewFocus {
@@ -35,10 +41,49 @@ function focusFor(slug: string, index: number): PreviewFocus {
   return { region, zoom };
 }
 
+// Cross-fade between steps using the View Transitions API. We render a lagging
+// `rendered` slug and only advance it to the live step inside a view
+// transition's flushSync callback — that gives the browser a clean before/after
+// snapshot to dissolve between. Falls back to an instant swap when the API is
+// missing or the user prefers reduced motion.
+function useStepCrossfade(current: string) {
+  const [rendered, setRendered] = useState(current);
+
+  useEffect(() => {
+    if (current === rendered) return;
+
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const startViewTransition = (
+      document as unknown as {
+        startViewTransition?: (cb: () => void) => unknown;
+      }
+    ).startViewTransition?.bind(document);
+
+    if (startViewTransition && !prefersReduced) {
+      const transition = startViewTransition(() => {
+        flushSync(() => setRendered(current));
+      }) as
+        | { ready?: Promise<unknown>; finished?: Promise<unknown> }
+        | undefined;
+      // A newer step change aborts an in-flight transition; swallow the
+      // resulting promise rejections so they don't surface as unhandled.
+      transition?.ready?.catch?.(() => {});
+      transition?.finished?.catch?.(() => {});
+    } else {
+      setRendered(current);
+    }
+  }, [current, rendered]);
+
+  return rendered;
+}
+
 export function OnboardingWizard() {
   const mounted = useMounted();
-  const { current, index, total, section } = useOnboardingNav();
+  const nav = useOnboardingNav();
   const draft = useOnboardingStore((s) => s.draft);
+  const current = useStepCrossfade(nav.current);
 
   // Gate on mount so the localStorage-backed draft doesn't cause a hydration
   // mismatch, and key the step so each one remounts with fresh form defaults.
@@ -52,7 +97,23 @@ export function OnboardingWizard() {
     );
   }
 
+  // The example-profiles intro is a full-bleed interstitial — it kicks off the
+  // profile-building phase right after Quick check, so it renders on its own
+  // rather than inside the step panel.
+  if (current === "examples") {
+    return <ExamplesIntro onBack={nav.goBack} onContinue={nav.goNext} />;
+  }
+
+  const index = stepIndex(current);
+  const section = getStep(current)!.section;
+  const displayIndex =
+    STEP_ORDER.slice(0, index + 1).filter((s) => !s.interstitial).length - 1;
   const StepComponent = STEP_COMPONENTS[current];
+
+  // Account setup and the "Quick check" (DB basics) screen are the warm "intro"
+  // phase (Welcome-style background); everything from the profile build onward
+  // uses the spray-corner "step" background.
+  const phase = current === "register" || current === "confirm" ? "intro" : "step";
 
   // The account step has nothing to preview; everything else builds the profile,
   // so it gets the live phone preview alongside the inputs.
@@ -66,7 +127,11 @@ export function OnboardingWizard() {
   ) : undefined;
 
   return (
-    <OnboardingLayout progress={{ index, total, section }} preview={preview}>
+    <OnboardingLayout
+      progress={{ index: displayIndex, total: TOTAL_STEPS, section }}
+      preview={preview}
+      phase={phase}
+    >
       <StepComponent key={current} />
     </OnboardingLayout>
   );

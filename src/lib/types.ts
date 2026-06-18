@@ -46,6 +46,7 @@ export interface MentorDraft {
   profilePhoto: string | null; // background-removed cutout, data URL
   nickname: string;
   sex: string;
+  genderIdentity: string;
   pronouns: string[];
   races: string[];
   languages: string[];
@@ -67,6 +68,7 @@ export function emptyDraft(): MentorDraft {
     profilePhoto: null,
     nickname: "",
     sex: "",
+    genderIdentity: "",
     pronouns: [],
     races: [],
     languages: [],

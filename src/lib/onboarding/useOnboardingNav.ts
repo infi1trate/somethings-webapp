@@ -23,8 +23,13 @@ export function useOnboardingNav() {
   const requested = params.get("step") ?? FIRST_STEP;
   const current = getStep(requested) ? requested : FIRST_STEP;
   const index = stepIndex(current);
-  const total = STEP_ORDER.length;
   const meta = STEP_ORDER[index];
+
+  // "Step X of Y" counts only real (non-interstitial) steps, so dropping an
+  // intro screen into the flow doesn't leave a gap in the numbering.
+  const total = STEP_ORDER.filter((s) => !s.interstitial).length;
+  const displayIndex =
+    STEP_ORDER.slice(0, index + 1).filter((s) => !s.interstitial).length - 1;
 
   const goTo = useCallback(
     (slug: string) => router.push(stepHref(slug)),
@@ -49,11 +54,14 @@ export function useOnboardingNav() {
   return {
     current,
     index,
+    /** Position among real steps, for the "Step X of Y" progress display. */
+    displayIndex,
     total,
     section: meta.section,
     optional: !!meta.optional,
+    interstitial: !!meta.interstitial,
     canGoBack: index > 0,
-    isLast: index === total - 1,
+    isLast: index === STEP_ORDER.length - 1,
     goTo,
     goNext,
     goBack,

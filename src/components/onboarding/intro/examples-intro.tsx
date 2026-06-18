@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
+import { STEP_GRADIENT, StepBackdrop } from "@/components/onboarding/backdrops";
 import { cn } from "@/lib/utils";
 
 /**
@@ -30,15 +31,29 @@ const EXAMPLES: Example[] = [
   { src: "/profile-example5.png", accent: "#34c3d9" },
 ];
 
-// Fan transforms per position. Center sits forward + slightly raised; each step
-// outward tilts more, drops lower, and shrinks. The outer two only show on wide
-// screens (≥lg) — phone/tablet show a tidy three.
-const FAN = [
-  "hidden lg:block z-10 -mr-[4.75rem] translate-y-12 rotate-[-15deg] scale-[0.85]",
-  "z-20 -mr-11 translate-y-6 rotate-[-8deg] scale-[0.93]",
-  "z-40 -translate-y-1",
-  "z-20 -ml-11 translate-y-6 rotate-[8deg] scale-[0.93]",
-  "hidden lg:block z-10 -ml-[4.75rem] translate-y-12 rotate-[15deg] scale-[0.85]",
+// Resting fan positions, keyed to the deck's center. Each phone's final spot is
+// fed to the `device-fan` keyframe as CSS vars; the deck scales in and fans out
+// from a center stack on mount. Stagger blooms from the center outward. The
+// outer two only show on wide screens (≥lg) — phone/tablet show a tidy three.
+// The entrance is delayed so it lands just as the step cross-fade settles.
+type Slot = {
+  fx: string;
+  fy: string;
+  fr: string;
+  fs: string;
+  z: string;
+  delay: number;
+  vis?: string;
+};
+
+const FAN_BASE_DELAY = 400; // ms — clears the step cross-fade before fanning out
+
+const DECK: Slot[] = [
+  { fx: "-184px", fy: "56px", fr: "-15deg", fs: "0.84", z: "z-10", delay: FAN_BASE_DELAY + 160, vis: "hidden lg:block" },
+  { fx: "-94px", fy: "26px", fr: "-8deg", fs: "0.93", z: "z-20", delay: FAN_BASE_DELAY + 80 },
+  { fx: "0px", fy: "-6px", fr: "0deg", fs: "1", z: "z-40", delay: FAN_BASE_DELAY },
+  { fx: "94px", fy: "26px", fr: "8deg", fs: "0.93", z: "z-20", delay: FAN_BASE_DELAY + 80 },
+  { fx: "184px", fy: "56px", fr: "15deg", fs: "0.84", z: "z-10", delay: FAN_BASE_DELAY + 160, vis: "hidden lg:block" },
 ];
 
 export function ExamplesIntro({
@@ -49,22 +64,13 @@ export function ExamplesIntro({
   onBack: () => void;
 }) {
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-b from-[#ffede6] to-white px-4 py-8 sm:px-6 sm:py-10">
-      {/* faint blush spray glow behind the deck for warmth */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[58%] size-[820px] max-w-none -translate-x-1/2 -translate-y-1/2 bg-[#ffa8b2] opacity-45"
-        style={{
-          WebkitMaskImage: "url(/spray-blush.png)",
-          maskImage: "url(/spray-blush.png)",
-          WebkitMaskRepeat: "no-repeat",
-          maskRepeat: "no-repeat",
-          WebkitMaskSize: "contain",
-          maskSize: "contain",
-          WebkitMaskPosition: "center",
-          maskPosition: "center",
-        }}
-      />
+    <main
+      className={cn(
+        "relative flex min-h-dvh flex-col overflow-hidden px-4 py-8 sm:px-6 sm:py-10",
+        STEP_GRADIENT
+      )}
+    >
+      <StepBackdrop />
 
       <header className="relative z-10 flex shrink-0 items-center justify-between">
         <button
@@ -80,7 +86,7 @@ export function ExamplesIntro({
       </header>
 
       <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-6 py-2 text-center">
-        <div className="max-w-xl space-y-3 animate-in fade-in slide-in-from-bottom-3 duration-700">
+        <div className="max-w-xl space-y-3">
           <h1 className="text-[32px] font-bold leading-[1.02] tracking-[-0.03em] text-foreground text-balance sm:text-[42px]">
             Here&apos;s what you&apos;re building
           </h1>
@@ -90,10 +96,28 @@ export function ExamplesIntro({
           </p>
         </div>
 
-        <div className="flex w-full items-center justify-center pt-2 animate-in fade-in zoom-in-95 duration-700">
-          {EXAMPLES.map((ex, i) => (
-            <ProfilePhone key={ex.src} example={ex} className={FAN[i]} />
-          ))}
+        {/* Phones are absolutely centered, then fanned out via per-phone CSS
+            vars + the `device-fan` keyframe (see globals.css). */}
+        <div className="relative h-[360px] w-full max-w-[620px] pt-2 sm:h-[420px]">
+          {EXAMPLES.map((ex, i) => {
+            const slot = DECK[i];
+            return (
+              <ProfilePhone
+                key={ex.src}
+                example={ex}
+                className={cn(slot.z, slot.vis)}
+                style={
+                  {
+                    "--fx": slot.fx,
+                    "--fy": slot.fy,
+                    "--fr": slot.fr,
+                    "--fs": slot.fs,
+                    animationDelay: `${slot.delay}ms`,
+                  } as React.CSSProperties
+                }
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -120,14 +144,22 @@ export function ExamplesIntro({
 function ProfilePhone({
   example,
   className,
+  style,
 }: {
   example: Example;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className={cn("w-[35vw] max-w-[172px] shrink-0", className)}>
+    <div
+      className={cn(
+        "device-fan absolute left-1/2 top-1/2 w-[42vw] max-w-[168px]",
+        className
+      )}
+      style={style}
+    >
       <div className="overflow-hidden rounded-[1.7rem] bg-neutral-900 p-[4px] shadow-[0_24px_45px_-24px_rgba(31,30,29,0.6)] ring-1 ring-black/10">
         <div className="relative aspect-[9/19] overflow-hidden rounded-[1.45rem] bg-white">
           {!failed ? (

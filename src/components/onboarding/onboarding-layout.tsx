@@ -12,19 +12,39 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { DoodleScatter, Moodie } from "@/components/doodles";
+import { Moodie } from "@/components/doodles";
+import {
+  INTRO_GRADIENT,
+  STEP_GRADIENT,
+  IntroBackdrop,
+  StepBackdrop,
+} from "@/components/onboarding/backdrops";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { REJECTION_RETURN_STEP } from "@/lib/onboarding/steps";
 import { stepHref } from "@/lib/onboarding/useOnboardingNav";
+import { cn } from "@/lib/utils";
 
 interface Props {
   children: React.ReactNode;
   progress?: { index: number; total: number; section: string };
   /** When provided, renders a 2-column "build with live preview" layout. */
   preview?: React.ReactNode;
+  /**
+   * Which background phase to paint: "intro" (Welcome-style peach + blush, used
+   * for account setup and Quick check) or "step" (S3 spray corners, used from
+   * the profile build onward). Defaults to "step".
+   */
+  phase?: "intro" | "step";
 }
 
-export function OnboardingLayout({ children, progress, preview }: Props) {
+export function OnboardingLayout({
+  children,
+  progress,
+  preview,
+  phase = "step",
+}: Props) {
+  const gradient = phase === "intro" ? INTRO_GRADIENT : STEP_GRADIENT;
+  const Backdrop = phase === "intro" ? IntroBackdrop : StepBackdrop;
   const router = useRouter();
   const status = useOnboardingStore((s) => s.status);
   const rejectionNote = useOnboardingStore((s) => s.rejectionNote);
@@ -83,9 +103,14 @@ export function OnboardingLayout({ children, progress, preview }: Props) {
   // ── Single-column (e.g. account setup) ──────────────────────────────────
   if (!preview) {
     return (
-      <div className="relative flex min-h-dvh justify-center overflow-hidden bg-gradient-to-b from-[#fff2ea] to-[#f6f4f1] sm:px-6 sm:py-10">
-        <DoodleScatter className="hidden opacity-50 lg:block" />
-        <div className="w-full max-w-2xl">{panel}</div>
+      <div
+        className={cn(
+          "relative flex min-h-dvh justify-center overflow-hidden sm:px-6 sm:py-10",
+          gradient
+        )}
+      >
+        <Backdrop />
+        <div className="relative z-10 w-full max-w-2xl">{panel}</div>
       </div>
     );
   }
@@ -94,8 +119,13 @@ export function OnboardingLayout({ children, progress, preview }: Props) {
   return (
     // overflow-CLIP (not hidden) clips the doodles without creating a scroll
     // container — so the sticky preview below can pin to the viewport.
-    <div className="relative min-h-dvh overflow-clip bg-gradient-to-b from-[#fff2ea] to-[#f6f4f1] sm:px-6 sm:py-10">
-      <DoodleScatter className="hidden opacity-40 lg:block" />
+    <div
+      className={cn(
+        "relative min-h-dvh overflow-clip sm:px-6 sm:py-10",
+        gradient
+      )}
+    >
+      <Backdrop />
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0">{panel}</div>
 
