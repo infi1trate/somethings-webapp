@@ -32,6 +32,15 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# Google service-account keys — NEVER commit. Reference them by path via
+# GOOGLE_APPLICATION_CREDENTIALS instead. Defensive patterns in case a key
+# file ever lands in the repo tree.
+link-backend-*.json
+*-service-account.json
+*serviceaccount*.json
+gcp-credentials*.json
 
 # vercel
 .vercel

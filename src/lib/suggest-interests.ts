@@ -1,7 +1,7 @@
 // Client helper: ask the server route to suggest interest tags for a photo.
-// The route uses Claude vision when ANTHROPIC_API_KEY is set, and otherwise
-// returns a mock — so this never throws on the happy path. Returns [] on any
-// transport failure.
+// The route uses Claude vision (via Google Vertex AI) when Vertex is
+// configured, and otherwise returns a mock — so this never throws on the happy
+// path. Returns [] on any transport failure.
 export async function suggestInterests(
   imageDataUrl: string,
   selected: string[]

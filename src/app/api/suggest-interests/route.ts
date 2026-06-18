@@ -1,7 +1,14 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { INTEREST_OPTIONS } from "@/lib/options";
 
+// Claude runs through Google Vertex AI (no Anthropic API key). Auth is Google
+// Application Default Credentials — point GOOGLE_APPLICATION_CREDENTIALS at the
+// service-account JSON (see .env.example). The `nodejs` runtime is required:
+// file-based ADC can't run on the edge runtime.
 export const runtime = "nodejs";
+
+const VERTEX_PROJECT_ID = process.env.ANTHROPIC_VERTEX_PROJECT_ID;
+const VERTEX_REGION = process.env.CLOUD_ML_REGION || "global";
 
 type Body = { imageDataUrl?: string; selected?: string[] };
 type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -14,7 +21,7 @@ function parseDataUrl(
   return m ? { mediaType: m[1] as ImageMediaType, base64: m[2] } : null;
 }
 
-// Used when ANTHROPIC_API_KEY isn't set (or the call fails) so the flow always
+// Used when Vertex isn't configured (or the call fails) so the flow always
 // works in the prototype: a plausible 1–2 tags, biased toward what the mentor
 // already picked.
 function mockSuggest(selected: string[]): string[] {
@@ -32,15 +39,24 @@ export async function POST(request: Request) {
   const { imageDataUrl, selected = [] } = body;
   const parsed = imageDataUrl ? parseDataUrl(imageDataUrl) : null;
 
-  // No key (or unreadable image) → mock, so the demo never breaks.
-  if (!process.env.ANTHROPIC_API_KEY || !parsed) {
+  // No Vertex project configured (or unreadable image) → mock, so the demo
+  // never breaks. A missing/invalid credential is caught below and also
+  // degrades to the mock.
+  if (!VERTEX_PROJECT_ID || !parsed) {
     return Response.json({ interests: mockSuggest(selected) });
   }
 
   try {
-    const client = new Anthropic();
+    const client = new AnthropicVertex({
+      projectId: VERTEX_PROJECT_ID,
+      region: VERTEX_REGION,
+    });
     const message = await client.messages.create({
-      model: "claude-opus-4-8",
+      // TEMPORARY: Claude Opus 4.8 isn't enabled in this Vertex project yet, so
+      // we pin Sonnet 4.5 (verified available in us-east5). On Vertex, Sonnet
+      // 4.5 uses the @date-suffixed model ID. Once Opus 4.8 is enabled in the
+      // Model Garden, restore "claude-opus-4-8" and set CLOUD_ML_REGION=global.
+      model: "claude-sonnet-4-5@20250929",
       max_tokens: 256,
       messages: [
         {
