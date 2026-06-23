@@ -1,8 +1,9 @@
 "use client";
 
-// DEV-ONLY scaffolding — not product UI. Lets you flip between the two sides of
+// Dev/demo scaffolding — not product UI. Lets you flip between the two sides of
 // the review loop (the mentor's onboarding flow and the admin review console)
-// without real auth. Mounted from the root layout in non-production only.
+// without real auth. Mounted from the root layout in ALL environments (incl. the
+// Vercel demo) so reviewers can switch sides — there's no auth gate behind it.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";

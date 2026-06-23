@@ -5,10 +5,13 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import {
   emptyDraft,
   type ChangeRequest,
+  type HubStepKey,
+  type HubStepStatus,
   type MentorDraft,
   type ProfileStatus,
 } from "@/lib/types";
 import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
+import { emptyHubSteps } from "@/lib/onboarding/hub";
 
 interface OnboardingState {
   draft: MentorDraft;
@@ -18,6 +21,12 @@ interface OnboardingState {
   /** Section-tied changes the reviewer requested; read by the dock, the welcome
    *  modal, and the per-step note cards. */
   changeRequests: ChangeRequest[];
+  /** Per-step completion for the four non-profile hub steps. The Profile step's
+   *  status is derived from `status` (see lib/onboarding/hub.ts), not stored here. */
+  hubSteps: Record<HubStepKey, HubStepStatus>;
+  /** One-shot flag: the hub fires the "profile submitted" toast once, then clears
+   *  it, so it never reappears on later visits. Persisted. */
+  pendingSubmitToast: boolean;
   /** Session-only UI for the welcome-back modal (not persisted — shows once per
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
@@ -30,6 +39,10 @@ interface OnboardingState {
   acceptInvite: (prefill: Partial<MentorDraft>) => void;
   setRejection: (note: string | null) => void;
   setChangeRequests: (requests: ChangeRequest[]) => void;
+  /** Set one non-profile hub step's completion status. */
+  setHubStep: (key: HubStepKey, status: HubStepStatus) => void;
+  /** Arm/disarm the one-shot first-arrival submit toast. */
+  setPendingSubmitToast: (pending: boolean) => void;
   /** Mentor confirmed an unchanged field is fine as-is (explicit override). */
   confirmUnchanged: (id: string) => void;
   /** Undo a confirmed-unchanged back to none. */
@@ -48,6 +61,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       completed: [],
       rejectionNote: null,
       changeRequests: [],
+      hubSteps: emptyHubSteps(),
+      pendingSubmitToast: false,
       welcomeOpen: false,
       welcomeAutoShown: false,
       _hasHydrated: false,
@@ -88,6 +103,11 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       setChangeRequests: (requests) => set({ changeRequests: requests }),
 
+      setHubStep: (key, status) =>
+        set((state) => ({ hubSteps: { ...state.hubSteps, [key]: status } })),
+
+      setPendingSubmitToast: (pendingSubmitToast) => set({ pendingSubmitToast }),
+
       confirmUnchanged: (id) =>
         set((state) => ({
           changeRequests: state.changeRequests.map((c) =>
@@ -115,6 +135,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           completed: [],
           rejectionNote: null,
           changeRequests: [],
+          hubSteps: emptyHubSteps(),
+          pendingSubmitToast: false,
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -124,13 +146,16 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v2: interests string[] → InterestEntry[] + drop additionalImages. v3: vibe
       // board. v4: genderIdentity. v5: changeRequests list (replaces rejectionNote).
       // v6: changeRequests gain stepId/fieldKey/baselineValue/confirmedUnchanged
-      // (replacing step/done). Convert old persisted state in place.
-      version: 6,
+      // (replacing step/done). v7: add hubSteps + pendingSubmitToast for the
+      // onboarding hub. Convert old persisted state in place.
+      version: 7,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
           rejectionNote?: string | null;
           changeRequests?: unknown;
+          hubSteps?: unknown;
+          pendingSubmitToast?: unknown;
         };
         if (s?.draft) {
           const d = s.draft;
@@ -192,6 +217,15 @@ export const useOnboardingStore = create<OnboardingState>()(
             }
           );
         }
+        // v7: backfill hub-step state + the submit-toast flag.
+        if (version < 7) {
+          if (typeof s.hubSteps !== "object" || s.hubSteps === null) {
+            s.hubSteps = emptyHubSteps();
+          }
+          if (typeof s.pendingSubmitToast !== "boolean") {
+            s.pendingSubmitToast = false;
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -228,6 +262,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         completed: state.completed,
         rejectionNote: state.rejectionNote,
         changeRequests: state.changeRequests,
+        hubSteps: state.hubSteps,
+        pendingSubmitToast: state.pendingSubmitToast,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

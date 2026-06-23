@@ -45,6 +45,7 @@ export const STEP_ORDER: StepMeta[] = [
 export const FIRST_STEP = STEP_ORDER[0].slug;
 export const PREVIEW_PATH = "/onboarding/preview";
 export const SUBMITTED_PATH = "/onboarding/submitted";
+export const HUB_PATH = "/hub";
 
 export function stepIndex(slug: string): number {
   return STEP_ORDER.findIndex((s) => s.slug === slug);

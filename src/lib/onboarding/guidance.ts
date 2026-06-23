@@ -93,8 +93,10 @@ export const VIBE_PROMPTS: string[] = (() => {
   return out;
 })();
 
-// Example bios that cycle one at a time on the bio step.
+// Example bios that cycle one at a time on the bio step. Kept short — these are
+// just examples from other mentors to spark ideas, not a script to copy.
 export const BIO_EXAMPLES = [
-  "I'm a 22-year-old grad student studying social work, and I've always been passionate about creating spaces where people feel heard. I became a mentor because I remember how isolating high school felt, and I want to be the person I wish I had back then — someone who just gets it.",
-  "I'm 24, working in graphic design, and I spend most of my free time at coffee shops sketching or playing guitar. I wanted to become a mentor because I went through a lot of self-doubt as a teen, and I know how much it helps to have someone in your corner who believes in you.",
+  "I'm a designer and artist, and I became a mentor because of the impact mentorship had on my youth.",
+  "I'm studying social work, and I mentor to be the person I wish I'd had in high school.",
+  "I'm into music and design, and I mentor because someone believing in me made all the difference.",
 ];

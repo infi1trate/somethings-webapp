@@ -34,8 +34,8 @@ export default function AppShellPage() {
         <p className="text-sm text-muted-foreground">
           Your profile needs to be approved before you can manage it here.
         </p>
-        <Button variant="outline" onClick={() => router.push("/onboarding/submitted")}>
-          Back to status
+        <Button variant="outline" onClick={() => router.push("/hub")}>
+          Back to home
         </Button>
       </main>
     );

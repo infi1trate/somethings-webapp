@@ -9,6 +9,23 @@ export type ProfileStatus =
   | "published" // approved & live (Published / Active)
   | "rejected"; // changes requested — sent back for revision (badge: "Needs changes")
 
+/** Completion status for the four non-profile hub steps (Story, Training,
+ *  Scheduling, Away messages). */
+export type HubStepStatus = "not_started" | "in_progress" | "done";
+
+/** The four non-profile hub steps. The Profile step is derived from
+ *  ProfileStatus (see lib/onboarding/hub.ts), so it isn't keyed here. */
+export type HubStepKey = "story" | "training" | "scheduling" | "away";
+
+/** The Profile step's review sub-state shown in the hub — the spec's vocabulary,
+ *  DERIVED from ProfileStatus + progress (see lib/onboarding/hub.ts). */
+export type ProfileStepStatus =
+  | "not_started"
+  | "draft"
+  | "in_review"
+  | "returned"
+  | "approved";
+
 /** How a change request has been addressed. Derived, not just stored: `edited`
  *  is auto-detected from the live field value vs its baseline; `confirmed-
  *  unchanged` is an explicit override; `none` is neither. See

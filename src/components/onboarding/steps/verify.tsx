@@ -3,6 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { toast } from "sonner";
 import { StepScaffold } from "@/components/onboarding/step-scaffold";
 import {
@@ -12,7 +13,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { sendVerificationCode, verifyCode } from "@/lib/mock-api";
@@ -57,7 +63,7 @@ export function VerifyStep() {
         }
         goNext();
       }}
-      title="Enter your code"
+      title="First, enter your code"
       subtitle={`We texted a 6-digit code to ${maskPhone(
         phone
       )}. Enter it to keep going.`}
@@ -70,29 +76,37 @@ export function VerifyStep() {
         name="code"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Verification code</FormLabel>
+            {/* The title + subtitle already name the field; keep an accessible
+                label for screen readers without repeating it visually. */}
+            <FormLabel className="sr-only">Verification code</FormLabel>
             <FormControl>
-              <Input
+              <InputOTP
+                maxLength={6}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="••••••"
-                className="text-center text-lg tracking-[0.4em]"
-                {...field}
-              />
+                pattern={REGEXP_ONLY_DIGITS}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+              >
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <InputOTPSlot key={i} index={i} />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
 
-      <button
-        type="button"
-        onClick={resend}
-        className="inline-flex min-h-11 items-center rounded-md text-sm font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
-      >
-        Resend code
-      </button>
+      {/* Resend sits with the Verify CTA (the scaffold's footer) on the right. */}
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" onClick={resend}>
+          Resend code
+        </Button>
+      </div>
     </StepScaffold>
   );
 }

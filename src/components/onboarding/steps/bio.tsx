@@ -73,7 +73,7 @@ export function BioStep() {
           </FormItem>
         )}
       />
-      <CyclingExamples label="Need a starting point?" items={BIO_EXAMPLES} />
+      <CyclingExamples label="Examples from other mentors" items={BIO_EXAMPLES} />
     </StepScaffold>
   );
 }
