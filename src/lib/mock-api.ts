@@ -44,15 +44,15 @@ export async function getInvitedProfile(
   _token: string
 ): Promise<InvitedProfile> {
   return delay({
-    firstName: "Jordan",
-    lastName: "Rivera",
-    email: "jordan.rivera@gmail.com",
+    firstName: "Brandon",
+    lastName: "Forant",
+    email: "brandon@somethings.com",
     dob: "1999-04-12",
     phone: "(415) 555-0188",
-    sex: "female",
-    genderIdentity: "woman",
-    pronouns: ["she/her"],
-    races: ["Hispanic or Latino"],
+    sex: "male",
+    genderIdentity: "man",
+    pronouns: ["he/him"],
+    races: ["White"],
   });
 }
 

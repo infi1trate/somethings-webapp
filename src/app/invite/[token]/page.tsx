@@ -66,5 +66,5 @@ export default function InvitePage({
 
   // Valid invite → Welcome intro, then straight into the flow. (The example
   // profiles now live in the flow itself, right after the Quick check step.)
-  return <WelcomeIntro onStart={start} />;
+  return <WelcomeIntro onStart={start} firstName={profile?.firstName} />;
 }

@@ -28,9 +28,13 @@ export function NicknameStep() {
   const update = useOnboardingStore((s) => s.update);
   const { canGoBack, optional, goNext, goBack } = useOnboardingNav();
 
+  // Prefill the display name from the invite (their first name) so it isn't
+  // blank — the mentor can change it. Falls back to any name already saved.
+  const defaultName = draft.nickname || draft.firstName;
+
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { nickname: draft.nickname },
+    defaultValues: { nickname: defaultName },
   });
 
   useDraftSync(form.control, (v) => ({ nickname: v.nickname }));
@@ -49,7 +53,7 @@ export function NicknameStep() {
       canGoBack={canGoBack}
       onBack={goBack}
       optional={optional}
-      onSkip={() => save({ nickname: draft.nickname })}
+      onSkip={() => save({ nickname: defaultName })}
     >
       <FormField
         control={form.control}

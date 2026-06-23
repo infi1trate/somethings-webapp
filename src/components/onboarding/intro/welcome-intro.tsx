@@ -11,7 +11,14 @@ import { Button } from "@/components/ui/button";
  * right, wordmark + headline + subtext + black pill on the left. Stacks to a
  * single column (photo on top) on small screens.
  */
-export function WelcomeIntro({ onStart }: { onStart: () => void }) {
+export function WelcomeIntro({
+  onStart,
+  firstName,
+}: {
+  onStart: () => void;
+  /** The invited mentor's first name (from the invite); greets them by name. */
+  firstName?: string;
+}) {
   return (
     <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-b from-[#ffede6] to-white px-4 py-10 sm:px-6">
       <SprayBackdrop />
@@ -24,7 +31,8 @@ export function WelcomeIntro({ onStart }: { onStart: () => void }) {
 
             <div className="space-y-4">
               <h1 className="text-[40px] font-bold leading-[0.98] tracking-[-0.03em] text-foreground text-balance sm:text-5xl lg:text-[64px] lg:leading-[0.95] lg:tracking-[-0.045em]">
-                Welcome, glad you&apos;re here
+                Welcome{firstName ? `, ${firstName}` : ""}, glad you&apos;re
+                here
               </h1>
               <p className="max-w-[340px] text-[15px] leading-relaxed text-muted-foreground text-pretty">
                 Somethings connects teens with trained young-adult mentors.

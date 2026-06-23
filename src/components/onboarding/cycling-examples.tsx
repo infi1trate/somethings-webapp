@@ -49,7 +49,7 @@ export function CyclingExamples({
       </div>
       <p
         key={i}
-        className="min-h-[5rem] text-[13.5px] leading-relaxed text-foreground/80 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-500"
+        className="min-h-[1.5rem] text-[13.5px] leading-relaxed text-foreground/80 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-500"
       >
         {current}
       </p>

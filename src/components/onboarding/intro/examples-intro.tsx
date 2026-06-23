@@ -49,11 +49,11 @@ type Slot = {
 const FAN_BASE_DELAY = 400; // ms — clears the step cross-fade before fanning out
 
 const DECK: Slot[] = [
-  { fx: "-184px", fy: "56px", fr: "-15deg", fs: "0.84", z: "z-10", delay: FAN_BASE_DELAY + 160, vis: "hidden lg:block" },
-  { fx: "-94px", fy: "26px", fr: "-8deg", fs: "0.93", z: "z-20", delay: FAN_BASE_DELAY + 80 },
-  { fx: "0px", fy: "-6px", fr: "0deg", fs: "1", z: "z-40", delay: FAN_BASE_DELAY },
-  { fx: "94px", fy: "26px", fr: "8deg", fs: "0.93", z: "z-20", delay: FAN_BASE_DELAY + 80 },
-  { fx: "184px", fy: "56px", fr: "15deg", fs: "0.84", z: "z-10", delay: FAN_BASE_DELAY + 160, vis: "hidden lg:block" },
+  { fx: "-210px", fy: "62px", fr: "-16deg", fs: "0.84", z: "z-10", delay: FAN_BASE_DELAY + 240, vis: "hidden lg:block" },
+  { fx: "-96px", fy: "28px", fr: "-8deg", fs: "0.93", z: "z-20", delay: FAN_BASE_DELAY + 120 },
+  { fx: "0px", fy: "-10px", fr: "0deg", fs: "1", z: "z-40", delay: FAN_BASE_DELAY },
+  { fx: "96px", fy: "28px", fr: "8deg", fs: "0.93", z: "z-20", delay: FAN_BASE_DELAY + 120 },
+  { fx: "210px", fy: "62px", fr: "16deg", fs: "0.84", z: "z-10", delay: FAN_BASE_DELAY + 240, vis: "hidden lg:block" },
 ];
 
 export function ExamplesIntro({
@@ -98,7 +98,7 @@ export function ExamplesIntro({
 
         {/* Phones are absolutely centered, then fanned out via per-phone CSS
             vars + the `device-fan` keyframe (see globals.css). */}
-        <div className="relative h-[360px] w-full max-w-[620px] pt-2 sm:h-[420px]">
+        <div className="relative h-[400px] w-full max-w-[700px] pt-2 sm:h-[480px]">
           {EXAMPLES.map((ex, i) => {
             const slot = DECK[i];
             return (
@@ -155,7 +155,7 @@ function ProfilePhone({
   return (
     <div
       className={cn(
-        "device-fan absolute left-1/2 top-1/2 w-[42vw] max-w-[168px]",
+        "device-fan absolute left-1/2 top-1/2 w-[42vw] max-w-[188px]",
         className
       )}
       style={style}
