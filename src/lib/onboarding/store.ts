@@ -2,13 +2,26 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { emptyDraft, type MentorDraft, type ProfileStatus } from "@/lib/types";
+import {
+  emptyDraft,
+  type ChangeRequest,
+  type MentorDraft,
+  type ProfileStatus,
+} from "@/lib/types";
+import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
 
 interface OnboardingState {
   draft: MentorDraft;
   status: ProfileStatus;
   completed: string[]; // slugs the mentor has saved
   rejectionNote: string | null;
+  /** Section-tied changes the reviewer requested; read by the dock, the welcome
+   *  modal, and the per-step note cards. */
+  changeRequests: ChangeRequest[];
+  /** Session-only UI for the welcome-back modal (not persisted — shows once per
+   *  session entry, reopenable from the dock). */
+  welcomeOpen: boolean;
+  welcomeAutoShown: boolean;
   _hasHydrated: boolean;
 
   update: (patch: Partial<MentorDraft>) => void;
@@ -16,6 +29,13 @@ interface OnboardingState {
   setStatus: (status: ProfileStatus) => void;
   acceptInvite: (prefill: Partial<MentorDraft>) => void;
   setRejection: (note: string | null) => void;
+  setChangeRequests: (requests: ChangeRequest[]) => void;
+  /** Mentor confirmed an unchanged field is fine as-is (explicit override). */
+  confirmUnchanged: (id: string) => void;
+  /** Undo a confirmed-unchanged back to none. */
+  unconfirmChangeRequest: (id: string) => void;
+  setWelcomeOpen: (open: boolean) => void;
+  markWelcomeAutoShown: () => void;
   setHasHydrated: () => void;
   reset: () => void;
 }
@@ -27,6 +47,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       status: "invited",
       completed: [],
       rejectionNote: null,
+      changeRequests: [],
+      welcomeOpen: false,
+      welcomeAutoShown: false,
       _hasHydrated: false,
 
       update: (patch) =>
@@ -63,6 +86,26 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       setRejection: (note) => set({ rejectionNote: note }),
 
+      setChangeRequests: (requests) => set({ changeRequests: requests }),
+
+      confirmUnchanged: (id) =>
+        set((state) => ({
+          changeRequests: state.changeRequests.map((c) =>
+            c.id === id ? { ...c, confirmedUnchanged: true } : c
+          ),
+        })),
+
+      unconfirmChangeRequest: (id) =>
+        set((state) => ({
+          changeRequests: state.changeRequests.map((c) =>
+            c.id === id ? { ...c, confirmedUnchanged: false } : c
+          ),
+        })),
+
+      setWelcomeOpen: (welcomeOpen) => set({ welcomeOpen }),
+
+      markWelcomeAutoShown: () => set({ welcomeAutoShown: true }),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -71,17 +114,24 @@ export const useOnboardingStore = create<OnboardingState>()(
           status: "invited",
           completed: [],
           rejectionNote: null,
+          changeRequests: [],
+          welcomeOpen: false,
+          welcomeAutoShown: false,
         }),
     }),
     {
       name: "somethings.mentor-onboarding",
-      // v2: interests string[] → InterestEntry[] (1:1 interest↔photo) + drop the
-      // additionalImages gallery. v3: add the "vibe board" field. v4: add
-      // genderIdentity (pulled + confirmed on the Quick-check screen). Convert old
-      // persisted drafts in place so a reload doesn't break on the new shape.
-      version: 4,
+      // v2: interests string[] → InterestEntry[] + drop additionalImages. v3: vibe
+      // board. v4: genderIdentity. v5: changeRequests list (replaces rejectionNote).
+      // v6: changeRequests gain stepId/fieldKey/baselineValue/confirmedUnchanged
+      // (replacing step/done). Convert old persisted state in place.
+      version: 6,
       migrate: (persisted, version) => {
-        const s = persisted as { draft?: Record<string, unknown> };
+        const s = persisted as {
+          draft?: Record<string, unknown>;
+          rejectionNote?: string | null;
+          changeRequests?: unknown;
+        };
         if (s?.draft) {
           const d = s.draft;
           if (version < 2) {
@@ -98,6 +148,49 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (version < 4 && typeof d.genderIdentity !== "string") {
             d.genderIdentity = ""; // new field — backfill so reads don't break
           }
+        }
+        // v5: change-request list supersedes the single rejectionNote. Backfill an
+        // empty list; carry any old note over as one item so a mid-revision reload
+        // doesn't lose it.
+        if (version < 5 && !Array.isArray(s.changeRequests)) {
+          s.changeRequests = s.rejectionNote
+            ? [
+                {
+                  id: "legacy",
+                  step: "bio",
+                  sectionLabel: "Your profile",
+                  note: s.rejectionNote,
+                  done: false,
+                },
+              ]
+            : [];
+        }
+        // v6: map old change requests (step/done) onto the new shape. Snapshot the
+        // baseline from the persisted draft so nothing reads as "edited" until the
+        // mentor actually edits.
+        if (version < 6 && Array.isArray(s.changeRequests)) {
+          const fieldFor = (stepId: string) =>
+            PROFILE_SECTIONS.find((sec) => sec.step === stepId)?.fieldKey ?? "bio";
+          s.changeRequests = (s.changeRequests as Record<string, unknown>[]).map(
+            (c) => {
+              const stepId = (c.stepId as string) ?? (c.step as string) ?? "bio";
+              const fieldKey = (c.fieldKey as string) ?? fieldFor(stepId);
+              const baselineValue =
+                "baselineValue" in c
+                  ? c.baselineValue
+                  : s.draft?.[fieldKey] ?? null;
+              return {
+                id: c.id,
+                stepId,
+                fieldKey,
+                sectionLabel: c.sectionLabel,
+                note: c.note,
+                baselineValue,
+                confirmedUnchanged:
+                  (c.confirmedUnchanged as boolean) ?? Boolean(c.done),
+              };
+            }
+          );
         }
         return s as unknown as OnboardingState;
       },
@@ -134,6 +227,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         status: state.status,
         completed: state.completed,
         rejectionNote: state.rejectionNote,
+        changeRequests: state.changeRequests,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

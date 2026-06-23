@@ -5,7 +5,10 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { SectionDoodle } from "@/components/doodles";
+import { ChangeNoteCard } from "@/components/onboarding/change-note-card";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
+import { useOnboardingStore } from "@/lib/onboarding/store";
+import { requestsForStep } from "@/lib/onboarding/change-requests";
 
 interface StepScaffoldProps<T extends FieldValues> {
   form: UseFormReturn<T>;
@@ -32,7 +35,14 @@ export function StepScaffold<T extends FieldValues>({
   optional,
   onSkip,
 }: StepScaffoldProps<T>) {
-  const { section, index } = useOnboardingNav();
+  const { section, index, current } = useOnboardingNav();
+  const status = useOnboardingStore((s) => s.status);
+  const changeRequests = useOnboardingStore((s) => s.changeRequests);
+  const draft = useOnboardingStore((s) => s.draft);
+  // The reviewer's note(s) for THIS step live in the left panel — affected steps
+  // only. Steps with no request render nothing (silence is correct).
+  const stepRequests =
+    status === "rejected" ? requestsForStep(changeRequests, current) : [];
 
   return (
     // No per-step enter animation here — the wizard cross-fades between steps
@@ -52,6 +62,14 @@ export function StepScaffold<T extends FieldValues>({
           )}
         </div>
       </div>
+
+      {stepRequests.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {stepRequests.map((req) => (
+            <ChangeNoteCard key={req.id} req={req} draft={draft} />
+          ))}
+        </div>
+      )}
 
       <Form {...form}>
         <form

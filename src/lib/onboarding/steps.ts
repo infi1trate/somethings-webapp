@@ -18,6 +18,8 @@ export interface StepMeta {
 }
 
 export const STEP_ORDER: StepMeta[] = [
+  // 2FA — verify a code texted to the phone, before creating a password.
+  { slug: "verify", section: "Account" },
   { slug: "register", section: "Account" },
 
   // Name / DOB / email / phone / sex / race are pulled from the database and

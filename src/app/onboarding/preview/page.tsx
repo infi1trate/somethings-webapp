@@ -15,6 +15,8 @@ import { useMounted } from "@/lib/use-mounted";
 import { submitForReview } from "@/lib/mock-api";
 import { SUBMITTED_PATH } from "@/lib/onboarding/steps";
 import { stepHref } from "@/lib/onboarding/useOnboardingNav";
+import { changeProgress } from "@/lib/onboarding/change-requests";
+import { cn } from "@/lib/utils";
 
 export default function PreviewPage() {
   const mounted = useMounted();
@@ -23,7 +25,18 @@ export default function PreviewPage() {
   const status = useOnboardingStore((s) => s.status);
   const setStatus = useOnboardingStore((s) => s.setStatus);
   const setRejection = useOnboardingStore((s) => s.setRejection);
+  const changeRequests = useOnboardingStore((s) => s.changeRequests);
+  const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
   const [submitting, setSubmitting] = useState(false);
+
+  // Resubmission state: when the reviewer sent changes back, this screen's CTA
+  // becomes "Resubmit". It gains warm emphasis once every note is checked off,
+  // but stays tappable throughout — no hard gate.
+  const isRevision = mounted && status === "rejected";
+  const { addressed: done, total, allDone } = changeProgress(
+    changeRequests,
+    draft
+  );
 
   const submit = async () => {
     setSubmitting(true);
@@ -34,6 +47,7 @@ export default function PreviewPage() {
       return;
     }
     setRejection(null);
+    setChangeRequests([]);
     setStatus("in_review");
     router.push(SUBMITTED_PATH);
   };
@@ -53,7 +67,9 @@ export default function PreviewPage() {
               <Moodie name="face-love" className="doodle-float size-10" />
             </span>
             <h1 className="text-[27px] font-bold leading-tight tracking-tight text-balance">
-              One last look — ready to send it in?
+              {isRevision
+                ? "Ready to send your changes back?"
+                : "One last look — ready to send it in?"}
             </h1>
             <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground text-pretty">
               This is exactly what teens will see. A member of our team gives every
@@ -61,9 +77,40 @@ export default function PreviewPage() {
               days, and we&apos;ll email you either way.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            {isRevision && (
+              <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+                {allDone ? (
+                  <>
+                    <span className="font-medium text-foreground">
+                      All {total} change{total === 1 ? "" : "s"} addressed
+                    </span>{" "}
+                    — looks great. Send it back whenever you&apos;re ready.
+                  </>
+                ) : (
+                  <>
+                    You can resubmit anytime.{" "}
+                    <span className="font-medium text-foreground">
+                      {done} of {total}
+                    </span>{" "}
+                    of the team&apos;s notes checked off so far — the dock below
+                    tracks what&apos;s left.
+                  </>
+                )}
+              </p>
+            )}
+
+            <div
+              className={cn(
+                "flex flex-col gap-3 sm:flex-row sm:items-center",
+                isRevision ? "mt-4" : "mt-8"
+              )}
+            >
               <Button onClick={submit} disabled={submitting} size="lg">
-                {submitting ? "Sending…" : "Submit for review"}
+                {submitting
+                  ? "Sending…"
+                  : isRevision
+                    ? "Resubmit"
+                    : "Submit for review"}
               </Button>
               <Button
                 variant="ghost"

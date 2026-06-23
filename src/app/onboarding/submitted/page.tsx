@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FlaskConical } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { DoodleScatter, Moodie } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
@@ -10,37 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
-import { simulateReview } from "@/lib/mock-api";
-import { REJECTION_RETURN_STEP } from "@/lib/onboarding/steps";
-import { stepHref } from "@/lib/onboarding/useOnboardingNav";
-
-const REJECTION_NOTE =
-  "Thanks for this! Could you expand your bio a little and swap the first photo for one where your face is clearly visible? Re-submit when you're ready.";
 
 export default function SubmittedPage() {
   const mounted = useMounted();
   const router = useRouter();
   const status = useOnboardingStore((s) => s.status);
   const draft = useOnboardingStore((s) => s.draft);
-  const setStatus = useOnboardingStore((s) => s.setStatus);
-  const setRejection = useOnboardingStore((s) => s.setRejection);
-  const [working, setWorking] = useState(false);
-
-  const approve = async () => {
-    setWorking(true);
-    await simulateReview({ decision: "approved" });
-    setRejection(null);
-    setStatus("published");
-    router.push("/app");
-  };
-
-  const reject = async () => {
-    setWorking(true);
-    await simulateReview({ decision: "rejected", note: REJECTION_NOTE });
-    setStatus("rejected");
-    setRejection(REJECTION_NOTE);
-    router.push(stepHref(REJECTION_RETURN_STEP));
-  };
 
   const firstName = mounted ? draft.firstName : "";
 
@@ -70,31 +45,21 @@ export default function SubmittedPage() {
           </p>
         </div>
 
-        {/* ── Dev-only reviewer simulator ──────────────────────────────────
-            Stands in for the clinical-recruitment review step in the workflow.
-            Remove once a real review queue exists. */}
+        {/* ── Dev-only: jump to the reviewer's console ──────────────────────
+            The clinical-recruitment review now happens in the admin console
+            (also reachable anytime via the DEV role toggle, bottom-left). */}
         <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-left">
           <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             <FlaskConical className="size-3.5" />
-            Demo only · reviewer actions
+            Demo only · reviewer view
           </div>
           <p className="mb-3 text-sm text-muted-foreground">
-            Simulate what the clinical recruitment team would do next:
+            See what the recruitment team sees — open the review console to approve
+            this profile or send back changes.
           </p>
-          <div className="flex gap-3">
-            <Button size="sm" onClick={approve} disabled={working} className="gap-1.5">
-              <CheckCircle2 className="size-4" />
-              Approve & publish
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={reject}
-              disabled={working}
-            >
-              Send back for changes
-            </Button>
-          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/admin/users">Open admin review console</Link>
+          </Button>
         </div>
 
         <Separator />

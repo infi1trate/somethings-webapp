@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { DevRoleToggle } from "@/components/dev/role-toggle";
 
 // Real Somethings brand type, self-hosted from src/app/fonts.
 // TWK Lausanne = body / UI. Avantt Bold = display (headings, buttons, wordmark).
@@ -43,6 +44,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <Toaster />
+        {process.env.NODE_ENV !== "production" && <DevRoleToggle />}
       </body>
     </html>
   );

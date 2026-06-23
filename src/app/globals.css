@@ -185,6 +185,35 @@
 }
 
 /*
+ * ── Ken Burns: profile cutout ──────────────────────────────────────────────
+ * A very slow, subtle zoom + pan that begins as the profile loads. Applied to
+ * the whole cutout GROUP (crisp photo + its cyan spray contour) so the edge
+ * treatment tracks the photo as one. Pairs with the SVG "TV static" shimmer on
+ * just the sprayed edge (see mentor-profile-preview.tsx).
+ */
+@keyframes kenburns {
+  from {
+    transform: scale(1.06) translateX(0);
+  }
+  to {
+    transform: scale(1.2) translateX(-3.5%);
+  }
+}
+.kenburns {
+  /* Bottom-center origin + NO vertical translate keeps the photo's base pinned
+     to the bottom of the frame while it zooms; the horizontal drift supplies the
+     Ken Burns pan. Scale range is deliberately generous so the motion reads. */
+  animation: kenburns 15s ease-in-out infinite alternate;
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kenburns {
+    animation: none;
+  }
+}
+
+/*
  * ── Device deck: scale-in + fan-out ───────────────────────────────────────
  * On "Here's what you're building", the phone mockups start stacked and small
  * at center, then scale up and fan out to their resting positions. Each phone's

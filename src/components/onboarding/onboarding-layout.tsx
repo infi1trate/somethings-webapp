@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Eye } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { StatusBadge } from "@/components/onboarding/status-badge";
+import { ChangeRequestsDock } from "@/components/onboarding/change-requests-dock";
+import { WelcomeBackModal } from "@/components/onboarding/welcome-back-modal";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Moodie } from "@/components/doodles";
 import {
   INTRO_GRADIENT,
   STEP_GRADIENT,
@@ -20,8 +20,6 @@ import {
   StepBackdrop,
 } from "@/components/onboarding/backdrops";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { REJECTION_RETURN_STEP } from "@/lib/onboarding/steps";
-import { stepHref } from "@/lib/onboarding/useOnboardingNav";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -35,6 +33,10 @@ interface Props {
    * the profile build onward). Defaults to "step".
    */
   phase?: "intro" | "step";
+  /** Suppress the revision dock (e.g. on the pre-login account/login screen). */
+  hideDock?: boolean;
+  /** Suppress the profile status badge (e.g. on the returning-user login page). */
+  hideStatus?: boolean;
 }
 
 export function OnboardingLayout({
@@ -42,12 +44,12 @@ export function OnboardingLayout({
   progress,
   preview,
   phase = "step",
+  hideDock = false,
+  hideStatus = false,
 }: Props) {
   const gradient = phase === "intro" ? INTRO_GRADIENT : STEP_GRADIENT;
   const Backdrop = phase === "intro" ? IntroBackdrop : StepBackdrop;
-  const router = useRouter();
   const status = useOnboardingStore((s) => s.status);
-  const rejectionNote = useOnboardingStore((s) => s.rejectionNote);
 
   const pct = progress
     ? Math.round(((progress.index + 1) / progress.total) * 100)
@@ -58,7 +60,7 @@ export function OnboardingLayout({
       <header>
         <div className="flex h-14 items-center justify-between px-5 sm:px-8">
           <Wordmark />
-          <StatusBadge status={status} />
+          {!hideStatus && <StatusBadge status={status} />}
         </div>
         {progress && (
           <div className="border-b px-5 pb-3 sm:px-8">
@@ -72,27 +74,6 @@ export function OnboardingLayout({
           </div>
         )}
       </header>
-
-      {status === "rejected" && rejectionNote && (
-        <div className="border-b border-orange-200 bg-orange-50">
-          <div className="flex gap-3 px-5 py-3 text-sm text-orange-900 sm:px-8">
-            <Moodie name="face-awkward" className="mt-0.5 size-7 shrink-0" />
-            <div>
-              <p className="font-medium">
-                A few things to tweak before this goes live
-              </p>
-              <p className="text-orange-800">{rejectionNote}</p>
-              <button
-                type="button"
-                onClick={() => router.push(stepHref(REJECTION_RETURN_STEP))}
-                className="mt-1 font-medium underline underline-offset-2"
-              >
-                Jump back in
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <main className="flex flex-1 flex-col px-5 py-8 sm:px-8 sm:py-10">
         {children}
@@ -111,6 +92,8 @@ export function OnboardingLayout({
       >
         <Backdrop />
         <div className="relative z-10 w-full max-w-2xl">{panel}</div>
+        {!hideDock && <ChangeRequestsDock />}
+      {!hideDock && <WelcomeBackModal />}
       </div>
     );
   }
@@ -145,8 +128,14 @@ export function OnboardingLayout({
         </div>
       </div>
 
-      {/* Mobile: a tap-to-open preview */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex justify-center p-4 lg:hidden">
+      {/* Mobile: a tap-to-open preview. Lifted above the revision dock when the
+          profile is in changes-requested state so the two don't overlap. */}
+      <div
+        className={cn(
+          "fixed inset-x-0 z-20 flex justify-center p-4 lg:hidden",
+          status === "rejected" ? "bottom-20" : "bottom-0"
+        )}
+      >
         <Dialog>
           <DialogTrigger asChild>
             <Button className="shadow-lg">
@@ -162,6 +151,9 @@ export function OnboardingLayout({
           </DialogContent>
         </Dialog>
       </div>
+
+      {!hideDock && <ChangeRequestsDock />}
+      {!hideDock && <WelcomeBackModal />}
     </div>
   );
 }

@@ -9,8 +9,7 @@ import { Moodie } from "@/components/doodles";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { cutoutBackground } from "@/lib/cutout";
-import { StepTips } from "@/components/onboarding/step-tips";
-import { PHOTO_TIPS } from "@/lib/onboarding/guidance";
+import { PhotoExamples } from "@/components/onboarding/photo-examples";
 
 type Mode = "idle" | "camera" | "processing" | "denied";
 
@@ -93,9 +92,7 @@ export function ProfilePhotoStep() {
       optional={optional}
       onSkip={() => goNext()}
     >
-      {!profilePhoto && (mode === "idle" || mode === "denied") && (
-        <StepTips dos={PHOTO_TIPS.dos} donts={PHOTO_TIPS.donts} note={PHOTO_TIPS.note} />
-      )}
+      {!profilePhoto && (mode === "idle" || mode === "denied") && <PhotoExamples />}
 
       {/* Saved */}
       {profilePhoto && mode === "idle" && (

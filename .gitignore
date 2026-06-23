@@ -42,6 +42,9 @@ link-backend-*.json
 *serviceaccount*.json
 gcp-credentials*.json
 
+# Claude Code local session metadata — machine-local, never commit
+local_*.json
+
 # vercel
 .vercel
 

@@ -15,8 +15,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
+import { firstUnaddressed } from "@/lib/onboarding/change-requests";
 
-const schema = z
+// New invitee — create a password to finish setting up the account.
+const setupSchema = z
   .object({
     password: z.string().min(8, "Use at least 8 characters."),
     confirm: z.string(),
@@ -25,15 +27,31 @@ const schema = z
     path: ["confirm"],
     message: "These don't match yet.",
   });
+type SetupValues = z.infer<typeof setupSchema>;
 
-type Values = z.infer<typeof schema>;
+// Returning mentor — log back in with email + password.
+const loginSchema = z.object({
+  email: z.string().email("Enter a valid email."),
+  password: z.string().min(1, "Enter your password."),
+});
+type LoginValues = z.infer<typeof loginSchema>;
 
 export function RegisterStep() {
+  // A returning mentor already has an account (they've submitted at least once —
+  // in review, sent back for changes, or published), so they log in. A brand-new
+  // invitee sets a password to create their account.
+  const status = useOnboardingStore((s) => s.status);
+  const returning =
+    status === "in_review" || status === "rejected" || status === "published";
+  return returning ? <LoginView /> : <SetupView />;
+}
+
+function SetupView() {
   const update = useOnboardingStore((s) => s.update);
   const { canGoBack, goNext, goBack } = useOnboardingNav();
 
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
+  const form = useForm<SetupValues>({
+    resolver: zodResolver(setupSchema),
     defaultValues: { password: "", confirm: "" },
   });
 
@@ -72,6 +90,69 @@ export function RegisterStep() {
             <FormLabel>Confirm password</FormLabel>
             <FormControl>
               <Input type="password" autoComplete="new-password" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </StepScaffold>
+  );
+}
+
+function LoginView() {
+  const draft = useOnboardingStore((s) => s.draft);
+  const changeRequests = useOnboardingStore((s) => s.changeRequests);
+  const markComplete = useOnboardingStore((s) => s.markComplete);
+  const { goNext, goBack, goTo } = useOnboardingNav();
+
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: draft.email || "", password: "" },
+  });
+
+  return (
+    <StepScaffold
+      form={form}
+      onSubmit={() => {
+        markComplete("register");
+        // Land where they're needed: the first UNADDRESSED change if the team
+        // sent any back, otherwise just continue into the flow.
+        const target =
+          firstUnaddressed(changeRequests, draft) ?? changeRequests[0];
+        if (target) goTo(target.stepId);
+        else goNext();
+      }}
+      title="Welcome back"
+      subtitle="Log in to pick up where you left off."
+      continueLabel="Log in"
+      canGoBack={false}
+      onBack={goBack}
+    >
+      <FormField
+        control={form.control}
+        name="email"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Email</FormLabel>
+            <FormControl>
+              <Input type="email" autoComplete="email" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="password"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Password</FormLabel>
+            <FormControl>
+              <Input
+                type="password"
+                autoComplete="current-password"
+                {...field}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>

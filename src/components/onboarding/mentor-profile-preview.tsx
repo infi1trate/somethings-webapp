@@ -390,8 +390,24 @@ function SkeletonRow({
 // The crisp photo sits on top. R sets the band thickness / where the speckle
 // begins (px in the img's CSS space — the filter is NOT scale-invariant, so
 // calibrate at the real phone render size, not magnified).
+// True only when the user hasn't asked to reduce motion — gates the SMIL "TV
+// static" shimmer. (CSS-driven animations are gated in globals.css instead.)
+function usePrefersMotion() {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: no-preference)");
+    setOk(mq.matches);
+    const handler = () => setOk(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return ok;
+}
+
 function CutoutSpray({ cutout }: { cutout: string }) {
   const R = 10; // dilation radius ≈ solid-band thickness; flecks fray beyond it
+  const motionOk = usePrefersMotion();
   return (
     <>
       {/* Filters rendered once (duplicate identical defs across preview
@@ -447,7 +463,20 @@ function CutoutSpray({ cutout }: { cutout: string }) {
               seed="7"
               stitchTiles="noStitch"
               result="noise"
-            />
+            >
+              {/* TV-static shimmer: cycling the noise seed reshuffles only the
+                  thresholded flecks each step, so just the sprayed EDGE crackles
+                  — the solid band + photo are separate layers and stay still. */}
+              {motionOk && (
+                <animate
+                  attributeName="seed"
+                  values="7;31;3;22;13;28;5;19"
+                  dur="0.8s"
+                  calcMode="discrete"
+                  repeatCount="indefinite"
+                />
+              )}
+            </feTurbulence>
             {/* couple noise to the falloff: dense crisp spots at the band edge
                 thinning outward (alpha = k1·soft·noise + k2·soft + k4) */}
             <feComposite
@@ -471,29 +500,33 @@ function CutoutSpray({ cutout }: { cutout: string }) {
         </defs>
       </svg>
 
-      {/* 1 · thick solid band hugging the person */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={cutout}
-        alt=""
-        className="absolute inset-0 size-full object-contain object-bottom"
-        style={{ filter: "url(#cutoutBand)" }}
-      />
-      {/* 2 · organic opaque flecks fraying off the band edge */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={cutout}
-        alt=""
-        className="absolute inset-0 size-full object-contain object-bottom"
-        style={{ filter: "url(#cutoutSpray)" }}
-      />
-      {/* 3 · the person, crisp, on top */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={cutout}
-        alt=""
-        className="absolute inset-0 size-full object-contain object-bottom"
-      />
+      {/* All three layers Ken-Burns together so the cyan contour tracks the
+          photo as one (CSS animation in globals.css; off under reduced motion). */}
+      <div className="kenburns absolute inset-0">
+        {/* 1 · thick solid band hugging the person */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={cutout}
+          alt=""
+          className="absolute inset-0 size-full object-contain object-bottom"
+          style={{ filter: "url(#cutoutBand)" }}
+        />
+        {/* 2 · organic opaque flecks fraying off the band edge */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={cutout}
+          alt=""
+          className="absolute inset-0 size-full object-contain object-bottom"
+          style={{ filter: "url(#cutoutSpray)" }}
+        />
+        {/* 3 · the person, crisp, on top */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={cutout}
+          alt=""
+          className="absolute inset-0 size-full object-contain object-bottom"
+        />
+      </div>
     </>
   );
 }

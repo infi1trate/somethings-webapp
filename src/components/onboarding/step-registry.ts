@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { VerifyStep } from "@/components/onboarding/steps/verify";
 import { RegisterStep } from "@/components/onboarding/steps/register";
 import { ConfirmStep } from "@/components/onboarding/steps/confirm";
 import { ProfilePhotoStep } from "@/components/onboarding/steps/profile-photo";
@@ -11,6 +12,7 @@ import { VibeStep } from "@/components/onboarding/steps/vibe";
 import { InterestsStep } from "@/components/onboarding/steps/interests";
 
 export const STEP_COMPONENTS: Record<string, ComponentType> = {
+  verify: VerifyStep,
   register: RegisterStep,
   confirm: ConfirmStep,
   "profile-photo": ProfilePhotoStep,

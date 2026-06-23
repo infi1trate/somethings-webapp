@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
+import { useRouter } from "next/navigation";
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import {
@@ -11,7 +12,7 @@ import {
 import { ExamplesIntro } from "@/components/onboarding/intro/examples-intro";
 import { STEP_COMPONENTS } from "@/components/onboarding/step-registry";
 import { STEP_ORDER, stepIndex, getStep } from "@/lib/onboarding/steps";
-import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
+import { useOnboardingNav, stepHref } from "@/lib/onboarding/useOnboardingNav";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
@@ -30,8 +31,12 @@ const REGION_BY_STEP: Record<string, string> = {
   languages: "languages",
 };
 
-// Real (non-interstitial) step count, for "Step X of Y".
-const TOTAL_STEPS = STEP_ORDER.filter((s) => !s.interstitial).length;
+// The "Step X of Y" stepper covers ONLY the profile-building steps and starts at
+// the first one ("Add a profile photo") — Account + Quick check come before it
+// with no counter.
+const PROFILE_STEPS = STEP_ORDER.filter(
+  (s) => s.section === "Your profile" && !s.interstitial
+);
 
 // Start zoomed in, then ease out over the flow to reveal the whole profile.
 function focusFor(slug: string, index: number): PreviewFocus {
@@ -83,7 +88,22 @@ export function OnboardingWizard() {
   const mounted = useMounted();
   const nav = useOnboardingNav();
   const draft = useOnboardingStore((s) => s.draft);
+  const status = useOnboardingStore((s) => s.status);
   const current = useStepCrossfade(nav.current);
+  const router = useRouter();
+
+  // Returning mentors (already have an account — submitted at least once) move
+  // through the flow via the dock, not linearly: they skip the new-signup 2FA
+  // step and get no stepper.
+  const isReturning =
+    status === "in_review" || status === "rejected" || status === "published";
+
+  // 2FA is new-signups-only — bounce returning mentors off `verify` to login.
+  useEffect(() => {
+    if (mounted && current === "verify" && isReturning) {
+      router.replace(stepHref("register"));
+    }
+  }, [mounted, current, isReturning, router]);
 
   // Gate on mount so the localStorage-backed draft doesn't cause a hydration
   // mismatch, and key the step so each one remounts with fresh form defaults.
@@ -104,16 +124,29 @@ export function OnboardingWizard() {
     return <ExamplesIntro onBack={nav.goBack} onContinue={nav.goNext} />;
   }
 
+  // Returning mentors don't see 2FA — the effect above redirects them to login;
+  // render the loader for the frame it takes to replace the route.
+  if (current === "verify" && isReturning) {
+    return (
+      <OnboardingLayout>
+        <div className="flex flex-1 items-center justify-center py-20">
+          <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-brand" />
+        </div>
+      </OnboardingLayout>
+    );
+  }
+
   const index = stepIndex(current);
   const section = getStep(current)!.section;
-  const displayIndex =
-    STEP_ORDER.slice(0, index + 1).filter((s) => !s.interstitial).length - 1;
   const StepComponent = STEP_COMPONENTS[current];
 
   // Account setup and the "Quick check" (DB basics) screen are the warm "intro"
   // phase (Welcome-style background); everything from the profile build onward
   // uses the spray-corner "step" background.
-  const phase = current === "register" || current === "confirm" ? "intro" : "step";
+  const phase =
+    current === "verify" || current === "register" || current === "confirm"
+      ? "intro"
+      : "step";
 
   // The account step has nothing to preview; everything else builds the profile,
   // so it gets the live phone preview alongside the inputs.
@@ -126,11 +159,22 @@ export function OnboardingWizard() {
     </PhoneFrame>
   ) : undefined;
 
+  // Stepper: only on the profile-building steps, numbered from the first one
+  // ("Add a profile photo"); hidden on Account + Quick check, and for returning
+  // mentors entirely.
+  const profileIdx = PROFILE_STEPS.findIndex((s) => s.slug === current);
+  const progress =
+    !isReturning && profileIdx >= 0
+      ? { index: profileIdx, total: PROFILE_STEPS.length, section }
+      : undefined;
+
   return (
     <OnboardingLayout
-      progress={{ index: displayIndex, total: TOTAL_STEPS, section }}
+      progress={progress}
       preview={preview}
       phase={phase}
+      hideDock={current === "register"}
+      hideStatus={current === "register" && isReturning}
     >
       <StepComponent key={current} />
     </OnboardingLayout>

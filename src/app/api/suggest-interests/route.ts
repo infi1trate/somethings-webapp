@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { INTEREST_OPTIONS } from "@/lib/options";
 
@@ -43,7 +44,25 @@ export async function POST(request: Request) {
   // never breaks. A missing/invalid credential is caught below and also
   // degrades to the mock.
   if (!VERTEX_PROJECT_ID || !parsed) {
-    return Response.json({ interests: mockSuggest(selected) });
+    if (!VERTEX_PROJECT_ID) {
+      console.warn(
+        "[suggest-interests] ANTHROPIC_VERTEX_PROJECT_ID not set — returning mock suggestions."
+      );
+    }
+    return Response.json({ interests: mockSuggest(selected), source: "mock" });
+  }
+
+  // Vertex auth is file-based ADC. If GOOGLE_APPLICATION_CREDENTIALS points at a
+  // path that doesn't exist, short-circuit to the mock with a clear message —
+  // otherwise the SDK throws a confusing OAuth error (and an unhandled rejection)
+  // on every request.
+  const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (credsPath && !existsSync(credsPath)) {
+    console.warn(
+      `[suggest-interests] Vertex credentials file not found at ${credsPath} — returning mock. ` +
+        "Point GOOGLE_APPLICATION_CREDENTIALS at a valid service-account JSON to enable AI."
+    );
+    return Response.json({ interests: mockSuggest(selected), source: "mock" });
   }
 
   try {
@@ -73,9 +92,13 @@ export async function POST(request: Request) {
             {
               type: "text",
               text:
-                "A youth mentor is adding this photo to their profile to show what they're into. " +
-                "From the provided list, pick the interests this photo genuinely shows the person doing or clearly represents. " +
-                "Only choose what's actually depicted — 0 to 3 tags. Call the suggest_interests tool.",
+                `A youth mentor tagged this photo to represent "${
+                  selected[0] ?? "an interest"
+                }" on their profile. ` +
+                "Looking only at what the photo actually shows, pick the interests from the provided list it genuinely depicts the person doing or clearly represents — 0 to 3 tags. " +
+                `Be objective: if the photo doesn't actually show "${
+                  selected[0] ?? "that"
+                }", don't include it. Call the suggest_interests tool.`,
             },
           ],
         },
@@ -108,9 +131,11 @@ export async function POST(request: Request) {
             typeof x === "string" && INTEREST_OPTIONS.includes(x)
         )
       : [];
-    return Response.json({ interests: interests.slice(0, 3) });
-  } catch {
-    // Network / model / auth error — degrade to the mock rather than 500.
-    return Response.json({ interests: mockSuggest(selected) });
+    return Response.json({ interests: interests.slice(0, 3), source: "ai" });
+  } catch (err) {
+    // Network / model / auth error — log it (so a misconfigured Vertex setup is
+    // visible in the server logs) and degrade to the mock rather than 500.
+    console.error("[suggest-interests] Vertex call failed, using mock:", err);
+    return Response.json({ interests: mockSuggest(selected), source: "mock" });
   }
 }

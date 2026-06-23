@@ -7,7 +7,29 @@ export type ProfileStatus =
   | "pending" // account created, profile being built (Pending / Unpublished)
   | "in_review" // submitted, awaiting clinical recruitment review
   | "published" // approved & live (Published / Active)
-  | "rejected"; // sent back for changes
+  | "rejected"; // changes requested — sent back for revision (badge: "Needs changes")
+
+/** How a change request has been addressed. Derived, not just stored: `edited`
+ *  is auto-detected from the live field value vs its baseline; `confirmed-
+ *  unchanged` is an explicit override; `none` is neither. See
+ *  lib/onboarding/change-requests.ts. */
+export type AddressedState = "none" | "edited" | "confirmed-unchanged";
+
+/** One change the reviewer asked for, tied 1:1 to a single profile field.
+ *  Written by the admin review screen; read by the welcome-back modal, the
+ *  per-step note card, and the revision dock. */
+export interface ChangeRequest {
+  id: string;
+  stepId: string; // STEP_ORDER slug the mentor jumps to (e.g. "bio")
+  fieldKey: string; // the single MentorDraft field this request governs (1:1)
+  sectionLabel: string; // human label, e.g. "Bio"
+  note: string; // reviewer's free text — treat as untrusted for layout
+  /** Snapshot of `fieldKey`'s value when the profile entered "needs changes" —
+   *  the comparison anchor for auto-detecting an edit. */
+  baselineValue: unknown;
+  /** Mentor explicitly confirmed the field is fine as-is despite no change. */
+  confirmedUnchanged: boolean;
+}
 
 /** One chosen interest and the photo the mentor attached to it (1:1 — the DB
  *  models interests this way: one representative photo per interest). */

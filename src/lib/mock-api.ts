@@ -73,9 +73,24 @@ export type ReviewOutcome =
   | { decision: "approved" }
   | { decision: "rejected"; note: string };
 
-// Used only by the dev-only reviewer simulator on the "submitted" screen.
+// Used by the admin review console (/admin/review) to simulate the clinical
+// recruitment team's approve / request-changes decision.
 export async function simulateReview(
   outcome: ReviewOutcome
 ): Promise<ReviewOutcome> {
   return delay(outcome, 600);
+}
+
+// ── 2FA (prototype) ─────────────────────────────────────────────────────────
+// No real SMS is sent and nothing is verified server-side — a real backend would
+// text a one-time code and check it. Here we just gate the flow: any well-formed
+// 6-digit code passes so the demo always works.
+export async function sendVerificationCode(
+  phone: string
+): Promise<{ ok: boolean }> {
+  return delay({ ok: phone.trim().length > 0 }, 600);
+}
+
+export async function verifyCode(code: string): Promise<{ ok: boolean }> {
+  return delay({ ok: /^\d{6}$/.test(code) }, 700);
 }
