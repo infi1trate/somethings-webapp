@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { submitForReview } from "@/lib/mock-api";
-import { HUB_PATH } from "@/lib/onboarding/steps";
+import { HUB_PATH, SUBMITTED_PATH } from "@/lib/onboarding/steps";
 import { stepHref } from "@/lib/onboarding/useOnboardingNav";
 import { changeProgress } from "@/lib/onboarding/change-requests";
 import { cn } from "@/lib/utils";
@@ -27,9 +27,6 @@ export default function PreviewPage() {
   const setRejection = useOnboardingStore((s) => s.setRejection);
   const changeRequests = useOnboardingStore((s) => s.changeRequests);
   const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
-  const setPendingSubmitToast = useOnboardingStore(
-    (s) => s.setPendingSubmitToast
-  );
   const [submitting, setSubmitting] = useState(false);
 
   // State-driven gate: once a profile is in_review or published this screen is
@@ -58,8 +55,8 @@ export default function PreviewPage() {
     setRejection(null);
     setChangeRequests([]);
     setStatus("in_review");
-    setPendingSubmitToast(true); // the hub shows the first-arrival toast once
-    router.push(HUB_PATH);
+    // Celebrate on the success screen first; the mentor opts into the hub there.
+    router.push(SUBMITTED_PATH);
   };
 
   return (

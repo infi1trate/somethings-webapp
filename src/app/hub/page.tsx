@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Wordmark } from "@/components/brand";
 import { Moodie } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
 import { StepCard } from "@/components/onboarding/hub/step-card";
+import { HubWelcomeModal } from "@/components/onboarding/hub/hub-welcome-modal";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -23,23 +22,6 @@ export default function HubPage() {
   const status = useOnboardingStore((s) => s.status);
   const completed = useOnboardingStore((s) => s.completed);
   const hubSteps = useOnboardingStore((s) => s.hubSteps);
-  const pendingSubmitToast = useOnboardingStore((s) => s.pendingSubmitToast);
-  const setPendingSubmitToast = useOnboardingStore(
-    (s) => s.setPendingSubmitToast
-  );
-
-  // First-arrival confirmation: fire ONCE right after submitting, then disarm so
-  // it never returns on later visits. sonner renders an aria-live (polite)
-  // region — the status is announced to AT without moving focus (WCAG 4.1.3).
-  useEffect(() => {
-    if (mounted && pendingSubmitToast) {
-      toast("Profile submitted", {
-        description:
-          "We'll email you when it's reviewed — usually a couple of days.",
-      });
-      setPendingSubmitToast(false);
-    }
-  }, [mounted, pendingSubmitToast, setPendingSubmitToast]);
 
   if (!mounted) {
     return <div className="min-h-dvh bg-background" />;
@@ -65,6 +47,7 @@ export default function HubPage() {
 
   return (
     <div className="min-h-dvh bg-background">
+      <HubWelcomeModal />
       <header className="border-b bg-card/80 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-2xl items-center justify-between px-5">
           <Wordmark />

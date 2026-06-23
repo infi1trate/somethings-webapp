@@ -24,9 +24,9 @@ interface OnboardingState {
   /** Per-step completion for the four non-profile hub steps. The Profile step's
    *  status is derived from `status` (see lib/onboarding/hub.ts), not stored here. */
   hubSteps: Record<HubStepKey, HubStepStatus>;
-  /** One-shot flag: the hub fires the "profile submitted" toast once, then clears
-   *  it, so it never reappears on later visits. Persisted. */
-  pendingSubmitToast: boolean;
+  /** Shown-once flag for the hub's first-visit welcome modal. Set true the first
+   *  time the hub opens the intro, so it never reappears. Persisted. */
+  hubWelcomeSeen: boolean;
   /** Session-only UI for the welcome-back modal (not persisted — shows once per
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
@@ -41,8 +41,8 @@ interface OnboardingState {
   setChangeRequests: (requests: ChangeRequest[]) => void;
   /** Set one non-profile hub step's completion status. */
   setHubStep: (key: HubStepKey, status: HubStepStatus) => void;
-  /** Arm/disarm the one-shot first-arrival submit toast. */
-  setPendingSubmitToast: (pending: boolean) => void;
+  /** Mark the hub's first-visit welcome modal as seen (one-way). */
+  markHubWelcomeSeen: () => void;
   /** Mentor confirmed an unchanged field is fine as-is (explicit override). */
   confirmUnchanged: (id: string) => void;
   /** Undo a confirmed-unchanged back to none. */
@@ -62,7 +62,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       rejectionNote: null,
       changeRequests: [],
       hubSteps: emptyHubSteps(),
-      pendingSubmitToast: false,
+      hubWelcomeSeen: false,
       welcomeOpen: false,
       welcomeAutoShown: false,
       _hasHydrated: false,
@@ -106,7 +106,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       setHubStep: (key, status) =>
         set((state) => ({ hubSteps: { ...state.hubSteps, [key]: status } })),
 
-      setPendingSubmitToast: (pendingSubmitToast) => set({ pendingSubmitToast }),
+      markHubWelcomeSeen: () => set({ hubWelcomeSeen: true }),
 
       confirmUnchanged: (id) =>
         set((state) => ({
@@ -136,7 +136,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           rejectionNote: null,
           changeRequests: [],
           hubSteps: emptyHubSteps(),
-          pendingSubmitToast: false,
+          hubWelcomeSeen: false,
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -146,16 +146,16 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v2: interests string[] → InterestEntry[] + drop additionalImages. v3: vibe
       // board. v4: genderIdentity. v5: changeRequests list (replaces rejectionNote).
       // v6: changeRequests gain stepId/fieldKey/baselineValue/confirmedUnchanged
-      // (replacing step/done). v7: add hubSteps + pendingSubmitToast for the
-      // onboarding hub. Convert old persisted state in place.
-      version: 7,
+      // (replacing step/done). v7: add hubSteps. v8: hubWelcomeSeen (first-visit
+      // hub welcome modal) replaces the old submit toast. Convert state in place.
+      version: 8,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
           rejectionNote?: string | null;
           changeRequests?: unknown;
           hubSteps?: unknown;
-          pendingSubmitToast?: unknown;
+          hubWelcomeSeen?: unknown;
         };
         if (s?.draft) {
           const d = s.draft;
@@ -217,13 +217,16 @@ export const useOnboardingStore = create<OnboardingState>()(
             }
           );
         }
-        // v7: backfill hub-step state + the submit-toast flag.
+        // v7: backfill hub-step state.
         if (version < 7) {
           if (typeof s.hubSteps !== "object" || s.hubSteps === null) {
             s.hubSteps = emptyHubSteps();
           }
-          if (typeof s.pendingSubmitToast !== "boolean") {
-            s.pendingSubmitToast = false;
+        }
+        // v8: first-visit hub welcome modal flag (replaces the old submit toast).
+        if (version < 8) {
+          if (typeof s.hubWelcomeSeen !== "boolean") {
+            s.hubWelcomeSeen = false;
           }
         }
         return s as unknown as OnboardingState;
@@ -263,7 +266,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         rejectionNote: state.rejectionNote,
         changeRequests: state.changeRequests,
         hubSteps: state.hubSteps,
-        pendingSubmitToast: state.pendingSubmitToast,
+        hubWelcomeSeen: state.hubWelcomeSeen,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();
