@@ -5,9 +5,9 @@ import { ImagePlus, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cutoutBackground } from "@/lib/cutout";
 
-/** Admin photo editor: upload a file, background-cut it (same `cutoutBackground`
- *  the onboarding step uses), and write the data URL. Camera capture is left to
- *  the mentor's onboarding step; admin just needs upload/replace/remove. */
+/** Photo editor: upload a file, background-cut it (same `cutoutBackground` the
+ *  onboarding step uses), and write the data URL. Camera capture is left to the
+ *  mentor's onboarding step; here we just need upload / replace / remove. */
 export function PhotoField({
   value,
   onChange,

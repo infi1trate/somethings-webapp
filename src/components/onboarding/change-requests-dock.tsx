@@ -36,10 +36,18 @@ export function ChangeRequestsDock() {
   const confirmUnchanged = useOnboardingStore((s) => s.confirmUnchanged);
   const unconfirm = useOnboardingStore((s) => s.unconfirmChangeRequest);
   const setWelcomeOpen = useOnboardingStore((s) => s.setWelcomeOpen);
+  // Once published, post-publish revisions happen in mentor settings (not the
+  // wizard), so the onboarding dock stays out of the way.
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
   const [open, setOpen] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  if (!mounted || status !== "rejected" || changeRequests.length === 0) {
+  if (
+    !mounted ||
+    everPublished ||
+    status !== "rejected" ||
+    changeRequests.length === 0
+  ) {
     return null;
   }
 

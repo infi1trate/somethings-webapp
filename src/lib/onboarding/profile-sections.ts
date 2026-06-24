@@ -4,7 +4,7 @@
 // capture) and to label the change requests the dock/modal/cards read.
 // `step` values are STEP_ORDER slugs (see steps.ts).
 
-import type { MentorDraft } from "@/lib/types";
+import type { MediaIntro, MentorDraft } from "@/lib/types";
 
 export interface ProfileSection {
   step: string; // STEP_ORDER slug — where "Go to" / "Jump back in" lands
@@ -79,3 +79,25 @@ export const PROFILE_SECTIONS: ProfileSection[] = [
       d.interests.length ? d.interests.map((i) => i.name).join(", ") : EMPTY,
   },
 ];
+
+// Media's in-memory blob `url` is volatile (dead after reload), so compare it on
+// its stable fields only — otherwise the post-publish diff would false-positive.
+function normForCompare(key: keyof MentorDraft, value: unknown): unknown {
+  if (key !== "media") return value;
+  const m = value as MediaIntro | undefined;
+  return { kind: m?.kind ?? null, name: m?.name ?? null, durationSec: m?.durationSec ?? null };
+}
+
+/** Section `step`s whose value differs between the live draft and a published
+ *  snapshot — drives the mentor editor's "no changes / N changes" state and which
+ *  panels are dirty. */
+export function changedProfileSections(
+  draft: MentorDraft,
+  snapshot: MentorDraft
+): string[] {
+  return PROFILE_SECTIONS.filter(
+    (s) =>
+      JSON.stringify(normForCompare(s.fieldKey, draft[s.fieldKey])) !==
+      JSON.stringify(normForCompare(s.fieldKey, snapshot[s.fieldKey]))
+  ).map((s) => s.step);
+}

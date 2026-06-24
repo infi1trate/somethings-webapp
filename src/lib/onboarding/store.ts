@@ -13,6 +13,18 @@ import {
 import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
 
+// A persisted-shape copy of the draft (no password, no volatile blob url) — the
+// approved baseline used to detect post-publish edits in the mentor's settings.
+function snapshotDraft(draft: MentorDraft): MentorDraft {
+  return JSON.parse(
+    JSON.stringify({
+      ...draft,
+      password: "",
+      media: { ...draft.media, url: null },
+    })
+  ) as MentorDraft;
+}
+
 interface OnboardingState {
   draft: MentorDraft;
   status: ProfileStatus;
@@ -21,6 +33,10 @@ interface OnboardingState {
   /** Section-tied changes the reviewer requested; read by the dock, the welcome
    *  modal, and the per-step note cards. */
   changeRequests: ChangeRequest[];
+  /** The last approved version of the profile, captured when it's published.
+   *  Diffed against the live draft to detect post-publish edits; `everPublished`
+   *  is simply `publishedSnapshot !== null`. */
+  publishedSnapshot: MentorDraft | null;
   /** Per-step completion for the four non-profile hub steps. The Profile step's
    *  status is derived from `status` (see lib/onboarding/hub.ts), not stored here. */
   hubSteps: Record<HubStepKey, HubStepStatus>;
@@ -39,6 +55,9 @@ interface OnboardingState {
   acceptInvite: (prefill: Partial<MentorDraft>) => void;
   setRejection: (note: string | null) => void;
   setChangeRequests: (requests: ChangeRequest[]) => void;
+  /** Snapshot the current draft as the approved/published version (called on
+   *  approve). Anchors post-publish change detection. */
+  capturePublishedSnapshot: () => void;
   /** Set one non-profile hub step's completion status. */
   setHubStep: (key: HubStepKey, status: HubStepStatus) => void;
   /** Mark the hub's first-visit welcome modal as seen (one-way). */
@@ -61,6 +80,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       completed: [],
       rejectionNote: null,
       changeRequests: [],
+      publishedSnapshot: null,
       hubSteps: emptyHubSteps(),
       hubWelcomeSeen: false,
       welcomeOpen: false,
@@ -103,6 +123,9 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       setChangeRequests: (requests) => set({ changeRequests: requests }),
 
+      capturePublishedSnapshot: () =>
+        set((state) => ({ publishedSnapshot: snapshotDraft(state.draft) })),
+
       setHubStep: (key, status) =>
         set((state) => ({ hubSteps: { ...state.hubSteps, [key]: status } })),
 
@@ -135,6 +158,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           completed: [],
           rejectionNote: null,
           changeRequests: [],
+          publishedSnapshot: null,
           hubSteps: emptyHubSteps(),
           hubWelcomeSeen: false,
           welcomeOpen: false,
@@ -147,8 +171,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // board. v4: genderIdentity. v5: changeRequests list (replaces rejectionNote).
       // v6: changeRequests gain stepId/fieldKey/baselineValue/confirmedUnchanged
       // (replacing step/done). v7: add hubSteps. v8: hubWelcomeSeen (first-visit
-      // hub welcome modal) replaces the old submit toast. Convert state in place.
-      version: 8,
+      // hub welcome modal) replaces the old submit toast. v9: publishedSnapshot
+      // (post-publish change detection). Convert state in place.
+      version: 9,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -156,6 +181,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           changeRequests?: unknown;
           hubSteps?: unknown;
           hubWelcomeSeen?: unknown;
+          publishedSnapshot?: unknown;
         };
         if (s?.draft) {
           const d = s.draft;
@@ -229,6 +255,12 @@ export const useOnboardingStore = create<OnboardingState>()(
             s.hubWelcomeSeen = false;
           }
         }
+        // v9: post-publish change-detection baseline.
+        if (version < 9) {
+          if (!("publishedSnapshot" in s)) {
+            s.publishedSnapshot = null;
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -254,7 +286,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         },
       })),
       // Never persist the password, or the recorded clip's blob URL (dead after
-      // reload, and large) — both stay in-memory only.
+      // reload, and large) — both stay in-memory only. The snapshot is already
+      // stored in that safe shape (see snapshotDraft).
       partialize: (state) => ({
         draft: {
           ...state.draft,
@@ -265,6 +298,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         completed: state.completed,
         rejectionNote: state.rejectionNote,
         changeRequests: state.changeRequests,
+        publishedSnapshot: state.publishedSnapshot,
         hubSteps: state.hubSteps,
         hubWelcomeSeen: state.hubWelcomeSeen,
       }),

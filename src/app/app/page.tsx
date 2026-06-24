@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Home, MessageCircle, Settings } from "lucide-react";
+import { AlertCircle, Clock, Home, MessageCircle, Settings } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { Moodie } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
@@ -23,11 +23,13 @@ export default function AppShellPage() {
   const router = useRouter();
   const draft = useOnboardingStore((s) => s.draft);
   const status = useOnboardingStore((s) => s.status);
+  const publishedSnapshot = useOnboardingStore((s) => s.publishedSnapshot);
   const reset = useOnboardingStore((s) => s.reset);
+  const everPublished = publishedSnapshot !== null;
 
   if (!mounted) return null;
 
-  if (status !== "published") {
+  if (!everPublished) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
         <h1 className="text-xl font-semibold">Not published yet</h1>
@@ -78,16 +80,38 @@ export default function AppShellPage() {
         </nav>
 
         <main className="min-w-0 flex-1">
-          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-900">
-            <Moodie name="face-excited" className="size-8 shrink-0" />
-            <span>
-              Your profile is live. Teens can find and message you now.
-            </span>
-          </div>
+          {status === "in_review" ? (
+            <div className="mb-5 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+              <Clock className="size-5 shrink-0" aria-hidden />
+              <span>
+                Your latest changes are in review. We&apos;ll email you when
+                they&apos;re approved.
+              </span>
+            </div>
+          ) : status === "rejected" ? (
+            <div className="mb-5 flex items-center gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-900">
+              <AlertCircle className="size-5 shrink-0" aria-hidden />
+              <span>
+                The team requested a few changes — open your Matching Profile to
+                address them.
+              </span>
+            </div>
+          ) : (
+            <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-900">
+              <Moodie name="face-excited" className="size-8 shrink-0" />
+              <span>
+                Your profile is live. Teens can find and message you now.
+              </span>
+            </div>
+          )}
 
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-lg font-semibold">Your profile</h1>
-            <Button variant="outline" size="sm" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/app/profile")}
+            >
               Edit profile
             </Button>
           </div>
@@ -97,7 +121,8 @@ export default function AppShellPage() {
           </PhoneFrame>
 
           <p className="mt-4 text-sm text-muted-foreground">
-            Editing your live profile from Settings is coming next (Milestone 2).
+            Edit your Matching Profile anytime — changes go to the team for a
+            quick review before they go live.
           </p>
 
           <div className="mt-10 border-t pt-6">

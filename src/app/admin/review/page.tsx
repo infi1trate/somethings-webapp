@@ -24,6 +24,9 @@ export default function AdminReviewPage() {
   const setStatus = useOnboardingStore((s) => s.setStatus);
   const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
   const setRejection = useOnboardingStore((s) => s.setRejection);
+  const capturePublishedSnapshot = useOnboardingStore(
+    (s) => s.capturePublishedSnapshot
+  );
 
   // Per-section note capture (inline reveal). `open` tracks which note fields are
   // visible; `notes` holds the text. A section is "flagged" once it has text.
@@ -60,6 +63,7 @@ export default function AdminReviewPage() {
     setChangeRequests([]);
     setRejection(null);
     setStatus("published");
+    capturePublishedSnapshot(); // baseline for future post-publish edit detection
     router.push("/app");
   };
 

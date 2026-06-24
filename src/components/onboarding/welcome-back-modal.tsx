@@ -37,8 +37,14 @@ export function WelcomeBackModal() {
   const autoShown = useOnboardingStore((s) => s.welcomeAutoShown);
   const setOpen = useOnboardingStore((s) => s.setWelcomeOpen);
   const markAutoShown = useOnboardingStore((s) => s.markWelcomeAutoShown);
+  // Post-publish revisions happen in mentor settings, not the wizard.
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
 
-  const active = mounted && status === "rejected" && changeRequests.length > 0;
+  const active =
+    mounted &&
+    status === "rejected" &&
+    changeRequests.length > 0 &&
+    !everPublished;
 
   // Auto-open once per session entry; reopenable from the dock afterward.
   useEffect(() => {
