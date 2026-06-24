@@ -78,6 +78,10 @@ export function OnboardingLayout({
       <main className="flex flex-1 flex-col px-5 py-8 sm:px-8 sm:py-10">
         {children}
       </main>
+
+      {/* Revision tracker, docked to the card's bottom edge. Self-gates — only
+          renders while the profile is in "needs changes". */}
+      {!hideDock && <ChangeRequestsDock />}
     </div>
   );
 
@@ -92,8 +96,7 @@ export function OnboardingLayout({
       >
         <Backdrop />
         <div className="relative z-10 w-full max-w-2xl">{panel}</div>
-        {!hideDock && <ChangeRequestsDock />}
-      {!hideDock && <WelcomeBackModal />}
+        {!hideDock && <WelcomeBackModal />}
       </div>
     );
   }
@@ -152,7 +155,6 @@ export function OnboardingLayout({
         </Dialog>
       </div>
 
-      {!hideDock && <ChangeRequestsDock />}
       {!hideDock && <WelcomeBackModal />}
     </div>
   );
