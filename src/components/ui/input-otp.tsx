@@ -32,7 +32,7 @@ function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="input-otp-group"
-      className={cn("flex items-center gap-2 sm:gap-2.5", className)}
+      className={cn("flex items-center gap-2 sm:gap-3", className)}
       {...props}
     />
   );
@@ -50,10 +50,10 @@ function InputOTPSlot({
       data-slot="input-otp-slot"
       data-active={slot?.isActive}
       className={cn(
-        "relative flex size-11 items-center justify-center rounded-xl border bg-card text-lg font-semibold text-foreground outline-none transition-all sm:size-12",
+        "relative flex size-11 items-center justify-center rounded-xl border bg-muted/40 text-2xl font-semibold text-foreground outline-none transition-all sm:size-14",
         slot?.isActive
-          ? "z-10 border-foreground ring-2 ring-ring/40"
-          : "border-border",
+          ? "z-10 border-foreground bg-card ring-2 ring-ring/40"
+          : "border-foreground/15",
         className
       )}
       {...props}
@@ -61,7 +61,7 @@ function InputOTPSlot({
       {slot?.char}
       {slot?.hasFakeCaret && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-5 w-px bg-foreground motion-safe:animate-pulse" />
+          <div className="h-6 w-px bg-foreground motion-safe:animate-pulse" />
         </div>
       )}
     </div>

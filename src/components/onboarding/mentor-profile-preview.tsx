@@ -74,7 +74,7 @@ export function MentorProfilePreview({
     }
     // Hero steps anchor the purple block to the very top (fills behind the
     // status bar / Dynamic Island, like the real profile). Lower sections frame
-    // just below the top edge.
+    // with some breathing room below the top edge so they don't crowd the notch.
     const isHero = ["identity", "bio"].includes(focus.region);
     const region =
       stage.querySelector<HTMLElement>(
@@ -87,7 +87,7 @@ export function MentorProfilePreview({
     const vpH = vp.clientHeight;
     const top = offsetTopWithin(region, stage);
     const s = focus.zoom;
-    const headroom = isHero ? 0 : vpH * 0.12;
+    const headroom = isHero ? 0 : vpH * 0.18;
     const t = headroom / s - top;
     stage.style.transform = `scale(${s}) translateY(${t}px)`;
   }, [focus]);
