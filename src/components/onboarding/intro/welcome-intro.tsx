@@ -31,8 +31,7 @@ export function WelcomeIntro({
 
             <div className="space-y-4">
               <h1 className="text-[40px] font-bold leading-[0.98] tracking-[-0.03em] text-foreground text-balance sm:text-5xl lg:text-[64px] lg:leading-[0.95] lg:tracking-[-0.045em]">
-                Welcome{firstName ? `, ${firstName}` : ""}, glad you&apos;re
-                here
+                Hey{firstName ? ` ${firstName}` : ""}, glad you&apos;re here
               </h1>
               <p className="max-w-[340px] text-[15px] leading-relaxed text-muted-foreground text-pretty">
                 Somethings connects teens with trained young-adult mentors.
