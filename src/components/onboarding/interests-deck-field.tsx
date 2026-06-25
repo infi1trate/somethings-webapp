@@ -1,19 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-  ImagePlus,
-  X,
-  Loader2,
-  Check,
-  AlertCircle,
-  type LucideIcon,
-} from "lucide-react";
+import { useEffect, useRef } from "react";
+import { ImagePlus, X, type LucideIcon } from "lucide-react";
 import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
 import { INTEREST_OPTIONS } from "@/lib/options";
 import { iconFor } from "@/lib/interest-icons";
 import { downscaleImageToWebP, readFileAsDataUrl } from "@/lib/files";
-import { suggestInterests } from "@/lib/suggest-interests";
 import type { InterestEntry } from "@/lib/types";
 
 interface Props {
@@ -23,16 +15,11 @@ interface Props {
   photosNeeded?: number;
 }
 
-type Verdict =
-  | { state: "checking" }
-  | { state: "match" }
-  | { state: "mismatch"; suggested: string };
-
 export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props) {
-  const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const targetRef = useRef<string | null>(null); // interest a photo is being added to
-  // Async (AI) callbacks resolve after re-renders — read latest from here.
+  // Image processing is async — read the latest value here so a slow downscale
+  // doesn't write onto a stale list.
   const valueRef = useRef(value);
   useEffect(() => {
     valueRef.current = value;
@@ -43,14 +30,6 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
 
   const patch = (name: string, change: (e: InterestEntry) => InterestEntry) =>
     onChange(valueRef.current.map((e) => (e.name === name ? change(e) : e)));
-
-  const setVerdict = (name: string, v: Verdict | null) =>
-    setVerdicts((prev) => {
-      const next = { ...prev };
-      if (v) next[name] = v;
-      else delete next[name];
-      return next;
-    });
 
   // Toggle interests → keep entries (and their photos), append new, drop removed.
   const onChips = (next: string[]) => {
@@ -71,20 +50,10 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
       readFileAsDataUrl(file)
     );
     patch(name, (e) => ({ ...e, photo: dataUrl }));
-    // Confirm the photo actually matches the chosen interest.
-    setVerdict(name, { state: "checking" });
-    const shows = await suggestInterests(dataUrl, [name]);
-    setVerdict(
-      name,
-      shows.length === 0 || shows.includes(name)
-        ? { state: "match" }
-        : { state: "mismatch", suggested: shows[0] }
-    );
   };
 
   const clearPhoto = (name: string) => {
     patch(name, (e) => ({ ...e, photo: null }));
-    setVerdict(name, null);
   };
 
   // Picker order: the mentor's chosen interests first, then the rest.
@@ -108,9 +77,7 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Add a photo of you doing each
             </p>
-            <p
-              className={cnCount(withPhoto, photosNeeded)}
-            >
+            <p className={cnCount(withPhoto, photosNeeded)}>
               {withPhoto}/{photosNeeded} photos
             </p>
           </div>
@@ -128,10 +95,8 @@ export function InterestsDeckField({ value, onChange, photosNeeded = 3 }: Props)
                 <InterestCard
                   entry={entry}
                   Icon={iconFor(entry.name)}
-                  verdict={verdicts[entry.name]}
                   onPickPhoto={() => pickPhotoFor(entry.name)}
                   onClearPhoto={() => clearPhoto(entry.name)}
-                  onKeep={() => setVerdict(entry.name, { state: "match" })}
                 />
               </div>
             ))}
@@ -162,17 +127,13 @@ function cnCount(have: number, need: number) {
 function InterestCard({
   entry,
   Icon,
-  verdict,
   onPickPhoto,
   onClearPhoto,
-  onKeep,
 }: {
   entry: InterestEntry;
   Icon: LucideIcon;
-  verdict?: Verdict;
   onPickPhoto: () => void;
   onClearPhoto: () => void;
-  onKeep: () => void;
 }) {
   // Keep taps on controls from starting a deck drag.
   const stop = (e: React.PointerEvent) => e.stopPropagation();
@@ -219,48 +180,6 @@ function InterestCard({
         <Icon className="size-4" />
         {entry.name}
       </span>
-
-      {/* AI match-confirm */}
-      {entry.photo && verdict && (
-        <div className="absolute inset-x-2.5 bottom-2.5" onPointerDown={stop}>
-          {verdict.state === "checking" && (
-            <div className="flex items-center justify-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
-              <Loader2 className="size-3.5 animate-spin" />
-              Checking your photo…
-            </div>
-          )}
-          {verdict.state === "match" && (
-            <div className="flex items-center justify-center gap-1.5 rounded-full bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-              <Check className="size-3.5" />
-              Looks like {entry.name}
-            </div>
-          )}
-          {verdict.state === "mismatch" && (
-            <div className="space-y-2 rounded-2xl bg-black/70 p-2.5 text-white backdrop-blur">
-              <p className="flex items-center gap-1.5 text-xs leading-snug">
-                <AlertCircle className="mt-px size-3.5 shrink-0" />
-                This reads more like {verdict.suggested} — keep it?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={onKeep}
-                  className="flex-1 rounded-full bg-white/20 px-2 py-1 text-xs font-medium transition-colors hover:bg-white/30"
-                >
-                  Keep it
-                </button>
-                <button
-                  type="button"
-                  onClick={onPickPhoto}
-                  className="flex-1 rounded-full bg-white px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-white/90"
-                >
-                  Replace
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
