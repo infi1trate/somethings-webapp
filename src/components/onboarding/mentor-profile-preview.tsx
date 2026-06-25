@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Play, Pause, Disc3, Wifi } from "lucide-react";
 import { SpotifySong } from "@/components/onboarding/spotify-song";
 import { cn } from "@/lib/utils";
@@ -393,16 +399,19 @@ function SkeletonRow({
 // True only when the user hasn't asked to reduce motion — gates the SMIL "TV
 // static" shimmer. (CSS-driven animations are gated in globals.css instead.)
 function usePrefersMotion() {
-  const [ok, setOk] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: no-preference)");
-    setOk(mq.matches);
-    const handler = () => setOk(mq.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return ok;
+  // Subscribe to the media query directly rather than mirroring it into state
+  // from an effect — no extra render, no set-state-in-effect. The server
+  // snapshot is `false`, so motion stays off until the client confirms (also
+  // the reduced-motion-safe default).
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      const mq = window.matchMedia("(prefers-reduced-motion: no-preference)");
+      mq.addEventListener("change", onStoreChange);
+      return () => mq.removeEventListener("change", onStoreChange);
+    },
+    () => window.matchMedia("(prefers-reduced-motion: no-preference)").matches,
+    () => false
+  );
 }
 
 function CutoutSpray({ cutout }: { cutout: string }) {

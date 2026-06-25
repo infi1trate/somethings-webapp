@@ -77,6 +77,12 @@ function useStepCrossfade(current: string) {
       transition?.ready?.catch?.(() => {});
       transition?.finished?.catch?.(() => {});
     } else {
+      // No View Transitions API (or reduced motion): catch up immediately.
+      // This sync is intentional and one-shot — the `current === rendered`
+      // guard above keeps it from re-running — so the set-state-in-effect rule
+      // is a false positive here. (The animated path advances the same state
+      // inside the transition's flushSync callback.)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRendered(current);
     }
   }, [current, rendered]);
