@@ -5,7 +5,8 @@
 // in place, with a distinct, finished treatment for each state a submitted
 // profile can be in:
 //   • in_review → Pending: a calm "we've got it, sit tight" holding screen.
-//   • rejected  → Changes requested: the team's actual notes + a way to fix them.
+//   • rejected  → Changes requested: an encouraging "a few things to update"
+//     card whose rows jump straight to each field to fix (per Figma 323-1764).
 //   • published → Approved: the celebratory "you're live" moment → mentor home.
 // Any non-submitted status (still building, or pre-invite) is bounced to the hub
 // so this is never a dead-end for someone who hasn't submitted yet.
@@ -13,11 +14,10 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ChevronRight } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { DoodleScatter, Moodie, type MoodieName } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
-import { ChangeNoteCard } from "@/components/onboarding/change-note-card";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,10 @@ import { useMounted } from "@/lib/use-mounted";
 import { HUB_PATH, PREVIEW_PATH } from "@/lib/onboarding/steps";
 import { stepHref } from "@/lib/onboarding/useOnboardingNav";
 import {
+  addressedStateOf,
   changeProgress,
-  firstUnaddressed,
 } from "@/lib/onboarding/change-requests";
-import type { MentorDraft, ProfileStatus } from "@/lib/types";
+import type { ChangeRequest, MentorDraft, ProfileStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // The three statuses a *submitted* profile moves through. Anything else means
@@ -211,74 +211,95 @@ function NextDot({ state }: { state: "done" | "current" | "upcoming" }) {
 }
 
 // ── Changes requested (rejected) ─────────────────────────────────────────────
+// Modeled on Figma 323-1764: a warm "a few things to update" card (green header,
+// not a rejection) whose rows are the action — each jumps straight to the field.
 function ChangesContent({ draft }: { draft: MentorDraft }) {
   const firstName = draft.firstName?.trim();
   const changeRequests = useOnboardingStore((s) => s.changeRequests);
   const { addressed, total } = changeProgress(changeRequests, draft);
-
-  // Drop them on the first note they haven't handled yet — that step shows the
-  // dock + the full note inline. Once everything's addressed, send them to the
-  // review screen to resubmit.
-  const next = firstUnaddressed(changeRequests, draft);
-  const ctaHref = next ? stepHref(next.stepId) : PREVIEW_PATH;
-  const ctaLabel = next ? "Make your changes" : "Review & resubmit";
-
-  // Built as one string (not inline JSX) so the conditional word swaps can't lose
-  // their surrounding spaces to JSX whitespace collapsing.
-  const blurb =
-    total > 0
-      ? `The team read your profile and sent back ${total} ${
-          total === 1 ? "note" : "notes"
-        } to handle before it goes live. Sort ${
-          total === 1 ? "it" : "them"
-        } out and send it back — you're close.`
-      : "The team read your profile and sent it back with a few changes before it goes live. Take a look and resubmit — you're close.";
+  const allDone = total > 0 && addressed === total;
 
   return (
-    <div>
-      <IconTile tone="orange" face="face-pleased" />
-      <h1 className="mt-5 font-display text-[34px] font-bold leading-[1.05] tracking-tight text-balance">
-        {firstName ? `You're almost there, ${firstName}` : "You're almost there"}
-      </h1>
-      <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground text-pretty">
-        {blurb}
-      </p>
+    <div className="overflow-hidden rounded-3xl border bg-card shadow-[0_8px_48px_-12px_rgba(31,30,29,0.18)]">
+      {/* Encouraging green header — frames this as polish, not a rejection. Text
+          is darkened from the mock's #797774 so it clears AA on the green tint. */}
+      <div className="bg-[#dfeddb] px-6 py-6 sm:px-7">
+        <h1 className="font-display text-[24px] font-bold leading-[1.2] tracking-tight text-foreground text-balance">
+          {firstName
+            ? `${firstName}, a few things to update`
+            : "A few things to update"}
+        </h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-foreground/80 text-pretty">
+          Thanks for all your work so far! Your profile&apos;s in review, and
+          there are a few things to tweak before you can start mentoring. Take
+          them one at a time, whenever you&apos;re ready.
+        </p>
+      </div>
 
-      {total > 0 && (
-        <div className="mt-6 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              The team&apos;s notes
-            </p>
-            <span
-              className={cn(
-                "text-xs font-medium tabular-nums",
-                total > 0 && addressed === total
-                  ? "text-emerald-600"
-                  : "text-muted-foreground"
-              )}
-            >
-              {addressed} of {total} addressed
-            </span>
-          </div>
-          {changeRequests.map((req) => (
-            <div key={req.id}>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                {req.sectionLabel}
-              </p>
-              <ChangeNoteCard req={req} draft={draft} />
-            </div>
-          ))}
+      <div className="p-5 sm:p-6">
+        {total > 0 ? (
+          <ul className="space-y-3">
+            {changeRequests.map((req) => (
+              <li key={req.id}>
+                <ChangeRow req={req} draft={draft} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            The team sent your profile back with a few changes. Open it to take a
+            look and resubmit.
+          </p>
+        )}
+
+        <div className="mt-5 flex items-center justify-between gap-3 border-t pt-4">
+          <span
+            className={cn(
+              "text-sm tabular-nums",
+              allDone ? "font-medium text-emerald-700" : "text-muted-foreground"
+            )}
+          >
+            {total > 0 ? `${addressed} of ${total} done` : "Ready when you are"}
+          </span>
+          <Button
+            asChild
+            size="sm"
+            variant={allDone || total === 0 ? "default" : "outline"}
+          >
+            <Link href={PREVIEW_PATH}>
+              Review &amp; resubmit
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
         </div>
-      )}
-
-      <Button asChild size="lg" className="mt-7">
-        <Link href={ctaHref}>
-          {ctaLabel}
-          <ArrowRight className="size-4" />
-        </Link>
-      </Button>
+      </div>
     </div>
+  );
+}
+
+// One reviewer note as a tappable row → jumps to that field's step (where the
+// dock + full note live). Shows a check once the field's been addressed.
+function ChangeRow({ req, draft }: { req: ChangeRequest; draft: MentorDraft }) {
+  const done = addressedStateOf(req, draft) !== "none";
+  return (
+    <Link
+      href={stepHref(req.stepId)}
+      className="flex items-center gap-3 rounded-xl border border-foreground/12 py-3 pl-[18px] pr-3 transition-colors hover:border-foreground/25 hover:bg-accent/50"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-foreground">{req.sectionLabel}</p>
+        <p className="text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">
+          {req.note}
+        </p>
+      </div>
+      {done ? (
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+          <Check className="size-3.5" strokeWidth={3} aria-hidden />
+        </span>
+      ) : (
+        <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+      )}
+    </Link>
   );
 }
 
@@ -307,18 +328,16 @@ function ApprovedContent({ draft }: { draft: MentorDraft }) {
 }
 
 // Soft, rounded mood tile — tone matches the state's status pill (amber → in
-// review, orange → needs changes, emerald → published) so the whole page reads
-// as one feedback system.
+// review, emerald → published) so the whole page reads as one feedback system.
 function IconTile({
   tone,
   face,
 }: {
-  tone: "amber" | "orange" | "emerald";
+  tone: "amber" | "emerald";
   face: MoodieName;
 }) {
   const toneCls = {
     amber: "bg-amber-100",
-    orange: "bg-orange-100",
     emerald: "bg-emerald-100",
   }[tone];
   return (
