@@ -157,17 +157,21 @@ function WhatsNext() {
         {NEXT_STEPS.map((s, i) => {
           const last = i === NEXT_STEPS.length - 1;
           return (
-            <li key={s.label} className="flex gap-3.5">
-              <div className="flex flex-col items-center">
+            <li key={s.label} className="relative flex gap-3.5">
+              {/* One clean 2px rail behind the dots, from this dot's center to the
+                  next (top-3 + h-full) — even regardless of text height. A faint
+                  emerald once done, faint neutral ahead. */}
+              {!last && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "pointer-events-none absolute left-[11px] top-3 h-full w-0.5 rounded-full",
+                    s.state === "done" ? "bg-emerald-300" : "bg-border"
+                  )}
+                />
+              )}
+              <div className="flex w-6 flex-col items-center">
                 <NextDot state={s.state} />
-                {!last && (
-                  <span
-                    className={cn(
-                      "w-px flex-1",
-                      s.state === "done" ? "bg-emerald-300" : "bg-border"
-                    )}
-                  />
-                )}
               </div>
               <div className={cn(last ? "pb-0" : "pb-5")}>
                 <p
@@ -193,21 +197,29 @@ function WhatsNext() {
 }
 
 function NextDot({ state }: { state: "done" | "current" | "upcoming" }) {
+  // Minimal, uniform dots (z-[1] keeps them above the rail). Only "done" carries
+  // colour — the completion check; current vs upcoming differ by weight, with the
+  // text label carrying the meaning (not colour alone).
   if (state === "done") {
     return (
-      <span className="flex size-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+      <span className="relative z-[1] flex size-6 items-center justify-center rounded-full bg-emerald-600 text-white">
         <Check className="size-3.5" strokeWidth={3} aria-hidden />
       </span>
     );
   }
   if (state === "current") {
     return (
-      <span className="flex size-6 items-center justify-center rounded-full bg-amber-100 ring-2 ring-amber-500">
-        <span className="size-2 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+      <span className="relative z-[1] flex size-6 items-center justify-center rounded-full border-2 border-foreground/40 bg-card">
+        <span className="size-2 rounded-full bg-foreground/80" />
       </span>
     );
   }
-  return <span className="size-6 rounded-full border-2 border-border bg-card" />;
+  // upcoming — same shape, lighter weight
+  return (
+    <span className="relative z-[1] flex size-6 items-center justify-center rounded-full border-2 border-foreground/15 bg-card">
+      <span className="size-2 rounded-full bg-foreground/20" />
+    </span>
+  );
 }
 
 // ── Changes requested (rejected) ─────────────────────────────────────────────
