@@ -184,25 +184,21 @@ export function ProfilePhotoStep() {
         </div>
       )}
 
-      {/* Choose (idle, nothing saved) */}
+      {/* Choose (idle, nothing saved) — the screen's focal action zone. Heavier
+          than the example strip above it (border-2 + a brand tint + a solid
+          primary action) so the squint test lands here, not on the guidance. */}
       {!profilePhoto && mode === "idle" && (
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed bg-card px-6 py-8 text-center">
-          <Moodie name="face-happy" className="size-12" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium">A clear photo of you</p>
-            <p className="text-xs text-muted-foreground text-pretty">
-              Plain, light background works best — it&apos;ll get cut out and dropped
-              onto your color.
-            </p>
-          </div>
+        <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-brand/35 bg-brand/5 px-6 py-10 text-center">
+          <Moodie name="face-happy" className="size-14" />
+          <p className="text-base font-semibold">Add a clear photo of you</p>
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button type="button" variant="secondary" onClick={startCamera}>
+            <Button type="button" onClick={startCamera}>
               <Camera className="size-4" />
               Take a photo
             </Button>
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="size-4" />

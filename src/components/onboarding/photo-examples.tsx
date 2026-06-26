@@ -1,4 +1,4 @@
-import { Check, X, Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Photo sources live here as named slots (served from public/) — swap the files
@@ -58,67 +58,45 @@ function ExampleImage({
   );
 }
 
-// Corner marker — aria-hidden, because the meaning rides on the figcaption + alt
-// text (and, on the good tile, the "Aim for this" label), never on color.
-function CornerBadge({ tone }: { tone: "good" | "skip" }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "absolute right-1 top-1 flex size-4 items-center justify-center rounded-full text-white shadow-sm",
-        tone === "good" ? "bg-emerald-600" : "bg-rose-600"
-      )}
-    >
-      {tone === "good" ? (
-        <Check className="size-2.5" strokeWidth={3} />
-      ) : (
-        <X className="size-2.5" strokeWidth={3} />
-      )}
-    </span>
-  );
-}
-
-// Compact, illustrated do/don't guidance for the profile photo. Replaces the
-// text-only tips checklist (same guidance, shown once). Stays lighter than the
-// upload CTA below it (muted card, matching StepTips' treatment). The good tile
-// is one-of-four at the SAME size — it's distinguished by an outline + ✓ badge +
-// label, not by being larger, so the section stays compact.
+// Compact do/don't guidance for the profile photo — a captioned figure strip,
+// NOT a gallery: borderless + quiet (a caption eyebrow, no card chrome, no
+// badges) so it reads as reference, never as content the mentor uploaded. The
+// upload zone below it is the screen's focal point.
+//
+// The good tile is set apart by an emerald outline + "Aim for this" label; the
+// "don'ts" by a subtle, inert destructive-tinted outline. Meaning rides on the
+// text labels, never colour alone (WCAG 1.4.1), and nothing here reads as a
+// tappable control — the old corner ✕ badge (which mimicked a "remove upload"
+// affordance) is gone.
 export function PhotoExamples() {
   return (
-    <div className="space-y-3 rounded-xl border bg-muted/40 p-3.5 text-sm">
-      <p className="text-muted-foreground text-pretty">
-        Face clear, shoulders up, plain light background — skip filters, busy
-        rooms, and dim shots.
+    <div className="space-y-2.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-foreground/70">
+        Examples — aim for the first one
       </p>
 
       <div className="grid grid-cols-5 gap-2">
-        {/* Good — same tile size; set apart by the success outline + ✓ + label */}
+        {/* Good — emerald outline + label (no success badge) */}
         <figure className="space-y-1">
-          <div className="relative">
-            <ExampleImage
-              src={goodExampleSrc}
-              alt="Portrait framed from the shoulders up, face clear, plain background"
-              className="aspect-square w-full rounded-lg ring-2 ring-emerald-600"
-            />
-            <CornerBadge tone="good" />
-          </div>
+          <ExampleImage
+            src={goodExampleSrc}
+            alt="Portrait framed from the shoulders up, face clear, plain background"
+            className="aspect-square w-full rounded-lg ring-2 ring-emerald-600"
+          />
           <figcaption className="text-center text-xs font-medium text-emerald-700">
             Aim for this
           </figcaption>
         </figure>
 
-        {/* Don'ts */}
+        {/* Don'ts — subtle inert outline; the caption label carries the meaning */}
         {skipExamples.map((ex) => (
           <figure key={ex.label} className="space-y-1">
-            <div className="relative">
-              <ExampleImage
-                src={ex.src}
-                alt={ex.alt}
-                className="aspect-square w-full rounded-lg"
-              />
-              <CornerBadge tone="skip" />
-            </div>
-            <figcaption className="text-center text-xs text-muted-foreground">
+            <ExampleImage
+              src={ex.src}
+              alt={ex.alt}
+              className="aspect-square w-full rounded-lg ring-1 ring-destructive/40"
+            />
+            <figcaption className="text-center text-xs text-foreground/70">
               {ex.label}
             </figcaption>
           </figure>
