@@ -7,11 +7,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useOnboardingStore } from "@/lib/onboarding/store";
+import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 
 export function DevRoleToggle() {
   const pathname = usePathname() ?? "";
   const isAdmin = pathname.startsWith("/admin");
+  const mounted = useMounted();
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
+  // Published mentors live in the mentor app (Settings), not the onboarding flow.
+  // Guard on `mounted` so SSR/first paint matches (avoids a hydration mismatch).
+  const mentorHref = mounted && everPublished ? "/app" : "/onboarding";
 
   const tab = (active: boolean) =>
     cn(
@@ -24,7 +31,7 @@ export function DevRoleToggle() {
       <span className="font-mono font-semibold uppercase tracking-wider text-muted-foreground">
         Dev
       </span>
-      <Link href="/onboarding" className={tab(!isAdmin)}>
+      <Link href={mentorHref} className={tab(!isAdmin)}>
         Mentor
       </Link>
       <Link href="/admin/users" className={tab(isAdmin)}>

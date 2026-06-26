@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Wordmark } from "@/components/brand";
 import { Moodie } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
@@ -18,12 +20,19 @@ import {
 
 export default function HubPage() {
   const mounted = useMounted();
+  const router = useRouter();
   const draft = useOnboardingStore((s) => s.draft);
   const status = useOnboardingStore((s) => s.status);
   const completed = useOnboardingStore((s) => s.completed);
   const hubSteps = useOnboardingStore((s) => s.hubSteps);
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
 
-  if (!mounted) {
+  // Published mentors belong in the mentor app (Settings), not the setup hub.
+  useEffect(() => {
+    if (mounted && everPublished) router.replace("/app");
+  }, [mounted, everPublished, router]);
+
+  if (!mounted || everPublished) {
     return <div className="min-h-dvh bg-background" />;
   }
 

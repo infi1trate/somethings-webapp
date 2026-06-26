@@ -15,6 +15,7 @@ import { STEP_ORDER, stepIndex, getStep } from "@/lib/onboarding/steps";
 import { useOnboardingNav, stepHref } from "@/lib/onboarding/useOnboardingNav";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
+import { requestsForStep, isAddressed } from "@/lib/onboarding/change-requests";
 
 // Which region of the live profile each step is filling in. Drives the
 // preview's zoom-to-focus; the account steps aren't on the profile, so they
@@ -95,6 +96,8 @@ export function OnboardingWizard() {
   const nav = useOnboardingNav();
   const draft = useOnboardingStore((s) => s.draft);
   const status = useOnboardingStore((s) => s.status);
+  const changeRequests = useOnboardingStore((s) => s.changeRequests);
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
   const current = useStepCrossfade(nav.current);
   const router = useRouter();
 
@@ -111,9 +114,16 @@ export function OnboardingWizard() {
     }
   }, [mounted, current, isReturning, router]);
 
+  // Published mentors edit in Settings, not the onboarding wizard — bounce them
+  // to their mentor app so they're never dropped back into onboarding.
+  useEffect(() => {
+    if (mounted && everPublished) router.replace("/app");
+  }, [mounted, everPublished, router]);
+
   // Gate on mount so the localStorage-backed draft doesn't cause a hydration
-  // mismatch, and key the step so each one remounts with fresh form defaults.
-  if (!mounted) {
+  // mismatch (and key the step so each remounts with fresh defaults). Also hold
+  // the loader for published mentors while the effect above redirects to /app.
+  if (!mounted || everPublished) {
     return (
       <OnboardingLayout>
         <div className="flex flex-1 items-center justify-center py-20">
@@ -174,11 +184,19 @@ export function OnboardingWizard() {
       ? { index: profileIdx, total: PROFILE_STEPS.length, section }
       : undefined;
 
+  // Per-step "Needs changes": true only when THIS step has a reviewer request
+  // that's not yet addressed — so the header badge reflects the current step,
+  // not the whole profile (no "Needs changes" on un-flagged steps like languages).
+  const stepFlagged =
+    status === "rejected" &&
+    requestsForStep(changeRequests, current).some((r) => !isAddressed(r, draft));
+
   return (
     <OnboardingLayout
       progress={progress}
       preview={preview}
       phase={phase}
+      stepFlagged={stepFlagged}
       hideDock={current === "register"}
       hideStatus={current === "register" && isReturning}
     >

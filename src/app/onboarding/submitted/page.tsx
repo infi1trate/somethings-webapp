@@ -41,12 +41,19 @@ export default function SubmittedPage() {
   const router = useRouter();
   const status = useOnboardingStore((s) => s.status);
   const draft = useOnboardingStore((s) => s.draft);
+  // A published mentor's in_review/rejected is a post-publish edit cycle — that
+  // lives in Settings, not this first-time screen. Only the published "approved"
+  // card still belongs here (the moment of first approval).
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
+  const postPublishEdit = everPublished && status !== "published";
 
   useEffect(() => {
-    if (mounted && !POST_SUBMIT.includes(status)) router.replace(HUB_PATH);
-  }, [mounted, status, router]);
+    if (!mounted) return;
+    if (postPublishEdit) router.replace("/app");
+    else if (!POST_SUBMIT.includes(status)) router.replace(HUB_PATH);
+  }, [mounted, status, postPublishEdit, router]);
 
-  if (!mounted || !POST_SUBMIT.includes(status)) {
+  if (!mounted || postPublishEdit || !POST_SUBMIT.includes(status)) {
     return <div className="min-h-dvh bg-background" />;
   }
 
@@ -116,7 +123,7 @@ function PendingContent({ draft }: { draft: MentorDraft }) {
     <div>
       <IconTile tone="amber" face="face-love" />
       <h1 className="mt-5 font-display text-[34px] font-bold leading-[1.05] tracking-tight text-balance">
-        {firstName ? `That's your profile in, ${firstName}` : "That's your profile in"}
+        {firstName ? `Thanks for submitting, ${firstName}` : "Thanks for submitting"}
       </h1>
       <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground text-pretty">
         Our team reads every profile before it goes live — usually a day or two.{" "}

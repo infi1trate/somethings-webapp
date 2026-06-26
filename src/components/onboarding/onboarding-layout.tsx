@@ -37,6 +37,10 @@ interface Props {
   hideDock?: boolean;
   /** Suppress the profile status badge (e.g. on the returning-user login page). */
   hideStatus?: boolean;
+  /** During "needs changes", whether the CURRENT step has an unaddressed request.
+   *  Gates the header's "Needs changes" badge so it shows per-step (only on
+   *  flagged steps), not globally on every slide. */
+  stepFlagged?: boolean;
 }
 
 export function OnboardingLayout({
@@ -46,6 +50,7 @@ export function OnboardingLayout({
   phase = "step",
   hideDock = false,
   hideStatus = false,
+  stepFlagged = false,
 }: Props) {
   const gradient = phase === "intro" ? INTRO_GRADIENT : STEP_GRADIENT;
   const Backdrop = phase === "intro" ? IntroBackdrop : StepBackdrop;
@@ -60,7 +65,12 @@ export function OnboardingLayout({
       <header>
         <div className="flex h-14 items-center justify-between px-5 sm:px-8">
           <Wordmark />
-          {!hideStatus && <StatusBadge status={status} />}
+          {/* "Needs changes" is per-step during revision — shown only on a
+              flagged step, not on every slide. Other statuses (Draft / In review
+              / Published) stay global. */}
+          {!hideStatus && (status !== "rejected" || stepFlagged) && (
+            <StatusBadge status={status} />
+          )}
         </div>
         {progress && (
           <div className="border-b px-5 pb-3 sm:px-8">

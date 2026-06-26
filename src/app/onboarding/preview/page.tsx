@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -28,7 +28,14 @@ export default function PreviewPage() {
   const setRejection = useOnboardingStore((s) => s.setRejection);
   const changeRequests = useOnboardingStore((s) => s.changeRequests);
   const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
+  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Published mentors review their edits in Settings, not this onboarding
+  // preview — send them to their mentor app.
+  useEffect(() => {
+    if (mounted && everPublished) router.replace("/app");
+  }, [mounted, everPublished, router]);
 
   // State-driven gate: once a profile is in_review or published this screen is
   // READ-ONLY — no Submit, no Keep editing — regardless of how the user got here
@@ -59,6 +66,9 @@ export default function PreviewPage() {
     // Celebrate on the success screen first; the mentor opts into the hub there.
     router.push(SUBMITTED_PATH);
   };
+
+  // Hold while redirecting a published mentor to /app.
+  if (everPublished) return <div className="min-h-dvh bg-background" />;
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-gradient-to-b from-[#fff2ea] to-[#f6f4f1] sm:px-6 sm:py-10">
