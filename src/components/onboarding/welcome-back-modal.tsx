@@ -3,7 +3,8 @@
 // Shown once per session entry when the profile is in "needs changes". Styled to
 // match the /submitted "a few things to update" card (Figma 323-1764): a warm
 // green header framing this as polish (not a rejection), then the change list as
-// tappable rows that jump to each field. Reopenable from the dock.
+// tappable rows that jump to each field. Shown once per entry; the dock then
+// carries the ongoing tracker.
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";

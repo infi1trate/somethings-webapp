@@ -49,6 +49,16 @@ export function StepScaffold<T extends FieldValues>({
     // via the View Transitions API, so the content must be fully opaque when the
     // transition snapshots it.
     <div className="flex flex-1 flex-col">
+      {/* Reviewer note(s) for THIS step — a full-width banner at the top of the
+          step (affected steps only; silence is correct otherwise). */}
+      {stepRequests.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {stepRequests.map((req) => (
+            <ChangeNoteCard key={req.id} req={req} draft={draft} />
+          ))}
+        </div>
+      )}
+
       <div className="mb-7 space-y-4">
         <SectionDoodle section={section} seed={index} />
         <div className="space-y-2">
@@ -62,14 +72,6 @@ export function StepScaffold<T extends FieldValues>({
           )}
         </div>
       </div>
-
-      {stepRequests.length > 0 && (
-        <div className="mb-6 space-y-3">
-          {stepRequests.map((req) => (
-            <ChangeNoteCard key={req.id} req={req} draft={draft} />
-          ))}
-        </div>
-      )}
 
       <Form {...form}>
         <form

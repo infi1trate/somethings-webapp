@@ -12,9 +12,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronUp } from "lucide-react";
+import { Check, ChevronRight, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ChangeRow } from "@/components/onboarding/change-row";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { stepHref } from "@/lib/onboarding/useOnboardingNav";
@@ -35,7 +34,6 @@ export function ChangeRequestsDock() {
   const draft = useOnboardingStore((s) => s.draft);
   const confirmUnchanged = useOnboardingStore((s) => s.confirmUnchanged);
   const unconfirm = useOnboardingStore((s) => s.unconfirmChangeRequest);
-  const setWelcomeOpen = useOnboardingStore((s) => s.setWelcomeOpen);
   // Once published, post-publish revisions happen in mentor settings (not the
   // wizard), so the onboarding dock stays out of the way.
   const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
@@ -63,20 +61,16 @@ export function ChangeRequestsDock() {
         allDone ? "border-t-emerald-700 bg-emerald-50" : "border-t-foreground/55"
       )}
     >
-      {/* Expanded list — rows reflect derived state; the leading control is the
-          integrity mechanism. */}
+      {/* Expanded list — rows mirror the "a few things to update" modal items,
+          plus a leading checkbox that tracks (and confirms) each change. */}
       {open && (
-        <ul className="max-h-[50vh] divide-y overflow-y-auto px-3 sm:px-6">
+        <ul className="max-h-[50vh] space-y-2.5 overflow-y-auto px-3 py-4 sm:px-6">
           {changeRequests.map((c) => {
             const state = addressedStateOf(c, draft);
             const confirming = confirmingId === c.id;
             return (
-              <ChangeRow
-                key={c.id}
-                req={c}
-                draft={draft}
-                onJump={() => router.push(stepHref(c.stepId))}
-                leading={
+              <li key={c.id}>
+                <div className="flex items-center gap-3 rounded-xl border border-foreground/12 py-2.5 pl-3 pr-2">
                   <DockCheck
                     state={state}
                     label={c.sectionLabel}
@@ -90,30 +84,37 @@ export function ChangeRequestsDock() {
                       setConfirmingId(c.id);
                     }}
                   />
-                }
-                footer={
-                  confirming ? (
-                    <ConfirmUnchanged
-                      onConfirm={() => {
-                        confirmUnchanged(c.id);
-                        setConfirmingId(null);
-                      }}
-                      onCancel={() => setConfirmingId(null)}
+                  <button
+                    type="button"
+                    onClick={() => router.push(stepHref(c.stepId))}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-foreground">
+                        {c.sectionLabel}
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">
+                        {c.note}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-5 shrink-0 text-muted-foreground"
+                      aria-hidden
                     />
-                  ) : null
-                }
-              />
+                  </button>
+                </div>
+                {confirming && (
+                  <ConfirmUnchanged
+                    onConfirm={() => {
+                      confirmUnchanged(c.id);
+                      setConfirmingId(null);
+                    }}
+                    onCancel={() => setConfirmingId(null)}
+                  />
+                )}
+              </li>
             );
           })}
-          <li className="px-1 py-2">
-            <button
-              type="button"
-              onClick={() => setWelcomeOpen(true)}
-              className="inline-flex min-h-9 items-center rounded-md text-sm font-medium text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
-            >
-              See the overview
-            </button>
-          </li>
         </ul>
       )}
 
@@ -221,7 +222,7 @@ function DockCheck({
       }
       onClick={onClick}
       className={cn(
-        "relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border-2 outline-none after:absolute after:-inset-2.5 after:content-[''] motion-safe:transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
+        "relative flex size-6 shrink-0 items-center justify-center rounded-full border-2 outline-none after:absolute after:-inset-2.5 after:content-[''] motion-safe:transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
         checked
           ? "border-emerald-600 bg-emerald-600 text-white"
           : "border-foreground/30 hover:border-foreground/50",
