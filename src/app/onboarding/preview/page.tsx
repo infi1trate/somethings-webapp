@@ -16,6 +16,7 @@ import { submitForReview } from "@/lib/mock-api";
 import { HUB_PATH, SUBMITTED_PATH } from "@/lib/onboarding/steps";
 import { stepHref } from "@/lib/onboarding/useOnboardingNav";
 import { changeProgress } from "@/lib/onboarding/change-requests";
+import { WelcomeBackModal } from "@/components/onboarding/welcome-back-modal";
 import { cn } from "@/lib/utils";
 
 export default function PreviewPage() {
@@ -171,6 +172,10 @@ export default function PreviewPage() {
           </p>
         </div>
       </div>
+
+      {/* "A few things to update" context modal — greets a returning mentor who
+          lands here to address changes (self-gates: rejected + has changes). */}
+      <WelcomeBackModal />
     </div>
   );
 }
