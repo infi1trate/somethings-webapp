@@ -1,10 +1,10 @@
 "use client";
 
-// The mentor's revision tracker — a progress count + jumplist, DOCKED to the
-// bottom edge of the editing workspace card (mounted as the panel's last child
-// in onboarding-layout) rather than floating over the viewport. Opaque surface
-// + a defined top edge so it reads as part of the work card, not ambient chrome
-// over the background gradient. Shown only while the profile is "needs changes".
+// The mentor's revision tracker — a progress count + jumplist that FLOATS, fixed
+// to the viewport (bottom-center on desktop, a near-full-width bottom bar on
+// mobile) so it's always visible and never scrolls below the fold on short
+// screens. A self-contained card (full border + drop shadow), mounted at the
+// onboarding-layout root. Shown only while the profile is "needs changes".
 //
 // State machine: collapsed (progress count) → expanded (rows) → complete (CTA),
 // reversible if progress regresses. Addressed state is derived from the live
@@ -52,19 +52,26 @@ export function ChangeRequestsDock() {
   const { addressed, total, allDone } = changeProgress(changeRequests, draft);
 
   return (
-    // Docked to the work card's bottom edge: opaque surface, a defined top edge
-    // (border-t, ≥3:1), and only a whisper of upward shadow for a subtle lift off
-    // the content above — grounded in the card, never floating over the gradient.
+    // Floating card, fixed to the viewport: mobile = near-full-width bottom bar
+    // (side gutters + iOS safe-area floor); desktop (lg) = a compact bottom-center
+    // tray. z-30 sits above the mobile preview pill (z-20) but below dialogs
+    // (z-50) so a modal still covers it. Rows expand UPWARD from the pinned bar.
     <div
       className={cn(
-        "flex flex-col border-t bg-card shadow-[0_-10px_24px_-18px_rgba(31,30,29,0.22)]",
-        allDone ? "border-t-emerald-700 bg-emerald-50" : "border-t-foreground/55"
+        "fixed z-30 flex flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_12px_40px_-12px_rgba(31,30,29,0.35)]",
+        // mobile: near-full-width bottom bar, side gutters, iOS safe-area floor
+        "inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]",
+        // desktop: compact bottom-center tray
+        "lg:inset-x-auto lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:w-auto lg:min-w-[24rem] lg:max-w-md",
+        "max-h-[calc(100dvh-1.5rem)]", // never exceed the viewport
+        "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300",
+        allDone ? "border-emerald-700 bg-emerald-50" : "border-foreground/15"
       )}
     >
       {/* Expanded list — rows mirror the "a few things to update" modal items,
           plus a leading checkbox that tracks (and confirms) each change. */}
       {open && (
-        <ul className="max-h-[50vh] space-y-2.5 overflow-y-auto px-3 py-4 sm:px-6">
+        <ul className="max-h-[min(60svh,26rem)] space-y-2.5 overflow-y-auto px-3 py-4 sm:px-6">
           {changeRequests.map((c) => {
             const state = addressedStateOf(c, draft);
             const confirming = confirmingId === c.id;

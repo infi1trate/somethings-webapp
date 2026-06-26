@@ -78,10 +78,6 @@ export function OnboardingLayout({
       <main className="flex flex-1 flex-col px-5 py-8 sm:px-8 sm:py-10">
         {children}
       </main>
-
-      {/* Revision tracker, docked to the card's bottom edge. Self-gates — only
-          renders while the profile is in "needs changes". */}
-      {!hideDock && <ChangeRequestsDock />}
     </div>
   );
 
@@ -97,6 +93,8 @@ export function OnboardingLayout({
         <Backdrop />
         <div className="relative z-10 w-full max-w-2xl">{panel}</div>
         {!hideDock && <WelcomeBackModal />}
+        {/* Revision tracker — floats fixed to the viewport (self-gates). */}
+        {!hideDock && <ChangeRequestsDock />}
       </div>
     );
   }
@@ -136,7 +134,9 @@ export function OnboardingLayout({
       <div
         className={cn(
           "fixed inset-x-0 z-20 flex justify-center p-4 lg:hidden",
-          status === "rejected" ? "bottom-20" : "bottom-0"
+          // Lifted clear of the floating revision dock (collapsed ≈ 4.25rem tall)
+          // when in changes-requested state.
+          status === "rejected" ? "bottom-24" : "bottom-0"
         )}
       >
         <Dialog>
@@ -156,6 +156,8 @@ export function OnboardingLayout({
       </div>
 
       {!hideDock && <WelcomeBackModal />}
+      {/* Revision tracker — floats fixed to the viewport (self-gates). */}
+      {!hideDock && <ChangeRequestsDock />}
     </div>
   );
 }
