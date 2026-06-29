@@ -60,7 +60,9 @@ const VIBE_PROMPT_GROUPS = [
   // Comfort & character
   [
     "the photo you'd show a friend first",
-    "something that makes you feel like a kid again",
+    // Swapped from "something that makes you feel like a kid again" (too generic,
+    // object-y) → a moment/feeling that's far more personality-telling.
+    "something you'd send a friend at 1am",
     "a place you feel most like yourself",
     "your comfort rewatch, in one image",
     "a snack situation you stand by",
@@ -72,6 +74,7 @@ const VIBE_PROMPT_GROUPS = [
     "something you'd put on a poster, no explanation",
     "proof you have a weird sense of humor",
     "a photo that needs context (don't give it)",
+    "the last thing that made you laugh",
   ],
   // Open / easy outs
   [
@@ -93,10 +96,37 @@ export const VIBE_PROMPTS: string[] = (() => {
   return out;
 })();
 
-// Example bios that cycle one at a time on the bio step. Kept short — these are
-// just examples from other mentors to spark ideas, not a script to copy.
-export const BIO_EXAMPLES = [
-  "I'm a designer and artist, and I became a mentor because of the impact mentorship had on my youth.",
-  "I'm studying social work, and I mentor to be the person I wish I'd had in high school.",
-  "I'm into music and design, and I mentor because someone believing in me made all the difference.",
+// Vibe-step social proof. Low-pressure, no overpromising (somethings-copywriting).
+// The step's framing ("a few is plenty") lives in the vibe-step subtitle; this is
+// just the light, honest nudge shown below the board.
+// DIRECTIONAL ONLY — data-backed pending a real number. We know fuller vibe
+// profiles tend to match better, but have no citable figure yet. Do NOT add a
+// statistic ("3x", "most mentors") without one. TODO(data-backed): upgrade to a
+// quantified line once the completion→match figure exists.
+export const VIBE_CONTEXT = {
+  social: "Mentors who add a few of these tend to connect more easily.",
+};
+
+// Exemplar bios shown one at a time on the bio step (cycle with "Show another").
+// These model what a STRONG bio looks like — specific, a little personality, easy
+// to picture the person — not a minimum fill. Each carries a one-line "why it
+// works" tag so the card teaches criteria, not a single answer to paste verbatim.
+// Voice: warm, human, non-clinical, no overpromising (somethings-copywriting).
+export const BIO_EXAMPLES: { text: string; why: string }[] = [
+  {
+    text: "I'm a UX designer and weekend muralist. I got into mentoring because someone once told me my 'too many interests' were a strength, not a problem — happy to talk creative stuff, burnout, or figuring out what's next.",
+    why: "Names real interests and what they're up for talking about.",
+  },
+  {
+    text: "Nursing student by day, very amateur rock climber on weekends. I'm the first in my family to go to college and I had no clue what I was doing — I'd love to be the person I needed back then.",
+    why: "Gives a real reason to mentor, with a detail that sticks.",
+  },
+  {
+    text: "I teach middle-school science and I'm a little too into bad reality TV and good coffee. I mentor because the small, regular check-ins are the ones that stuck with me growing up. No lectures, promise.",
+    why: "Has personality and sets a clear, low-pressure tone.",
+  },
+  {
+    text: "I work in music production and I'm a big believer that everyone's got a thing they light up about. I became a mentor to be a steady, no-pressure person to talk to — about the big stuff or nothing in particular.",
+    why: "Sounds warm and genuinely easy to talk to.",
+  },
 ];

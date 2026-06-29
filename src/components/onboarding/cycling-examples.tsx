@@ -1,91 +1,61 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { GuidanceCard } from "@/components/onboarding/guidance-card";
 
 interface CyclingExamplesProps {
-  items: string[];
+  items: { text: string; why?: string }[];
   label?: string;
-  intervalMs?: number;
 }
 
-// A compact card that rotates through example strings one at a time, so the
-// suggested scripts don't take up a long static list. Auto-advances gently,
-// pauses on hover/focus, and lets people tap a dot to browse. Honors
-// prefers-reduced-motion (no auto-advance; dots still work).
+// Shows one strong exemplar at a time inside the shared guidance surface.
+//
+// Two distinct jobs, kept in distinct regions so they don't compete:
+//  • "Show another" — an explicit, labeled cycle control (states the action in
+//    words; ↺ pattern mirrors the vibe step) lives in the card HEADER.
+//  • "Why it works" — a per-example teaching annotation lives in the BODY as a
+//    brand-accented note (NOT a pill, so it can't be mistaken for a button).
+// Rotating + specific is intentional anti-copy-paste design: these adapt, they
+// aren't one canonical answer to paste.
 export function CyclingExamples({
   items,
-  label = "Something to go off",
-  intervalMs = 6500,
+  label = "Examples from other mentors",
 }: CyclingExamplesProps) {
   const [i, setI] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const reduced = useReducedMotion();
-
-  useEffect(() => {
-    if (paused || reduced || items.length < 2) return;
-    const id = setInterval(
-      () => setI((n) => (n + 1) % items.length),
-      intervalMs
-    );
-    return () => clearInterval(id);
-  }, [paused, reduced, items.length, intervalMs]);
-
   if (items.length === 0) return null;
   const current = items[Math.min(i, items.length - 1)];
 
+  const showAnother =
+    items.length > 1 ? (
+      <button
+        type="button"
+        onClick={() => setI((n) => (n + 1) % items.length)}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <RefreshCw className="size-3.5" aria-hidden />
+        Show another
+      </button>
+    ) : undefined;
+
   return (
-    <div
-      className="rounded-xl border bg-muted/40 px-3.5 py-3"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={() => setPaused(false)}
-    >
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Sparkles className="size-3.5 text-brand" />
-        {label}
-      </div>
+    <GuidanceCard label={label} action={showAnother}>
       <p
         key={i}
-        className="min-h-[1.5rem] text-[13.5px] leading-relaxed text-foreground/80 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-500"
+        className="text-[13.5px] leading-relaxed text-foreground/80 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-500"
       >
-        {current}
+        {current.text}
       </p>
-      {items.length > 1 && (
-        <div className="mt-2 flex gap-1.5">
-          {items.map((_, n) => (
-            <button
-              key={n}
-              type="button"
-              aria-label={`Example ${n + 1}`}
-              aria-current={n === i}
-              onClick={() => setI(n)}
-              className={cn(
-                "h-1.5 rounded-full transition-all",
-                n === i ? "w-4 bg-foreground/40" : "w-1.5 bg-foreground/15"
-              )}
-            />
-          ))}
-        </div>
+
+      {current.why && (
+        <p
+          key={`why-${i}`}
+          className="mt-3 border-l-2 border-brand/40 pl-2.5 text-[12.5px] leading-snug text-foreground/75 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500"
+        >
+          <span className="font-semibold text-foreground/85">Why it works: </span>
+          {current.why}
+        </p>
       )}
-    </div>
-  );
-}
-
-const REDUCED_QUERY = "(prefers-reduced-motion: reduce)";
-
-// useSyncExternalStore avoids the set-state-in-effect lint rule this project
-// enforces, and gives a correct SSR snapshot (false).
-function useReducedMotion() {
-  return useSyncExternalStore(
-    (onChange) => {
-      const mq = window.matchMedia(REDUCED_QUERY);
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(REDUCED_QUERY).matches,
-    () => false
+    </GuidanceCard>
   );
 }
