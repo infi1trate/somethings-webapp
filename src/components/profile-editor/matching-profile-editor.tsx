@@ -13,14 +13,15 @@
 // progress) — just formatted for settings rather than the wizard's floating dock.
 
 import { useState } from "react";
-import { AlertCircle, Clock, Lock } from "lucide-react";
+import { AlertCircle, Check, Clock, Lock } from "lucide-react";
 import { toast } from "sonner";
-import { PhoneFrame } from "@/components/onboarding/phone-frame";
+import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import {
   MentorProfilePreview,
   type PreviewFocus,
 } from "@/components/onboarding/mentor-profile-preview";
-import { EditSectionPanel } from "@/components/profile-editor/edit-section-panel";
+import { SectionCard } from "@/components/settings/section-card";
+import { PillButton } from "@/components/settings/pill-button";
 import { PhotoField } from "@/components/profile-editor/photo-field";
 import { ChangeNoteCard } from "@/components/onboarding/change-note-card";
 import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
@@ -29,10 +30,9 @@ import { InterestsDeckField } from "@/components/onboarding/interests-deck-field
 import { MediaIntroField } from "@/components/onboarding/media-intro-field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import {
-  PROFILE_SECTIONS,
+  sectionsForTab,
   changedProfileSections,
 } from "@/lib/onboarding/profile-sections";
 import {
@@ -64,6 +64,11 @@ const HELPER_BY_KEY: Record<string, string> = {
   interests: "The interests deck + the photo behind each one.",
 };
 
+// This tab hosts ONLY the match-card sections (§3 rev) — the first-chat
+// content lives on the First moments tab (first-moments-editor.tsx).
+const MATCHING_SECTIONS = sectionsForTab("matching");
+const MATCHING_STEPS = new Set(MATCHING_SECTIONS.map((s) => s.step));
+
 export function MatchingProfileEditor() {
   const draft = useOnboardingStore((s) => s.draft);
   const update = useOnboardingStore((s) => s.update);
@@ -78,9 +83,11 @@ export function MatchingProfileEditor() {
 
   const locked = status === "in_review";
   const isRejected = status === "rejected";
-  const changed = publishedSnapshot
-    ? changedProfileSections(draft, publishedSnapshot)
-    : [];
+  // CTA scope: THIS tab's sections only — the moved first-moments sections
+  // drive their own tab's CTA, not this one (§3 rev).
+  const changed = (
+    publishedSnapshot ? changedProfileSections(draft, publishedSnapshot) : []
+  ).filter((step) => MATCHING_STEPS.has(step));
   const dirty = changed.length > 0;
   const { addressed, total: reqTotal } = changeProgress(changeRequests, draft);
 
@@ -103,6 +110,12 @@ export function MatchingProfileEditor() {
     setChangeRequests([]);
     setStatus("in_review");
     setOpenId(null);
+    // §4 asks for "Sent. You can keep editing while it's in review." — but the
+    // prototype's review loop LOCKS editing during in_review (Phase B). Spec
+    // said to verify against that logic; verified → conflict → truthful calm
+    // confirmation instead (design-system-gaps.md #33). The locked banner
+    // explains the rest.
+    toast("Sent.");
   };
 
   const editorFor = (key: string) => {
@@ -110,8 +123,8 @@ export function MatchingProfileEditor() {
       case "profile-photo":
         return (
           <PhotoField
-            value={draft.profilePhoto}
-            onChange={(v) => update({ profilePhoto: v })}
+            value={draft.matchCardPhoto}
+            onChange={(v) => update({ matchCardPhoto: v })}
           />
         );
       case "nickname":
@@ -203,24 +216,56 @@ export function MatchingProfileEditor() {
       )}
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_392px]">
-        <div className="min-w-0 space-y-3">
-          {PROFILE_SECTIONS.map((section) => {
+        <div className="min-w-0 space-y-[var(--card-gap)]">
+          {MATCHING_SECTIONS.map((section) => {
             const reqs = isRejected
               ? requestsForStep(changeRequests, section.step)
               : [];
+            const summary = section.summary(draft);
+            // Figma 388:1586 shows a ✓ on set-state summaries ("Photo added",
+            // "Audio added") — mirror that for the two asset sections.
+            const added =
+              (section.step === "profile-photo" && !!draft.matchCardPhoto) ||
+              (section.step === "media" && !!draft.media.kind);
+            // §4: the match card photo is the teen-facing asset — say so on its
+            // status line (mirrors the Profile tab's internal-photo note).
+            const isMatchCard = section.step === "profile-photo";
+            const status =
+              added || isMatchCard ? (
+                <>
+                  {added && (
+                    <Check className="size-3.5 shrink-0" aria-hidden />
+                  )}
+                  <span className="truncate">
+                    {summary}
+                    {isMatchCard && (
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        {" "}
+                        · Teens see this photo
+                      </span>
+                    )}
+                  </span>
+                </>
+              ) : (
+                summary
+              );
             return (
-              <EditSectionPanel
+              <SectionCard
                 key={section.step}
                 title={section.label}
-                helper={HELPER_BY_KEY[section.step] ?? ""}
-                summary={section.summary(draft)}
-                open={openId === section.step && !locked}
+                status={status}
+                state={changed.includes(section.step) ? "dirty" : "default"}
+                flagged={reqs.length > 0}
+                disabled={locked}
+                expanded={openId === section.step && !locked}
                 onToggle={() =>
                   setOpenId((o) => (o === section.step ? null : section.step))
                 }
-                flagged={reqs.length > 0}
-                disabled={locked}
               >
+                {/* "Where this shows" helper — prototype behavior, kept (diff D10) */}
+                <p className="mb-4 text-xs leading-relaxed text-[var(--text-secondary)]">
+                  {HELPER_BY_KEY[section.step] ?? ""}
+                </p>
                 {reqs.length > 0 && (
                   <div className="mb-4 space-y-3">
                     {reqs.map((r) => (
@@ -229,16 +274,16 @@ export function MatchingProfileEditor() {
                   </div>
                 )}
                 {editorFor(section.step)}
-              </EditSectionPanel>
+              </SectionCard>
             );
           })}
         </div>
 
         <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
-          <PhoneFrame>
+          <PhonePreviewShell label="Live preview — what teens see on your match card">
             <MentorProfilePreview draft={draft} focus={focus} />
-          </PhoneFrame>
-          <p className="text-xs text-muted-foreground">
+          </PhonePreviewShell>
+          <p className="text-xs text-[var(--text-muted)]">
             Live preview · what teens see
           </p>
         </div>
@@ -252,31 +297,33 @@ export function MatchingProfileEditor() {
             In review — awaiting the team
           </span>
         ) : isRejected ? (
-          <Button
-            size="lg"
+          <PillButton
             onClick={submit}
-            disabled={submitting}
-            className="pointer-events-auto rounded-full shadow-[0_10px_30px_-12px_rgba(31,30,29,0.45)]"
+            loading={submitting}
+            className="pointer-events-auto shadow-[0_10px_30px_-12px_rgba(31,30,29,0.45)]"
           >
             {submitting ? "Sending…" : "Resubmit for review"}
-          </Button>
+          </PillButton>
         ) : dirty ? (
-          <Button
-            size="lg"
-            onClick={submit}
-            disabled={submitting}
-            className="pointer-events-auto rounded-full shadow-[0_10px_30px_-12px_rgba(31,30,29,0.45)]"
-          >
-            {submitting
-              ? "Sending…"
-              : `Submit ${changed.length} change${
-                  changed.length === 1 ? "" : "s"
-                } for review`}
-          </Button>
+          // §4 CTA: dirty → "Send for review" + one-line reviewer helper.
+          <div className="pointer-events-auto flex flex-col items-center gap-2">
+            <PillButton
+              onClick={submit}
+              loading={submitting}
+              className="shadow-[0_10px_30px_-12px_rgba(31,30,29,0.45)]"
+            >
+              {submitting ? "Sending…" : "Send for review"}
+            </PillButton>
+            <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s1)]/95 px-3 py-1 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+              Stephen reviews changes before they go live to teens.
+            </span>
+          </div>
         ) : (
-          <span className="pointer-events-auto inline-flex items-center rounded-full border border-dashed bg-card/90 px-5 py-2.5 text-sm font-medium text-muted-foreground">
+          // Figma disabled CTA: #b8b2a9 pill, white text, h53 ("No changes made").
+          // Label swap to "Send for review" + helper is Phase 3 (diff E3).
+          <PillButton disabled className="pointer-events-auto">
             No changes made
-          </span>
+          </PillButton>
         )}
       </div>
     </div>

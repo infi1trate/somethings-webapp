@@ -64,6 +64,38 @@ export interface VibePhoto {
   prompt: string | null; // the prompt that framed this pick (context; null if free-added)
 }
 
+/** One canned first message (§4 “First messages”) — sent automatically when a
+ *  teen opens the mentor's chat for the first time. Delivered in chat, never
+ *  rendered on the match card / phone preview. */
+export interface FirstMessage {
+  id: string;
+  text: string;
+}
+
+/** The two first-message channels — which list sends depends on whether the
+ *  mentor is online when the teen opens the chat. */
+export interface FirstMessages {
+  online: FirstMessage[];
+  offline: FirstMessage[];
+}
+
+/** One image slide of a story (§4) — image only; the old eyebrow/header text
+ *  fields are killed (text lives on the image itself). Max 6 per story,
+ *  UI-enforced. Delivered in chat, not on the match card. */
+export interface StorySlide {
+  id: string;
+  photo: string; // downscaled WebP data URL
+}
+
+/** LIBRARY-READY (§4 rev): stories are modeled as a collection so future story
+ *  types can join without another migration. Today exactly ONE entry exists —
+ *  the 'first-moment' story shown on the First moments tab. */
+export interface Story {
+  id: string;
+  type: "first-moment";
+  slides: StorySlide[];
+}
+
 export interface MediaIntro {
   kind: "audio" | null;
   name: string | null;
@@ -82,7 +114,14 @@ export interface MentorDraft {
   dob: string; // YYYY-MM-DD
   phone: string;
   // Profile
-  profilePhoto: string | null; // background-removed cutout, data URL
+  /** Teen-facing MATCH CARD photo — the background-removed cutout in the phone
+   *  preview header (renamed from `profilePhoto`, §4 Phase 3). Distinct from
+   *  the internal `accountPhoto` on the settings Profile tab. */
+  matchCardPhoto: string | null;
+  /** Internal/account photo (Profile tab) — NOT teen-facing, distinct from the
+   *  teen-facing `matchCardPhoto`. Saved directly from settings; never enters
+   *  the review loop. */
+  accountPhoto: string | null;
   nickname: string;
   sex: string;
   genderIdentity: string;
@@ -94,6 +133,10 @@ export interface MentorDraft {
   media: MediaIntro;
   vibe: VibePhoto[]; // the "vibe board" — sits above interests on the profile
   interests: InterestEntry[];
+  // First-moments content (§4 rev) — chat-delivered, previewed as a chat
+  // thread on the First moments tab (never on the match card).
+  firstMessages: FirstMessages;
+  stories: Story[];
 }
 
 export function emptyDraft(): MentorDraft {
@@ -104,7 +147,8 @@ export function emptyDraft(): MentorDraft {
     email: "",
     dob: "",
     phone: "",
-    profilePhoto: null,
+    matchCardPhoto: null,
+    accountPhoto: null,
     nickname: "",
     sex: "",
     genderIdentity: "",
@@ -116,5 +160,18 @@ export function emptyDraft(): MentorDraft {
     media: { kind: null, name: null, url: null, durationSec: null },
     vibe: [],
     interests: [],
+    firstMessages: { online: [], offline: [] },
+    stories: [{ id: "first-moment", type: "first-moment", slides: [] }],
   };
+}
+
+/** The single 'first-moment' story (§4 rev keeps exactly one today). */
+export function firstMomentStory(stories: Story[]): Story {
+  return (
+    stories.find((s) => s.type === "first-moment") ?? {
+      id: "first-moment",
+      type: "first-moment",
+      slides: [],
+    }
+  );
 }

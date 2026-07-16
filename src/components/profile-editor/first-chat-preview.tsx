@@ -1,0 +1,86 @@
+// Chat-style FIRST MOMENTS preview (§4 rev, Phase 5b) — a NEW preview variant:
+// the first-chat thread a teen gets when they open the mentor's chat. Online
+// first messages render as chat bubbles in list order, then the story as an
+// attachment card. Strictly passive, live-updating from the draft. The
+// match-card preview (mentor-profile-preview.tsx) is a separate variant —
+// do not merge or modify it.
+
+import { PhonePreviewShell } from "@/components/settings/phone-preview";
+import { firstMomentStory } from "@/lib/types";
+import type { MentorDraft } from "@/lib/types";
+
+export function FirstChatPreview({ draft }: { draft: MentorDraft }) {
+  const messages = draft.firstMessages.online;
+  const story = firstMomentStory(draft.stories);
+  const name = draft.nickname || draft.firstName || "Your mentor";
+  const empty = messages.length === 0 && story.slides.length === 0;
+
+  return (
+    <PhonePreviewShell label="Live preview — the first chat teens see">
+      <div className="flex h-full flex-col bg-white">
+        {/* Chat header */}
+        <div className="flex items-center gap-2.5 border-b border-[var(--border-subtle)] px-4 pb-3 pt-14">
+          <span
+            aria-hidden
+            className="flex size-9 items-center justify-center rounded-full bg-[var(--preview-accent)] font-display text-sm font-bold text-white"
+          >
+            {name.trim().charAt(0).toUpperCase() || "M"}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[14px] font-medium leading-[18px] text-[var(--text-primary)]">
+              {name}
+            </span>
+            <span className="block text-[11px] leading-[14px] text-[var(--text-muted)]">
+              Mentor
+            </span>
+          </span>
+        </div>
+
+        {/* Thread */}
+        <div className="flex-1 space-y-3 overflow-hidden px-4 py-4">
+          {empty ? (
+            // Skeleton empty state — placeholder bubbles, no invented content.
+            <div className="space-y-3" aria-hidden>
+              <div className="h-9 w-40 rounded-2xl rounded-bl-md bg-black/[0.05]" />
+              <div className="h-14 w-56 rounded-2xl rounded-bl-md bg-black/[0.05]" />
+              <div className="h-9 w-32 rounded-2xl rounded-bl-md bg-black/[0.05]" />
+              <p className="pt-2 text-center text-[12px] leading-[16px] text-[var(--text-muted)]">
+                Your first messages will show up here.
+              </p>
+            </div>
+          ) : (
+            <>
+              {messages.map((m) => (
+                <div
+                  key={m.id}
+                  className="max-w-[85%] rounded-2xl rounded-bl-md bg-[var(--preview-chip-bg)] px-3.5 py-2 text-[14px] leading-snug text-[var(--text-primary)]"
+                >
+                  {m.text}
+                </div>
+              ))}
+              {story.slides.length > 0 && (
+                <div className="w-56 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white shadow-[var(--shadow-tile)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={story.slides[0].photo}
+                    alt=""
+                    className="h-40 w-full object-cover"
+                  />
+                  <div className="px-3 py-2">
+                    <p className="truncate text-[13px] font-medium leading-[18px] text-[var(--text-primary)]">
+                      {name}&apos;s first moment
+                    </p>
+                    <p className="text-[11px] leading-[14px] text-[var(--text-muted)]">
+                      Story · {story.slides.length} slide
+                      {story.slides.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </PhonePreviewShell>
+  );
+}

@@ -81,6 +81,19 @@ export async function simulateReview(
   return delay(outcome, 600);
 }
 
+// ── Account settings (prototype) ────────────────────────────────────────────
+// Direct per-field save for the settings Profile tab — these fields bypass the
+// review queue entirely (see profile-settings-editor.tsx for the product
+// assumption note). Test hook: any value containing "__fail" rejects, so the
+// card-level error state is reachable in demos.
+export async function saveAccountField(
+  field: string,
+  value: unknown
+): Promise<{ ok: boolean }> {
+  const ok = !JSON.stringify(value ?? "").includes("__fail");
+  return delay({ ok }, 500);
+}
+
 // ── 2FA (prototype) ─────────────────────────────────────────────────────────
 // No real SMS is sent and nothing is verified server-side — a real backend would
 // text a one-time code and check it. Here we just gate the flow: any well-formed

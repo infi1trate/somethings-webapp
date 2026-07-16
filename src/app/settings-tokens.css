@@ -1,0 +1,73 @@
+/*
+ * ── MENTOR SETTINGS DESIGN TOKENS ──────────────────────────────────────────
+ * Source: mentor-settings-build-spec §2, extracted from Figma node 388:1586
+ * (MO-4 Mentor Onboarding). Phase 0 foundation.
+ *
+ * Scope: NEW settings surfaces only (src/components/settings/*, /dev/components).
+ * These are deliberately namespaced (--surface-*, --text-*, …) and do NOT touch
+ * the legacy app tokens in globals.css — conflicts between the two systems are
+ * logged in design-system-gaps.md (Figma values win on the new surfaces).
+ *
+ * Contrast ratios below were measured (WCAG 2.2 relative luminance), not copied.
+ */
+:root {
+  /* ── Color ──────────────────────────────────────────────────────────── */
+  --surface-s2: #e5e0d2; /* app background, sidebar rail */
+  --surface-s1: #f6f4ef; /* main content panel */
+  --surface-s0: #f6f4ef; /* cards / section rows (== s1; gaps.md #10) */
+  --border-subtle: #dfddd8; /* card borders, inactive tab underline (decorative) */
+  --text-primary: #1f1e1d; /* headings, active tab — 15.14:1 on s1 */
+  --text-secondary: #58534b; /* body, descriptions — 6.94:1 on s1 */
+  --text-tertiary: #a0998d; /* ⚠ 2.57:1 on s1 — FAILS AA. Decorative /
+                               disabled-redundant contexts ONLY (spec §2 flag) */
+  --text-muted: #6e6b67; /* untokenized in Figma (minted here — gaps.md #3).
+                            Darkened from the observed #797774 (4.06:1, failed
+                            AA-normal) in the Phase 8 sweep — 4.63:1 on s1 ✓ */
+  --state-inactive: #b8b2a9; /* disabled button fill */
+  --button-border-default: #716a60; /* active tab underline (1.5px) */
+  --preview-accent: #b164ff; /* teen phone-preview header, chips, play */
+  --preview-chip-bg: #f1ece3; /* language chips in preview */
+
+  /* Semantic interims — NOT in spec §2; logged in design-system-gaps.md */
+  --state-dirty: #b45309; /* unsaved-changes indicator — 4.57:1 on s1 */
+  --state-error: #cc3300; /* inline errors (= legacy --destructive) — 4.73:1 */
+  --focus-ring: var(--button-border-default); /* 2px ring, 2px offset —
+                    4.86:1 on s1, 4.05:1 on s2 (≥3:1 UI ✓) — gaps.md #4 */
+
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  /* Families come from next/font in layout.tsx (real brand files verified in
+     src/app/fonts/): --font-avantt (Bold only) · --font-lausanne (400 only —
+     500/700 render as synthetic bold; gaps.md #12). */
+  --type-title-lg: 700 24px/32px var(--font-avantt); /* page headings */
+  --type-title-sm: 700 16px/24px var(--font-avantt); /* section-card titles */
+  --type-button: 700 16px/1.1 var(--font-avantt);
+  --type-button-tracking: -0.16px;
+  --type-body: 400 14px/20px var(--font-lausanne); /* descriptions, status */
+  --type-tab: 400 16px/20px var(--font-lausanne); /* active = weight 700 */
+  --type-label-sm: 500 12px/16px var(--font-lausanne); /* sidebar labels */
+  --type-label-sm-tracking: 0.3px; /* uppercase in preview eyebrows */
+
+  /* ── Radii ──────────────────────────────────────────────────────────── */
+  --radius-panel: 24px;
+  --radius-card: 21.6px; /* Figma exact (spec “~22”) */
+  --radius-pill: 9999px;
+  --radius-preview-frame: 48px;
+  --radius-preview-screen: 40px;
+
+  /* ── Elevation ──────────────────────────────────────────────────────── */
+  --shadow-panel: 0 0 10px rgba(0, 0, 0, 0.08);
+  --shadow-tile: 0 0 5px rgba(0, 0, 0, 0.08); /* sidebar active tile */
+
+  /* ── Spacing & fixed sizes ──────────────────────────────────────────── */
+  --panel-pad-x: 47px;
+  --panel-pad-y: 35px;
+  --card-pad: 17px;
+  --card-gap: 8px;
+  --button-h: 53px;
+  --button-px: 24px;
+  --tab-h: 48px;
+  --sidebar-avatar: 56px;
+  --sidebar-tile: 48px;
+  --sidebar-utility: 40px;
+  --target-min: 44px; /* WCAG 2.5.8 minimum touch target */
+}

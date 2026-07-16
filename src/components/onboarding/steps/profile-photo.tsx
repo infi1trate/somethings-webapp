@@ -14,7 +14,7 @@ import { PhotoExamples } from "@/components/onboarding/photo-examples";
 type Mode = "idle" | "camera" | "processing" | "denied";
 
 export function ProfilePhotoStep() {
-  const profilePhoto = useOnboardingStore((s) => s.draft.profilePhoto);
+  const matchCardPhoto = useOnboardingStore((s) => s.draft.matchCardPhoto);
   const update = useOnboardingStore((s) => s.update);
   const { canGoBack, optional, goNext, goBack } = useOnboardingNav();
   const [mode, setMode] = useState<Mode>("idle");
@@ -34,7 +34,7 @@ export function ProfilePhotoStep() {
     stopStream();
     setMode("processing");
     const url = await cutoutBackground(blob);
-    update({ profilePhoto: url });
+    update({ matchCardPhoto: url });
     setMode("idle");
   };
 
@@ -92,15 +92,15 @@ export function ProfilePhotoStep() {
       optional={optional}
       onSkip={() => goNext()}
     >
-      {!profilePhoto && (mode === "idle" || mode === "denied") && <PhotoExamples />}
+      {!matchCardPhoto && (mode === "idle" || mode === "denied") && <PhotoExamples />}
 
       {/* Saved */}
-      {profilePhoto && mode === "idle" && (
+      {matchCardPhoto && mode === "idle" && (
         <div className="space-y-3">
           <div className="relative flex h-56 items-end justify-center overflow-hidden rounded-2xl border bg-[#71e0ff]/15">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={profilePhoto}
+              src={matchCardPhoto}
               alt="Your profile photo"
               className="h-full w-auto object-contain"
             />
@@ -187,7 +187,7 @@ export function ProfilePhotoStep() {
       {/* Choose (idle, nothing saved) — the screen's focal action zone. Heavier
           than the example strip above it (border-2 + a brand tint + a solid
           primary action) so the squint test lands here, not on the guidance. */}
-      {!profilePhoto && mode === "idle" && (
+      {!matchCardPhoto && mode === "idle" && (
         <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-brand/35 bg-brand/5 px-6 py-10 text-center">
           <Moodie name="face-happy" className="size-14" />
           <p className="text-base font-semibold">Add a clear photo of you</p>

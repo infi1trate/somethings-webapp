@@ -43,6 +43,11 @@ interface OnboardingState {
   /** Shown-once flag for the hub's first-visit welcome modal. Set true the first
    *  time the hub opens the intro, so it never reappears. Persisted. */
   hubWelcomeSeen: boolean;
+  /** Admin-owned account config (§4 Roles & permissions, Phase 6). Top-level
+   *  additions backfill via the shallow persist merge — no migration needed. */
+  slots: { total: number; dailyNew: number };
+  accountStatus: "active" | "deactivated";
+  deactivatedOn: string | null; // display date, set at deactivation
   /** Session-only UI for the welcome-back modal (not persisted — shows once per
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
@@ -68,6 +73,13 @@ interface OnboardingState {
   unconfirmChangeRequest: (id: string) => void;
   setWelcomeOpen: (open: boolean) => void;
   markWelcomeAutoShown: () => void;
+  /** Admin: mentor-slots config (§4 Phase 6). */
+  setSlots: (patch: Partial<{ total: number; dailyNew: number }>) => void;
+  /** Admin: reversible deactivation round-trip (§4 Phase 6). */
+  setAccountStatus: (
+    status: "active" | "deactivated",
+    deactivatedOn?: string | null
+  ) => void;
   setHasHydrated: () => void;
   reset: () => void;
 }
@@ -83,6 +95,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       publishedSnapshot: null,
       hubSteps: emptyHubSteps(),
       hubWelcomeSeen: false,
+      slots: { total: 5, dailyNew: 1 },
+      accountStatus: "active",
+      deactivatedOn: null,
       welcomeOpen: false,
       welcomeAutoShown: false,
       _hasHydrated: false,
@@ -149,6 +164,12 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       markWelcomeAutoShown: () => set({ welcomeAutoShown: true }),
 
+      setSlots: (patch) =>
+        set((state) => ({ slots: { ...state.slots, ...patch } })),
+
+      setAccountStatus: (accountStatus, deactivatedOn = null) =>
+        set({ accountStatus, deactivatedOn }),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -161,6 +182,9 @@ export const useOnboardingStore = create<OnboardingState>()(
           publishedSnapshot: null,
           hubSteps: emptyHubSteps(),
           hubWelcomeSeen: false,
+          slots: { total: 5, dailyNew: 1 },
+          accountStatus: "active",
+          deactivatedOn: null,
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -172,8 +196,15 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v6: changeRequests gain stepId/fieldKey/baselineValue/confirmedUnchanged
       // (replacing step/done). v7: add hubSteps. v8: hubWelcomeSeen (first-visit
       // hub welcome modal) replaces the old submit toast. v9: publishedSnapshot
-      // (post-publish change detection). Convert state in place.
-      version: 9,
+      // (post-publish change detection). v10: accountPhoto (internal/account
+      // photo on the settings Profile tab). v11: profilePhoto → matchCardPhoto
+      // (§4 Phase 3 rename — draft, snapshot, and persisted change-request
+      // field mappings). v12: firstMessages + storySlides (§4 Phase 3
+      // extensions; snapshot backfilled so published mentors don't read as
+      // falsely dirty). v13: storySlides → stories[] (LIBRARY-READY §4 rev —
+      // single 'first-moment' entry; draft, snapshot, and change-request
+      // fieldKeys remapped). Convert state in place.
+      version: 13,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -198,6 +229,10 @@ export const useOnboardingStore = create<OnboardingState>()(
           }
           if (version < 4 && typeof d.genderIdentity !== "string") {
             d.genderIdentity = ""; // new field — backfill so reads don't break
+          }
+          // v10: internal/account photo (settings Profile tab).
+          if (version < 10 && !("accountPhoto" in d)) {
+            d.accountPhoto = null;
           }
         }
         // v5: change-request list supersedes the single rejectionNote. Backfill an
@@ -261,7 +296,114 @@ export const useOnboardingStore = create<OnboardingState>()(
             s.publishedSnapshot = null;
           }
         }
+        // v11: profilePhoto → matchCardPhoto (§4 Phase 3). Rename the field on
+        // the live draft AND the published snapshot, and remap any persisted
+        // change-request fieldKeys so nothing dangles. (Timing of snapshot
+        // capture is untouched — this converts stored data in place.)
+        if (version < 11) {
+          const renamePhoto = (o: unknown) => {
+            const rec = o as Record<string, unknown> | null | undefined;
+            if (rec && "profilePhoto" in rec) {
+              rec.matchCardPhoto = rec.profilePhoto;
+              delete rec.profilePhoto;
+            }
+          };
+          renamePhoto(s.draft);
+          renamePhoto(s.publishedSnapshot);
+          if (Array.isArray(s.changeRequests)) {
+            for (const c of s.changeRequests as Record<string, unknown>[]) {
+              if (c.fieldKey === "profilePhoto") c.fieldKey = "matchCardPhoto";
+            }
+          }
+        }
+        // v12: First messages + First moment story (§4 Phase 3). Backfill BOTH
+        // the draft and the published snapshot — a snapshot missing the keys
+        // would make every published mentor read as dirty on these sections.
+        if (version < 12) {
+          const backfill = (o: unknown) => {
+            const rec = o as Record<string, unknown> | null | undefined;
+            if (!rec) return;
+            if (!("firstMessages" in rec)) {
+              rec.firstMessages = { online: [], offline: [] };
+            }
+            if (!("storySlides" in rec)) {
+              rec.storySlides = [];
+            }
+          };
+          backfill(s.draft);
+          backfill(s.publishedSnapshot);
+        }
+        // v13: storySlides → stories[] (LIBRARY-READY, §4 rev). The old flat
+        // slide list becomes the single 'first-moment' story's slides.
+        if (version < 13) {
+          const toStories = (o: unknown) => {
+            const rec = o as Record<string, unknown> | null | undefined;
+            if (!rec || "stories" in rec) return;
+            rec.stories = [
+              {
+                id: "first-moment",
+                type: "first-moment",
+                slides: Array.isArray(rec.storySlides) ? rec.storySlides : [],
+              },
+            ];
+            delete rec.storySlides;
+          };
+          toStories(s.draft);
+          toStories(s.publishedSnapshot);
+          if (Array.isArray(s.changeRequests)) {
+            for (const c of s.changeRequests as Record<string, unknown>[]) {
+              if (c.fieldKey === "storySlides") c.fieldKey = "stories";
+            }
+          }
+        }
         return s as unknown as OnboardingState;
+      },
+      // Self-healing merge — defense-in-depth for the shape transforms.
+      // `migrate` only runs when the stored version MISmatches; twice in dev
+      // we observed a store stamped with the current version WITHOUT its
+      // transforms applied (rehydrate/write race), which would otherwise never
+      // repair. This mirrors the v10–v12 shape changes idempotently on every
+      // rehydrate. Data plumbing only — snapshot-capture timing is untouched.
+      merge: (persisted, current) => {
+        const merged = {
+          ...current,
+          ...(persisted as Partial<OnboardingState>),
+        } as OnboardingState;
+        const repair = (o: unknown) => {
+          const rec = o as Record<string, unknown> | null | undefined;
+          if (!rec) return;
+          if ("profilePhoto" in rec) {
+            rec.matchCardPhoto = rec.matchCardPhoto ?? rec.profilePhoto;
+            delete rec.profilePhoto;
+          }
+          if (!("accountPhoto" in rec)) rec.accountPhoto = null;
+          if (!("firstMessages" in rec)) {
+            rec.firstMessages = { online: [], offline: [] };
+          }
+          // storySlides (v12 shape) → stories[] (v13); backfill when absent.
+          if (!("stories" in rec)) {
+            rec.stories = [
+              {
+                id: "first-moment",
+                type: "first-moment",
+                slides: Array.isArray(rec.storySlides) ? rec.storySlides : [],
+              },
+            ];
+          }
+          delete rec.storySlides;
+        };
+        repair(merged.draft);
+        repair(merged.publishedSnapshot);
+        if (Array.isArray(merged.changeRequests)) {
+          for (const c of merged.changeRequests as unknown as Record<
+            string,
+            unknown
+          >[]) {
+            if (c.fieldKey === "profilePhoto") c.fieldKey = "matchCardPhoto";
+            if (c.fieldKey === "storySlides") c.fieldKey = "stories";
+          }
+        }
+        return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
       // is unavailable, e.g. SSR / private mode), keep working in-memory
@@ -301,6 +443,9 @@ export const useOnboardingStore = create<OnboardingState>()(
         publishedSnapshot: state.publishedSnapshot,
         hubSteps: state.hubSteps,
         hubWelcomeSeen: state.hubWelcomeSeen,
+        slots: state.slots,
+        accountStatus: state.accountStatus,
+        deactivatedOn: state.deactivatedOn,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

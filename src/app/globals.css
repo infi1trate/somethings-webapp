@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Mentor-settings design tokens (build-spec §2, Figma 388:1586) — additive,
+   namespaced; used only by src/components/settings/* and /dev/components. */
+@import "./settings-tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 

@@ -9,7 +9,10 @@ import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 
 const FILTERS = ["All", "Admins", "Super Admins", "Teens", "Mentors"];
-const DROPDOWNS = ["Any Status", "All Groups", "All Profiles"];
+// REMOVED — "All Groups" filter (build spec §4/§8: Groups killed, field and
+// concept). The roster's `group` column is Phase 6's call when this console
+// is rebuilt.
+const DROPDOWNS = ["Any Status", "All Profiles"];
 
 // Static demo roster — enough to make the queue read like the real console.
 const ROSTER: {
