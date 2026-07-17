@@ -7,10 +7,11 @@
 // §4 change-flow credentials (phone, email).
 //
 // These fields save DIRECTLY, per row — they do NOT route through the
-// changeRequests review loop. Only pronouns are teen-facing: the Matching
-// tab's live preview reads them from this same draft state, so a pronouns
-// save here shows up there immediately. One row edits at a time; leaving a
-// modified row (another Edit, Esc, tab switch) is guarded.
+// changeRequests review loop. Two of them are teen-facing: the photo (the
+// mentor's chat avatar — product-confirmed 2026-07-17) and pronouns (the
+// Matching tab's live preview reads them from this same draft state). One row
+// edits at a time; leaving a modified row (another Edit, Esc, tab switch) is
+// guarded.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, Upload } from "lucide-react";
@@ -231,8 +232,8 @@ function AccountPhotoRow(props: RowProps) {
     if (!file) return;
     setProcessing(true);
     try {
-      // Plain downscale — the internal photo doesn't get the teen-facing
-      // cut-out treatment.
+      // Plain downscale — the chat avatar is a normal photo; only the
+      // match-card image gets the cut-out treatment.
       const url = await downscaleImageToWebP(file).catch(() =>
         readFileAsDataUrl(file)
       );
@@ -259,7 +260,7 @@ function AccountPhotoRow(props: RowProps) {
             {accountPhoto ? "Photo added" : "No photo yet"}
             <span className="text-[12px] text-[var(--text-muted)]">
               {" "}
-              · Internal — teens don&apos;t see this photo
+              · Teens see this as your chat avatar
             </span>
           </span>
         </span>

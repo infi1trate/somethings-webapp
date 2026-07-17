@@ -28,6 +28,15 @@
   --preview-accent: #b164ff; /* teen phone-preview header, chips, play */
   --preview-chip-bg: #f1ece3; /* language chips in preview */
 
+  /* Admin-shell reskin — surfaces/text/elevation reuse the §2 tokens above
+     (identical values; brief's text-primary #000 vs #1f1e1d noted in the
+     report + gaps.md #9). New semantic additions: */
+  --icon-primary: #000000;
+  --icon-secondary: #58534b;
+  --icon-tertiary: #8a8275; /* decorative/tertiary icons only (~3.2:1 on s1) */
+  --radius-nav-item: 12px; /* nav item container */
+  --radius-nav-tile: 8px; /* 48px icon tile */
+
   /* Semantic interims — NOT in spec §2; logged in design-system-gaps.md */
   --state-dirty: #b45309; /* unsaved-changes indicator — 4.57:1 on s1 */
   --state-error: #cc3300; /* inline errors (= legacy --destructive) — 4.73:1 */

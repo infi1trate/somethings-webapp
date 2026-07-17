@@ -16,7 +16,7 @@ interface EditRowProps {
   label: string;
   /** Read-state display of the current value ("—" when empty). */
   value: React.ReactNode;
-  /** Small clarifier under the value (e.g. “Internal — teens don't see this photo”). */
+  /** Small clarifier under the value (e.g. “Teens see this as your chat avatar”). */
   hint?: string;
   state: EditRowState;
   onEditStart: () => void;

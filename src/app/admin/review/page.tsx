@@ -64,7 +64,9 @@ export default function AdminReviewPage() {
     setRejection(null);
     setStatus("published");
     capturePublishedSnapshot(); // baseline for future post-publish edit detection
-    router.push("/app");
+    // The reviewer stays in the console — back to the queue (mirrors reject).
+    toast.success(`Approved ${mentorName}'s profile`);
+    router.push("/admin/users");
   };
 
   const reject = async () => {

@@ -118,9 +118,11 @@ export interface MentorDraft {
    *  preview header (renamed from `profilePhoto`, §4 Phase 3). Distinct from
    *  the internal `accountPhoto` on the settings Profile tab. */
   matchCardPhoto: string | null;
-  /** Internal/account photo (Profile tab) — NOT teen-facing, distinct from the
-   *  teen-facing `matchCardPhoto`. Saved directly from settings; never enters
-   *  the review loop. */
+  /** Account photo (Profile tab) — the mentor's avatar in chats and other
+   *  teen-facing surfaces (product-confirmed 2026-07-17; the spec's "internal"
+   *  note in §4 is wrong). Distinct from the match-card cutout
+   *  (`matchCardPhoto`). Saved directly from settings; never enters the
+   *  review loop. */
   accountPhoto: string | null;
   nickname: string;
   sex: string;

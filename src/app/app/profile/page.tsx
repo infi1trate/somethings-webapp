@@ -107,8 +107,8 @@ export default function MentorProfileSettingsPage() {
               Profile
             </h1>
             <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Your account basics. These stay internal — except pronouns, which
-              show under your name on your teen-facing profile.
+              Your account basics. Teens see two of these: your photo — it&apos;s
+              your avatar in chats — and your pronouns.
             </p>
             <div className="mt-5 max-w-3xl">
               <ProfileSettingsEditor onDirtyChange={setProfileDirty} />

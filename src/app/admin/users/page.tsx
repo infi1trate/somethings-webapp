@@ -54,7 +54,7 @@ export default function AdminUsersPage() {
                 "rounded-full border px-4 py-1.5 text-sm font-medium",
                 i === 0
                   ? "border-foreground bg-foreground text-background"
-                  : "border-border bg-card text-foreground"
+                  : "border-[var(--border-subtle)] bg-white text-foreground"
               )}
             >
               {f}
@@ -63,21 +63,21 @@ export default function AdminUsersPage() {
           {DROPDOWNS.map((d) => (
             <span
               key={d}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-sm text-muted-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-white px-4 py-1.5 text-sm text-[var(--text-secondary)]"
             >
               {d}
               <ChevronDown className="size-4" />
             </span>
           ))}
-          <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm text-muted-foreground">
+          <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-white px-4 py-1.5 text-sm text-[var(--text-secondary)]">
             <Search className="size-4" />
             Search
           </span>
         </div>
 
         {/* Needs-review group — the entry point into mentor review */}
-        <section className="mt-6 overflow-hidden rounded-2xl border bg-card">
-          <div className="flex items-center justify-between border-b px-5 py-3">
+        <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white">
+          <div className="flex items-center justify-between border-b border-[var(--surface-s2)] px-5 py-3">
             <h2 className="text-sm font-semibold">Needs review</h2>
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-medium text-secondary-foreground">
               {needsReview ? 1 : 0}
@@ -90,7 +90,7 @@ export default function AdminUsersPage() {
               </span>
               <div className="min-w-0">
                 <p className="font-semibold leading-tight">{mentorName}</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-[var(--text-secondary)]">
                   Mentor · submitted for review
                 </p>
               </div>
@@ -99,17 +99,17 @@ export default function AdminUsersPage() {
               </Button>
             </div>
           ) : (
-            <p className="px-5 py-5 text-sm text-muted-foreground">
+            <p className="px-5 py-5 text-sm text-[var(--text-secondary)]">
               Nothing waiting for review right now.
             </p>
           )}
         </section>
 
         {/* Roster */}
-        <div className="mt-6 overflow-x-auto rounded-2xl border bg-card">
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-white">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
+              <tr className="border-b border-[var(--surface-s2)] text-left text-[var(--text-secondary)]">
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="px-5 py-3 font-medium">Role</th>
                 <th className="px-5 py-3 font-medium">Phone</th>
@@ -159,7 +159,7 @@ function Row({
   highlight?: boolean;
 }) {
   return (
-    <tr className={cn("border-b last:border-0", highlight && "bg-amber-50/60")}>
+    <tr className={cn("border-b border-[var(--surface-s2)] last:border-0", highlight && "bg-amber-50/60")}>
       <td className="px-5 py-3">
         <span className="flex items-center gap-3">
           <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
@@ -180,13 +180,13 @@ function Row({
           {role}
         </span>
       </td>
-      <td className="px-5 py-3 tabular-nums text-muted-foreground">{phone}</td>
-      <td className="px-5 py-3 text-muted-foreground">{group}</td>
+      <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">{phone}</td>
+      <td className="px-5 py-3 text-[var(--text-secondary)]">{group}</td>
       <td className="px-5 py-3">
         <span
           className={cn(
             "rounded-full px-2.5 py-0.5 text-xs font-medium",
-            active ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
+            active ? "bg-foreground text-background" : "bg-muted text-[var(--text-secondary)]"
           )}
         >
           {active ? "Active" : "Inactive"}
@@ -198,7 +198,7 @@ function Row({
             {profile}
           </span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-[var(--text-secondary)]">—</span>
         )}
       </td>
     </tr>
