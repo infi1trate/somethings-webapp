@@ -18,7 +18,7 @@ import { useOnboardingNav } from "@/lib/onboarding/useOnboardingNav";
 import { useDraftSync } from "@/lib/onboarding/use-live-sync";
 
 const schema = z.object({
-  nickname: z.string().trim().max(30, "Keep it under 30 characters."),
+  displayName: z.string().trim().max(30, "Keep it under 30 characters."),
 });
 
 type Values = z.infer<typeof schema>;
@@ -30,14 +30,14 @@ export function NicknameStep() {
 
   // Prefill the display name from the invite (their first name) so it isn't
   // blank — the mentor can change it. Falls back to any name already saved.
-  const defaultName = draft.nickname || draft.firstName;
+  const defaultName = draft.displayName || draft.firstName;
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { nickname: defaultName },
+    defaultValues: { displayName: defaultName },
   });
 
-  useDraftSync(form.control, (v) => ({ nickname: v.nickname }));
+  useDraftSync(form.control, (v) => ({ displayName: v.displayName }));
 
   const save = (v: Values) => {
     update(v);
@@ -53,11 +53,11 @@ export function NicknameStep() {
       canGoBack={canGoBack}
       onBack={goBack}
       optional={optional}
-      onSkip={() => save({ nickname: defaultName })}
+      onSkip={() => save({ displayName: defaultName })}
     >
       <FormField
         control={form.control}
-        name="nickname"
+        name="displayName"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Display name</FormLabel>

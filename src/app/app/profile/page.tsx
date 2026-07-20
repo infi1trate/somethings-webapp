@@ -1,19 +1,25 @@
 "use client";
 
 // Mentor settings. Tabs are driven by the §3 registry (order + role
-// visibility) — never hardcoded (Phase 2). Profile = direct-save account
-// basics; Matching profile = the review-loop editor (untouched); Schedule +
-// Mentorships land in later phases. Only opens once the mentor is published.
+// visibility) — never hardcoded (Phase 2; re-keyed in Phase 9, decision #10):
+// Profile = the teen-facing editor (Match card + Chat groups, review-gated);
+// Account = locked personal details + phone/email change flows; First moments
+// and Schedule unchanged. Only opens once the mentor is published.
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MatchingProfileEditor } from "@/components/profile-editor/matching-profile-editor";
 import { FirstMomentsEditor } from "@/components/profile-editor/first-moments-editor";
-import { ProfileSettingsEditor } from "@/components/profile-editor/profile-settings-editor";
+import { AccountEditor } from "@/components/profile-editor/account-editor";
 import { RolesPermissionsEditor } from "@/components/profile-editor/roles-permissions-editor";
 import { SettingsTabBar } from "@/components/settings/tab-bar";
-import { tabsForRole, type SettingsRole } from "@/components/settings/tabs-config";
+import {
+  LEGACY_TAB_ALIASES,
+  roleForPersona,
+  tabsForRole,
+  type SettingsRole,
+} from "@/components/settings/tabs-config";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,32 +32,69 @@ import {
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
-export default function MentorProfileSettingsPage() {
+export default function MentorProfileSettings({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const mounted = useMounted();
   const router = useRouter();
+  // The page's searchParams prop (a Promise in this Next version, unwrapped
+  // with React's use()) — NOT useSearchParams: that hook demands a Suspense
+  // boundary on prerendered routes, and a page-root <Suspense> silently
+  // breaks hard-load hydration here. The prop opts the route into dynamic
+  // rendering and re-renders with fresh values on client-side navs.
+  const query = use(searchParams);
   const draft = useOnboardingStore((s) => s.draft);
+  const persona = useOnboardingStore((s) => s.persona);
   const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
-  // First registry tab (Profile) is the default view.
-  const [tab, setTab] = useState<string>(() => tabsForRole("mentor")[0].id);
-  const [profileDirty, setProfileDirty] = useState(false);
+  // First registry tab (Profile) is the default view. Deep link (?tab=profile
+  // etc.) — activity rows land on the tab hosting the flagged field; legacy
+  // pre-Phase-9 ids ("matching") resolve via the alias map. URL changes
+  // re-apply via the render-time state-adjust pattern below.
+  const rawTab = typeof query.tab === "string" ? query.tab : null;
+  const aliasedTab = rawTab ? (LEGACY_TAB_ALIASES[rawTab] ?? rawTab) : null;
+  const queryTab =
+    aliasedTab && tabsForRole("mentor").some((t) => t.id === aliasedTab)
+      ? aliasedTab
+      : null;
+  const [tab, setTab] = useState<string>(
+    queryTab ?? tabsForRole("mentor")[0].id
+  );
+  const [prevQueryTab, setPrevQueryTab] = useState(queryTab);
+  if (queryTab !== prevQueryTab) {
+    setPrevQueryTab(queryTab);
+    if (queryTab) setTab(queryTab);
+  }
+  const [accountDirty, setAccountDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<string | null>(null);
 
-  // §4: role-aware surface. The DEV toggle's Admin side reaches this page with
-  // ?role=admin (see /admin/users → mentor row). Registry role-filtering does
-  // the actual gating: tabsForRole("mentor") never includes permissions.
-  const role: SettingsRole =
-    mounted &&
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("role") === "admin"
-      ? "admin"
-      : "mentor";
+  // §4 Phase 10: role derives from the dev persona (roleForPersona); the
+  // Supervisor console still reaches this page with ?role=supervisor (legacy
+  // ?role=admin aliased) — the query wins so console links work regardless of
+  // the toggle's persona. Registry role-filtering does the actual gating.
+  const roleParam = typeof query.role === "string" ? query.role : null;
+  const role: SettingsRole = !mounted
+    ? "mentor"
+    : roleParam === "supervisor" || roleParam === "admin"
+      ? "supervisor"
+      : roleForPersona(persona);
+  // Clamp the active tab to the role's tab set (a Lead Mentor sees Account
+  // only — a stale "profile" tab state must never render for them).
+  const allowedTabs = tabsForRole(role);
+  const effectiveTab = allowedTabs.some((t) => t.id === tab)
+    ? tab
+    : allowedTabs[0].id;
+  // Deep link: which section/row to open on arrival (sidebar avatar → its
+  // persona's photo editor). Editors handle their own ids.
+  const openParam = typeof query.open === "string" ? query.open : null;
 
-  // §6 unsaved-changes guard: switching away from a dirty Profile tab prompts
+  // §6 unsaved-changes guard: switching away from a dirty Account tab prompts
   // inline (never a browser alert). Other tabs keep their own dirty models —
-  // the Matching tab's edits live in the persisted store, so nothing is lost
+  // the Profile tab's edits live in the persisted store, so nothing is lost
   // when leaving it.
   const requestTab = (next: string) => {
-    if (tab === "profile" && next !== "profile" && profileDirty) {
+    if (effectiveTab === "account" && next !== "account" && accountDirty) {
       setPendingTab(next);
       return;
     }
@@ -59,7 +102,7 @@ export default function MentorProfileSettingsPage() {
   };
   const leaveWithoutSaving = () => {
     if (pendingTab) setTab(pendingTab);
-    setProfileDirty(false); // the editor unmounts; its local edits are gone
+    setAccountDirty(false); // the editor unmounts; its local edits are gone
     setPendingTab(null);
   };
 
@@ -71,8 +114,7 @@ export default function MentorProfileSettingsPage() {
     );
   }
 
-  // This screen only exists once the mentor has been published (it then stays
-  // available through post-publish in_review / rejected states).
+  // This screen only exists once the mentor has been published.
   if (!everPublished) {
     return (
       <MentorShell active="home">
@@ -96,44 +138,28 @@ export default function MentorProfileSettingsPage() {
       <div className="mx-auto w-full max-w-6xl px-6 py-6 lg:px-10">
         <SettingsTabBar
           role={role}
-          activeId={tab}
+          activeId={effectiveTab}
           onChange={requestTab}
           className="mb-6"
         />
 
-        {tab === "profile" && (
+        {effectiveTab === "profile" && (
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight">
-              Profile
+              {name ? `Editing ${name}'s profile` : "Editing your profile"}
             </h1>
             <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Your account basics. Teens see two of these: your photo — it&apos;s
-              your avatar in chats — and your pronouns.
-            </p>
-            <div className="mt-5 max-w-3xl">
-              <ProfileSettingsEditor onDirtyChange={setProfileDirty} />
-            </div>
-          </div>
-        )}
-
-        {tab === "matching" && (
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight">
-              {name
-                ? `Editing ${name}'s Matching Profile`
-                : "Editing your Matching Profile"}
-            </h1>
-            <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Open a section to edit it — every change updates the live preview on
-              the right, exactly what teens see.
+              Everything teens see, in one place — your match card and your
+              chat. Open a section to edit it; the preview shows exactly what
+              teens get.
             </p>
             <div className="mt-6">
-              <MatchingProfileEditor />
+              <MatchingProfileEditor initialOpen={openParam} />
             </div>
           </div>
         )}
 
-        {tab === "first-moments" && (
+        {effectiveTab === "first-moments" && (
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight">
               First moments
@@ -148,14 +174,34 @@ export default function MentorProfileSettingsPage() {
           </div>
         )}
 
-        {tab === "schedule" && (
+        {effectiveTab === "schedule" && (
           <div className="rounded-2xl border border-dashed bg-card p-10 text-center text-sm text-muted-foreground">
             Scheduling — block out time off and vacations against your set
             schedule. Coming in a later milestone.
           </div>
         )}
 
-        {tab === "permissions" && role === "admin" && (
+        {effectiveTab === "account" && (
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight">
+              Account
+            </h1>
+            {/* Interim §4 intro copy — revised spec unavailable (gaps.md #53). */}
+            <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
+              Your personal details, plus the phone and email you use for
+              Somethings. Nothing here is shown to teens.
+            </p>
+            <div className="mt-5 max-w-3xl">
+              <AccountEditor
+                role={role}
+                initialOpen={openParam}
+                onDirtyChange={setAccountDirty}
+              />
+            </div>
+          </div>
+        )}
+
+        {effectiveTab === "permissions" && role === "supervisor" && (
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight">
               Roles &amp; permissions
@@ -180,7 +226,7 @@ export default function MentorProfileSettingsPage() {
           <DialogHeader>
             <DialogTitle>Leave without saving?</DialogTitle>
             <DialogDescription>
-              You have unsaved changes on your Profile. They&apos;ll be lost if
+              You have unsaved changes on your Account. They&apos;ll be lost if
               you switch tabs now.
             </DialogDescription>
           </DialogHeader>

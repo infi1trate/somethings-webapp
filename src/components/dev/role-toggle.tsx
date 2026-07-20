@@ -1,52 +1,118 @@
 "use client";
 
-// Dev/demo scaffolding — not product UI. Lets you flip between the two sides of
-// the review loop (the mentor's onboarding flow and the admin review console)
-// without real auth. Mounted from the root layout in ALL environments (incl. the
-// Vercel demo) so reviewers can switch sides — there's no auth gate behind it.
+// Dev/demo scaffolding — not product UI. ONE four-state persona control
+// (Phase 10, decision #11 rev): who you are while browsing the prototype.
+//   New Mentor  — mentor tab set, EMPTY data (skeleton previews, "No photo
+//                 yet", empty rows). The current populated state is stashed
+//                 first and restored when you switch away, so demo data is
+//                 never lost; edits made INSIDE New Mentor are discarded on
+//                 switch-away (dev-tool semantics — gaps.md #61).
+//   Mentor      — mentor tab set, populated (the old "Mentor+login").
+//   Lead Mentor — Account tab only, including the Photo row.
+//   Supervisor  — replaces "Admin" (decision #12): the review console entry;
+//                 mentor settings render in review mode with all five tabs.
+// Mounted from the root layout in ALL environments (incl. the Vercel demo) so
+// reviewers can switch personas — there's no auth gate behind it.
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
+import type { Persona } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function DevRoleToggle() {
-  const pathname = usePathname() ?? "";
-  const isAdmin = pathname.startsWith("/admin");
-  const isApp = pathname.startsWith("/app");
-  const mounted = useMounted();
-  const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
-  // Published mentors live in the mentor app (Settings), not the onboarding flow.
-  // Guard on `mounted` so SSR/first paint matches (avoids a hydration mismatch).
-  const mentorHref = mounted && everPublished ? "/app" : "/onboarding";
+const STORE_KEY = "somethings.mentor-onboarding";
+const STASH_KEY = "somethings.mentor-onboarding.dev-stash";
 
-  // "Mentor+login": jump to the logged-in mentor app (/app/profile). If the demo
-  // profile hasn't been published yet, silently do what admin-approve does first
-  // (status → published + snapshot the draft) so this tab always lands on the
-  // real logged-in view, never the "Not published yet" placeholder. getState()
-  // reads live store state inside the handler (no stale closure / SSR concerns).
-  // Hard navigation (not router.push): flipping the store to published makes the
-  // onboarding surfaces' everPublished guards fire router.replace("/app"), which
-  // races with (and clobbers) a client-side push to /app/profile.
-  const openMentorApp = () => {
-    const s = useOnboardingStore.getState();
-    if (s.publishedSnapshot === null) {
-      s.setStatus("published");
-      s.capturePublishedSnapshot();
+// Populate the store for a persona without hand-writing persisted JSON:
+// mutate through store actions (shape stays canonical), then hard-navigate so
+// every surface rehydrates cleanly (client pushes race the everPublished
+// guards — see the Phase-DEV note in git history).
+function seedPublishedIfNeeded() {
+  const s = useOnboardingStore.getState();
+  if (s.publishedSnapshot === null) {
+    s.setStatus("published");
+    s.capturePublishedSnapshot();
+  }
+}
+
+function enterNewMentor() {
+  const s = useOnboardingStore.getState();
+  // Stash the real state ONCE (switching New Mentor → New Mentor must not
+  // overwrite the stash with the empty state).
+  if (s.persona !== "new-mentor" && !localStorage.getItem(STASH_KEY)) {
+    const current = localStorage.getItem(STORE_KEY);
+    if (current) localStorage.setItem(STASH_KEY, current);
+  }
+  s.reset(); // empty draft, no snapshot
+  s.setStatus("published");
+  s.capturePublishedSnapshot(); // published-but-empty → settings open, all empty states
+  s.setPersona("new-mentor");
+  window.location.assign("/app/profile");
+}
+
+function leaveNewMentorIfStashed(target: Persona) {
+  const stashed = localStorage.getItem(STASH_KEY);
+  const current = useOnboardingStore.getState().persona;
+  if (current === "new-mentor" && stashed) {
+    // Restore the real state and stamp the target persona on it directly —
+    // the store rehydrates from this JSON on the hard navigation below.
+    try {
+      const parsed = JSON.parse(stashed) as { state?: { persona?: string } };
+      if (parsed.state) parsed.state.persona = target;
+      localStorage.setItem(STORE_KEY, JSON.stringify(parsed));
+    } catch {
+      localStorage.setItem(STORE_KEY, stashed); // restore as-is, worst case
     }
-    window.location.assign("/app/profile");
-  };
+    localStorage.removeItem(STASH_KEY);
+    return true;
+  }
+  return false;
+}
 
-  const tab = (active: boolean) =>
+function enterPersona(target: Exclude<Persona, "new-mentor">, dest: string) {
+  if (!leaveNewMentorIfStashed(target)) {
+    seedPublishedIfNeeded();
+    useOnboardingStore.getState().setPersona(target);
+  }
+  window.location.assign(dest);
+}
+
+const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
+  { key: "new-mentor", label: "New Mentor", go: enterNewMentor },
+  { key: "mentor", label: "Mentor", go: () => enterPersona("mentor", "/app/profile") },
+  {
+    key: "lead-mentor",
+    label: "Lead Mentor",
+    go: () => enterPersona("lead-mentor", "/app/profile?tab=account"),
+  },
+  // Supervisor replaces Admin: same console destination, unchanged review
+  // behavior; the settings surface renders all five tabs for this persona.
+  {
+    key: "supervisor",
+    label: "Supervisor",
+    go: () => enterPersona("supervisor", "/admin/users"),
+  },
+];
+
+export function DevRoleToggle() {
+  const mounted = useMounted();
+  const persona = useOnboardingStore((s) => s.persona);
+  const active = mounted ? persona : null;
+  const isApp =
+    typeof window !== "undefined" && mounted
+      ? window.location.pathname.startsWith("/app")
+      : false;
+
+  const tab = (isActive: boolean) =>
     cn(
       "rounded-full px-3 py-1.5 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-      active ? "bg-foreground text-background" : "text-foreground hover:bg-muted"
+      isActive
+        ? "bg-foreground text-background"
+        : "text-foreground hover:bg-muted"
     );
 
   return (
-    // On /app* the new §5 sidebar rail (92px) owns the bottom-left corner —
-    // shift right of it so the rail's utility circles stay clear (Phase 7).
+    // On /app* the §5 sidebar rail (92px) owns the bottom-left corner — shift
+    // right of it so the rail's utility circles stay clear (Phase 7).
     <div
       className={cn(
         "fixed bottom-3 z-50 flex items-center gap-1 rounded-full border border-dashed border-foreground/40 bg-card/95 p-1 pl-2.5 text-xs shadow-md backdrop-blur",
@@ -56,15 +122,16 @@ export function DevRoleToggle() {
       <span className="font-mono font-semibold uppercase tracking-wider text-muted-foreground">
         Dev
       </span>
-      <Link href={mentorHref} className={tab(!isAdmin && !isApp)}>
-        Mentor
-      </Link>
-      <button type="button" onClick={openMentorApp} className={tab(isApp)}>
-        Mentor+login
-      </button>
-      <Link href="/admin/users" className={tab(isAdmin)}>
-        Admin
-      </Link>
+      {PERSONAS.map((p) => (
+        <button
+          key={p.key}
+          type="button"
+          onClick={p.go}
+          className={tab(active === p.key)}
+        >
+          {p.label}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-// The internal Somethings admin console chrome, reskinned to the new design
+// The internal Somethings SUPERVISOR console chrome ("Admin" renamed
+// Supervisor everywhere — Phase 10, decision #12), reskinned to the new design
 // system (Figma 429:1905): transparent sidebar on surface-s2, floating
 // surface-s1 content card (radius 24, elevation-1, 16px gutter on top/right/
 // bottom — none on the sidebar side). Same destinations, order, and behavior
@@ -8,6 +9,7 @@
 // of the real console's nav; this prototype only wires up Users.
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Home,
   MessageCircle,
@@ -21,6 +23,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOnboardingStore } from "@/lib/onboarding/store";
+import { useMounted } from "@/lib/use-mounted";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -52,16 +56,56 @@ export function AdminShell({
   active: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const mounted = useMounted();
+  // §5 Phase 10: the Supervisor's own photo (Account › Photo row asset) —
+  // interactive, deep-links to that row's editor.
+  const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
+  const firstName = useOnboardingStore((s) => s.draft.firstName);
+  const initial = mounted ? (firstName?.trim()?.[0] || "S").toUpperCase() : "S";
+  const avatarSrc = mounted ? staffPhoto : null;
+
   return (
     <div className="flex h-dvh bg-[var(--surface-s2)] text-foreground">
       <nav
-        aria-label="Admin sections"
+        aria-label="Supervisor sections"
         className="flex h-full w-20 shrink-0 flex-col items-center overflow-y-auto py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {/* Brand mark — same slot/behavior, sized to the new 56px round shell */}
         <div className="mb-2 flex size-14 shrink-0 items-center justify-center rounded-full bg-brand font-display text-lg font-bold text-brand-foreground">
           S
         </div>
+
+        {/* §5 Phase 10: the Supervisor's own avatar — interactive, tooltip,
+            ≥44px target; deep-links to Account › Photo row. */}
+        <button
+          type="button"
+          onClick={() => router.push("/app/profile?tab=account&open=photo")}
+          aria-label="Change photo"
+          className={cn(
+            "group relative mb-2 shrink-0 rounded-full transition-shadow hover:ring-2 hover:ring-[var(--focus-ring)] hover:ring-offset-2 hover:ring-offset-[var(--surface-s2)]",
+            RING
+          )}
+        >
+          {avatarSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarSrc}
+              alt=""
+              className="size-11 rounded-full object-cover shadow-[var(--shadow-tile)]"
+            />
+          ) : (
+            <span className="flex size-11 items-center justify-center rounded-full bg-[var(--surface-s0)] font-display text-base font-bold text-[var(--text-primary)] shadow-[var(--shadow-tile)]">
+              {initial}
+            </span>
+          )}
+          <span
+            role="presentation"
+            className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+          >
+            Change photo
+          </span>
+        </button>
 
         {NAV.map((item) => {
           const isActive = item.key === active;

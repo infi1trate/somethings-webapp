@@ -46,7 +46,7 @@ export default function RootLayout({
         <Toaster />
         {/* Dev/demo scaffolding — intentionally rendered in ALL environments
             (incl. the Vercel demo) so reviewers can flip between the mentor and
-            admin sides. No auth behind it; fine for this mock-data prototype. */}
+            supervisor sides. No auth behind it; fine for this mock-data prototype. */}
         <DevRoleToggle />
       </body>
     </html>

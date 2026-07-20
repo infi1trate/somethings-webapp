@@ -136,8 +136,8 @@ function StateLabel({ children }: { children: React.ReactNode }) {
 
 export default function ComponentsAuditPage() {
   const [navActive, setNavActive] = useState("home");
-  const [mentorTab, setMentorTab] = useState("matching");
-  const [adminTab, setAdminTab] = useState("permissions");
+  const [mentorTab, setMentorTab] = useState("profile");
+  const [supervisorTab, setSupervisorTab] = useState("permissions");
   const [playCard, setPlayCard] = useState(false);
 
   return (
@@ -212,8 +212,8 @@ export default function ComponentsAuditPage() {
               <SettingsTabBar role="mentor" activeId={mentorTab} onChange={setMentorTab} />
             </div>
             <div>
-              <StateLabel>role = admin ({SETTINGS_TABS.length} tabs — adds Roles &amp; permissions)</StateLabel>
-              <SettingsTabBar role="admin" activeId={adminTab} onChange={setAdminTab} />
+              <StateLabel>role = supervisor ({SETTINGS_TABS.length} tabs — adds Roles &amp; permissions)</StateLabel>
+              <SettingsTabBar role="supervisor" activeId={supervisorTab} onChange={setSupervisorTab} />
             </div>
           </div>
         </Panel>

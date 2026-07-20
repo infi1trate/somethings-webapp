@@ -35,7 +35,7 @@ export function MentorProfilePreview({
   draft: MentorDraft;
   focus?: PreviewFocus;
 }) {
-  const name = draft.nickname || draft.firstName || "";
+  const name = draft.displayName || draft.firstName || "";
   const cutout = draft.matchCardPhoto; // teen-facing match card photo (§4)
   const heroInterests = draft.interests.slice(0, 4);
   const vibe = draft.vibe ?? [];

@@ -25,16 +25,35 @@ export function MentorShell({
   const router = useRouter();
   const mounted = useMounted();
   const firstName = useOnboardingStore((s) => s.draft.firstName);
+  const activity = useOnboardingStore((s) => s.activity);
+  const persona = useOnboardingStore((s) => s.persona);
+  // §5 Phase 10: the sidebar avatar is the CURRENT persona's own photo —
+  // mentor personas show the APPROVED chat avatar (what teens see now, not
+  // the proposed one); lead/supervisor show their Photo-row asset. Click
+  // deep-links to that photo's editor.
+  const approvedAvatar = useOnboardingStore(
+    (s) => s.publishedSnapshot?.accountPhoto ?? null
+  );
+  const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
+  const mentorish = persona === "mentor" || persona === "new-mentor";
   // Mount-gated so SSR and first client paint agree (localStorage-backed store).
   const avatarInitial = mounted
     ? (firstName?.trim()?.[0] || "S").toUpperCase()
     : "S";
+  const avatarSrc = mounted ? (mentorish ? approvedAvatar : staffPhoto) : null;
+  const avatarTarget = mentorish
+    ? "/app/profile?tab=profile&open=chat-avatar"
+    : "/app/profile?tab=account&open=photo";
+  const unread = mounted ? activity.filter((a) => !a.read).length : 0;
 
   return (
     <div className="flex h-dvh bg-[var(--surface-s2)]">
       <SettingsSidebar
         activeId={active}
         avatarInitial={avatarInitial}
+        avatarSrc={avatarSrc}
+        onAvatarClick={() => router.push(avatarTarget)}
+        badges={unread > 0 ? { activity: unread } : undefined}
         onSelect={(id) => router.push(id === "home" ? "/app" : `/app/${id}`)}
         className="shrink-0 overflow-y-auto"
       />

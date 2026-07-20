@@ -92,7 +92,7 @@ export default function AppShellPage() {
             <div className="mb-5 flex items-center gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-900">
               <AlertCircle className="size-5 shrink-0" aria-hidden />
               <span>
-                The team requested a few changes — open your Matching Profile to
+                The team requested a few changes — open your profile to
                 address them.
               </span>
             </div>
@@ -121,7 +121,7 @@ export default function AppShellPage() {
           </PhoneFrame>
 
           <p className="mt-4 text-sm text-muted-foreground">
-            Edit your Matching Profile anytime — changes go to the team for a
+            Edit your profile anytime — changes go to the team for a
             quick review before they go live.
           </p>
 

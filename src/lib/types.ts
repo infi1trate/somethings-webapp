@@ -2,6 +2,11 @@
 // Everything here is held client-side (zustand + localStorage) — see lib/onboarding/store.ts.
 // A real backend would replace lib/mock-api.ts and persist this shape server-side.
 
+/** Dev-toggle persona (§ Phase 10, decision #11 rev) — which hat the viewer
+ *  wears. Maps onto SettingsRole for tab gating (see tabs-config). "Admin" is
+ *  renamed Supervisor everywhere (decision #12). */
+export type Persona = "new-mentor" | "mentor" | "lead-mentor" | "supervisor";
+
 export type ProfileStatus =
   | "invited" // invite received, not yet accepted
   | "pending" // account created, profile being built (Pending / Unpublished)
@@ -115,16 +120,19 @@ export interface MentorDraft {
   phone: string;
   // Profile
   /** Teen-facing MATCH CARD photo — the background-removed cutout in the phone
-   *  preview header (renamed from `profilePhoto`, §4 Phase 3). Distinct from
-   *  the internal `accountPhoto` on the settings Profile tab. */
+   *  preview header (renamed from `profilePhoto`, §4 Phase 3). Lives in the
+   *  Profile tab's Match card group (Phase 9). Distinct from `accountPhoto`. */
   matchCardPhoto: string | null;
-  /** Account photo (Profile tab) — the mentor's avatar in chats and other
-   *  teen-facing surfaces (product-confirmed 2026-07-17; the spec's "internal"
-   *  note in §4 is wrong). Distinct from the match-card cutout
-   *  (`matchCardPhoto`). Saved directly from settings; never enters the
-   *  review loop. */
+  /** CHAT AVATAR — the mentor's avatar in chats and other teen-facing
+   *  surfaces (product-confirmed 2026-07-17). Lives in the Profile tab's Chat
+   *  group (Phase 9); plain photo, no cut-out. Teen-visible ⇒ gated
+   *  post-publish (Profile Update Review changeset). */
   accountPhoto: string | null;
-  nickname: string;
+  /** Teen-facing display name (§9 v1.1) — gated through the review
+   *  changeset. Distinct from firstName/lastName (account identity:
+   *  ops/admin only, never teen-visible, locked post-approval). Seeded
+   *  from firstName at onboarding. */
+  displayName: string;
   sex: string;
   genderIdentity: string;
   pronouns: string[];
@@ -141,6 +149,35 @@ export interface MentorDraft {
   stories: Story[];
 }
 
+// ── Profile Update Review (post-publish changeset) ─────────────────────────
+// One open changeset per mentor, max. Gated edits enqueue here; teens keep
+// seeing the last approved profile (publishedSnapshot) until admin approval.
+// Cleared on approval or when the last field is discarded.
+
+export interface ProfileUpdateField {
+  fieldId: string; // MentorDraft key, e.g. "bio"
+  /** Live value snapshotted AT ENQUEUE TIME — never re-derived (§1.5). */
+  liveValue: unknown;
+  fieldStatus: "pending" | "changes-requested";
+  adminNote: string | null;
+}
+
+export interface ProfileUpdate {
+  id: string;
+  status: "pending" | "changes-requested";
+  submittedAt: number;
+  updatedAt: number;
+  fields: ProfileUpdateField[];
+}
+
+export interface ActivityItem {
+  id: string;
+  type: "profile_changes_requested" | "profile_update_live";
+  fieldIds: string[];
+  createdAt: number;
+  read: boolean;
+}
+
 export function emptyDraft(): MentorDraft {
   return {
     password: "",
@@ -151,7 +188,7 @@ export function emptyDraft(): MentorDraft {
     phone: "",
     matchCardPhoto: null,
     accountPhoto: null,
-    nickname: "",
+    displayName: "",
     sex: "",
     genderIdentity: "",
     pronouns: [],

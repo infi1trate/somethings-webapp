@@ -18,6 +18,15 @@ interface EditRowProps {
   value: React.ReactNode;
   /** Small clarifier under the value (e.g. “Teens see this as your chat avatar”). */
   hint?: string;
+  /** Status chip beside the label (e.g. “In review” — update-review flow). */
+  chip?: React.ReactNode;
+  /** Full-width callout above the value in read state (review-team note). */
+  banner?: React.ReactNode;
+  /** Extra read-state action left of Edit (e.g. “Discard change”). */
+  secondaryAction?: React.ReactNode;
+  /** Locked field: no Edit affordance and NO per-row support text (§4 Phase 9
+   *  — the group hosting locked rows renders ONE group-level support line). */
+  locked?: boolean;
   state: EditRowState;
   onEditStart: () => void;
   onCancel: () => void;
@@ -42,6 +51,10 @@ export function EditRow({
   label,
   value,
   hint,
+  chip,
+  banner,
+  secondaryAction,
+  locked = false,
   state,
   onEditStart,
   onCancel,
@@ -73,45 +86,49 @@ export function EditRow({
 
   if (!editing) {
     return (
-      <div
-        className={cn(
-          "flex items-center gap-4 px-[var(--card-pad)] py-2",
-          className
-        )}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-            {label}
-          </div>
-          <div className="truncate text-[15px] leading-[20px] text-[var(--text-primary)]">
-            {value}
-          </div>
-          {hint && (
-            <div className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-              {hint}
+      <div className={cn("px-[var(--card-pad)] py-2", className)}>
+        {banner && <div className="mb-2 mt-1">{banner}</div>}
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                {label}
+              </span>
+              {chip}
             </div>
+            <div className="truncate text-[15px] leading-[20px] text-[var(--text-primary)]">
+              {value}
+            </div>
+            {hint && (
+              <div className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+                {hint}
+              </div>
+            )}
+          </div>
+          {state === "saved" && (
+            <span
+              role="status"
+              className="shrink-0 text-[14px] leading-[20px] text-[var(--text-secondary)]"
+            >
+              Saved.
+            </span>
+          )}
+          {secondaryAction}
+          {locked ? null : (
+            <button
+              ref={editBtnRef}
+              type="button"
+              onClick={onEditStart}
+              aria-label={`Edit ${label}`}
+              className={cn(
+                "flex h-11 shrink-0 items-center rounded-full px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              Edit
+            </button>
           )}
         </div>
-        {state === "saved" && (
-          <span
-            role="status"
-            className="shrink-0 text-[14px] leading-[20px] text-[var(--text-secondary)]"
-          >
-            Saved.
-          </span>
-        )}
-        <button
-          ref={editBtnRef}
-          type="button"
-          onClick={onEditStart}
-          aria-label={`Edit ${label}`}
-          className={cn(
-            "flex h-11 shrink-0 items-center rounded-full px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)]",
-            RING
-          )}
-        >
-          Edit
-        </button>
       </div>
     );
   }

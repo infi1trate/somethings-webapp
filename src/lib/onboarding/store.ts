@@ -9,8 +9,15 @@ import {
   type HubStepStatus,
   type MentorDraft,
   type ProfileStatus,
+  type ProfileUpdate,
+  type ActivityItem,
+  type Persona,
 } from "@/lib/types";
-import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
+import {
+  PROFILE_SECTIONS,
+  normForCompare,
+} from "@/lib/onboarding/profile-sections";
+import { isGatedField, cloneValue } from "@/lib/onboarding/profile-update";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
 
 // A persisted-shape copy of the draft (no password, no volatile blob url) — the
@@ -43,11 +50,21 @@ interface OnboardingState {
   /** Shown-once flag for the hub's first-visit welcome modal. Set true the first
    *  time the hub opens the intro, so it never reappears. Persisted. */
   hubWelcomeSeen: boolean;
-  /** Admin-owned account config (§4 Roles & permissions, Phase 6). Top-level
+  /** Supervisor-owned account config (§4 Roles & permissions, Phase 6). Top-level
    *  additions backfill via the shallow persist merge — no migration needed. */
   slots: { total: number; dailyNew: number };
   accountStatus: "active" | "deactivated";
   deactivatedOn: string | null; // display date, set at deactivation
+  /** Post-publish changeset (Profile Update Review). One open changeset max;
+   *  teens keep seeing publishedSnapshot until approval. */
+  profileUpdate: ProfileUpdate | null;
+  /** Mentor-side activity feed (send-backs, approvals). */
+  activity: ActivityItem[];
+  /** Dev persona lens (Phase 10) — drives the settings role + sidebar avatar. */
+  persona: Persona;
+  /** Lead Mentor / Supervisor own account photo (Account › Photo row) —
+   *  internal, direct-save, never teen-visible, never review-gated. */
+  staffPhoto: string | null;
   /** Session-only UI for the welcome-back modal (not persisted — shows once per
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
@@ -73,13 +90,32 @@ interface OnboardingState {
   unconfirmChangeRequest: (id: string) => void;
   setWelcomeOpen: (open: boolean) => void;
   markWelcomeAutoShown: () => void;
-  /** Admin: mentor-slots config (§4 Phase 6). */
+  /** Supervisor: mentor-slots config (§4 Phase 6). */
   setSlots: (patch: Partial<{ total: number; dailyNew: number }>) => void;
-  /** Admin: reversible deactivation round-trip (§4 Phase 6). */
+  /** Supervisor: reversible deactivation round-trip (§4 Phase 6). */
   setAccountStatus: (
     status: "active" | "deactivated",
     deactivatedOn?: string | null
   ) => void;
+  /** Gated save (§1.6): writes the draft AND enqueues each changed gated
+   *  field into the open changeset, capturing liveValue from the published
+   *  snapshot at enqueue time (§1.5 — never re-derived). Editing an enqueued
+   *  field is absorbed; a changes-requested field flips back to pending
+   *  (resubmission); editing back to the live value drops the field. Plain
+   *  draft write pre-publish. */
+  saveGatedFields: (patch: Partial<MentorDraft>) => void;
+  /** Discard one proposed change: draft reverts to the enqueue-time live
+   *  value; last field discarded clears the changeset silently. */
+  discardProfileUpdateField: (fieldId: string) => void;
+  /** Supervisor send-back: noted fields flip to changes-requested; un-noted fields
+   *  stay pending inside the changes-requested changeset (spec §3 note). */
+  sendBackProfileUpdate: (notes: Record<string, string>) => void;
+  /** Supervisor approve: apply every proposed value (snapshot the draft), clear
+   *  the changeset, fire the activity item (§1.4 all-or-nothing). */
+  approveProfileUpdate: () => void;
+  markActivityRead: () => void;
+  setPersona: (p: Persona) => void;
+  setStaffPhoto: (url: string | null) => void;
   setHasHydrated: () => void;
   reset: () => void;
 }
@@ -98,9 +134,13 @@ export const useOnboardingStore = create<OnboardingState>()(
       slots: { total: 5, dailyNew: 1 },
       accountStatus: "active",
       deactivatedOn: null,
+      profileUpdate: null,
+      activity: [],
       welcomeOpen: false,
       welcomeAutoShown: false,
       _hasHydrated: false,
+      persona: "mentor",
+      staffPhoto: null,
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -170,6 +210,160 @@ export const useOnboardingStore = create<OnboardingState>()(
       setAccountStatus: (accountStatus, deactivatedOn = null) =>
         set({ accountStatus, deactivatedOn }),
 
+      saveGatedFields: (patch) =>
+        set((state) => {
+          const draft = { ...state.draft, ...patch };
+          const snap = state.publishedSnapshot;
+          if (!snap) return { draft }; // pre-publish: plain write
+          const now = Date.now();
+          const prior = state.profileUpdate;
+          let fields = prior ? [...prior.fields] : [];
+          let touched = false;
+          for (const key of Object.keys(patch)) {
+            if (!isGatedField(key)) continue;
+            const proposed = (draft as unknown as Record<string, unknown>)[key];
+            const existing = fields.find((f) => f.fieldId === key);
+            const live = existing
+              ? existing.liveValue
+              : cloneValue(
+                  (snap as unknown as Record<string, unknown>)[key]
+                );
+            const differs =
+              JSON.stringify(normForCompare(key as keyof MentorDraft, proposed)) !==
+              JSON.stringify(normForCompare(key as keyof MentorDraft, live));
+            if (!differs) {
+              if (existing) {
+                fields = fields.filter((f) => f.fieldId !== key);
+                touched = true;
+              }
+              continue;
+            }
+            if (existing) {
+              if (existing.fieldStatus === "changes-requested") {
+                // Resubmission: back to pending; the note is resolved.
+                fields = fields.map((f) =>
+                  f.fieldId === key
+                    ? { ...f, fieldStatus: "pending" as const, adminNote: null }
+                    : f
+                );
+                touched = true;
+              }
+              // pending fields absorb further edits — liveValue stays fixed.
+            } else {
+              fields.push({
+                fieldId: key,
+                liveValue: live,
+                fieldStatus: "pending",
+                adminNote: null,
+              });
+              touched = true;
+            }
+          }
+          if (fields.length === 0) return { draft, profileUpdate: null };
+          const status =
+            touched || !prior
+              ? ("pending" as const) // new/resubmitted work → back in the queue
+              : prior.status;
+          return {
+            draft,
+            profileUpdate: {
+              id: prior?.id ?? `pu-${now}`,
+              status,
+              submittedAt: prior?.submittedAt ?? now,
+              updatedAt: now,
+              fields,
+            },
+          };
+        }),
+
+      discardProfileUpdateField: (fieldId) =>
+        set((state) => {
+          const u = state.profileUpdate;
+          const field = u?.fields.find((f) => f.fieldId === fieldId);
+          if (!u || !field) return state;
+          const fields = u.fields.filter((f) => f.fieldId !== fieldId);
+          const draft = {
+            ...state.draft,
+            [fieldId]: cloneValue(field.liveValue),
+          } as MentorDraft;
+          return {
+            draft,
+            profileUpdate: fields.length
+              ? { ...u, fields, updatedAt: Date.now() }
+              : null, // last field discarded → cleared silently
+          };
+        }),
+
+      sendBackProfileUpdate: (notes) =>
+        set((state) => {
+          const u = state.profileUpdate;
+          if (!u) return state;
+          const now = Date.now();
+          const fields = u.fields.map((f) =>
+            notes[f.fieldId]?.trim()
+              ? {
+                  ...f,
+                  fieldStatus: "changes-requested" as const,
+                  adminNote: notes[f.fieldId].trim(),
+                }
+              : f // un-noted fields stay pending, publish with next approval
+          );
+          const flagged = fields
+            .filter((f) => f.fieldStatus === "changes-requested")
+            .map((f) => f.fieldId);
+          return {
+            profileUpdate: {
+              ...u,
+              status: "changes-requested",
+              updatedAt: now,
+              fields,
+            },
+            activity: [
+              {
+                id: `act-${now}`,
+                type: "profile_changes_requested" as const,
+                fieldIds: flagged,
+                createdAt: now,
+                read: false,
+              },
+              ...state.activity,
+            ],
+          };
+        }),
+
+      approveProfileUpdate: () =>
+        set((state) => {
+          const u = state.profileUpdate;
+          if (!u) return state;
+          const now = Date.now();
+          return {
+            // Apply every proposed value: the draft holds proposed; discarded
+            // fields were already reverted — snapshotting IS the publish.
+            publishedSnapshot: snapshotDraft(state.draft),
+            profileUpdate: null,
+            activity: [
+              {
+                id: `act-${now}`,
+                type: "profile_update_live" as const,
+                fieldIds: u.fields.map((f) => f.fieldId),
+                createdAt: now,
+                read: false,
+              },
+              ...state.activity,
+            ],
+          };
+        }),
+
+      markActivityRead: () =>
+        set((state) =>
+          state.activity.some((a) => !a.read)
+            ? { activity: state.activity.map((a) => (a.read ? a : { ...a, read: true })) }
+            : state
+        ),
+
+      setPersona: (p) => set({ persona: p }),
+      setStaffPhoto: (url) => set({ staffPhoto: url }),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -185,6 +379,9 @@ export const useOnboardingStore = create<OnboardingState>()(
           slots: { total: 5, dailyNew: 1 },
           accountStatus: "active",
           deactivatedOn: null,
+          profileUpdate: null,
+          activity: [],
+          staffPhoto: null, // persona is a dev lens, not data — reset leaves it
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -203,8 +400,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // extensions; snapshot backfilled so published mentors don't read as
       // falsely dirty). v13: storySlides → stories[] (LIBRARY-READY §4 rev —
       // single 'first-moment' entry; draft, snapshot, and change-request
-      // fieldKeys remapped). Convert state in place.
-      version: 13,
+      // fieldKeys remapped). v14: profileUpdate changeset + activity feed;
+      // post-publish in_review/rejected retired. Convert state in place.
+      version: 16,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -356,6 +554,62 @@ export const useOnboardingStore = create<OnboardingState>()(
             }
           }
         }
+        // v14: Profile Update Review — post-publish in_review/rejected are
+        // retired (published mentors stay published; the changeset replaces
+        // the lock/reject loop). Stale whole-profile requests are dropped.
+        if (version < 14) {
+          if (!("profileUpdate" in s)) (s as Record<string, unknown>).profileUpdate = null;
+          if (!Array.isArray((s as Record<string, unknown>).activity)) (s as Record<string, unknown>).activity = [];
+          const st = s as unknown as { status?: string; publishedSnapshot?: unknown; changeRequests?: unknown };
+          if (st.publishedSnapshot && (st.status === "in_review" || st.status === "rejected")) {
+            st.status = "published";
+            st.changeRequests = [];
+          }
+        }
+        // v15: nickname → displayName (§9 v1.1 name-model split). Rename on
+        // draft + snapshot, remap changeset/activity/change-request field ids,
+        // and seed an empty display name from firstName (the §9.1 onboarding
+        // seed, applied retroactively).
+        if (version < 15) {
+          const renameName = (o: unknown) => {
+            const rec = o as Record<string, unknown> | null | undefined;
+            if (!rec) return;
+            if ("nickname" in rec) {
+              rec.displayName = rec.displayName ?? rec.nickname;
+              delete rec.nickname;
+            }
+            if (!rec.displayName && typeof rec.firstName === "string") {
+              rec.displayName = rec.firstName;
+            }
+          };
+          renameName(s.draft);
+          renameName(s.publishedSnapshot);
+          if (Array.isArray(s.changeRequests)) {
+            for (const c of s.changeRequests as Record<string, unknown>[]) {
+              if (c.fieldKey === "nickname") c.fieldKey = "displayName";
+            }
+          }
+          const st = s as unknown as {
+            profileUpdate?: { fields?: { fieldId?: string }[] } | null;
+            activity?: { fieldIds?: string[] }[];
+          };
+          for (const f of st.profileUpdate?.fields ?? []) {
+            if (f.fieldId === "nickname") f.fieldId = "displayName";
+          }
+          for (const a of st.activity ?? []) {
+            if (Array.isArray(a.fieldIds)) {
+              a.fieldIds = a.fieldIds.map((id) =>
+                id === "nickname" ? "displayName" : id
+              );
+            }
+          }
+        }
+        // v16: Phase 10 personas + staff photo.
+        if (version < 16) {
+          const st = s as unknown as { persona?: unknown; staffPhoto?: unknown };
+          if (typeof st.persona !== "string") st.persona = "mentor";
+          if (!("staffPhoto" in st)) st.staffPhoto = null;
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -391,6 +645,14 @@ export const useOnboardingStore = create<OnboardingState>()(
             ];
           }
           delete rec.storySlides;
+          // nickname (≤v14 shape) → displayName (v15). Shape repair only —
+          // the firstName seed is one-time (migrate), not per-rehydrate, so a
+          // deliberately cleared display name stays cleared.
+          if ("nickname" in rec) {
+            rec.displayName = rec.displayName ?? rec.nickname;
+            delete rec.nickname;
+          }
+          if (typeof rec.displayName !== "string") rec.displayName = "";
         };
         repair(merged.draft);
         repair(merged.publishedSnapshot);
@@ -401,8 +663,17 @@ export const useOnboardingStore = create<OnboardingState>()(
           >[]) {
             if (c.fieldKey === "profilePhoto") c.fieldKey = "matchCardPhoto";
             if (c.fieldKey === "storySlides") c.fieldKey = "stories";
+            if (c.fieldKey === "nickname") c.fieldKey = "displayName";
           }
         }
+        for (const f of merged.profileUpdate?.fields ?? []) {
+          if (f.fieldId === "nickname") f.fieldId = "displayName";
+        }
+        // v16 shape (top-level persona + staffPhoto).
+        if (typeof (merged as { persona?: unknown }).persona !== "string") {
+          merged.persona = "mentor";
+        }
+        if (typeof merged.staffPhoto === "undefined") merged.staffPhoto = null;
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -446,6 +717,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         slots: state.slots,
         accountStatus: state.accountStatus,
         deactivatedOn: state.deactivatedOn,
+        profileUpdate: state.profileUpdate,
+        activity: state.activity,
+        persona: state.persona,
+        staffPhoto: state.staffPhoto,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

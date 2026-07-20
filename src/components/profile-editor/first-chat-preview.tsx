@@ -12,20 +12,31 @@ import type { MentorDraft } from "@/lib/types";
 export function FirstChatPreview({ draft }: { draft: MentorDraft }) {
   const messages = draft.firstMessages.online;
   const story = firstMomentStory(draft.stories);
-  const name = draft.nickname || draft.firstName || "Your mentor";
+  const name = draft.displayName || draft.firstName || "Your mentor";
   const empty = messages.length === 0 && story.slides.length === 0;
 
   return (
     <PhonePreviewShell label="Live preview — the first chat teens see">
       <div className="flex h-full flex-col bg-white">
-        {/* Chat header */}
+        {/* Chat header — the avatar renders in situ (§4 Phase 9): the Chat
+            avatar asset when set, otherwise the initial tile. */}
         <div className="flex items-center gap-2.5 border-b border-[var(--border-subtle)] px-4 pb-3 pt-14">
-          <span
-            aria-hidden
-            className="flex size-9 items-center justify-center rounded-full bg-[var(--preview-accent)] font-display text-sm font-bold text-white"
-          >
-            {name.trim().charAt(0).toUpperCase() || "M"}
-          </span>
+          {draft.accountPhoto ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={draft.accountPhoto}
+              alt=""
+              aria-hidden
+              className="size-9 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex size-9 items-center justify-center rounded-full bg-[var(--preview-accent)] font-display text-sm font-bold text-white"
+            >
+              {name.trim().charAt(0).toUpperCase() || "M"}
+            </span>
+          )}
           <span className="min-w-0">
             <span className="block truncate text-[14px] font-medium leading-[18px] text-[var(--text-primary)]">
               {name}

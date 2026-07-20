@@ -21,6 +21,10 @@ interface SectionCardProps {
   /** Locked (e.g. profile in review): dimmed + non-interactive.
    *  Not in Figma / §2 — gaps.md #19. */
   disabled?: boolean;
+  /** Status chip beside the title (e.g. “In review” — update-review flow). */
+  chip?: React.ReactNode;
+  /** Always-visible block under the header (e.g. review-team note callout). */
+  notice?: React.ReactNode;
   errorMessage?: string;
   onRetry?: () => void;
   /** Controlled expansion; omit and use defaultExpanded for uncontrolled. */
@@ -41,6 +45,8 @@ export function SectionCard({
   state = "default",
   flagged = false,
   disabled = false,
+  chip,
+  notice,
   errorMessage = "That didn't save. Try again.",
   onRetry,
   expanded,
@@ -88,12 +94,15 @@ export function SectionCard({
             <span className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
               {title}
             </span>
-            {flagged && (
+            {/* A custom chip supersedes the built-in one (update-review flow
+                passes its own "Changes requested" chip + flagged border). */}
+            {flagged && !chip && (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
                 <AlertCircle className="size-3" aria-hidden />
                 Needs changes
               </span>
             )}
+            {chip}
           </span>
           {(status || state === "dirty") && (
             <span className="mt-0.5 flex items-center gap-1.5 text-[14px] leading-[20px] text-[var(--text-muted)]">
@@ -128,6 +137,8 @@ export function SectionCard({
           </span>
         )}
       </button>
+
+      {notice && <div className="px-[var(--card-pad)] pb-3">{notice}</div>}
 
       {state === "error" && (
         <div className="flex items-center gap-3 px-[var(--card-pad)] pb-3 text-[14px] leading-[20px] text-[var(--state-error)]">

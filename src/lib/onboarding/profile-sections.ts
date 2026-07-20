@@ -11,10 +11,14 @@ export interface ProfileSection {
   step: string; // STEP_ORDER slug — where "Go to" / "Jump back in" lands
   fieldKey: keyof MentorDraft; // the single draft field this section governs (1:1)
   label: string; // human label shown to admin + mentor
-  /** Which settings tab hosts this section (§3 rev: first-chat content moved
-   *  to the First moments tab). Change detection + admin review use the full
-   *  list; each tab's editor and CTA use its own subset. */
-  tab: "matching" | "first-moments";
+  /** Which settings tab hosts this section (Phase 9 IA: "profile" is the
+   *  teen-facing tab, formerly "matching"; first-chat content stays on the
+   *  First moments tab). Change detection + admin review use the full list;
+   *  each tab's editor uses its own subset. */
+  tab: "profile" | "first-moments";
+  /** Labeled group inside the Profile tab (§4 rev): "match-card" = the match
+   *  card the teen swipes; "chat" = what teens see inside the chat itself. */
+  group?: "match-card" | "chat";
   /** Compact read-only summary of the current value, for the review list. */
   summary: (draft: MentorDraft) => string;
 }
@@ -26,42 +30,48 @@ export const PROFILE_SECTIONS: ProfileSection[] = [
     step: "profile-photo", // slug stays — wizard route + persisted stepId anchor
     fieldKey: "matchCardPhoto",
     label: "Match card photo",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) => (d.matchCardPhoto ? "Photo added" : "No photo yet"),
   },
   {
     step: "nickname",
-    fieldKey: "nickname",
+    fieldKey: "displayName",
     label: "Display name",
-    tab: "matching",
-    summary: (d) => d.nickname || d.firstName || EMPTY,
+    tab: "profile",
+    group: "match-card",
+    summary: (d) => d.displayName || d.firstName || EMPTY,
   },
   {
     step: "languages",
     fieldKey: "languages",
     label: "Languages",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) => (d.languages.length ? d.languages.join(", ") : EMPTY),
   },
   {
     step: "bio",
     fieldKey: "bio",
     label: "Bio",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) => d.bio || EMPTY,
   },
   {
     step: "spotify",
     fieldKey: "spotifyUrl",
     label: "On repeat (Spotify)",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) => d.spotifyUrl || EMPTY,
   },
   {
     step: "media",
     fieldKey: "media",
     label: "Audio intro",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) =>
       d.media.kind
         ? `${d.media.kind} intro${
@@ -77,7 +87,8 @@ export const PROFILE_SECTIONS: ProfileSection[] = [
     step: "vibe",
     fieldKey: "vibe",
     label: "My vibe",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) =>
       d.vibe.length
         ? `${d.vibe.length} photo${d.vibe.length === 1 ? "" : "s"}`
@@ -87,9 +98,31 @@ export const PROFILE_SECTIONS: ProfileSection[] = [
     step: "interests",
     fieldKey: "interests",
     label: "Interests",
-    tab: "matching",
+    tab: "profile",
+    group: "match-card",
     summary: (d) =>
       d.interests.length ? d.interests.map((i) => i.name).join(", ") : EMPTY,
+  },
+  // §4 Phase 9: pronouns move here from the Account tab (they render on the
+  // teen-facing card header). The slug has no standalone wizard route — the
+  // wizard confirms pronouns on the Quick-check screen (see steps.ts).
+  {
+    step: "pronouns",
+    fieldKey: "pronouns",
+    label: "Pronouns",
+    tab: "profile",
+    group: "match-card",
+    summary: (d) => (d.pronouns.length ? d.pronouns.join(" · ") : EMPTY),
+  },
+  // §4 Phase 9: the Chat group — the avatar teens see in chats, a DISTINCT
+  // asset from the match-card cutout. No wizard route (set from settings).
+  {
+    step: "chat-avatar",
+    fieldKey: "accountPhoto",
+    label: "Chat avatar",
+    tab: "profile",
+    group: "chat",
+    summary: (d) => (d.accountPhoto ? "Photo added" : "No photo yet"),
   },
   // §4 Phase 3 extensions — chat-delivered content (no preview region). The
   // step slugs have no wizard route; they exist for change-request mapping.
@@ -125,7 +158,8 @@ export function sectionsForTab(
 
 // Media's in-memory blob `url` is volatile (dead after reload), so compare it on
 // its stable fields only — otherwise the post-publish diff would false-positive.
-function normForCompare(key: keyof MentorDraft, value: unknown): unknown {
+// Exported for the profile-update changeset's enqueue equality checks.
+export function normForCompare(key: keyof MentorDraft, value: unknown): unknown {
   if (key !== "media") return value;
   const m = value as MediaIntro | undefined;
   return { kind: m?.kind ?? null, name: m?.name ?? null, durationSec: m?.durationSec ?? null };
