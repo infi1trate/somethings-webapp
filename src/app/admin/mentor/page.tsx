@@ -69,6 +69,12 @@ import {
 } from "@/components/ui/select";
 import { RACE_OPTIONS, SEX_OPTIONS } from "@/lib/options";
 import {
+  OrganizationCard,
+  JOIN_DATE,
+  MEMBERSHIP_GROUPS,
+} from "@/components/record/organization";
+import { toast } from "sonner";
+import {
   sectionsForTab,
   type ProfileSection,
 } from "@/lib/onboarding/profile-sections";
@@ -81,15 +87,13 @@ import { useMounted } from "@/lib/use-mounted";
 import type { MentorDraft, ProfileUpdate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// Membership record placeholders — mirrors account-editor's MEMBERSHIP_GROUPS
-// and established-mentor join date (R4 centralizes; duplicating here keeps
-// this pass free of editor-file diffs per record-02 acceptance).
-const MEMBERSHIP_GROUPS = ["North Carolina", "New Jersey"];
-const JOIN_DATE = "March 25, 2026";
+// Membership placeholders — centralized in components/record/organization
+// (record-04b did the R4 centralization).
 
 // ?focus= values → record section slots (roster Review CTA sends "review").
 const FOCUS_TO_SLOT: Record<string, RecordSectionSlot> = {
   review: "reviewWorkflow",
+  account: "account", // shells' avatar deep links land on the Account section
 };
 
 const SLOT_TITLES: Record<RecordSectionSlot, string> = {
@@ -234,11 +238,22 @@ export default function MentorRecordPage({
     const el = document.querySelector(`[data-record-section="${focusSlot}"]`);
     if (!el) return;
     scrolledRef.current = true;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Arrival jump, self-correcting: the router's own post-transition scroll
+    // reset lands AFTER a naive first attempt and undoes it (verified live),
+    // so retry until the section actually sits at the top of the shell's
+    // inner panel (bounded — ~1s worst case).
+    let tries = 0;
+    const attempt = () => {
+      el.scrollIntoView({ behavior: "auto", block: "start" });
+      const top = el.getBoundingClientRect().top;
+      if (top > 100 && tries++ < 8) setTimeout(attempt, 120);
+    };
+    setTimeout(attempt, 60);
   });
 
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
+  const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
 
   if (!mounted || mentorish) {
     return (
@@ -689,6 +704,9 @@ export default function MentorRecordPage({
                 onClose={() => setAccountEditing(null)}
               />
             </div>
+            <OrganizationCard
+              mode={resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"}
+            />
           </div>
         </SectionShell>
       );
@@ -787,9 +805,14 @@ export default function MentorRecordPage({
                         <button
                           type="button"
                           onClick={() => setDeactivateOpen(true)}
-                          className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--state-error)] transition-colors hover:bg-black/[0.04]"
+                          className={cn(
+                            "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-black/[0.04]",
+                            deactivated
+                              ? "text-[var(--text-primary)]"
+                              : "text-[var(--state-error)]"
+                          )}
                         >
-                          Deactivate mentor
+                          {deactivated ? "Reactivate mentor" : "Deactivate mentor"}
                         </button>
                         <button
                           type="button"
@@ -850,22 +873,26 @@ export default function MentorRecordPage({
         </div>
       </div>
 
-      {/* Stub confirmations (record-02) — consequence copy is real (the
-          deactivate copy is lifted from the settings Roles & permissions
-          zone); the actions wire up in R4. */}
+      {/* Deactivate/reactivate (record-04b) — the REAL zone, moved from the
+          settings Roles & permissions tab: same setAccountStatus round trip,
+          same consequence copy + product ASSUMPTION. State-aware, reversible.
+          ASSUMPTION(product): mentorships pause rather than end, and paused
+          teens are flagged for reassignment after N days. Verify with ops;
+          adjust body copy if wrong. */}
       <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Deactivate {mentorName}?</DialogTitle>
+            <DialogTitle>
+              {deactivated
+                ? `Reactivate ${mentorName}?`
+                : `Deactivate ${mentorName}?`}
+            </DialogTitle>
             <DialogDescription>
-              They&apos;ll be removed from matching right away, and teens
-              won&apos;t see their profile. Active mentorships are paused, not
-              ended. You can reactivate them later — nothing is deleted.
+              {deactivated
+                ? "They'll be matchable again right away."
+                : "They'll be removed from matching right away, and teens won't see their profile. Active mentorships are paused, not ended. You can reactivate them later — nothing is deleted."}
             </DialogDescription>
           </DialogHeader>
-          <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-            Prototype: this action isn&apos;t wired yet.
-          </p>
           <DialogFooter>
             <Button
               variant="ghost"
@@ -875,11 +902,25 @@ export default function MentorRecordPage({
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant={deactivated ? "default" : "destructive"}
               className="min-h-11"
-              onClick={() => setDeactivateOpen(false)}
+              onClick={() => {
+                if (deactivated) {
+                  setAccountStatus("active");
+                  toast("Reactivated.");
+                } else {
+                  setAccountStatus(
+                    "deactivated",
+                    new Date().toLocaleDateString(undefined, {
+                      dateStyle: "long",
+                    })
+                  );
+                  toast("Deactivated.");
+                }
+                setDeactivateOpen(false);
+              }}
             >
-              Deactivate
+              {deactivated ? "Reactivate" : "Deactivate"}
             </Button>
           </DialogFooter>
         </DialogContent>

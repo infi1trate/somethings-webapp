@@ -80,7 +80,8 @@ export function AdminShell({
             ≥44px target; deep-links to Account › Photo row. */}
         <button
           type="button"
-          onClick={() => router.push("/app/profile?tab=account&open=photo")}
+          // record-04b retarget: the Supervisor's photo lives on the record.
+          onClick={() => router.push("/admin/mentor?focus=account")}
           aria-label="Change photo"
           className={cn(
             "group relative mb-2 shrink-0 rounded-full transition-shadow hover:ring-2 hover:ring-[var(--focus-ring)] hover:ring-offset-2 hover:ring-offset-[var(--surface-s2)]",

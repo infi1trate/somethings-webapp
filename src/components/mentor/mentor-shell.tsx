@@ -41,9 +41,11 @@ export function MentorShell({
     ? (firstName?.trim()?.[0] || "S").toUpperCase()
     : "S";
   const avatarSrc = mounted ? (mentorish ? approvedAvatar : staffPhoto) : null;
+  // record-04b retarget: STAFF avatars now manage their photo on the Mentor
+  // Record's Account section (settings no longer hosts staff-purpose org UI).
   const avatarTarget = mentorish
     ? "/app/profile?tab=profile&open=chat-avatar"
-    : "/app/profile?tab=account&open=photo";
+    : "/admin/mentor?focus=account";
   const unread = mounted ? activity.filter((a) => !a.read).length : 0;
 
   return (

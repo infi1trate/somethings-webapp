@@ -6,13 +6,12 @@
 // Account = locked personal details + phone/email change flows; First moments
 // and Schedule unchanged. Only opens once the mentor is published.
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MatchingProfileEditor } from "@/components/profile-editor/matching-profile-editor";
 import { FirstMomentsEditor } from "@/components/profile-editor/first-moments-editor";
 import { AccountEditor } from "@/components/profile-editor/account-editor";
-import { RolesPermissionsEditor } from "@/components/profile-editor/roles-permissions-editor";
 import { SettingsTabBar } from "@/components/settings/tab-bar";
 import {
   LEGACY_TAB_ALIASES,
@@ -88,6 +87,14 @@ export default function MentorProfileSettings({
   // Deep link: which section/row to open on arrival (sidebar avatar → its
   // persona's photo editor). Editors handle their own ids.
   const openParam = typeof query.open === "string" ? query.open : null;
+
+  // record-04b: the retired Roles & permissions tab — staff deep links now
+  // live on the Mentor Record; mentor links fall through to Account (alias).
+  useEffect(() => {
+    if (mounted && rawTab === "permissions" && role !== "mentor") {
+      router.replace("/admin/mentor");
+    }
+  }, [mounted, rawTab, role, router]);
 
   // §6 unsaved-changes guard: switching away from a dirty Account tab prompts
   // inline (never a browser alert). Other tabs keep their own dirty models —
@@ -201,20 +208,6 @@ export default function MentorProfileSettings({
           </div>
         )}
 
-        {effectiveTab === "permissions" && role === "supervisor" && (
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight">
-              Roles &amp; permissions
-            </h1>
-            <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Review pending profile changes, manage matching capacity, and
-              control this mentor&apos;s account status.
-            </p>
-            <div className="mt-5">
-              <RolesPermissionsEditor />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Unsaved-changes guard (§6) — inline prompt, not a browser alert. */}

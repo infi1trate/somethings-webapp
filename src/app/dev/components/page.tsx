@@ -212,7 +212,7 @@ export default function ComponentsAuditPage() {
               <SettingsTabBar role="mentor" activeId={mentorTab} onChange={setMentorTab} />
             </div>
             <div>
-              <StateLabel>role = supervisor ({SETTINGS_TABS.length} tabs — adds Roles &amp; permissions)</StateLabel>
+              <StateLabel>role = supervisor ({SETTINGS_TABS.length} tabs — record owns Roles &amp; permissions now)</StateLabel>
               <SettingsTabBar role="supervisor" activeId={supervisorTab} onChange={setSupervisorTab} />
             </div>
           </div>

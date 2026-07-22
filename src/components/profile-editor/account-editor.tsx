@@ -77,18 +77,14 @@ function LockedRow({
   );
 }
 
-// ── Membership group (§4 Phase 11, decision #13) — org-assigned records ────
-// Read-only for EVERY persona; all four rows exist from day one (org-assigned
-// at signup — a brand-new mentor is never "empty" here). Renders between
-// Personal details and Account. Deliberately NO group support note: the
-// Personal details note is scoped to identity fields only (§4 item 2).
+// ── Membership line (record-04b) ───────────────────────────────────────────
+// P11's Membership GROUP moved to the Mentor Record (org fields live there
+// now — role/groups/status/join date + slots). Mentor-facing settings keep
+// ONE passive line; status is deliberately record-only per the migration.
 
-// Placeholder assignment data — safe, real-looking names (§4).
 const MEMBERSHIP_GROUPS = ["North Carolina", "New Jersey"];
 
 function membershipJoinDate(persona: string): string {
-  // New mentors joined "recently" (org-assigned on day one — never empty);
-  // established personas use the spec's example date.
   if (persona === "new-mentor") {
     const d = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
     return d.toLocaleDateString(undefined, { dateStyle: "long" });
@@ -96,83 +92,19 @@ function membershipJoinDate(persona: string): string {
   return "March 25, 2026";
 }
 
-function MembershipGroup({ role }: { role: SettingsRole }) {
+function MembershipLine({ role }: { role: SettingsRole }) {
   const persona = useOnboardingStore((s) => s.persona);
-  // Status BINDS to the same state the Roles & permissions deactivate/
-  // reactivate flow controls (setAccountStatus) — never stored separately.
-  const accountStatus = useOnboardingStore((s) => s.accountStatus);
-  const deactivatedOn = useOnboardingStore((s) => s.deactivatedOn);
-
-  // TODO(product): "Lead mentor" as a Role value — confirm it is a real,
-  // distinct role (vs. a Mentor with extra permissions) and how promotion is
-  // assigned. (Spec's verbatim TODO unavailable — composed to intent, see
-  // design-system-gaps.md #64.)
   const roleLabel =
     role === "supervisor"
       ? "Supervisor"
       : role === "lead"
         ? "Lead mentor"
         : "Mentor";
-
-  const deactivated = accountStatus === "deactivated";
-
   return (
-    <section aria-label="Membership">
-      <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
-        Membership
-      </h2>
-      <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
-        <LockedRow label="Role" value={roleLabel} />
-        {/* FUTURE FLOW: group assignment is supervisor-managed and arrives
-            with the groups console — until then this row is read-only
-            everywhere. (Spec's verbatim comment unavailable — composed to
-            intent, see design-system-gaps.md #64.) */}
-        <LockedRow
-          label="Groups"
-          value={
-            <span className="flex flex-wrap items-center gap-1.5 py-0.5">
-              {MEMBERSHIP_GROUPS.map((g) => (
-                <span
-                  key={g}
-                  className="inline-flex items-center rounded-full bg-black/[0.05] px-2.5 py-0.5 text-[13px] leading-[18px] text-[var(--text-primary)]"
-                >
-                  {g}
-                </span>
-              ))}
-            </span>
-          }
-          hint={
-            role === "supervisor"
-              ? "The groups you oversee"
-              : "The groups you work with"
-          }
-        />
-        <LockedRow label="Join date" value={membershipJoinDate(persona)} />
-        <LockedRow
-          label="Status"
-          value={
-            <span className="flex items-center gap-2">
-              {/* Dot is decorative — the text carries the meaning (§4).
-                  Active green is an interim token (gaps.md #65). */}
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: deactivated
-                    ? "var(--state-error)"
-                    : "#3a7d44",
-                }}
-              />
-              <span>
-                {deactivated
-                  ? `Deactivated · ${deactivatedOn ?? "—"}`
-                  : "Active"}
-              </span>
-            </span>
-          }
-        />
-      </div>
-    </section>
+    <p className="px-[var(--card-pad)] text-[13px] leading-[18px] text-[var(--text-secondary)]">
+      You&apos;re a {roleLabel} in {MEMBERSHIP_GROUPS.join(" and ")} · joined{" "}
+      {membershipJoinDate(persona)}.
+    </p>
   );
 }
 
@@ -656,7 +588,7 @@ export function AccountEditor({
         </p>
       </section>
 
-      <MembershipGroup role={role} />
+      <MembershipLine role={role} />
 
       <RowGroup title="Account">
         <PhoneRow {...rowProps("phone")} />

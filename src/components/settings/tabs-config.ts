@@ -30,7 +30,10 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
   // Lead Mentors see ONLY this tab (§ Phase 10).
   { id: "account", label: "Account", roles: ["mentor", "lead", "supervisor"], status: "build" },
   // REMOVED — Mentorships tab (spec §3 rev, decision #8).
-  { id: "permissions", label: "Roles & permissions", roles: ["supervisor"], status: "build" },
+  // REMOVED — Roles & permissions tab (record-04b): its sections were record
+  // content and now live on /admin/mentor (review hub, Organization,
+  // deactivate). Staff deep links redirect there; see LEGACY_TAB_ALIASES +
+  // the settings page's permissions redirect.
 ];
 
 /** Legacy deep-link ids (?tab=) → current registry ids. "matching" renamed to
@@ -38,6 +41,10 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
  *  disambiguated from new ones and resolve to the new Profile tab. */
 export const LEGACY_TAB_ALIASES: Record<string, string> = {
   matching: "profile",
+  // record-04b: the retired Roles & permissions tab. Mentor personas land on
+  // Account; STAFF personas are redirected to /admin/mentor by the settings
+  // page before this alias applies.
+  permissions: "account",
 };
 
 export function tabsForRole(role: SettingsRole): SettingsTabDef[] {
