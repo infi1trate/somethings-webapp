@@ -8,7 +8,7 @@
 //   Send back with notes → sendBackProfileUpdate (noted fields flagged;
 //   un-noted fields stay pending and publish with the next approval).
 
-import { useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Pencil, Plus } from "lucide-react";
@@ -27,11 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import {
-  gatedFieldMeta,
-  relTime,
-  summarizeFieldValue,
-} from "@/lib/onboarding/profile-update";
+import { gatedFieldMeta, relTime } from "@/lib/onboarding/profile-update";
+import { LiveProposedGrid } from "@/components/review/diff-card";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 
@@ -42,57 +39,19 @@ const SURFACE_LABEL: Record<string, string> = {
   "first-moments": "First moments",
 };
 
-const PHOTO_FIELDS = new Set(["accountPhoto", "matchCardPhoto"]);
-
-/** One side of a diff row: photo fields render a thumbnail, the rest render
- *  the same compact summary the queue uses. */
-function DiffValue({
-  fieldId,
-  value,
-  muted,
+export default function AdminProfileUpdatePage({
+  searchParams,
 }: {
-  fieldId: string;
-  value: unknown;
-  muted?: boolean;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  if (PHOTO_FIELDS.has(fieldId)) {
-    return typeof value === "string" && value ? (
-      // eslint-disable-next-line @next/next/no-img-element -- data-URL thumbs
-      <img
-        src={value}
-        alt=""
-        className={cn(
-          "size-14 shrink-0 object-cover",
-          fieldId === "accountPhoto" ? "rounded-full" : "rounded-lg",
-          muted && "opacity-50"
-        )}
-      />
-    ) : (
-      <span
-        className={cn(
-          "text-sm",
-          muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-        )}
-      >
-        No photo
-      </span>
-    );
-  }
-  return (
-    <span
-      className={cn(
-        "line-clamp-2 text-sm leading-relaxed",
-        muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-      )}
-    >
-      {summarizeFieldValue(fieldId, value)}
-    </span>
-  );
-}
-
-export default function AdminProfileUpdatePage() {
   const mounted = useMounted();
   const router = useRouter();
+  // record-03: the Mentor Record deep-links here (?from=record — return nav;
+  // ?focus=<fieldId> — open that field's composer and scroll to its card).
+  const query = use(searchParams);
+  const fromRecord = query.from === "record";
+  const returnHref = fromRecord ? "/admin/mentor" : "/admin/users";
+  const focusField = typeof query.focus === "string" ? query.focus : null;
   const draft = useOnboardingStore((s) => s.draft);
   const publishedSnapshot = useOnboardingStore((s) => s.publishedSnapshot);
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
@@ -105,7 +64,17 @@ export default function AdminProfileUpdatePage() {
 
   // Per-card note composer (console pattern): `open` reveals the field,
   // `notes` holds the text; a card is flagged once it has text.
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState<Record<string, boolean>>(() =>
+    focusField ? { [focusField]: true } : {}
+  );
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!focusField || scrolledRef.current) return;
+    const el = document.querySelector(`[data-diff-field="${focusField}"]`);
+    if (!el) return;
+    scrolledRef.current = true;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
   const [notes, setNotes] = useState<Record<string, string>>({});
   // Preview toggle — defaults to Proposed: that's what's being judged (§5.2).
   const [previewSide, setPreviewSide] = useState<"live" | "proposed">(
@@ -128,7 +97,7 @@ export default function AdminProfileUpdatePage() {
     approveProfileUpdate();
     setConfirming(false);
     toast("Published — teens now see the updated profile.");
-    router.push("/admin/users");
+    router.push(returnHref);
   };
 
   const sendBack = () => {
@@ -137,18 +106,18 @@ export default function AdminProfileUpdatePage() {
     toast(
       `Sent back with ${noteCount} note${noteCount === 1 ? "" : "s"} for ${firstName}.`
     );
-    router.push("/admin/users");
+    router.push(returnHref);
   };
 
   return (
     <AdminShell active="users">
       <div className="px-6 py-6 lg:px-10">
         <Link
-          href="/admin/users"
+          href={returnHref}
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          Users
+          {fromRecord ? "Back to record" : "Users"}
         </Link>
 
         {!update ? (
@@ -188,6 +157,7 @@ export default function AdminProfileUpdatePage() {
                   return (
                     <div
                       key={f.fieldId}
+                      data-diff-field={f.fieldId}
                       className={cn(
                         "rounded-2xl border bg-white p-4 transition-colors",
                         isFlagged
@@ -228,22 +198,13 @@ export default function AdminProfileUpdatePage() {
                         </Button>
                       </div>
 
-                      {/* Live → Proposed. De-emphasized live value is an
-                          interim treatment (design-system-gaps.md #45). */}
-                      <div className="mt-3 grid grid-cols-[76px_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                          Live
-                        </span>
-                        <DiffValue
-                          fieldId={f.fieldId}
-                          value={f.liveValue}
-                          muted
-                        />
-                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">
-                          Proposed
-                        </span>
-                        <DiffValue fieldId={f.fieldId} value={proposed} />
-                      </div>
+                      {/* Shared diff presentation (components/review/diff-card
+                          — record-03): the record's hub renders the SAME rows. */}
+                      <LiveProposedGrid
+                        fieldId={f.fieldId}
+                        live={f.liveValue}
+                        proposed={proposed}
+                      />
 
                       {waiting && f.adminNote && (
                         <p className="mt-3 rounded-lg bg-orange-50 px-3 py-2 text-[13px] leading-[18px] text-orange-900">

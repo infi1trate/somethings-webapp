@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -17,9 +17,20 @@ import { snapshotValue } from "@/lib/onboarding/change-requests";
 import type { ChangeRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export default function AdminReviewPage() {
+export default function AdminReviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const mounted = useMounted();
   const router = useRouter();
+  // record-03: the Mentor Record deep-links here (?from=record — return nav;
+  // ?focus=<stepId> — open that section's composer and scroll to it). Nav
+  // only: the approve/reject logic and its baseline capture are untouched.
+  const query = use(searchParams);
+  const fromRecord = query.from === "record";
+  const returnHref = fromRecord ? "/admin/mentor" : "/admin/users";
+  const focusStep = typeof query.focus === "string" ? query.focus : null;
   const draft = useOnboardingStore((s) => s.draft);
   const setStatus = useOnboardingStore((s) => s.setStatus);
   const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
@@ -30,7 +41,17 @@ export default function AdminReviewPage() {
 
   // Per-section note capture (inline reveal). `open` tracks which note fields are
   // visible; `notes` holds the text. A section is "flagged" once it has text.
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState<Record<string, boolean>>(() =>
+    focusStep ? { [focusStep]: true } : {}
+  );
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!focusStep || scrolledRef.current) return;
+    const el = document.querySelector(`[data-review-section="${focusStep}"]`);
+    if (!el) return;
+    scrolledRef.current = true;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [working, setWorking] = useState(false);
 
@@ -66,7 +87,7 @@ export default function AdminReviewPage() {
     capturePublishedSnapshot(); // baseline for future post-publish edit detection
     // The reviewer stays in the console — back to the queue (mirrors reject).
     toast.success(`Approved ${mentorName}'s profile`);
-    router.push("/admin/users");
+    router.push(returnHref);
   };
 
   const reject = async () => {
@@ -81,7 +102,7 @@ export default function AdminReviewPage() {
     setRejection(null); // dock now drives the revision UI
     setStatus("rejected");
     toast.success(`Sent ${requests.length} change${requests.length === 1 ? "" : "s"} to ${mentorName}`);
-    router.push("/admin/users");
+    router.push(returnHref);
   };
 
   return (
@@ -91,11 +112,11 @@ export default function AdminReviewPage() {
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => router.push("/admin/users")}
+            onClick={() => router.push(returnHref)}
             className="mb-4 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <ArrowLeft className="size-4" />
-            Back to users
+            {fromRecord ? "Back to record" : "Back to users"}
           </button>
 
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -117,6 +138,7 @@ export default function AdminReviewPage() {
               return (
                 <div
                   key={section.step}
+                  data-review-section={section.step}
                   className={cn(
                     "rounded-2xl border bg-card p-4 transition-colors",
                     isFlagged && "border-brand ring-1 ring-brand"

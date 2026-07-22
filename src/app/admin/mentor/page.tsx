@@ -4,9 +4,11 @@
 // store-backed mentor. Composed ONLY from already-reusable pieces: the
 // passive previews (prop-fed, invariant 1), PROFILE_SECTIONS registry
 // summaries, EditRow's locked read state, and the update-review chips.
-// STRICTLY READ-ONLY this pass: nothing here calls gated saves, dirty
-// guards, or any mentor-facing store action (invariant 2) — the overflow
-// actions are stub dialogs until R4.
+// STRICTLY READ-ONLY: nothing here calls gated saves, dirty guards, or any
+// mentor-facing store action (invariant 2) — the overflow actions are stub
+// dialogs until R4, and record-03's review hub links into the EXISTING
+// consoles (both consoles' composers are page-inline, not mountable
+// components — deep links with ?from=record return nav, not embedding).
 //
 // Section visibility comes from lib/record/permission-map.ts via
 // resolveMode — hidden sections genuinely do not render (no wrapper, no
@@ -26,6 +28,17 @@ import {
   ChangesRequestedChip,
   InReviewChip,
 } from "@/components/profile-editor/update-review-bits";
+import { ChangeStateBadge } from "@/components/onboarding/change-row";
+import { LiveProposedGrid } from "@/components/review/diff-card";
+import {
+  addressedStateOf,
+  changeProgress,
+} from "@/lib/onboarding/change-requests";
+import {
+  changesetSummary,
+  gatedFieldMeta,
+  relTime,
+} from "@/lib/onboarding/profile-update";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,7 +54,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { sectionsForTab } from "@/lib/onboarding/profile-sections";
+import {
+  sectionsForTab,
+  type ProfileSection,
+} from "@/lib/onboarding/profile-sections";
 import {
   RECORD_SECTION_ORDER,
   resolveMode,
@@ -89,21 +105,37 @@ function ReadRow({
   label,
   value,
   chip,
+  action,
 }: {
   label: string;
   value: React.ReactNode;
   chip?: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <EditRow
       label={label}
       value={value}
       chip={chip}
+      secondaryAction={action}
       state="read"
       locked
       onEditStart={() => {}}
       onCancel={() => {}}
     />
+  );
+}
+
+/** The staff "Request change" link — DiscardChange's link treatment. */
+function requestChangeAction(href: string | null) {
+  if (!href) return undefined;
+  return (
+    <Link
+      href={href}
+      className="inline-flex min-h-11 shrink-0 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+    >
+      Request change
+    </Link>
   );
 }
 
@@ -160,7 +192,11 @@ export default function MentorRecordPage({
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const status = useOnboardingStore((s) => s.status);
+  const changeRequests = useOnboardingStore((s) => s.changeRequests);
   const mentorish = persona === "mentor" || persona === "new-mentor";
+  // Post-publish lane: the record mirrors /admin/profile-update's preview
+  // toggle; "proposed" swaps the right-side phone to the working draft.
+  const [previewSide, setPreviewSide] = useState<"live" | "proposed">("live");
 
   // Staff-only surface: mentor personas land on their own settings instead.
   useEffect(() => {
@@ -195,6 +231,16 @@ export default function MentorRecordPage({
   // /admin/profile-update makes for its "Live" preview side. Passive always.
   const live: MentorDraft = publishedSnapshot ?? draft;
 
+  // Review lanes (mutually exclusive by construction): the pre-publish
+  // submission loop only exists before a snapshot; the post-publish changeset
+  // only exists after one.
+  const preLane =
+    !publishedSnapshot && (status === "in_review" || status === "rejected");
+  const postLane = profileUpdate !== null;
+  const reviewMode = resolveMode("reviewWorkflow", persona) === "review";
+  const previewDraft: MentorDraft =
+    postLane && previewSide === "proposed" ? draft : live;
+
   const mentorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
     "Jordan Rivera";
@@ -209,6 +255,18 @@ export default function MentorRecordPage({
   const submittedForReview = status === "in_review";
   // Destructive account actions are supervisor powers (accountOrg: edit).
   const canActOnAccount = resolveMode("accountOrg", persona) === "edit";
+
+  // Per-field "Request change" (review mode only) — a LINK into whichever
+  // EXISTING composer currently serves that field (invariants 2/3/4: no new
+  // mechanics, keys straight from PROFILE_SECTIONS, baselines captured where
+  // they're captured today). No serving flow → no affordance.
+  const requestChangeHref = (section: ProfileSection): string | null => {
+    if (!reviewMode) return null;
+    if (preLane) return `/admin/review?from=record&focus=${section.step}`;
+    if (postLane && profileUpdate?.fields.some((f) => f.fieldId === section.fieldKey))
+      return `/admin/profile-update?from=record&focus=${section.fieldKey}`;
+    return null;
+  };
 
   const scrollToReview = () =>
     document
@@ -225,6 +283,133 @@ export default function MentorRecordPage({
           resolveMode("accountOrg", persona) === "hidden"
         : resolveMode(slot, persona) === "hidden";
     if (hidden) return null; // genuinely absent — no wrapper, no heading
+
+    if (slot === "reviewWorkflow") {
+      const linkCls =
+        "inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+      return (
+        <SectionShell key={slot} slot={slot}>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+            {preLane ? (
+              // ── Pre-publish lane: the submission loop. The full composer
+              // stays in /admin/review (its section list + composer are
+              // page-inline, not mountable components — so this deep-links
+              // with return nav rather than embedding; see record-03 notes).
+              <div className="space-y-3">
+                <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                  {status === "in_review"
+                    ? "Submitted for review — waiting on the team."
+                    : "Changes requested — waiting on the mentor."}
+                </p>
+                {status === "rejected" && changeRequests.length > 0 && (
+                  <>
+                    <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+                      {(() => {
+                        const p = changeProgress(changeRequests, draft);
+                        return `${p.addressed} of ${p.total} addressed`;
+                      })()}
+                    </p>
+                    <ul className="divide-y divide-[var(--border-subtle)] rounded-xl border border-[var(--border-subtle)] bg-white">
+                      {changeRequests.map((req) => (
+                        <li
+                          key={req.id}
+                          className="flex items-start justify-between gap-3 px-3.5 py-2.5"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-[13px] font-medium leading-[18px] text-[var(--text-primary)]">
+                              {req.sectionLabel}
+                            </span>
+                            <span className="block text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                              {req.note}
+                            </span>
+                          </span>
+                          <ChangeStateBadge
+                            state={addressedStateOf(req, draft)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {reviewMode && (
+                  <Link href="/admin/review?from=record" className={linkCls}>
+                    {status === "in_review"
+                      ? "Open review console"
+                      : "View in review console"}
+                  </Link>
+                )}
+              </div>
+            ) : postLane && profileUpdate ? (
+              // ── Post-publish lane: the changeset delta, rendered with the
+              // SAME shared diff rows /admin/profile-update uses. Verdicts
+              // (approve / send back) stay in the full console — deep link
+              // with return nav.
+              <div className="space-y-3">
+                <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                  {changesetSummary(profileUpdate)} ·{" "}
+                  {profileUpdate.fields.length} change
+                  {profileUpdate.fields.length === 1 ? "" : "s"}
+                  <span className="text-[12px] text-[var(--text-muted)]">
+                    {" "}
+                    · submitted {relTime(profileUpdate.submittedAt).toLowerCase()}
+                  </span>
+                </p>
+                <div className="space-y-2.5">
+                  {profileUpdate.fields.map((f) => {
+                    const proposed = (
+                      draft as unknown as Record<string, unknown>
+                    )[f.fieldId];
+                    return (
+                      <div
+                        key={f.fieldId}
+                        className="rounded-xl border border-[var(--border-subtle)] bg-white p-3.5"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-display text-[15px] font-bold leading-[22px] text-[var(--text-primary)]">
+                            {gatedFieldMeta(f.fieldId)?.label ?? f.fieldId}
+                          </p>
+                          {f.fieldStatus === "changes-requested" ? (
+                            <ChangesRequestedChip />
+                          ) : (
+                            <InReviewChip />
+                          )}
+                        </div>
+                        <LiveProposedGrid
+                          fieldId={f.fieldId}
+                          live={f.liveValue}
+                          proposed={proposed}
+                        />
+                        {f.fieldStatus === "changes-requested" &&
+                          f.adminNote && (
+                            <p className="mt-3 rounded-lg bg-orange-50 px-3 py-2 text-[13px] leading-[18px] text-orange-900">
+                              Sent to {firstName}: {f.adminNote}
+                            </p>
+                          )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {reviewMode && (
+                  <Link
+                    href="/admin/profile-update?from=record"
+                    className={linkCls}
+                  >
+                    Open full review
+                  </Link>
+                )}
+              </div>
+            ) : (
+              // ── Neither lane active (§ record-03 empty state).
+              <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                {publishedSnapshot
+                  ? "No open requests. This profile is live and current."
+                  : "Nothing to review yet — this profile hasn't been submitted."}
+              </p>
+            )}
+          </div>
+        </SectionShell>
+      );
+    }
 
     if (slot === "matchingProfile") {
       const matchCard = sectionsForTab("profile").filter(
@@ -245,6 +430,7 @@ export default function MentorRecordPage({
                     label={s.label}
                     value={s.summary(live)}
                     chip={changesetChip(profileUpdate, s.fieldKey)}
+                    action={requestChangeAction(requestChangeHref(s))}
                   />
                 ))}
               </RowCard>
@@ -260,6 +446,7 @@ export default function MentorRecordPage({
                     label={s.label}
                     value={s.summary(live)}
                     chip={changesetChip(profileUpdate, s.fieldKey)}
+                    action={requestChangeAction(requestChangeHref(s))}
                   />
                 ))}
               </RowCard>
@@ -279,6 +466,7 @@ export default function MentorRecordPage({
                 label={s.label}
                 value={s.summary(live)}
                 chip={changesetChip(profileUpdate, s.fieldKey)}
+                action={requestChangeAction(requestChangeHref(s))}
               />
             ))}
           </RowCard>
@@ -402,13 +590,41 @@ export default function MentorRecordPage({
             </div>
           </div>
 
-          {/* RIGHT — passive preview of what teens see right now */}
+          {/* RIGHT — passive preview. Post-publish changesets add the
+              Live|Proposed toggle (mirrors /admin/profile-update); it swaps
+              the phone's data source, never adds editing (invariant 1). */}
           <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
+            {postLane && (
+              <div
+                role="group"
+                aria-label="Preview version"
+                className="flex rounded-full border border-[var(--border-subtle)] bg-white p-1"
+              >
+                {(["live", "proposed"] as const).map((side) => (
+                  <button
+                    key={side}
+                    type="button"
+                    aria-pressed={previewSide === side}
+                    onClick={() => setPreviewSide(side)}
+                    className={cn(
+                      "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors",
+                      previewSide === side
+                        ? "bg-foreground text-background"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    )}
+                  >
+                    {side}
+                  </button>
+                ))}
+              </div>
+            )}
             <PhonePreviewShell label="Live preview — what teens see on the match card">
-              <MentorProfilePreview draft={live} />
+              <MentorProfilePreview draft={previewDraft} />
             </PhonePreviewShell>
             <p className="text-xs text-[var(--text-muted)]">
-              What teens see right now
+              {postLane && previewSide === "proposed"
+                ? "What teens will see after approval"
+                : "What teens see right now"}
             </p>
           </div>
         </div>
