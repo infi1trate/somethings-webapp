@@ -56,7 +56,18 @@ import {
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { saveAccountField } from "@/lib/mock-api";
 import { PhotoRowCore } from "@/components/account/photo-row";
-import { auditLineFor } from "@/lib/record/account-fields";
+import { StaffFieldRow } from "@/components/account/field-rows";
+import { auditLineFor, formatDob } from "@/lib/record/account-fields";
+import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RACE_OPTIONS, SEX_OPTIONS } from "@/lib/options";
 import {
   sectionsForTab,
   type ProfileSection,
@@ -518,11 +529,165 @@ export default function MentorRecordPage({
                 }}
               />
             </div>
-            {/* Identity + contact rows land in record-04a commits 2–3. */}
-            <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
-              <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                Identity and contact rows land in the next passes.
-              </p>
+            {/* Identity — LockedRow in mentor settings ("Contact support to
+                change this"); the point of the record is that they unlock
+                HERE, on the staff write path. */}
+            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+              <StaffFieldRow<string>
+                label="First name"
+                value={draft.firstName}
+                display={(v) => v || "—"}
+                editor={(pending, set) => (
+                  <Input
+                    aria-label="First name"
+                    className="max-w-sm"
+                    value={pending}
+                    onChange={(e) => set(e.target.value)}
+                  />
+                )}
+                validate={(v) => v.trim().length > 0}
+                onSave={staffSave("firstName")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "firstName") ?? undefined}
+                editing={accountEditing === "firstName"}
+                onEditStart={() => setAccountEditing("firstName")}
+                onClose={() => setAccountEditing(null)}
+              />
+              <StaffFieldRow<string>
+                label="Last name"
+                value={draft.lastName}
+                display={(v) => v || "—"}
+                editor={(pending, set) => (
+                  <Input
+                    aria-label="Last name"
+                    className="max-w-sm"
+                    value={pending}
+                    onChange={(e) => set(e.target.value)}
+                  />
+                )}
+                validate={(v) => v.trim().length > 0}
+                onSave={staffSave("lastName")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "lastName") ?? undefined}
+                editing={accountEditing === "lastName"}
+                onEditStart={() => setAccountEditing("lastName")}
+                onClose={() => setAccountEditing(null)}
+              />
+              <StaffFieldRow<string>
+                label="Date of birth"
+                value={draft.dob}
+                display={(v) => formatDob(v)}
+                editor={(pending, set) => (
+                  <Input
+                    aria-label="Date of birth"
+                    type="date"
+                    className="max-w-sm"
+                    value={pending}
+                    onChange={(e) => set(e.target.value)}
+                  />
+                )}
+                validate={(v) => v.trim().length > 0}
+                onSave={staffSave("dob")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "dob") ?? undefined}
+                editing={accountEditing === "dob"}
+                onEditStart={() => setAccountEditing("dob")}
+                onClose={() => setAccountEditing(null)}
+              />
+              <StaffFieldRow<string>
+                label="Sex"
+                value={draft.sex}
+                display={(v) =>
+                  SEX_OPTIONS.find((o) => o.value === v)?.label ?? "—"
+                }
+                editor={(pending, set) => (
+                  <Select value={pending} onValueChange={set}>
+                    <SelectTrigger
+                      aria-label="Sex"
+                      className="w-full max-w-sm"
+                    >
+                      <SelectValue placeholder="Choose" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEX_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                onSave={staffSave("sex")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "sex") ?? undefined}
+                editing={accountEditing === "sex"}
+                onEditStart={() => setAccountEditing("sex")}
+                onClose={() => setAccountEditing(null)}
+              />
+              <StaffFieldRow<string[]>
+                label="Race"
+                value={draft.races}
+                display={(v) => (v.length ? v.join(", ") : "—")}
+                editor={(pending, set) => (
+                  <MultiSelectChips
+                    options={RACE_OPTIONS}
+                    value={pending}
+                    onChange={set}
+                  />
+                )}
+                onSave={staffSave("races")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "races") ?? undefined}
+                editing={accountEditing === "races"}
+                onEditStart={() => setAccountEditing("races")}
+                onClose={() => setAccountEditing(null)}
+              />
+            </div>
+            {/* Contact — the mentor-facing verification flows stay in
+                settings; staff set values directly (record-scoped path). */}
+            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+              <StaffFieldRow<string>
+                label="Phone number"
+                value={draft.phone}
+                display={(v) => v || "—"}
+                editor={(pending, set) => (
+                  <Input
+                    aria-label="Phone number"
+                    type="tel"
+                    className="max-w-sm"
+                    value={pending}
+                    onChange={(e) => set(e.target.value)}
+                  />
+                )}
+                validate={(v) => v.trim().length > 0}
+                onSave={staffSave("phone")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "phone") ?? undefined}
+                editing={accountEditing === "phone"}
+                onEditStart={() => setAccountEditing("phone")}
+                onClose={() => setAccountEditing(null)}
+              />
+              <StaffFieldRow<string>
+                label="Email"
+                value={draft.email}
+                display={(v) => v || "—"}
+                editor={(pending, set) => (
+                  <Input
+                    aria-label="Email"
+                    type="email"
+                    className="max-w-sm"
+                    value={pending}
+                    onChange={(e) => set(e.target.value)}
+                  />
+                )}
+                validate={(v) => v.includes("@")}
+                onSave={staffSave("email")}
+                mode={accountMode}
+                hint={auditLineFor(activity, "email") ?? undefined}
+                editing={accountEditing === "email"}
+                onEditStart={() => setAccountEditing("email")}
+                onClose={() => setAccountEditing(null)}
+              />
             </div>
           </div>
         </SectionShell>

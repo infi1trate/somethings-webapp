@@ -22,6 +22,15 @@ export function accountFieldLabel(fieldId: string): string {
   return ACCOUNT_FIELD_LABELS[fieldId] ?? "account details";
 }
 
+/** "March 25, 2026" from a YYYY-MM-DD value (mirrors settings' fmtDob). */
+export function formatDob(dob: string): string {
+  if (!dob) return "—";
+  const d = new Date(`${dob}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? dob
+    : d.toLocaleDateString(undefined, { dateStyle: "long" });
+}
+
 /** Newest staff edit touching a field — the audit line's source of truth. */
 export function lastStaffEdit(
   activity: ActivityItem[],
