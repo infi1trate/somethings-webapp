@@ -12,6 +12,7 @@ import {
   type ProfileUpdate,
   type ActivityItem,
   type Persona,
+  type InternalNote,
 } from "@/lib/types";
 import {
   PROFILE_SECTIONS,
@@ -65,6 +66,13 @@ interface OnboardingState {
   /** Lead Mentor / Supervisor own account photo (Account › Photo row) —
    *  internal, direct-save, never teen-visible, never review-gated. */
   staffPhoto: string | null;
+  /** Internal staff notes on the Mentor Record (record-05) — never
+   *  mentor-visible; append-only. */
+  internalNotes: InternalNote[];
+  /** record-05: staff-controlled teen visibility ("Unpublish profile").
+   *  Hidden ≠ deactivated: content and mentorships stay; teens just don't
+   *  see the profile until it's republished. */
+  profileHidden: boolean;
   /** Session-only UI for the welcome-back modal (not persisted — shows once per
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
@@ -124,6 +132,11 @@ interface OnboardingState {
     value: unknown,
     actor: string
   ) => void;
+  /** RECORD-SCOPED (record-05): append one internal staff note. */
+  addInternalNote: (text: string, author: string) => void;
+  /** RECORD-SCOPED (record-05): hide/restore teen visibility, with a
+   *  staff-attributed activity entry (never reads as the mentor's action). */
+  setProfileHidden: (hidden: boolean, actor: string) => void;
   setPersona: (p: Persona) => void;
   setStaffPhoto: (url: string | null) => void;
   setHasHydrated: () => void;
@@ -151,6 +164,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       _hasHydrated: false,
       persona: "mentor",
       staffPhoto: null,
+      internalNotes: [],
+      profileHidden: false,
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -394,6 +409,40 @@ export const useOnboardingStore = create<OnboardingState>()(
           };
         }),
 
+      addInternalNote: (text, author) =>
+        set((state) => ({
+          internalNotes: [
+            {
+              id: `note-${Date.now()}`,
+              text: text.trim(),
+              author,
+              createdAt: Date.now(),
+            },
+            ...state.internalNotes,
+          ],
+        })),
+
+      setProfileHidden: (hidden, actor) =>
+        set((state) => {
+          const now = Date.now();
+          return {
+            profileHidden: hidden,
+            activity: [
+              {
+                id: `act-${now}`,
+                type: hidden
+                  ? ("profile_unpublished" as const)
+                  : ("profile_republished" as const),
+                fieldIds: [],
+                createdAt: now,
+                read: false,
+                actor,
+              },
+              ...state.activity,
+            ],
+          };
+        }),
+
       setPersona: (p) => set({ persona: p }),
       setStaffPhoto: (url) => set({ staffPhoto: url }),
 
@@ -415,6 +464,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           profileUpdate: null,
           activity: [],
           staffPhoto: null, // persona is a dev lens, not data — reset leaves it
+          internalNotes: [],
+          profileHidden: false,
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -435,7 +486,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // single 'first-moment' entry; draft, snapshot, and change-request
       // fieldKeys remapped). v14: profileUpdate changeset + activity feed;
       // post-publish in_review/rejected retired. Convert state in place.
-      version: 16,
+      version: 17,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -643,6 +694,15 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.persona !== "string") st.persona = "mentor";
           if (!("staffPhoto" in st)) st.staffPhoto = null;
         }
+        // v17: record-05 — internal staff notes + teen-visibility flag.
+        if (version < 17) {
+          const st = s as unknown as {
+            internalNotes?: unknown;
+            profileHidden?: unknown;
+          };
+          if (!Array.isArray(st.internalNotes)) st.internalNotes = [];
+          if (typeof st.profileHidden !== "boolean") st.profileHidden = false;
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -754,6 +814,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         activity: state.activity,
         persona: state.persona,
         staffPhoto: state.staffPhoto,
+        internalNotes: state.internalNotes,
+        profileHidden: state.profileHidden,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

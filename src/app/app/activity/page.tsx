@@ -24,6 +24,12 @@ function entryText(item: ActivityItem): string {
   if (item.type === "profile_update_live") {
     return "Your profile changes are live.";
   }
+  if (item.type === "profile_unpublished") {
+    return "The Somethings team hid your profile from teens for now.";
+  }
+  if (item.type === "profile_republished") {
+    return "Your profile is visible to teens again.";
+  }
   if (item.type === "staff_account_edit") {
     // record-04a: staff-attributed — the mentor sees WHAT changed and that
     // the team (not they) changed it.
@@ -39,6 +45,8 @@ function entryText(item: ActivityItem): string {
 // Deep link: the settings tab hosting the first named field.
 function entryHref(item: ActivityItem): string {
   if (item.type === "staff_account_edit") return "/app/profile?tab=account";
+  if (item.type === "profile_unpublished" || item.type === "profile_republished")
+    return "/app/profile?tab=profile";
   const surface = gatedFieldMeta(item.fieldIds[0])?.surface;
   return surface ? `/app/profile?tab=${surface}` : "/app/profile";
 }

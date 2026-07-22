@@ -18,7 +18,7 @@
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, EyeOff, MoreHorizontal } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
@@ -60,6 +60,7 @@ import { StaffFieldRow } from "@/components/account/field-rows";
 import { auditLineFor, formatDob } from "@/lib/record/account-fields";
 import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -216,6 +217,10 @@ export default function MentorRecordPage({
     (s) => s.staffEditAccountField
   );
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
+  const internalNotes = useOnboardingStore((s) => s.internalNotes);
+  const addInternalNote = useOnboardingStore((s) => s.addInternalNote);
+  const profileHidden = useOnboardingStore((s) => s.profileHidden);
+  const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
   const mentorish = persona === "mentor" || persona === "new-mentor";
   // One editing row at a time on the record's account section (no guard
   // dialog — each row saves or cancels explicitly before switching).
@@ -253,12 +258,36 @@ export default function MentorRecordPage({
 
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
   const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
 
   if (!mounted || mentorish) {
     return (
       <AdminShell active="users">
-        <div className="min-h-dvh" />
+        <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor record">
+          <div className="mt-1 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="min-w-0">
+              <div className="flex items-start gap-4">
+                <div className="size-14 shrink-0 animate-pulse rounded-full bg-muted/40" />
+                <div className="flex-1 space-y-2 pt-1">
+                  <div className="h-7 w-64 animate-pulse rounded-md bg-muted/40" />
+                  <div className="h-4 w-44 animate-pulse rounded-md bg-muted/40" />
+                </div>
+              </div>
+              <div className="mt-8 space-y-7">
+                {[0, 1, 2].map((i) => (
+                  <div key={i}>
+                    <div className="mb-2 h-5 w-40 animate-pulse rounded-md bg-muted/40" />
+                    <div className="h-28 animate-pulse rounded-[var(--radius-card)] bg-muted/40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="hidden lg:block">
+              <div className="h-[640px] w-full animate-pulse rounded-[46px] bg-muted/40" />
+            </div>
+          </div>
+        </div>
       </AdminShell>
     );
   }
@@ -347,7 +376,8 @@ export default function MentorRecordPage({
               // page-inline, not mountable components — so this deep-links
               // with return nav rather than embedding; see record-03 notes).
               <div className="space-y-3">
-                <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                <p className="flex flex-wrap items-center gap-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                  {status === "in_review" ? <InReviewChip /> : <ChangesRequestedChip />}
                   {status === "in_review"
                     ? "Submitted for review — waiting on the team."
                     : "Changes requested — waiting on the mentor."}
@@ -712,6 +742,127 @@ export default function MentorRecordPage({
       );
     }
 
+    if (slot === "internalNotes") {
+      return (
+        <SectionShell key={slot} slot={slot}>
+          <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+            {/* The channel divider — persistent, not dismissible: confusing
+                internal notes with change requests must be hard. */}
+            <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+              Internal — visible to supervisors and admins only. Mentors never
+              see notes; use change requests for anything the mentor should
+              read.
+            </p>
+            <div>
+              <label
+                htmlFor="internal-note"
+                className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
+              >
+                Add a note
+              </label>
+              <Textarea
+                id="internal-note"
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="Context for the next person on this record…"
+              />
+              <div className="mt-2">
+                <PillButton
+                  onClick={() => {
+                    if (!noteDraft.trim()) return;
+                    addInternalNote(noteDraft, staffActor);
+                    setNoteDraft("");
+                  }}
+                  disabled={!noteDraft.trim()}
+                >
+                  Add note
+                </PillButton>
+              </div>
+            </div>
+            {internalNotes.length === 0 ? (
+              <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                No notes yet. Anything written here stays internal.
+              </p>
+            ) : (
+              // Deliberately NOT the change-request note treatment (no orange,
+              // no "From the review team") — author + timestamp header rows
+              // on plain white keep the two channels visually far apart.
+              <ul className="space-y-2.5">
+                {internalNotes.map((n) => (
+                  <li
+                    key={n.id}
+                    className="rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-3"
+                  >
+                    <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
+                      {n.author} · {relTime(n.createdAt)}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-[14px] leading-[20px] text-[var(--text-primary)]">
+                      {n.text}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </SectionShell>
+      );
+    }
+
+    if (slot === "relationships") {
+      // Stub org data (record-05): rows are link-STYLED but inert — the
+      // destinations don't exist in this prototype.
+      const inertLink =
+        "text-[15px] leading-[20px] text-[var(--text-primary)] underline decoration-[var(--border-subtle)] underline-offset-2";
+      return (
+        <SectionShell key={slot} slot={slot}>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+            {!publishedSnapshot ? (
+              <p className="px-[var(--card-pad)] py-5 text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                Nothing here yet — relationships appear once this mentor is
+                published and matched.
+              </p>
+            ) : (
+              <div className="divide-y divide-[var(--border-subtle)]">
+                <div className="px-[var(--card-pad)] py-2.5">
+                  <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                    Assigned supervisor
+                  </p>
+                  <span className={inertLink}>Stephen Rowe</span>
+                </div>
+                <div className="px-[var(--card-pad)] py-2.5">
+                  <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                    Assigned lead mentor
+                  </p>
+                  <span className={inertLink}>Brandy Forrestor</span>
+                </div>
+                <div className="px-[var(--card-pad)] py-2.5">
+                  <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                    Active mentees
+                  </p>
+                  <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                    {profileHidden ? "4 · matching paused while unpublished" : "4"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </SectionShell>
+      );
+    }
+
+    if (slot === "schedule") {
+      return (
+        <SectionShell key={slot} slot={slot}>
+          <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+            <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+              Scheduling lands with the settings build — staff editing is
+              planned here.
+            </p>
+          </div>
+        </SectionShell>
+      );
+    }
+
     return <PlaceholderSection key={slot} slot={slot} />;
   };
 
@@ -761,10 +912,16 @@ export default function MentorRecordPage({
                         "rounded-full px-2.5 py-0.5 text-xs font-medium",
                         deactivated
                           ? "bg-muted text-[var(--text-secondary)]"
-                          : "bg-foreground text-background"
+                          : profileHidden
+                            ? "border border-orange-300 text-orange-700"
+                            : "bg-foreground text-background"
                       )}
                     >
-                      {deactivated ? "Inactive" : "Active"}
+                      {deactivated
+                        ? "Inactive"
+                        : profileHidden
+                          ? "Unpublished"
+                          : "Active"}
                     </span>
                   </div>
                   {goesBy && (
@@ -817,9 +974,14 @@ export default function MentorRecordPage({
                         <button
                           type="button"
                           onClick={() => setUnpublishOpen(true)}
-                          className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--state-error)] transition-colors hover:bg-black/[0.04]"
+                          className={cn(
+                            "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-black/[0.04]",
+                            profileHidden
+                              ? "text-[var(--text-primary)]"
+                              : "text-[var(--state-error)]"
+                          )}
                         >
-                          Unpublish profile
+                          {profileHidden ? "Republish profile" : "Unpublish profile"}
                         </button>
                       </PopoverContent>
                     </Popover>
@@ -861,13 +1023,25 @@ export default function MentorRecordPage({
                 ))}
               </div>
             )}
-            <PhonePreviewShell label="Live preview — what teens see on the match card">
-              <MentorProfilePreview draft={previewDraft} />
-            </PhonePreviewShell>
+            <div className="relative">
+              <PhonePreviewShell label="Live preview — what teens see on the match card">
+                <MentorProfilePreview draft={previewDraft} />
+              </PhonePreviewShell>
+              {profileHidden && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
+                  <span className="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s0)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-tile)]">
+                    <EyeOff className="size-4" aria-hidden />
+                    Hidden from teens
+                  </span>
+                </div>
+              )}
+            </div>
             <p className="text-xs text-[var(--text-muted)]">
-              {postLane && previewSide === "proposed"
-                ? "What teens will see after approval"
-                : "What teens see right now"}
+              {profileHidden
+                ? "Unpublished — teens can't see this profile right now"
+                : postLane && previewSide === "proposed"
+                  ? "What teens will see after approval"
+                  : "What teens see right now"}
             </p>
           </div>
         </div>
@@ -926,19 +1100,22 @@ export default function MentorRecordPage({
         </DialogContent>
       </Dialog>
 
+      {/* Unpublish/republish (record-05) — teen-visibility round trip; the
+          entry is staff-attributed so the mentor sees WHO acted. */}
       <Dialog open={unpublishOpen} onOpenChange={setUnpublishOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Unpublish {firstName}&apos;s profile?</DialogTitle>
+            <DialogTitle>
+              {profileHidden
+                ? `Republish ${firstName}'s profile?`
+                : `Unpublish ${firstName}'s profile?`}
+            </DialogTitle>
             <DialogDescription>
-              Teens won&apos;t see {firstName} in matching until the profile
-              is approved again. Their content isn&apos;t deleted — it goes
-              back into review.
+              {profileHidden
+                ? "Teens will see this profile in matching again right away."
+                : `Teens won't see ${firstName} in matching until you publish them again. Their content isn't deleted, and current mentorships aren't touched.`}
             </DialogDescription>
           </DialogHeader>
-          <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-            Prototype: this action isn&apos;t wired yet.
-          </p>
           <DialogFooter>
             <Button
               variant="ghost"
@@ -948,11 +1125,15 @@ export default function MentorRecordPage({
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant={profileHidden ? "default" : "destructive"}
               className="min-h-11"
-              onClick={() => setUnpublishOpen(false)}
+              onClick={() => {
+                setProfileHidden(!profileHidden, staffActor);
+                toast(profileHidden ? "Republished." : "Unpublished.");
+                setUnpublishOpen(false);
+              }}
             >
-              Unpublish
+              {profileHidden ? "Republish" : "Unpublish"}
             </Button>
           </DialogFooter>
         </DialogContent>

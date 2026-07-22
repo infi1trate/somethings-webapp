@@ -170,6 +170,17 @@ export interface ProfileUpdate {
   fields: ProfileUpdateField[];
 }
 
+/** One internal staff note on the Mentor Record (record-05) — supervisor/
+ *  admin channel ONLY. Mentors never see these; anything the mentor should
+ *  read goes through change requests instead. Append-only (audit-log
+ *  semantics). */
+export interface InternalNote {
+  id: string;
+  text: string;
+  author: string; // staff actor label, e.g. "Supervisor"
+  createdAt: number;
+}
+
 export interface ActivityItem {
   id: string;
   type:
@@ -178,7 +189,10 @@ export interface ActivityItem {
     /** record-04a: a staff member edited an account field on the Mentor
      *  Record. Staff-attributed (never reads as the mentor's own action)
      *  and doubles as the record's "Last changed by" audit trail. */
-    | "staff_account_edit";
+    | "staff_account_edit"
+    /** record-05: staff hid / restored the profile's teen visibility. */
+    | "profile_unpublished"
+    | "profile_republished";
   fieldIds: string[];
   createdAt: number;
   read: boolean;
