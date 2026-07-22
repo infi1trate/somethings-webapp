@@ -114,6 +114,16 @@ interface OnboardingState {
    *  the changeset, fire the activity item (§1.4 all-or-nothing). */
   approveProfileUpdate: () => void;
   markActivityRead: () => void;
+  /** RECORD-SCOPED staff edit (record-04a, invariant 2): sets one account
+   *  field (draft key, or the top-level staffPhoto) and appends ONE
+   *  staff-attributed activity entry — the audit trail for "Last changed
+   *  by". Never fires mentor-facing toasts; never touches gated saves,
+   *  changesets, or snapshots. */
+  staffEditAccountField: (
+    fieldId: string,
+    value: unknown,
+    actor: string
+  ) => void;
   setPersona: (p: Persona) => void;
   setStaffPhoto: (url: string | null) => void;
   setHasHydrated: () => void;
@@ -360,6 +370,29 @@ export const useOnboardingStore = create<OnboardingState>()(
             ? { activity: state.activity.map((a) => (a.read ? a : { ...a, read: true })) }
             : state
         ),
+
+      staffEditAccountField: (fieldId, value, actor) =>
+        set((state) => {
+          const now = Date.now();
+          const entry = {
+            id: `act-${now}`,
+            type: "staff_account_edit" as const,
+            fieldIds: [fieldId],
+            createdAt: now,
+            read: false,
+            actor,
+          };
+          if (fieldId === "staffPhoto") {
+            return {
+              staffPhoto: (value as string | null) ?? null,
+              activity: [entry, ...state.activity],
+            };
+          }
+          return {
+            draft: { ...state.draft, [fieldId]: value },
+            activity: [entry, ...state.activity],
+          };
+        }),
 
       setPersona: (p) => set({ persona: p }),
       setStaffPhoto: (url) => set({ staffPhoto: url }),

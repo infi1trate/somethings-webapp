@@ -54,6 +54,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { saveAccountField } from "@/lib/mock-api";
+import { PhotoRowCore } from "@/components/account/photo-row";
+import { auditLineFor } from "@/lib/record/account-fields";
 import {
   sectionsForTab,
   type ProfileSection,
@@ -193,7 +196,15 @@ export default function MentorRecordPage({
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const status = useOnboardingStore((s) => s.status);
   const changeRequests = useOnboardingStore((s) => s.changeRequests);
+  const activity = useOnboardingStore((s) => s.activity);
+  const staffEditAccountField = useOnboardingStore(
+    (s) => s.staffEditAccountField
+  );
+  const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
   const mentorish = persona === "mentor" || persona === "new-mentor";
+  // One editing row at a time on the record's account section (no guard
+  // dialog — each row saves or cancels explicitly before switching).
+  const [accountEditing, setAccountEditing] = useState<string | null>(null);
   // Post-publish lane: the record mirrors /admin/profile-update's preview
   // toggle; "proposed" swaps the right-side phone to the working draft.
   const [previewSide, setPreviewSide] = useState<"live" | "proposed">("live");
@@ -255,6 +266,20 @@ export default function MentorRecordPage({
   const submittedForReview = status === "in_review";
   // Destructive account actions are supervisor powers (accountOrg: edit).
   const canActOnAccount = resolveMode("accountOrg", persona) === "edit";
+  // Account rows: staff-editable for supervisors, read for leads.
+  const accountMode: "edit" | "read" =
+    resolveMode("accountSelfService", persona) === "edit" ? "edit" : "read";
+  const staffActor = persona === "supervisor" ? "Supervisor" : "Lead mentor";
+  // The record-scoped save (invariant 2): mock latency/failure, then the
+  // staff write path — draft/staffPhoto update + staff-attributed activity.
+  const staffSave =
+    (fieldId: string) =>
+    async (value: unknown): Promise<boolean> => {
+      const res = await saveAccountField(fieldId, value);
+      if (!res.ok) return false;
+      staffEditAccountField(fieldId, value, staffActor);
+      return true;
+    };
 
   // Per-field "Request change" (review mode only) — a LINK into whichever
   // EXISTING composer currently serves that field (invariants 2/3/4: no new
@@ -470,6 +495,36 @@ export default function MentorRecordPage({
               />
             ))}
           </RowCard>
+        </SectionShell>
+      );
+    }
+
+    if (slot === "account") {
+      return (
+        <SectionShell key={slot} slot={slot}>
+          <div className="space-y-4">
+            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+              <PhotoRowCore
+                value={staffPhoto}
+                initial={firstName.trim().charAt(0).toUpperCase()}
+                mode={accountMode}
+                hint={auditLineFor(activity, "staffPhoto") ?? undefined}
+                editing={accountEditing === "photo"}
+                onEditStart={() => setAccountEditing("photo")}
+                onClose={() => setAccountEditing(null)}
+                onSave={async (pending) => {
+                  const ok = await staffSave("staffPhoto")(pending);
+                  return ok;
+                }}
+              />
+            </div>
+            {/* Identity + contact rows land in record-04a commits 2–3. */}
+            <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+              <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                Identity and contact rows land in the next passes.
+              </p>
+            </div>
+          </div>
         </SectionShell>
       );
     }

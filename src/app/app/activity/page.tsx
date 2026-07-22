@@ -11,6 +11,7 @@ import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { gatedFieldMeta, relTime } from "@/lib/onboarding/profile-update";
+import { accountFieldLabel } from "@/lib/record/account-fields";
 import { useMounted } from "@/lib/use-mounted";
 import type { ActivityItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,11 @@ function entryText(item: ActivityItem): string {
   if (item.type === "profile_update_live") {
     return "Your profile changes are live.";
   }
+  if (item.type === "staff_account_edit") {
+    // record-04a: staff-attributed — the mentor sees WHAT changed and that
+    // the team (not they) changed it.
+    return `The Somethings team updated your ${accountFieldLabel(item.fieldIds[0])}.`;
+  }
   if (item.fieldIds.length === 1) {
     const noun = gatedFieldMeta(item.fieldIds[0])?.noun ?? "profile";
     return `The review team requested a change to your ${noun}.`;
@@ -32,6 +38,7 @@ function entryText(item: ActivityItem): string {
 
 // Deep link: the settings tab hosting the first named field.
 function entryHref(item: ActivityItem): string {
+  if (item.type === "staff_account_edit") return "/app/profile?tab=account";
   const surface = gatedFieldMeta(item.fieldIds[0])?.surface;
   return surface ? `/app/profile?tab=${surface}` : "/app/profile";
 }

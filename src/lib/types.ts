@@ -172,10 +172,18 @@ export interface ProfileUpdate {
 
 export interface ActivityItem {
   id: string;
-  type: "profile_changes_requested" | "profile_update_live";
+  type:
+    | "profile_changes_requested"
+    | "profile_update_live"
+    /** record-04a: a staff member edited an account field on the Mentor
+     *  Record. Staff-attributed (never reads as the mentor's own action)
+     *  and doubles as the record's "Last changed by" audit trail. */
+    | "staff_account_edit";
   fieldIds: string[];
   createdAt: number;
   read: boolean;
+  /** Staff actor label for staff_account_edit ("Supervisor" / "Lead mentor"). */
+  actor?: string;
 }
 
 export function emptyDraft(): MentorDraft {

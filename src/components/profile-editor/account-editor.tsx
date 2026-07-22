@@ -12,7 +12,6 @@
 // One row edits at a time; leaving a modified row is guarded.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImagePlus, Loader2, Upload } from "lucide-react";
 import { EditRow } from "@/components/settings/edit-row";
 import { PillButton } from "@/components/settings/pill-button";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,7 @@ import {
   verifyCode,
 } from "@/lib/mock-api";
 import { SEX_OPTIONS } from "@/lib/options";
-import { downscaleImageToWebP, readFileAsDataUrl } from "@/lib/files";
+import { PhotoRowCore } from "@/components/account/photo-row";
 import type { SettingsRole } from "@/components/settings/tabs-config";
 
 const EMPTY = "—";
@@ -178,166 +177,27 @@ function MembershipGroup({ role }: { role: SettingsRole }) {
 }
 
 // ── Photo row (§4 Phase 10) — Lead Mentor / Supervisor ONLY ────────────────
-// Their own account photo: 40px thumbnail (initial-letter placeholder when
-// empty), inline uploader on Edit (Replace / Remove / Save), DIRECT save —
-// internal asset, never teen-visible, never review-gated. States: read / edit
-// / uploading / error / saved / empty. Mentor personas never render this row.
+// Thin settings wrapper (record-04a) over the extracted PhotoRowCore: wires
+// the store + direct mock save EXACTLY as before — same states, same dirty
+// reporting ("photo"), same guard behavior. Mentor personas never render it.
 function PhotoRow(props: RowProps & { initial: string }) {
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
   const setStaffPhoto = useOnboardingStore((s) => s.setStaffPhoto);
-  const [pending, setPending] = useState<string | null>(staffPhoto);
-  const [save, setSave] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const dirty = props.editing && pending !== staffPhoto;
-  useEffect(() => {
-    props.reportDirty("photo", dirty);
-    return () => props.reportDirty("photo", false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty]);
-
-  // Fresh edit session pulls the stored value; unsaved exit discards.
-  const resetLocal = useCallback(() => {
-    setPending(staffPhoto);
-    setSave((s) => (s === "saved" ? s : "idle"));
-  }, [staffPhoto]);
-  const prev = useRef(props.editing);
-  useEffect(() => {
-    if (props.editing !== prev.current) {
-      resetLocal();
-      prev.current = props.editing;
-    }
-  }, [props.editing, resetLocal]);
-
-  const onFile = async (file?: File) => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const url = await downscaleImageToWebP(file).catch(() =>
-        readFileAsDataUrl(file)
-      );
-      setPending(url);
-      if (save !== "idle") setSave("idle");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const commit = async () => {
-    setSave("saving");
-    const res = await saveAccountField("staffPhoto", pending);
-    if (!res.ok) {
-      setSave("error");
-      return;
-    }
-    setStaffPhoto(pending);
-    setSave("saved");
-    props.onClose();
-  };
-
-  const thumb = (src: string | null, size: string) =>
-    src ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt=""
-        className={`${size} shrink-0 rounded-full object-cover`}
-      />
-    ) : (
-      <span
-        aria-hidden
-        className={`flex ${size} shrink-0 items-center justify-center rounded-full bg-secondary font-display text-sm font-bold text-secondary-foreground`}
-      >
-        {props.initial}
-      </span>
-    );
-
   return (
-    <div data-row="photo">
-      <EditRow
-        label="Photo"
-        value={
-          <span className="flex items-center gap-2.5">
-            {thumb(staffPhoto, "size-10")}
-            <span className="truncate">
-              {staffPhoto ? "Photo added" : "No photo yet"}
-            </span>
-          </span>
-        }
-        state={
-          props.editing
-            ? save === "saving"
-              ? "saving"
-              : save === "error"
-                ? "error"
-                : "edit"
-            : save === "saved"
-              ? "saved"
-              : "read"
-        }
-        onEditStart={props.onEditStart}
-        onCancel={() => {
-          setPending(staffPhoto);
-          setSave("idle");
-          props.onClose();
-        }}
-        onSave={commit}
-        saveDisabled={!dirty || uploading}
-      >
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            {thumb(pending, "size-20")}
-            {uploading && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
-                <Loader2
-                  className="size-5 animate-spin text-brand"
-                  aria-hidden
-                />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col items-start gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="min-h-11"
-              disabled={uploading}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="size-4" />
-              {pending ? "Replace" : "Upload photo"}
-            </Button>
-            {pending && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="min-h-11"
-                disabled={uploading}
-                onClick={() => setPending(null)}
-              >
-                <ImagePlus className="size-4" />
-                Remove
-              </Button>
-            )}
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              void onFile(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      </EditRow>
-    </div>
+    <PhotoRowCore
+      value={staffPhoto}
+      initial={props.initial}
+      onSave={async (pending) => {
+        const res = await saveAccountField("staffPhoto", pending);
+        if (!res.ok) return false;
+        setStaffPhoto(pending);
+        return true;
+      }}
+      editing={props.editing}
+      onEditStart={props.onEditStart}
+      onClose={props.onClose}
+      reportDirty={props.reportDirty}
+    />
   );
 }
 
