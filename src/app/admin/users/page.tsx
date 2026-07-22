@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Button } from "@/components/ui/button";
@@ -150,12 +151,14 @@ export default function AdminUsersPage() {
               >
                 {updateFlagged ? "Changes requested" : "Pending"}
               </span>
+              {/* record-01 hook: review now happens inside the Mentor Record
+                  (?focus=review auto-scrolls there in a later pass). */}
               <Button
                 asChild
                 variant={updateFlagged ? "outline" : "default"}
                 className="ml-auto"
               >
-                <Link href="/admin/profile-update">
+                <Link href="/admin/mentor?focus=review">
                   {updateFlagged ? "View" : "Review"}
                 </Link>
               </Button>
@@ -186,6 +189,7 @@ export default function AdminUsersPage() {
                   when it differs (§9.3). */}
               {mounted && draft.firstName && (
                 <Row
+                  recordHref="/admin/mentor"
                   name={mentorName}
                   goesBy={
                     draft.displayName.trim() &&
@@ -221,6 +225,7 @@ function Row({
   active,
   profile,
   highlight,
+  recordHref,
 }: {
   name: string;
   /** Teen-facing display name, shown only when it differs from the legal name. */
@@ -231,16 +236,36 @@ function Row({
   active: boolean;
   profile?: "Incomplete";
   highlight?: boolean;
+  /** record-01: set on the one store-backed mentor — the row opens their
+   *  Mentor Record (fixtures have none and stay inert). */
+  recordHref?: string;
 }) {
+  const router = useRouter();
   return (
-    <tr className={cn("border-b border-[var(--surface-s2)] last:border-0", highlight && "bg-amber-50/60")}>
+    <tr
+      onClick={recordHref ? () => router.push(recordHref) : undefined}
+      className={cn(
+        "border-b border-[var(--surface-s2)] last:border-0",
+        highlight && "bg-amber-50/60",
+        recordHref && "cursor-pointer transition-colors hover:bg-black/[0.02]"
+      )}
+    >
       <td className="px-5 py-3">
         <span className="flex items-center gap-3">
           <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
             {initials(name)}
           </span>
           <span className="min-w-0">
-            <span className="block font-medium">{name}</span>
+            {recordHref ? (
+              <Link
+                href={recordHref}
+                className="block rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+              >
+                {name}
+              </Link>
+            ) : (
+              <span className="block font-medium">{name}</span>
+            )}
             {goesBy && (
               <span className="block text-xs text-[var(--text-secondary)]">
                 goes by &ldquo;{goesBy}&rdquo;
