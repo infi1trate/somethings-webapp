@@ -14,11 +14,26 @@
 // resolveMode — hidden sections genuinely do not render (no wrapper, no
 // heading). Next 16 notes (invariant 5): use(searchParams) prop pattern,
 // no page-root <Suspense>, store reads mounted-gated.
+//
+// Phase 1 (structure): three zones — identity header (display-scale name,
+// true status only, one primary action), text tabs driven by
+// lib/record/tabs.ts (?tab= in the URL, per-tab scroll memory), and a right
+// utility rail (Preview / Notes / Activity segments, contextual default).
+// Content MOVED into tabs, not restyled — section renderers unchanged.
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, EyeOff, MoreHorizontal } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  EyeOff,
+  MapPin,
+  MoreHorizontal,
+  UserRound,
+  UserRoundCheck,
+  Users,
+} from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
@@ -57,7 +72,11 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
 import { saveAccountField } from "@/lib/mock-api";
 import { PhotoRowCore } from "@/components/account/photo-row";
 import { StaffFieldRow } from "@/components/account/field-rows";
-import { auditLineFor, formatDob } from "@/lib/record/account-fields";
+import {
+  accountFieldLabel,
+  auditLineFor,
+  formatDob,
+} from "@/lib/record/account-fields";
 import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,22 +99,31 @@ import {
   type ProfileSection,
 } from "@/lib/onboarding/profile-sections";
 import {
-  RECORD_SECTION_ORDER,
   resolveMode,
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
+import {
+  BUILT_RECORD_TABS,
+  FOCUS_TO_TAB,
+  railDefaultFor,
+} from "@/lib/record/tabs";
 import { useMounted } from "@/lib/use-mounted";
-import type { MentorDraft, ProfileUpdate } from "@/lib/types";
+import type { ActivityItem, MentorDraft, ProfileUpdate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // Membership placeholders — centralized in components/record/organization
-// (record-04b did the R4 centralization).
+// (record-04b did the R4 centralization). ?focus= deep links map to tabs in
+// lib/record/tabs.ts (FOCUS_TO_TAB) since Phase 1.
 
-// ?focus= values → record section slots (roster Review CTA sends "review").
-const FOCUS_TO_SLOT: Record<string, RecordSectionSlot> = {
-  review: "reviewWorkflow",
-  account: "account", // shells' avatar deep links land on the Account section
-};
+// Stub org data (record-05): the record's one mentor has four active
+// mentees. Single source for the header capacity item, the Overview
+// snapshot, and the Relationships row.
+const MENTEE_COUNT = 4;
+
+// Jump-link treatment shared by the record's "go somewhere else" links
+// (DiscardChange's link anatomy — same as requestChangeAction).
+const JUMP_LINK =
+  "inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 const SLOT_TITLES: Record<RecordSectionSlot, string> = {
   reviewWorkflow: "Review workflow",
@@ -221,12 +249,13 @@ export default function MentorRecordPage({
   const addInternalNote = useOnboardingStore((s) => s.addInternalNote);
   const profileHidden = useOnboardingStore((s) => s.profileHidden);
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
+  const slots = useOnboardingStore((s) => s.slots);
   const mentorish = persona === "mentor" || persona === "new-mentor";
   // One editing row at a time on the record's account section (no guard
   // dialog — each row saves or cancels explicitly before switching).
   const [accountEditing, setAccountEditing] = useState<string | null>(null);
   // Post-publish lane: the record mirrors /admin/profile-update's preview
-  // toggle; "proposed" swaps the right-side phone to the working draft.
+  // toggle; "proposed" swaps the rail phone to the working draft.
   const [previewSide, setPreviewSide] = useState<"live" | "proposed">("live");
 
   // Staff-only surface: mentor personas land on their own settings instead.
@@ -234,28 +263,56 @@ export default function MentorRecordPage({
     if (mounted && mentorish) router.replace("/app/profile");
   }, [mounted, mentorish, router]);
 
-  // ?focus deep link → scroll once the target section exists (one-shot ref;
-  // effect stays setState-free — the project's established pattern).
-  const focusSlot = focus ? (FOCUS_TO_SLOT[focus] ?? null) : null;
-  const scrolledRef = useRef(false);
+  // ── Tabs (Phase 1) ────────────────────────────────────────────────────
+  // The active tab lives in the URL (?tab=, mirroring settings) so record
+  // views are shareable. ?focus= deep links (roster CTA, shell avatars) map
+  // to tabs via FOCUS_TO_TAB. Derived from the query, never state.
+  const tabParam = typeof query.tab === "string" ? query.tab : null;
+  const focusTab = focus ? (FOCUS_TO_TAB[focus] ?? null) : null;
+  const activeTab =
+    tabParam && BUILT_RECORD_TABS.some((t) => t.id === tabParam)
+      ? tabParam
+      : (focusTab ?? "overview");
+
+  // Per-tab scroll memory: each tab remembers its position in the shell's
+  // inner scroller and restores it on return. {scroll:false} on the push
+  // keeps the router's own scroll reset out of the way (the reset is what
+  // defeated naive scrolls in record-03).
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollMemRef = useRef<Record<string, number>>({});
+  const prevTabRef = useRef(activeTab);
+  // Rail segment override — null means "the tab's contextual default";
+  // switching tabs clears it so each tab lands on its own default.
+  const [railChoice, setRailChoice] = useState<
+    "preview" | "notes" | "activity" | null
+  >(null);
+
+  const getScroller = () =>
+    (containerRef.current?.closest(".overflow-y-auto") as HTMLElement | null) ??
+    null;
+
+  const switchTab = (id: string) => {
+    if (id === activeTab) return;
+    const scroller = getScroller();
+    scrollMemRef.current[activeTab] = scroller
+      ? scroller.scrollTop
+      : window.scrollY;
+    setRailChoice(null);
+    router.push(`/admin/mentor?tab=${id}`, { scroll: false });
+  };
+
+  // Restore runs post-render whenever the tab actually changed (guarded —
+  // DOM write only, no setState; the project's established effect shape).
   useEffect(() => {
-    if (!mounted || mentorish || !focusSlot || scrolledRef.current) return;
-    const el = document.querySelector(`[data-record-section="${focusSlot}"]`);
-    if (!el) return;
-    scrolledRef.current = true;
-    // Arrival jump, self-correcting: the router's own post-transition scroll
-    // reset lands AFTER a naive first attempt and undoes it (verified live),
-    // so retry until the section actually sits at the top of the shell's
-    // inner panel (bounded — ~1s worst case).
-    let tries = 0;
-    const attempt = () => {
-      el.scrollIntoView({ behavior: "auto", block: "start" });
-      const top = el.getBoundingClientRect().top;
-      if (top > 100 && tries++ < 8) setTimeout(attempt, 120);
-    };
-    setTimeout(attempt, 60);
+    if (prevTabRef.current === activeTab) return;
+    prevTabRef.current = activeTab;
+    const remembered = scrollMemRef.current[activeTab] ?? 0;
+    const scroller = getScroller();
+    if (scroller) scroller.scrollTop = remembered;
+    else window.scrollTo(0, remembered);
   });
 
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -265,26 +322,30 @@ export default function MentorRecordPage({
     return (
       <AdminShell active="users">
         <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor record">
-          <div className="mt-1 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
-            <div className="min-w-0">
-              <div className="flex items-start gap-4">
-                <div className="size-14 shrink-0 animate-pulse rounded-full bg-muted/40" />
-                <div className="flex-1 space-y-2 pt-1">
-                  <div className="h-7 w-64 animate-pulse rounded-md bg-muted/40" />
-                  <div className="h-4 w-44 animate-pulse rounded-md bg-muted/40" />
-                </div>
-              </div>
-              <div className="mt-8 space-y-7">
-                {[0, 1, 2].map((i) => (
-                  <div key={i}>
-                    <div className="mb-2 h-5 w-40 animate-pulse rounded-md bg-muted/40" />
-                    <div className="h-28 animate-pulse rounded-[var(--radius-card)] bg-muted/40" />
-                  </div>
-                ))}
-              </div>
+          <div className="mt-1 flex items-start gap-4">
+            <div className="size-17 shrink-0 animate-pulse rounded-2xl bg-muted/40" />
+            <div className="flex-1 space-y-2 pt-1.5">
+              <div className="h-8 w-72 animate-pulse rounded-md bg-muted/40" />
+              <div className="h-4 w-96 max-w-full animate-pulse rounded-md bg-muted/40" />
             </div>
-            <div className="hidden lg:block">
-              <div className="h-[640px] w-full animate-pulse rounded-[46px] bg-muted/40" />
+          </div>
+          <div className="mt-6 flex gap-6 border-b border-[var(--border-subtle)] pb-3">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-4 w-16 animate-pulse rounded-md bg-muted/40" />
+            ))}
+          </div>
+          <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="min-w-0 space-y-7">
+              {[0, 1, 2].map((i) => (
+                <div key={i}>
+                  <div className="mb-2 h-5 w-40 animate-pulse rounded-md bg-muted/40" />
+                  <div className="h-28 animate-pulse rounded-[var(--radius-card)] bg-muted/40" />
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="mx-auto h-7 w-44 animate-pulse rounded-full bg-muted/40" />
+              <div className="mt-3 h-[420px] animate-pulse rounded-[var(--radius-card)] bg-muted/40" />
             </div>
           </div>
         </div>
@@ -311,6 +372,11 @@ export default function MentorRecordPage({
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
     "Jordan Rivera";
   const firstName = draft.firstName || "Jordan";
+  // Empty-avatar letterform: first + last initials on a brand tint.
+  const initials = (
+    (draft.firstName.trim().charAt(0) || "J") +
+    (draft.lastName.trim().charAt(0) || "R")
+  ).toUpperCase();
   const goesBy =
     draft.displayName.trim() &&
     draft.displayName.trim() !== draft.firstName.trim()
@@ -348,10 +414,42 @@ export default function MentorRecordPage({
     return null;
   };
 
-  const scrollToReview = () =>
-    document
-      .querySelector('[data-record-section="reviewWorkflow"]')
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // ── Right rail (Phase 1) ─────────────────────────────────────────────
+  // Segments the viewer can't see are genuinely absent (Lead Mentor never
+  // sees a Notes segment — record-05's zero-trace rule); a hidden default
+  // falls through to Activity.
+  const notesVisible = resolveMode("internalNotes", persona) !== "hidden";
+  const railSegments: { id: "preview" | "notes" | "activity"; label: string }[] =
+    [
+      { id: "preview", label: "Preview" },
+      ...(notesVisible ? [{ id: "notes" as const, label: "Notes" }] : []),
+      { id: "activity", label: "Activity" },
+    ];
+  const railDefault = (() => {
+    const d = railDefaultFor(activeTab);
+    return d === "notes" && !notesVisible ? ("activity" as const) : d;
+  })();
+  const railSegment = railChoice ?? railDefault;
+
+  // Staff-facing wording for the rail's Activity segment — the mentor feed
+  // says "The Somethings team…"; here the actor is named.
+  const staffActivityText = (a: ActivityItem): string => {
+    const actor = a.actor ?? "Somethings team";
+    switch (a.type) {
+      case "staff_account_edit":
+        return `${actor} updated ${a.fieldIds
+          .map(accountFieldLabel)
+          .join(", ")}`;
+      case "profile_unpublished":
+        return `${actor} unpublished the profile`;
+      case "profile_republished":
+        return `${actor} republished the profile`;
+      case "profile_changes_requested":
+        return "Changes requested on a profile update";
+      case "profile_update_live":
+        return "A profile update went live";
+    }
+  };
 
   // ── Section renderers (this pass: two live, five placeholders) ──────────
   const renderSection = (slot: RecordSectionSlot): React.ReactNode => {
@@ -734,79 +832,13 @@ export default function MentorRecordPage({
                 onClose={() => setAccountEditing(null)}
               />
             </div>
-            <OrganizationCard
-              mode={resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"}
-            />
           </div>
         </SectionShell>
       );
     }
 
-    if (slot === "internalNotes") {
-      return (
-        <SectionShell key={slot} slot={slot}>
-          <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
-            {/* The channel divider — persistent, not dismissible: confusing
-                internal notes with change requests must be hard. */}
-            <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-              Internal — visible to supervisors and admins only. Mentors never
-              see notes; use change requests for anything the mentor should
-              read.
-            </p>
-            <div>
-              <label
-                htmlFor="internal-note"
-                className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
-              >
-                Add a note
-              </label>
-              <Textarea
-                id="internal-note"
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="Context for the next person on this record…"
-              />
-              <div className="mt-2">
-                <PillButton
-                  onClick={() => {
-                    if (!noteDraft.trim()) return;
-                    addInternalNote(noteDraft, staffActor);
-                    setNoteDraft("");
-                  }}
-                  disabled={!noteDraft.trim()}
-                >
-                  Add note
-                </PillButton>
-              </div>
-            </div>
-            {internalNotes.length === 0 ? (
-              <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                No notes yet. Anything written here stays internal.
-              </p>
-            ) : (
-              // Deliberately NOT the change-request note treatment (no orange,
-              // no "From the review team") — author + timestamp header rows
-              // on plain white keep the two channels visually far apart.
-              <ul className="space-y-2.5">
-                {internalNotes.map((n) => (
-                  <li
-                    key={n.id}
-                    className="rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-3"
-                  >
-                    <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
-                      {n.author} · {relTime(n.createdAt)}
-                    </p>
-                    <p className="mt-1 whitespace-pre-wrap text-[14px] leading-[20px] text-[var(--text-primary)]">
-                      {n.text}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </SectionShell>
-      );
-    }
+    // internalNotes: no longer a section — the composer lives in the right
+    // rail's Notes segment (Phase 1), content unchanged.
 
     if (slot === "relationships") {
       // Stub org data (record-05): rows are link-STYLED but inert — the
@@ -868,7 +900,7 @@ export default function MentorRecordPage({
 
   return (
     <AdminShell active="users">
-      <div className="px-6 py-6 lg:px-10">
+      <div ref={containerRef} className="px-6 py-6 lg:px-10">
         <Link
           href="/admin/users"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -877,91 +909,145 @@ export default function MentorRecordPage({
           Users
         </Link>
 
-        <div className="mt-4 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
-          {/* LEFT — identity header + gated sections */}
-          <div className="min-w-0">
-            {resolveMode("identity", persona) !== "hidden" && (
-              <header className="flex flex-wrap items-start gap-4">
-                {live.accountPhoto ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={live.accountPhoto}
-                    alt=""
-                    className="size-14 shrink-0 rounded-full object-cover"
-                  />
-                ) : (
-                  <span
-                    aria-hidden
-                    className="flex size-14 shrink-0 items-center justify-center rounded-full bg-secondary font-display text-lg font-bold text-secondary-foreground"
-                  >
-                    {firstName.trim().charAt(0).toUpperCase()}
-                  </span>
-                )}
+        {/* ── Identity header (Phase 1): 68px rounded-square avatar,
+            display-scale name, TRUE status only (role is context — it lives
+            in the meta line, not a badge), one icon-prefixed meta line, and
+            ONE filled primary (Message) with everything else in overflow. */}
+        {resolveMode("identity", persona) !== "hidden" && (
+          <header className="mt-4 flex flex-wrap items-start gap-4">
+            {live.accountPhoto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={live.accountPhoto}
+                alt=""
+                className="size-17 shrink-0 rounded-2xl object-cover"
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="flex size-17 shrink-0 items-center justify-center rounded-2xl font-display text-xl font-bold"
+                style={{
+                  // No brand ramp exists in the tokens (single --brand
+                  // stop) — tint + darkest-stop letterform interims via
+                  // color-mix (gaps.md #75).
+                  backgroundColor:
+                    "color-mix(in oklab, var(--brand) 12%, white)",
+                  color: "color-mix(in oklab, var(--brand) 60%, black)",
+                }}
+              >
+                {initials}
+              </span>
+            )}
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <h1 className="font-display text-2xl font-bold tracking-tight">
-                      {mentorName}
-                    </h1>
-                    {/* Subject's role — the users-table Role chip treatment. */}
-                    <span className="rounded-full border border-[#7b5bd6]/40 px-2.5 py-0.5 text-xs font-medium text-[#5b41a8]">
-                      Mentor
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        deactivated
-                          ? "bg-muted text-[var(--text-secondary)]"
-                          : profileHidden
-                            ? "border border-orange-300 text-orange-700"
-                            : "bg-foreground text-background"
-                      )}
+            {/* basis keeps the name column readable — actions wrap below on
+                narrow screens instead of squeezing the h1 to nothing. */}
+            <div className="min-w-0 flex-1 basis-56">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1
+                  className="text-[var(--text-primary)]"
+                  style={{
+                    // Proposed display stop (gaps.md #74): the type scale
+                    // tops out at --type-title-lg (24/32), below the header
+                    // spec — token proposed in settings-tokens.css rather
+                    // than hardcoding here.
+                    font: "var(--type-display)",
+                    letterSpacing: "var(--type-display-tracking)",
+                  }}
+                >
+                  {mentorName}
+                </h1>
+                {/* Only TRUE status earns badge weight beside the name. */}
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    deactivated
+                      ? "bg-muted text-[var(--text-secondary)]"
+                      : profileHidden
+                        ? "border border-orange-300 text-orange-700"
+                        : "bg-foreground text-background"
+                  )}
+                >
+                  {deactivated
+                    ? "Inactive"
+                    : profileHidden
+                      ? "Unpublished"
+                      : "Active"}
+                </span>
+              </div>
+              {/* Meta line — role + context at 13px, icon-prefixed, one
+                  wrapping line. Groups stand in for location (no location
+                  field exists in the model — killed in the original spec). */}
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                <span className="flex items-center gap-1.5">
+                  <UserRound className="size-3.5 shrink-0" aria-hidden />
+                  Mentor
+                  {goesBy && <> · goes by &ldquo;{goesBy}&rdquo;</>}
+                  {live.pronouns.length > 0 && (
+                    <> · {live.pronouns.join(" · ")}</>
+                  )}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="size-3.5 shrink-0" aria-hidden />
+                  {MEMBERSHIP_GROUPS.join(", ")}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="size-3.5 shrink-0" aria-hidden />
+                  Joined {JOIN_DATE}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Users className="size-3.5 shrink-0" aria-hidden />
+                  {MENTEE_COUNT} of {slots.total} mentees
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <UserRoundCheck className="size-3.5 shrink-0" aria-hidden />
+                  Supervised by Stephen Rowe
+                </span>
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              {/* ONE filled primary — Message, the most common staff verb
+                  (stub: messaging isn't part of this prototype). Everything
+                  else lives in the overflow. */}
+              <PillButton
+                onClick={() =>
+                  toast("Messaging isn't part of this prototype yet.")
+                }
+              >
+                Message
+              </PillButton>
+              {(canActOnAccount || submittedForReview) && (
+                <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="More actions"
+                      className="flex size-11 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                     >
-                      {deactivated
-                        ? "Inactive"
-                        : profileHidden
-                          ? "Unpublished"
-                          : "Active"}
-                    </span>
-                  </div>
-                  {goesBy && (
-                    <p className="mt-0.5 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                      goes by &ldquo;{goesBy}&rdquo;
-                      {live.pronouns.length > 0 &&
-                        ` · ${live.pronouns.join(" · ")}`}
-                    </p>
-                  )}
-                  {!goesBy && live.pronouns.length > 0 && (
-                    <p className="mt-0.5 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                      {live.pronouns.join(" · ")}
-                    </p>
-                  )}
-                  <p className="mt-1 text-[12px] leading-[16px] text-[var(--text-muted)]">
-                    {MEMBERSHIP_GROUPS.join(", ")} · Joined {JOIN_DATE}
-                  </p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {submittedForReview && (
-                    <PillButton onClick={scrollToReview}>
-                      Review profile
-                    </PillButton>
-                  )}
-                  {canActOnAccount && (
-                    <Popover>
-                      <PopoverTrigger asChild>
+                      <MoreHorizontal className="size-5" aria-hidden />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-56 p-1.5">
+                    {submittedForReview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOverflowOpen(false);
+                          switchTab("overview");
+                        }}
+                        className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-black/[0.04]"
+                      >
+                        Review profile
+                      </button>
+                    )}
+                    {canActOnAccount && (
+                      <>
                         <button
                           type="button"
-                          aria-label="More actions"
-                          className="flex size-11 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-                        >
-                          <MoreHorizontal className="size-5" aria-hidden />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-56 p-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setDeactivateOpen(true)}
+                          onClick={() => {
+                            setOverflowOpen(false);
+                            setDeactivateOpen(true);
+                          }}
                           className={cn(
                             "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-black/[0.04]",
                             deactivated
@@ -969,11 +1055,16 @@ export default function MentorRecordPage({
                               : "text-[var(--state-error)]"
                           )}
                         >
-                          {deactivated ? "Reactivate mentor" : "Deactivate mentor"}
+                          {deactivated
+                            ? "Reactivate mentor"
+                            : "Deactivate mentor"}
                         </button>
                         <button
                           type="button"
-                          onClick={() => setUnpublishOpen(true)}
+                          onClick={() => {
+                            setOverflowOpen(false);
+                            setUnpublishOpen(true);
+                          }}
                           className={cn(
                             "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-black/[0.04]",
                             profileHidden
@@ -981,69 +1072,305 @@ export default function MentorRecordPage({
                               : "text-[var(--state-error)]"
                           )}
                         >
-                          {profileHidden ? "Republish profile" : "Unpublish profile"}
+                          {profileHidden
+                            ? "Republish profile"
+                            : "Unpublish profile"}
                         </button>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </div>
-              </header>
-            )}
-
-            <div className="mt-8 space-y-7">
-              {RECORD_SECTION_ORDER.map(renderSection)}
-            </div>
-          </div>
-
-          {/* RIGHT — passive preview. Post-publish changesets add the
-              Live|Proposed toggle (mirrors /admin/profile-update); it swaps
-              the phone's data source, never adds editing (invariant 1). */}
-          <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
-            {postLane && (
-              <div
-                role="group"
-                aria-label="Preview version"
-                className="flex rounded-full border border-[var(--border-subtle)] bg-white p-1"
-              >
-                {(["live", "proposed"] as const).map((side) => (
-                  <button
-                    key={side}
-                    type="button"
-                    aria-pressed={previewSide === side}
-                    onClick={() => setPreviewSide(side)}
-                    className={cn(
-                      "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors",
-                      previewSide === side
-                        ? "bg-foreground text-background"
-                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      </>
                     )}
-                  >
-                    {side}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="relative">
-              <PhonePreviewShell label="Live preview — what teens see on the match card">
-                <MentorProfilePreview draft={previewDraft} />
-              </PhonePreviewShell>
-              {profileHidden && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
-                  <span className="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s0)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-tile)]">
-                    <EyeOff className="size-4" aria-hidden />
-                    Hidden from teens
-                  </span>
-                </div>
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
-            <p className="text-xs text-[var(--text-muted)]">
-              {profileHidden
-                ? "Unpublished — teens can't see this profile right now"
-                : postLane && previewSide === "proposed"
-                  ? "What teens will see after approval"
-                  : "What teens see right now"}
-            </p>
+          </header>
+        )}
+
+        {/* ── Tab bar (Phase 1): text tabs on a hairline — the active tab
+            carries weight + a 2px underline, no boxed chrome. Labels match
+            the mentor-facing settings tabs where they overlap (registry:
+            lib/record/tabs.ts; unbuilt entries render nothing). */}
+        <nav
+          aria-label="Record sections"
+          className="mt-6 flex gap-6 overflow-x-auto border-b border-[var(--border-subtle)]"
+        >
+          {BUILT_RECORD_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => switchTab(t.id)}
+              aria-current={activeTab === t.id ? "page" : undefined}
+              className={cn(
+                "-mb-px min-h-11 shrink-0 border-b-2 pb-1 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+                activeTab === t.id
+                  ? "border-[var(--text-primary)] font-medium text-[var(--text-primary)]"
+                  : "border-transparent font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+          {/* LEFT — the active tab's content: sections MOVED, not restyled
+              (Phase 1 content mapping); gating unchanged via resolveMode
+              inside each renderer. */}
+          <div className="min-w-0 space-y-7">
+            {activeTab === "overview" && (
+              <>
+                {renderSection("reviewWorkflow")}
+                {/* Capacity snapshot — status + a jump link only; the
+                    editable slots live on Mentorship (Overview never renders
+                    an editable copy of a field that lives elsewhere). */}
+                {resolveMode("accountOrg", persona) !== "hidden" && (
+                  <section aria-label="Capacity" data-record-section="capacity">
+                    <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                      Capacity
+                    </h2>
+                    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+                      <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                        {MENTEE_COUNT} of {slots.total} mentee slots filled ·{" "}
+                        {slots.dailyNew} new teen
+                        {slots.dailyNew === 1 ? "" : "s"} per day
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => switchTab("mentorship")}
+                        className={JUMP_LINK}
+                      >
+                        Manage in Mentorship
+                      </button>
+                    </div>
+                  </section>
+                )}
+                {renderSection("relationships")}
+                {/* Latest-note pointer — text + a jump to the rail's Notes
+                    segment; the composer itself lives only in the rail. */}
+                {notesVisible && internalNotes.length > 0 && (
+                  <section
+                    aria-label="Latest note"
+                    data-record-section="latest-note"
+                  >
+                    <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                      Latest note
+                    </h2>
+                    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+                      <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
+                        {internalNotes[0].author} ·{" "}
+                        {relTime(internalNotes[0].createdAt)}
+                      </p>
+                      <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[14px] leading-[20px] text-[var(--text-primary)]">
+                        {internalNotes[0].text}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setRailChoice("notes")}
+                        className={JUMP_LINK}
+                      >
+                        Open notes
+                      </button>
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+            {activeTab === "profile" && renderSection("matchingProfile")}
+            {activeTab === "first-moments" && renderSection("firstMoments")}
+            {activeTab === "schedule" && renderSection("schedule")}
+            {activeTab === "account" && renderSection("account")}
+            {activeTab === "mentorship" && (
+              <>
+                {resolveMode("accountOrg", persona) !== "hidden" && (
+                  <section
+                    aria-label="Mentorship"
+                    data-record-section="mentorship"
+                  >
+                    <OrganizationCard
+                      mode={
+                        resolveMode("accountOrg", persona) === "edit"
+                          ? "edit"
+                          : "read"
+                      }
+                    />
+                  </section>
+                )}
+                {renderSection("relationships")}
+              </>
+            )}
           </div>
+
+          {/* RIGHT — utility rail (Phase 1): Preview / Notes / Activity.
+              The default segment is contextual per tab (railDefaultFor),
+              always user-switchable. The preview stays passive and prop-fed
+              (invariant 1); post-publish changesets keep the Live|Proposed
+              toggle. Stacks below the content under lg so nothing is lost
+              on small screens. */}
+          <aside aria-label="Record rail" className="min-w-0 lg:sticky lg:top-6">
+            <div
+              role="group"
+              aria-label="Rail view"
+              className="mx-auto flex w-fit rounded-full border border-[var(--border-subtle)] bg-white p-0.5"
+            >
+              {railSegments.map((seg) => (
+                <button
+                  key={seg.id}
+                  type="button"
+                  aria-pressed={railSegment === seg.id}
+                  onClick={() => setRailChoice(seg.id)}
+                  className={cn(
+                    "min-h-7 rounded-full px-3 text-[11px] font-medium leading-none transition-colors",
+                    railSegment === seg.id
+                      ? "bg-foreground text-background"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  )}
+                >
+                  {seg.label}
+                </button>
+              ))}
+            </div>
+
+            {railSegment === "preview" && (
+              <div className="mt-3 flex flex-col items-center gap-3">
+                {postLane && (
+                  <div
+                    role="group"
+                    aria-label="Preview version"
+                    className="flex rounded-full border border-[var(--border-subtle)] bg-white p-1"
+                  >
+                    {(["live", "proposed"] as const).map((side) => (
+                      <button
+                        key={side}
+                        type="button"
+                        aria-pressed={previewSide === side}
+                        onClick={() => setPreviewSide(side)}
+                        className={cn(
+                          "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors",
+                          previewSide === side
+                            ? "bg-foreground text-background"
+                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        )}
+                      >
+                        {side}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* The 360px phone frame scaled into the rail; the inner box
+                    is absolutely positioned so its untransformed width can't
+                    widen the page (gaps.md #76). */}
+                <div className="relative h-[535px] w-full">
+                  <div className="absolute left-1/2 top-0 w-[360px] origin-top -translate-x-1/2 scale-[0.72]">
+                    <div className="relative">
+                      <PhonePreviewShell label="Live preview — what teens see on the match card">
+                        <MentorProfilePreview draft={previewDraft} />
+                      </PhonePreviewShell>
+                      {profileHidden && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
+                          <span className="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s0)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-tile)]">
+                            <EyeOff className="size-4" aria-hidden />
+                            Hidden from teens
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {profileHidden
+                    ? "Unpublished — teens can't see this profile right now"
+                    : postLane && previewSide === "proposed"
+                      ? "What teens will see after approval"
+                      : "What teens see right now"}
+                </p>
+              </div>
+            )}
+
+            {railSegment === "notes" && notesVisible && (
+              <div className="mt-3 space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+                {/* The channel divider — persistent, not dismissible:
+                    confusing internal notes with change requests must be
+                    hard. Moved intact from the notes section (Phase 1). */}
+                <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+                  Internal — visible to supervisors and admins only. Mentors
+                  never see notes; use change requests for anything the mentor
+                  should read.
+                </p>
+                <div>
+                  <label
+                    htmlFor="internal-note"
+                    className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
+                  >
+                    Add a note
+                  </label>
+                  <Textarea
+                    id="internal-note"
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="Context for the next person on this record…"
+                  />
+                  <div className="mt-2">
+                    <PillButton
+                      onClick={() => {
+                        if (!noteDraft.trim()) return;
+                        addInternalNote(noteDraft, staffActor);
+                        setNoteDraft("");
+                      }}
+                      disabled={!noteDraft.trim()}
+                    >
+                      Add note
+                    </PillButton>
+                  </div>
+                </div>
+                {internalNotes.length === 0 ? (
+                  <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                    No notes yet. Anything written here stays internal.
+                  </p>
+                ) : (
+                  // Deliberately NOT the change-request note treatment (no
+                  // orange, no "From the review team") — author + timestamp
+                  // header rows on plain white keep the channels far apart.
+                  <ul className="space-y-2.5">
+                    {internalNotes.map((n) => (
+                      <li
+                        key={n.id}
+                        className="rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-3"
+                      >
+                        <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
+                          {n.author} · {relTime(n.createdAt)}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-[14px] leading-[20px] text-[var(--text-primary)]">
+                          {n.text}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {railSegment === "activity" && (
+              <div className="mt-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+                {activity.length === 0 ? (
+                  <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                    Nothing yet — entries appear as this record changes.
+                  </p>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {activity.map((a) => (
+                      <li key={a.id}>
+                        <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
+                          {relTime(a.createdAt)}
+                        </p>
+                        <p className="mt-0.5 text-[13px] leading-[18px] text-[var(--text-primary)]">
+                          {staffActivityText(a)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </aside>
         </div>
       </div>
 

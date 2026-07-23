@@ -47,6 +47,12 @@
   /* Families come from next/font in layout.tsx (real brand files verified in
      src/app/fonts/): --font-avantt (Bold only) · --font-lausanne (400 only —
      500/700 render as synthetic bold; gaps.md #12). */
+  /* PROPOSED (record Phase 1 — gaps.md #74): display stop above title-lg
+     for the Mentor Record identity header (spec: 26–28px, medium weight,
+     slight negative tracking). Avantt ships Bold only (gaps.md #12), so
+     "medium" is unavailable — 700 until a Medium cut lands. */
+  --type-display: 700 28px/34px var(--font-avantt);
+  --type-display-tracking: -0.28px;
   --type-title-lg: 700 24px/32px var(--font-avantt); /* page headings */
   --type-title-sm: 700 16px/24px var(--font-avantt); /* section-card titles */
   --type-button: 700 16px/1.1 var(--font-avantt);
