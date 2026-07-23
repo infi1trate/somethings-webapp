@@ -34,8 +34,12 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertCircle,
   ArrowLeft,
   CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
   CornerUpRight,
   EyeOff,
   MapPin,
@@ -57,17 +61,8 @@ import {
   ChangesRequestedChip,
   InReviewChip,
 } from "@/components/profile-editor/update-review-bits";
-import { ChangeStateBadge } from "@/components/onboarding/change-row";
-import { LiveProposedGrid } from "@/components/review/diff-card";
-import {
-  addressedStateOf,
-  changeProgress,
-} from "@/lib/onboarding/change-requests";
-import {
-  changesetSummary,
-  gatedFieldMeta,
-  relTime,
-} from "@/lib/onboarding/profile-update";
+import { changeProgress } from "@/lib/onboarding/change-requests";
+import { changesetSummary, relTime } from "@/lib/onboarding/profile-update";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -160,12 +155,29 @@ function changesetChip(update: ProfileUpdate | null, fieldId: string) {
   );
 }
 
-/** Hairline dividers between open rows — the ONLY separation person
- *  attributes get (no boxes). --border-subtle measures ~1.1:1 against s1
- *  (fails the 3:1 non-text minimum this page is held to), so rows use
- *  --icon-tertiary (#8a8275, ≥3:1) as an interim until a --border-strong
- *  token exists (gaps.md #79). */
-const DIVIDERS = "divide-y divide-[color:var(--icon-tertiary)]";
+/** Soft surface cards (surface pass) — the grouped-list containment:
+ *  card tone one step lighter than the s1 canvas, 16px radius, NO border,
+ *  NO shadow. The boundary is surface contrast (1.10:1 — exempt from the
+ *  3:1 non-text rule by design; spacing does the structural work).
+ *  CARD_ROWS hosts row runs (rows carry their own 12px vertical rhythm, so
+ *  py-2 lands the effective padding at 20px); CARD_PAD is for prose and
+ *  mosaic content. */
+const CARD_ROWS =
+  "rounded-[var(--radius-surface)] bg-[var(--surface-card)] px-[var(--surface-pad)] py-2";
+const CARD_PAD =
+  "rounded-[var(--radius-surface)] bg-[var(--surface-card)] p-[var(--surface-pad)]";
+
+/** Inset separators — ONLY inside cards with 5+ rows (fewer rows lean on
+ *  padding alone). They start after the card's left padding by construction.
+ *  --icon-tertiary measures 3.80:1 on the card tone; the lightest border
+ *  token (--border-subtle) measures 1.36 and fails the 3:1 rule retained
+ *  boundaries are held to (gaps.md #79). Zero full-bleed rules remain. */
+const INSET_DIVIDERS = "divide-y divide-[color:var(--icon-tertiary)]";
+
+/** Inert reference links (relationships) — link-styled, destinations don't
+ *  exist in this prototype (record-05). */
+const INERT_LINK =
+  "text-[15px] leading-[20px] text-[var(--text-primary)] underline decoration-[var(--border-subtle)] underline-offset-2";
 
 /** Read-only record row: label + value, optional review chip and a
  *  Phase 3 affordance node on the right. */
@@ -218,6 +230,40 @@ function SectionShell({
       )}
       <div className="mt-3">{children}</div>
     </section>
+  );
+}
+
+/** Overview pointer row (surface pass, Phase 4) — a link row with a trailing
+ *  chevron. The chevron here is a navigation indicator, ALWAYS visible (not
+ *  a hover-calmed edit affordance). */
+function PointerRow({
+  label,
+  value,
+  onClick,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-11 w-full items-center gap-4 rounded-lg py-1.5 text-left transition-colors hover:bg-[var(--surface-s1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+    >
+      <span className="flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {label}
+      </span>
+      {value && (
+        <span className="min-w-0 max-w-[55%] truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
+          {value}
+        </span>
+      )}
+      <ChevronRight
+        className="size-4 shrink-0 text-[var(--text-muted)]"
+        aria-hidden
+      />
+    </button>
   );
 }
 
@@ -327,7 +373,7 @@ export default function MentorRecordPage({
               <div className="h-4 w-96 max-w-full animate-pulse rounded-md bg-muted/40" />
             </div>
           </div>
-          <div className="mt-6 flex gap-6 border-b border-[var(--border-subtle)] pb-3">
+          <div className="mt-6 flex gap-6 pb-3">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-4 w-16 animate-pulse rounded-md bg-muted/40" />
             ))}
@@ -337,13 +383,13 @@ export default function MentorRecordPage({
               {[0, 1, 2].map((i) => (
                 <div key={i}>
                   <div className="mb-2 h-5 w-40 animate-pulse rounded-md bg-muted/40" />
-                  <div className="h-28 animate-pulse rounded-[var(--radius-card)] bg-muted/40" />
+                  <div className="h-28 animate-pulse rounded-[var(--radius-surface)] bg-muted/40" />
                 </div>
               ))}
             </div>
             <div>
               <div className="mx-auto h-7 w-44 animate-pulse rounded-full bg-muted/40" />
-              <div className="mt-3 h-[420px] animate-pulse rounded-[var(--radius-card)] bg-muted/40" />
+              <div className="mt-3 h-[420px] animate-pulse rounded-[var(--radius-surface)] bg-muted/40" />
             </div>
           </div>
         </div>
@@ -499,136 +545,9 @@ export default function MentorRecordPage({
         : resolveMode(slot, persona) === "hidden";
     if (hidden) return null; // genuinely absent — no wrapper, no heading
 
-    if (slot === "reviewWorkflow") {
-      const linkCls =
-        "inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
-      return (
-        <SectionShell key={slot} slot={slot}>
-          {/* De-boxed (Phase 2): the hub is status + links about the person;
-              only the object lists inside (requests, field diffs) keep
-              container treatment. */}
-          <div>
-            {preLane ? (
-              // ── Pre-publish lane: the submission loop. The full composer
-              // stays in /admin/review (its section list + composer are
-              // page-inline, not mountable components — so this deep-links
-              // with return nav rather than embedding; see record-03 notes).
-              <div className="space-y-3">
-                <p className="flex flex-wrap items-center gap-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
-                  {status === "in_review" ? <InReviewChip /> : <ChangesRequestedChip />}
-                  {status === "in_review"
-                    ? "Submitted for review — waiting on the team."
-                    : "Changes requested — waiting on the mentor."}
-                </p>
-                {status === "rejected" && changeRequests.length > 0 && (
-                  <>
-                    <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-                      {(() => {
-                        const p = changeProgress(changeRequests, draft);
-                        return `${p.addressed} of ${p.total} addressed`;
-                      })()}
-                    </p>
-                    <ul className="divide-y divide-[var(--border-subtle)] rounded-xl border border-[var(--border-subtle)] bg-white">
-                      {changeRequests.map((req) => (
-                        <li
-                          key={req.id}
-                          className="flex items-start justify-between gap-3 px-3.5 py-2.5"
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-[13px] font-medium leading-[18px] text-[var(--text-primary)]">
-                              {req.sectionLabel}
-                            </span>
-                            <span className="block text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                              {req.note}
-                            </span>
-                          </span>
-                          <ChangeStateBadge
-                            state={addressedStateOf(req, draft)}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {reviewMode && (
-                  <Link href="/admin/review?from=record" className={linkCls}>
-                    {status === "in_review"
-                      ? "Open review console"
-                      : "View in review console"}
-                  </Link>
-                )}
-              </div>
-            ) : postLane && profileUpdate ? (
-              // ── Post-publish lane: the changeset delta, rendered with the
-              // SAME shared diff rows /admin/profile-update uses. Verdicts
-              // (approve / send back) stay in the full console — deep link
-              // with return nav.
-              <div className="space-y-3">
-                <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
-                  {changesetSummary(profileUpdate)} ·{" "}
-                  {profileUpdate.fields.length} change
-                  {profileUpdate.fields.length === 1 ? "" : "s"}
-                  <span className="text-[12px] text-[var(--text-muted)]">
-                    {" "}
-                    · submitted {relTime(profileUpdate.submittedAt).toLowerCase()}
-                  </span>
-                </p>
-                <div className="space-y-2.5">
-                  {profileUpdate.fields.map((f) => {
-                    const proposed = (
-                      draft as unknown as Record<string, unknown>
-                    )[f.fieldId];
-                    return (
-                      <div
-                        key={f.fieldId}
-                        className="rounded-xl border border-[var(--border-subtle)] bg-white p-3.5"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-display text-[15px] font-bold leading-[22px] text-[var(--text-primary)]">
-                            {gatedFieldMeta(f.fieldId)?.label ?? f.fieldId}
-                          </p>
-                          {f.fieldStatus === "changes-requested" ? (
-                            <ChangesRequestedChip />
-                          ) : (
-                            <InReviewChip />
-                          )}
-                        </div>
-                        <LiveProposedGrid
-                          fieldId={f.fieldId}
-                          live={f.liveValue}
-                          proposed={proposed}
-                        />
-                        {f.fieldStatus === "changes-requested" &&
-                          f.adminNote && (
-                            <p className="mt-3 rounded-lg bg-orange-50 px-3 py-2 text-[13px] leading-[18px] text-orange-900">
-                              Sent to {firstName}: {f.adminNote}
-                            </p>
-                          )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {reviewMode && (
-                  <Link
-                    href="/admin/profile-update?from=record"
-                    className={linkCls}
-                  >
-                    Open full review
-                  </Link>
-                )}
-              </div>
-            ) : (
-              // ── Neither lane active (§ record-03 empty state).
-              <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                {publishedSnapshot
-                  ? "No open requests. This profile is live and current."
-                  : "Nothing to review yet — this profile hasn't been submitted."}
-              </p>
-            )}
-          </div>
-        </SectionShell>
-      );
-    }
+    // reviewWorkflow: the inline hub was consolidated into the Overview
+    // status strip (surface pass, Phase 4 — Overview is status + pointers
+    // only); the per-field detail lives in the consoles the strip links to.
 
     if (slot === "matchingProfile") {
       const matchCard = sectionsForTab("profile").filter(
@@ -643,10 +562,11 @@ export default function MentorRecordPage({
         >
           <div className="space-y-5">
             <div>
-              <p className="mb-1 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+              <p className="mb-2 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
                 Match card
               </p>
-              <div className={DIVIDERS}>
+              {/* 8 rows → surface card WITH inset separators. */}
+              <div className={cn(CARD_ROWS, INSET_DIVIDERS)}>
                 {matchCard.map((s) => (
                   <ReadRow
                     key={s.step}
@@ -659,10 +579,11 @@ export default function MentorRecordPage({
               </div>
             </div>
             <div>
-              <p className="mb-1 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+              <p className="mb-2 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
                 Chat
               </p>
-              <div className={DIVIDERS}>
+              {/* 2 rows → padding carries the rhythm, no separators. */}
+              <div className={CARD_ROWS}>
                 {chat.map((s) => (
                   <ReadRow
                     key={s.step}
@@ -686,7 +607,8 @@ export default function MentorRecordPage({
           slot={slot}
           helper="Edits route through review"
         >
-          <div className={DIVIDERS}>
+          {/* 2 rows → card, no separators. */}
+          <div className={CARD_ROWS}>
             {sectionsForTab("first-moments").map((s) => (
               <ReadRow
                 key={s.step}
@@ -708,9 +630,9 @@ export default function MentorRecordPage({
           slot={slot}
           helper="Staff edits apply right away"
         >
-          {/* One open run (Phase 2): photo, then identity, then contact —
-              the old three-box grouping is carried by row order alone. */}
-          <div className={DIVIDERS}>
+          {/* One surface card (surface pass): photo, then identity, then
+              contact — 8 rows → inset separators. */}
+          <div className={cn(CARD_ROWS, INSET_DIVIDERS)}>
             <PhotoRowCore
               value={staffPhoto}
               initial={firstName.trim().charAt(0).toUpperCase()}
@@ -892,8 +814,6 @@ export default function MentorRecordPage({
     if (slot === "relationships") {
       // Stub org data (record-05): rows are link-STYLED but inert — the
       // destinations don't exist in this prototype.
-      const inertLink =
-        "text-[15px] leading-[20px] text-[var(--text-primary)] underline decoration-[var(--border-subtle)] underline-offset-2";
       return (
         <SectionShell key={slot} slot={slot}>
           {!publishedSnapshot ? (
@@ -903,22 +823,22 @@ export default function MentorRecordPage({
               published and matched.
             </p>
           ) : (
-            // A collection of people — list rows EARN their container
-            // (Phase 2: containers are for collections of objects).
-            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
-              <div className="px-[var(--card-pad)] py-2.5">
+            // A collection of people — the card is the container; 3 rows,
+            // so padding alone carries the rhythm (no separators).
+            <div className={CARD_ROWS}>
+              <div className="py-2.5">
                 <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
                   Assigned supervisor
                 </p>
-                <span className={inertLink}>Stephen Rowe</span>
+                <span className={INERT_LINK}>Stephen Rowe</span>
               </div>
-              <div className="px-[var(--card-pad)] py-2.5">
+              <div className="py-2.5">
                 <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
                   Assigned lead mentor
                 </p>
-                <span className={inertLink}>Brandy Forrestor</span>
+                <span className={INERT_LINK}>Brandy Forrestor</span>
               </div>
-              <div className="px-[var(--card-pad)] py-2.5">
+              <div className="py-2.5">
                 <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
                   Active mentees
                 </p>
@@ -935,10 +855,12 @@ export default function MentorRecordPage({
     if (slot === "schedule") {
       return (
         <SectionShell key={slot} slot={slot}>
-          <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            Scheduling lands with the settings build — staff editing is
-            planned here.
-          </p>
+          <div className={CARD_PAD}>
+            <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+              Scheduling lands with the settings build — staff editing is
+              planned here.
+            </p>
+          </div>
         </SectionShell>
       );
     }
@@ -1133,12 +1055,13 @@ export default function MentorRecordPage({
           </header>
         )}
 
-        {/* ── Change-request banner (Phase 2): passive status tint from the
-            review-note family (ChangeNoteCard: orange-50 fill, orange-300
-            border — the component carries a border, so this does too; no
-            shadow). Text at the family's darkest in-use stop, 13px. */}
+        {/* ── Change-request banner: passive status tint from the
+            review-note family (orange-50 fill, orange-900 13px text). The
+            surface pass drops the border (it measured 1.61:1 — a kept
+            boundary would fail 3:1; the tint carries the semantics) and
+            adopts the 16px surface radius. No shadow. */}
         {openRequestCount > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] bg-orange-50 px-[var(--surface-pad)] py-3">
             <p className="text-[13px] leading-[18px] text-orange-900">
               {openRequestCount} change
               {openRequestCount === 1 ? "" : "s"} requested — waiting on the
@@ -1154,14 +1077,14 @@ export default function MentorRecordPage({
           </div>
         )}
 
-        {/* ── Tab bar (Phase 1): text tabs on a hairline — the active tab
-            carries weight + a 2px underline, no boxed chrome. Labels match
-            the mentor-facing settings tabs where they overlap (registry:
-            lib/record/tabs.ts; unbuilt entries render nothing). Baseline
-            hairline uses --icon-tertiary for ≥3:1 (gaps.md #79). */}
+        {/* ── Tab bar: text tabs directly on the canvas — the surface pass
+            deleted the full-bleed baseline hairline (spacing does the work);
+            the active tab keeps its weight + 2px underline unchanged.
+            Labels match the mentor-facing settings tabs where they overlap
+            (registry: lib/record/tabs.ts; unbuilt entries render nothing). */}
         <nav
           aria-label="Record sections"
-          className="mt-6 flex gap-6 overflow-x-auto border-b border-[color:var(--icon-tertiary)]"
+          className="mt-6 flex gap-6 overflow-x-auto"
         >
           {BUILT_RECORD_TABS.map((t) => (
             <button
@@ -1170,7 +1093,7 @@ export default function MentorRecordPage({
               onClick={() => switchTab(t.id)}
               aria-current={activeTab === t.id ? "page" : undefined}
               className={cn(
-                "-mb-px min-h-11 shrink-0 border-b-2 pb-1 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+                "min-h-11 shrink-0 border-b-2 pb-1 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
                 activeTab === t.id
                   ? "border-[var(--text-primary)] font-medium text-[var(--text-primary)]"
                   : "border-transparent font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -1187,60 +1110,220 @@ export default function MentorRecordPage({
               inside each renderer. */}
           <div className="min-w-0 space-y-7">
             {activeTab === "overview" && (
+              // ── Overview mosaic (surface pass, Phase 4): status +
+              // pointers only, as a card grid. Collapses to one column
+              // below lg (the page's existing container breakpoint).
               <>
-                {renderSection("reviewWorkflow")}
-                {/* Capacity snapshot — status + a jump link only; the
-                    editable slots live on Mentorship (Overview never renders
-                    an editable copy of a field that lives elsewhere). */}
-                {resolveMode("accountOrg", persona) !== "hidden" && (
-                  <section aria-label="Capacity" data-record-section="capacity">
-                    <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
-                      Capacity
-                    </h2>
-                    {/* An attribute snapshot — typography, no box (Phase 2). */}
-                    <p className="mt-3 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                      {MENTEE_COUNT} of {slots.total} mentee slots filled ·{" "}
-                      {slots.dailyNew} new teen
-                      {slots.dailyNew === 1 ? "" : "s"} per day
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => switchTab("mentorship")}
-                      className={JUMP_LINK}
-                    >
-                      Manage in Mentorship
-                    </button>
+                {/* Row 1 — review-workflow status strip: icon + one line +
+                    the existing console deep link. Success uses the positive
+                    color on the ICON only (gaps.md #65 interim green); the
+                    per-field detail lives in the consoles. */}
+                {resolveMode("reviewWorkflow", persona) !== "hidden" && (
+                  <section
+                    aria-label="Review workflow"
+                    data-record-section="reviewWorkflow"
+                    className={cn(
+                      CARD_PAD,
+                      "flex flex-wrap items-center gap-x-3 gap-y-1"
+                    )}
+                  >
+                    {(() => {
+                      const strip = preLane
+                        ? status === "in_review"
+                          ? {
+                              icon: (
+                                <Clock3
+                                  className="size-4 shrink-0 text-[var(--text-secondary)]"
+                                  aria-hidden
+                                />
+                              ),
+                              line: "Submitted for review — waiting on the team.",
+                              href: "/admin/review?from=record",
+                              linkLabel: "Open review console",
+                            }
+                          : {
+                              icon: (
+                                <AlertCircle
+                                  className="size-4 shrink-0 text-orange-700"
+                                  aria-hidden
+                                />
+                              ),
+                              line: `Changes requested — waiting on the mentor (${(() => {
+                                const p = changeProgress(changeRequests, draft);
+                                return `${p.addressed} of ${p.total} addressed`;
+                              })()}).`,
+                              href: "/admin/review?from=record",
+                              linkLabel: "View in review console",
+                            }
+                        : postLane && profileUpdate
+                          ? {
+                              icon:
+                                profileUpdate.status === "changes-requested" ? (
+                                  <AlertCircle
+                                    className="size-4 shrink-0 text-orange-700"
+                                    aria-hidden
+                                  />
+                                ) : (
+                                  <Clock3
+                                    className="size-4 shrink-0 text-[var(--text-secondary)]"
+                                    aria-hidden
+                                  />
+                                ),
+                              line: `${changesetSummary(profileUpdate)} · ${profileUpdate.fields.length} change${profileUpdate.fields.length === 1 ? "" : "s"} · submitted ${relTime(profileUpdate.submittedAt).toLowerCase()}`,
+                              href: "/admin/profile-update?from=record",
+                              linkLabel: "Open full review",
+                            }
+                          : publishedSnapshot
+                            ? {
+                                icon: (
+                                  <CheckCircle2
+                                    className="size-4 shrink-0"
+                                    style={{ color: "#3a7d44" }}
+                                    aria-hidden
+                                  />
+                                ),
+                                line: "No open requests. This profile is live and current.",
+                                href: null,
+                                linkLabel: null,
+                              }
+                            : {
+                                icon: (
+                                  <Clock3
+                                    className="size-4 shrink-0 text-[var(--text-muted)]"
+                                    aria-hidden
+                                  />
+                                ),
+                                line: "Nothing to review yet — this profile hasn't been submitted.",
+                                href: null,
+                                linkLabel: null,
+                              };
+                      return (
+                        <>
+                          {strip.icon}
+                          <p className="min-w-0 flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                            {strip.line}
+                          </p>
+                          {reviewMode && strip.href && (
+                            <Link
+                              href={strip.href}
+                              className={cn(JUMP_LINK, "-my-2.5")}
+                            >
+                              {strip.linkLabel}
+                            </Link>
+                          )}
+                        </>
+                      );
+                    })()}
                   </section>
                 )}
-                {renderSection("relationships")}
-                {/* Latest-note pointer — text + a jump to the rail's Notes
-                    segment; the composer itself lives only in the rail. */}
-                {notesVisible && internalNotes.length > 0 && (
-                  <section
-                    aria-label="Latest note"
-                    data-record-section="latest-note"
-                  >
-                    <h2 className="mb-3 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
-                      Latest note
-                    </h2>
-                    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
-                      <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
-                        {internalNotes[0].author} ·{" "}
-                        {relTime(internalNotes[0].createdAt)}
+
+                {/* Row 2 — Capacity beside Relationships. */}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {resolveMode("accountOrg", persona) !== "hidden" && (
+                    <section
+                      aria-label="Capacity"
+                      data-record-section="capacity"
+                      className={CARD_PAD}
+                    >
+                      <p className="text-[13px] font-medium leading-[18px] text-[var(--text-secondary)]">
+                        Capacity
                       </p>
-                      <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[14px] leading-[20px] text-[var(--text-primary)]">
-                        {internalNotes[0].text}
+                      <p className="mt-2 font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
+                        {MENTEE_COUNT} of {slots.total}
                       </p>
+                      <p className="mt-0.5 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                        mentee slots filled · {slots.dailyNew} new teen
+                        {slots.dailyNew === 1 ? "" : "s"} per day
+                      </p>
+                      {/* Quiet progress: positive fill (4.55:1 vs the
+                          canvas-tone track), decorative — the numbers above
+                          carry the meaning. */}
+                      <div
+                        aria-hidden
+                        className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-s1)]"
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, Math.round((MENTEE_COUNT / Math.max(1, slots.total)) * 100))}%`,
+                            backgroundColor: "#3a7d44",
+                          }}
+                        />
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setRailChoice("notes")}
+                        onClick={() => switchTab("mentorship")}
                         className={JUMP_LINK}
                       >
-                        Open notes
+                        Manage in Mentorship
                       </button>
-                    </div>
+                    </section>
+                  )}
+                  <section
+                    aria-label="Relationships"
+                    data-record-section="relationships"
+                    className={CARD_PAD}
+                  >
+                    <p className="text-[13px] font-medium leading-[18px] text-[var(--text-secondary)]">
+                      Relationships
+                    </p>
+                    {!publishedSnapshot ? (
+                      <p className="mt-2 text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                        Nothing here yet — relationships appear once this
+                        mentor is published and matched.
+                      </p>
+                    ) : (
+                      <div className="mt-2 space-y-2.5">
+                        <div>
+                          <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                            Assigned supervisor
+                          </p>
+                          <span className={INERT_LINK}>Stephen Rowe</span>
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                            Assigned lead mentor
+                          </p>
+                          <span className={INERT_LINK}>Brandy Forrestor</span>
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                            Active mentees
+                          </p>
+                          <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                            {profileHidden
+                              ? "4 · matching paused while unpublished"
+                              : "4"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </section>
-                )}
+                </div>
+
+                {/* Row 3 — pointer rows: link rows with trailing chevrons,
+                    pointers only (no editable copies). */}
+                <section
+                  aria-label="Shortcuts"
+                  data-record-section="pointers"
+                  className={CARD_ROWS}
+                >
+                  <PointerRow
+                    // TODO-COPY: pointer-row label has no copy precedent.
+                    // TODO-DATA: no completeness data source exists — stub
+                    // value only; do NOT build a calculation (Phase 4).
+                    label="Profile completeness"
+                    value="86% complete"
+                    onClick={() => switchTab("profile")}
+                  />
+                  {notesVisible && internalNotes.length > 0 && (
+                    <PointerRow
+                      label="Latest note"
+                      value={`${internalNotes[0].author} · ${internalNotes[0].text}`}
+                      onClick={() => setRailChoice("notes")}
+                    />
+                  )}
+                </section>
               </>
             )}
             {activeTab === "profile" && renderSection("matchingProfile")}
@@ -1278,7 +1361,7 @@ export default function MentorRecordPage({
             <div
               role="group"
               aria-label="Rail view"
-              className="mx-auto flex w-fit rounded-full border border-[var(--border-subtle)] bg-white p-0.5"
+              className="mx-auto flex w-fit rounded-full bg-[var(--surface-card)] p-0.5"
             >
               {railSegments.map((seg) => (
                 <button
@@ -1304,7 +1387,7 @@ export default function MentorRecordPage({
                   <div
                     role="group"
                     aria-label="Preview version"
-                    className="flex rounded-full border border-[var(--border-subtle)] bg-white p-1"
+                    className="flex rounded-full bg-[var(--surface-card)] p-1"
                   >
                     {(["live", "proposed"] as const).map((side) => (
                       <button
@@ -1335,9 +1418,9 @@ export default function MentorRecordPage({
                       </PhonePreviewShell>
                       {profileHidden && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
-                          {/* No shadow — elevation isn't part of this page's
-                              language (Phase 2 restraint rules). */}
-                          <span className="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s0)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">
+                          {/* No shadow, no border — the card tone on the
+                              blurred veil separates the chip on its own. */}
+                          <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">
                             <EyeOff className="size-4" aria-hidden />
                             Hidden from teens
                           </span>
@@ -1357,7 +1440,7 @@ export default function MentorRecordPage({
             )}
 
             {railSegment === "notes" && notesVisible && (
-              <div className="mt-3 space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+              <div className={cn("mt-3 space-y-3", CARD_PAD)}>
                 {/* The channel divider — persistent, not dismissible:
                     confusing internal notes with change requests must be
                     hard. Moved intact from the notes section (Phase 1). */}
@@ -1373,11 +1456,15 @@ export default function MentorRecordPage({
                   >
                     Add a note
                   </label>
+                  {/* Composer input inverts — canvas tone inside the card
+                      (record-only override; the shared Textarea keeps its
+                      border everywhere else). */}
                   <Textarea
                     id="internal-note"
                     value={noteDraft}
                     onChange={(e) => setNoteDraft(e.target.value)}
                     placeholder="Context for the next person on this record…"
+                    className="border-0 bg-[var(--surface-s1)] shadow-none"
                   />
                   <div className="mt-2">
                     {/* Outline — the header primary is the page's ONE filled
@@ -1403,13 +1490,13 @@ export default function MentorRecordPage({
                   </p>
                 ) : (
                   // Deliberately NOT the change-request note treatment (no
-                  // orange, no "From the review team") — author + timestamp
-                  // header rows on plain white keep the channels far apart.
+                  // orange, no "From the review team") — canvas-tone nested
+                  // surfaces keep the channels far apart, borderless.
                   <ul className="space-y-2.5">
                     {internalNotes.map((n) => (
                       <li
                         key={n.id}
-                        className="rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-3"
+                        className="rounded-xl bg-[var(--surface-s1)] px-3.5 py-3"
                       >
                         <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
                           {n.author} · {relTime(n.createdAt)}
@@ -1425,7 +1512,7 @@ export default function MentorRecordPage({
             )}
 
             {railSegment === "activity" && (
-              <div className="mt-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+              <div className={cn("mt-3", CARD_PAD)}>
                 {activity.length === 0 ? (
                   <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
                     Nothing yet — entries appear as this record changes.

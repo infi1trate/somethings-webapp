@@ -19,7 +19,7 @@
 // Role gating HIDES affordances (locked prop); layout never changes by role.
 
 import { useEffect, useRef } from "react";
-import { Lock, Pencil } from "lucide-react";
+import { ChevronRight, Lock, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +44,34 @@ export function displayOrEmpty(v: React.ReactNode): React.ReactNode {
   );
 }
 
+/** Affordance calming (surface pass, Phase 3) — on fine pointers the labeled
+ *  affordance rests as a quiet chevron and reveals on row hover; keyboard
+ *  focus reveals identically (the control stays focusable at opacity-0, so
+ *  Tab reaches it and group-focus-within flips the reveal — WCAG 2.4.7 /
+ *  2.1.1). Coarse pointers never see the chevron: the label is always
+ *  visible, exactly the pre-pass behavior. Pure CSS via Tailwind v4's
+ *  pointer-fine variant — no JS pointer detection. The label's width is
+ *  always reserved (opacity swap, absolute chevron) so nothing reflows. */
+function RevealOnHover({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative inline-flex items-center">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute right-0 hidden text-[var(--text-muted)] transition-opacity pointer-fine:inline-flex pointer-fine:group-hover:opacity-0 pointer-fine:group-focus-within:opacity-0"
+      >
+        <ChevronRight className="size-4" />
+      </span>
+      <span className="inline-flex transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100">
+        {children}
+      </span>
+    </span>
+  );
+}
+
 /** Locked affordance: lock + muted label, tooltip explains why. Native
  *  title tooltip is the interim — no tooltip primitive exists in ui/
- *  (gaps.md #82); the reason is also in the accessible name. */
+ *  (gaps.md #82); the reason is also in the accessible name. ALWAYS visible
+ *  on every device — a lock that appears on hover reads as a bug. */
 export function LockBadge({
   label,
   reason,
@@ -131,10 +156,34 @@ export function RecordRow({
   }, [editing]);
 
   if (!editing) {
+    const editAffordance =
+      lock || locked ? null : (
+        <button
+          ref={editBtnRef}
+          type="button"
+          onClick={onEditStart}
+          aria-label={`Edit ${label}`}
+          className={ROW_LINK}
+        >
+          <Pencil className="size-3.5" aria-hidden />
+          Edit
+        </button>
+      );
     return (
       // ~12px vertical row padding lives on the text columns; the affordance
-      // keeps its own ≥44px target and centers against them.
-      <div className="flex items-center gap-4">
+      // keeps its own ≥44px target and centers against them. `group` drives
+      // the hover/focus reveal; the hover tint is one step down (canvas tone
+      // inside the card) and only ever applies on hover-capable devices
+      // (Tailwind v4 gates hover: behind media (hover:hover)).
+      <div
+        className={cn(
+          "group flex items-center gap-4 rounded-lg transition-colors",
+          // Tint only rows that actually reveal something — a hover tint on
+          // an inert row implies interactivity it doesn't have.
+          (secondaryAction || editAffordance) &&
+            "hover:bg-[var(--surface-s1)] focus-within:bg-[var(--surface-s1)]"
+        )}
+      >
         <span className="w-[120px] shrink-0 self-start py-3 text-[13px] leading-[18px] text-[var(--text-secondary)]">
           {label}
         </span>
@@ -158,21 +207,17 @@ export function RecordRow({
             </span>
           )}
           {chip}
-          {secondaryAction}
-          {lock ? (
-            <LockBadge label={lock.label} reason={lock.reason} />
-          ) : locked ? null : (
-            <button
-              ref={editBtnRef}
-              type="button"
-              onClick={onEditStart}
-              aria-label={`Edit ${label}`}
-              className={ROW_LINK}
-            >
-              <Pencil className="size-3.5" aria-hidden />
-              Edit
-            </button>
+          {/* Edit / Request change calm to a chevron at rest (fine pointers
+              only); lock badges and chips never hide. */}
+          {(secondaryAction || editAffordance) && (
+            <RevealOnHover>
+              <span className="flex items-center gap-3">
+                {secondaryAction}
+                {editAffordance}
+              </span>
+            </RevealOnHover>
           )}
+          {lock && <LockBadge label={lock.label} reason={lock.reason} />}
         </div>
       </div>
     );

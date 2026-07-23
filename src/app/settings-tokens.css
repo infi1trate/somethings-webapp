@@ -37,6 +37,14 @@
   --radius-nav-item: 12px; /* nav item container */
   --radius-nav-tile: 8px; /* 48px icon tile */
 
+  /* Record grouped-surface system (record surface pass, Phase 0 audit
+     approved): card sits ONE step lighter than the s1 canvas — the boundary
+     is surface contrast (1.10:1), not a border. 16px surface radius; 20px
+     internal padding (spec 20–24; --card-pad 17 was below the band). */
+  --surface-card: #ffffff;
+  --radius-surface: 16px;
+  --surface-pad: 20px;
+
   /* Semantic interims — NOT in spec §2; logged in design-system-gaps.md */
   --state-dirty: #b45309; /* unsaved-changes indicator — 4.57:1 on s1 */
   --state-error: #cc3300; /* inline errors (= legacy --destructive) — 4.73:1 */
