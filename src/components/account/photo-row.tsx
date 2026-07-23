@@ -11,9 +11,25 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, Upload } from "lucide-react";
-import { EditRow } from "@/components/settings/edit-row";
+import { EditRow, type EditRowState } from "@/components/settings/edit-row";
 import { Button } from "@/components/ui/button";
 import { downscaleImageToWebP, readFileAsDataUrl } from "@/lib/files";
+
+/** The row-shell contract this state machine renders through — the shared
+ *  subset of EditRow/RecordRow props. Settings keep the default (EditRow,
+ *  byte-identical); the record injects its open-row shell (record Phase 2). */
+export type PhotoRowShell = React.ComponentType<{
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  state: EditRowState;
+  locked?: boolean;
+  onEditStart: () => void;
+  onCancel: () => void;
+  onSave?: () => void;
+  saveDisabled?: boolean;
+  children?: React.ReactNode;
+}>;
 
 export interface PhotoRowCoreProps {
   label?: string;
@@ -32,6 +48,8 @@ export interface PhotoRowCoreProps {
   reportDirty?: (id: string, dirty: boolean) => void;
   /** Muted line under the value (e.g. the record's audit line). */
   hint?: string;
+  /** Row shell to render through — defaults to the settings EditRow. */
+  row?: PhotoRowShell;
 }
 
 export function PhotoRowCore({
@@ -45,6 +63,7 @@ export function PhotoRowCore({
   onClose,
   reportDirty,
   hint,
+  row: Row = EditRow,
 }: PhotoRowCoreProps) {
   const [pending, setPending] = useState<string | null>(value);
   const [save, setSave] = useState<"idle" | "saving" | "saved" | "error">(
@@ -124,7 +143,7 @@ export function PhotoRowCore({
 
   if (mode === "read") {
     return (
-      <EditRow
+      <Row
         label={label}
         value={readValue}
         hint={hint}
@@ -138,7 +157,7 @@ export function PhotoRowCore({
 
   return (
     <div data-row="photo">
-      <EditRow
+      <Row
         label={label}
         value={readValue}
         hint={hint}
@@ -211,7 +230,7 @@ export function PhotoRowCore({
             }}
           />
         </div>
-      </EditRow>
+      </Row>
     </div>
   );
 }

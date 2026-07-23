@@ -1,14 +1,20 @@
 "use client";
 
-// Organization subsection of the Mentor Record's Account section
-// (record-04b) — the org-owned fields that used to sit in settings (P11
-// Membership) and the Roles & permissions tab (slots, assignment). Staff
-// surface only: supervisor edits where a real write path exists (slots),
-// Lead Mentor reads everything. Store writes here are org actions
-// (setSlots via the existing mock save) — never mentor-facing paths.
+// Organization block of the Mentor Record's Mentorship tab (record-04b,
+// re-homed in record Phase 1) — the org-owned fields that used to sit in
+// settings (P11 Membership) and the Roles & permissions tab (slots,
+// assignment). Staff surface only: supervisor edits where a real write path
+// exists (slots), Lead Mentor reads everything. Store writes here are org
+// actions (setSlots via the existing mock save) — never mentor-facing paths.
+//
+// Phase 2: attributes of a person are typography, not boxes — open RecordRow
+// rows with hairline dividers, bare 16px heading. Phase 3 affordances:
+// org-assigned facts (Role, Groups, Join date) carry the lock badge with a
+// why; Status/Assignment are derived state (bound to the header overflow
+// round trips) and show no affordance; slots are Direct edit.
 
 import { useState } from "react";
-import { EditRow } from "@/components/settings/edit-row";
+import { RecordRow } from "@/components/record/row";
 import { Input } from "@/components/ui/input";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { saveAccountField } from "@/lib/mock-api";
@@ -18,30 +24,15 @@ import { saveAccountField } from "@/lib/mock-api";
 export const MEMBERSHIP_GROUPS = ["North Carolina", "New Jersey"];
 export const JOIN_DATE = "March 25, 2026";
 
-function ReadOrgRow({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: React.ReactNode;
-  hint?: string;
-}) {
-  return (
-    <EditRow
-      label={label}
-      value={value}
-      hint={hint}
-      state="read"
-      locked
-      onEditStart={() => {}}
-      onCancel={() => {}}
-    />
-  );
-}
+// Interim lock explainer (gaps.md #83) — copy minted here, not in any spec.
+const ORG_LOCK = {
+  label: "Org-managed",
+  reason: "Set by the organization — not editable on this record.",
+};
 
 // Moved from roles-permissions-editor (record-04b) with a read mode added:
-// per-row direct save, non-negative-integer validation — unchanged.
+// per-row direct save, non-negative-integer validation — unchanged. Renders
+// through RecordRow since Phase 2.
 function SlotRow({
   id,
   label,
@@ -68,7 +59,18 @@ function SlotRow({
   const dirty = editing && text.trim() !== String(value);
 
   if (mode === "read") {
-    return <ReadOrgRow label={label} value={String(value)} hint={helper} />;
+    // Role-gated: the affordance hides, the row stays (Lead Mentor view).
+    return (
+      <RecordRow
+        label={label}
+        value={String(value)}
+        hint={helper}
+        state="read"
+        locked
+        onEditStart={() => {}}
+        onCancel={() => {}}
+      />
+    );
   }
 
   const save = async () => {
@@ -88,7 +90,7 @@ function SlotRow({
   };
 
   return (
-    <EditRow
+    <RecordRow
       label={label}
       value={String(value)}
       hint={helper}
@@ -134,7 +136,7 @@ function SlotRow({
           </p>
         )}
       </div>
-    </EditRow>
+    </RecordRow>
   );
 }
 
@@ -151,36 +153,46 @@ export function OrganizationCard({ mode }: { mode: "edit" | "read" }) {
 
   return (
     <div>
-      <p className="mb-1.5 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+      <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
         Organization
-      </p>
-      <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+      </h2>
+      <div className="mt-3 divide-y divide-[color:var(--icon-tertiary)]">
         {/* TODO(product): "Lead mentor" as a Role value — confirm it is a
             real, distinct role and how promotion is assigned (gaps.md #64).
             The record's subject is the store-backed mentor. */}
-        <ReadOrgRow label="Role" value="Mentor" />
-        {/* FUTURE FLOW: group assignment is supervisor-managed and arrives
-            with the groups console — read-only until then (gaps.md #64). */}
-        <ReadOrgRow
-          label="Groups"
-          value={
-            <span className="flex flex-wrap items-center gap-1.5 py-0.5">
-              {MEMBERSHIP_GROUPS.map((g) => (
-                <span
-                  key={g}
-                  className="inline-flex items-center rounded-full bg-black/[0.05] px-2.5 py-0.5 text-[13px] leading-[18px] text-[var(--text-primary)]"
-                >
-                  {g}
-                </span>
-              ))}
-            </span>
-          }
+        <RecordRow
+          label="Role"
+          value="Mentor"
+          state="read"
+          lock={ORG_LOCK}
+          onEditStart={() => {}}
+          onCancel={() => {}}
         />
-        <ReadOrgRow label="Join date" value={JOIN_DATE} />
+        {/* FUTURE FLOW: group assignment is supervisor-managed and arrives
+            with the groups console — read-only until then (gaps.md #64).
+            Plain text, not chips: pills are for status, not categories
+            (Phase 2 restraint rules). */}
+        <RecordRow
+          label="Groups"
+          value={MEMBERSHIP_GROUPS.join(", ")}
+          state="read"
+          lock={ORG_LOCK}
+          onEditStart={() => {}}
+          onCancel={() => {}}
+        />
+        <RecordRow
+          label="Join date"
+          value={JOIN_DATE}
+          state="read"
+          lock={ORG_LOCK}
+          onEditStart={() => {}}
+          onCancel={() => {}}
+        />
         {/* Status + Assignment bind to the same state the header/overflow
-            deactivate flow controls — never stored separately. Dots are
-            decorative; text carries meaning (gaps.md #65 interim green). */}
-        <ReadOrgRow
+            deactivate flow controls — never stored separately, no affordance
+            here (derived state, not an editable field). Dots are decorative;
+            text carries meaning (gaps.md #65 interim green). */}
+        <RecordRow
           label="Status"
           value={
             <span className="flex items-center gap-2">
@@ -200,8 +212,12 @@ export function OrganizationCard({ mode }: { mode: "edit" | "read" }) {
               </span>
             </span>
           }
+          state="read"
+          locked
+          onEditStart={() => {}}
+          onCancel={() => {}}
         />
-        <ReadOrgRow
+        <RecordRow
           label="Assignment status"
           value={
             <span className="flex items-center gap-2">
@@ -215,6 +231,10 @@ export function OrganizationCard({ mode }: { mode: "edit" | "read" }) {
               <span>{assigned ? "Assigned" : "Unassigned"}</span>
             </span>
           }
+          state="read"
+          locked
+          onEditStart={() => {}}
+          onCancel={() => {}}
         />
         <SlotRow
           id="total"

@@ -19,7 +19,16 @@
 // true status only, one primary action), text tabs driven by
 // lib/record/tabs.ts (?tab= in the URL, per-tab scroll memory), and a right
 // utility rail (Preview / Notes / Activity segments, contextual default).
-// Content MOVED into tabs, not restyled — section renderers unchanged.
+//
+// Phases 2–3 (visual language + edit legibility): typography for attributes
+// of a person, containers for collections of objects. Person attributes are
+// OPEN RecordRow runs under bare 16px headings — hairline dividers only, no
+// boxes; collections (notes, diff cards, relationship entries) keep their
+// card treatment. Restraint: ONE filled button on the page (header Message),
+// max two pill families (dark status + review orange), no drop shadows
+// (phone-frame chrome excepted — shared preview, see gaps.md #81). Three
+// affordances: Edit (pencil), Request change (corner-up-right, existing flow
+// or clearly-stubbed), lock badge with a why. Roles hide affordances only.
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -27,6 +36,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
+  CornerUpRight,
   EyeOff,
   MapPin,
   MoreHorizontal,
@@ -37,7 +47,11 @@ import {
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
-import { EditRow } from "@/components/settings/edit-row";
+import {
+  displayOrEmpty,
+  RecordRow,
+  ROW_LINK,
+} from "@/components/record/row";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   ChangesRequestedChip,
@@ -146,8 +160,15 @@ function changesetChip(update: ProfileUpdate | null, fieldId: string) {
   );
 }
 
-/** Locked EditRow as a record read row — label + current value, no
- *  affordances (the shared component's locked state renders no Edit). */
+/** Hairline dividers between open rows — the ONLY separation person
+ *  attributes get (no boxes). --border-subtle measures ~1.1:1 against s1
+ *  (fails the 3:1 non-text minimum this page is held to), so rows use
+ *  --icon-tertiary (#8a8275, ≥3:1) as an interim until a --border-strong
+ *  token exists (gaps.md #79). */
+const DIVIDERS = "divide-y divide-[color:var(--icon-tertiary)]";
+
+/** Read-only record row: label + value, optional review chip and a
+ *  Phase 3 affordance node on the right. */
 function ReadRow({
   label,
   value,
@@ -160,9 +181,9 @@ function ReadRow({
   action?: React.ReactNode;
 }) {
   return (
-    <EditRow
+    <RecordRow
       label={label}
-      value={value}
+      value={displayOrEmpty(value)}
       chip={chip}
       secondaryAction={action}
       state="read"
@@ -173,53 +194,30 @@ function ReadRow({
   );
 }
 
-/** The staff "Request change" link — DiscardChange's link treatment. */
-function requestChangeAction(href: string | null) {
-  if (!href) return undefined;
-  return (
-    <Link
-      href={href}
-      className="inline-flex min-h-11 shrink-0 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-    >
-      Request change
-    </Link>
-  );
-}
-
-function RowCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
-      {children}
-    </div>
-  );
-}
-
 function SectionShell({
   slot,
+  helper,
   children,
 }: {
   slot: RecordSectionSlot;
+  /** One-line clarifier under the heading (muted 12px) — optional. */
+  helper?: string;
   children: React.ReactNode;
 }) {
   return (
     <section aria-label={SLOT_TITLES[slot]} data-record-section={slot}>
-      <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+      {/* Bare typographic heading — 16px. Spec asks medium weight; Avantt
+          ships Bold only (gaps.md #12), so this is 700 like --type-title-sm. */}
+      <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
         {SLOT_TITLES[slot]}
       </h2>
-      {children}
-    </section>
-  );
-}
-
-function PlaceholderSection({ slot }: { slot: RecordSectionSlot }) {
-  return (
-    <SectionShell slot={slot}>
-      <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
-        <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          Lands in a later pass.
+      {helper && (
+        <p className="mt-1 text-[12px] leading-[16px] text-[var(--text-muted)]">
+          {helper}
         </p>
-      </div>
-    </SectionShell>
+      )}
+      <div className="mt-3">{children}</div>
+    </section>
   );
 }
 
@@ -383,8 +381,16 @@ export default function MentorRecordPage({
       ? draft.displayName.trim()
       : null;
   const deactivated = accountStatus === "deactivated";
-  // Pre-publish "submitted for review" — the only state with a primary CTA.
+  // Pre-publish "submitted for review" — feeds the overflow's Review entry.
   const submittedForReview = status === "in_review";
+  // Open change requests → the banner under the header (Phase 2). The two
+  // lanes are mutually exclusive by construction.
+  const openRequestCount =
+    preLane && status === "rejected"
+      ? changeRequests.length
+      : (profileUpdate?.fields.filter(
+          (f) => f.fieldStatus === "changes-requested"
+        ).length ?? 0);
   // Destructive account actions are supervisor powers (accountOrg: edit).
   const canActOnAccount = resolveMode("accountOrg", persona) === "edit";
   // Account rows: staff-editable for supervisors, read for leads.
@@ -402,16 +408,47 @@ export default function MentorRecordPage({
       return true;
     };
 
-  // Per-field "Request change" (review mode only) — a LINK into whichever
-  // EXISTING composer currently serves that field (invariants 2/3/4: no new
-  // mechanics, keys straight from PROFILE_SECTIONS, baselines captured where
-  // they're captured today). No serving flow → no affordance.
+  // Per-field "Request change" — a LINK into whichever EXISTING composer
+  // currently serves that field (invariants 2/3/4: no new mechanics, keys
+  // straight from PROFILE_SECTIONS, baselines captured where they're
+  // captured today). Null = no serving flow right now.
   const requestChangeHref = (section: ProfileSection): string | null => {
-    if (!reviewMode) return null;
     if (preLane) return `/admin/review?from=record&focus=${section.step}`;
     if (postLane && profileUpdate?.fields.some((f) => f.fieldId === section.fieldKey))
       return `/admin/profile-update?from=record&focus=${section.fieldKey}`;
     return null;
+  };
+
+  // Phase 3: review-mediated fields ALWAYS show the same affordance (same
+  // field → same affordance everywhere); role gating hides it for non-review
+  // viewers at the call site. When no lane can serve the field the link is a
+  // clearly-marked stub — staff-initiated change requests don't exist in
+  // this prototype (the composers only serve open submissions, record-03).
+  // TODO(record-p3): replace the stub with a real staff-initiated
+  // change-request flow when one exists (gaps.md #81).
+  const proposeAction = (section: ProfileSection): React.ReactNode => {
+    if (!reviewMode) return undefined; // role-gated: affordance hides only
+    const href = requestChangeHref(section);
+    if (href) {
+      return (
+        <Link href={href} className={ROW_LINK}>
+          <CornerUpRight className="size-3.5" aria-hidden />
+          Request change
+        </Link>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className={ROW_LINK}
+        onClick={() =>
+          toast("Staff-started change requests aren't built yet.")
+        }
+      >
+        <CornerUpRight className="size-3.5" aria-hidden />
+        Request change
+      </button>
+    );
   };
 
   // ── Right rail (Phase 1) ─────────────────────────────────────────────
@@ -467,7 +504,10 @@ export default function MentorRecordPage({
         "inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
       return (
         <SectionShell key={slot} slot={slot}>
-          <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
+          {/* De-boxed (Phase 2): the hub is status + links about the person;
+              only the object lists inside (requests, field diffs) keep
+              container treatment. */}
+          <div>
             {preLane ? (
               // ── Pre-publish lane: the submission loop. The full composer
               // stays in /admin/review (its section list + composer are
@@ -596,39 +636,43 @@ export default function MentorRecordPage({
       );
       const chat = sectionsForTab("profile").filter((s) => s.group === "chat");
       return (
-        <SectionShell key={slot} slot={slot}>
-          <div className="space-y-4">
+        <SectionShell
+          key={slot}
+          slot={slot}
+          helper="Everything teens see — edits route through review"
+        >
+          <div className="space-y-5">
             <div>
-              <p className="mb-1.5 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+              <p className="mb-1 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
                 Match card
               </p>
-              <RowCard>
+              <div className={DIVIDERS}>
                 {matchCard.map((s) => (
                   <ReadRow
                     key={s.step}
                     label={s.label}
                     value={s.summary(live)}
                     chip={changesetChip(profileUpdate, s.fieldKey)}
-                    action={requestChangeAction(requestChangeHref(s))}
+                    action={proposeAction(s)}
                   />
                 ))}
-              </RowCard>
+              </div>
             </div>
             <div>
-              <p className="mb-1.5 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+              <p className="mb-1 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
                 Chat
               </p>
-              <RowCard>
+              <div className={DIVIDERS}>
                 {chat.map((s) => (
                   <ReadRow
                     key={s.step}
                     label={s.label}
                     value={s.summary(live)}
                     chip={changesetChip(profileUpdate, s.fieldKey)}
-                    action={requestChangeAction(requestChangeHref(s))}
+                    action={proposeAction(s)}
                   />
                 ))}
-              </RowCard>
+              </div>
             </div>
           </div>
         </SectionShell>
@@ -637,45 +681,53 @@ export default function MentorRecordPage({
 
     if (slot === "firstMoments") {
       return (
-        <SectionShell key={slot} slot={slot}>
-          <RowCard>
+        <SectionShell
+          key={slot}
+          slot={slot}
+          helper="Edits route through review"
+        >
+          <div className={DIVIDERS}>
             {sectionsForTab("first-moments").map((s) => (
               <ReadRow
                 key={s.step}
                 label={s.label}
                 value={s.summary(live)}
                 chip={changesetChip(profileUpdate, s.fieldKey)}
-                action={requestChangeAction(requestChangeHref(s))}
+                action={proposeAction(s)}
               />
             ))}
-          </RowCard>
+          </div>
         </SectionShell>
       );
     }
 
     if (slot === "account") {
       return (
-        <SectionShell key={slot} slot={slot}>
-          <div className="space-y-4">
-            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
-              <PhotoRowCore
-                value={staffPhoto}
-                initial={firstName.trim().charAt(0).toUpperCase()}
-                mode={accountMode}
-                hint={auditLineFor(activity, "staffPhoto") ?? undefined}
-                editing={accountEditing === "photo"}
-                onEditStart={() => setAccountEditing("photo")}
-                onClose={() => setAccountEditing(null)}
-                onSave={async (pending) => {
-                  const ok = await staffSave("staffPhoto")(pending);
-                  return ok;
-                }}
-              />
-            </div>
+        <SectionShell
+          key={slot}
+          slot={slot}
+          helper="Staff edits apply right away"
+        >
+          {/* One open run (Phase 2): photo, then identity, then contact —
+              the old three-box grouping is carried by row order alone. */}
+          <div className={DIVIDERS}>
+            <PhotoRowCore
+              value={staffPhoto}
+              initial={firstName.trim().charAt(0).toUpperCase()}
+              mode={accountMode}
+              row={RecordRow}
+              hint={auditLineFor(activity, "staffPhoto") ?? undefined}
+              editing={accountEditing === "photo"}
+              onEditStart={() => setAccountEditing("photo")}
+              onClose={() => setAccountEditing(null)}
+              onSave={async (pending) => {
+                const ok = await staffSave("staffPhoto")(pending);
+                return ok;
+              }}
+            />
             {/* Identity — LockedRow in mentor settings ("Contact support to
                 change this"); the point of the record is that they unlock
                 HERE, on the staff write path. */}
-            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
               <StaffFieldRow<string>
                 label="First name"
                 value={draft.firstName}
@@ -785,10 +837,8 @@ export default function MentorRecordPage({
                 onEditStart={() => setAccountEditing("races")}
                 onClose={() => setAccountEditing(null)}
               />
-            </div>
             {/* Contact — the mentor-facing verification flows stay in
                 settings; staff set values directly (record-scoped path). */}
-            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
               <StaffFieldRow<string>
                 label="Phone number"
                 value={draft.phone}
@@ -831,7 +881,6 @@ export default function MentorRecordPage({
                 onEditStart={() => setAccountEditing("email")}
                 onClose={() => setAccountEditing(null)}
               />
-            </div>
           </div>
         </SectionShell>
       );
@@ -847,37 +896,38 @@ export default function MentorRecordPage({
         "text-[15px] leading-[20px] text-[var(--text-primary)] underline decoration-[var(--border-subtle)] underline-offset-2";
       return (
         <SectionShell key={slot} slot={slot}>
-          <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
-            {!publishedSnapshot ? (
-              <p className="px-[var(--card-pad)] py-5 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                Nothing here yet — relationships appear once this mentor is
-                published and matched.
-              </p>
-            ) : (
-              <div className="divide-y divide-[var(--border-subtle)]">
-                <div className="px-[var(--card-pad)] py-2.5">
-                  <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                    Assigned supervisor
-                  </p>
-                  <span className={inertLink}>Stephen Rowe</span>
-                </div>
-                <div className="px-[var(--card-pad)] py-2.5">
-                  <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                    Assigned lead mentor
-                  </p>
-                  <span className={inertLink}>Brandy Forrestor</span>
-                </div>
-                <div className="px-[var(--card-pad)] py-2.5">
-                  <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                    Active mentees
-                  </p>
-                  <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
-                    {profileHidden ? "4 · matching paused while unpublished" : "4"}
-                  </p>
-                </div>
+          {!publishedSnapshot ? (
+            // Empty state is a statement about the person — no box.
+            <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+              Nothing here yet — relationships appear once this mentor is
+              published and matched.
+            </p>
+          ) : (
+            // A collection of people — list rows EARN their container
+            // (Phase 2: containers are for collections of objects).
+            <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+              <div className="px-[var(--card-pad)] py-2.5">
+                <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                  Assigned supervisor
+                </p>
+                <span className={inertLink}>Stephen Rowe</span>
               </div>
-            )}
-          </div>
+              <div className="px-[var(--card-pad)] py-2.5">
+                <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                  Assigned lead mentor
+                </p>
+                <span className={inertLink}>Brandy Forrestor</span>
+              </div>
+              <div className="px-[var(--card-pad)] py-2.5">
+                <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                  Active mentees
+                </p>
+                <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
+                  {profileHidden ? "4 · matching paused while unpublished" : "4"}
+                </p>
+              </div>
+            </div>
+          )}
         </SectionShell>
       );
     }
@@ -885,17 +935,15 @@ export default function MentorRecordPage({
     if (slot === "schedule") {
       return (
         <SectionShell key={slot} slot={slot}>
-          <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
-            <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Scheduling lands with the settings build — staff editing is
-              planned here.
-            </p>
-          </div>
+          <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+            Scheduling lands with the settings build — staff editing is
+            planned here.
+          </p>
         </SectionShell>
       );
     }
 
-    return <PlaceholderSection key={slot} slot={slot} />;
+    return null;
   };
 
   return (
@@ -1085,13 +1133,35 @@ export default function MentorRecordPage({
           </header>
         )}
 
+        {/* ── Change-request banner (Phase 2): passive status tint from the
+            review-note family (ChangeNoteCard: orange-50 fill, orange-300
+            border — the component carries a border, so this does too; no
+            shadow). Text at the family's darkest in-use stop, 13px. */}
+        {openRequestCount > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3">
+            <p className="text-[13px] leading-[18px] text-orange-900">
+              {openRequestCount} change
+              {openRequestCount === 1 ? "" : "s"} requested — waiting on the
+              mentor.
+            </p>
+            <button
+              type="button"
+              onClick={() => switchTab("overview")}
+              className="-my-2.5 inline-flex min-h-11 items-center rounded-sm text-[13px] font-medium leading-[18px] text-orange-900 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            >
+              Review
+            </button>
+          </div>
+        )}
+
         {/* ── Tab bar (Phase 1): text tabs on a hairline — the active tab
             carries weight + a 2px underline, no boxed chrome. Labels match
             the mentor-facing settings tabs where they overlap (registry:
-            lib/record/tabs.ts; unbuilt entries render nothing). */}
+            lib/record/tabs.ts; unbuilt entries render nothing). Baseline
+            hairline uses --icon-tertiary for ≥3:1 (gaps.md #79). */}
         <nav
           aria-label="Record sections"
-          className="mt-6 flex gap-6 overflow-x-auto border-b border-[var(--border-subtle)]"
+          className="mt-6 flex gap-6 overflow-x-auto border-b border-[color:var(--icon-tertiary)]"
         >
           {BUILT_RECORD_TABS.map((t) => (
             <button
@@ -1124,23 +1194,22 @@ export default function MentorRecordPage({
                     an editable copy of a field that lives elsewhere). */}
                 {resolveMode("accountOrg", persona) !== "hidden" && (
                   <section aria-label="Capacity" data-record-section="capacity">
-                    <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                    <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
                       Capacity
                     </h2>
-                    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
-                      <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
-                        {MENTEE_COUNT} of {slots.total} mentee slots filled ·{" "}
-                        {slots.dailyNew} new teen
-                        {slots.dailyNew === 1 ? "" : "s"} per day
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => switchTab("mentorship")}
-                        className={JUMP_LINK}
-                      >
-                        Manage in Mentorship
-                      </button>
-                    </div>
+                    {/* An attribute snapshot — typography, no box (Phase 2). */}
+                    <p className="mt-3 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                      {MENTEE_COUNT} of {slots.total} mentee slots filled ·{" "}
+                      {slots.dailyNew} new teen
+                      {slots.dailyNew === 1 ? "" : "s"} per day
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => switchTab("mentorship")}
+                      className={JUMP_LINK}
+                    >
+                      Manage in Mentorship
+                    </button>
                   </section>
                 )}
                 {renderSection("relationships")}
@@ -1151,7 +1220,7 @@ export default function MentorRecordPage({
                     aria-label="Latest note"
                     data-record-section="latest-note"
                   >
-                    <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                    <h2 className="mb-3 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
                       Latest note
                     </h2>
                     <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)] p-[var(--card-pad)]">
@@ -1266,7 +1335,9 @@ export default function MentorRecordPage({
                       </PhonePreviewShell>
                       {profileHidden && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
-                          <span className="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s0)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-tile)]">
+                          {/* No shadow — elevation isn't part of this page's
+                              language (Phase 2 restraint rules). */}
+                          <span className="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s0)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">
                             <EyeOff className="size-4" aria-hidden />
                             Hidden from teens
                           </span>
@@ -1309,16 +1380,21 @@ export default function MentorRecordPage({
                     placeholder="Context for the next person on this record…"
                   />
                   <div className="mt-2">
-                    <PillButton
+                    {/* Outline — the header primary is the page's ONE filled
+                        button (Phase 2 restraint rules). */}
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => {
                         if (!noteDraft.trim()) return;
                         addInternalNote(noteDraft, staffActor);
                         setNoteDraft("");
                       }}
                       disabled={!noteDraft.trim()}
+                      className="min-h-11 rounded-full px-5"
                     >
                       Add note
-                    </PillButton>
+                    </Button>
                   </div>
                 </div>
                 {internalNotes.length === 0 ? (

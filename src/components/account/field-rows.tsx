@@ -3,13 +3,15 @@
 // Generic controlled record field row (record-04a) — NEW component, not an
 // extraction: the settings identity fields stay LockedRow ("Contact support
 // to change this" is the settings contract; unlocking happens on the Mentor
-// Record only). Same EditRow lifecycle as PhotoRowCore: read / edit / saving
-// / error / saved, explicit per-field save through an onSave seam (the
-// record wires the staff write path — invariant 2). mode="read" renders the
-// locked row (Lead Mentor view).
+// Record only). Same row lifecycle as PhotoRowCore: read / edit / saving /
+// error / saved, explicit per-field save through an onSave seam (the record
+// wires the staff write path — invariant 2). mode="read" renders the plain
+// read row with the affordance hidden (Lead Mentor view — role gating hides
+// affordances, layout never changes). Renders through RecordRow since the
+// Phase 2 visual pass (open rows, not boxed EditRows).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EditRow } from "@/components/settings/edit-row";
+import { displayOrEmpty, RecordRow } from "@/components/record/row";
 
 const norm = (v: unknown) => JSON.stringify(v ?? null);
 
@@ -79,9 +81,9 @@ export function StaffFieldRow<T>({
 
   if (mode === "read") {
     return (
-      <EditRow
+      <RecordRow
         label={label}
-        value={display(value)}
+        value={displayOrEmpty(display(value))}
         hint={hint}
         state="read"
         locked
@@ -92,9 +94,9 @@ export function StaffFieldRow<T>({
   }
 
   return (
-    <EditRow
+    <RecordRow
       label={label}
-      value={display(value)}
+      value={displayOrEmpty(display(value))}
       hint={hint}
       state={
         editing
@@ -120,6 +122,6 @@ export function StaffFieldRow<T>({
         setPending(v);
         setSave((s) => (s === "idle" ? s : "idle"));
       })}
-    </EditRow>
+    </RecordRow>
   );
 }
