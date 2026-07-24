@@ -36,10 +36,12 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
+  CalendarClock,
   CheckCircle2,
   ChevronRight,
   Clock3,
   EyeOff,
+  MessagesSquare,
   MoreHorizontal,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -174,6 +176,10 @@ const INSET_DIVIDERS =
  *  the field's detail surface where one exists. */
 const midTruncate = (s: string, max = 44) =>
   s.length <= max ? s : `${s.slice(0, 26)}…${s.slice(-15)}`;
+
+/** Rail panels (Prompt 4): card tone + contour, 20px padding. */
+const RAIL_PANEL =
+  "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5";
 
 /** Inert reference links (relationships) — link-styled, destinations don't
  *  exist in this prototype (record-05). */
@@ -601,24 +607,53 @@ export default function MentorRecordPage({
     }
 
     if (slot === "firstMoments") {
+      const fmSections = sectionsForTab("first-moments");
+      const fmEmpty = fmSections.every((s) => {
+        const v = s.summary(live);
+        return v == null || v === "" || v === "—";
+      });
       return (
         <SectionShell
           key={slot}
           slot={slot}
           helper="Edits route through review"
         >
-          {/* 2 rows → card, no separators. */}
-          <div className={CARD_ROWS}>
-            {sectionsForTab("first-moments").map((s) => (
-              <ReadRow
-                key={s.step}
-                label={s.label}
-                value={s.summary(live)}
-                chip={changesetChip(profileUpdate, s.fieldKey)}
-                onPress={reviewPress(s)}
+          {fmEmpty ? (
+            // Designed empty state (Prompt 4): centered in a single card —
+            // intentional, not abandoned.
+            <div
+              className={cn(
+                CARD_PAD,
+                "flex min-h-[240px] flex-col items-center justify-center gap-3 text-center"
+              )}
+            >
+              <MessagesSquare
+                className="size-5 text-[var(--text-muted)]"
+                aria-hidden
               />
-            ))}
-          </div>
+              {/* TODO-COPY: no existing empty string for this tab. */}
+              <p
+                className="max-w-[40ch] text-[var(--text-secondary)]"
+                style={{ font: "var(--type-row-value)" }}
+              >
+                Nothing here yet — first messages and the story are written
+                during onboarding.
+              </p>
+            </div>
+          ) : (
+            // 2 rows → card, no separators.
+            <div className={CARD_ROWS}>
+              {fmSections.map((s) => (
+                <ReadRow
+                  key={s.step}
+                  label={s.label}
+                  value={s.summary(live)}
+                  chip={changesetChip(profileUpdate, s.fieldKey)}
+                  onPress={reviewPress(s)}
+                />
+              ))}
+            </div>
+          )}
         </SectionShell>
       );
     }
@@ -855,8 +890,21 @@ export default function MentorRecordPage({
     if (slot === "schedule") {
       return (
         <SectionShell key={slot} slot={slot}>
-          <div className={CARD_PAD}>
-            <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+          {/* Designed empty state (Prompt 4) — existing copy reused. */}
+          <div
+            className={cn(
+              CARD_PAD,
+              "flex min-h-[240px] flex-col items-center justify-center gap-3 text-center"
+            )}
+          >
+            <CalendarClock
+              className="size-5 text-[var(--text-muted)]"
+              aria-hidden
+            />
+            <p
+              className="max-w-[36ch] text-[var(--text-secondary)]"
+              style={{ font: "var(--type-row-value)" }}
+            >
               Scheduling lands with the settings build — staff editing is
               planned here.
             </p>
@@ -1065,7 +1113,7 @@ export default function MentorRecordPage({
             boundary would fail 3:1; the tint carries the semantics) and
             adopts the 16px surface radius. No shadow. */}
         {openRequestCount > 0 && (
-          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] bg-orange-50 px-[var(--surface-pad-x)] py-3 lg:ml-[72px]">
+          <div className="mt-5 flex max-w-[900px] flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-orange-50 px-[var(--surface-pad-x)] py-3 lg:ml-[72px]">
             <p className="text-[13px] leading-[18px] text-orange-900">
               {openRequestCount} change
               {openRequestCount === 1 ? "" : "s"} requested — waiting on the
@@ -1108,7 +1156,10 @@ export default function MentorRecordPage({
           ))}
         </nav>
 
-        <div className="mt-6 grid items-start gap-8 lg:ml-[72px] lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+        {/* Content column caps at 900px (rail excluded) and stays anchored
+            to the shared axis — cards stop stretching on wide viewports
+            (Prompt 4 composition). Rail fixed at 300px. */}
+        <div className="mt-6 grid items-start gap-8 lg:ml-[72px] lg:grid-cols-[minmax(0,900px)_300px]">
           {/* LEFT — the active tab's content: sections MOVED, not restyled
               (Phase 1 content mapping); gating unchanged via resolveMode
               inside each renderer. */}
@@ -1239,18 +1290,19 @@ export default function MentorRecordPage({
                         mentee slots filled · {slots.dailyNew} new teen
                         {slots.dailyNew === 1 ? "" : "s"} per day
                       </p>
-                      {/* Quiet progress: positive fill (4.55:1 vs the
-                          canvas-tone track), decorative — the numbers above
-                          carry the meaning. */}
+                      {/* Whispering progress (Prompt 4): 4px, fill knocked
+                          to 70% toward the track — decorative; the numbers
+                          above carry the meaning. */}
                       <div
                         aria-hidden
-                        className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-s1)]"
+                        className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--surface-s1)]"
                       >
                         <div
                           className="h-full rounded-full"
                           style={{
                             width: `${Math.min(100, Math.round((MENTEE_COUNT / Math.max(1, slots.total)) * 100))}%`,
-                            backgroundColor: "#3a7d44",
+                            backgroundColor:
+                              "color-mix(in oklab, #3a7d44 70%, var(--surface-s1))",
                           }}
                         />
                       </div>
@@ -1355,13 +1407,28 @@ export default function MentorRecordPage({
             )}
           </div>
 
-          {/* RIGHT — utility rail (Phase 1): Preview / Notes / Activity.
-              The default segment is contextual per tab (railDefaultFor),
-              always user-switchable. The preview stays passive and prop-fed
-              (invariant 1); post-publish changesets keep the Live|Proposed
-              toggle. Stacks below the content under lg so nothing is lost
-              on small screens. */}
-          <aside aria-label="Record rail" className="min-w-0 lg:sticky lg:top-6">
+          {/* RIGHT — utility rail (Phase 1; refined Prompt 4): Preview /
+              Notes / Activity. The default segment is contextual per tab
+              (railDefaultFor), always user-switchable. The preview stays
+              passive and prop-fed (invariant 1). Stacks below the content
+              under lg. The segmented control's top edge aligns with the
+              first content card's top edge exactly (per-tab offset — tabs
+              with canvas headings push their first card down). */}
+          <aside
+            aria-label="Record rail"
+            className="min-w-0 lg:sticky lg:top-6 lg:mt-[var(--rail-offset)]"
+            style={
+              {
+                "--rail-offset": `${
+                  activeTab === "overview"
+                    ? 0
+                    : activeTab === "schedule" || activeTab === "mentorship"
+                      ? 36
+                      : 56
+                }px`,
+              } as React.CSSProperties
+            }
+          >
             <div
               role="group"
               aria-label="Rail view"
@@ -1374,7 +1441,7 @@ export default function MentorRecordPage({
                   aria-pressed={railSegment === seg.id}
                   onClick={() => setRailChoice(seg.id)}
                   className={cn(
-                    "min-h-7 rounded-full px-3 text-[11px] font-medium leading-none transition-colors",
+                    "min-h-7 rounded-full px-3 text-[11px] font-medium leading-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
                     railSegment === seg.id
                       ? "bg-foreground text-background"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -1400,7 +1467,7 @@ export default function MentorRecordPage({
                         aria-pressed={previewSide === side}
                         onClick={() => setPreviewSide(side)}
                         className={cn(
-                          "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors",
+                          "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
                           previewSide === side
                             ? "bg-foreground text-background"
                             : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -1411,44 +1478,54 @@ export default function MentorRecordPage({
                     ))}
                   </div>
                 )}
-                {/* The 360px phone frame scaled into the rail; the inner box
-                    is absolutely positioned so its untransformed width can't
-                    widen the page (gaps.md #76). */}
-                <div className="relative h-[535px] w-full">
-                  <div className="absolute left-1/2 top-0 w-[360px] origin-top -translate-x-1/2 scale-[0.72]">
-                    <div className="relative">
-                      <PhonePreviewShell label="Live preview — what teens see on the match card">
-                        <MentorProfilePreview draft={previewDraft} />
-                      </PhonePreviewShell>
-                      {profileHidden && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
-                          {/* No shadow, no border — the card tone on the
-                              blurred veil separates the chip on its own. */}
-                          <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">
-                            <EyeOff className="size-4" aria-hidden />
-                            Hidden from teens
-                          </span>
-                        </div>
-                      )}
+                {/* Defined mount (Prompt 4): card tone + contour, 16px
+                    padding around the phone, caption 8px below — the phone
+                    no longer floats against the canvas. The 360px frame
+                    scales inside an absolutely-positioned box so its
+                    untransformed width can't widen the page (gaps.md #76). */}
+                <div className="w-full rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                  <div className="relative h-[548px] w-full overflow-hidden">
+                    <div className="absolute left-1/2 top-0 w-[360px] origin-top -translate-x-1/2 scale-[0.74]">
+                      <div className="relative">
+                        <PhonePreviewShell label="Live preview — what teens see on the match card">
+                          <MentorProfilePreview draft={previewDraft} />
+                        </PhonePreviewShell>
+                        {profileHidden && (
+                          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
+                            {/* No shadow, no border — the card tone on the
+                                blurred veil separates the chip on its own. */}
+                            <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">
+                              <EyeOff className="size-4" aria-hidden />
+                              Hidden from teens
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <p
+                    className="mt-2 text-center text-[var(--text-muted)]"
+                    style={{ font: "var(--type-helper)" }}
+                  >
+                    {profileHidden
+                      ? "Unpublished — teens can't see this profile right now"
+                      : postLane && previewSide === "proposed"
+                        ? "What teens will see after approval"
+                        : "What teens see right now"}
+                  </p>
                 </div>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {profileHidden
-                    ? "Unpublished — teens can't see this profile right now"
-                    : postLane && previewSide === "proposed"
-                      ? "What teens will see after approval"
-                      : "What teens see right now"}
-                </p>
               </div>
             )}
 
             {railSegment === "notes" && notesVisible && (
-              <div className={cn("mt-3 space-y-3", CARD_PAD)}>
+              <div className={cn("mt-3 space-y-3", RAIL_PANEL)}>
                 {/* The channel divider — persistent, not dismissible:
                     confusing internal notes with change requests must be
                     hard. Moved intact from the notes section (Phase 1). */}
-                <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+                <p
+                  className="text-[var(--text-muted)]"
+                  style={{ font: "var(--type-helper)", lineHeight: 1.5 }}
+                >
                   Internal — visible to supervisors and admins only. Mentors
                   never see notes; use change requests for anything the mentor
                   should read.
@@ -1489,7 +1566,11 @@ export default function MentorRecordPage({
                   </div>
                 </div>
                 {internalNotes.length === 0 ? (
-                  <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                  // Caption style, 12px under the composer block (Prompt 4).
+                  <p
+                    className="text-[var(--text-muted)]"
+                    style={{ font: "var(--type-helper)", lineHeight: 1.5 }}
+                  >
                     No notes yet. Anything written here stays internal.
                   </p>
                 ) : (
@@ -1516,7 +1597,7 @@ export default function MentorRecordPage({
             )}
 
             {railSegment === "activity" && (
-              <div className={cn("mt-3", CARD_PAD)}>
+              <div className={cn("mt-3", RAIL_PANEL)}>
                 {activity.length === 0 ? (
                   <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
                     Nothing yet — entries appear as this record changes.
