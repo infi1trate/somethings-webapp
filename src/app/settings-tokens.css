@@ -37,13 +37,17 @@
   --radius-nav-item: 12px; /* nav item container */
   --radius-nav-tile: 8px; /* 48px icon tile */
 
-  /* Record grouped-surface system (record surface pass, Phase 0 audit
-     approved): card sits ONE step lighter than the s1 canvas — the boundary
-     is surface contrast (1.10:1), not a border. 16px surface radius; 20px
-     internal padding (spec 20–24; --card-pad 17 was below the band). */
+  /* Record grouped-surface system (record surface pass; padding split +
+     contour added in the visual-quality pass, Prompt 1): card sits ONE step
+     lighter than the s1 canvas — the boundary is surface contrast (1.10:1),
+     not a border. The contour is DEFINITION, not division: darkest neutral
+     at 8% over the card tone (target band 6–10%), decorative and exempt
+     from the 3:1 non-text rule — if it reads as a line, it's too strong. */
   --surface-card: #ffffff;
   --radius-surface: 16px;
-  --surface-pad: 20px;
+  --surface-pad-x: 24px;
+  --surface-pad-y: 20px;
+  --border-contour: rgb(31 30 29 / 8%);
 
   /* Semantic interims — NOT in spec §2; logged in design-system-gaps.md */
   --state-dirty: #b45309; /* unsaved-changes indicator — 4.57:1 on s1 */
@@ -55,12 +59,20 @@
   /* Families come from next/font in layout.tsx (real brand files verified in
      src/app/fonts/): --font-avantt (Bold only) · --font-lausanne (400 only —
      500/700 render as synthetic bold; gaps.md #12). */
-  /* PROPOSED (record Phase 1 — gaps.md #74): display stop above title-lg
-     for the Mentor Record identity header (spec: 26–28px, medium weight,
-     slight negative tracking). Avantt ships Bold only (gaps.md #12), so
-     "medium" is unavailable — 700 until a Medium cut lands. */
-  --type-display: 700 28px/34px var(--font-avantt);
-  --type-display-tracking: -0.28px;
+  /* ── Record type roles (visual-quality pass, Prompt 1) ─────────────────
+     The Mentor Record's page voice. Spec weights say "medium" for display
+     and card titles; Avantt ships Bold only and Lausanne 400 only (gaps.md
+     #12), so display/card-title run Avantt 700 and small "medium" text is
+     synthetic 500 — blocked on font cuts, not on tokens (gaps.md #87).
+     Numeric values use Tailwind's `tabular-nums` — both fonts carry real
+     tnum tables (measured: proportional digit deltas collapse to 0). */
+  --type-display: 700 26px/30px var(--font-avantt); /* person name; 1.15 lh */
+  --type-display-tracking: -0.3px;
+  --type-card-title: 700 16px/21px var(--font-avantt); /* card headers; 1.3 lh */
+  --type-row-value: 400 15px/22.5px var(--font-lausanne); /* the body voice */
+  --type-row-label: 400 13px/18px var(--font-lausanne); /* + text-secondary */
+  --type-helper: 400 12.5px/18px var(--font-lausanne); /* + text-muted */
+  --type-meta: var(--type-row-label); /* header meta line; + text-secondary */
   --type-title-lg: 700 24px/32px var(--font-avantt); /* page headings */
   --type-title-sm: 700 16px/24px var(--font-avantt); /* section-card titles */
   --type-button: 700 16px/1.1 var(--font-avantt);

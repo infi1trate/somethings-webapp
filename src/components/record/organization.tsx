@@ -156,10 +156,12 @@ export function OrganizationCard({ mode }: { mode: "edit" | "read" }) {
       <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
         Organization
       </h2>
-      {/* Soft surface card (surface pass): containment at the group level,
-          7 rows → inset separators (they start/end inside the card padding
-          by construction; --icon-tertiary measures 3.80:1 on the card). */}
-      <div className="mt-3 divide-y divide-[color:var(--icon-tertiary)] rounded-[var(--radius-surface)] bg-[var(--surface-card)] px-[var(--surface-pad)] py-2">
+      {/* Soft surface card: containment at the group level, 7 rows → inset
+          separators (top borders after the first row, square ends, lightest
+          token — Prompt 2's one rule). Contour is definition, not division. */}
+      {/* Top borders after the first row (never bottom — Tailwind v4's
+          divide-y compiles to bottom borders, so the variant is explicit). */}
+      <div className="mt-3 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 [&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]">
         {/* TODO(product): "Lead mentor" as a Role value — confirm it is a
             real, distinct role and how promotion is assigned (gaps.md #64).
             The record's subject is the store-backed mentor. */}

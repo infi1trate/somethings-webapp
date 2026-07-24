@@ -40,7 +40,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
-  CornerUpRight,
   EyeOff,
   MapPin,
   MoreHorizontal,
@@ -51,11 +50,7 @@ import {
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
-import {
-  displayOrEmpty,
-  RecordRow,
-  ROW_LINK,
-} from "@/components/record/row";
+import { displayOrEmpty, RecordRow } from "@/components/record/row";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   ChangesRequestedChip,
@@ -155,49 +150,62 @@ function changesetChip(update: ProfileUpdate | null, fieldId: string) {
   );
 }
 
-/** Soft surface cards (surface pass) — the grouped-list containment:
- *  card tone one step lighter than the s1 canvas, 16px radius, NO border,
- *  NO shadow. The boundary is surface contrast (1.10:1 — exempt from the
- *  3:1 non-text rule by design; spacing does the structural work).
- *  CARD_ROWS hosts row runs (rows carry their own 12px vertical rhythm, so
- *  py-2 lands the effective padding at 20px); CARD_PAD is for prose and
- *  mosaic content. */
+/** Soft surface cards — the grouped-list containment: card tone one step
+ *  lighter than the s1 canvas, 16px radius, 24px horizontal / 20px vertical
+ *  internal padding, NO shadow. The boundary is surface contrast (1.10:1);
+ *  the contour border is DEFINITION, not division — darkest neutral at 8%,
+ *  decorative (visual-quality pass, Prompt 1). CARD_ROWS composes with the
+ *  rows' own 14px rhythm (py-1.5 + 14 = 20 effective); CARD_PAD is for
+ *  prose and mosaic content. */
 const CARD_ROWS =
-  "rounded-[var(--radius-surface)] bg-[var(--surface-card)] px-[var(--surface-pad)] py-2";
+  "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5";
 const CARD_PAD =
-  "rounded-[var(--radius-surface)] bg-[var(--surface-card)] p-[var(--surface-pad)]";
+  "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-[var(--surface-pad-y)]";
 
-/** Inset separators — ONLY inside cards with 5+ rows (fewer rows lean on
- *  padding alone). They start after the card's left padding by construction.
- *  --icon-tertiary measures 3.80:1 on the card tone; the lightest border
- *  token (--border-subtle) measures 1.36 and fails the 3:1 rule retained
- *  boundaries are held to (gaps.md #79). Zero full-bleed rules remain. */
-const INSET_DIVIDERS = "divide-y divide-[color:var(--icon-tertiary)]";
+/** Inset separators — ONLY inside cards with 5+ rows (fewer lean on the
+ *  14px row rhythm alone). One rule: top borders on rows after the first
+ *  (never bottom, never after the last, never full-bleed), inset by the
+ *  card padding, square ends (the row box carries no radius — the hover
+ *  highlight is a pseudo-layer), lightest border token. Decorative:
+ *  redundant with spacing (supersedes the earlier ≥3:1 divider stance —
+ *  visual-quality pass, Prompt 2). */
+// NOT divide-y: Tailwind v4's divide-y compiles to BOTTOM borders on all
+// but the last child — the spec's one rule is TOP borders on rows after
+// the first, never bottom.
+const INSET_DIVIDERS =
+  "[&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]";
+
+/** Middle-ellipsis for raw URLs — a URL must never wrap across three lines
+ *  of a care product's record page; the full value rides on title and in
+ *  the field's detail surface where one exists. */
+const midTruncate = (s: string, max = 44) =>
+  s.length <= max ? s : `${s.slice(0, 26)}…${s.slice(-15)}`;
 
 /** Inert reference links (relationships) — link-styled, destinations don't
  *  exist in this prototype (record-05). */
 const INERT_LINK =
   "text-[15px] leading-[20px] text-[var(--text-primary)] underline decoration-[var(--border-subtle)] underline-offset-2";
 
-/** Read-only record row: label + value, optional review chip and a
- *  Phase 3 affordance node on the right. */
+/** Read-only record row: label + value + optional review chip. Pressable
+ *  (Variant A) only when onPress is provided — review-mediated rows get the
+ *  console deep link when a lane serves them, Variant B otherwise. */
 function ReadRow({
   label,
   value,
   chip,
-  action,
+  onPress,
 }: {
   label: string;
   value: React.ReactNode;
   chip?: React.ReactNode;
-  action?: React.ReactNode;
+  onPress?: () => void;
 }) {
   return (
     <RecordRow
       label={label}
       value={displayOrEmpty(value)}
       chip={chip}
-      secondaryAction={action}
+      onPress={onPress}
       state="read"
       locked
       onEditStart={() => {}}
@@ -465,36 +473,15 @@ export default function MentorRecordPage({
     return null;
   };
 
-  // Phase 3: review-mediated fields ALWAYS show the same affordance (same
-  // field → same affordance everywhere); role gating hides it for non-review
-  // viewers at the call site. When no lane can serve the field the link is a
-  // clearly-marked stub — staff-initiated change requests don't exist in
-  // this prototype (the composers only serve open submissions, record-03).
-  // TODO(record-p3): replace the stub with a real staff-initiated
-  // change-request flow when one exists (gaps.md #81).
-  const proposeAction = (section: ProfileSection): React.ReactNode => {
-    if (!reviewMode) return undefined; // role-gated: affordance hides only
+  // Review-mediated rows: the WHOLE ROW is the affordance (Prompt 2). Press
+  // opens whichever existing console serves the field. When no lane can
+  // serve it — quiet published state — the row is Variant B: not pressable,
+  // no chevron (this replaces the old stub-toast link; staff-initiated
+  // change requests still don't exist — gaps.md #81, updated #89).
+  const reviewPress = (section: ProfileSection): (() => void) | undefined => {
+    if (!reviewMode) return undefined; // role-gated: Variant B for this viewer
     const href = requestChangeHref(section);
-    if (href) {
-      return (
-        <Link href={href} className={ROW_LINK}>
-          <CornerUpRight className="size-3.5" aria-hidden />
-          Request change
-        </Link>
-      );
-    }
-    return (
-      <button
-        type="button"
-        className={ROW_LINK}
-        onClick={() =>
-          toast("Staff-started change requests aren't built yet.")
-        }
-      >
-        <CornerUpRight className="size-3.5" aria-hidden />
-        Request change
-      </button>
-    );
+    return href ? () => router.push(href) : undefined;
   };
 
   // ── Right rail (Phase 1) ─────────────────────────────────────────────
@@ -560,37 +547,59 @@ export default function MentorRecordPage({
           slot={slot}
           helper="Everything teens see — edits route through review"
         >
-          <div className="space-y-5">
-            <div>
-              <p className="mb-2 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+          {/* Eyebrows are gone as a class (Prompt 1) — cards carry their own
+              headers (card-title token, no divider under them; the divide
+              scope wraps only the rows). Card gap 16px. */}
+          <div className="space-y-4">
+            <div className={CARD_ROWS}>
+              <h3
+                className="pb-1.5 pt-3.5 text-[var(--text-primary)]"
+                style={{ font: "var(--type-card-title)" }}
+              >
                 Match card
-              </p>
-              {/* 8 rows → surface card WITH inset separators. */}
-              <div className={cn(CARD_ROWS, INSET_DIVIDERS)}>
-                {matchCard.map((s) => (
-                  <ReadRow
-                    key={s.step}
-                    label={s.label}
-                    value={s.summary(live)}
-                    chip={changesetChip(profileUpdate, s.fieldKey)}
-                    action={proposeAction(s)}
-                  />
-                ))}
+              </h3>
+              {/* 8 rows → inset separators. */}
+              <div className={INSET_DIVIDERS}>
+                {matchCard.map((s) => {
+                  const raw = s.summary(live);
+                  // Raw URLs never wrap — middle-ellipsis, full value on
+                  // title (and in the console when a lane serves the field).
+                  const value =
+                    s.fieldKey === "spotifyUrl" &&
+                    typeof raw === "string" &&
+                    raw !== "—" ? (
+                      <span title={raw}>{midTruncate(raw)}</span>
+                    ) : (
+                      raw
+                    );
+                  return (
+                    <ReadRow
+                      key={s.step}
+                      label={s.label}
+                      value={value}
+                      chip={changesetChip(profileUpdate, s.fieldKey)}
+                      onPress={reviewPress(s)}
+                    />
+                  );
+                })}
               </div>
             </div>
-            <div>
-              <p className="mb-2 text-[12px] font-medium uppercase leading-[16px] tracking-[0.3px] text-[var(--text-secondary)]">
+            <div className={CARD_ROWS}>
+              <h3
+                className="pb-1.5 pt-3.5 text-[var(--text-primary)]"
+                style={{ font: "var(--type-card-title)" }}
+              >
                 Chat
-              </p>
-              {/* 2 rows → padding carries the rhythm, no separators. */}
-              <div className={CARD_ROWS}>
+              </h3>
+              {/* 2 rows → no separators. */}
+              <div>
                 {chat.map((s) => (
                   <ReadRow
                     key={s.step}
                     label={s.label}
                     value={s.summary(live)}
                     chip={changesetChip(profileUpdate, s.fieldKey)}
-                    action={proposeAction(s)}
+                    onPress={reviewPress(s)}
                   />
                 ))}
               </div>
@@ -615,7 +624,7 @@ export default function MentorRecordPage({
                 label={s.label}
                 value={s.summary(live)}
                 chip={changesetChip(profileUpdate, s.fieldKey)}
-                action={proposeAction(s)}
+                onPress={reviewPress(s)}
               />
             ))}
           </div>
@@ -1061,7 +1070,7 @@ export default function MentorRecordPage({
             boundary would fail 3:1; the tint carries the semantics) and
             adopts the 16px surface radius. No shadow. */}
         {openRequestCount > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] bg-orange-50 px-[var(--surface-pad)] py-3">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] bg-orange-50 px-[var(--surface-pad-x)] py-3">
             <p className="text-[13px] leading-[18px] text-orange-900">
               {openRequestCount} change
               {openRequestCount === 1 ? "" : "s"} requested — waiting on the
