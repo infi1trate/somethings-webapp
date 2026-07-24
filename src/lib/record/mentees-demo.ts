@@ -8,10 +8,10 @@
 // when they land. Each consuming card should read through a data-availability
 // check so it disappears cleanly if the source is null.
 //
-// Vocabulary law (non-negotiable): "mentees" never "caseload"; escalations
-// name the observable cause ("No reply in 5 days") never a predicted
-// departure; events describe that an exchange happened, never its content;
-// numbers describe how mentoring is going, never grade the person.
+// Vocabulary law (non-negotiable): always "mentees" for the people;
+// escalations name the observable cause ("No reply in 5 days"), never a
+// predicted departure; events describe that an exchange happened, never its
+// content; numbers describe how mentoring is going, never grade the person.
 
 const MIN = 60_000;
 const DAY = 86_400_000;

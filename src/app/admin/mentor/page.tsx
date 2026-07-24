@@ -37,12 +37,12 @@ import {
   AlertCircle,
   ArrowLeft,
   CalendarClock,
-  CheckCircle2,
   Clock3,
   EyeOff,
   Info,
   MessagesSquare,
   MoreHorizontal,
+  Sparkles,
   Video,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -113,10 +113,11 @@ import {
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
 import {
-  BUILT_RECORD_TABS,
   FOCUS_TO_TAB,
   railDefaultFor,
+  recordTabsForRole,
 } from "@/lib/record/tabs";
+import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
 import type { ActivityItem, MentorDraft, ProfileUpdate } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -290,10 +291,13 @@ export default function MentorRecordPage({
   // The active tab lives in the URL (?tab=, mirroring settings) so record
   // views are shareable. ?focus= deep links (roster CTA, shell avatars) map
   // to tabs via FOCUS_TO_TAB. Derived from the query, never state.
+  // Role-gated tab set (Prompt C): Insights shows only for lead-mentor
+  // (+ admin/super-admin, no persona here); everyone else sees the base set.
+  const visibleTabs = recordTabsForRole(roleForPersona(persona));
   const tabParam = typeof query.tab === "string" ? query.tab : null;
   const focusTab = focus ? (FOCUS_TO_TAB[focus] ?? null) : null;
   const activeTab =
-    tabParam && BUILT_RECORD_TABS.some((t) => t.id === tabParam)
+    tabParam && visibleTabs.some((t) => t.id === tabParam)
       ? tabParam
       : (focusTab ?? "overview");
 
@@ -408,14 +412,6 @@ export default function MentorRecordPage({
   const deactivated = accountStatus === "deactivated";
   // Pre-publish "submitted for review" — feeds the overflow's Review entry.
   const submittedForReview = status === "in_review";
-  // Open change requests → the banner under the header (Phase 2). The two
-  // lanes are mutually exclusive by construction.
-  const openRequestCount =
-    preLane && status === "rejected"
-      ? changeRequests.length
-      : (profileUpdate?.fields.filter(
-          (f) => f.fieldStatus === "changes-requested"
-        ).length ?? 0);
   // Destructive account actions are supervisor powers (accountOrg: edit).
   const canActOnAccount = resolveMode("accountOrg", persona) === "edit";
   // Account rows: staff-editable for supervisors, read for leads.
@@ -428,6 +424,96 @@ export default function MentorRecordPage({
   // to supervisor tier; below that (lead) rows degrade to counts + durations.
   const overview = getDemoOverview(now);
   const supervisorTier = persona === "supervisor";
+
+  // ── Attention by exception (Prompt C) ─────────────────────────────────
+  // One strip at a time, highest severity wins; the rest surface via "and N
+  // more". Healthy record → no items → no strip (absence of chrome is the
+  // reward state). All copy TODO-COPY. Vocabulary law: escalations name the
+  // observable cause ("No reply in 5 days"), never a predicted departure.
+  type Attention = {
+    id: string;
+    severity: "critical" | "warm" | "warning";
+    line: string;
+    href: string | null;
+    linkLabel: string | null;
+  };
+  const attentionItems: Attention[] = [];
+  // 1. Open escalation on a mentee (critical family).
+  if (publishedSnapshot) {
+    const esc = overview.mentees.filter((m) =>
+      escalationVisible(m.escalation, now)
+    );
+    if (esc.length > 0) {
+      const first = esc[0].escalation!;
+      attentionItems.push({
+        id: "escalation",
+        severity: "critical",
+        line:
+          esc.length === 1
+            ? `1 mentee needs attention · ${first.reason}`
+            : `${esc.length} mentees need attention · ${first.reason}`,
+        href: null,
+        linkLabel: null,
+      });
+    }
+  }
+  // 2. Change request waiting (warm family) — the existing review state, only
+  // when something is genuinely open (never the healthy "live and current").
+  const reviewAttention: Attention | null = preLane
+    ? status === "in_review"
+      ? {
+          id: "review",
+          severity: "warm",
+          line: "Submitted for review — waiting on the team.",
+          href: "/admin/review?from=record",
+          linkLabel: "Open review console",
+        }
+      : {
+          id: "review",
+          severity: "warm",
+          line: `Changes requested — waiting on the mentor (${(() => {
+            const p = changeProgress(changeRequests, draft);
+            return `${p.addressed} of ${p.total} addressed`;
+          })()}).`,
+          href: "/admin/review?from=record",
+          linkLabel: "View in review console",
+        }
+    : postLane && profileUpdate
+      ? {
+          id: "review",
+          severity: "warm",
+          line: `${changesetSummary(profileUpdate)} · ${profileUpdate.fields.length} change${profileUpdate.fields.length === 1 ? "" : "s"} waiting`,
+          href: "/admin/profile-update?from=record",
+          linkLabel: "Open full review",
+        }
+      : null;
+  if (reviewAttention) attentionItems.push(reviewAttention);
+  // 3. Mentor quiet: no activity in 5+ days (warning family) — stated as the
+  // observation, never as risk.
+  if (publishedSnapshot && overview.metrics.lastActiveAt != null) {
+    const days = Math.floor((now - overview.metrics.lastActiveAt) / 86_400_000);
+    if (days >= 5) {
+      attentionItems.push({
+        id: "quiet",
+        severity: "warning",
+        line: `No activity in ${days} days`,
+        href: null,
+        linkLabel: null,
+      });
+    }
+  }
+  // 4. Sustained signal drop (warning) — needs 7-day-below-target time series
+  // that this prototype has no source for, so it never fires. TODO: wire to
+  // IMP-6/MO-8 when the coaching flow lands.
+  const attention = attentionItems[0] ?? null;
+  const attentionMore = Math.max(0, attentionItems.length - 1);
+  // Severity → flat tint families (no shadow/gradient); the word always
+  // travels with the color (WCAG 1.4.1).
+  const ATTENTION_FAMILY: Record<Attention["severity"], string> = {
+    critical: "border-red-300 bg-red-50 text-red-900",
+    warm: "border-orange-300 bg-orange-50 text-orange-900",
+    warning: "border-amber-300 bg-amber-50 text-amber-900",
+  };
   // The record-scoped save (invariant 2): mock latency/failure, then the
   // staff write path — draft/staffPhoto update + staff-attributed activity.
   const staffSave =
@@ -1085,25 +1171,32 @@ export default function MentorRecordPage({
           </header>
         )}
 
-        {/* ── Change-request banner: passive status tint from the
-            review-note family (orange-50 fill, orange-900 13px text). The
-            surface pass drops the border (it measured 1.61:1 — a kept
-            boundary would fail 3:1; the tint carries the semantics) and
-            adopts the 16px surface radius. No shadow. */}
-        {openRequestCount > 0 && (
-          <div className="mt-5 flex max-w-[900px] flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-orange-50 px-[var(--surface-pad-x)] py-3 lg:ml-[72px]">
-            <p className="text-[13px] leading-[18px] text-orange-900">
-              {openRequestCount} change
-              {openRequestCount === 1 ? "" : "s"} requested — waiting on the
-              mentor.
+        {/* ── Attention banner: the top attention item, mirrored into the
+            chrome so it travels across tabs — but only when severity warrants
+            (critical/warm; warning-family items live in the Overview strip
+            only). Passive tint from the item's severity family, 16px radius,
+            no shadow. TODO(Prompt A): fold into the condensing header band. */}
+        {attention &&
+          attention.severity !== "warning" &&
+          activeTab !== "overview" && (
+          <div
+            className={cn(
+              "mt-5 flex max-w-[900px] flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] border px-[var(--surface-pad-x)] py-3 lg:ml-[72px]",
+              ATTENTION_FAMILY[attention.severity]
+            )}
+          >
+            <p className="min-w-0 flex-1 text-[13px] leading-[18px]">
+              {attention.line}
             </p>
-            <button
-              type="button"
-              onClick={() => switchTab("overview")}
-              className="-my-2.5 inline-flex min-h-11 items-center rounded-sm text-[13px] font-medium leading-[18px] text-orange-900 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-            >
-              Review
-            </button>
+            {reviewMode && attention.href && (
+              <button
+                type="button"
+                onClick={() => switchTab("overview")}
+                className="-my-2.5 inline-flex min-h-11 items-center rounded-sm text-[13px] font-medium leading-[18px] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+              >
+                Review
+              </button>
+            )}
           </div>
         )}
 
@@ -1116,7 +1209,7 @@ export default function MentorRecordPage({
           aria-label="Record sections"
           className="mt-5 flex gap-6 overflow-x-auto lg:ml-[72px]"
         >
-          {BUILT_RECORD_TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -1147,106 +1240,40 @@ export default function MentorRecordPage({
               // pointers only, as a card grid. Collapses to one column
               // below lg (the page's existing container breakpoint).
               <>
-                {/* Row 1 — review-workflow status strip: icon + one line +
-                    the existing console deep link. Success uses the positive
-                    color on the ICON only (gaps.md #65 interim green); the
-                    per-field detail lives in the consoles. */}
-                {resolveMode("reviewWorkflow", persona) !== "hidden" && (
+                {/* Attention by exception (Prompt C): one strip, highest
+                    severity; healthy = no strip (the reward state). The rest
+                    surface via "and N more". Word + tint together (1.4.1). */}
+                {attention && (
                   <section
-                    aria-label="Review workflow"
-                    data-record-section="reviewWorkflow"
+                    aria-label="Attention"
+                    data-record-section="attention"
                     className={cn(
-                      CARD_PAD,
-                      "flex flex-wrap items-center gap-x-3 gap-y-1"
+                      "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] border px-[var(--surface-pad-x)] py-3",
+                      ATTENTION_FAMILY[attention.severity]
                     )}
                   >
-                    {(() => {
-                      const strip = preLane
-                        ? status === "in_review"
-                          ? {
-                              icon: (
-                                <Clock3
-                                  className="size-4 shrink-0 text-[var(--text-secondary)]"
-                                  aria-hidden
-                                />
-                              ),
-                              line: "Submitted for review — waiting on the team.",
-                              href: "/admin/review?from=record",
-                              linkLabel: "Open review console",
-                            }
-                          : {
-                              icon: (
-                                <AlertCircle
-                                  className="size-4 shrink-0 text-orange-700"
-                                  aria-hidden
-                                />
-                              ),
-                              line: `Changes requested — waiting on the mentor (${(() => {
-                                const p = changeProgress(changeRequests, draft);
-                                return `${p.addressed} of ${p.total} addressed`;
-                              })()}).`,
-                              href: "/admin/review?from=record",
-                              linkLabel: "View in review console",
-                            }
-                        : postLane && profileUpdate
-                          ? {
-                              icon:
-                                profileUpdate.status === "changes-requested" ? (
-                                  <AlertCircle
-                                    className="size-4 shrink-0 text-orange-700"
-                                    aria-hidden
-                                  />
-                                ) : (
-                                  <Clock3
-                                    className="size-4 shrink-0 text-[var(--text-secondary)]"
-                                    aria-hidden
-                                  />
-                                ),
-                              line: `${changesetSummary(profileUpdate)} · ${profileUpdate.fields.length} change${profileUpdate.fields.length === 1 ? "" : "s"} · submitted ${relTime(profileUpdate.submittedAt).toLowerCase()}`,
-                              href: "/admin/profile-update?from=record",
-                              linkLabel: "Open full review",
-                            }
-                          : publishedSnapshot
-                            ? {
-                                icon: (
-                                  <CheckCircle2
-                                    className="size-4 shrink-0"
-                                    style={{ color: "#3a7d44" }}
-                                    aria-hidden
-                                  />
-                                ),
-                                line: "No open requests. This profile is live and current.",
-                                href: null,
-                                linkLabel: null,
-                              }
-                            : {
-                                icon: (
-                                  <Clock3
-                                    className="size-4 shrink-0 text-[var(--text-muted)]"
-                                    aria-hidden
-                                  />
-                                ),
-                                line: "Nothing to review yet — this profile hasn't been submitted.",
-                                href: null,
-                                linkLabel: null,
-                              };
-                      return (
-                        <>
-                          {strip.icon}
-                          <p className="min-w-0 flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                            {strip.line}
-                          </p>
-                          {reviewMode && strip.href && (
-                            <Link
-                              href={strip.href}
-                              className={cn(JUMP_LINK, "-my-2.5")}
-                            >
-                              {strip.linkLabel}
-                            </Link>
-                          )}
-                        </>
-                      );
-                    })()}
+                    {attention.severity === "warning" ? (
+                      <Clock3 className="size-4 shrink-0" aria-hidden />
+                    ) : (
+                      <AlertCircle className="size-4 shrink-0" aria-hidden />
+                    )}
+                    <p className="min-w-0 flex-1 text-[14px] leading-[20px]">
+                      {attention.line}
+                      {attentionMore > 0 && (
+                        <span className="opacity-70">
+                          {" "}
+                          · and {attentionMore} more
+                        </span>
+                      )}
+                    </p>
+                    {reviewMode && attention.href && (
+                      <Link
+                        href={attention.href}
+                        className="-my-2.5 inline-flex min-h-11 shrink-0 items-center rounded-sm text-[13px] font-medium underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                      >
+                        {attention.linkLabel}
+                      </Link>
+                    )}
                   </section>
                 )}
 
@@ -1491,6 +1518,31 @@ export default function MentorRecordPage({
                 )}
                 {renderSection("relationships")}
               </>
+            )}
+            {activeTab === "insights" && (
+              // Prompt C — reserved slot for the IMP-6 consolidation; empty
+              // state only (do not build content). Role-gated to lead-mentor
+              // in the tab registry. TODO-COPY.
+              <section
+                aria-label="Insights"
+                data-record-section="insights"
+                className={cn(
+                  CARD_PAD,
+                  "flex min-h-[240px] flex-col items-center justify-center gap-3 text-center"
+                )}
+              >
+                <Sparkles
+                  className="size-5 text-[var(--text-muted)]"
+                  aria-hidden
+                />
+                <p
+                  className="max-w-[42ch] text-[var(--text-secondary)]"
+                  style={{ font: "var(--type-row-value)" }}
+                >
+                  Mentor insights are on the way — trends, signals, and
+                  coaching starters will live here.
+                </p>
+              </section>
             )}
           </div>
 
