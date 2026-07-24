@@ -57,6 +57,10 @@ interface SettingsSidebarProps {
   /** Unread counts by item id (e.g. { activity: 2 }) — red dot badge on the
    *  icon tile, mirroring the Supervisor console's treatment. */
   badges?: Record<string, number>;
+  /** Accessible name for the nav landmark — the styling is identical across
+   *  roles; only the item set and this label change (e.g. supervisor passes
+   *  "Supervisor sections"). */
+  navLabel?: string;
   className?: string;
 }
 
@@ -72,6 +76,7 @@ export function SettingsSidebar({
   avatarSrc = null,
   onAvatarClick,
   badges,
+  navLabel = "Mentor navigation",
   className,
 }: SettingsSidebarProps) {
   const avatarFace = avatarSrc ? (
@@ -122,7 +127,7 @@ export function SettingsSidebar({
       )}
 
       <nav
-        aria-label="Mentor navigation"
+        aria-label={navLabel}
         className="mt-8 flex flex-1 flex-col items-center gap-5"
       >
         {items.map((item) => {

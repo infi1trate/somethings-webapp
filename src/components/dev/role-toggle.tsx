@@ -84,9 +84,13 @@ export function DevRoleToggle() {
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const active = mounted ? persona : null;
-  const isApp =
+  // Both the mentor (/app*) and supervisor (/admin*) shells own the
+  // bottom-left with the same 92px rail — shift the toggle clear of it on
+  // either, so it never overlaps the rail's utility circles.
+  const hasRail =
     typeof window !== "undefined" && mounted
-      ? window.location.pathname.startsWith("/app")
+      ? window.location.pathname.startsWith("/app") ||
+        window.location.pathname.startsWith("/admin")
       : false;
 
   const tab = (isActive: boolean) =>
@@ -98,12 +102,13 @@ export function DevRoleToggle() {
     );
 
   return (
-    // On /app* the §5 sidebar rail (92px) owns the bottom-left corner — shift
-    // right of it so the rail's utility circles stay clear (Phase 7).
+    // On the app/console shells the §5 sidebar rail (92px) owns the
+    // bottom-left corner — shift right of it so the rail's utility circles
+    // stay clear (Phase 7).
     <div
       className={cn(
         "fixed bottom-3 z-50 flex items-center gap-1 rounded-full border border-dashed border-foreground/40 bg-card/95 p-1 pl-2.5 text-xs shadow-md backdrop-blur",
-        isApp ? "left-[104px]" : "left-3"
+        hasRail ? "left-[104px]" : "left-3"
       )}
     >
       <span className="font-mono font-semibold uppercase tracking-wider text-muted-foreground">
