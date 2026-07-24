@@ -14,13 +14,11 @@
 // Mounted from the root layout in ALL environments (incl. the Vercel demo) so
 // reviewers can switch personas — there's no auth gate behind it.
 
+import { RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import type { Persona } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const STORE_KEY = "somethings.mentor-onboarding";
-const STASH_KEY = "somethings.mentor-onboarding.dev-stash";
 
 // Populate the store for a persona without hand-writing persisted JSON:
 // mutate through store actions (shape stays canonical), then hard-navigate so
@@ -28,56 +26,38 @@ const STASH_KEY = "somethings.mentor-onboarding.dev-stash";
 // guards — see the Phase-DEV note in git history).
 function seedPublishedIfNeeded() {
   const s = useOnboardingStore.getState();
+  // A mentor mid-review — submitted ("in_review") or sent back ("rejected") —
+  // has state the review queue depends on. Never overwrite it; only seed a
+  // demo profile when nothing is published AND nothing is awaiting review.
+  // (Without this, switching to Supervisor to review a fresh submission
+  // force-published it and it vanished from /admin/review.)
+  if (s.status === "in_review" || s.status === "rejected") return;
   if (s.publishedSnapshot === null) {
     s.setStatus("published");
     s.capturePublishedSnapshot();
   }
 }
 
-function enterNewMentor() {
-  const s = useOnboardingStore.getState();
-  // Stash the real state ONCE (switching New Mentor → New Mentor must not
-  // overwrite the stash with the empty state).
-  if (s.persona !== "new-mentor" && !localStorage.getItem(STASH_KEY)) {
-    const current = localStorage.getItem(STORE_KEY);
-    if (current) localStorage.setItem(STASH_KEY, current);
-  }
-  s.reset(); // empty draft, no snapshot
-  s.setStatus("published");
-  s.capturePublishedSnapshot(); // published-but-empty → settings open, all empty states
-  s.setPersona("new-mentor");
-  window.location.assign("/app/profile");
-}
-
-function leaveNewMentorIfStashed(target: Persona) {
-  const stashed = localStorage.getItem(STASH_KEY);
-  const current = useOnboardingStore.getState().persona;
-  if (current === "new-mentor" && stashed) {
-    // Restore the real state and stamp the target persona on it directly —
-    // the store rehydrates from this JSON on the hard navigation below.
-    try {
-      const parsed = JSON.parse(stashed) as { state?: { persona?: string } };
-      if (parsed.state) parsed.state.persona = target;
-      localStorage.setItem(STORE_KEY, JSON.stringify(parsed));
-    } catch {
-      localStorage.setItem(STORE_KEY, stashed); // restore as-is, worst case
-    }
-    localStorage.removeItem(STASH_KEY);
-    return true;
-  }
-  return false;
-}
-
-function enterPersona(target: Exclude<Persona, "new-mentor">, dest: string) {
-  if (!leaveNewMentorIfStashed(target)) {
-    seedPublishedIfNeeded();
-    useOnboardingStore.getState().setPersona(target);
-  }
+function enterPersona(target: Persona, dest: string) {
+  seedPublishedIfNeeded();
+  useOnboardingStore.getState().setPersona(target);
   window.location.assign(dest);
 }
 
+// The Mentor pill's hover/focus reset: wipe the store-backed mentor and drop
+// the user at the real invitation flow (WelcomeIntro → onboarding), the way a
+// genuinely new mentor arrives. reset() nulls publishedSnapshot and sets
+// status "invited", so the wizard's everPublished→/app and isReturning
+// bounces don't fire. persona "new-mentor" is the correct lens for a
+// freshly-invited mentor (drives the "joined ~5 days ago" cosmetic).
+function resetToNewMentor() {
+  const s = useOnboardingStore.getState();
+  s.reset();
+  s.setPersona("new-mentor");
+  window.location.assign("/invite/demo-invite-token");
+}
+
 const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
-  { key: "new-mentor", label: "New Mentor", go: enterNewMentor },
   { key: "mentor", label: "Mentor", go: () => enterPersona("mentor", "/app/profile") },
   {
     key: "lead-mentor",
@@ -122,16 +102,55 @@ export function DevRoleToggle() {
       <span className="font-mono font-semibold uppercase tracking-wider text-muted-foreground">
         Dev
       </span>
-      {PERSONAS.map((p) => (
-        <button
-          key={p.key}
-          type="button"
-          onClick={p.go}
-          className={tab(active === p.key)}
-        >
-          {p.label}
-        </button>
-      ))}
+      {PERSONAS.map((p) => {
+        // The Mentor pill owns the new-mentor lens (its reset creates one), so
+        // it stays lit while a freshly-reset mentor is onboarding.
+        const isActive =
+          active === p.key ||
+          (p.key === "mentor" && active === "new-mentor");
+        if (p.key !== "mentor") {
+          return (
+            <button
+              key={p.key}
+              type="button"
+              onClick={p.go}
+              className={tab(isActive)}
+            >
+              {p.label}
+            </button>
+          );
+        }
+        // Mentor pill + a reset control revealed on hover/focus — wipes the
+        // mentor and restarts the real invite flow (keyboard-reachable via
+        // focus-within; no layout shift for the other tabs).
+        return (
+          <span key={p.key} className="group relative flex items-center">
+            <button
+              type="button"
+              onClick={p.go}
+              className={cn(tab(isActive), "pr-6")}
+            >
+              {p.label}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                resetToNewMentor();
+              }}
+              aria-label="Reset as a new mentor and restart onboarding"
+              title="Reset as a new mentor and restart onboarding"
+              className={cn(
+                "absolute right-1 flex size-5 items-center justify-center rounded-full opacity-0 outline-none transition-opacity",
+                "hover:bg-black/10 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100",
+                isActive ? "text-background" : "text-foreground"
+              )}
+            >
+              <RotateCcw className="size-3" aria-hidden />
+            </button>
+          </span>
+        );
+      })}
     </div>
   );
 }
