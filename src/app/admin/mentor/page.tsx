@@ -36,16 +36,11 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
-  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Clock3,
   EyeOff,
-  MapPin,
   MoreHorizontal,
-  UserRound,
-  UserRoundCheck,
-  Users,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
@@ -94,7 +89,6 @@ import {
 import { RACE_OPTIONS, SEX_OPTIONS } from "@/lib/options";
 import {
   OrganizationCard,
-  JOIN_DATE,
   MEMBERSHIP_GROUPS,
 } from "@/components/record/organization";
 import { toast } from "sonner";
@@ -374,19 +368,19 @@ export default function MentorRecordPage({
     return (
       <AdminShell active="users">
         <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor record">
-          <div className="mt-1 flex items-start gap-4">
-            <div className="size-17 shrink-0 animate-pulse rounded-2xl bg-muted/40" />
-            <div className="flex-1 space-y-2 pt-1.5">
-              <div className="h-8 w-72 animate-pulse rounded-md bg-muted/40" />
-              <div className="h-4 w-96 max-w-full animate-pulse rounded-md bg-muted/40" />
+          <div className="mt-1 flex items-center gap-4">
+            <div className="size-14 shrink-0 animate-pulse rounded-[14px] bg-muted/40" />
+            <div className="flex-1 space-y-2">
+              <div className="h-7 w-72 animate-pulse rounded-md bg-muted/40" />
+              <div className="h-4 w-80 max-w-full animate-pulse rounded-md bg-muted/40" />
             </div>
           </div>
-          <div className="mt-6 flex gap-6 pb-3">
+          <div className="mt-5 flex gap-6 pb-3 lg:ml-[72px]">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-4 w-16 animate-pulse rounded-md bg-muted/40" />
             ))}
           </div>
-          <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="mt-6 grid items-start gap-8 lg:ml-[72px] lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
             <div className="min-w-0 space-y-7">
               {[0, 1, 2].map((i) => (
                 <div key={i}>
@@ -429,11 +423,8 @@ export default function MentorRecordPage({
     (draft.firstName.trim().charAt(0) || "J") +
     (draft.lastName.trim().charAt(0) || "R")
   ).toUpperCase();
-  const goesBy =
-    draft.displayName.trim() &&
-    draft.displayName.trim() !== draft.firstName.trim()
-      ? draft.displayName.trim()
-      : null;
+  // goes-by dropped from the header (Prompt 3) — it lives on Profile ›
+  // Display name.
   const deactivated = accountStatus === "deactivated";
   // Pre-publish "submitted for review" — feeds the overflow's Review entry.
   const submittedForReview = status === "in_review";
@@ -880,31 +871,40 @@ export default function MentorRecordPage({
   return (
     <AdminShell active="users">
       <div ref={containerRef} className="px-6 py-6 lg:px-10">
-        <Link
-          href="/admin/users"
-          className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Users
-        </Link>
+        {/* Back link rides the shared axis (name / tabs / cards — Prompt 3
+            alignment discipline) so the header zone reads as one region. */}
+        <div className="lg:ml-[72px]">
+          <Link
+            href="/admin/users"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            Users
+          </Link>
+        </div>
 
-        {/* ── Identity header (Phase 1): 68px rounded-square avatar,
-            display-scale name, TRUE status only (role is context — it lives
-            in the meta line, not a badge), one icon-prefixed meta line, and
-            ONE filled primary (Message) with everything else in overflow. */}
+        {/* ── Identity header (Prompt 3 lockup): one horizontal unit — 56px
+            avatar in the gutter, two hugging text rows on the shared axis
+            (name x = tab text x = card x), actions centered on the avatar
+            band. Row 1: name + the header's ONLY pill (role badge with a
+            leading 7px status dot — the default state earns a dot,
+            exceptional states earn a word; never color alone, WCAG 1.4.1).
+            Row 2: pronouns · location · capacity, no icons. Join date lives
+            in Mentorship; supervisor lives in Relationships — the header
+            states identity, the record states facts. */}
         {resolveMode("identity", persona) !== "hidden" && (
-          <header className="mt-4 flex flex-wrap items-start gap-4">
+          <header className="mt-3 grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4">
             {live.accountPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={live.accountPhoto}
                 alt=""
-                className="size-17 shrink-0 rounded-2xl object-cover"
+                className="size-14 rounded-[14px] object-cover"
               />
             ) : (
               <span
                 aria-hidden
-                className="flex size-17 shrink-0 items-center justify-center rounded-2xl font-display text-xl font-bold"
+                className="flex size-14 items-center justify-center rounded-[14px] font-display text-lg font-bold"
                 style={{
                   // No brand ramp exists in the tokens (single --brand
                   // stop) — tint + darkest-stop letterform interims via
@@ -918,69 +918,64 @@ export default function MentorRecordPage({
               </span>
             )}
 
-            {/* basis keeps the name column readable — actions wrap below on
-                narrow screens instead of squeezing the h1 to nothing. */}
-            <div className="min-w-0 flex-1 basis-56">
+            <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1
                   className="text-[var(--text-primary)]"
                   style={{
-                    // Proposed display stop (gaps.md #74): the type scale
-                    // tops out at --type-title-lg (24/32), below the header
-                    // spec — token proposed in settings-tokens.css rather
-                    // than hardcoding here.
                     font: "var(--type-display)",
                     letterSpacing: "var(--type-display-tracking)",
                   }}
                 >
                   {mentorName}
                 </h1>
-                {/* Only TRUE status earns badge weight beside the name. */}
+                {/* The header's ONLY pill: role + status. Active = green
+                    dot alone; exceptional states add the word (the model
+                    has no Paused/Suspended yet — matrix grows with it). */}
                 <span
-                  className={cn(
-                    "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  aria-label={`Mentor, ${
                     deactivated
-                      ? "bg-muted text-[var(--text-secondary)]"
+                      ? "deactivated"
                       : profileHidden
-                        ? "border border-orange-300 text-orange-700"
-                        : "bg-foreground text-background"
-                  )}
+                        ? "unpublished"
+                        : "active"
+                  }`}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black/[0.06] px-2.5 py-1 text-xs font-medium text-[var(--text-primary)]"
                 >
+                  <span
+                    aria-hidden
+                    className="size-[7px] shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: deactivated
+                        ? "var(--state-error)"
+                        : profileHidden
+                          ? "#ea580c"
+                          : "#3a7d44",
+                    }}
+                  />
                   {deactivated
-                    ? "Inactive"
+                    ? "Mentor · Deactivated"
                     : profileHidden
-                      ? "Unpublished"
-                      : "Active"}
+                      ? "Mentor · Unpublished"
+                      : "Mentor"}
                 </span>
               </div>
-              {/* Meta line — role + context at 13px, icon-prefixed, one
-                  wrapping line. Groups stand in for location (no location
-                  field exists in the model — killed in the original spec). */}
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                <span className="flex items-center gap-1.5">
-                  <UserRound className="size-3.5 shrink-0" aria-hidden />
-                  Mentor
-                  {goesBy && <> · goes by &ldquo;{goesBy}&rdquo;</>}
-                  {live.pronouns.length > 0 && (
-                    <> · {live.pronouns.join(" · ")}</>
-                  )}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="size-3.5 shrink-0" aria-hidden />
-                  {MEMBERSHIP_GROUPS.join(", ")}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays className="size-3.5 shrink-0" aria-hidden />
-                  Joined {JOIN_DATE}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Users className="size-3.5 shrink-0" aria-hidden />
-                  {MENTEE_COUNT} of {slots.total} mentees
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <UserRoundCheck className="size-3.5 shrink-0" aria-hidden />
-                  Supervised by Stephen Rowe
-                </span>
+              {/* Meta: pronouns · location · capacity — middots, no icons.
+                  Groups stand in for location (no location field exists). */}
+              <p
+                className="text-[var(--text-secondary)]"
+                style={{
+                  font: "var(--type-meta)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {[
+                  live.pronouns.join(", "),
+                  MEMBERSHIP_GROUPS.join(", "),
+                  `${MENTEE_COUNT} of ${slots.total} mentees`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             </div>
 
@@ -1070,7 +1065,7 @@ export default function MentorRecordPage({
             boundary would fail 3:1; the tint carries the semantics) and
             adopts the 16px surface radius. No shadow. */}
         {openRequestCount > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] bg-orange-50 px-[var(--surface-pad-x)] py-3">
+          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] bg-orange-50 px-[var(--surface-pad-x)] py-3 lg:ml-[72px]">
             <p className="text-[13px] leading-[18px] text-orange-900">
               {openRequestCount} change
               {openRequestCount === 1 ? "" : "s"} requested — waiting on the
@@ -1093,7 +1088,7 @@ export default function MentorRecordPage({
             (registry: lib/record/tabs.ts; unbuilt entries render nothing). */}
         <nav
           aria-label="Record sections"
-          className="mt-6 flex gap-6 overflow-x-auto"
+          className="mt-5 flex gap-6 overflow-x-auto lg:ml-[72px]"
         >
           {BUILT_RECORD_TABS.map((t) => (
             <button
@@ -1113,7 +1108,7 @@ export default function MentorRecordPage({
           ))}
         </nav>
 
-        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="mt-6 grid items-start gap-8 lg:ml-[72px] lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
           {/* LEFT — the active tab's content: sections MOVED, not restyled
               (Phase 1 content mapping); gating unchanged via resolveMode
               inside each renderer. */}
