@@ -84,12 +84,15 @@ export default function MentorProfileSettings({
   //    ?tab=account (and mentor ?tab=permissions, which aliases to account)
   //    redirects there. Lead Mentors have no teen-facing profile at all, so
   //    the whole page redirects them to their account in Settings.
+  //  • settings-03: Schedule moved to Settings › Availability ("Online hours").
   useEffect(() => {
     if (!mounted) return;
     if (rawTab === "permissions" && role !== "mentor") {
       router.replace("/admin/mentor");
     } else if (aliasedTab === "account") {
       router.replace("/app/settings?section=account");
+    } else if (aliasedTab === "schedule") {
+      router.replace("/app/settings?section=availability");
     } else if (role === "lead") {
       router.replace("/app/settings?section=account");
     }
@@ -170,13 +173,6 @@ export default function MentorProfileSettings({
             <div className="mt-6">
               <FirstMomentsEditor />
             </div>
-          </div>
-        )}
-
-        {effectiveTab === "schedule" && (
-          <div className="rounded-2xl border border-dashed bg-card p-10 text-center text-sm text-muted-foreground">
-            Scheduling — block out time off and vacations against your set
-            schedule. Coming in a later milestone.
           </div>
         )}
       </div>

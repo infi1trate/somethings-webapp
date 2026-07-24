@@ -25,7 +25,8 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
   { id: "profile", label: "Profile", roles: ["mentor", "supervisor"], status: "extend" },
   // §3 rev (decision #9): first-chat content gets its own tab.
   { id: "first-moments", label: "First moments", roles: ["mentor", "supervisor"], status: "build" },
-  { id: "schedule", label: "Schedule", roles: ["mentor", "supervisor"], status: "restyle" },
+  // REMOVED — Schedule tab (settings-03): reframed as "Online hours" and moved
+  // to Settings › Availability. The profile page redirects ?tab=schedule there.
   // REMOVED — Account tab (settings-02): identity + phone/email + photo moved
   // to the universal Settings surface (/app/settings?section=account). The
   // profile page redirects ?tab=account there; see LEGACY_TAB_ALIASES.

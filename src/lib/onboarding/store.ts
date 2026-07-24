@@ -33,6 +33,12 @@ function snapshotDraft(draft: MentorDraft): MentorDraft {
   ) as MentorDraft;
 }
 
+/** Notification preferences (settings-03), keyed PER PERSONA (the dev lens's
+ *  four states each keep their own switches) → category id → on/off. Sparse:
+ *  a missing persona or category means "use the category's default" (see
+ *  notifications-config.ts), so no exhaustive backfill is needed. */
+export type NotificationPrefs = Record<string, Record<string, boolean>>;
+
 interface OnboardingState {
   draft: MentorDraft;
   status: ProfileStatus;
@@ -82,6 +88,8 @@ interface OnboardingState {
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
   welcomeAutoShown: boolean;
+  /** Notification switches, per persona → category id (settings-03). */
+  notificationPrefs: NotificationPrefs;
   _hasHydrated: boolean;
 
   update: (patch: Partial<MentorDraft>) => void;
@@ -144,6 +152,12 @@ interface OnboardingState {
   setProfileHidden: (hidden: boolean, actor: string) => void;
   setPersona: (p: Persona) => void;
   setStaffPhoto: (url: string | null) => void;
+  /** Set one notification switch for the given persona (settings-03). */
+  setNotificationPref: (
+    persona: Persona,
+    categoryId: string,
+    enabled: boolean
+  ) => void;
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
@@ -174,6 +188,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       internalNotes: [],
       profileHidden: false,
       enteredHome: false,
+      notificationPrefs: {},
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -456,6 +471,17 @@ export const useOnboardingStore = create<OnboardingState>()(
       markHomeEntered: () => set({ enteredHome: true }),
       setStaffPhoto: (url) => set({ staffPhoto: url }),
 
+      setNotificationPref: (persona, categoryId, enabled) =>
+        set((state) => ({
+          notificationPrefs: {
+            ...state.notificationPrefs,
+            [persona]: {
+              ...(state.notificationPrefs[persona] ?? {}),
+              [categoryId]: enabled,
+            },
+          },
+        })),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -477,6 +503,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           internalNotes: [],
           profileHidden: false,
           enteredHome: false,
+          notificationPrefs: {}, // dev lens keeps switches per persona; reset clears
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -497,7 +524,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // single 'first-moment' entry; draft, snapshot, and change-request
       // fieldKeys remapped). v14: profileUpdate changeset + activity feed;
       // post-publish in_review/rejected retired. Convert state in place.
-      version: 18,
+      // v19: notificationPrefs (settings-03) — sparse per-persona switch map;
+      // backfill {} (defaults live in notifications-config.ts, not the store).
+      version: 19,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -727,6 +756,14 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.enteredHome = st.publishedSnapshot != null;
           }
         }
+        // v19: notification preferences map (settings-03). Sparse — an empty
+        // object means "all categories at their default".
+        if (version < 19) {
+          const st = s as unknown as { notificationPrefs?: unknown };
+          if (typeof st.notificationPrefs !== "object" || st.notificationPrefs === null) {
+            st.notificationPrefs = {};
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -794,6 +831,14 @@ export const useOnboardingStore = create<OnboardingState>()(
         if (typeof (merged as { enteredHome?: unknown }).enteredHome !== "boolean") {
           merged.enteredHome = merged.publishedSnapshot != null;
         }
+        // v19 shape: notificationPrefs is always a plain object.
+        if (
+          typeof (merged as { notificationPrefs?: unknown }).notificationPrefs !==
+            "object" ||
+          merged.notificationPrefs === null
+        ) {
+          merged.notificationPrefs = {};
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -844,6 +889,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         internalNotes: state.internalNotes,
         profileHidden: state.profileHidden,
         enteredHome: state.enteredHome,
+        notificationPrefs: state.notificationPrefs,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

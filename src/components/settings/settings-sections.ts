@@ -64,9 +64,9 @@ export const SETTINGS_SECTIONS: SettingsSectionDef[] = [
   {
     id: "availability",
     label: "Availability",
-    description: "The hours you're around for teens.",
+    description: "Your online hours — when you're around for teens.",
     icon: CalendarClock,
-    status: "live", // placeholder until the schedule editor (settings-03)
+    status: "live", // reframed "Online hours" placeholder until the editor (settings-03)
     roles: ALL,
   },
   {

@@ -25,6 +25,8 @@ import { roleForPersona } from "@/components/settings/tabs-config";
 import { settingsSectionsForRole } from "@/components/settings/settings-sections";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { SecuritySection } from "@/components/settings/security-section";
+import { NotificationsSection } from "@/components/settings/notifications-section";
+import { AvailabilitySection } from "@/components/settings/availability-section";
 import { AccountEditor } from "@/components/profile-editor/account-editor";
 import {
   BeingSetUp,
@@ -88,7 +90,12 @@ export default function SettingsPage({
     if (next) go(next);
   };
 
-  const isFormSection = active.id === "account" || active.id === "security";
+  // Sections that render their own hairline card groups (heading above them,
+  // no outer card — that would double-card).
+  const isFormSection =
+    active.id === "account" ||
+    active.id === "security" ||
+    active.id === "notifications";
 
   return (
     <MentorShell active="settings">
@@ -156,6 +163,8 @@ export default function SettingsPage({
                       initialOpen={openParam}
                       onDirtyChange={setAccountDirty}
                     />
+                  ) : active.id === "notifications" ? (
+                    <NotificationsSection />
                   ) : (
                     <SecuritySection />
                   )}
@@ -181,6 +190,8 @@ export default function SettingsPage({
                 <div className="mt-4">
                   {active.id === "appearance" ? (
                     <AppearanceSection />
+                  ) : active.id === "availability" ? (
+                    <AvailabilitySection />
                   ) : active.status === "coming-soon" ? (
                     <ComingSoonSection />
                   ) : (
