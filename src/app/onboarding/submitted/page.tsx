@@ -45,15 +45,24 @@ export default function SubmittedPage() {
   // lives in Settings, not this first-time screen. Only the published "approved"
   // card still belongs here (the moment of first approval).
   const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
+  const enteredHome = useOnboardingStore((s) => s.enteredHome);
   const postPublishEdit = everPublished && status !== "published";
+  // Once approval is acknowledged (the "Go to Somethings" CTA), this screen is
+  // spent — ApprovedContent shows only for published && !enteredHome.
+  const acknowledgedApproval = status === "published" && enteredHome;
 
   useEffect(() => {
     if (!mounted) return;
-    if (postPublishEdit) router.replace("/app");
+    if (postPublishEdit || acknowledgedApproval) router.replace("/app");
     else if (!POST_SUBMIT.includes(status)) router.replace(HUB_PATH);
-  }, [mounted, status, postPublishEdit, router]);
+  }, [mounted, status, postPublishEdit, acknowledgedApproval, router]);
 
-  if (!mounted || postPublishEdit || !POST_SUBMIT.includes(status)) {
+  if (
+    !mounted ||
+    postPublishEdit ||
+    acknowledgedApproval ||
+    !POST_SUBMIT.includes(status)
+  ) {
     return <div className="min-h-dvh bg-background" />;
   }
 
@@ -324,7 +333,16 @@ function ChangeRow({ req, draft }: { req: ChangeRequest; draft: MentorDraft }) {
 
 // ── Approved (published) ─────────────────────────────────────────────────────
 function ApprovedContent({ draft }: { draft: MentorDraft }) {
+  const router = useRouter();
+  const markHomeEntered = useOnboardingStore((s) => s.markHomeEntered);
   const firstName = draft.firstName?.trim();
+
+  // Acknowledging approval marks the mentor "home" — from here on they land in
+  // the live app, not back on this screen (the dev lens reads the same flag).
+  const goHome = () => {
+    markHomeEntered();
+    router.push("/app");
+  };
 
   return (
     <div>
@@ -336,11 +354,9 @@ function ApprovedContent({ draft }: { draft: MentorDraft }) {
         Your profile passed review and is live. Teens can find you and reach out
         now — welcome to the team.
       </p>
-      <Button asChild size="lg" className="mt-7">
-        <Link href="/app">
-          Go to your mentor home
-          <ArrowRight className="size-4" />
-        </Link>
+      <Button size="lg" className="mt-7" onClick={goHome}>
+        Go to Somethings
+        <ArrowRight className="size-4" />
       </Button>
     </div>
   );

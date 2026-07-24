@@ -73,6 +73,11 @@ interface OnboardingState {
    *  Hidden ≠ deactivated: content and mentorships stay; teens just don't
    *  see the profile until it's republished. */
   profileHidden: boolean;
+  /** True once the mentor has left the "You're approved!" screen via its CTA
+   *  and entered their live home — so the dev persona lens (and the submitted
+   *  page's own guard) can tell "just approved, not yet acknowledged" apart
+   *  from "established, logged in." Reset with the mentor. */
+  enteredHome: boolean;
   /** Session-only UI for the welcome-back modal (not persisted — shows once per
    *  session entry, reopenable from the dock). */
   welcomeOpen: boolean;
@@ -139,6 +144,8 @@ interface OnboardingState {
   setProfileHidden: (hidden: boolean, actor: string) => void;
   setPersona: (p: Persona) => void;
   setStaffPhoto: (url: string | null) => void;
+  /** The "You're approved!" CTA — the mentor has entered their live home. */
+  markHomeEntered: () => void;
   setHasHydrated: () => void;
   reset: () => void;
 }
@@ -166,6 +173,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       staffPhoto: null,
       internalNotes: [],
       profileHidden: false,
+      enteredHome: false,
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -444,6 +452,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         }),
 
       setPersona: (p) => set({ persona: p }),
+
+      markHomeEntered: () => set({ enteredHome: true }),
       setStaffPhoto: (url) => set({ staffPhoto: url }),
 
       setHasHydrated: () => set({ _hasHydrated: true }),
@@ -466,6 +476,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           staffPhoto: null, // persona is a dev lens, not data — reset leaves it
           internalNotes: [],
           profileHidden: false,
+          enteredHome: false,
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -486,7 +497,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // single 'first-moment' entry; draft, snapshot, and change-request
       // fieldKeys remapped). v14: profileUpdate changeset + activity feed;
       // post-publish in_review/rejected retired. Convert state in place.
-      version: 17,
+      version: 18,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -703,6 +714,19 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (!Array.isArray(st.internalNotes)) st.internalNotes = [];
           if (typeof st.profileHidden !== "boolean") st.profileHidden = false;
         }
+        // v18: "entered home" flag for the dev lens / approved-screen gate.
+        // Backfill: an already-published mentor has, by definition, been
+        // through approval — treat them as home so they don't see a spurious
+        // "You're approved!" on the next Mentor switch.
+        if (version < 18) {
+          const st = s as unknown as {
+            enteredHome?: unknown;
+            publishedSnapshot?: unknown;
+          };
+          if (typeof st.enteredHome !== "boolean") {
+            st.enteredHome = st.publishedSnapshot != null;
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -767,6 +791,9 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.persona = "mentor";
         }
         if (typeof merged.staffPhoto === "undefined") merged.staffPhoto = null;
+        if (typeof (merged as { enteredHome?: unknown }).enteredHome !== "boolean") {
+          merged.enteredHome = merged.publishedSnapshot != null;
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -816,6 +843,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         staffPhoto: state.staffPhoto,
         internalNotes: state.internalNotes,
         profileHidden: state.profileHidden,
+        enteredHome: state.enteredHome,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

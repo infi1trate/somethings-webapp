@@ -20,28 +20,35 @@ import { useMounted } from "@/lib/use-mounted";
 import type { Persona } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// Populate the store for a persona without hand-writing persisted JSON:
-// mutate through store actions (shape stays canonical), then hard-navigate so
-// every surface rehydrates cleanly (client pushes race the everPublished
-// guards — see the Phase-DEV note in git history).
-function seedPublishedIfNeeded() {
-  const s = useOnboardingStore.getState();
-  // A mentor mid-review — submitted ("in_review") or sent back ("rejected") —
-  // has state the review queue depends on. Never overwrite it; only seed a
-  // demo profile when nothing is published AND nothing is awaiting review.
-  // (Without this, switching to Supervisor to review a fresh submission
-  // force-published it and it vanished from /admin/review.)
-  if (s.status === "in_review" || s.status === "rejected") return;
-  if (s.publishedSnapshot === null) {
-    s.setStatus("published");
-    s.capturePublishedSnapshot();
-  }
-}
-
+// The toggle is a PURE LENS: switching persona sets who's viewing and
+// hard-navigates (so every surface rehydrates cleanly), and NEVER mutates
+// mentor state — no seeding, no status writes. Fabricating a published
+// profile on switch is exactly what used to clobber a mid-invite or
+// just-submitted mentor.
 function enterPersona(target: Persona, dest: string) {
-  seedPublishedIfNeeded();
   useOnboardingStore.getState().setPersona(target);
   window.location.assign(dest);
+}
+
+// Where the Mentor tab lands, computed from the mentor's CURRENT state so the
+// lens mirrors where they'd actually be — each destination is a screen that
+// self-guards for that state (see the mentor status→screen map).
+function mentorDest(): string {
+  const s = useOnboardingStore.getState();
+  if (s.publishedSnapshot === null) {
+    // Pre-publish: submitted/sent-back wait on the post-submit screen; still
+    // building → the onboarding hub.
+    if (s.status === "in_review" || s.status === "rejected") {
+      return "/onboarding/submitted";
+    }
+    return "/hub";
+  }
+  // Published. An open post-publish edit lives in settings (ChangesBanner /
+  // in-review chips surface there); a just-approved mentor who hasn't hit the
+  // "Go to Somethings" CTA still gets the approved screen; otherwise home.
+  if (s.profileUpdate !== null) return "/app/profile";
+  if (!s.enteredHome) return "/onboarding/submitted";
+  return "/app";
 }
 
 // The Mentor pill's hover/focus reset: wipe the store-backed mentor and drop
@@ -58,7 +65,7 @@ function resetToNewMentor() {
 }
 
 const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
-  { key: "mentor", label: "Mentor", go: () => enterPersona("mentor", "/app/profile") },
+  { key: "mentor", label: "Mentor", go: () => enterPersona("mentor", mentorDest()) },
   {
     key: "lead-mentor",
     label: "Lead Mentor",
