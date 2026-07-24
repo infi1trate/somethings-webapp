@@ -35,7 +35,6 @@ export default function MentorProfileSettings({
   // breaks hard-load hydration here. The prop opts the route into dynamic
   // rendering and re-renders with fresh values on client-side navs.
   const query = use(searchParams);
-  const draft = useOnboardingStore((s) => s.draft);
   const persona = useOnboardingStore((s) => s.persona);
   const everPublished = useOnboardingStore((s) => s.publishedSnapshot !== null);
   // First registry tab (Profile) is the default view. Deep link (?tab=profile
@@ -133,8 +132,6 @@ export default function MentorProfileSettings({
     );
   }
 
-  const name = draft.firstName?.trim();
-
   return (
     <MentorShell active="home">
       <div className="mx-auto w-full max-w-6xl px-6 py-6 lg:px-10">
@@ -148,7 +145,7 @@ export default function MentorProfileSettings({
         {effectiveTab === "profile" && (
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight">
-              {name ? `Editing ${name}'s profile` : "Editing your profile"}
+              Your profile
             </h1>
             <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
               Everything teens see, in one place — your match card and your

@@ -117,7 +117,7 @@ export default function AdminProfileUpdatePage({
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          {fromRecord ? "Back to record" : "Users"}
+          {fromRecord ? "Back to profile" : "Users"}
         </Link>
 
         {!update ? (

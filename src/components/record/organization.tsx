@@ -27,7 +27,7 @@ export const JOIN_DATE = "March 25, 2026";
 // Interim lock explainer (gaps.md #83) — copy minted here, not in any spec.
 const ORG_LOCK = {
   label: "Org-managed",
-  reason: "Set by the organization — not editable on this record.",
+  reason: "Set by the organization — not editable on this profile.",
 };
 
 // Moved from roles-permissions-editor (record-04b) with a read mode added:

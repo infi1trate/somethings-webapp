@@ -116,7 +116,7 @@ export default function AdminReviewPage({
             className="mb-4 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <ArrowLeft className="size-4" />
-            {fromRecord ? "Back to record" : "Back to users"}
+            {fromRecord ? "Back to profile" : "Back to users"}
           </button>
 
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

@@ -351,7 +351,7 @@ export default function MentorRecordPage({
   if (!mounted || mentorish) {
     return (
       <AdminShell active="mentors">
-        <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor record">
+        <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor profile">
           <div className="mt-1 flex items-center gap-4">
             <div className="size-14 shrink-0 animate-pulse rounded-[14px] bg-muted/40" />
             <div className="flex-1 space-y-2">
@@ -1206,7 +1206,7 @@ export default function MentorRecordPage({
             Labels match the mentor-facing settings tabs where they overlap
             (registry: lib/record/tabs.ts; unbuilt entries render nothing). */}
         <nav
-          aria-label="Record sections"
+          aria-label="Profile sections"
           className="mt-5 flex gap-6 overflow-x-auto lg:ml-[72px]"
         >
           {visibleTabs.map((t) => (
@@ -1554,7 +1554,7 @@ export default function MentorRecordPage({
               first content card's top edge exactly (per-tab offset — tabs
               with canvas headings push their first card down). */}
           <aside
-            aria-label="Record rail"
+            aria-label="Profile rail"
             className="min-w-0 lg:sticky lg:top-6 lg:mt-[var(--rail-offset)]"
             style={
               {
@@ -1683,7 +1683,7 @@ export default function MentorRecordPage({
                     id="internal-note"
                     value={noteDraft}
                     onChange={(e) => setNoteDraft(e.target.value)}
-                    placeholder="Context for the next person on this record…"
+                    placeholder="Context for the next person on this profile…"
                     className="border-0 bg-[var(--surface-s1)] shadow-none"
                   />
                   <div className="mt-2">
