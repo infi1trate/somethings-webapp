@@ -26,9 +26,9 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
   // §3 rev (decision #9): first-chat content gets its own tab.
   { id: "first-moments", label: "First moments", roles: ["mentor", "supervisor"], status: "build" },
   { id: "schedule", label: "Schedule", roles: ["mentor", "supervisor"], status: "restyle" },
-  // ex-"profile" — locked personal details + phone/email change flows.
-  // Lead Mentors see ONLY this tab (§ Phase 10).
-  { id: "account", label: "Account", roles: ["mentor", "lead", "supervisor"], status: "build" },
+  // REMOVED — Account tab (settings-02): identity + phone/email + photo moved
+  // to the universal Settings surface (/app/settings?section=account). The
+  // profile page redirects ?tab=account there; see LEGACY_TAB_ALIASES.
   // REMOVED — Mentorships tab (spec §3 rev, decision #8).
   // REMOVED — Roles & permissions tab (record-04b): its sections were record
   // content and now live on /admin/mentor (review hub, Organization,
@@ -38,12 +38,15 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
 
 /** Legacy deep-link ids (?tab=) → current registry ids. "matching" renamed to
  *  "profile" in the Phase 9 IA revision; old "profile" links can't be
- *  disambiguated from new ones and resolve to the new Profile tab. */
+ *  disambiguated from new ones and resolve to the new Profile tab. "account"
+ *  and "permissions" no longer resolve to a tab (settings-02) — the profile
+ *  page redirects them to /app/settings?section=account (staff "permissions"
+ *  still routes to /admin/mentor first). */
 export const LEGACY_TAB_ALIASES: Record<string, string> = {
   matching: "profile",
-  // record-04b: the retired Roles & permissions tab. Mentor personas land on
-  // Account; STAFF personas are redirected to /admin/mentor by the settings
-  // page before this alias applies.
+  // record-04b + settings-02: the retired Roles & permissions tab. Mentors are
+  // redirected to Settings › Account; STAFF are redirected to /admin/mentor by
+  // the profile page before this alias applies.
   permissions: "account",
 };
 

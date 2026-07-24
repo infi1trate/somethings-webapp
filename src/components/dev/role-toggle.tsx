@@ -69,7 +69,8 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
   {
     key: "lead-mentor",
     label: "Lead Mentor",
-    go: () => enterPersona("lead-mentor", "/app/profile?tab=account"),
+    // settings-02: Account lives in the universal Settings surface now.
+    go: () => enterPersona("lead-mentor", "/app/settings?section=account"),
   },
   // Supervisor replaces Admin: same console destination, unchanged review
   // behavior; the settings surface renders all five tabs for this persona.

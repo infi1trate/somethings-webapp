@@ -41,3 +41,33 @@ export function BeingSetUp({ label }: { label: string }) {
     </p>
   );
 }
+
+// A single inert roadmap ROW — a feature named + a quiet "Coming soon" chip,
+// sized to sit inside a hairline-divided card group beside real (live) rows
+// (Security's Change password / Two-step verification / Active sessions).
+// Matches EditRow's read-row anatomy (padding + label/value type) so a
+// coming-soon row and a live row read as one list. No affordance, no chip
+// interactivity — see design-system-gaps.md #100.
+export function ComingSoonRow({
+  label,
+  description,
+}: {
+  label: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex items-center gap-4 px-[var(--card-pad)] py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[15px] leading-[20px] text-[var(--text-primary)]">
+          {label}
+        </div>
+        {description && (
+          <div className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+            {description}
+          </div>
+        )}
+      </div>
+      <ComingSoonChip />
+    </div>
+  );
+}

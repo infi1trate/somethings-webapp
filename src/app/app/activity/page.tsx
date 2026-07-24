@@ -44,7 +44,8 @@ function entryText(item: ActivityItem): string {
 
 // Deep link: the settings tab hosting the first named field.
 function entryHref(item: ActivityItem): string {
-  if (item.type === "staff_account_edit") return "/app/profile?tab=account";
+  // settings-02: Account moved to the universal Settings surface.
+  if (item.type === "staff_account_edit") return "/app/settings?section=account";
   if (item.type === "profile_unpublished" || item.type === "profile_republished")
     return "/app/profile?tab=profile";
   const surface = gatedFieldMeta(item.fieldIds[0])?.surface;

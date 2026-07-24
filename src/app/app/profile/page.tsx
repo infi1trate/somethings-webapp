@@ -11,7 +11,6 @@ import { useRouter } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MatchingProfileEditor } from "@/components/profile-editor/matching-profile-editor";
 import { FirstMomentsEditor } from "@/components/profile-editor/first-moments-editor";
-import { AccountEditor } from "@/components/profile-editor/account-editor";
 import { SettingsTabBar } from "@/components/settings/tab-bar";
 import {
   LEGACY_TAB_ALIASES,
@@ -20,14 +19,6 @@ import {
   type SettingsRole,
 } from "@/components/settings/tabs-config";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
@@ -65,8 +56,6 @@ export default function MentorProfileSettings({
     setPrevQueryTab(queryTab);
     if (queryTab) setTab(queryTab);
   }
-  const [accountDirty, setAccountDirty] = useState(false);
-  const [pendingTab, setPendingTab] = useState<string | null>(null);
 
   // §4 Phase 10: role derives from the dev persona (roleForPersona); the
   // Supervisor console still reaches this page with ?role=supervisor (legacy
@@ -78,42 +67,45 @@ export default function MentorProfileSettings({
     : roleParam === "supervisor" || roleParam === "admin"
       ? "supervisor"
       : roleForPersona(persona);
-  // Clamp the active tab to the role's tab set (a Lead Mentor sees Account
-  // only — a stale "profile" tab state must never render for them).
+  // Clamp the active tab to the role's tab set. Lead Mentors have NO tabs here
+  // now (their account moved to Settings) — they're redirected below; guard
+  // against the empty set so the pre-redirect render can't crash.
   const allowedTabs = tabsForRole(role);
   const effectiveTab = allowedTabs.some((t) => t.id === tab)
     ? tab
-    : allowedTabs[0].id;
+    : (allowedTabs[0]?.id ?? tab); // empty set (Lead) returns early below
   // Deep link: which section/row to open on arrival (sidebar avatar → its
   // persona's photo editor). Editors handle their own ids.
   const openParam = typeof query.open === "string" ? query.open : null;
 
-  // record-04b: the retired Roles & permissions tab — staff deep links now
-  // live on the Mentor Record; mentor links fall through to Account (alias).
+  // Deep-link redirects (evaluated post-mount so role is settled):
+  //  • record-04b: staff "permissions" links live on the Mentor Record.
+  //  • settings-02: Account moved to the universal Settings surface — every
+  //    ?tab=account (and mentor ?tab=permissions, which aliases to account)
+  //    redirects there. Lead Mentors have no teen-facing profile at all, so
+  //    the whole page redirects them to their account in Settings.
   useEffect(() => {
-    if (mounted && rawTab === "permissions" && role !== "mentor") {
+    if (!mounted) return;
+    if (rawTab === "permissions" && role !== "mentor") {
       router.replace("/admin/mentor");
+    } else if (aliasedTab === "account") {
+      router.replace("/app/settings?section=account");
+    } else if (role === "lead") {
+      router.replace("/app/settings?section=account");
     }
-  }, [mounted, rawTab, role, router]);
-
-  // §6 unsaved-changes guard: switching away from a dirty Account tab prompts
-  // inline (never a browser alert). Other tabs keep their own dirty models —
-  // the Profile tab's edits live in the persisted store, so nothing is lost
-  // when leaving it.
-  const requestTab = (next: string) => {
-    if (effectiveTab === "account" && next !== "account" && accountDirty) {
-      setPendingTab(next);
-      return;
-    }
-    setTab(next);
-  };
-  const leaveWithoutSaving = () => {
-    if (pendingTab) setTab(pendingTab);
-    setAccountDirty(false); // the editor unmounts; its local edits are gone
-    setPendingTab(null);
-  };
+  }, [mounted, rawTab, aliasedTab, role, router]);
 
   if (!mounted) {
+    return (
+      <MentorShell active="home">
+        <div className="min-h-dvh" />
+      </MentorShell>
+    );
+  }
+
+  // Roles with no profile tabs (Lead Mentor) are being redirected to Settings
+  // by the effect above — render a quiet shell until the replace lands.
+  if (allowedTabs.length === 0) {
     return (
       <MentorShell active="home">
         <div className="min-h-dvh" />
@@ -146,7 +138,7 @@ export default function MentorProfileSettings({
         <SettingsTabBar
           role={role}
           activeId={effectiveTab}
-          onChange={requestTab}
+          onChange={setTab}
           className="mb-6"
         />
 
@@ -187,50 +179,7 @@ export default function MentorProfileSettings({
             schedule. Coming in a later milestone.
           </div>
         )}
-
-        {effectiveTab === "account" && (
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight">
-              Account
-            </h1>
-            {/* Interim §4 intro copy — revised spec unavailable (gaps.md #53). */}
-            <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Your personal details, plus the phone and email you use for
-              Somethings. Nothing here is shown to teens.
-            </p>
-            <div className="mt-5 max-w-3xl">
-              <AccountEditor
-                role={role}
-                initialOpen={openParam}
-                onDirtyChange={setAccountDirty}
-              />
-            </div>
-          </div>
-        )}
-
       </div>
-
-      {/* Unsaved-changes guard (§6) — inline prompt, not a browser alert. */}
-      <Dialog
-        open={pendingTab !== null}
-        onOpenChange={(open) => !open && setPendingTab(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Leave without saving?</DialogTitle>
-            <DialogDescription>
-              You have unsaved changes on your Account. They&apos;ll be lost if
-              you switch tabs now.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" className="min-h-11" onClick={() => setPendingTab(null)}>
-              Stay
-            </Button>
-            <Button className="min-h-11" onClick={leaveWithoutSaving}>Leave without saving</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </MentorShell>
   );
 }

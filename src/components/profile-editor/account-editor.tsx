@@ -12,6 +12,7 @@
 // One row edits at a time; leaving a modified row is guarded.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { EditRow } from "@/components/settings/edit-row";
 import { PillButton } from "@/components/settings/pill-button";
 import { Button } from "@/components/ui/button";
@@ -108,11 +109,16 @@ function MembershipLine({ role }: { role: SettingsRole }) {
   );
 }
 
-// ── Photo row (§4 Phase 10) — Lead Mentor / Supervisor ONLY ────────────────
-// Thin settings wrapper (record-04a) over the extracted PhotoRowCore: wires
-// the store + direct mock save EXACTLY as before — same states, same dirty
-// reporting ("photo"), same guard behavior. Mentor personas never render it.
-function PhotoRow(props: RowProps & { initial: string }) {
+// ── Photo row — role-aware persistence ─────────────────────────────────────
+// Thin settings wrappers (record-04a) over the extracted PhotoRowCore — same
+// states, same dirty reporting ("photo"), same guard behavior. The persistence
+// seam differs by role:
+//   Staff (lead/supervisor): their own account photo (staffPhoto), saved
+//     DIRECTLY (§4 Phase 10) — internal, never teen-facing.
+//   Mentor (settings-02): the teen-facing account photo (= the chat avatar,
+//     accountPhoto), routed through the POST-PUBLISH gated flow — teens keep
+//     seeing the live/approved photo until a reviewer approves the new one.
+function StaffPhotoRow(props: RowProps & { initial: string }) {
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
   const setStaffPhoto = useOnboardingStore((s) => s.setStaffPhoto);
   return (
@@ -123,6 +129,37 @@ function PhotoRow(props: RowProps & { initial: string }) {
         const res = await saveAccountField("staffPhoto", pending);
         if (!res.ok) return false;
         setStaffPhoto(pending);
+        return true;
+      }}
+      editing={props.editing}
+      onEditStart={props.onEditStart}
+      onClose={props.onClose}
+      reportDirty={props.reportDirty}
+    />
+  );
+}
+
+function MentorPhotoRow(props: RowProps & { initial: string }) {
+  // The row shows the DRAFT value (the proposed photo) — same as the Profile
+  // tab's chat-avatar editor; teens see the enqueued live snapshot until
+  // approval. saveGatedFields enqueues the changeset (reviewWorkflow →
+  // /admin/profile-update); pre-publish it's a plain draft write (no review).
+  const draftPhoto = useOnboardingStore((s) => s.draft.accountPhoto);
+  const saveGatedFields = useOnboardingStore((s) => s.saveGatedFields);
+  return (
+    <PhotoRowCore
+      value={draftPhoto}
+      initial={props.initial}
+      onSave={async (pending) => {
+        const published = useOnboardingStore.getState().publishedSnapshot;
+        saveGatedFields({ accountPhoto: pending });
+        // Post-publish only — the review loop doesn't exist before first
+        // publish (mirrors saveGatedWithToasts' guard).
+        if (published) {
+          toast(
+            "Sent for review — your current photo stays live until it's approved."
+          );
+        }
         return true;
       }}
       editing={props.editing}
@@ -482,9 +519,10 @@ export function AccountEditor({
   const sex = useOnboardingStore((s) => s.draft.sex);
   const races = useOnboardingStore((s) => s.draft.races);
   const sexLabel = SEX_OPTIONS.find((o) => o.value === sex)?.label ?? EMPTY;
-  const hasPhotoRow = role !== "mentor";
-  const validInitial =
-    initialOpen === "photo" && hasPhotoRow ? "photo" : null;
+  // Every persona now has a photo row (settings-02): staff edit theirs
+  // directly; mentors edit the teen-facing account photo through review.
+  const isMentor = role === "mentor";
+  const validInitial = initialOpen === "photo" ? "photo" : null;
   const [editingId, setEditingId] = useState<string | null>(validInitial);
   const [pendingEditId, setPendingEditId] = useState<string | null>(null);
   // Deep-link scroll (sidebar avatar → Photo row) — target set via the
@@ -544,20 +582,25 @@ export function AccountEditor({
   // Email) are fully absent — no parked remnants.
   return (
     <div className="space-y-5">
-      {/* Photo row (§4 Phase 10) — first row of Account, lead/supervisor only:
-          their own photo, distinct from every mentor asset. Standalone card
-          (not inside Personal details — that group is locked + support-line
-          scoped; this row is editable). */}
-      {hasPhotoRow && (
-        <section aria-label="Photo">
-          <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
-            <PhotoRow
+      {/* Photo row — first row of Account. Standalone card (not inside
+          Personal details — that group is locked + support-line scoped; this
+          row is editable). Staff edit their own photo directly; mentors edit
+          the teen-facing account photo through the gated review flow. */}
+      <section aria-label="Photo">
+        <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
+          {isMentor ? (
+            <MentorPhotoRow
               {...rowProps("photo")}
               initial={(firstName?.trim()?.[0] || "S").toUpperCase()}
             />
-          </div>
-        </section>
-      )}
+          ) : (
+            <StaffPhotoRow
+              {...rowProps("photo")}
+              initial={(firstName?.trim()?.[0] || "S").toUpperCase()}
+            />
+          )}
+        </div>
+      </section>
 
       <section aria-label="Personal details">
         <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">

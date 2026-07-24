@@ -1,19 +1,22 @@
 "use client";
 
-// Universal Settings (settings-01) — the account-and-preferences surface,
-// reachable by URL only for now (the sidebar gear + popover link land in
-// settings-04). Layout: inside the mentor app shell, a left section rail +
-// the active section on the right. The active section lives in the URL
-// (?section=, deep-linkable) via the use(searchParams) prop pattern
-// (invariant 5 — never useSearchParams, no page-root Suspense). Default
-// account. Sections + order + status come from the registry, never
-// hardcoded.
+// Universal Settings (settings-01/02) — the account-and-preferences surface.
+// Layout: inside the mentor app shell, a left section rail + the active section
+// on the right. The active section lives in the URL (?section=, deep-linkable)
+// via the use(searchParams) prop pattern (invariant 5 — never useSearchParams,
+// no page-root Suspense). Default account. Sections + order + status come from
+// the registry, never hardcoded.
+//
+// settings-02: Account (moved out of /app/profile) and Security are the first
+// built sections. Account reuses the AccountEditor composition verbatim
+// (role-aware — mentors gate their photo, staff edit theirs directly); the
+// left rail carries the §6 unsaved-changes guard the tab bar used to.
 //
 // Rail responsiveness: the app shell has no rail-collapse precedent
 // (design-system-gaps.md #101), so the simplest honest degradation — the
 // section rail is a horizontal top scroller on narrow, a left column at sm+.
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -21,10 +24,21 @@ import { useMounted } from "@/lib/use-mounted";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { settingsSectionsForRole } from "@/components/settings/settings-sections";
 import { AppearanceSection } from "@/components/settings/appearance-section";
+import { SecuritySection } from "@/components/settings/security-section";
+import { AccountEditor } from "@/components/profile-editor/account-editor";
 import {
   BeingSetUp,
   ComingSoonSection,
 } from "@/components/settings/section-placeholders";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 const CARD =
@@ -49,8 +63,32 @@ export default function SettingsPage({
   // updates on client navs) — no local state, so ?section= is deep-linkable
   // and hydration-safe.
   const rawSection = typeof query.section === "string" ? query.section : null;
-  const active =
-    sections.find((s) => s.id === rawSection) ?? sections[0];
+  const active = sections.find((s) => s.id === rawSection) ?? sections[0];
+  // Deep link: which row to open on arrival (e.g. the settings-04 avatar edit
+  // → the Account photo row). The section editors handle their own ids.
+  const openParam = typeof query.open === "string" ? query.open : null;
+
+  // §6 unsaved-changes guard, hoisted from the old profile tab bar: leaving a
+  // dirty Account section (rail nav) prompts inline instead of dropping edits.
+  const [accountDirty, setAccountDirty] = useState(false);
+  const [pendingSection, setPendingSection] = useState<string | null>(null);
+
+  const go = (id: string) => router.push(`/app/settings?section=${id}`);
+  const requestSection = (id: string) => {
+    if (active.id === "account" && id !== "account" && accountDirty) {
+      setPendingSection(id);
+      return;
+    }
+    go(id);
+  };
+  const leaveWithoutSaving = () => {
+    const next = pendingSection;
+    setAccountDirty(false); // the editor unmounts on nav; its local edits are gone
+    setPendingSection(null);
+    if (next) go(next);
+  };
+
+  const isFormSection = active.id === "account" || active.id === "security";
 
   return (
     <MentorShell active="settings">
@@ -77,7 +115,7 @@ export default function SettingsPage({
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => router.push(`/app/settings?section=${s.id}`)}
+                  onClick={() => requestSection(s.id)}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex min-h-11 shrink-0 items-center gap-2.5 rounded-[10px] px-3 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
@@ -95,32 +133,93 @@ export default function SettingsPage({
 
           {/* Active section */}
           <div className="min-w-0 flex-1">
-            <section aria-label={active.label} className={cn(CARD, "max-w-[640px]")}>
-              <h2
-                className="text-[var(--text-primary)]"
-                style={{ font: "var(--type-card-title)" }}
-              >
-                {active.label}
-              </h2>
-              <p
-                className="mt-1 text-[var(--text-secondary)]"
-                style={{ font: "var(--type-row-label)" }}
-              >
-                {active.description}
-              </p>
-              <div className="mt-4">
-                {active.id === "appearance" ? (
-                  <AppearanceSection />
-                ) : active.status === "coming-soon" ? (
-                  <ComingSoonSection />
-                ) : (
-                  <BeingSetUp label={active.label} />
-                )}
+            {isFormSection ? (
+              // Account / Security own their own card groups — a section
+              // header sits above them, no outer card (that would double-card).
+              <div className="max-w-3xl">
+                <h2
+                  className="text-[var(--text-primary)]"
+                  style={{ font: "var(--type-card-title)" }}
+                >
+                  {active.label}
+                </h2>
+                <p
+                  className="mt-1 text-[var(--text-secondary)]"
+                  style={{ font: "var(--type-row-label)" }}
+                >
+                  {active.description}
+                </p>
+                <div className="mt-5">
+                  {active.id === "account" ? (
+                    <AccountEditor
+                      role={role}
+                      initialOpen={openParam}
+                      onDirtyChange={setAccountDirty}
+                    />
+                  ) : (
+                    <SecuritySection />
+                  )}
+                </div>
               </div>
-            </section>
+            ) : (
+              <section
+                aria-label={active.label}
+                className={cn(CARD, "max-w-[640px]")}
+              >
+                <h2
+                  className="text-[var(--text-primary)]"
+                  style={{ font: "var(--type-card-title)" }}
+                >
+                  {active.label}
+                </h2>
+                <p
+                  className="mt-1 text-[var(--text-secondary)]"
+                  style={{ font: "var(--type-row-label)" }}
+                >
+                  {active.description}
+                </p>
+                <div className="mt-4">
+                  {active.id === "appearance" ? (
+                    <AppearanceSection />
+                  ) : active.status === "coming-soon" ? (
+                    <ComingSoonSection />
+                  ) : (
+                    <BeingSetUp label={active.label} />
+                  )}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Unsaved-changes guard (§6) — inline prompt, not a browser alert. */}
+      <Dialog
+        open={pendingSection !== null}
+        onOpenChange={(open) => !open && setPendingSection(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Leave without saving?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes on your Account. They&apos;ll be lost if
+              you switch sections now.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              className="min-h-11"
+              onClick={() => setPendingSection(null)}
+            >
+              Stay
+            </Button>
+            <Button className="min-h-11" onClick={leaveWithoutSaving}>
+              Leave without saving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MentorShell>
   );
 }
