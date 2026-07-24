@@ -372,7 +372,7 @@ export default function MentorRecordPage({
 
   if (!mounted || mentorish) {
     return (
-      <AdminShell active="users">
+      <AdminShell active="mentors">
         <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor record">
           <div className="mt-1 flex items-center gap-4">
             <div className="size-14 shrink-0 animate-pulse rounded-[14px] bg-muted/40" />
@@ -917,7 +917,7 @@ export default function MentorRecordPage({
   };
 
   return (
-    <AdminShell active="users">
+    <AdminShell active="mentors">
       <div ref={containerRef} className="px-6 py-6 lg:px-10">
         {/* Back link rides the shared axis (name / tabs / cards — Prompt 3
             alignment discipline) so the header zone reads as one region. */}

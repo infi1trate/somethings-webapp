@@ -1,19 +1,35 @@
 "use client";
 
 // The mentor app shell — build-spec §5 (Figma 426:4228): full-bleed surface/s2
-// with the shared six-item sidebar rail (Phase 0 SettingsSidebar: Home, Chat,
-// Activity, Upcoming, Teens, Training) and a single floating surface/s1 content
-// panel — radius 24, soft shadow, inset 16px from the top/right/bottom edges.
-// Content scrolls INSIDE the panel. This supersedes the previous rail treatment
-// entirely (orange brand tile, Todos/Community/Guidebook — removed per §5).
+// with the shared sidebar rail (SettingsSidebar) and a single floating
+// surface/s1 content panel — radius 24, soft shadow, inset 16px from the top/
+// right/bottom edges. Content scrolls INSIDE the panel.
+//
+// Role-aware nav (identical styling, only the item set changes): a Mentor sees
+// the base rail (Home, Chat, Activity, Tasks, Teens); a Lead Mentor gets the
+// same plus a Mentors roster (rendered here in the mentor app, not the
+// console).
 //
 // Panel padding: §2 specs ~47×35, but hosted pages currently carry their own
 // 24–40px insets — the panel adds none to avoid double-padding (gaps.md #21).
 
+import { GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { SettingsSidebar } from "@/components/settings/sidebar";
+import {
+  SettingsSidebar,
+  SIDEBAR_ITEMS,
+  type SidebarItemDef,
+} from "@/components/settings/sidebar";
+import { roleForPersona } from "@/components/settings/tabs-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
+
+// Lead Mentor rail = the base + a Mentors roster (GraduationCap mirrors the
+// Supervisor console's Mentors icon).
+const LEAD_ITEMS: SidebarItemDef[] = [
+  ...SIDEBAR_ITEMS,
+  { id: "mentors", label: "Mentors", icon: GraduationCap },
+];
 
 export function MentorShell({
   active,
@@ -47,11 +63,16 @@ export function MentorShell({
     ? "/app/profile?tab=profile&open=chat-avatar"
     : "/admin/mentor?focus=account";
   const unread = mounted ? activity.filter((a) => !a.read).length : 0;
+  // Mount-gated so SSR / first paint use the default set (persona is
+  // client-only, localStorage-backed) — then the Lead swap applies.
+  const items =
+    mounted && roleForPersona(persona) === "lead" ? LEAD_ITEMS : SIDEBAR_ITEMS;
 
   return (
     <div className="flex h-dvh bg-[var(--surface-s2)]">
       <SettingsSidebar
         activeId={active}
+        items={items}
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}
         onAvatarClick={() => router.push(avatarTarget)}

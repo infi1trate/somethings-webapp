@@ -12,11 +12,9 @@ import { useRouter } from "next/navigation";
 import {
   Home,
   MessageCircle,
-  Sparkles,
   Bell,
-  CalendarClock,
+  ListChecks,
   Users,
-  Flag,
   GraduationCap,
 } from "lucide-react";
 import {
@@ -26,21 +24,22 @@ import {
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
-// Supervisor nav — keep ALL destinations + order. Only "users" is wired in the
-// prototype; the rest are present for parity and navigate nowhere.
+// Supervisor nav. Users split into Teens + Mentors (each a role-filtered
+// roster); AVA/Risk/Onboarding dropped; Upcoming renamed Tasks, Todos renamed
+// Activity. Home/Chats/Activity/Tasks are parity placeholders and navigate
+// nowhere; only Teens + Mentors are wired via HREFS.
 const NAV: SidebarItemDef[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "chats", label: "Chats", icon: MessageCircle },
-  { id: "ava", label: "AVA", icon: Sparkles },
-  { id: "todos", label: "Todos", icon: Bell },
-  { id: "upcoming", label: "Upcoming", icon: CalendarClock },
-  { id: "users", label: "Users", icon: Users },
-  { id: "risk", label: "Risk", icon: Flag },
-  { id: "onboarding", label: "Onboarding", icon: GraduationCap },
+  { id: "activity", label: "Activity", icon: Bell },
+  { id: "tasks", label: "Tasks", icon: ListChecks },
+  { id: "teens", label: "Teens", icon: Users },
+  { id: "mentors", label: "Mentors", icon: GraduationCap },
 ];
 
 const HREFS: Record<string, string> = {
-  users: "/admin/users",
+  teens: "/admin/users?segment=teens",
+  mentors: "/admin/users?segment=mentors",
 };
 
 export function AdminShell({
@@ -71,7 +70,7 @@ export function AdminShell({
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}
         onAvatarClick={() => router.push("/admin/mentor?focus=account")}
-        badges={{ todos: 4, risk: 71 }}
+        badges={{ activity: 4 }}
         onSelect={(id) => {
           const href = HREFS[id];
           if (href) router.push(href);

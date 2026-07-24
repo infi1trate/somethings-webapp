@@ -2,10 +2,9 @@
 
 import {
   Bell,
-  Calendar,
-  GraduationCap,
   HelpCircle,
   Home,
+  ListChecks,
   Megaphone,
   MessageCircle,
   Moon,
@@ -23,16 +22,15 @@ export interface SidebarItemDef {
   icon: LucideIcon;
 }
 
-// Build-spec §5 final nav set: Figma 388:1586's five (Home, Chat, Activity,
-// Upcoming, Teens) + Training carried over from the prototype (graduation-cap
-// icon per spec). Todos / Community / Guidebook are dropped — do not re-add.
+// Mentor app nav (base, shared by Mentor + Lead Mentor). Home, Chat,
+// Activity, Tasks, Teens. Training removed and Upcoming renamed Tasks per the
+// role-nav pass; Lead Mentor appends a Mentors roster (see mentor-shell).
 export const SIDEBAR_ITEMS: SidebarItemDef[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "activity", label: "Activity", icon: Bell },
-  { id: "upcoming", label: "Upcoming", icon: Calendar },
+  { id: "tasks", label: "Tasks", icon: ListChecks },
   { id: "teens", label: "Teens", icon: Users },
-  { id: "training", label: "Training", icon: GraduationCap },
 ];
 
 // Bottom utility cluster — 40px white circular icon buttons (§2 spacing spec).

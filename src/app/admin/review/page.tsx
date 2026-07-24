@@ -106,7 +106,7 @@ export default function AdminReviewPage({
   };
 
   return (
-    <AdminShell active="users">
+    <AdminShell active="mentors">
       <div className="grid items-start gap-8 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:px-10">
         {/* LEFT — the reviewer's workspace */}
         <div className="min-w-0">

@@ -110,7 +110,7 @@ export default function AdminProfileUpdatePage({
   };
 
   return (
-    <AdminShell active="users">
+    <AdminShell active="mentors">
       <div className="px-6 py-6 lg:px-10">
         <Link
           href={returnHref}
