@@ -38,16 +38,26 @@ import {
   ArrowLeft,
   CalendarClock,
   CheckCircle2,
-  ChevronRight,
   Clock3,
   EyeOff,
+  Info,
   MessagesSquare,
   MoreHorizontal,
+  Video,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { displayOrEmpty, RecordRow } from "@/components/record/row";
+import { PersonRow } from "@/components/record/person-row";
+import {
+  escalationVisible,
+  getDemoOverview,
+  recencyPhrase,
+  relativeAgo,
+  relLength,
+  responseBucket,
+} from "@/lib/record/mentees-demo";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   ChangesRequestedChip,
@@ -181,11 +191,6 @@ const midTruncate = (s: string, max = 44) =>
 const RAIL_PANEL =
   "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5";
 
-/** Inert reference links (relationships) — link-styled, destinations don't
- *  exist in this prototype (record-05). */
-const INERT_LINK =
-  "text-[15px] leading-[20px] text-[var(--text-primary)] underline decoration-[var(--border-subtle)] underline-offset-2";
-
 /** Read-only record row: label + value + optional review chip. Pressable
  *  (Variant A) only when onPress is provided — review-mediated rows get the
  *  console deep link when a lane serves them, Variant B otherwise. */
@@ -238,40 +243,6 @@ function SectionShell({
       )}
       <div className="mt-3">{children}</div>
     </section>
-  );
-}
-
-/** Overview pointer row (surface pass, Phase 4) — a link row with a trailing
- *  chevron. The chevron here is a navigation indicator, ALWAYS visible (not
- *  a hover-calmed edit affordance). */
-function PointerRow({
-  label,
-  value,
-  onClick,
-}: {
-  label: string;
-  value?: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex min-h-11 w-full items-center gap-4 rounded-lg py-1.5 text-left transition-colors hover:bg-[var(--surface-s1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-    >
-      <span className="flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-        {label}
-      </span>
-      {value && (
-        <span className="min-w-0 max-w-[55%] truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
-          {value}
-        </span>
-      )}
-      <ChevronRight
-        className="size-4 shrink-0 text-[var(--text-muted)]"
-        aria-hidden
-      />
-    </button>
   );
 }
 
@@ -367,6 +338,9 @@ export default function MentorRecordPage({
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
+  // "Now" captured once (lazy init) — the reference point for the Overview's
+  // demo elapsed-time values; keeps render pure (no Date.now() in render).
+  const [now] = useState(() => Date.now());
   const [noteDraft, setNoteDraft] = useState("");
   const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
 
@@ -448,6 +422,12 @@ export default function MentorRecordPage({
   const accountMode: "edit" | "read" =
     resolveMode("accountSelfService", persona) === "edit" ? "edit" : "read";
   const staffActor = persona === "supervisor" ? "Supervisor" : "Lead mentor";
+  // Overview data (Prompt B). TODO-DATA: illustrative fixtures — no IMP-6
+  // aggregation layer or mentee entity exists in this prototype. Mount-gated
+  // above, so Date.now() here is client-only. Mentee names/avatars are gated
+  // to supervisor tier; below that (lead) rows degrade to counts + durations.
+  const overview = getDemoOverview(now);
+  const supervisorTier = persona === "supervisor";
   // The record-scoped save (invariant 2): mock latency/failure, then the
   // staff write path — draft/staffPhoto update + staff-attributed activity.
   const staffSave =
@@ -847,8 +827,9 @@ export default function MentorRecordPage({
     // rail's Notes segment (Phase 1), content unchanged.
 
     if (slot === "relationships") {
-      // Stub org data (record-05): rows are link-STYLED but inert — the
-      // destinations don't exist in this prototype.
+      // A collection of people → shared PersonRow (Prompt B). Team members'
+      // records don't exist in this prototype, so the rows are non-pressable
+      // (no dead chevrons). Mentee count stays a plain caption.
       return (
         <SectionShell key={slot} slot={slot}>
           {!publishedSnapshot ? (
@@ -858,27 +839,24 @@ export default function MentorRecordPage({
               published and matched.
             </p>
           ) : (
-            // A collection of people — the card is the container; 3 rows,
-            // so padding alone carries the rhythm (no separators).
             <div className={CARD_ROWS}>
+              {overview.team.map((t) => (
+                <PersonRow key={t.id} name={t.name} secondary={t.roleLabel} />
+              ))}
               <div className="py-2.5">
-                <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                  Assigned supervisor
-                </p>
-                <span className={INERT_LINK}>Stephen Rowe</span>
-              </div>
-              <div className="py-2.5">
-                <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                  Assigned lead mentor
-                </p>
-                <span className={INERT_LINK}>Brandy Forrestor</span>
-              </div>
-              <div className="py-2.5">
-                <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
+                <p
+                  className="text-[var(--text-secondary)]"
+                  style={{ font: "var(--type-row-label)" }}
+                >
                   Active mentees
                 </p>
-                <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
-                  {profileHidden ? "4 · matching paused while unpublished" : "4"}
+                <p
+                  className="text-[var(--text-primary)] tabular-nums"
+                  style={{ font: "var(--type-row-value)" }}
+                >
+                  {profileHidden
+                    ? `${MENTEE_COUNT} · matching paused while unpublished`
+                    : MENTEE_COUNT}
                 </p>
               </div>
             </div>
@@ -1272,113 +1250,222 @@ export default function MentorRecordPage({
                   </section>
                 )}
 
-                {/* Row 2 — Capacity beside Relationships. */}
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {resolveMode("accountOrg", persona) !== "hidden" && (
-                    <section
-                      aria-label="Capacity"
-                      data-record-section="capacity"
-                      className={CARD_PAD}
-                    >
-                      <p className="text-[13px] font-medium leading-[18px] text-[var(--text-secondary)]">
-                        Capacity
-                      </p>
-                      <p className="mt-2 font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-                        {MENTEE_COUNT} of {slots.total}
-                      </p>
-                      <p className="mt-0.5 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                        mentee slots filled · {slots.dailyNew} new teen
-                        {slots.dailyNew === 1 ? "" : "s"} per day
-                      </p>
-                      {/* Whispering progress (Prompt 4): 4px, fill knocked
-                          to 70% toward the track — decorative; the numbers
-                          above carry the meaning. */}
-                      <div
-                        aria-hidden
-                        className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--surface-s1)]"
+                {/* Mentees — hero card. Capacity lives in the header-right
+                    caption (a fact), not a card of its own. Mentee names +
+                    avatars are supervisor-tier only; below that the card
+                    degrades to counts + durations with no layout shift. */}
+                {resolveMode("accountOrg", persona) !== "hidden" &&
+                  (() => {
+                    const active = MENTEE_COUNT;
+                    const open = Math.max(0, slots.total - active);
+                    return (
+                      <section
+                        aria-label="Mentees"
+                        data-record-section="mentees"
+                        className={CARD_PAD}
                       >
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, Math.round((MENTEE_COUNT / Math.max(1, slots.total)) * 100))}%`,
-                            backgroundColor:
-                              "color-mix(in oklab, #3a7d44 70%, var(--surface-s1))",
-                          }}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => switchTab("mentorship")}
-                        className={JUMP_LINK}
-                      >
-                        Manage in Mentorship
-                      </button>
-                    </section>
-                  )}
-                  <section
-                    aria-label="Relationships"
-                    data-record-section="relationships"
-                    className={CARD_PAD}
-                  >
-                    <p className="text-[13px] font-medium leading-[18px] text-[var(--text-secondary)]">
-                      Relationships
-                    </p>
-                    {!publishedSnapshot ? (
-                      <p className="mt-2 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                        Nothing here yet — relationships appear once this
-                        mentor is published and matched.
-                      </p>
-                    ) : (
-                      <div className="mt-2 space-y-2.5">
-                        <div>
-                          <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                            Assigned supervisor
-                          </p>
-                          <span className={INERT_LINK}>Stephen Rowe</span>
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                          <h2
+                            className="text-[var(--text-primary)]"
+                            style={{ font: "var(--type-card-title)" }}
+                          >
+                            Mentees
+                          </h2>
+                          {publishedSnapshot && (
+                            <span
+                              className="text-[var(--text-secondary)] tabular-nums"
+                              style={{ font: "var(--type-helper)" }}
+                            >
+                              {active} active · {open} slot{open === 1 ? "" : "s"} open
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                            Assigned lead mentor
-                          </p>
-                          <span className={INERT_LINK}>Brandy Forrestor</span>
-                        </div>
-                        <div>
-                          <p className="text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
-                            Active mentees
-                          </p>
-                          <p className="text-[15px] leading-[20px] text-[var(--text-primary)]">
-                            {profileHidden
-                              ? "4 · matching paused while unpublished"
-                              : "4"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                </div>
 
-                {/* Row 3 — pointer rows: link rows with trailing chevrons,
-                    pointers only (no editable copies). */}
-                <section
-                  aria-label="Shortcuts"
-                  data-record-section="pointers"
-                  className={CARD_ROWS}
-                >
-                  <PointerRow
-                    // TODO-COPY: pointer-row label has no copy precedent.
-                    // TODO-DATA: no completeness data source exists — stub
-                    // value only; do NOT build a calculation (Phase 4).
-                    label="Profile completeness"
-                    value="86% complete"
-                    onClick={() => switchTab("profile")}
-                  />
-                  {notesVisible && internalNotes.length > 0 && (
-                    <PointerRow
-                      label="Latest note"
-                      value={`${internalNotes[0].author} · ${internalNotes[0].text}`}
-                      onClick={() => setRailChoice("notes")}
-                    />
-                  )}
+                        {!publishedSnapshot ? (
+                          <p
+                            className="mt-3 text-[var(--text-secondary)]"
+                            style={{ font: "var(--type-row-value)" }}
+                          >
+                            Nothing here yet — mentees appear once this mentor
+                            is published and matched.
+                          </p>
+                        ) : !supervisorTier ? (
+                          // Below supervisor tier: no names or avatars.
+                          <p
+                            className="mt-3 text-[var(--text-primary)] tabular-nums"
+                            style={{ font: "var(--type-row-value)" }}
+                          >
+                            {active} mentees · together{" "}
+                            {relLength(
+                              Math.max(...overview.mentees.map((m) => m.matchedAt)),
+                              now
+                            )}
+                            –
+                            {relLength(
+                              Math.min(...overview.mentees.map((m) => m.matchedAt)),
+                              now
+                            )}
+                          </p>
+                        ) : (
+                          <div className="mt-2 grid gap-x-6 sm:grid-cols-2">
+                            {overview.mentees.map((m) => {
+                              const esc = escalationVisible(m.escalation, now);
+                              return (
+                                <PersonRow
+                                  key={m.id}
+                                  name={m.name}
+                                  secondary={`${relLength(m.matchedAt, now)} · ${recencyPhrase(m.lastInteractionAt, now)}`}
+                                  trailing={
+                                    <>
+                                      {esc && (
+                                        <span className="rounded-full border border-orange-300 px-2 py-0.5 text-[11px] font-medium leading-none text-orange-700">
+                                          Escalated
+                                        </span>
+                                      )}
+                                      {m.videoCount30d > 0 && (
+                                        <span
+                                          className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]"
+                                          title={`${m.videoCount30d} video calls in the last 30 days`}
+                                        >
+                                          <Video className="size-3" aria-hidden />
+                                          {m.videoCount30d}
+                                        </span>
+                                      )}
+                                    </>
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })()}
+
+                {/* How it's going + Team (paired). "How it's going" renders
+                    sentences from the metrics; any null line is suppressed,
+                    and if no lines render the card is dropped and Team goes
+                    full-width. */}
+                {(() => {
+                  const m = overview.metrics;
+                  const lines: { text: string; info: string }[] = [];
+                  if (m.avgResponseMinutes != null)
+                    lines.push({
+                      // TODO-COPY (voice pass): response-time bucket copy.
+                      text: responseBucket(m.avgResponseMinutes),
+                      info: "Average time to reply to mentees over the last 3 days, online hours only.",
+                    });
+                  if (m.matchesActivePast90 != null)
+                    lines.push({
+                      text: `${m.matchesActivePast90.active} of ${m.matchesActivePast90.total} matches active past 90 days`,
+                      info: "How many of this mentor's matches have had activity in the last 90 days.",
+                    });
+                  if (m.lastActiveAt != null)
+                    lines.push({
+                      text: `Last active ${relativeAgo(m.lastActiveAt, now)}`,
+                      info: "When this mentor was last active in the app.",
+                    });
+                  const showGoing = publishedSnapshot && lines.length > 0;
+                  return (
+                    <div
+                      className={cn(
+                        "grid gap-4",
+                        showGoing && "lg:grid-cols-2"
+                      )}
+                    >
+                      {showGoing && (
+                        <section aria-label="How it's going" className={CARD_PAD}>
+                          <h2
+                            className="text-[var(--text-primary)]"
+                            style={{ font: "var(--type-card-title)" }}
+                          >
+                            How it&apos;s going
+                          </h2>
+                          <ul className="mt-3 space-y-2">
+                            {lines.map((l) => (
+                              <li
+                                key={l.text}
+                                className="flex items-start gap-1.5 text-[var(--text-primary)] tabular-nums"
+                                style={{ font: "var(--type-row-value)" }}
+                              >
+                                <span className="min-w-0">{l.text}</span>
+                                <span
+                                  tabIndex={0}
+                                  title={l.info}
+                                  aria-label={l.info}
+                                  className="mt-0.5 shrink-0 rounded-sm text-[var(--text-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                                >
+                                  <Info className="size-3.5" aria-hidden />
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {/* Team — supervisor + lead mentor. Non-pressable: their
+                          records don't exist in this prototype (no dead
+                          chevrons). */}
+                      <section aria-label="Team" className={CARD_PAD}>
+                        <h2
+                          className="text-[var(--text-primary)]"
+                          style={{ font: "var(--type-card-title)" }}
+                        >
+                          Team
+                        </h2>
+                        <div className="mt-2">
+                          {overview.team.map((t) => (
+                            <PersonRow
+                              key={t.id}
+                              name={t.name}
+                              secondary={t.roleLabel}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                  );
+                })()}
+
+                {/* Recent activity — events only (vocabulary law), newest
+                    first, 5 max. "View all" opens the rail's Activity feed. */}
+                <section aria-label="Recent activity" className={CARD_PAD}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h2
+                      className="text-[var(--text-primary)]"
+                      style={{ font: "var(--type-card-title)" }}
+                    >
+                      Recent activity
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => setRailChoice("activity")}
+                      className={cn(JUMP_LINK, "-my-2.5")}
+                    >
+                      View all
+                    </button>
+                  </div>
+                  <ul className="mt-2 space-y-1">
+                    {overview.events.slice(0, 5).map((e) => (
+                      <li
+                        key={e.id}
+                        className="flex items-baseline justify-between gap-3 py-1"
+                      >
+                        <span
+                          className="min-w-0 text-[var(--text-primary)]"
+                          style={{ font: "var(--type-row-value)" }}
+                        >
+                          {e.text}
+                        </span>
+                        <span
+                          className="shrink-0 text-[var(--text-muted)] tabular-nums"
+                          style={{ font: "var(--type-helper)" }}
+                        >
+                          {relativeAgo(e.at, now)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               </>
             )}
