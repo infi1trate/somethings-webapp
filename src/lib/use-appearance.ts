@@ -1,20 +1,35 @@
 "use client";
 
-// Appearance/theme control (settings-01). Wires the EXISTING theme system —
-// the `.dark` Tailwind variant + the light/dark token blocks in globals.css —
-// via a self-contained hook rather than a root next-themes provider, so
-// settings-01 stays diff-free (no layout.tsx / sidebar.tsx edits; the S1
-// decision defers the sidebar moon's two-way sync to settings-04). The
-// choice persists in its own localStorage key (no store version bump), and
-// "System" follows prefers-color-scheme live. settings-04 will point the
-// sidebar moon at this same hook (shared state) and decide whether to hoist a
-// root provider. See design-system-gaps.md #98/#99.
+// Appearance/theme control. Wires the EXISTING theme system — the `.dark`
+// Tailwind variant + the light/dark token blocks in globals.css — via a
+// self-contained module store rather than a root next-themes provider, so no
+// layout.tsx edit is needed. The choice persists in its own localStorage key
+// (no store version bump), and "System" follows prefers-color-scheme live.
+//
+// settings-04: this is now a SHARED store (useSyncExternalStore over a
+// module-level value + listener set), so every consumer — the Appearance
+// section's segmented control AND the sidebar account popover's quick toggle —
+// reflects one another in real time. That two-way sync is what design-system-
+// gaps.md #98 deferred here. Cross-tab and OS-preference changes propagate too.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useMounted } from "@/lib/use-mounted";
 
 export type ThemeChoice = "light" | "dark" | "system";
 const KEY = "somethings.theme";
+
+// Module singleton — the one source of truth every hook instance reads.
+let current: ThemeChoice | null = null;
+const listeners = new Set<() => void>();
+
+function read(): ThemeChoice {
+  if (current !== null) return current;
+  current =
+    typeof localStorage === "undefined"
+      ? "system"
+      : ((localStorage.getItem(KEY) as ThemeChoice | null) ?? "system");
+  return current;
+}
 
 function prefersDark() {
   return (
@@ -29,37 +44,59 @@ function applyTheme(choice: ThemeChoice) {
   document.documentElement.classList.toggle("dark", dark);
 }
 
+function setThemeGlobal(choice: ThemeChoice) {
+  current = choice;
+  if (typeof localStorage !== "undefined") localStorage.setItem(KEY, choice);
+  applyTheme(choice);
+  listeners.forEach((l) => l());
+}
+
+// One subscription per mounted consumer: React re-renders it on any theme
+// change, and we also keep the class in sync with OS changes (while "system")
+// and cross-tab writes.
+function subscribe(onChange: () => void) {
+  listeners.add(onChange);
+  const mq =
+    typeof window !== "undefined"
+      ? window.matchMedia("(prefers-color-scheme: dark)")
+      : null;
+  const onMedia = () => {
+    if (read() === "system") {
+      applyTheme("system");
+      onChange();
+    }
+  };
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === KEY) {
+      current = (e.newValue as ThemeChoice | null) ?? "system";
+      applyTheme(current);
+      onChange();
+    }
+  };
+  mq?.addEventListener?.("change", onMedia);
+  window?.addEventListener?.("storage", onStorage);
+  return () => {
+    listeners.delete(onChange);
+    mq?.removeEventListener?.("change", onMedia);
+    window?.removeEventListener?.("storage", onStorage);
+  };
+}
+
+const getSnapshot = () => read();
+const getServerSnapshot = (): ThemeChoice => "system";
+
 export function useAppearance() {
-  // Lazy-read the stored choice (client only; SSR falls back to "system").
-  // The active state is mount-gated at the call site, so an initial value
-  // that differs from SSR never paints before hydration.
-  const [theme, setThemeState] = useState<ThemeChoice>(() =>
-    typeof localStorage === "undefined"
-      ? "system"
-      : ((localStorage.getItem(KEY) as ThemeChoice | null) ?? "system")
-  );
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const mounted = useMounted();
 
-  // Apply the `.dark` class on mount and whenever the choice changes.
+  // Keep the `.dark` class in sync with the current choice on mount (SSR paints
+  // no class) and whenever it changes. Idempotent across consumers.
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  // Follow the OS while the choice is "system".
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      if ((localStorage.getItem(KEY) ?? "system") === "system") {
-        applyTheme("system");
-      }
-    };
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-
   const setTheme = useCallback((choice: ThemeChoice) => {
-    localStorage.setItem(KEY, choice);
-    setThemeState(choice);
+    setThemeGlobal(choice);
   }, []);
 
   return { theme, setTheme, mounted };

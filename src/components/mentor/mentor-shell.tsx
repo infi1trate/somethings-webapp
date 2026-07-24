@@ -45,8 +45,8 @@ export function MentorShell({
   const persona = useOnboardingStore((s) => s.persona);
   // §5 Phase 10: the sidebar avatar is the CURRENT persona's own photo —
   // mentor personas show the APPROVED chat avatar (what teens see now, not
-  // the proposed one); lead/supervisor show their Photo-row asset. Click
-  // deep-links to that photo's editor.
+  // the proposed one); lead/supervisor show their Photo-row asset. The avatar
+  // opens the account popover (settings-04) — it no longer navigates.
   const approvedAvatar = useOnboardingStore(
     (s) => s.publishedSnapshot?.accountPhoto ?? null
   );
@@ -57,11 +57,6 @@ export function MentorShell({
     ? (firstName?.trim()?.[0] || "S").toUpperCase()
     : "S";
   const avatarSrc = mounted ? (mentorish ? approvedAvatar : staffPhoto) : null;
-  // record-04b retarget: STAFF avatars now manage their photo on the Mentor
-  // Record's Account section (settings no longer hosts staff-purpose org UI).
-  const avatarTarget = mentorish
-    ? "/app/profile?tab=profile&open=chat-avatar"
-    : "/admin/mentor?focus=account";
   const unread = mounted ? activity.filter((a) => !a.read).length : 0;
   // Mount-gated so SSR / first paint use the default set (persona is
   // client-only, localStorage-backed) — then the Lead swap applies.
@@ -75,7 +70,6 @@ export function MentorShell({
         items={items}
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}
-        onAvatarClick={() => router.push(avatarTarget)}
         badges={unread > 0 ? { activity: unread } : undefined}
         onSelect={(id) => router.push(id === "home" ? "/app" : `/app/${id}`)}
         className="shrink-0 overflow-y-auto"

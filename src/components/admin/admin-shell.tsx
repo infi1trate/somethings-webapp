@@ -51,9 +51,9 @@ export function AdminShell({
 }) {
   const router = useRouter();
   const mounted = useMounted();
-  // §5 Phase 10: the Supervisor's own photo (Account › Photo row asset) —
-  // the single sidebar avatar, deep-links to that row's editor (record-04b:
-  // the staff photo lives on the Mentor Record now).
+  // §5 Phase 10: the Supervisor's own photo (Account › Photo row asset) — the
+  // single sidebar avatar. It opens the account popover (settings-04); it no
+  // longer navigates.
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
   const firstName = useOnboardingStore((s) => s.draft.firstName);
   const avatarInitial = mounted
@@ -69,7 +69,6 @@ export function AdminShell({
         navLabel="Supervisor sections"
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}
-        onAvatarClick={() => router.push("/admin/mentor?focus=account")}
         badges={{ activity: 4 }}
         onSelect={(id) => {
           const href = HREFS[id];
