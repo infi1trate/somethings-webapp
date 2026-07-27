@@ -14,10 +14,20 @@
 // Mounted from the root layout in ALL environments (incl. the Vercel demo) so
 // reviewers can switch personas — there's no auth gate behind it.
 
+import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import type { Persona } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 // The toggle is a PURE LENS: switching persona sets who's viewing and
@@ -85,6 +95,8 @@ export function DevRoleToggle() {
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const active = mounted ? persona : null;
+  // Protective confirm before the destructive reset (wipes the mentor).
+  const [confirmReset, setConfirmReset] = useState(false);
   // Both the mentor (/app*) and supervisor (/admin*) shells own the
   // bottom-left with the same 92px rail — shift the toggle clear of it on
   // either, so it never overlaps the rail's utility circles.
@@ -103,9 +115,10 @@ export function DevRoleToggle() {
     );
 
   return (
-    // On the app/console shells the §5 sidebar rail (92px) owns the
-    // bottom-left corner — shift right of it so the rail's utility circles
-    // stay clear (Phase 7).
+    <>
+    {/* On the app/console shells the §5 sidebar rail (92px) owns the
+        bottom-left corner — shift right of it so the rail's utility circles
+        stay clear (Phase 7). */}
     <div
       className={cn(
         "fixed bottom-3 z-50 flex items-center gap-1 rounded-full border border-dashed border-foreground/40 bg-card/95 p-1 pl-2.5 text-xs shadow-md backdrop-blur",
@@ -149,7 +162,7 @@ export function DevRoleToggle() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                resetToNewMentor();
+                setConfirmReset(true);
               }}
               aria-label="Reset as a new mentor and restart onboarding"
               title="Reset as a new mentor and restart onboarding"
@@ -165,5 +178,35 @@ export function DevRoleToggle() {
         );
       })}
     </div>
+
+    <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Reset this user?</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to reset this user? This wipes the mentor&apos;s
+            profile and restarts onboarding from the invitation. It can&apos;t be
+            undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            className="min-h-11"
+            onClick={() => setConfirmReset(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            className="min-h-11"
+            onClick={resetToNewMentor}
+          >
+            Reset user
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
