@@ -34,10 +34,8 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
   ArrowLeft,
   CalendarClock,
-  Clock3,
   EyeOff,
   Info,
   MessagesSquare,
@@ -50,6 +48,13 @@ import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { displayOrEmpty, RecordRow } from "@/components/record/row";
 import { PersonRow } from "@/components/record/person-row";
+import {
+  AttentionCard,
+  type AttentionAction,
+} from "@/components/record/attention-card";
+import { SpotifyChip } from "@/components/record/spotify-chip";
+import { InterestTags, PlainTags } from "@/components/record/interest-tags";
+import { SegmentedControl } from "@/components/record/segmented-control";
 import {
   escalationVisible,
   getDemoOverview,
@@ -157,17 +162,15 @@ function changesetChip(update: ProfileUpdate | null, fieldId: string) {
   );
 }
 
-/** Soft surface cards — the grouped-list containment: card tone one step
- *  lighter than the s1 canvas, 16px radius, 24px horizontal / 20px vertical
- *  internal padding, NO shadow. The boundary is surface contrast (1.10:1);
- *  the contour border is DEFINITION, not division — darkest neutral at 8%,
- *  decorative (visual-quality pass, Prompt 1). CARD_ROWS composes with the
- *  rows' own 14px rhythm (py-1.5 + 14 = 20 effective); CARD_PAD is for
- *  prose and mosaic content. */
+/** Elevated surface cards (Hybrid pass — supersedes the earlier flat, no-shadow
+ *  doctrine): card tone one step lighter than the s1 canvas, 20px radius,
+ *  24px horizontal / 20px vertical padding, a soft layered shadow + the 8%
+ *  contour for a crisp edge. CARD_ROWS composes with the rows' own 14px rhythm
+ *  (py-1.5 + 14 = 20 effective); CARD_PAD is for prose and mosaic content. */
 const CARD_ROWS =
-  "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5";
+  "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 shadow-[var(--shadow-card)]";
 const CARD_PAD =
-  "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-[var(--surface-pad-y)]";
+  "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-[var(--surface-pad-y)] shadow-[var(--shadow-card)]";
 
 /** Inset separators — ONLY inside cards with 5+ rows (fewer lean on the
  *  14px row rhythm alone). One rule: top borders on rows after the first
@@ -182,15 +185,9 @@ const CARD_PAD =
 const INSET_DIVIDERS =
   "[&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]";
 
-/** Middle-ellipsis for raw URLs — a URL must never wrap across three lines
- *  of a care product's record page; the full value rides on title and in
- *  the field's detail surface where one exists. */
-const midTruncate = (s: string, max = 44) =>
-  s.length <= max ? s : `${s.slice(0, 26)}…${s.slice(-15)}`;
-
-/** Rail panels (Prompt 4): card tone + contour, 20px padding. */
+/** Rail panels (elevated pass): card tone + contour + soft shadow, 20px padding. */
 const RAIL_PANEL =
-  "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5";
+  "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]";
 
 /** Read-only record row: label + value + optional review chip. Pressable
  *  (Variant A) only when onPress is provided — review-mediated rows get the
@@ -217,6 +214,19 @@ function ReadRow({
       onEditStart={() => {}}
       onCancel={() => {}}
     />
+  );
+}
+
+/** Long-form value (Bio) as a read-only field container — the "form card"
+ *  treatment: a subtle boxed surface with roomy line-height. */
+function BioValue({ text }: { text: string }) {
+  return (
+    <span
+      className="block rounded-xl border border-[color:var(--border-contour)] bg-[var(--surface-s1)] px-3.5 py-2.5 text-[var(--text-primary)]"
+      style={{ font: "var(--type-row-value)" }}
+    >
+      {text}
+    </span>
   );
 }
 
@@ -359,12 +369,12 @@ export default function MentorRecordPage({
               <div className="h-4 w-80 max-w-full animate-pulse rounded-md bg-muted/40" />
             </div>
           </div>
-          <div className="mt-5 flex gap-6 pb-3 lg:ml-[72px]">
+          <div className="mt-5 flex gap-6 pb-3">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-4 w-16 animate-pulse rounded-md bg-muted/40" />
             ))}
           </div>
-          <div className="mt-6 grid items-start gap-8 lg:ml-[72px] lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
             <div className="min-w-0 space-y-7">
               {[0, 1, 2].map((i) => (
                 <div key={i}>
@@ -507,13 +517,28 @@ export default function MentorRecordPage({
   // IMP-6/MO-8 when the coaching flow lands.
   const attention = attentionItems[0] ?? null;
   const attentionMore = Math.max(0, attentionItems.length - 1);
-  // Severity → flat tint families (no shadow/gradient); the word always
-  // travels with the color (WCAG 1.4.1).
-  const ATTENTION_FAMILY: Record<Attention["severity"], string> = {
-    critical: "border-red-300 bg-red-50 text-red-900",
-    warm: "border-orange-300 bg-orange-50 text-orange-900",
-    warning: "border-amber-300 bg-amber-50 text-amber-900",
-  };
+  // The alert's action (elevated pass): review alerts link to their console
+  // (supervisor review viewers only); an escalation jumps to the mentee in the
+  // Mentees card. Colors now come from the tokenized alert families inside
+  // AttentionCard — the raw ATTENTION_FAMILY tint map is retired.
+  const attnAction: AttentionAction | null =
+    attention == null
+      ? null
+      : attention.href && reviewMode
+        ? { label: attention.linkLabel ?? "Review details", href: attention.href }
+        : attention.id === "escalation"
+          ? {
+              label: "View mentee",
+              onClick: () => {
+                switchTab("overview");
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector('[aria-label="Mentees"]')
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                );
+              },
+            }
+          : null;
   // The record-scoped save (invariant 2): mock latency/failure, then the
   // staff write path — draft/staffPhoto update + staff-attributed activity.
   const staffSave =
@@ -625,16 +650,27 @@ export default function MentorRecordPage({
               <div className={INSET_DIVIDERS}>
                 {matchCard.map((s) => {
                   const raw = s.summary(live);
-                  // Raw URLs never wrap — middle-ellipsis, full value on
-                  // title (and in the console when a lane serves the field).
-                  const value =
+                  // Rich field renderers (elevated pass): teen-facing fields
+                  // render as data chips / tags instead of plain text —
+                  // Spotify as a data chip (no raw URL), interests + languages
+                  // as tags, bio in a read-only field container.
+                  let value: React.ReactNode = raw;
+                  if (
                     s.fieldKey === "spotifyUrl" &&
                     typeof raw === "string" &&
-                    raw !== "—" ? (
-                      <span title={raw}>{midTruncate(raw)}</span>
-                    ) : (
-                      raw
+                    raw !== "—" &&
+                    live.spotifyUrl
+                  ) {
+                    value = <SpotifyChip key={live.spotifyUrl} url={live.spotifyUrl} />;
+                  } else if (s.fieldKey === "interests") {
+                    value = (
+                      <InterestTags items={live.interests.map((i) => i.name)} />
                     );
+                  } else if (s.fieldKey === "languages") {
+                    value = <PlainTags items={live.languages} />;
+                  } else if (s.fieldKey === "bio" && live.bio) {
+                    value = <BioValue text={live.bio} />;
+                  }
                   return (
                     <ReadRow
                       key={s.step}
@@ -983,17 +1019,16 @@ export default function MentorRecordPage({
   return (
     <AdminShell active="mentors">
       <div ref={containerRef} className="px-6 py-6 lg:px-10">
-        {/* Back link rides the shared axis (name / tabs / cards — Prompt 3
-            alignment discipline) so the header zone reads as one region. */}
-        <div className="lg:ml-[72px]">
-          <Link
-            href="/admin/users"
-            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          >
-            <ArrowLeft className="size-4" aria-hidden />
-            Users
-          </Link>
-        </div>
+        {/* Back link — aligns to the content edge (the elevated card pass
+            retired the 72px avatar-gutter axis; the avatar now lives inside
+            the header card). */}
+        <Link
+          href="/admin/users"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          Users
+        </Link>
 
         {/* ── Identity header (Prompt 3 lockup): one horizontal unit — 56px
             avatar in the gutter, two hugging text rows on the shared axis
@@ -1005,18 +1040,21 @@ export default function MentorRecordPage({
             in Mentorship; supervisor lives in Relationships — the header
             states identity, the record states facts. */}
         {resolveMode("identity", persona) !== "hidden" && (
-          <header className="mt-3 grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4">
+          // ── Identity header CARD (elevated pass): the avatar + name + role
+          //    pill + meta live inside a defined elevated card; actions sit
+          //    top-right on wide, wrap below on narrow.
+          <header className="mt-3 flex flex-col gap-5 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-5 py-5 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:px-7 sm:py-6">
             {live.accountPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={live.accountPhoto}
                 alt=""
-                className="size-14 rounded-[14px] object-cover"
+                className="size-16 shrink-0 rounded-2xl object-cover"
               />
             ) : (
               <span
                 aria-hidden
-                className="flex size-14 items-center justify-center rounded-[14px] font-display text-lg font-bold"
+                className="flex size-16 shrink-0 items-center justify-center rounded-2xl font-display text-2xl font-bold"
                 style={{
                   // No brand ramp exists in the tokens (single --brand
                   // stop) — tint + darkest-stop letterform interims via
@@ -1030,20 +1068,21 @@ export default function MentorRecordPage({
               </span>
             )}
 
-            <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2.5">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1
                   className="text-[var(--text-primary)]"
                   style={{
-                    font: "var(--type-display)",
-                    letterSpacing: "var(--type-display-tracking)",
+                    font: "var(--type-record-name)",
+                    letterSpacing: "var(--type-record-name-tracking)",
                   }}
                 >
                   {mentorName}
                 </h1>
-                {/* The header's ONLY pill: role + status. Active = green
-                    dot alone; exceptional states add the word (the model
-                    has no Paused/Suspended yet — matrix grows with it). */}
+                {/* The header's ONLY pill: role + status — a soft-filled
+                    pill with a tokenized status dot (active = positive dot
+                    alone; exceptional states add the word — never color
+                    alone, WCAG 1.4.1). */}
                 <span
                   aria-label={`Mentor, ${
                     deactivated
@@ -1052,17 +1091,17 @@ export default function MentorRecordPage({
                         ? "unpublished"
                         : "active"
                   }`}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black/[0.06] px-2.5 py-1 text-xs font-medium text-[var(--text-primary)]"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
                 >
                   <span
                     aria-hidden
-                    className="size-[7px] shrink-0 rounded-full"
+                    className="size-2 shrink-0 rounded-full"
                     style={{
                       backgroundColor: deactivated
-                        ? "var(--state-error)"
+                        ? "var(--dot-critical)"
                         : profileHidden
-                          ? "#ea580c"
-                          : "#3a7d44",
+                          ? "var(--dot-warning)"
+                          : "var(--dot-positive)",
                     }}
                   />
                   {deactivated
@@ -1091,7 +1130,7 @@ export default function MentorRecordPage({
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
               {/* ONE filled primary — Message, the most common staff verb
                   (stub: messaging isn't part of this prototype). Everything
                   else lives in the overflow. */}
@@ -1179,26 +1218,15 @@ export default function MentorRecordPage({
         {attention &&
           attention.severity !== "warning" &&
           activeTab !== "overview" && (
-          <div
-            className={cn(
-              "mt-5 flex max-w-[900px] flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] border px-[var(--surface-pad-x)] py-3 lg:ml-[72px]",
-              ATTENTION_FAMILY[attention.severity]
-            )}
-          >
-            <p className="min-w-0 flex-1 text-[13px] leading-[18px]">
-              {attention.line}
-            </p>
-            {reviewMode && attention.href && (
-              <button
-                type="button"
-                onClick={() => switchTab("overview")}
-                className="-my-2.5 inline-flex min-h-11 items-center rounded-sm text-[13px] font-medium leading-[18px] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-              >
-                Review
-              </button>
-            )}
-          </div>
-        )}
+            <AttentionCard
+              variant="band"
+              severity={attention.severity}
+              line={attention.line}
+              moreCount={attentionMore}
+              action={attnAction}
+              className="mt-5 max-w-[900px]"
+            />
+          )}
 
         {/* ── Tab bar: text tabs directly on the canvas — the surface pass
             deleted the full-bleed baseline hairline (spacing does the work);
@@ -1207,7 +1235,7 @@ export default function MentorRecordPage({
             (registry: lib/record/tabs.ts; unbuilt entries render nothing). */}
         <nav
           aria-label="Profile sections"
-          className="mt-5 flex gap-6 overflow-x-auto lg:ml-[72px]"
+          className="mt-6 flex gap-1 overflow-x-auto border-b border-[color:var(--border-contour)]"
         >
           {visibleTabs.map((t) => (
             <button
@@ -1216,13 +1244,19 @@ export default function MentorRecordPage({
               onClick={() => switchTab(t.id)}
               aria-current={activeTab === t.id ? "page" : undefined}
               className={cn(
-                "min-h-11 shrink-0 border-b-2 pb-1 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+                "relative min-h-11 shrink-0 rounded-md px-3 py-2 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
                 activeTab === t.id
-                  ? "border-[var(--text-primary)] font-medium text-[var(--text-primary)]"
-                  : "border-transparent font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  ? "font-semibold text-[var(--text-primary)]"
+                  : "font-normal text-[var(--text-secondary)] hover:bg-black/[0.04] hover:text-[var(--text-primary)]"
               )}
             >
               {t.label}
+              {activeTab === t.id && (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-[var(--text-primary)]"
+                />
+              )}
             </button>
           ))}
         </nav>
@@ -1230,7 +1264,7 @@ export default function MentorRecordPage({
         {/* Content column caps at 900px (rail excluded) and stays anchored
             to the shared axis — cards stop stretching on wide viewports
             (Prompt 4 composition). Rail fixed at 300px. */}
-        <div className="mt-6 grid items-start gap-8 lg:ml-[72px] lg:grid-cols-[minmax(0,900px)_300px]">
+        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,900px)_300px]">
           {/* LEFT — the active tab's content: sections MOVED, not restyled
               (Phase 1 content mapping); gating unchanged via resolveMode
               inside each renderer. */}
@@ -1244,37 +1278,13 @@ export default function MentorRecordPage({
                     severity; healthy = no strip (the reward state). The rest
                     surface via "and N more". Word + tint together (1.4.1). */}
                 {attention && (
-                  <section
-                    aria-label="Attention"
-                    data-record-section="attention"
-                    className={cn(
-                      "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-surface)] border px-[var(--surface-pad-x)] py-3",
-                      ATTENTION_FAMILY[attention.severity]
-                    )}
-                  >
-                    {attention.severity === "warning" ? (
-                      <Clock3 className="size-4 shrink-0" aria-hidden />
-                    ) : (
-                      <AlertCircle className="size-4 shrink-0" aria-hidden />
-                    )}
-                    <p className="min-w-0 flex-1 text-[14px] leading-[20px]">
-                      {attention.line}
-                      {attentionMore > 0 && (
-                        <span className="opacity-70">
-                          {" "}
-                          · and {attentionMore} more
-                        </span>
-                      )}
-                    </p>
-                    {reviewMode && attention.href && (
-                      <Link
-                        href={attention.href}
-                        className="-my-2.5 inline-flex min-h-11 shrink-0 items-center rounded-sm text-[13px] font-medium underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-                      >
-                        {attention.linkLabel}
-                      </Link>
-                    )}
-                  </section>
+                  <AttentionCard
+                    variant="card"
+                    severity={attention.severity}
+                    line={attention.line}
+                    moreCount={attentionMore}
+                    action={attnAction}
+                  />
                 )}
 
                 {/* Mentees — hero card. Capacity lives in the header-right
@@ -1568,61 +1578,38 @@ export default function MentorRecordPage({
               } as React.CSSProperties
             }
           >
-            <div
-              role="group"
-              aria-label="Rail view"
-              className="mx-auto flex w-fit rounded-full bg-[var(--surface-card)] p-0.5"
-            >
-              {railSegments.map((seg) => (
-                <button
-                  key={seg.id}
-                  type="button"
-                  aria-pressed={railSegment === seg.id}
-                  onClick={() => setRailChoice(seg.id)}
-                  className={cn(
-                    "min-h-7 rounded-full px-3 text-[11px] font-medium leading-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
-                    railSegment === seg.id
-                      ? "bg-foreground text-background"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  )}
-                >
-                  {seg.label}
-                </button>
-              ))}
+            <div className="flex justify-center">
+              <SegmentedControl
+                ariaLabel="Rail view"
+                options={railSegments.map((s) => ({
+                  value: s.id,
+                  label: s.label,
+                }))}
+                value={railSegment}
+                onChange={(v) => setRailChoice(v)}
+              />
             </div>
 
             {railSegment === "preview" && (
               <div className="mt-3 flex flex-col items-center gap-3">
                 {postLane && (
-                  <div
-                    role="group"
-                    aria-label="Preview version"
-                    className="flex rounded-full bg-[var(--surface-card)] p-1"
-                  >
-                    {(["live", "proposed"] as const).map((side) => (
-                      <button
-                        key={side}
-                        type="button"
-                        aria-pressed={previewSide === side}
-                        onClick={() => setPreviewSide(side)}
-                        className={cn(
-                          "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
-                          previewSide === side
-                            ? "bg-foreground text-background"
-                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        )}
-                      >
-                        {side}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    size="md"
+                    ariaLabel="Preview version"
+                    options={[
+                      { value: "live" as const, label: "Live" },
+                      { value: "proposed" as const, label: "Proposed" },
+                    ]}
+                    value={previewSide}
+                    onChange={(v) => setPreviewSide(v)}
+                  />
                 )}
-                {/* Defined mount (Prompt 4): card tone + contour, 16px
-                    padding around the phone, caption 8px below — the phone
-                    no longer floats against the canvas. The 360px frame
-                    scales inside an absolutely-positioned box so its
-                    untransformed width can't widen the page (gaps.md #76). */}
-                <div className="w-full rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                {/* Preview "tool" (elevated pass): a defined glass panel that
+                    reads as an instrument, not just a mount — translucent fill,
+                    contour edge, soft shadow. The 360px frame scales inside an
+                    absolutely-positioned box so its untransformed width can't
+                    widen the page (gaps.md #76). */}
+                <div className="w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-card)] backdrop-blur-[var(--glass-blur)]">
                   <div className="relative h-[548px] w-full overflow-hidden">
                     <div className="absolute left-1/2 top-0 w-[360px] origin-top -translate-x-1/2 scale-[0.74]">
                       <div className="relative">

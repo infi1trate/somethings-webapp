@@ -147,8 +147,11 @@ export function RecordRow({
     const zones = (
       <>
         <span
-          className="self-start pt-[2px] text-[var(--text-secondary)]"
-          style={{ font: "var(--type-row-label)" }}
+          className="self-start pt-[3px] text-[var(--text-muted)]"
+          style={{
+            font: "var(--type-field-label)",
+            letterSpacing: "var(--type-field-label-tracking)",
+          }}
         >
           {label}
         </span>

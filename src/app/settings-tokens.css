@@ -105,4 +105,47 @@
   --sidebar-tile: 48px;
   --sidebar-utility: 40px;
   --target-min: 44px; /* WCAG 2.5.8 minimum touch target */
+
+  /* ── Record elevation (Hybrid visual pass) ─────────────────────────────
+     Consciously supersedes the record's flat "no drop shadows" doctrine: the
+     Mentor Record adopts soft layered depth + a larger radius, with glass
+     reserved for accents (preview panel, alert, chips) so dense data stays
+     legible. Namespaced/additive — --radius-surface etc. are unchanged, so
+     the settings surfaces stay flat. See design-system-gaps.md #80/#84/#88/#90. */
+  --radius-elevated: 20px;
+  --shadow-card: 0 1px 2px rgb(31 30 29 / 0.04), 0 10px 28px -14px rgb(31 30 29 / 0.14);
+  --shadow-card-hover: 0 2px 5px rgb(31 30 29 / 0.06), 0 16px 40px -16px rgb(31 30 29 / 0.2);
+  --shadow-alert: 0 1px 2px rgb(201 53 29 / 0.05), 0 12px 32px -14px rgb(201 53 29 / 0.22);
+
+  /* Glass accents — preview panel / alert / chips only. */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.55);
+  --glass-blur: 10px;
+
+  /* Alert families — soft-fill sets replacing the raw Tailwind ATTENTION_FAMILY.
+     Critical is a warm coral-red (not plain red). Accents are dark enough to
+     carry white button text (≥4.5:1). */
+  --alert-critical-bg: #fff2ef;
+  --alert-critical-border: #ffd6ca;
+  --alert-critical-fg: #7d2a15;
+  --alert-critical-accent: #c9351d;
+  --alert-warm-bg: #fff5ec;
+  --alert-warm-border: #ffdcc0;
+  --alert-warm-fg: #7c4116;
+  --alert-warm-accent: #b8560e;
+  --alert-warning-bg: #fdf6e2;
+  --alert-warning-border: #efe0b2;
+  --alert-warning-fg: #6b5010;
+  --alert-warning-accent: #96590a;
+
+  /* Status-dot semantics (resolve gaps.md #90). */
+  --dot-positive: #3a7d44;
+  --dot-warning: #ea580c;
+  --dot-critical: var(--state-error);
+
+  /* Elevated type roles. */
+  --type-record-name: 700 30px/34px var(--font-avantt); /* header-card name */
+  --type-record-name-tracking: -0.4px;
+  --type-field-label: 500 12px/16px var(--font-lausanne); /* form-card labels */
+  --type-field-label-tracking: 0.2px;
 }

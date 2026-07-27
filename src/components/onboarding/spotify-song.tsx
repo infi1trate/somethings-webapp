@@ -1,49 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Music, Play, ExternalLink } from "lucide-react";
+import { spotifyEmbedUrl, useSpotifyOembed } from "@/lib/spotify";
 
 const PURPLE = "#b164ff";
 // Vinyl disc: a dark base with fine concentric grooves + a soft sheen.
 const VINYL =
   "repeating-radial-gradient(circle at 50% 50%, #0b0b0d 0px, #0b0b0d 1px, #1d1d20 1px, #1d1d20 2.4px), radial-gradient(circle at 36% 30%, rgba(255,255,255,0.16), rgba(255,255,255,0) 42%)";
 
-type Parsed = { type: string; id: string } | null;
-
-// open.spotify.com/{type}/{id}, tolerating an `intl-xx/` locale prefix and query params.
-function parseSpotify(url: string): Parsed {
-  const m = url.match(
-    /open\.spotify\.com\/(?:intl-[a-z]{2}\/)?(track|album|playlist|episode|show|artist)\/([A-Za-z0-9]+)/
-  );
-  return m ? { type: m[1], id: m[2] } : null;
-}
-
 export function SpotifySong({ url }: { url: string }) {
-  const parsed = useMemo(() => parseSpotify(url), [url]);
-  const [art, setArt] = useState<string | null>(null);
-  const [title, setTitle] = useState<string | null>(null);
+  const { parsed, art, title } = useSpotifyOembed(url);
   const [open, setOpen] = useState(false);
 
-  // Best-effort album art + title from Spotify's public oEmbed endpoint.
-  // (State resets between links via a `key` on the parent, so no sync setState.)
-  useEffect(() => {
-    if (!parsed) return;
-    let cancelled = false;
-    fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        if (data.thumbnail_url) setArt(data.thumbnail_url);
-        if (data.title) setTitle(data.title);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [url, parsed]);
-
   if (!parsed) return null;
-  const embedUrl = `https://open.spotify.com/embed/${parsed.type}/${parsed.id}`;
+  const embedUrl = spotifyEmbedUrl(parsed);
 
   const cover = art ? (
     // eslint-disable-next-line @next/next/no-img-element
