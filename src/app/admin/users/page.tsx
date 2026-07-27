@@ -22,7 +22,7 @@ export default function AdminUsersPage({
 
   return (
     <AdminShell active={segment}>
-      <Roster segment={segment} showQueues={segment === "mentors"} />
+      <Roster role="supervisor" segment={segment} showQueues={segment === "mentors"} />
     </AdminShell>
   );
 }

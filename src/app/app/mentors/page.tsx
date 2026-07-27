@@ -12,7 +12,7 @@ import { Roster } from "@/components/admin/roster";
 export default function MentorsPage() {
   return (
     <MentorShell active="mentors">
-      <Roster segment="mentors" showQueues={false} />
+      <Roster role="lead" segment="mentors" showQueues={false} />
     </MentorShell>
   );
 }
