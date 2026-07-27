@@ -8,7 +8,8 @@
 //   role "supervisor" → all mentors / all teens (plain directory — the review
 //                       queues moved to the Lead Mentor, who owns reviews now)
 //   role "lead"       → the lead's umbrella (+ the review queues on mentors);
-//                       mentor rows EXPAND to their teens
+//                       a CASELOAD column ("x of y") opens the mentee modal
+//                       (teens list primary, caseload adjuster secondary)
 //   segment "teens"   → teen rows: filter by TENURE, show each teen's Mentor
 //   segment "mentors" → mentor rows: role chips (Teens + Super Admins removed)
 //
@@ -17,7 +18,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronsUpDown, ChevronUp, Search } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  Search,
+  UsersRound,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { changesetSummary, relTime } from "@/lib/onboarding/profile-update";
@@ -36,6 +43,11 @@ import {
   type DemoTeen,
   type TenureBucket,
 } from "@/lib/record/people-demo";
+import { getDemoOverview, relLength } from "@/lib/record/mentees-demo";
+import {
+  CaseloadModal,
+  type CaseloadPerson,
+} from "@/components/record/caseload-modal";
 import { cn } from "@/lib/utils";
 
 export type RosterSegment = "teens" | "mentors";
@@ -70,6 +82,8 @@ export function Roster({
   const status = useOnboardingStore((s) => s.status);
   const draft = useOnboardingStore((s) => s.draft);
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
+  const slots = useOnboardingStore((s) => s.slots);
+  const caseloads = useOnboardingStore((s) => s.caseloads);
 
   const isMentors = segment === "mentors";
   const isLead = role === "lead";
@@ -80,7 +94,11 @@ export function Roster({
   const [tenure, setTenure] = useState<TenureBucket>("all");
   const [sortKey, setSortKey] = useState<string>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Which mentor's mentee modal is open (lead only).
+  const [caseloadRow, setCaseloadRow] = useState<MentorRow | null>(null);
+  // "Now" captured once (lazy init) — reference point for the live mentor's
+  // mentee set (mentees-demo); keeps render pure.
+  const [now] = useState(() => Date.now());
 
   const liveName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
@@ -133,12 +151,34 @@ export function Roster({
         group: "California",
         active: status === "published",
         profile: needsReview ? "Incomplete" : undefined,
+        capacity: slots.total,
         recordHref: "/admin/mentor",
         highlight: needsReview,
       });
     }
     return rows;
-  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, liveName, status, needsReview]);
+  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, liveName, status, needsReview, slots.total]);
+
+  // ── Caseload (lead view) — current mentees + capacity per mentor ───────────
+  // The live mentor's mentee set is the record's (mentees-demo) so counts match
+  // the record everywhere; demo mentors derive from their teen assignments.
+  const liveMentees = useMemo(() => getDemoOverview(now).mentees, [now]);
+  const menteeCountFor = (r: MentorRow) =>
+    r.id === "live" ? liveMentees.length : teensForMentor(r.id).length;
+  const caseloadTotalFor = (r: MentorRow) =>
+    caseloads[r.id]?.total ?? r.capacity;
+  const peopleFor = (r: MentorRow): CaseloadPerson[] =>
+    r.id === "live"
+      ? liveMentees.map((m) => ({
+          id: m.id,
+          name: m.name,
+          secondary: `together ${relLength(m.matchedAt, now)}`,
+        }))
+      : teensForMentor(r.id).map((t) => ({
+          id: t.id,
+          name: t.name,
+          secondary: `joined ${relJoined(t.joinedDaysAgo)}`,
+        }));
 
   const mentorView = useMemo(() => {
     let rows = mentorRows.filter(
@@ -152,12 +192,14 @@ export function Roster({
         case "group": return r.group;
         case "status": return r.active ? 1 : 0;
         case "profile": return r.profile ? 1 : 0;
+        // Sort by load, capacity as the tiebreak.
+        case "caseload": return menteeCountFor(r) * 100 + caseloadTotalFor(r);
         default: return r.name;
       }
     };
     return [...rows].sort((a, b) => cmp(val(a), val(b)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mentorRows, q, statusFilter, roleFilter, sortKey, sortDir]);
+  }, [mentorRows, q, statusFilter, roleFilter, sortKey, sortDir, caseloads]);
 
   // ── Teens segment ───────────────────────────────────────────────────────────
   const teenView = useMemo(() => {
@@ -314,9 +356,9 @@ export function Roster({
                   <th className="px-5 py-3 font-medium">Role</th>
                   <SortHead label="Phone" k="phone" {...sortProps} />
                   <SortHead label="Group" k="group" {...sortProps} />
+                  {isLead && <SortHead label="Caseload" k="caseload" {...sortProps} />}
                   <SortHead label="Status" k="status" {...sortProps} />
                   <SortHead label="Profile" k="profile" {...sortProps} />
-                  {isLead && <th className="px-5 py-3" />}
                 </>
               ) : (
                 <>
@@ -336,15 +378,14 @@ export function Roster({
                   <MentorRowView
                     key={r.id}
                     row={r}
-                    expandable={isLead}
-                    open={expanded.has(r.id)}
-                    onToggle={() =>
-                      setExpanded((s) => {
-                        const n = new Set(s);
-                        if (n.has(r.id)) n.delete(r.id);
-                        else n.add(r.id);
-                        return n;
-                      })
+                    caseload={
+                      isLead
+                        ? {
+                            count: menteeCountFor(r),
+                            total: caseloadTotalFor(r),
+                            onOpen: () => setCaseloadRow(r),
+                          }
+                        : undefined
                     }
                   />
                 ))
@@ -352,7 +393,10 @@ export function Roster({
             {((isMentors && mentorView.length === 0) ||
               (!isMentors && teenView.length === 0)) && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-[var(--text-secondary)]">
+                <td
+                  colSpan={isMentors && isLead ? 7 : 6}
+                  className="px-5 py-8 text-center text-[var(--text-secondary)]"
+                >
                   No {isMentors ? "mentors" : "teens"} match these filters.
                 </td>
               </tr>
@@ -360,6 +404,20 @@ export function Roster({
           </tbody>
         </table>
       </div>
+
+      {/* Mentee modal (lead) — teens list primary, caseload adjuster secondary. */}
+      {caseloadRow && (
+        <CaseloadModal
+          open
+          onOpenChange={(o) => {
+            if (!o) setCaseloadRow(null);
+          }}
+          mentorId={caseloadRow.id}
+          mentorName={caseloadRow.name}
+          defaultTotal={caseloadRow.capacity}
+          people={peopleFor(caseloadRow)}
+        />
+      )}
     </div>
   );
 }
@@ -407,82 +465,54 @@ function SortHead({
 
 function MentorRowView({
   row,
-  expandable,
-  open,
-  onToggle,
+  caseload,
 }: {
   row: MentorRow;
-  expandable: boolean;
-  open: boolean;
-  onToggle: () => void;
+  /** Lead view: current load + capacity; the cell opens the mentee modal. */
+  caseload?: { count: number; total: number; onOpen: () => void };
 }) {
   const router = useRouter();
-  const teens = expandable ? teensForMentor(row.id) : [];
   return (
-    <>
-      <tr
-        onClick={row.recordHref ? () => router.push(row.recordHref!) : undefined}
-        className={cn(
-          "border-b border-[var(--surface-s2)]",
-          !open && "last:border-0",
-          row.highlight && "bg-amber-50/60",
-          row.recordHref && "cursor-pointer transition-colors hover:bg-black/[0.02]"
-        )}
-      >
-        <td className="px-5 py-3">
-          <NameCell name={row.name} goesBy={row.goesBy} recordHref={row.recordHref} />
-        </td>
-        <td className="px-5 py-3">
-          <RolePill role="Mentor" />
-        </td>
-        <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">{row.phone}</td>
-        <td className="px-5 py-3 text-[var(--text-secondary)]">{row.group}</td>
-        <td className="px-5 py-3"><StatusPill active={row.active} /></td>
-        <td className="px-5 py-3"><ProfileCell profile={row.profile} /></td>
-        {expandable && (
-          <td className="px-5 py-3 text-right">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle();
-              }}
-              aria-expanded={open}
-              aria-label={open ? `Hide ${row.name}'s teens` : `Show ${row.name}'s teens`}
-              className="inline-flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-black/[0.05] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-            >
-              <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
-            </button>
-          </td>
-        )}
-      </tr>
-      {expandable && open && (
-        <tr className="border-b border-[var(--surface-s2)] bg-[var(--surface-s1)]/50">
-          <td colSpan={7} className="px-5 py-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.4px] text-[var(--text-muted)]">
-              Mentoring {teens.length} {teens.length === 1 ? "teen" : "teens"}
-            </p>
-            {teens.length ? (
-              <ul className="flex flex-col gap-1.5">
-                {teens.map((t) => (
-                  <li key={t.id} className="flex items-center gap-3">
-                    <span className="flex size-7 items-center justify-center rounded-full bg-secondary text-[11px] font-medium text-secondary-foreground">
-                      {initials(t.name)}
-                    </span>
-                    <span className="font-medium text-[var(--text-primary)]">{t.name}</span>
-                    <span className="text-xs text-[var(--text-secondary)] tabular-nums">
-                      · joined {relJoined(t.joinedDaysAgo)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-[var(--text-secondary)]">No teens matched yet.</p>
-            )}
-          </td>
-        </tr>
+    <tr
+      onClick={row.recordHref ? () => router.push(row.recordHref!) : undefined}
+      className={cn(
+        "border-b border-[var(--surface-s2)] last:border-0",
+        row.highlight && "bg-amber-50/60",
+        row.recordHref && "cursor-pointer transition-colors hover:bg-black/[0.02]"
       )}
-    </>
+    >
+      <td className="px-5 py-3">
+        <NameCell name={row.name} goesBy={row.goesBy} recordHref={row.recordHref} />
+      </td>
+      <td className="px-5 py-3">
+        <RolePill role="Mentor" />
+      </td>
+      <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">{row.phone}</td>
+      <td className="px-5 py-3 text-[var(--text-secondary)]">{row.group}</td>
+      {caseload && (
+        <td className="px-5 py-3">
+          {/* Quiet CTA — "x of y" opens the mentee modal (caseload prompt).
+              stopPropagation so the live row's record click stays intact. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              caseload.onOpen();
+            }}
+            aria-label={`${row.name} — mentees, ${caseload.count} of ${caseload.total}`}
+            className="group/cl -mx-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[var(--text-primary)] tabular-nums transition-colors hover:bg-black/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+          >
+            {caseload.count} of {caseload.total}
+            <UsersRound
+              className="size-3.5 text-[var(--text-muted)] transition-colors group-hover/cl:text-[var(--text-primary)]"
+              aria-hidden
+            />
+          </button>
+        </td>
+      )}
+      <td className="px-5 py-3"><StatusPill active={row.active} /></td>
+      <td className="px-5 py-3"><ProfileCell profile={row.profile} /></td>
+    </tr>
   );
 }
 

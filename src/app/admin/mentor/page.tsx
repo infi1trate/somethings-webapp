@@ -301,7 +301,12 @@ export default function MentorRecordPage({
   const addInternalNote = useOnboardingStore((s) => s.addInternalNote);
   const profileHidden = useOnboardingStore((s) => s.profileHidden);
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
-  const slots = useOnboardingStore((s) => s.slots);
+  // Caseload prompt: capacity reads through the caseload override (key "live")
+  // so the header meta / Mentees card / Mentorship tab stay coherent with the
+  // lead's mentee modal.
+  const liveCaseloadTotal = useOnboardingStore(
+    (s) => s.caseloads["live"]?.total ?? s.slots.total
+  );
   const mentorish = persona === "mentor" || persona === "new-mentor";
   // The Lead Mentor manages mentors (role migration) — they view this record
   // inside their own app chrome; the mount gate keeps hydration stable.
@@ -1147,7 +1152,7 @@ export default function MentorRecordPage({
                 {[
                   live.pronouns.join(", "),
                   MEMBERSHIP_GROUPS.join(", "),
-                  `${MENTEE_COUNT} of ${slots.total} mentees`,
+                  `${MENTEE_COUNT} of ${liveCaseloadTotal} mentees`,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -1318,7 +1323,7 @@ export default function MentorRecordPage({
                 {resolveMode("accountOrg", persona) !== "hidden" &&
                   (() => {
                     const active = MENTEE_COUNT;
-                    const open = Math.max(0, slots.total - active);
+                    const open = Math.max(0, liveCaseloadTotal - active);
                     return (
                       <section
                         aria-label="Mentees"
@@ -1547,6 +1552,7 @@ export default function MentorRecordPage({
                           ? "edit"
                           : "read"
                       }
+                      menteeCount={MENTEE_COUNT}
                     />
                   </section>
                 )}

@@ -39,6 +39,14 @@ function snapshotDraft(draft: MentorDraft): MentorDraft {
  *  notifications-config.ts), so no exhaustive backfill is needed. */
 export type NotificationPrefs = Record<string, Record<string, boolean>>;
 
+/** A mentor's caseload setting (caseload prompt): capacity mode + total mentee
+ *  slots. "automatic" = capacity adjusts by the matching algorithm (TODO-DATA:
+ *  no algorithm exists in this prototype — honest stub); "custom" = the lead
+ *  set it by hand. Sparse per-mentor map — a missing entry means "automatic at
+ *  the mentor's default capacity" (people-demo `capacity`, or `slots.total`
+ *  for the store-backed "live" mentor). */
+export type Caseload = { mode: "automatic" | "custom"; total: number };
+
 interface OnboardingState {
   draft: MentorDraft;
   status: ProfileStatus;
@@ -90,6 +98,9 @@ interface OnboardingState {
   welcomeAutoShown: boolean;
   /** Notification switches, per persona → category id (settings-03). */
   notificationPrefs: NotificationPrefs;
+  /** Per-mentor caseload overrides, keyed by mentor id ("live" = the
+   *  store-backed mentor). Sparse — see the Caseload type note. */
+  caseloads: Record<string, Caseload>;
   _hasHydrated: boolean;
 
   update: (patch: Partial<MentorDraft>) => void;
@@ -158,6 +169,9 @@ interface OnboardingState {
     categoryId: string,
     enabled: boolean
   ) => void;
+  /** Set a mentor's caseload (full value — the caller resolves the current
+   *  override-or-default before writing). Caseload prompt. */
+  setCaseload: (mentorId: string, caseload: Caseload) => void;
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
@@ -189,6 +203,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       profileHidden: false,
       enteredHome: false,
       notificationPrefs: {},
+      caseloads: {},
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -482,6 +497,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           },
         })),
 
+      setCaseload: (mentorId, caseload) =>
+        set((state) => ({
+          caseloads: { ...state.caseloads, [mentorId]: caseload },
+        })),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -504,6 +524,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           profileHidden: false,
           enteredHome: false,
           notificationPrefs: {}, // dev lens keeps switches per persona; reset clears
+          caseloads: {}, // caseload overrides reset with the mentor
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -526,7 +547,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // post-publish in_review/rejected retired. Convert state in place.
       // v19: notificationPrefs (settings-03) — sparse per-persona switch map;
       // backfill {} (defaults live in notifications-config.ts, not the store).
-      version: 19,
+      // v20: caseloads (caseload prompt) — sparse per-mentor {mode,total} map;
+      // backfill {} (defaults: people-demo capacity / slots.total for "live").
+      version: 20,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -764,6 +787,14 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.notificationPrefs = {};
           }
         }
+        // v20: per-mentor caseload overrides (caseload prompt). Sparse — an
+        // empty object means "automatic at each mentor's default capacity".
+        if (version < 20) {
+          const st = s as unknown as { caseloads?: unknown };
+          if (typeof st.caseloads !== "object" || st.caseloads === null) {
+            st.caseloads = {};
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -839,6 +870,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.notificationPrefs = {};
         }
+        // v20 shape: caseloads is always a plain object.
+        if (
+          typeof (merged as { caseloads?: unknown }).caseloads !== "object" ||
+          merged.caseloads === null
+        ) {
+          merged.caseloads = {};
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -890,6 +928,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         profileHidden: state.profileHidden,
         enteredHome: state.enteredHome,
         notificationPrefs: state.notificationPrefs,
+        caseloads: state.caseloads,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

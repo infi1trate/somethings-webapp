@@ -6,10 +6,12 @@
 // Mentor column, and the lead-mentor umbrella are visible; every value here is
 // fake and must be replaced by the real user/relationship data when it lands.
 //
-// Vocabulary law (non-negotiable): "mentees"/"teens" for the people, never
-// "caseload"; no churn/at-risk language anywhere; events describe that an
-// exchange happened, never its content; numbers describe how mentoring is
-// going, never grade the person.
+// Vocabulary law (amended by the caseload prompt): "mentees"/"teens" for the
+// PEOPLE — "caseload" is sanctioned for the CAPACITY concept only ("a caseload
+// of 4 of 5 mentees"), never as a word for the people themselves. No
+// churn/at-risk language anywhere; events describe that an exchange happened,
+// never its content; numbers describe how mentoring is going, never grade the
+// person.
 
 export interface DemoMentorRow {
   id: string;
@@ -20,6 +22,10 @@ export interface DemoMentorRow {
   group: string;
   active: boolean;
   profile?: "Incomplete";
+  /** Default caseload capacity (total mentee slots). The lead can override it
+   *  per mentor via the store's `caseloads` map; current load derives from
+   *  teensForMentor(id).length. */
+  capacity: number;
 }
 
 export interface DemoTeen {
@@ -36,12 +42,12 @@ export interface DemoTeen {
 }
 
 export const DEMO_MENTORS: DemoMentorRow[] = [
-  { id: "m1", name: "John Smith", phone: "+19089101133", group: "Illinois, North Carolina", active: true, profile: "Incomplete" },
-  { id: "m2", name: "Maria Lopez", phone: "+17079923410", group: "New Jersey", active: true },
-  { id: "m3", name: "Devon Clark", phone: "+13125550172", group: "Illinois", active: true },
-  { id: "m4", name: "Aisha Bello", phone: "+17078894521", group: "North Carolina", active: true },
-  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", active: false },
-  { id: "m6", name: "Priya Nair", phone: "+13125550188", group: "Illinois", active: true, profile: "Incomplete" },
+  { id: "m1", name: "John Smith", phone: "+19089101133", group: "Illinois, North Carolina", active: true, profile: "Incomplete", capacity: 5 },
+  { id: "m2", name: "Maria Lopez", phone: "+17079923410", group: "New Jersey", active: true, capacity: 4 },
+  { id: "m3", name: "Devon Clark", phone: "+13125550172", group: "Illinois", active: true, capacity: 3 },
+  { id: "m4", name: "Aisha Bello", phone: "+17078894521", group: "North Carolina", active: true, capacity: 4 },
+  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", active: false, capacity: 2 },
+  { id: "m6", name: "Priya Nair", phone: "+13125550188", group: "Illinois", active: true, profile: "Incomplete", capacity: 3 },
 ];
 
 export const DEMO_TEENS: DemoTeen[] = [

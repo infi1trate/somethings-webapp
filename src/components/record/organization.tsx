@@ -2,22 +2,28 @@
 
 // Organization block of the Mentor Record's Mentorship tab (record-04b,
 // re-homed in record Phase 1) — the org-owned fields that used to sit in
-// settings (P11 Membership) and the Roles & permissions tab (slots,
-// assignment). Staff surface only: supervisor edits where a real write path
-// exists (slots), Lead Mentor reads everything. Store writes here are org
-// actions (setSlots via the existing mock save) — never mentor-facing paths.
+// settings (P11 Membership) and the Roles & permissions tab. Staff surface
+// only; post role-migration the Lead Mentor manages it (the Supervisor
+// retains edit oversight). Store writes here are org actions — never
+// mentor-facing paths.
 //
 // Phase 2: attributes of a person are typography, not boxes — open RecordRow
 // rows with hairline dividers, bare 16px heading. Phase 3 affordances:
 // org-assigned facts (Role, Groups, Join date) carry the lock badge with a
 // why; Status/Assignment are derived state (bound to the header overflow
-// round trips) and show no affordance; slots are Direct edit.
+// round trips) and show no affordance.
+//
+// Caseload prompt: the old "Total slots" + "Daily new teens" rows merged into
+// ONE Caseload row — the same CaseloadControls the lead's mentee modal uses,
+// writing the same store key ("live"), so the two surfaces stay coherent.
+// dailyNew is retired from the UI (the store field remains for compat).
 
-import { useState } from "react";
 import { RecordRow } from "@/components/record/row";
-import { Input } from "@/components/ui/input";
+import {
+  CaseloadControls,
+  useCaseload,
+} from "@/components/record/caseload-controls";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { saveAccountField } from "@/lib/mock-api";
 
 // Org-assigned placeholders — the single source now that settings shows only
 // the passive membership line (record-04b).
@@ -30,123 +36,77 @@ const ORG_LOCK = {
   reason: "Set by the organization — not editable on this profile.",
 };
 
-// Moved from roles-permissions-editor (record-04b) with a read mode added:
-// per-row direct save, non-negative-integer validation — unchanged. Renders
-// through RecordRow since Phase 2.
-function SlotRow({
-  id,
-  label,
-  helper,
-  value,
-  commit,
+// The merged Caseload row (caseload prompt) — replaces the old "Total slots" +
+// "Daily new teens" SlotRows. Same three-zone row metrics as RecordRow's read
+// state; when the viewer can edit, the shared CaseloadControls render inline
+// beneath the value (immediate writes, matching the lead's mentee modal).
+function CaseloadRow({
+  menteeCount,
   mode,
 }: {
-  id: "total" | "dailyNew";
-  label: string;
-  helper: string;
-  value: number;
-  commit: (n: number) => void;
+  menteeCount: number;
   mode: "edit" | "read";
 }) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(String(value));
-  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
-  const [invalid, setInvalid] = useState(false);
-
-  const valid = /^\d+$/.test(text.trim()); // non-negative integer
-  const dirty = editing && text.trim() !== String(value);
-
-  if (mode === "read") {
-    // Role-gated: the affordance hides, the row stays (Lead Mentor view).
-    return (
-      <RecordRow
-        label={label}
-        value={String(value)}
-        hint={helper}
-        state="read"
-        locked
-        onEditStart={() => {}}
-        onCancel={() => {}}
-      />
-    );
-  }
-
-  const save = async () => {
-    if (!valid) {
-      setInvalid(true);
-      return;
-    }
-    setState("saving");
-    const res = await saveAccountField(`slots.${id}`, Number(text));
-    if (!res.ok) {
-      setState("error");
-      return;
-    }
-    commit(Number(text.trim()));
-    setState("saved");
-    setEditing(false);
-  };
+  const slots = useOnboardingStore((s) => s.slots);
+  const caseload = useCaseload("live", slots.total);
 
   return (
-    <RecordRow
-      label={label}
-      value={String(value)}
-      hint={helper}
-      state={
-        editing
-          ? state === "saving"
-            ? "saving"
-            : state === "error"
-              ? "error"
-              : "edit"
-          : state === "saved"
-            ? "saved"
-            : "read"
-      }
-      onEditStart={() => {
-        setText(String(value));
-        setInvalid(false);
-        setState("idle");
-        setEditing(true);
-      }}
-      onCancel={() => {
-        setEditing(false);
-        setState("idle");
-      }}
-      onSave={save}
-      saveDisabled={!dirty && state !== "error"}
-    >
-      <div className="max-w-[10rem] space-y-1.5">
-        <Input
-          aria-label={label}
-          inputMode="numeric"
-          value={text}
-          aria-invalid={invalid && !valid ? true : undefined}
-          onChange={(e) => {
-            setText(e.target.value);
-            setInvalid(false);
-            if (state !== "idle") setState("idle");
+    <div className="grid min-h-13 w-full grid-cols-[168px_minmax(0,1fr)_auto] gap-x-6 py-3.5">
+      <span
+        className="self-start pt-[3px] text-[var(--text-muted)]"
+        style={{
+          font: "var(--type-field-label)",
+          letterSpacing: "var(--type-field-label-tracking)",
+        }}
+      >
+        Caseload
+      </span>
+      <span className="min-w-0 self-start">
+        <span
+          className="block text-[var(--text-primary)]"
+          style={{
+            font: "var(--type-row-value)",
+            fontVariantNumeric: "tabular-nums",
           }}
-        />
-        {invalid && !valid && (
-          <p className="text-[13px] leading-[18px] text-[var(--state-error)]">
-            Enter a whole number, 0 or more.
-          </p>
+        >
+          {menteeCount} of {caseload.total} mentees
+          {mode === "read" && (
+            <span className="text-[var(--text-secondary)]">
+              {" "}
+              · {caseload.mode === "automatic" ? "Automatic" : "Custom"}
+            </span>
+          )}
+        </span>
+        <span
+          className="mt-0.5 block text-[var(--text-muted)]"
+          style={{ font: "var(--type-helper)" }}
+        >
+          How many teens can be matched at once
+        </span>
+        {mode === "edit" && (
+          <CaseloadControls
+            mentorId="live"
+            currentCount={menteeCount}
+            defaultTotal={slots.total}
+            className="mt-2.5"
+          />
         )}
-      </div>
-    </RecordRow>
+      </span>
+    </div>
   );
 }
 
-export function OrganizationCard({ mode }: { mode: "edit" | "read" }) {
+export function OrganizationCard({
+  mode,
+  menteeCount,
+}: {
+  mode: "edit" | "read";
+  /** Active mentees right now (the record page's count) — the caseload floor. */
+  menteeCount: number;
+}) {
   const status = useOnboardingStore((s) => s.status);
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const deactivatedOn = useOnboardingStore((s) => s.deactivatedOn);
-  const firstName = useOnboardingStore((s) => s.draft.firstName);
-  const slots = useOnboardingStore((s) => s.slots);
-  const setSlots = useOnboardingStore((s) => s.setSlots);
 
   const deactivated = accountStatus === "deactivated";
   const assigned = status === "published" && accountStatus === "active";
@@ -241,22 +201,7 @@ export function OrganizationCard({ mode }: { mode: "edit" | "read" }) {
           onEditStart={() => {}}
           onCancel={() => {}}
         />
-        <SlotRow
-          id="total"
-          label="Total slots"
-          helper={`How many teens can be matched with ${firstName || "them"} at once`}
-          value={slots.total}
-          commit={(n) => setSlots({ total: n })}
-          mode={mode}
-        />
-        <SlotRow
-          id="dailyNew"
-          label="Daily new teens"
-          helper="How many new teens can join per day"
-          value={slots.dailyNew}
-          commit={(n) => setSlots({ dailyNew: n })}
-          mode={mode}
-        />
+        <CaseloadRow menteeCount={menteeCount} mode={mode} />
       </div>
     </div>
   );
