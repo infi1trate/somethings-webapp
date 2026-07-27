@@ -48,6 +48,7 @@ import {
   CaseloadModal,
   type CaseloadPerson,
 } from "@/components/record/caseload-modal";
+import { ContactCell } from "@/components/admin/contact-cell";
 import { cn } from "@/lib/utils";
 
 export type RosterSegment = "teens" | "mentors";
@@ -148,6 +149,7 @@ export function Roster({
             ? draft.displayName.trim()
             : undefined,
         phone: draft.phone || "+1 (415) 555-0188",
+        email: draft.email || undefined,
         group: "California",
         active: status === "published",
         profile: needsReview ? "Incomplete" : undefined,
@@ -157,7 +159,7 @@ export function Roster({
       });
     }
     return rows;
-  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, liveName, status, needsReview, slots.total]);
+  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, draft.email, liveName, status, needsReview, slots.total]);
 
   // ── Caseload (lead view) — current mentees + capacity per mentor ───────────
   // The live mentor's mentee set is the record's (mentees-demo) so counts match
@@ -188,7 +190,6 @@ export function Roster({
     if (roleFilter === "Supervisors") rows = [];
     const val = (r: MentorRow): string | number => {
       switch (sortKey) {
-        case "phone": return r.phone;
         case "group": return r.group;
         case "status": return r.active ? 1 : 0;
         case "profile": return r.profile ? 1 : 0;
@@ -213,7 +214,6 @@ export function Roster({
     const val = (t: DemoTeen): string | number => {
       switch (sortKey) {
         case "mentor": return mentorName(t.mentorId);
-        case "phone": return t.phone;
         case "group": return t.group;
         case "status": return t.active ? 1 : 0;
         case "joined": return t.joinedDaysAgo;
@@ -354,20 +354,22 @@ export function Roster({
                 <>
                   <SortHead label="Name" k="name" {...sortProps} />
                   <th className="px-5 py-3 font-medium">Role</th>
-                  <SortHead label="Phone" k="phone" {...sortProps} />
                   <SortHead label="Group" k="group" {...sortProps} />
                   {isLead && <SortHead label="Caseload" k="caseload" {...sortProps} />}
                   <SortHead label="Status" k="status" {...sortProps} />
                   <SortHead label="Profile" k="profile" {...sortProps} />
+                  {/* Contact replaces the Phone column — PII gated behind a
+                      deliberate click (see contact-cell.tsx). Not sortable. */}
+                  <th className="px-5 py-3 font-medium">Contact</th>
                 </>
               ) : (
                 <>
                   <SortHead label="Name" k="name" {...sortProps} />
                   <SortHead label="Mentor" k="mentor" {...sortProps} />
-                  <SortHead label="Phone" k="phone" {...sortProps} />
                   <SortHead label="Group" k="group" {...sortProps} />
                   <SortHead label="Status" k="status" {...sortProps} />
                   <SortHead label="Joined" k="joined" {...sortProps} />
+                  <th className="px-5 py-3 font-medium">Contact</th>
                 </>
               )}
             </tr>
@@ -487,7 +489,6 @@ function MentorRowView({
       <td className="px-5 py-3">
         <RolePill role="Mentor" />
       </td>
-      <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">{row.phone}</td>
       <td className="px-5 py-3 text-[var(--text-secondary)]">{row.group}</td>
       {caseload && (
         <td className="px-5 py-3">
@@ -512,6 +513,13 @@ function MentorRowView({
       )}
       <td className="px-5 py-3"><StatusPill active={row.active} /></td>
       <td className="px-5 py-3"><ProfileCell profile={row.profile} /></td>
+      {/* stopPropagation so opening the Contact menu doesn't fire the row's
+          record navigation. */}
+      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+        <ContactCell
+          person={{ id: row.id, name: row.name, phone: row.phone, email: row.email }}
+        />
+      </td>
     </tr>
   );
 }
@@ -523,10 +531,14 @@ function TeenRowView({ teen }: { teen: DemoTeen }) {
         <NameCell name={teen.name} goesBy={teen.goesBy} />
       </td>
       <td className="px-5 py-3 text-[var(--text-secondary)]">{mentorName(teen.mentorId)}</td>
-      <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">{teen.phone}</td>
       <td className="px-5 py-3 text-[var(--text-secondary)]">{teen.group}</td>
       <td className="px-5 py-3"><StatusPill active={teen.active} /></td>
       <td className="px-5 py-3 text-[var(--text-secondary)] tabular-nums">{relJoined(teen.joinedDaysAgo)}</td>
+      <td className="px-5 py-3">
+        <ContactCell
+          person={{ id: teen.id, name: teen.name, phone: teen.phone, email: teen.email }}
+        />
+      </td>
     </tr>
   );
 }

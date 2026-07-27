@@ -19,6 +19,9 @@ export interface DemoMentorRow {
   /** Teen-facing display name when it differs from the legal name (§9.3). */
   goesBy?: string;
   phone: string;
+  /** Contact email, when on file — the Contact menu skips Email/Copy-email if
+   *  absent (m5 has none, to exercise that path). */
+  email?: string;
   group: string;
   active: boolean;
   profile?: "Incomplete";
@@ -33,6 +36,9 @@ export interface DemoTeen {
   name: string;
   goesBy?: string;
   phone: string;
+  /** Teens are reached by phone in this demo — no email on file, so the
+   *  Contact menu shows Chat / Call / Copy number only. */
+  email?: string;
   group: string;
   active: boolean;
   /** Days since the teen joined the platform — drives the tenure buckets. */
@@ -42,12 +48,13 @@ export interface DemoTeen {
 }
 
 export const DEMO_MENTORS: DemoMentorRow[] = [
-  { id: "m1", name: "John Smith", phone: "+19089101133", group: "Illinois, North Carolina", active: true, profile: "Incomplete", capacity: 5 },
-  { id: "m2", name: "Maria Lopez", phone: "+17079923410", group: "New Jersey", active: true, capacity: 4 },
-  { id: "m3", name: "Devon Clark", phone: "+13125550172", group: "Illinois", active: true, capacity: 3 },
-  { id: "m4", name: "Aisha Bello", phone: "+17078894521", group: "North Carolina", active: true, capacity: 4 },
+  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", active: true, profile: "Incomplete", capacity: 5 },
+  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", active: true, capacity: 4 },
+  { id: "m3", name: "Devon Clark", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", active: true, capacity: 3 },
+  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", active: true, capacity: 4 },
+  // m5 intentionally has no email — the Contact menu skips Email/Copy-email.
   { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", active: false, capacity: 2 },
-  { id: "m6", name: "Priya Nair", phone: "+13125550188", group: "Illinois", active: true, profile: "Incomplete", capacity: 3 },
+  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", active: true, profile: "Incomplete", capacity: 3 },
 ];
 
 export const DEMO_TEENS: DemoTeen[] = [
