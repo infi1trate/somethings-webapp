@@ -153,7 +153,7 @@ export function AccountPopover({
           <div className="flex items-center gap-3 px-1.5 pb-2.5 pt-1">
             <button
               type="button"
-              onClick={() => nav("/app/settings?section=account&open=photo")}
+              onClick={() => nav("/app/profile?tab=account&open=photo")}
               aria-label="Edit photo"
               className={cn("group/av relative shrink-0 rounded-full", RING)}
             >

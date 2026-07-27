@@ -12,6 +12,7 @@
 // One row edits at a time; leaving a modified row is guarded.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { EditRow } from "@/components/settings/edit-row";
 import { PillButton } from "@/components/settings/pill-button";
@@ -603,8 +604,13 @@ export function AccountEditor({
       </section>
 
       <section aria-label="Personal details">
-        <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+        <h2 className="mb-2 flex items-center gap-1.5 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+          <Lock
+            className="size-3.5 shrink-0 text-[var(--text-muted)]"
+            aria-hidden
+          />
           Personal details
+          <span className="sr-only"> (managed by the Somethings team)</span>
         </h2>
         <div className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
           {/* §9 v1.1 + Phase 9: ACCOUNT IDENTITY — ops-only, locked

@@ -1,21 +1,17 @@
-// Universal Settings section registry (settings-01) — data-driven, same
-// philosophy as tabs-config.ts: order + visibility + status live here, never
-// hardcoded in the page. The page maps id → section component; a section
-// whose content isn't built yet renders the shared placeholder/coming-soon
-// treatment by status.
+// Universal Settings section registry — data-driven, same philosophy as
+// tabs-config.ts: order + visibility + status live here, never hardcoded in the
+// page. PREFS ONLY (the IA restructure): Account (identity) and Availability
+// (schedule) moved to the user record (/app/profile); the settings page
+// redirects their old deep links. What's left is how the app behaves for me.
 //
-// roles defaults to all personas (nothing is role-hidden yet in S1). status
-// "live" = real content (arriving across S1–S3); "coming-soon" = roadmap slot
-// (inert, transparent). Only appearance is fully built in S1.
+// status "live" = real content; "coming-soon" = roadmap slot (inert).
 
 import {
   Accessibility,
   Bell,
-  CalendarClock,
   Globe,
   Palette,
   Shield,
-  User,
   Video,
   type LucideIcon,
 } from "lucide-react";
@@ -37,14 +33,8 @@ export interface SettingsSectionDef {
 const ALL: SettingsRole[] = ["mentor", "lead", "supervisor"];
 
 export const SETTINGS_SECTIONS: SettingsSectionDef[] = [
-  {
-    id: "account",
-    label: "Account",
-    description: "Your name, contact details, and profile photo.",
-    icon: User,
-    status: "live", // content lands in settings-02
-    roles: ALL,
-  },
+  // Account moved to the user record (/app/profile?tab=account) — settings is
+  // prefs only now.
   {
     id: "security",
     label: "Security",
@@ -61,14 +51,7 @@ export const SETTINGS_SECTIONS: SettingsSectionDef[] = [
     status: "live", // content lands in settings-03
     roles: ALL,
   },
-  {
-    id: "availability",
-    label: "Availability",
-    description: "Your online hours — when you're around for teens.",
-    icon: CalendarClock,
-    status: "live", // reframed "Online hours" placeholder until the editor (settings-03)
-    roles: ALL,
-  },
+  // Availability moved to the user record (/app/profile?tab=schedule).
   {
     id: "appearance",
     label: "Appearance",

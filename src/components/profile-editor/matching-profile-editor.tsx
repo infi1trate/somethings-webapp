@@ -331,10 +331,19 @@ export function MatchingProfileEditor({
             </div>
           </section>
 
-          <section aria-label="Chat">
-            <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+          {/* Chat — a SUBORDINATE subsection of Profile (IA restructure), no
+              longer a co-equal "Chat" section: teen-facing presentation shown
+              beside your messages, distinct from the match card. */}
+          <section
+            aria-label="Chat"
+            className="border-t border-[color:var(--border-contour)] pt-6"
+          >
+            <h3 className="mb-1 text-[13px] font-semibold uppercase tracking-[0.4px] text-[var(--text-muted)]">
               Chat
-            </h2>
+            </h3>
+            <p className="mb-3 text-[12px] leading-[16px] text-[var(--text-muted)]">
+              What teens see beside your messages — distinct from your match card.
+            </p>
             <div className="space-y-[var(--card-gap)]">
               {CHAT_SECTIONS.map(renderSection)}
             </div>
