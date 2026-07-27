@@ -1,7 +1,8 @@
 "use client";
 
-// Profile Update Review — the supervisor delta review (§5.2). Shows ONLY the
-// fields in the mentor's open changeset as Live → Proposed diff cards, with a
+// Profile Update Review — the LEAD MENTOR's delta review (§5.2; the role
+// migration moved mentor-management flows to the lead). Shows ONLY the fields
+// in the mentor's open changeset as Live → Proposed diff cards, with a
 // per-card note composer, a Live|Proposed preview toggle (default Proposed —
 // the thing being judged), and the §6 footer verdicts:
 //   Approve and publish → confirm → approveProfileUpdate (all-or-nothing)
@@ -13,7 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { AdminShell } from "@/components/admin/admin-shell";
+import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import { Button } from "@/components/ui/button";
@@ -50,8 +51,11 @@ export default function AdminProfileUpdatePage({
   // ?focus=<fieldId> — open that field's composer and scroll to its card).
   const query = use(searchParams);
   const fromRecord = query.from === "record";
-  const returnHref = fromRecord ? "/admin/mentor" : "/admin/users";
+  // Lead-owned flow (role migration): the default return is the lead's
+  // mentors list — this console renders in the lead's own app chrome.
+  const returnHref = fromRecord ? "/admin/mentor" : "/app/mentors";
   const focusField = typeof query.focus === "string" ? query.focus : null;
+  const persona = useOnboardingStore((s) => s.persona);
   const draft = useOnboardingStore((s) => s.draft);
   const publishedSnapshot = useOnboardingStore((s) => s.publishedSnapshot);
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
@@ -82,6 +86,17 @@ export default function AdminProfileUpdatePage({
   );
   const [confirming, setConfirming] = useState(false);
 
+  // Lead-owned flow (role migration): approve/send-back belongs to the Lead
+  // Mentor. Mentors go to their own profile; the Supervisor views state on
+  // the record instead (view + edit oversight, no review actions).
+  const isLead = persona === "lead-mentor";
+  useEffect(() => {
+    if (!mounted || isLead) return;
+    router.replace(
+      persona === "supervisor" ? "/admin/mentor" : "/app/profile"
+    );
+  }, [mounted, isLead, persona, router]);
+
   const update = mounted ? profileUpdate : null;
   const mentorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
@@ -109,15 +124,24 @@ export default function AdminProfileUpdatePage({
     router.push(returnHref);
   };
 
+  if (!mounted || !isLead) {
+    // Pre-mount / non-lead viewers (being redirected) — quiet shell.
+    return (
+      <MentorShell active="mentors">
+        <div className="min-h-dvh" />
+      </MentorShell>
+    );
+  }
+
   return (
-    <AdminShell active="mentors">
+    <MentorShell active="mentors">
       <div className="px-6 py-6 lg:px-10">
         <Link
           href={returnHref}
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          {fromRecord ? "Back to profile" : "Users"}
+          {fromRecord ? "Back to profile" : "Mentors"}
         </Link>
 
         {!update ? (
@@ -339,6 +363,6 @@ export default function AdminProfileUpdatePage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminShell>
+    </MentorShell>
   );
 }

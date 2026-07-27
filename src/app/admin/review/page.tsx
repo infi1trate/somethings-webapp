@@ -4,7 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { AdminShell } from "@/components/admin/admin-shell";
+import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,11 @@ export default function AdminReviewPage({
   // only: the approve/reject logic and its baseline capture are untouched.
   const query = use(searchParams);
   const fromRecord = query.from === "record";
-  const returnHref = fromRecord ? "/admin/mentor" : "/admin/users";
+  // Lead-owned flow (role migration): the default return is the lead's
+  // mentors list — this console renders in the lead's own app chrome.
+  const returnHref = fromRecord ? "/admin/mentor" : "/app/mentors";
   const focusStep = typeof query.focus === "string" ? query.focus : null;
+  const persona = useOnboardingStore((s) => s.persona);
   const draft = useOnboardingStore((s) => s.draft);
   const setStatus = useOnboardingStore((s) => s.setStatus);
   const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
@@ -54,6 +57,17 @@ export default function AdminReviewPage({
   });
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [working, setWorking] = useState(false);
+
+  // Lead-owned flow (role migration): approve/send-back belongs to the Lead
+  // Mentor. Mentors go to their own profile; the Supervisor views state on
+  // the record instead (view + edit oversight, no review actions).
+  const isLead = persona === "lead-mentor";
+  useEffect(() => {
+    if (!mounted || isLead) return;
+    router.replace(
+      persona === "supervisor" ? "/admin/mentor" : "/app/profile"
+    );
+  }, [mounted, isLead, persona, router]);
 
   const firstName = mounted ? draft.firstName || "this mentor" : "this mentor";
   const mentorName =
@@ -105,8 +119,17 @@ export default function AdminReviewPage({
     router.push(returnHref);
   };
 
+  if (!mounted || !isLead) {
+    // Pre-mount / non-lead viewers (being redirected) — quiet shell.
+    return (
+      <MentorShell active="mentors">
+        <div className="min-h-dvh" />
+      </MentorShell>
+    );
+  }
+
   return (
-    <AdminShell active="mentors">
+    <MentorShell active="mentors">
       <div className="grid items-start gap-8 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:px-10">
         {/* LEFT — the reviewer's workspace */}
         <div className="min-w-0">
@@ -116,7 +139,7 @@ export default function AdminReviewPage({
             className="mb-4 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <ArrowLeft className="size-4" />
-            {fromRecord ? "Back to profile" : "Back to users"}
+            {fromRecord ? "Back to profile" : "Back to mentors"}
           </button>
 
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -239,6 +262,6 @@ export default function AdminReviewPage({
           </p>
         </div>
       </div>
-    </AdminShell>
+    </MentorShell>
   );
 }

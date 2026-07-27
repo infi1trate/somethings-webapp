@@ -11,16 +11,23 @@ import type { Persona } from "@/lib/types";
 // (the codebase renamed admin→Supervisor in P10). The `supervisorTier`
 // column is the FigJam read-mostly middle tier — no persona selects it in
 // this prototype; it exists as documentation and for a future persona.
+//
+// OWNERSHIP (role migration): the LEAD MENTOR is the core role that manages
+// mentors — reviews, profile change requests, account edits, internal notes,
+// destructive account actions. The Supervisor retains view + staff-edit
+// oversight of anyone's profile, but the approve/send-back review flows are
+// exclusively the lead's: the admin column's review-mediated slots read as
+// plain "read".
 export const permissionMap = {
-  identity:           { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "read"   },
-  reviewWorkflow:     { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "review" },
-  matchingProfile:    { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "review" },
-  firstMoments:       { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "review" },
-  schedule:           { mentor: "hidden", leadMentor: "edit",   supervisorTier: "edit", admin: "edit"   },
-  accountSelfService: { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "edit"   },
-  accountOrg:         { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "edit"   },
-  internalNotes:      { mentor: "hidden", leadMentor: "hidden", supervisorTier: "read", admin: "edit"   },
-  relationships:      { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "read"   },
+  identity:           { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "read" },
+  reviewWorkflow:     { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
+  matchingProfile:    { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
+  firstMoments:       { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
+  schedule:           { mentor: "hidden", leadMentor: "edit",   supervisorTier: "edit", admin: "edit" },
+  accountSelfService: { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
+  accountOrg:         { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
+  internalNotes:      { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
+  relationships:      { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "read" },
 } as const;
 
 export type RecordSection = keyof typeof permissionMap;

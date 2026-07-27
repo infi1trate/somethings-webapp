@@ -79,6 +79,16 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
     group: "Leading",
     defaultOn: true,
   },
+  // Role migration: the review queues belong to the Lead Mentor now, so the
+  // queue digest moved from Supervising → Leading.
+  {
+    id: "queue-digests",
+    label: "Queue digests",
+    description: "A daily summary of what's waiting in your queues.",
+    roles: ["lead"],
+    group: "Leading",
+    defaultOn: true,
+  },
   // Supervising — supervisor only
   {
     id: "escalations",
@@ -90,14 +100,6 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
     locked: true,
     lockReason:
       "Escalations always reach a supervisor, so this one stays on.",
-  },
-  {
-    id: "queue-digests",
-    label: "Queue digests",
-    description: "A daily summary of what's waiting in your queues.",
-    roles: ["supervisor"],
-    group: "Supervising",
-    defaultOn: true,
   },
   {
     id: "documentation-due",

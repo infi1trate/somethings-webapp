@@ -79,9 +79,10 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
   {
     key: "lead-mentor",
     label: "Lead Mentor",
-    // The self-view record wires only {mentor, isSelf} this pass; Lead has no
-    // own-record yet, so land on home (scaffold).
-    go: () => enterPersona("lead-mentor", "/app"),
+    // Role migration: the Lead Mentor manages mentors — land on their
+    // management home (the mentors roster + review queues), parallel to the
+    // Supervisor's /admin/users.
+    go: () => enterPersona("lead-mentor", "/app/mentors"),
   },
   // Supervisor replaces Admin: same console destination, unchanged review
   // behavior; the settings surface renders all five tabs for this persona.

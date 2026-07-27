@@ -22,7 +22,9 @@ export default function AdminUsersPage({
 
   return (
     <AdminShell active={segment}>
-      <Roster role="supervisor" segment={segment} showQueues={segment === "mentors"} />
+      {/* Role migration: the review queues moved to the Lead Mentor's
+          /app/mentors — the supervisor roster is a plain directory. */}
+      <Roster role="supervisor" segment={segment} showQueues={false} />
     </AdminShell>
   );
 }

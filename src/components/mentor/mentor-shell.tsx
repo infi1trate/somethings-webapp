@@ -51,6 +51,8 @@ export function MentorShell({
     (s) => s.publishedSnapshot?.accountPhoto ?? null
   );
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
+  const status = useOnboardingStore((s) => s.status);
+  const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const mentorish = persona === "mentor" || persona === "new-mentor";
   // Mount-gated so SSR and first client paint agree (localStorage-backed store).
   const avatarInitial = mounted
@@ -60,8 +62,19 @@ export function MentorShell({
   const unread = mounted ? activity.filter((a) => !a.read).length : 0;
   // Mount-gated so SSR / first paint use the default set (persona is
   // client-only, localStorage-backed) — then the Lead swap applies.
-  const items =
-    mounted && roleForPersona(persona) === "lead" ? LEAD_ITEMS : SIDEBAR_ITEMS;
+  const isLead = mounted && roleForPersona(persona) === "lead";
+  const items = isLead ? LEAD_ITEMS : SIDEBAR_ITEMS;
+  // Role migration: the Lead Mentor owns mentor reviews — badge the Mentors
+  // item with what's waiting (a submitted profile + an open, non-flagged
+  // changeset), mirroring the roster queues' counts.
+  const reviewsWaiting = isLead
+    ? (status === "in_review" ? 1 : 0) +
+      (profileUpdate && profileUpdate.status !== "changes-requested" ? 1 : 0)
+    : 0;
+  const badges = {
+    ...(unread > 0 ? { activity: unread } : {}),
+    ...(reviewsWaiting > 0 ? { mentors: reviewsWaiting } : {}),
+  };
 
   return (
     <div className="flex h-dvh bg-[var(--surface-s2)]">
@@ -70,7 +83,7 @@ export function MentorShell({
         items={items}
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}
-        badges={unread > 0 ? { activity: unread } : undefined}
+        badges={Object.keys(badges).length > 0 ? badges : undefined}
         onSelect={(id) => router.push(id === "home" ? "/app" : `/app/${id}`)}
         className="shrink-0 overflow-y-auto"
       />

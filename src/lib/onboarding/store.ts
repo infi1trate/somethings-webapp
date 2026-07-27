@@ -57,7 +57,7 @@ interface OnboardingState {
   /** Shown-once flag for the hub's first-visit welcome modal. Set true the first
    *  time the hub opens the intro, so it never reappears. Persisted. */
   hubWelcomeSeen: boolean;
-  /** Supervisor-owned account config (§4 Roles & permissions, Phase 6). Top-level
+  /** Staff-owned account config (§4 Roles & permissions, Phase 6). Top-level
    *  additions backfill via the shallow persist merge — no migration needed. */
   slots: { total: number; dailyNew: number };
   accountStatus: "active" | "deactivated";
@@ -111,9 +111,9 @@ interface OnboardingState {
   unconfirmChangeRequest: (id: string) => void;
   setWelcomeOpen: (open: boolean) => void;
   markWelcomeAutoShown: () => void;
-  /** Supervisor: mentor-slots config (§4 Phase 6). */
+  /** Staff: mentor-slots config (§4 Phase 6). */
   setSlots: (patch: Partial<{ total: number; dailyNew: number }>) => void;
-  /** Supervisor: reversible deactivation round-trip (§4 Phase 6). */
+  /** Staff: reversible deactivation round-trip (§4 Phase 6). */
   setAccountStatus: (
     status: "active" | "deactivated",
     deactivatedOn?: string | null
@@ -128,10 +128,10 @@ interface OnboardingState {
   /** Discard one proposed change: draft reverts to the enqueue-time live
    *  value; last field discarded clears the changeset silently. */
   discardProfileUpdateField: (fieldId: string) => void;
-  /** Supervisor send-back: noted fields flip to changes-requested; un-noted fields
+  /** Reviewer (Lead Mentor) send-back: noted fields flip to changes-requested; un-noted fields
    *  stay pending inside the changes-requested changeset (spec §3 note). */
   sendBackProfileUpdate: (notes: Record<string, string>) => void;
-  /** Supervisor approve: apply every proposed value (snapshot the draft), clear
+  /** Reviewer (Lead Mentor) approve: apply every proposed value (snapshot the draft), clear
    *  the changeset, fire the activity item (§1.4 all-or-nothing). */
   approveProfileUpdate: () => void;
   markActivityRead: () => void;

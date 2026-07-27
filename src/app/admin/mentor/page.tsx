@@ -44,6 +44,7 @@ import {
   Video,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { MentorShell } from "@/components/mentor/mentor-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { displayOrEmpty, RecordRow } from "@/components/record/row";
@@ -230,6 +231,23 @@ function BioValue({ text }: { text: string }) {
   );
 }
 
+/** Persona-aware staff chrome (role migration): the Lead Mentor — the role
+ *  that manages mentors — views the record inside their own mentor-app shell;
+ *  the Supervisor keeps the console chrome. Same route, two rails. */
+function StaffShell({
+  lead,
+  children,
+}: {
+  lead: boolean;
+  children: React.ReactNode;
+}) {
+  return lead ? (
+    <MentorShell active="mentors">{children}</MentorShell>
+  ) : (
+    <AdminShell active="mentors">{children}</AdminShell>
+  );
+}
+
 function SectionShell({
   slot,
   helper,
@@ -285,6 +303,9 @@ export default function MentorRecordPage({
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
   const slots = useOnboardingStore((s) => s.slots);
   const mentorish = persona === "mentor" || persona === "new-mentor";
+  // The Lead Mentor manages mentors (role migration) — they view this record
+  // inside their own app chrome; the mount gate keeps hydration stable.
+  const isLead = mounted && persona === "lead-mentor";
   // One editing row at a time on the record's account section (no guard
   // dialog — each row saves or cancels explicitly before switching).
   const [accountEditing, setAccountEditing] = useState<string | null>(null);
@@ -360,7 +381,7 @@ export default function MentorRecordPage({
 
   if (!mounted || mentorish) {
     return (
-      <AdminShell active="mentors">
+      <StaffShell lead={isLead}>
         <div className="px-6 py-6 lg:px-10" aria-busy="true" aria-label="Loading mentor profile">
           <div className="mt-1 flex items-center gap-4">
             <div className="size-14 shrink-0 animate-pulse rounded-[14px] bg-muted/40" />
@@ -389,7 +410,7 @@ export default function MentorRecordPage({
             </div>
           </div>
         </div>
-      </AdminShell>
+      </StaffShell>
     );
   }
 
@@ -422,18 +443,21 @@ export default function MentorRecordPage({
   const deactivated = accountStatus === "deactivated";
   // Pre-publish "submitted for review" — feeds the overflow's Review entry.
   const submittedForReview = status === "in_review";
-  // Destructive account actions are supervisor powers (accountOrg: edit).
+  // Destructive account actions (accountOrg: edit) — the Lead Mentor manages
+  // mentors (role migration); the Supervisor retains them as oversight.
   const canActOnAccount = resolveMode("accountOrg", persona) === "edit";
-  // Account rows: staff-editable for supervisors, read for leads.
+  // Account rows: staff-editable for both staff roles (lead owns the flows).
   const accountMode: "edit" | "read" =
     resolveMode("accountSelfService", persona) === "edit" ? "edit" : "read";
   const staffActor = persona === "supervisor" ? "Supervisor" : "Lead mentor";
   // Overview data (Prompt B). TODO-DATA: illustrative fixtures — no IMP-6
   // aggregation layer or mentee entity exists in this prototype. Mount-gated
-  // above, so Date.now() here is client-only. Mentee names/avatars are gated
-  // to supervisor tier; below that (lead) rows degrade to counts + durations.
+  // above, so Date.now() here is client-only. Mentee names/avatars render for
+  // the manager tier (lead — the primary manager — and supervisor oversight);
+  // the future read-mostly middle tier would degrade to counts + durations.
   const overview = getDemoOverview(now);
-  const supervisorTier = persona === "supervisor";
+  const managerTier =
+    persona === "supervisor" || persona === "lead-mentor";
 
   // ── Attention by exception (Prompt C) ─────────────────────────────────
   // One strip at a time, highest severity wins; the rest surface via "and N
@@ -518,9 +542,9 @@ export default function MentorRecordPage({
   const attention = attentionItems[0] ?? null;
   const attentionMore = Math.max(0, attentionItems.length - 1);
   // The alert's action (elevated pass): review alerts link to their console
-  // (supervisor review viewers only); an escalation jumps to the mentee in the
-  // Mentees card. Colors now come from the tokenized alert families inside
-  // AttentionCard — the raw ATTENTION_FAMILY tint map is retired.
+  // (lead review viewers only — the lead owns the flows); an escalation jumps
+  // to the mentee in the Mentees card. Colors come from the tokenized alert
+  // families inside AttentionCard.
   const attnAction: AttentionAction | null =
     attention == null
       ? null
@@ -573,9 +597,10 @@ export default function MentorRecordPage({
   };
 
   // ── Right rail (Phase 1) ─────────────────────────────────────────────
-  // Segments the viewer can't see are genuinely absent (Lead Mentor never
-  // sees a Notes segment — record-05's zero-trace rule); a hidden default
-  // falls through to Activity.
+  // Segments the viewer can't see are genuinely absent (both staff roles see
+  // Notes since the role migration — leads manage mentors; the map still
+  // hides it from any future below-manager tier); a hidden default falls
+  // through to Activity.
   const notesVisible = resolveMode("internalNotes", persona) !== "hidden";
   const railSegments: { id: "preview" | "notes" | "activity"; label: string }[] =
     [
@@ -1017,17 +1042,16 @@ export default function MentorRecordPage({
   };
 
   return (
-    <AdminShell active="mentors">
+    <StaffShell lead={isLead}>
       <div ref={containerRef} className="px-6 py-6 lg:px-10">
-        {/* Back link — aligns to the content edge (the elevated card pass
-            retired the 72px avatar-gutter axis; the avatar now lives inside
-            the header card). */}
+        {/* Back link — persona-aware: the lead returns to their mentors list,
+            the supervisor to the console directory. */}
         <Link
-          href="/admin/users"
+          href={isLead ? "/app/mentors" : "/admin/users"}
           className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          Users
+          {isLead ? "Mentors" : "Users"}
         </Link>
 
         {/* ── Identity header (Prompt 3 lockup): one horizontal unit — 56px
@@ -1326,8 +1350,8 @@ export default function MentorRecordPage({
                             Nothing here yet — mentees appear once this mentor
                             is published and matched.
                           </p>
-                        ) : !supervisorTier ? (
-                          // Below supervisor tier: no names or avatars.
+                        ) : !managerTier ? (
+                          // Below the manager tier: no names or avatars.
                           <p
                             className="mt-3 text-[var(--text-primary)] tabular-nums"
                             style={{ font: "var(--type-row-value)" }}
@@ -1652,9 +1676,9 @@ export default function MentorRecordPage({
                   className="text-[var(--text-muted)]"
                   style={{ font: "var(--type-helper)", lineHeight: 1.5 }}
                 >
-                  Internal — visible to supervisors and admins only. Mentors
-                  never see notes; use change requests for anything the mentor
-                  should read.
+                  Internal — visible to lead mentors and supervisors only.
+                  Mentors never see notes; use change requests for anything
+                  the mentor should read.
                 </p>
                 <div>
                   <label
@@ -1839,6 +1863,6 @@ export default function MentorRecordPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminShell>
+    </StaffShell>
   );
 }

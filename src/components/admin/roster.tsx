@@ -5,8 +5,10 @@
 // in the Supervisor console (AdminShell, with review queues) and the Lead Mentor
 // app (MentorShell, list only, umbrella-scoped).
 //
-//   role "supervisor" → all mentors / all teens (+ the review queues on mentors)
-//   role "lead"       → the lead's umbrella; mentor rows EXPAND to their teens
+//   role "supervisor" → all mentors / all teens (plain directory — the review
+//                       queues moved to the Lead Mentor, who owns reviews now)
+//   role "lead"       → the lead's umbrella (+ the review queues on mentors);
+//                       mentor rows EXPAND to their teens
 //   segment "teens"   → teen rows: filter by TENURE, show each teen's Mentor
 //   segment "mentors" → mentor rows: role chips (Teens + Super Admins removed)
 //
@@ -115,7 +117,10 @@ export function Roster({
   const mentorRows = useMemo<MentorRow[]>(() => {
     const base: MentorRow[] = isLead ? leadUmbrellaMentors() : [...DEMO_MENTORS];
     const rows: MentorRow[] = [...base];
-    if (!isLead && mounted && draft.firstName) {
+    // The store-backed live mentor (the one with real review flows) renders
+    // for BOTH staff roles — the lead manages them (role migration), the
+    // supervisor retains view/edit. Both rows open the record.
+    if (mounted && draft.firstName) {
       rows.unshift({
         id: "live",
         name: liveName,
