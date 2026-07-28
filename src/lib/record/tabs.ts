@@ -24,11 +24,9 @@ export const RECORD_TABS: RecordTabDef[] = [
   { id: "schedule", label: "Schedule", built: true },
   { id: "account", label: "Account", built: true },
   { id: "mentorship", label: "Mentorship", built: true },
-  // Insights (Prompt C) — reserved slot for the IMP-6 consolidation; empty
-  // state only. Coaching/oversight surface: lead-mentor (and admin/super-
-  // admin, which have no distinct persona in this prototype). Supervisor
-  // tier does not see it. See gaps.md #95 for the spec ambiguity.
-  { id: "insights", label: "Insights", built: true, roles: ["lead"] },
+  // Insights removed — the IMP-6 charts (engagement, retention, bonus, match
+  // rate) now live on the Overview tab (see RecordOverview). The tab is gone,
+  // not deferred.
   // Phase 1: registry entries only — do not build, do not render.
   { id: "care-journey", label: "Care journey", built: false },
   { id: "billing", label: "Billing", built: false },

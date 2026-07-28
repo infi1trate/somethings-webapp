@@ -113,6 +113,11 @@ interface OnboardingState {
    *  (live). Only the accepting/not-accepting intent is stored — "Full" is
    *  always derived from the caseload (count === cap), never stored. */
   mentorAccepting: Record<string, boolean>;
+  /** The record subject's org role + group memberships — staff-editable on the
+   *  Mentorship › Organization card. Single-mentor prototype, so plain fields
+   *  rather than per-mentor keyed maps. */
+  mentorRole: string;
+  mentorGroups: string[];
   _hasHydrated: boolean;
 
   update: (patch: Partial<MentorDraft>) => void;
@@ -190,6 +195,9 @@ interface OnboardingState {
   /** Manually set a mentor's availability INTENT (open to new mentees?). "Full"
    *  stays derived from the caseload — only this intent is stored. */
   setMentorAccepting: (mentorId: string, accepting: boolean) => void;
+  /** Staff edits to the record subject's org role + group memberships. */
+  setMentorRole: (role: string) => void;
+  setMentorGroups: (groups: string[]) => void;
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
@@ -224,6 +232,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       caseloads: {},
       mentorStatuses: {},
       mentorAccepting: {},
+      mentorRole: "Mentor",
+      mentorGroups: ["North Carolina", "New Jersey"],
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -532,6 +542,9 @@ export const useOnboardingStore = create<OnboardingState>()(
           mentorAccepting: { ...state.mentorAccepting, [mentorId]: accepting },
         })),
 
+      setMentorRole: (role) => set({ mentorRole: role }),
+      setMentorGroups: (groups) => set({ mentorGroups: groups }),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -557,6 +570,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           caseloads: {}, // caseload overrides reset with the mentor
           mentorStatuses: {}, // status overrides reset with the mentor
           mentorAccepting: {}, // availability intent resets with the mentor
+          mentorRole: "Mentor",
+          mentorGroups: ["North Carolina", "New Jersey"],
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -585,7 +600,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // map; backfill {} (fallback = fixture status / derived liveLifecycle).
       // v22: mentorAccepting (availability intent toggle) — sparse per-mentor
       // bool map; backfill {} (fallback = fixture accepting / true for "live").
-      version: 22,
+      // v23: mentorRole + mentorGroups (staff-editable org role + memberships) —
+      // backfill "Mentor" / the default groups.
+      version: 23,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -849,6 +866,15 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.mentorAccepting = {};
           }
         }
+        if (version < 23) {
+          const st = s as unknown as {
+            mentorRole?: unknown;
+            mentorGroups?: unknown;
+          };
+          if (typeof st.mentorRole !== "string") st.mentorRole = "Mentor";
+          if (!Array.isArray(st.mentorGroups))
+            st.mentorGroups = ["North Carolina", "New Jersey"];
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -947,6 +973,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.mentorAccepting = {};
         }
+        // v23 shape: mentorRole (string) + mentorGroups (array).
+        if (typeof (merged as { mentorRole?: unknown }).mentorRole !== "string") {
+          merged.mentorRole = "Mentor";
+        }
+        if (!Array.isArray((merged as { mentorGroups?: unknown }).mentorGroups)) {
+          merged.mentorGroups = ["North Carolina", "New Jersey"];
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -1001,6 +1034,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         caseloads: state.caseloads,
         mentorStatuses: state.mentorStatuses,
         mentorAccepting: state.mentorAccepting,
+        mentorRole: state.mentorRole,
+        mentorGroups: state.mentorGroups,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

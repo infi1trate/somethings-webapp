@@ -37,11 +37,8 @@ import {
   ArrowLeft,
   CalendarClock,
   EyeOff,
-  Info,
   MessagesSquare,
   MoreHorizontal,
-  Sparkles,
-  Video,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
@@ -59,10 +56,6 @@ import { SegmentedControl } from "@/components/record/segmented-control";
 import {
   escalationVisible,
   getDemoOverview,
-  recencyPhrase,
-  relativeAgo,
-  relLength,
-  responseBucket,
 } from "@/lib/record/mentees-demo";
 import { PillButton } from "@/components/settings/pill-button";
 import {
@@ -117,6 +110,7 @@ import {
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
 import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
+import { RecordOverview } from "@/components/record/record-overview";
 import { FOCUS_TO_TAB, recordTabsForRole } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
@@ -447,8 +441,6 @@ export default function MentorRecordPage({
   // the manager tier (lead — the primary manager — and supervisor oversight);
   // the future read-mostly middle tier would degrade to counts + durations.
   const overview = getDemoOverview(now);
-  const managerTier =
-    persona === "supervisor" || persona === "lead-mentor";
 
   // ── Attention by exception (Prompt C) ─────────────────────────────────
   // One strip at a time, highest severity wins; the rest surface via "and N
@@ -1243,236 +1235,16 @@ export default function MentorRecordPage({
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,900px)_300px]">
           {/* LEFT — the active tab's content: sections MOVED, not restyled
               (Phase 1 content mapping); gating unchanged via resolveMode
-              inside each renderer. */}
-          <div className="min-w-0 space-y-7">
+              inside each renderer. Overview is the performance dashboard and
+              spans the full width (no Preview rail — see below). */}
+          <div
+            className={cn(
+              "min-w-0 space-y-7",
+              activeTab === "overview" && "lg:col-span-2"
+            )}
+          >
             {activeTab === "overview" && (
-              // ── Overview mosaic (surface pass, Phase 4): status +
-              // pointers only, as a card grid. Collapses to one column
-              // below lg (the page's existing container breakpoint).
-              <>
-                {/* Attention by exception (Prompt C): one strip, highest
-                    severity; healthy = no strip (the reward state). The rest
-                    surface via "and N more". Word + tint together (1.4.1). */}
-                {attention && (
-                  <AttentionCard
-                    variant="card"
-                    severity={attention.severity}
-                    line={attention.line}
-                    moreCount={attentionMore}
-                    action={attnAction}
-                  />
-                )}
-
-                {/* Mentees — hero card. Capacity lives in the header-right
-                    caption (a fact), not a card of its own. Mentee names +
-                    avatars are supervisor-tier only; below that the card
-                    degrades to counts + durations with no layout shift. */}
-                {resolveMode("accountOrg", persona) !== "hidden" &&
-                  (() => {
-                    const active = MENTEE_COUNT;
-                    const open = Math.max(0, liveCaseloadTotal - active);
-                    return (
-                      <section
-                        aria-label="Mentees"
-                        data-record-section="mentees"
-                        className={CARD_PAD}
-                      >
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <h2
-                            className="text-[var(--text-primary)]"
-                            style={{ font: "var(--type-card-title)" }}
-                          >
-                            Mentees
-                          </h2>
-                          {publishedSnapshot && (
-                            <span
-                              className="text-[var(--text-secondary)] tabular-nums"
-                              style={{ font: "var(--type-helper)" }}
-                            >
-                              {active} active · {open} slot{open === 1 ? "" : "s"} open
-                            </span>
-                          )}
-                        </div>
-
-                        {!publishedSnapshot ? (
-                          <p
-                            className="mt-3 text-[var(--text-secondary)]"
-                            style={{ font: "var(--type-row-value)" }}
-                          >
-                            Nothing here yet — mentees appear once this mentor
-                            is published and matched.
-                          </p>
-                        ) : !managerTier ? (
-                          // Below the manager tier: no names or avatars.
-                          <p
-                            className="mt-3 text-[var(--text-primary)] tabular-nums"
-                            style={{ font: "var(--type-row-value)" }}
-                          >
-                            {active} mentees · together{" "}
-                            {relLength(
-                              Math.max(...overview.mentees.map((m) => m.matchedAt)),
-                              now
-                            )}
-                            –
-                            {relLength(
-                              Math.min(...overview.mentees.map((m) => m.matchedAt)),
-                              now
-                            )}
-                          </p>
-                        ) : (
-                          <div className="mt-2 grid gap-x-6 sm:grid-cols-2">
-                            {overview.mentees.map((m) => {
-                              const esc = escalationVisible(m.escalation, now);
-                              return (
-                                <PersonRow
-                                  key={m.id}
-                                  name={m.name}
-                                  secondary={`${relLength(m.matchedAt, now)} · ${recencyPhrase(m.lastInteractionAt, now)}`}
-                                  trailing={
-                                    <>
-                                      {esc && (
-                                        <span className="rounded-full border border-orange-300 px-2 py-0.5 text-[11px] font-medium leading-none text-orange-700">
-                                          Escalated
-                                        </span>
-                                      )}
-                                      {m.videoCount30d > 0 && (
-                                        <span
-                                          className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]"
-                                          title={`${m.videoCount30d} video calls in the last 30 days`}
-                                        >
-                                          <Video className="size-3" aria-hidden />
-                                          {m.videoCount30d}
-                                        </span>
-                                      )}
-                                    </>
-                                  }
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
-                      </section>
-                    );
-                  })()}
-
-                {/* How it's going + Team (paired). "How it's going" renders
-                    sentences from the metrics; any null line is suppressed,
-                    and if no lines render the card is dropped and Team goes
-                    full-width. */}
-                {(() => {
-                  const m = overview.metrics;
-                  const lines: { text: string; info: string }[] = [];
-                  if (m.avgResponseMinutes != null)
-                    lines.push({
-                      // TODO-COPY (voice pass): response-time bucket copy.
-                      text: responseBucket(m.avgResponseMinutes),
-                      info: "Average time to reply to mentees over the last 3 days, online hours only.",
-                    });
-                  if (m.matchesActivePast90 != null)
-                    lines.push({
-                      text: `${m.matchesActivePast90.active} of ${m.matchesActivePast90.total} matches active past 90 days`,
-                      info: "How many of this mentor's matches have had activity in the last 90 days.",
-                    });
-                  if (m.lastActiveAt != null)
-                    lines.push({
-                      text: `Last active ${relativeAgo(m.lastActiveAt, now)}`,
-                      info: "When this mentor was last active in the app.",
-                    });
-                  const showGoing = publishedSnapshot && lines.length > 0;
-                  return (
-                    <div
-                      className={cn(
-                        "grid gap-4",
-                        showGoing && "lg:grid-cols-2"
-                      )}
-                    >
-                      {showGoing && (
-                        <section aria-label="How it's going" className={CARD_PAD}>
-                          <h2
-                            className="text-[var(--text-primary)]"
-                            style={{ font: "var(--type-card-title)" }}
-                          >
-                            How it&apos;s going
-                          </h2>
-                          <ul className="mt-3 space-y-2">
-                            {lines.map((l) => (
-                              <li
-                                key={l.text}
-                                className="flex items-start gap-1.5 text-[var(--text-primary)] tabular-nums"
-                                style={{ font: "var(--type-row-value)" }}
-                              >
-                                <span className="min-w-0">{l.text}</span>
-                                <span
-                                  tabIndex={0}
-                                  title={l.info}
-                                  aria-label={l.info}
-                                  className="mt-0.5 shrink-0 rounded-sm text-[var(--text-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-                                >
-                                  <Info className="size-3.5" aria-hidden />
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {/* Team — supervisor + lead mentor. Non-pressable: their
-                          records don't exist in this prototype (no dead
-                          chevrons). */}
-                      <section aria-label="Team" className={CARD_PAD}>
-                        <h2
-                          className="text-[var(--text-primary)]"
-                          style={{ font: "var(--type-card-title)" }}
-                        >
-                          Team
-                        </h2>
-                        <div className="mt-2">
-                          {overview.team.map((t) => (
-                            <PersonRow
-                              key={t.id}
-                              name={t.name}
-                              secondary={t.roleLabel}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    </div>
-                  );
-                })()}
-
-                {/* Recent activity — events only (vocabulary law), newest
-                    first, 5 max. The full Activity feed is deferred (rolling
-                    out later), so there's no "View all" for now. */}
-                <section aria-label="Recent activity" className={CARD_PAD}>
-                  <h2
-                    className="text-[var(--text-primary)]"
-                    style={{ font: "var(--type-card-title)" }}
-                  >
-                    Recent activity
-                  </h2>
-                  <ul className="mt-2 space-y-1">
-                    {overview.events.slice(0, 5).map((e) => (
-                      <li
-                        key={e.id}
-                        className="flex items-baseline justify-between gap-3 py-1"
-                      >
-                        <span
-                          className="min-w-0 text-[var(--text-primary)]"
-                          style={{ font: "var(--type-row-value)" }}
-                        >
-                          {e.text}
-                        </span>
-                        <span
-                          className="shrink-0 text-[var(--text-muted)] tabular-nums"
-                          style={{ font: "var(--type-helper)" }}
-                        >
-                          {relativeAgo(e.at, now)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </>
+              <RecordOverview mentorName={mentorName} />
             )}
             {activeTab === "profile" && renderSection("matchingProfile")}
             {activeTab === "first-moments" && renderSection("firstMoments")}
@@ -1498,38 +1270,15 @@ export default function MentorRecordPage({
                 {renderSection("relationships")}
               </>
             )}
-            {activeTab === "insights" && (
-              // Prompt C — reserved slot for the IMP-6 consolidation; empty
-              // state only (do not build content). Role-gated to lead-mentor
-              // in the tab registry. TODO-COPY.
-              <section
-                aria-label="Insights"
-                data-record-section="insights"
-                className={cn(
-                  CARD_PAD,
-                  "flex min-h-[240px] flex-col items-center justify-center gap-3 text-center"
-                )}
-              >
-                <Sparkles
-                  className="size-5 text-[var(--text-muted)]"
-                  aria-hidden
-                />
-                <p
-                  className="max-w-[42ch] text-[var(--text-secondary)]"
-                  style={{ font: "var(--type-row-value)" }}
-                >
-                  Mentor insights are on the way — trends, signals, and
-                  coaching starters will live here.
-                </p>
-              </section>
-            )}
           </div>
 
           {/* RIGHT — utility rail: the teen-facing Preview only. Notes +
               Activity tabs are deferred (rolling out later), so the segmented
               control is gone. The preview stays passive and prop-fed
               (invariant 1). Stacks below the content under lg; the per-tab
-              offset keeps its top edge aligned with the first content card. */}
+              offset keeps its top edge aligned with the first content card.
+              Hidden on Overview — that tab is the full-width dashboard. */}
+          {activeTab !== "overview" && (
           <aside
             aria-label="Profile rail"
             className="min-w-0 lg:sticky lg:top-6 lg:mt-[var(--rail-offset)]"
@@ -1598,6 +1347,7 @@ export default function MentorRecordPage({
                 </div>
               </div>
           </aside>
+          )}
         </div>
       </div>
 

@@ -18,11 +18,19 @@ import type { Persona } from "@/lib/types";
 // oversight of anyone's profile, but the approve/send-back review flows are
 // exclusively the lead's: the admin column's review-mediated slots read as
 // plain "read".
+//
+// EDIT-ANYTHING (lead): a Lead Mentor may edit any field on any record,
+// including the teen-facing Profile + First-moments content — so those slots
+// are "edit" for leadMentor (not "review"). NOTE: the record page renders
+// those two sections read-only with a request-change affordance today; inline
+// staff editors for the rich match-card fields (photo/media/vibe/…) are the
+// pending render work (gaps.md). The keep-reviewWorkflow="review" preserves the
+// approve/send-back console the lead still runs.
 export const permissionMap = {
   identity:           { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "read" },
   reviewWorkflow:     { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
-  matchingProfile:    { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
-  firstMoments:       { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
+  matchingProfile:    { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "read" },
+  firstMoments:       { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "read" },
   schedule:           { mentor: "hidden", leadMentor: "edit",   supervisorTier: "edit", admin: "edit" },
   accountSelfService: { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
   accountOrg:         { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },

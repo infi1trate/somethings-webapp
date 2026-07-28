@@ -31,17 +31,91 @@ import {
 } from "@/components/admin/mentor-status-badge";
 import { availabilityFor, liveLifecycle } from "@/lib/record/mentor-status";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { Plus, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Org-assigned placeholders — the single source now that settings shows only
-// the passive membership line (record-04b).
+// the passive membership line (record-04b). Groups + Role are now staff-
+// editable (stored on the onboarding store); Join date stays read-only.
 export const MEMBERSHIP_GROUPS = ["North Carolina", "New Jersey"];
 export const JOIN_DATE = "March 25, 2026";
 
-// Interim lock explainer (gaps.md #83) — copy minted here, not in any spec.
-const ORG_LOCK = {
-  label: "Org-managed",
-  reason: "Set by the organization — not editable on this profile.",
-};
+// Staff-editable org fields (lead + supervisor can set these on the record).
+const ROLE_OPTIONS = ["Mentor", "Lead mentor", "Supervisor"];
+const GROUP_OPTIONS = [
+  "California",
+  "Illinois",
+  "New Jersey",
+  "North Carolina",
+];
+
+// Group memberships as removable chips + an "Add group" menu of the remaining
+// options. Staff-only (rendered when the Organization card is in edit mode).
+function GroupsEditor({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (groups: string[]) => void;
+}) {
+  const available = GROUP_OPTIONS.filter((g) => !value.includes(g));
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {value.map((g) => (
+        <span
+          key={g}
+          className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-s1)] py-1 pl-2.5 pr-1 text-[13px] font-medium text-[var(--text-primary)]"
+        >
+          {g}
+          <button
+            type="button"
+            aria-label={`Remove ${g}`}
+            onClick={() => onChange(value.filter((x) => x !== g))}
+            className="rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-black/[0.06] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
+        </span>
+      ))}
+      {value.length === 0 && (
+        <span className="text-[13px] text-[var(--text-muted)]">Not recorded</span>
+      )}
+      {available.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Add group"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[color:var(--border-contour)] py-1 pl-2 pr-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-black/[0.03] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Add
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {available.map((g) => (
+              <DropdownMenuItem key={g} onSelect={() => onChange([...value, g])}>
+                {g}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
 
 // The merged Caseload row (caseload prompt) — replaces the old "Total slots" +
 // "Daily new teens" SlotRows. Same three-zone row metrics as RecordRow's read
@@ -121,6 +195,10 @@ export function OrganizationCard({
   const setMentorAccepting = useOnboardingStore((s) => s.setMentorAccepting);
   const slots = useOnboardingStore((s) => s.slots);
   const caseloads = useOnboardingStore((s) => s.caseloads);
+  const mentorRole = useOnboardingStore((s) => s.mentorRole);
+  const setMentorRole = useOnboardingStore((s) => s.setMentorRole);
+  const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
+  const setMentorGroups = useOnboardingStore((s) => s.setMentorGroups);
   const draft = useOnboardingStore((s) => s.draft);
   const mentorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "this mentor";
@@ -148,34 +226,56 @@ export function OrganizationCard({
       {/* Top borders after the first row (never bottom — Tailwind v4's
           divide-y compiles to bottom borders, so the variant is explicit). */}
       <div className="mt-3 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 [&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]">
-        {/* TODO(product): "Lead mentor" as a Role value — confirm it is a
-            real, distinct role and how promotion is assigned (gaps.md #64).
-            The record's subject is the store-backed mentor. */}
+        {/* Role — staff-toggleable (lead + supervisor). Read viewers see the
+            value; editors get a select. */}
         <RecordRow
           label="Role"
-          value="Mentor"
+          value={
+            mode === "edit" ? (
+              <Select value={mentorRole} onValueChange={setMentorRole}>
+                <SelectTrigger className="h-9 w-[200px]" aria-label="Role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              mentorRole
+            )
+          }
           state="read"
-          lock={ORG_LOCK}
+          locked
           onEditStart={() => {}}
           onCancel={() => {}}
         />
-        {/* FUTURE FLOW: group assignment is supervisor-managed and arrives
-            with the groups console — read-only until then (gaps.md #64).
-            Plain text, not chips: pills are for status, not categories
-            (Phase 2 restraint rules). */}
+        {/* Groups — staff can add/remove memberships. */}
         <RecordRow
           label="Groups"
-          value={MEMBERSHIP_GROUPS.join(", ")}
+          value={
+            mode === "edit" ? (
+              <GroupsEditor value={mentorGroups} onChange={setMentorGroups} />
+            ) : mentorGroups.length ? (
+              mentorGroups.join(", ")
+            ) : (
+              "Not recorded"
+            )
+          }
           state="read"
-          lock={ORG_LOCK}
+          locked
           onEditStart={() => {}}
           onCancel={() => {}}
         />
+        {/* Join date — never editable (set once when the mentor joined). */}
         <RecordRow
           label="Join date"
           value={JOIN_DATE}
           state="read"
-          lock={ORG_LOCK}
+          locked
           onEditStart={() => {}}
           onCancel={() => {}}
         />
