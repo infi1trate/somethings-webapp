@@ -14,6 +14,17 @@ import { PillButton } from "@/components/settings/pill-button";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { SETTINGS_TABS } from "@/components/settings/tabs-config";
 import { Input } from "@/components/ui/input";
+import {
+  MentorStatusBadge,
+  AvailabilityCell,
+} from "@/components/admin/mentor-status-badge";
+import {
+  AVAILABILITY_ORDER,
+  canMentor,
+  STATUS_LABELS,
+  STATUS_ORDER,
+} from "@/lib/record/mentor-status";
+import type { MentorAvailability } from "@/lib/types";
 
 const SWATCHES: { token: string; value: string; note?: string }[] = [
   { token: "surface/s2", value: "#e5e0d2" },
@@ -154,6 +165,53 @@ export default function ComponentsAuditPage() {
             design-system-gaps.md.
           </p>
         </header>
+
+        <Panel
+          title="Mentor status & availability"
+          note="Lifecycle status (primary, filled tint + icon + label) × the separate availability axis (secondary, dot + label). Availability is n/a for In Training / Paused / Deactivated. Color is never the sole signal (WCAG 1.4.1)."
+        >
+          <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-card)]">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border-subtle)] text-left text-[var(--text-secondary)]">
+                  <th className="px-4 py-2.5 font-medium">Status</th>
+                  <th className="px-4 py-2.5 font-medium">Availability</th>
+                </tr>
+              </thead>
+              <tbody>
+                {STATUS_ORDER.flatMap((status) => {
+                  // Guided/Active get one row per availability value; the rest
+                  // get a single n/a row (availability = null → "—").
+                  const availValues: (MentorAvailability | null)[] = canMentor(
+                    status
+                  )
+                    ? AVAILABILITY_ORDER
+                    : [null];
+                  return availValues.map((avail, i) => (
+                    <tr
+                      key={`${status}-${avail ?? "na"}`}
+                      className="border-t border-[var(--border-subtle)] first:border-t-0"
+                    >
+                      <td className="px-4 py-2.5">
+                        {/* Repeat the badge on every sub-row so each
+                            combination reads standalone. */}
+                        <MentorStatusBadge status={status} />
+                        {i > 0 && (
+                          <span className="sr-only">
+                            {STATUS_LABELS[status]}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <AvailabilityCell value={avail} />
+                      </td>
+                    </tr>
+                  ));
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
 
         <Panel title="Tokens" note="settings-tokens.css — spec §2, Figma 388:1586.">
           <ul className="flex flex-wrap gap-3">

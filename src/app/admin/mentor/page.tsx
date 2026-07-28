@@ -118,6 +118,7 @@ import {
   resolveMode,
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
+import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
 import {
   FOCUS_TO_TAB,
   railDefaultFor,
@@ -291,6 +292,7 @@ export default function MentorRecordPage({
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const status = useOnboardingStore((s) => s.status);
+  const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const changeRequests = useOnboardingStore((s) => s.changeRequests);
   const activity = useOnboardingStore((s) => s.activity);
   const staffEditAccountField = useOnboardingStore(
@@ -446,6 +448,12 @@ export default function MentorRecordPage({
   // goes-by dropped from the header (Prompt 3) — it lives on Profile ›
   // Display name.
   const deactivated = accountStatus === "deactivated";
+  // Lifecycle standing (shared vocabulary with the Mentors roster) derived from
+  // the store's existing axes. deactivated → Deactivated, unpublished → Paused,
+  // pre-publish → In Training, else Active. A manual staff override (set from
+  // the roster or the record's Status row) wins over the derived value.
+  const lifecycle =
+    mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
   // Pre-publish "submitted for review" — feeds the overflow's Review entry.
   const submittedForReview = status === "in_review";
   // Destructive account actions (accountOrg: edit) — the Lead Mentor manages
@@ -1113,31 +1121,26 @@ export default function MentorRecordPage({
                     alone; exceptional states add the word — never color
                     alone, WCAG 1.4.1). */}
                 <span
-                  aria-label={`Mentor, ${
-                    deactivated
-                      ? "deactivated"
-                      : profileHidden
-                        ? "unpublished"
-                        : "active"
-                  }`}
+                  aria-label={`Mentor, ${STATUS_LABELS[lifecycle].toLowerCase()}`}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
                 >
                   <span
                     aria-hidden
                     className="size-2 shrink-0 rounded-full"
                     style={{
-                      backgroundColor: deactivated
-                        ? "var(--dot-critical)"
-                        : profileHidden
-                          ? "var(--dot-warning)"
-                          : "var(--dot-positive)",
+                      backgroundColor:
+                        lifecycle === "deactivated"
+                          ? "var(--dot-critical)"
+                          : lifecycle === "active" || lifecycle === "guided"
+                            ? "var(--dot-positive)"
+                            : "var(--dot-warning)", // paused / in-training
                     }}
                   />
-                  {deactivated
-                    ? "Mentor · Deactivated"
-                    : profileHidden
-                      ? "Mentor · Unpublished"
-                      : "Mentor"}
+                  {/* Active shows the role alone (positive dot carries it);
+                      every other standing appends the lifecycle word. */}
+                  {lifecycle === "active"
+                    ? "Mentor"
+                    : `Mentor · ${STATUS_LABELS[lifecycle]}`}
                 </span>
               </div>
               {/* Meta: pronouns · location · capacity — middots, no icons.

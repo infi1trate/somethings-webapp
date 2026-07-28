@@ -13,6 +13,8 @@
 // never its content; numbers describe how mentoring is going, never grade the
 // person.
 
+import type { MentorLifecycleStatus } from "@/lib/types";
+
 export interface DemoMentorRow {
   id: string;
   name: string;
@@ -23,8 +25,13 @@ export interface DemoMentorRow {
    *  absent (m5 has none, to exercise that path). */
   email?: string;
   group: string;
-  active: boolean;
-  profile?: "Incomplete";
+  /** Lifecycle standing (replaces the old binary `active` + `profile:
+   *  "Incomplete"` — an incomplete profile now surfaces as "in-training"). */
+  status: MentorLifecycleStatus;
+  /** Availability INTENT — is the mentor open to new mentees? Only meaningful
+   *  for guided/active; "full" is derived from the caseload regardless (see
+   *  availabilityFor). Defaults to true when omitted. */
+  accepting?: boolean;
   /** Default caseload capacity (total mentee slots). The lead can override it
    *  per mentor via the store's `caseloads` map; current load derives from
    *  teensForMentor(id).length. */
@@ -47,14 +54,18 @@ export interface DemoTeen {
   mentorId: string;
 }
 
+// Lifecycle assigned per the strict migration mapping (incomplete → in-training,
+// active → active, inactive → paused). Guided + Deactivated are not force-fit
+// onto demo rows — see the /dev states matrix (and the live mentor can be
+// deactivated). `accepting` is the availability intent (default true).
 export const DEMO_MENTORS: DemoMentorRow[] = [
-  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", active: true, profile: "Incomplete", capacity: 5 },
-  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", active: true, capacity: 4 },
-  { id: "m3", name: "Devon Clark", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", active: true, capacity: 3 },
-  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", active: true, capacity: 4 },
+  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", status: "in-training", capacity: 5 },
+  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", status: "active", accepting: true, capacity: 4 },
+  { id: "m3", name: "Devon Clark", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", status: "active", accepting: true, capacity: 3 },
+  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", status: "active", accepting: false, capacity: 4 },
   // m5 intentionally has no email — the Contact menu skips Email/Copy-email.
-  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", active: false, capacity: 2 },
-  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", active: true, profile: "Incomplete", capacity: 3 },
+  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", status: "paused", capacity: 2 },
+  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", status: "in-training", capacity: 3 },
 ];
 
 export const DEMO_TEENS: DemoTeen[] = [

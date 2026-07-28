@@ -23,6 +23,13 @@ import {
   CaseloadControls,
   useCaseload,
 } from "@/components/record/caseload-controls";
+import {
+  AvailabilityCell,
+  AvailabilityMenu,
+  MentorStatusBadge,
+  MentorStatusMenu,
+} from "@/components/admin/mentor-status-badge";
+import { availabilityFor, liveLifecycle } from "@/lib/record/mentor-status";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 
 // Org-assigned placeholders — the single source now that settings shows only
@@ -107,9 +114,28 @@ export function OrganizationCard({
   const status = useOnboardingStore((s) => s.status);
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const deactivatedOn = useOnboardingStore((s) => s.deactivatedOn);
+  const profileHidden = useOnboardingStore((s) => s.profileHidden);
+  const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
+  const mentorAccepting = useOnboardingStore((s) => s.mentorAccepting);
+  const setMentorAccepting = useOnboardingStore((s) => s.setMentorAccepting);
+  const slots = useOnboardingStore((s) => s.slots);
+  const caseloads = useOnboardingStore((s) => s.caseloads);
+  const draft = useOnboardingStore((s) => s.draft);
+  const mentorName =
+    [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "this mentor";
 
   const deactivated = accountStatus === "deactivated";
-  const assigned = status === "published" && accountStatus === "active";
+  // Shared lifecycle vocabulary with the Mentors roster + header pill. A manual
+  // staff override (set from here or the roster) wins over the derived standing.
+  const lifecycle =
+    mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
+  // Availability — same derivation as the roster (menteeCount vs the live
+  // caseload cap + the accepting intent), kept consistent with the Caseload row.
+  const cap = caseloads["live"]?.total ?? slots.total;
+  const accepting = mentorAccepting["live"] ?? true;
+  const availability = availabilityFor(lifecycle, menteeCount, cap, accepting);
+  const atCap = menteeCount >= cap;
 
   return (
     <div>
@@ -157,24 +183,29 @@ export function OrganizationCard({
             deactivate flow controls — never stored separately, no affordance
             here (derived state, not an editable field). Dots are decorative;
             text carries meaning (gaps.md #65 interim green). */}
+        {/* Lifecycle badge — same vocabulary + component as the Mentors roster
+            Status column, so table and record read identically. Staff (edit
+            mode = lead + supervisor) can change it inline via the same menu the
+            roster uses; read-only viewers see the badge. Deactivated keeps its
+            off-boarding date alongside. */}
         <RecordRow
           label="Status"
           value={
             <span className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: deactivated
-                    ? "var(--state-error)"
-                    : "#3a7d44",
-                }}
-              />
-              <span>
-                {deactivated
-                  ? `Deactivated · ${deactivatedOn ?? "—"}`
-                  : "Active"}
-              </span>
+              {mode === "edit" ? (
+                <MentorStatusMenu
+                  status={lifecycle}
+                  name={mentorName}
+                  onChange={(s) => setMentorStatus("live", s)}
+                />
+              ) : (
+                <MentorStatusBadge status={lifecycle} />
+              )}
+              {deactivated && deactivatedOn && (
+                <span className="text-[var(--text-secondary)]">
+                  · {deactivatedOn}
+                </span>
+              )}
             </span>
           }
           state="read"
@@ -182,19 +213,24 @@ export function OrganizationCard({
           onEditStart={() => {}}
           onCancel={() => {}}
         />
+        {/* Availability — staff (edit) can toggle the accepting intent inline
+            (same menu the roster uses); read-only viewers see the derived value.
+            "Full" is derived from the caseload. (Assignment status was removed —
+            it's implied by caseload + availability.) */}
         <RecordRow
-          label="Assignment status"
+          label="Availability"
           value={
-            <span className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: assigned ? "#3a7d44" : "var(--state-error)",
-                }}
+            mode === "edit" ? (
+              <AvailabilityMenu
+                value={availability}
+                accepting={accepting}
+                atCap={atCap}
+                name={mentorName}
+                onChange={(a) => setMentorAccepting("live", a)}
               />
-              <span>{assigned ? "Assigned" : "Unassigned"}</span>
-            </span>
+            ) : (
+              <AvailabilityCell value={availability} />
+            )
           }
           state="read"
           locked

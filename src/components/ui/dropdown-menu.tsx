@@ -59,7 +59,9 @@ function DropdownMenuItem({
       className={cn(
         // min-h-10 (40px) clears the 24px AA target and approaches the 44px
         // preference; highlighted = keyboard/pointer focus (Radix roving).
-        "relative flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-foreground outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-black/[0.05] [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        // Direct-child svgs only (`[&>svg]`) so an icon nested inside a badge
+        // (e.g. MentorStatusBadge) keeps its own tint/size.
+        "relative flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-foreground outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-black/[0.05] [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground",
         className
       )}
       {...props}

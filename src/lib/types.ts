@@ -14,6 +14,29 @@ export type ProfileStatus =
   | "published" // approved & live (Published / Active)
   | "rejected"; // changes requested — sent back for revision (badge: "Needs changes")
 
+/** Mentor lifecycle standing shown on the Mentors roster + record (a scaled
+ *  replacement for the old binary active/inactive + "Incomplete profile" flag).
+ *  Ordered progression — see STATUS_ORDER in lib/record/mentor-status.ts.
+ *  - in-training: setting up account + completing training; cannot mentor yet
+ *    (ABSORBS the old "Incomplete" profile flag).
+ *  - guided: full mentor, capped at 5 mentees, under closer supervision.
+ *  - active: full mentor, no cap constraints beyond normal.
+ *  - paused: account live, no active mentees, temporarily cannot mentor.
+ *  - deactivated: off-boarded. */
+export type MentorLifecycleStatus =
+  | "in-training"
+  | "guided"
+  | "active"
+  | "paused"
+  | "deactivated";
+
+/** Whether a mentor is open to new mentees — a SEPARATE axis from lifecycle
+ *  status, meaningful only for statuses that can mentor (guided, active). For
+ *  in-training/paused/deactivated it is not applicable (represented as null and
+ *  rendered "—"). "full" is derived from the caseload (count === cap); see
+ *  availabilityFor() in lib/record/mentor-status.ts. */
+export type MentorAvailability = "accepting" | "full" | "not-accepting";
+
 /** Completion status for the four non-profile hub steps (Story, Training,
  *  Scheduling, Away messages). */
 export type HubStepStatus = "not_started" | "in_progress" | "done";

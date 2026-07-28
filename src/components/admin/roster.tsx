@@ -49,6 +49,19 @@ import {
   type CaseloadPerson,
 } from "@/components/record/caseload-modal";
 import { ContactCell } from "@/components/admin/contact-cell";
+import {
+  AvailabilityMenu,
+  MentorStatusMenu,
+} from "@/components/admin/mentor-status-badge";
+import {
+  availabilityFor,
+  availabilityRank,
+  liveLifecycle,
+  STATUS_ORDER,
+  STATUS_LABELS,
+  statusRank,
+} from "@/lib/record/mentor-status";
+import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type RosterSegment = "teens" | "mentors";
@@ -57,7 +70,11 @@ export type RosterRole = "supervisor" | "lead";
 // Mentors tab role chips — "Teens" and "Super Admins" removed (irrelevant here).
 const MENTOR_ROLE_FILTERS = ["All", "Supervisors", "Mentors"] as const;
 type MentorRoleFilter = (typeof MENTOR_ROLE_FILTERS)[number];
-type StatusFilter = "any" | "active" | "inactive";
+// The status filter is per-mount: mentors filter by lifecycle status, teens by
+// the binary active/inactive (teens keep the old model). Kept as a string and
+// branched by `isMentors` for both the options and the predicate.
+type StatusFilter = string;
+type AvailabilityFilter = "any" | MentorAvailability;
 type SortDir = "asc" | "desc";
 
 type MentorRow = DemoMentorRow & { recordHref?: string; highlight?: boolean };
@@ -85,12 +102,22 @@ export function Roster({
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const slots = useOnboardingStore((s) => s.slots);
   const caseloads = useOnboardingStore((s) => s.caseloads);
+  // Live mentor lifecycle is derived from these existing axes (see liveLifecycle).
+  const accountStatus = useOnboardingStore((s) => s.accountStatus);
+  const profileHidden = useOnboardingStore((s) => s.profileHidden);
+  // Manual status overrides (staff toggle) win over fixture/derived status.
+  const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
+  // Manual availability-intent overrides win over the fixture `accepting`.
+  const mentorAccepting = useOnboardingStore((s) => s.mentorAccepting);
+  const setMentorAccepting = useOnboardingStore((s) => s.setMentorAccepting);
 
   const isMentors = segment === "mentors";
   const isLead = role === "lead";
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("any");
+  const [availFilter, setAvailFilter] = useState<AvailabilityFilter>("any");
   const [roleFilter, setRoleFilter] = useState<MentorRoleFilter>("All");
   const [tenure, setTenure] = useState<TenureBucket>("all");
   const [sortKey, setSortKey] = useState<string>("name");
@@ -151,15 +178,17 @@ export function Roster({
         phone: draft.phone || "+1 (415) 555-0188",
         email: draft.email || undefined,
         group: "California",
-        active: status === "published",
-        profile: needsReview ? "Incomplete" : undefined,
+        // Lifecycle derived from the store's existing axes; no "accepting" flag
+        // exists on the store yet, so the live mentor defaults to accepting.
+        status: liveLifecycle(status, accountStatus, profileHidden),
+        accepting: true,
         capacity: slots.total,
         recordHref: "/admin/mentor",
         highlight: needsReview,
       });
     }
     return rows;
-  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, draft.email, liveName, status, needsReview, slots.total]);
+  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, draft.email, liveName, status, accountStatus, profileHidden, needsReview, slots.total]);
 
   // ── Caseload (lead view) — current mentees + capacity per mentor ───────────
   // The live mentor's mentee set is the record's (mentees-demo) so counts match
@@ -182,17 +211,34 @@ export function Roster({
           secondary: `joined ${relJoined(t.joinedDaysAgo)}`,
         }));
 
+  // Resolved lifecycle status: a manual staff override wins over the row's
+  // fixture/derived status (the live row's r.status is already liveLifecycle).
+  const statusOf = (r: MentorRow): MentorLifecycleStatus =>
+    mentorStatuses[r.id] ?? r.status;
+  // Resolved availability intent: staff override wins over the fixture value.
+  const acceptingOf = (r: MentorRow): boolean =>
+    mentorAccepting[r.id] ?? r.accepting ?? true;
+  const atCapFor = (r: MentorRow): boolean =>
+    menteeCountFor(r) >= caseloadTotalFor(r);
+  // Availability is derived (status + caseload count/cap + accepting intent) —
+  // same count/cap the Caseload cell uses, so the two columns always agree.
+  const availabilityOf = (r: MentorRow): MentorAvailability | null =>
+    availabilityFor(statusOf(r), menteeCountFor(r), caseloadTotalFor(r), acceptingOf(r));
+
   const mentorView = useMemo(() => {
     let rows = mentorRows.filter(
-      (r) => matchName(r.name, r.goesBy) && matchStatus(r.active)
+      (r) =>
+        matchName(r.name, r.goesBy) &&
+        (statusFilter === "any" || statusOf(r) === statusFilter) &&
+        (availFilter === "any" || availabilityOf(r) === availFilter)
     );
     // Role chips: only "Mentors"/"All" have subjects here (Supervisors → none).
     if (roleFilter === "Supervisors") rows = [];
     const val = (r: MentorRow): string | number => {
       switch (sortKey) {
         case "group": return r.group;
-        case "status": return r.active ? 1 : 0;
-        case "profile": return r.profile ? 1 : 0;
+        case "status": return statusRank(statusOf(r)); // lifecycle order, not A–Z
+        case "availability": return availabilityRank(availabilityOf(r)); // n/a last
         // Sort by load, capacity as the tiebreak.
         case "caseload": return menteeCountFor(r) * 100 + caseloadTotalFor(r);
         default: return r.name;
@@ -200,7 +246,7 @@ export function Roster({
     };
     return [...rows].sort((a, b) => cmp(val(a), val(b)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mentorRows, q, statusFilter, roleFilter, sortKey, sortDir, caseloads]);
+  }, [mentorRows, q, statusFilter, availFilter, roleFilter, sortKey, sortDir, caseloads, mentorStatuses, mentorAccepting]);
 
   // ── Teens segment ───────────────────────────────────────────────────────────
   const teenView = useMemo(() => {
@@ -257,14 +303,41 @@ export function Roster({
 
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter by status"
           className={cn(CONTROL, "cursor-pointer")}
         >
           <option value="any">Any status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          {isMentors ? (
+            STATUS_ORDER.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))
+          ) : (
+            <>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </>
+          )}
         </select>
+
+        {/* Availability is a mentor-only, derived axis. */}
+        {isMentors && (
+          <select
+            value={availFilter}
+            onChange={(e) =>
+              setAvailFilter(e.target.value as AvailabilityFilter)
+            }
+            aria-label="Filter by availability"
+            className={cn(CONTROL, "cursor-pointer")}
+          >
+            <option value="any">Any availability</option>
+            <option value="accepting">Accepting</option>
+            <option value="full">Full</option>
+            <option value="not-accepting">Not accepting</option>
+          </select>
+        )}
 
         <span className={cn(CONTROL, "ml-auto inline-flex items-center gap-2")}>
           <Search className="size-4" aria-hidden />
@@ -357,7 +430,9 @@ export function Roster({
                   <SortHead label="Group" k="group" {...sortProps} />
                   {isLead && <SortHead label="Caseload" k="caseload" {...sortProps} />}
                   <SortHead label="Status" k="status" {...sortProps} />
-                  <SortHead label="Profile" k="profile" {...sortProps} />
+                  {/* Availability — a separate, mentor-only axis (secondary to
+                      Status). Profile column removed: incomplete → In Training. */}
+                  <SortHead label="Availability" k="availability" {...sortProps} />
                   {/* Contact replaces the Phone column — PII gated behind a
                       deliberate click (see contact-cell.tsx). Not sortable. */}
                   <th className="px-5 py-3 font-medium">Contact</th>
@@ -380,6 +455,12 @@ export function Roster({
                   <MentorRowView
                     key={r.id}
                     row={r}
+                    status={statusOf(r)}
+                    onStatusChange={(s) => setMentorStatus(r.id, s)}
+                    availability={availabilityOf(r)}
+                    accepting={acceptingOf(r)}
+                    atCap={atCapFor(r)}
+                    onAcceptingChange={(a) => setMentorAccepting(r.id, a)}
                     caseload={
                       isLead
                         ? {
@@ -467,9 +548,25 @@ function SortHead({
 
 function MentorRowView({
   row,
+  status,
+  onStatusChange,
+  availability,
+  accepting,
+  atCap,
+  onAcceptingChange,
   caseload,
 }: {
   row: MentorRow;
+  /** Resolved lifecycle status (override-aware) — staff can change it inline. */
+  status: MentorLifecycleStatus;
+  onStatusChange: (next: MentorLifecycleStatus) => void;
+  /** Derived availability (null = n/a → "—"). Computed by the parent so it
+   *  shares the Caseload cell's count/cap. */
+  availability: MentorAvailability | null;
+  /** Availability intent + at-cap flag + change handler (staff toggle). */
+  accepting: boolean;
+  atCap: boolean;
+  onAcceptingChange: (next: boolean) => void;
   /** Lead view: current load + capacity; the cell opens the mentee modal. */
   caseload?: { count: number; total: number; onOpen: () => void };
 }) {
@@ -511,8 +608,20 @@ function MentorRowView({
           </button>
         </td>
       )}
-      <td className="px-5 py-3"><StatusPill active={row.active} /></td>
-      <td className="px-5 py-3"><ProfileCell profile={row.profile} /></td>
+      {/* stopPropagation so opening the status menu doesn't fire the row's
+          record navigation. */}
+      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+        <MentorStatusMenu status={status} name={row.name} onChange={onStatusChange} />
+      </td>
+      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+        <AvailabilityMenu
+          value={availability}
+          accepting={accepting}
+          atCap={atCap}
+          name={row.name}
+          onChange={onAcceptingChange}
+        />
+      </td>
       {/* stopPropagation so opening the Contact menu doesn't fire the row's
           record navigation. */}
       <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
@@ -601,16 +710,6 @@ function StatusPill({ active }: { active: boolean }) {
     >
       {active ? "Active" : "Inactive"}
     </span>
-  );
-}
-
-function ProfileCell({ profile }: { profile?: "Incomplete" }) {
-  return profile ? (
-    <span className="rounded-full border border-orange-300 px-2.5 py-0.5 text-xs font-medium text-orange-700">
-      {profile}
-    </span>
-  ) : (
-    <span className="text-[var(--text-secondary)]">—</span>
   );
 }
 

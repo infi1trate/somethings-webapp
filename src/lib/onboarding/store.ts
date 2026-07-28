@@ -8,6 +8,7 @@ import {
   type HubStepKey,
   type HubStepStatus,
   type MentorDraft,
+  type MentorLifecycleStatus,
   type ProfileStatus,
   type ProfileUpdate,
   type ActivityItem,
@@ -101,6 +102,17 @@ interface OnboardingState {
   /** Per-mentor caseload overrides, keyed by mentor id ("live" = the
    *  store-backed mentor). Sparse — see the Caseload type note. */
   caseloads: Record<string, Caseload>;
+  /** Manual lifecycle-status overrides set by staff (lead + supervisor) from the
+   *  roster or record, keyed by mentor id ("live" = the store-backed mentor).
+   *  Sparse: a missing key falls back to the fixture status (demo mentors) or
+   *  the derived liveLifecycle (the store mentor). When set for "live" it wins
+   *  over the derived standing everywhere it renders. */
+  mentorStatuses: Record<string, MentorLifecycleStatus>;
+  /** Manual availability INTENT overrides (open to new mentees?) set by staff,
+   *  keyed by mentor id. Sparse: missing → fixture `accepting` (demo) or true
+   *  (live). Only the accepting/not-accepting intent is stored — "Full" is
+   *  always derived from the caseload (count === cap), never stored. */
+  mentorAccepting: Record<string, boolean>;
   _hasHydrated: boolean;
 
   update: (patch: Partial<MentorDraft>) => void;
@@ -172,6 +184,12 @@ interface OnboardingState {
   /** Set a mentor's caseload (full value — the caller resolves the current
    *  override-or-default before writing). Caseload prompt. */
   setCaseload: (mentorId: string, caseload: Caseload) => void;
+  /** Manually set a mentor's lifecycle status (staff toggle from the roster /
+   *  record). Writes the override map keyed by mentor id. */
+  setMentorStatus: (mentorId: string, status: MentorLifecycleStatus) => void;
+  /** Manually set a mentor's availability INTENT (open to new mentees?). "Full"
+   *  stays derived from the caseload — only this intent is stored. */
+  setMentorAccepting: (mentorId: string, accepting: boolean) => void;
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
@@ -204,6 +222,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       enteredHome: false,
       notificationPrefs: {},
       caseloads: {},
+      mentorStatuses: {},
+      mentorAccepting: {},
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -502,6 +522,16 @@ export const useOnboardingStore = create<OnboardingState>()(
           caseloads: { ...state.caseloads, [mentorId]: caseload },
         })),
 
+      setMentorStatus: (mentorId, status) =>
+        set((state) => ({
+          mentorStatuses: { ...state.mentorStatuses, [mentorId]: status },
+        })),
+
+      setMentorAccepting: (mentorId, accepting) =>
+        set((state) => ({
+          mentorAccepting: { ...state.mentorAccepting, [mentorId]: accepting },
+        })),
+
       setHasHydrated: () => set({ _hasHydrated: true }),
 
       reset: () =>
@@ -525,6 +555,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           enteredHome: false,
           notificationPrefs: {}, // dev lens keeps switches per persona; reset clears
           caseloads: {}, // caseload overrides reset with the mentor
+          mentorStatuses: {}, // status overrides reset with the mentor
+          mentorAccepting: {}, // availability intent resets with the mentor
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -549,7 +581,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       // backfill {} (defaults live in notifications-config.ts, not the store).
       // v20: caseloads (caseload prompt) — sparse per-mentor {mode,total} map;
       // backfill {} (defaults: people-demo capacity / slots.total for "live").
-      version: 20,
+      // v21: mentorStatuses (manual status toggle) — sparse per-mentor override
+      // map; backfill {} (fallback = fixture status / derived liveLifecycle).
+      // v22: mentorAccepting (availability intent toggle) — sparse per-mentor
+      // bool map; backfill {} (fallback = fixture accepting / true for "live").
+      version: 22,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -795,6 +831,24 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.caseloads = {};
           }
         }
+        if (version < 21) {
+          const st = s as unknown as { mentorStatuses?: unknown };
+          if (
+            typeof st.mentorStatuses !== "object" ||
+            st.mentorStatuses === null
+          ) {
+            st.mentorStatuses = {};
+          }
+        }
+        if (version < 22) {
+          const st = s as unknown as { mentorAccepting?: unknown };
+          if (
+            typeof st.mentorAccepting !== "object" ||
+            st.mentorAccepting === null
+          ) {
+            st.mentorAccepting = {};
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -877,6 +931,22 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.caseloads = {};
         }
+        // v21 shape: mentorStatuses is always a plain object.
+        if (
+          typeof (merged as { mentorStatuses?: unknown }).mentorStatuses !==
+            "object" ||
+          merged.mentorStatuses === null
+        ) {
+          merged.mentorStatuses = {};
+        }
+        // v22 shape: mentorAccepting is always a plain object.
+        if (
+          typeof (merged as { mentorAccepting?: unknown }).mentorAccepting !==
+            "object" ||
+          merged.mentorAccepting === null
+        ) {
+          merged.mentorAccepting = {};
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -929,6 +999,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         enteredHome: state.enteredHome,
         notificationPrefs: state.notificationPrefs,
         caseloads: state.caseloads,
+        mentorStatuses: state.mentorStatuses,
+        mentorAccepting: state.mentorAccepting,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();

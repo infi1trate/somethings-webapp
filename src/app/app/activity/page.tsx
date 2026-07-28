@@ -73,10 +73,12 @@ export default function ActivityPage() {
         </h1>
 
         {items.length === 0 ? (
-          <p className="mt-4 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            Nothing here yet. When there&apos;s something new, it&apos;ll show
-            up here.
-          </p>
+          <div className="mt-4 flex min-h-[40vh] items-center justify-center">
+            <p className="max-w-sm text-center text-[14px] leading-[20px] text-[var(--text-secondary)]">
+              Nothing here yet. When there&apos;s something new, it&apos;ll show
+              up here.
+            </p>
+          </div>
         ) : (
           <ul className="mt-6 divide-y divide-[var(--border-subtle)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-s0)]">
             {items.map((item) => {
