@@ -432,6 +432,44 @@ export default function MentorRecordPage({
   // the roster or the record's Status row) wins over the derived value.
   const lifecycle =
     mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
+  // Visibility readout for the rail preview — is this profile actually being
+  // seen by potential mentee matches? Derived from the lifecycle (existing
+  // axes), never color-alone: the label is the source of truth, the dot + pulse
+  // are decorative (WCAG 1.4.1). Live/mentoring states pulse; the rest are calm.
+  const visibility: {
+    dot: string;
+    label: string;
+    sub: string;
+    pulse: boolean;
+  } =
+    lifecycle === "active" || lifecycle === "guided"
+      ? {
+          dot: "var(--dot-positive)",
+          label: "Live to teens",
+          sub: "Shown to potential matches right now",
+          pulse: true,
+        }
+      : lifecycle === "in-training"
+        ? {
+            dot: "var(--dot-warning)",
+            label: "Not live yet",
+            sub: "Goes live once the profile is approved",
+            pulse: false,
+          }
+        : lifecycle === "deactivated"
+          ? {
+              dot: "var(--dot-critical)",
+              label: "Deactivated",
+              sub: "Not shown to teens",
+              pulse: false,
+            }
+          : {
+              // paused — published but hidden from teens
+              dot: "var(--dot-warning)",
+              label: "Hidden from teens",
+              sub: "Paused — not shown to matches",
+              pulse: false,
+            };
   // Pre-publish "submitted for review" — feeds the overflow's Review entry.
   const submittedForReview = status === "in_review";
   // Destructive account actions (accountOrg: edit) — the Lead Mentor manages
@@ -1230,8 +1268,9 @@ export default function MentorRecordPage({
 
         {/* Content column caps at 900px (rail excluded) and stays anchored
             to the shared axis — cards stop stretching on wide viewports
-            (Prompt 4 composition). Rail fixed at 300px. */}
-        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,900px)_300px]">
+            (Prompt 4 composition). Rail fixed at 340px so the device preview +
+            its drop shadow sit inside the panel with breathing room. */}
+        <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,900px)_340px]">
           {/* LEFT — the active tab's content: sections MOVED, not restyled
               (Phase 1 content mapping); gating unchanged via resolveMode
               inside each renderer. Overview is the performance dashboard and
@@ -1308,41 +1347,68 @@ export default function MentorRecordPage({
                     onChange={(v) => setPreviewSide(v)}
                   />
                 )}
-                {/* Preview "tool" (elevated pass): a defined glass panel that
-                    reads as an instrument, not just a mount — translucent fill,
-                    contour edge, soft shadow. The 360px frame scales inside an
-                    absolutely-positioned box so its untransformed width can't
-                    widen the page (gaps.md #76). */}
+                {/* Preview "tool" (elevated pass): a glass panel that FRAMES the
+                    device without ever cropping it. The 360px frame is scaled
+                    with CSS `zoom` (not transform) so it also reserves its
+                    scaled layout box — no overflow clip is needed, so the device
+                    and its drop shadow are never masked on any side. */}
                 <div className="w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-card)] backdrop-blur-[var(--glass-blur)]">
-                  <div className="relative h-[548px] w-full overflow-hidden">
-                    <div className="absolute left-1/2 top-0 w-[360px] origin-top -translate-x-1/2 scale-[0.74]">
-                      <div className="relative">
-                        <PhonePreviewShell label="Live preview — what teens see on the match card">
-                          <MentorProfilePreview draft={previewDraft} />
-                        </PhonePreviewShell>
-                        {profileHidden && (
-                          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
-                            {/* No shadow, no border — the card tone on the
-                                blurred veil separates the chip on its own. */}
-                            <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">
-                              <EyeOff className="size-4" aria-hidden />
-                              Hidden from teens
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                  {/* Visibility readout — the subtle "is this profile being seen
+                      by potential matches" signal (lifecycle-derived). Text
+                      carries the meaning; the dot is decorative; live states get
+                      a soft pulse (motion-safe). */}
+                  <div className="mb-4 flex items-center gap-2.5 rounded-[var(--radius-control)] bg-[var(--surface-s1)] px-3 py-2 ring-1 ring-[color:var(--border-contour)]">
+                    <span
+                      aria-hidden
+                      className="relative flex size-2.5 shrink-0 items-center justify-center"
+                    >
+                      {visibility.pulse && (
+                        <span
+                          className="absolute inline-flex size-2.5 rounded-full opacity-60 motion-safe:animate-ping"
+                          style={{ backgroundColor: visibility.dot }}
+                        />
+                      )}
+                      <span
+                        className="relative size-2 rounded-full"
+                        style={{ backgroundColor: visibility.dot }}
+                      />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium leading-[16px] text-[var(--text-primary)]">
+                        {visibility.label}
+                      </span>
+                      <span className="block text-[12px] leading-[15px] text-[var(--text-muted)]">
+                        {visibility.sub}
+                      </span>
+                    </span>
+                  </div>
+                  {/* zoom scales layout + paint together, so the shadow is never
+                      clipped and the untransformed width can't widen the rail. */}
+                  <div className="flex justify-center">
+                    <div className="relative w-[360px]" style={{ zoom: 0.74 }}>
+                      <PhonePreviewShell label="Live preview — what teens see on the match card">
+                        <MentorProfilePreview draft={previewDraft} />
+                      </PhonePreviewShell>
+                      {profileHidden && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
+                          <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-card)]">
+                            <EyeOff className="size-4" aria-hidden />
+                            Hidden from teens
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <p
-                    className="mt-2 text-center text-[var(--text-muted)]"
-                    style={{ font: "var(--type-helper)" }}
-                  >
-                    {profileHidden
-                      ? "Unpublished — teens can't see this profile right now"
-                      : postLane && previewSide === "proposed"
-                        ? "What teens will see after approval"
-                        : "What teens see right now"}
-                  </p>
+                  {postLane && (
+                    <p
+                      className="mt-4 text-center text-[var(--text-muted)]"
+                      style={{ font: "var(--type-helper)" }}
+                    >
+                      {previewSide === "proposed"
+                        ? "Preview of pending edits — live once approved"
+                        : "The current live version"}
+                    </p>
+                  )}
                 </div>
               </div>
           </aside>
