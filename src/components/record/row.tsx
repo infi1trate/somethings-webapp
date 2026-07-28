@@ -207,16 +207,20 @@ export function RecordRow({
           onClick={press}
           aria-label={`${label} — open`}
           className={cn(
-            "group relative min-h-13 w-full cursor-pointer py-3.5 text-left focus-visible:outline-none",
+            // `isolate` scopes the highlight's negative z-index to this row so
+            // the tint sits BEHIND the content (an absolute layer otherwise
+            // paints over the static text and hides it on hover).
+            "group relative isolate min-h-13 w-full cursor-pointer py-3.5 text-left focus-visible:outline-none",
             ROW_GRID
           )}
         >
           {/* Inset highlight — 8px in from the card edges (card px is 24,
               rows are inset by it, so -16px reaches to 8), row height minus
-              4px, 10px radius. Carries the focus ring too. */}
+              4px, 10px radius. Carries the focus ring too. -z-10 keeps it
+              behind the row content (see `isolate` above). */}
           <span
             aria-hidden
-            className="pointer-events-none absolute -inset-x-4 inset-y-0.5 rounded-[10px] transition-colors group-hover:bg-[var(--surface-s1)] group-focus-visible:bg-[var(--surface-s1)] group-focus-visible:outline-2 group-focus-visible:outline-offset-0 group-focus-visible:outline-[color:var(--focus-ring)]"
+            className="pointer-events-none absolute -inset-x-4 inset-y-0.5 -z-10 rounded-[10px] transition-colors group-hover:bg-[var(--surface-s1)] group-focus-visible:bg-[var(--surface-s1)] group-focus-visible:outline-2 group-focus-visible:outline-offset-0 group-focus-visible:outline-[color:var(--focus-ring)]"
           />
           {zones}
         </button>
