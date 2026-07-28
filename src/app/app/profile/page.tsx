@@ -161,8 +161,8 @@ export default function MentorSelfRecord({
         {tab === "profile" && (
           <div>
             <p className={INTRO}>
-              Everything teens see, in one place — your match card and your chat.
-              Open a section to edit it; the preview shows exactly what teens get.
+              Everything teens see on your match card, in one place. Open a
+              section to edit it; the preview shows exactly what teens get.
             </p>
             <div className="mt-6">
               <MatchingProfileEditor initialOpen={openParam} />

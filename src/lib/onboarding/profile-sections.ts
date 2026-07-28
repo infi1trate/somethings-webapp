@@ -114,16 +114,9 @@ export const PROFILE_SECTIONS: ProfileSection[] = [
     group: "match-card",
     summary: (d) => (d.pronouns.length ? d.pronouns.join(" · ") : EMPTY),
   },
-  // §4 Phase 9: the Chat group — the avatar teens see in chats, a DISTINCT
-  // asset from the match-card cutout. No wizard route (set from settings).
-  {
-    step: "chat-avatar",
-    fieldKey: "accountPhoto",
-    label: "Chat avatar",
-    tab: "profile",
-    group: "chat",
-    summary: (d) => (d.accountPhoto ? "Photo added" : "No photo yet"),
-  },
+  // The "Chat avatar" section was removed — it was the same accountPhoto the
+  // mentor sets in their Account tab (redundant surface in the profile view).
+  // accountPhoto lives on the Account tab now; the "chat" group is retired.
   // §4 Phase 3 extensions — chat-delivered content (no preview region). The
   // step slugs have no wizard route; they exist for change-request mapping.
   {

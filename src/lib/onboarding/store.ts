@@ -181,6 +181,15 @@ interface OnboardingState {
     value: unknown,
     actor: string
   ) => void;
+  /** RECORD-SCOPED: a Lead Mentor's DIRECT edit of a teen-facing profile field.
+   *  Unlike staffEditAccountField, it also writes the publishedSnapshot (when
+   *  one exists) so the change is what teens see immediately — a direct edit,
+   *  not a review changeset. Logs the same staff-attributed audit entry. */
+  staffEditProfileField: (
+    fieldId: string,
+    value: unknown,
+    actor: string
+  ) => void;
   /** RECORD-SCOPED (record-05): append one internal staff note. */
   addInternalNote: (text: string, author: string) => void;
   /** RECORD-SCOPED (record-05): hide/restore teen visibility, with a
@@ -484,6 +493,28 @@ export const useOnboardingStore = create<OnboardingState>()(
           }
           return {
             draft: { ...state.draft, [fieldId]: value },
+            activity: [entry, ...state.activity],
+          };
+        }),
+
+      staffEditProfileField: (fieldId, value, actor) =>
+        set((state) => {
+          const now = Date.now();
+          const entry = {
+            id: `act-${now}`,
+            type: "staff_account_edit" as const,
+            fieldIds: [fieldId],
+            createdAt: now,
+            read: false,
+            actor,
+          };
+          // Direct edit: write the draft AND (when published) the snapshot the
+          // record + teens read from, so the change is live immediately.
+          return {
+            draft: { ...state.draft, [fieldId]: value },
+            publishedSnapshot: state.publishedSnapshot
+              ? { ...state.publishedSnapshot, [fieldId]: value }
+              : state.publishedSnapshot,
             activity: [entry, ...state.activity],
           };
         }),

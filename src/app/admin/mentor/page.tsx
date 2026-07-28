@@ -111,6 +111,7 @@ import {
 import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
 import { RecordOverview } from "@/components/record/record-overview";
 import { ActiveHoursEditor } from "@/components/record/active-hours";
+import { StaffProfileFields } from "@/components/record/staff-profile-fields";
 import { FOCUS_TO_TAB, recordTabsForRole } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
@@ -405,6 +406,11 @@ export default function MentorRecordPage({
     !publishedSnapshot && (status === "in_review" || status === "rejected");
   const postLane = profileUpdate !== null;
   const reviewMode = resolveMode("reviewWorkflow", persona) === "review";
+  // Direct staff edit of teen-facing content (Lead Mentor). When editable the
+  // read rows become StaffFieldRow editors; otherwise they stay read + request-
+  // change (supervisor oversight).
+  const matchingEditable = resolveMode("matchingProfile", persona) === "edit";
+  const fmEditable = resolveMode("firstMoments", persona) === "edit";
   const previewDraft: MentorDraft =
     postLane && previewSide === "proposed" ? draft : live;
 
@@ -602,12 +608,15 @@ export default function MentorRecordPage({
       const matchCard = sectionsForTab("profile").filter(
         (s) => s.group === "match-card"
       );
-      const chat = sectionsForTab("profile").filter((s) => s.group === "chat");
       return (
         <SectionShell
           key={slot}
           slot={slot}
-          helper="Everything teens see — edits route through review"
+          helper={
+            matchingEditable
+              ? "Everything teens see — edit any field directly."
+              : "Everything teens see — edits route through review"
+          }
         >
           {/* Eyebrows are gone as a class (Prompt 1) — cards carry their own
               headers (card-title token, no divider under them; the divide
@@ -620,61 +629,51 @@ export default function MentorRecordPage({
               >
                 Match card
               </h3>
-              {/* 8 rows → inset separators. */}
+              {/* 8 rows → inset separators. Lead: inline staff editors;
+                  others: read + request-change. */}
               <div className={INSET_DIVIDERS}>
-                {matchCard.map((s) => {
-                  const raw = s.summary(live);
-                  // Rich field renderers (elevated pass): teen-facing fields
-                  // render as data chips / tags instead of plain text —
-                  // Spotify as a data chip (no raw URL), interests + languages
-                  // as tags, bio in a read-only field container.
-                  let value: React.ReactNode = raw;
-                  if (
-                    s.fieldKey === "spotifyUrl" &&
-                    typeof raw === "string" &&
-                    raw !== "—" &&
-                    live.spotifyUrl
-                  ) {
-                    value = <SpotifyChip key={live.spotifyUrl} url={live.spotifyUrl} />;
-                  } else if (s.fieldKey === "interests") {
-                    value = (
-                      <InterestTags items={live.interests.map((i) => i.name)} />
-                    );
-                  } else if (s.fieldKey === "languages") {
-                    value = <PlainTags items={live.languages} />;
-                  } else if (s.fieldKey === "bio" && live.bio) {
-                    value = <BioValue text={live.bio} />;
-                  }
-                  return (
-                    <ReadRow
-                      key={s.step}
-                      label={s.label}
-                      value={value}
-                      chip={changesetChip(profileUpdate, s.fieldKey)}
-                      onPress={reviewPress(s)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-            <div className={CARD_ROWS}>
-              <h3
-                className="pb-1.5 pt-3.5 text-[var(--text-primary)]"
-                style={{ font: "var(--type-card-title)" }}
-              >
-                Chat
-              </h3>
-              {/* 2 rows → no separators. */}
-              <div>
-                {chat.map((s) => (
-                  <ReadRow
-                    key={s.step}
-                    label={s.label}
-                    value={s.summary(live)}
-                    chip={changesetChip(profileUpdate, s.fieldKey)}
-                    onPress={reviewPress(s)}
+                {matchingEditable ? (
+                  <StaffProfileFields
+                    sections={matchCard}
+                    live={live}
+                    activity={activity}
+                    staffActor={staffActor}
                   />
-                ))}
+                ) : (
+                  matchCard.map((s) => {
+                    const raw = s.summary(live);
+                    // Rich field renderers (elevated pass): teen-facing fields
+                    // render as data chips / tags instead of plain text —
+                    // Spotify as a data chip (no raw URL), interests + languages
+                    // as tags, bio in a read-only field container.
+                    let value: React.ReactNode = raw;
+                    if (
+                      s.fieldKey === "spotifyUrl" &&
+                      typeof raw === "string" &&
+                      raw !== "—" &&
+                      live.spotifyUrl
+                    ) {
+                      value = <SpotifyChip key={live.spotifyUrl} url={live.spotifyUrl} />;
+                    } else if (s.fieldKey === "interests") {
+                      value = (
+                        <InterestTags items={live.interests.map((i) => i.name)} />
+                      );
+                    } else if (s.fieldKey === "languages") {
+                      value = <PlainTags items={live.languages} />;
+                    } else if (s.fieldKey === "bio" && live.bio) {
+                      value = <BioValue text={live.bio} />;
+                    }
+                    return (
+                      <ReadRow
+                        key={s.step}
+                        label={s.label}
+                        value={value}
+                        chip={changesetChip(profileUpdate, s.fieldKey)}
+                        onPress={reviewPress(s)}
+                      />
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -692,9 +691,23 @@ export default function MentorRecordPage({
         <SectionShell
           key={slot}
           slot={slot}
-          helper="Edits route through review"
+          helper={
+            fmEditable
+              ? "Edit the first messages and the story directly."
+              : "Edits route through review"
+          }
         >
-          {fmEmpty ? (
+          {fmEditable ? (
+            // Lead: inline staff editors (can add content even when empty).
+            <div className={CARD_ROWS}>
+              <StaffProfileFields
+                sections={fmSections}
+                live={live}
+                activity={activity}
+                staffActor={staffActor}
+              />
+            </div>
+          ) : fmEmpty ? (
             // Designed empty state (Prompt 4): centered in a single card —
             // intentional, not abandoned.
             <div
