@@ -35,7 +35,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  CalendarClock,
   EyeOff,
   MessagesSquare,
   MoreHorizontal,
@@ -111,6 +110,7 @@ import {
 } from "@/lib/record/permission-map";
 import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
 import { RecordOverview } from "@/components/record/record-overview";
+import { ActiveHoursEditor } from "@/components/record/active-hours";
 import { FOCUS_TO_TAB, recordTabsForRole } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
@@ -962,27 +962,13 @@ export default function MentorRecordPage({
     }
 
     if (slot === "schedule") {
+      // Active Hours — editable by staff who hold schedule=edit (lead +
+      // supervisor). Exists on every record.
       return (
         <SectionShell key={slot} slot={slot}>
-          {/* Designed empty state (Prompt 4) — existing copy reused. */}
-          <div
-            className={cn(
-              CARD_PAD,
-              "flex min-h-[240px] flex-col items-center justify-center gap-3 text-center"
-            )}
-          >
-            <CalendarClock
-              className="size-5 text-[var(--text-muted)]"
-              aria-hidden
-            />
-            <p
-              className="max-w-[36ch] text-[var(--text-secondary)]"
-              style={{ font: "var(--type-row-value)" }}
-            >
-              Scheduling lands with the settings build — staff editing is
-              planned here.
-            </p>
-          </div>
+          <ActiveHoursEditor
+            editable={resolveMode("schedule", persona) === "edit"}
+          />
         </SectionShell>
       );
     }

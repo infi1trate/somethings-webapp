@@ -19,7 +19,7 @@ import {
 import { MatchingProfileEditor } from "@/components/profile-editor/matching-profile-editor";
 import { FirstMomentsEditor } from "@/components/profile-editor/first-moments-editor";
 import { AccountEditor } from "@/components/profile-editor/account-editor";
-import { AvailabilitySection } from "@/components/settings/availability-section";
+import { ActiveHoursEditor } from "@/components/record/active-hours";
 import { LEGACY_TAB_ALIASES } from "@/components/settings/tabs-config";
 import { MEMBERSHIP_GROUPS, JOIN_DATE } from "@/components/record/organization";
 import { Button } from "@/components/ui/button";
@@ -184,9 +184,9 @@ export default function MentorSelfRecord({
 
         {tab === "schedule" && (
           <div className="max-w-3xl">
-            <p className={INTRO}>Your online hours — when you&apos;re around for teens.</p>
-            <div className="mt-5 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-[var(--surface-pad-y)] shadow-[var(--shadow-card)]">
-              <AvailabilitySection />
+            <p className={INTRO}>Your active hours — when you&apos;re around for teens.</p>
+            <div className="mt-5">
+              <ActiveHoursEditor editable />
             </div>
           </div>
         )}

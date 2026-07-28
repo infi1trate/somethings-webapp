@@ -16,6 +16,11 @@ import {
   type InternalNote,
 } from "@/lib/types";
 import {
+  DEFAULT_SCHEDULE,
+  cloneSchedule,
+  type Schedule,
+} from "@/lib/schedule";
+import {
   PROFILE_SECTIONS,
   normForCompare,
 } from "@/lib/onboarding/profile-sections";
@@ -118,6 +123,9 @@ interface OnboardingState {
    *  rather than per-mentor keyed maps. */
   mentorRole: string;
   mentorGroups: string[];
+  /** The mentor's Active Hours (availability schedule) — editable on the
+   *  record's Schedule tab (staff) and the mentor self-view. */
+  schedule: Schedule;
   _hasHydrated: boolean;
 
   update: (patch: Partial<MentorDraft>) => void;
@@ -198,6 +206,8 @@ interface OnboardingState {
   /** Staff edits to the record subject's org role + group memberships. */
   setMentorRole: (role: string) => void;
   setMentorGroups: (groups: string[]) => void;
+  /** Replace the Active Hours schedule (the editor commits the whole thing). */
+  setSchedule: (schedule: Schedule) => void;
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
@@ -234,6 +244,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       mentorAccepting: {},
       mentorRole: "Mentor",
       mentorGroups: ["North Carolina", "New Jersey"],
+      schedule: cloneSchedule(DEFAULT_SCHEDULE),
 
       update: (patch) =>
         set((state) => ({ draft: { ...state.draft, ...patch } })),
@@ -544,6 +555,7 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       setMentorRole: (role) => set({ mentorRole: role }),
       setMentorGroups: (groups) => set({ mentorGroups: groups }),
+      setSchedule: (schedule) => set({ schedule }),
 
       setHasHydrated: () => set({ _hasHydrated: true }),
 
@@ -572,6 +584,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           mentorAccepting: {}, // availability intent resets with the mentor
           mentorRole: "Mentor",
           mentorGroups: ["North Carolina", "New Jersey"],
+          schedule: cloneSchedule(DEFAULT_SCHEDULE),
           welcomeOpen: false,
           welcomeAutoShown: false,
         }),
@@ -602,7 +615,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       // bool map; backfill {} (fallback = fixture accepting / true for "live").
       // v23: mentorRole + mentorGroups (staff-editable org role + memberships) —
       // backfill "Mentor" / the default groups.
-      version: 23,
+      // v24: schedule (Active Hours) — backfill DEFAULT_SCHEDULE.
+      version: 24,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -875,6 +889,12 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (!Array.isArray(st.mentorGroups))
             st.mentorGroups = ["North Carolina", "New Jersey"];
         }
+        if (version < 24) {
+          const st = s as unknown as { schedule?: unknown };
+          if (typeof st.schedule !== "object" || st.schedule === null) {
+            st.schedule = cloneSchedule(DEFAULT_SCHEDULE);
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -980,6 +1000,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         if (!Array.isArray((merged as { mentorGroups?: unknown }).mentorGroups)) {
           merged.mentorGroups = ["North Carolina", "New Jersey"];
         }
+        // v24 shape: schedule is always a Schedule object.
+        if (
+          typeof (merged as { schedule?: unknown }).schedule !== "object" ||
+          merged.schedule === null
+        ) {
+          merged.schedule = cloneSchedule(DEFAULT_SCHEDULE);
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -1036,6 +1063,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         mentorAccepting: state.mentorAccepting,
         mentorRole: state.mentorRole,
         mentorGroups: state.mentorGroups,
+        schedule: state.schedule,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated();
