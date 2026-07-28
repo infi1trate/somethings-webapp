@@ -70,7 +70,7 @@ import {
   InReviewChip,
 } from "@/components/profile-editor/update-review-bits";
 import { changeProgress } from "@/lib/onboarding/change-requests";
-import { changesetSummary, relTime } from "@/lib/onboarding/profile-update";
+import { changesetSummary } from "@/lib/onboarding/profile-update";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -90,13 +90,11 @@ import { saveAccountField } from "@/lib/mock-api";
 import { PhotoRowCore } from "@/components/account/photo-row";
 import { StaffFieldRow } from "@/components/account/field-rows";
 import {
-  accountFieldLabel,
   auditLineFor,
   formatDob,
 } from "@/lib/record/account-fields";
 import { MultiSelectChips } from "@/components/onboarding/multi-select-chips";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -119,14 +117,10 @@ import {
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
 import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
-import {
-  FOCUS_TO_TAB,
-  railDefaultFor,
-  recordTabsForRole,
-} from "@/lib/record/tabs";
+import { FOCUS_TO_TAB, recordTabsForRole } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
-import type { ActivityItem, MentorDraft, ProfileUpdate } from "@/lib/types";
+import type { MentorDraft, ProfileUpdate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // Membership placeholders — centralized in components/record/organization
@@ -137,11 +131,6 @@ import { cn } from "@/lib/utils";
 // mentees. Single source for the header capacity item, the Overview
 // snapshot, and the Relationships row.
 const MENTEE_COUNT = 4;
-
-// Jump-link treatment shared by the record's "go somewhere else" links
-// (DiscardChange's link anatomy — same as requestChangeAction).
-const JUMP_LINK =
-  "inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 const SLOT_TITLES: Record<RecordSectionSlot, string> = {
   reviewWorkflow: "Review workflow",
@@ -186,10 +175,6 @@ const CARD_PAD =
 // the first, never bottom.
 const INSET_DIVIDERS =
   "[&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]";
-
-/** Rail panels (elevated pass): card tone + contour + soft shadow, 20px padding. */
-const RAIL_PANEL =
-  "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]";
 
 /** Read-only record row: label + value + optional review chip. Pressable
  *  (Variant A) only when onPress is provided — review-mediated rows get the
@@ -299,8 +284,8 @@ export default function MentorRecordPage({
     (s) => s.staffEditAccountField
   );
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
-  const internalNotes = useOnboardingStore((s) => s.internalNotes);
-  const addInternalNote = useOnboardingStore((s) => s.addInternalNote);
+  // Notes + Activity rail tabs are deferred (rolling out later) — the store
+  // fields (internalNotes / activity feed) stay; only the record UI is pulled.
   const profileHidden = useOnboardingStore((s) => s.profileHidden);
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
   // Caseload prompt: capacity reads through the caseload override (key "live")
@@ -346,11 +331,6 @@ export default function MentorRecordPage({
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollMemRef = useRef<Record<string, number>>({});
   const prevTabRef = useRef(activeTab);
-  // Rail segment override — null means "the tab's contextual default";
-  // switching tabs clears it so each tab lands on its own default.
-  const [railChoice, setRailChoice] = useState<
-    "preview" | "notes" | "activity" | null
-  >(null);
 
   const getScroller = () =>
     (containerRef.current?.closest(".overflow-y-auto") as HTMLElement | null) ??
@@ -362,7 +342,6 @@ export default function MentorRecordPage({
     scrollMemRef.current[activeTab] = scroller
       ? scroller.scrollTop
       : window.scrollY;
-    setRailChoice(null);
     router.push(`/admin/mentor?tab=${id}`, { scroll: false });
   };
 
@@ -383,7 +362,6 @@ export default function MentorRecordPage({
   // "Now" captured once (lazy init) — the reference point for the Overview's
   // demo elapsed-time values; keeps render pure (no Date.now() in render).
   const [now] = useState(() => Date.now());
-  const [noteDraft, setNoteDraft] = useState("");
   const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
 
   if (!mounted || mentorish) {
@@ -609,43 +587,9 @@ export default function MentorRecordPage({
     return href ? () => router.push(href) : undefined;
   };
 
-  // ── Right rail (Phase 1) ─────────────────────────────────────────────
-  // Segments the viewer can't see are genuinely absent (both staff roles see
-  // Notes since the role migration — leads manage mentors; the map still
-  // hides it from any future below-manager tier); a hidden default falls
-  // through to Activity.
-  const notesVisible = resolveMode("internalNotes", persona) !== "hidden";
-  const railSegments: { id: "preview" | "notes" | "activity"; label: string }[] =
-    [
-      { id: "preview", label: "Preview" },
-      ...(notesVisible ? [{ id: "notes" as const, label: "Notes" }] : []),
-      { id: "activity", label: "Activity" },
-    ];
-  const railDefault = (() => {
-    const d = railDefaultFor(activeTab);
-    return d === "notes" && !notesVisible ? ("activity" as const) : d;
-  })();
-  const railSegment = railChoice ?? railDefault;
-
-  // Staff-facing wording for the rail's Activity segment — the mentor feed
-  // says "The Somethings team…"; here the actor is named.
-  const staffActivityText = (a: ActivityItem): string => {
-    const actor = a.actor ?? "Somethings team";
-    switch (a.type) {
-      case "staff_account_edit":
-        return `${actor} updated ${a.fieldIds
-          .map(accountFieldLabel)
-          .join(", ")}`;
-      case "profile_unpublished":
-        return `${actor} unpublished the profile`;
-      case "profile_republished":
-        return `${actor} republished the profile`;
-      case "profile_changes_requested":
-        return "Changes requested on a profile update";
-      case "profile_update_live":
-        return "A profile update went live";
-    }
-  };
+  // ── Right rail ───────────────────────────────────────────────────────
+  // Notes + Activity tabs are deferred (rolling out later) — the rail now shows
+  // only the teen-facing Preview, so the segmented control is gone.
 
   // ── Section renderers (this pass: two live, five placeholders) ──────────
   const renderSection = (slot: RecordSectionSlot): React.ReactNode => {
@@ -1497,23 +1441,15 @@ export default function MentorRecordPage({
                 })()}
 
                 {/* Recent activity — events only (vocabulary law), newest
-                    first, 5 max. "View all" opens the rail's Activity feed. */}
+                    first, 5 max. The full Activity feed is deferred (rolling
+                    out later), so there's no "View all" for now. */}
                 <section aria-label="Recent activity" className={CARD_PAD}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h2
-                      className="text-[var(--text-primary)]"
-                      style={{ font: "var(--type-card-title)" }}
-                    >
-                      Recent activity
-                    </h2>
-                    <button
-                      type="button"
-                      onClick={() => setRailChoice("activity")}
-                      className={cn(JUMP_LINK, "-my-2.5")}
-                    >
-                      View all
-                    </button>
-                  </div>
+                  <h2
+                    className="text-[var(--text-primary)]"
+                    style={{ font: "var(--type-card-title)" }}
+                  >
+                    Recent activity
+                  </h2>
                   <ul className="mt-2 space-y-1">
                     {overview.events.slice(0, 5).map((e) => (
                       <li
@@ -1589,13 +1525,11 @@ export default function MentorRecordPage({
             )}
           </div>
 
-          {/* RIGHT — utility rail (Phase 1; refined Prompt 4): Preview /
-              Notes / Activity. The default segment is contextual per tab
-              (railDefaultFor), always user-switchable. The preview stays
-              passive and prop-fed (invariant 1). Stacks below the content
-              under lg. The segmented control's top edge aligns with the
-              first content card's top edge exactly (per-tab offset — tabs
-              with canvas headings push their first card down). */}
+          {/* RIGHT — utility rail: the teen-facing Preview only. Notes +
+              Activity tabs are deferred (rolling out later), so the segmented
+              control is gone. The preview stays passive and prop-fed
+              (invariant 1). Stacks below the content under lg; the per-tab
+              offset keeps its top edge aligned with the first content card. */}
           <aside
             aria-label="Profile rail"
             className="min-w-0 lg:sticky lg:top-6 lg:mt-[var(--rail-offset)]"
@@ -1611,20 +1545,9 @@ export default function MentorRecordPage({
               } as React.CSSProperties
             }
           >
-            <div className="flex justify-center">
-              <SegmentedControl
-                ariaLabel="Rail view"
-                options={railSegments.map((s) => ({
-                  value: s.id,
-                  label: s.label,
-                }))}
-                value={railSegment}
-                onChange={(v) => setRailChoice(v)}
-              />
-            </div>
-
-            {railSegment === "preview" && (
-              <div className="mt-3 flex flex-col items-center gap-3">
+            {/* Preview only — Notes + Activity tabs deferred (rolling out
+                later), so the rail segmented control is gone for now. */}
+            <div className="flex flex-col items-center gap-3">
                 {postLane && (
                   <SegmentedControl
                     size="md"
@@ -1674,109 +1597,6 @@ export default function MentorRecordPage({
                   </p>
                 </div>
               </div>
-            )}
-
-            {railSegment === "notes" && notesVisible && (
-              <div className={cn("mt-3 space-y-3", RAIL_PANEL)}>
-                {/* The channel divider — persistent, not dismissible:
-                    confusing internal notes with change requests must be
-                    hard. Moved intact from the notes section (Phase 1). */}
-                <p
-                  className="text-[var(--text-muted)]"
-                  style={{ font: "var(--type-helper)", lineHeight: 1.5 }}
-                >
-                  Internal — visible to lead mentors and supervisors only.
-                  Mentors never see notes; use change requests for anything
-                  the mentor should read.
-                </p>
-                <div>
-                  <label
-                    htmlFor="internal-note"
-                    className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
-                  >
-                    Add a note
-                  </label>
-                  {/* Composer input inverts — canvas tone inside the card
-                      (record-only override; the shared Textarea keeps its
-                      border everywhere else). */}
-                  <Textarea
-                    id="internal-note"
-                    value={noteDraft}
-                    onChange={(e) => setNoteDraft(e.target.value)}
-                    placeholder="Context for the next person on this profile…"
-                    className="border-0 bg-[var(--surface-s1)] shadow-none"
-                  />
-                  <div className="mt-2">
-                    {/* Outline — the header primary is the page's ONE filled
-                        button (Phase 2 restraint rules). */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (!noteDraft.trim()) return;
-                        addInternalNote(noteDraft, staffActor);
-                        setNoteDraft("");
-                      }}
-                      disabled={!noteDraft.trim()}
-                      className="min-h-11 rounded-full px-5"
-                    >
-                      Add note
-                    </Button>
-                  </div>
-                </div>
-                {internalNotes.length === 0 ? (
-                  // Caption style, 12px under the composer block (Prompt 4).
-                  <p
-                    className="text-[var(--text-muted)]"
-                    style={{ font: "var(--type-helper)", lineHeight: 1.5 }}
-                  >
-                    No notes yet. Anything written here stays internal.
-                  </p>
-                ) : (
-                  // Deliberately NOT the change-request note treatment (no
-                  // orange, no "From the review team") — canvas-tone nested
-                  // surfaces keep the channels far apart, borderless.
-                  <ul className="space-y-2.5">
-                    {internalNotes.map((n) => (
-                      <li
-                        key={n.id}
-                        className="rounded-xl bg-[var(--surface-s1)] px-3.5 py-3"
-                      >
-                        <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
-                          {n.author} · {relTime(n.createdAt)}
-                        </p>
-                        <p className="mt-1 whitespace-pre-wrap text-[14px] leading-[20px] text-[var(--text-primary)]">
-                          {n.text}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {railSegment === "activity" && (
-              <div className={cn("mt-3", RAIL_PANEL)}>
-                {activity.length === 0 ? (
-                  <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                    Nothing yet — entries appear as this record changes.
-                  </p>
-                ) : (
-                  <ul className="space-y-2.5">
-                    {activity.map((a) => (
-                      <li key={a.id}>
-                        <p className="text-[12px] font-medium leading-[16px] text-[var(--text-muted)]">
-                          {relTime(a.createdAt)}
-                        </p>
-                        <p className="mt-0.5 text-[13px] leading-[18px] text-[var(--text-primary)]">
-                          {staffActivityText(a)}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
           </aside>
         </div>
       </div>
