@@ -44,7 +44,6 @@ import { MentorShell } from "@/components/mentor/mentor-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { displayOrEmpty, RecordRow } from "@/components/record/row";
-import { PersonRow } from "@/components/record/person-row";
 import {
   AttentionCard,
   type AttentionAction,
@@ -112,7 +111,15 @@ import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
 import { RecordOverview } from "@/components/record/record-overview";
 import { ActiveHoursEditor } from "@/components/record/active-hours";
 import { StaffProfileFields } from "@/components/record/staff-profile-fields";
-import { FOCUS_TO_TAB, recordTabsForRole } from "@/lib/record/tabs";
+import { MentorshipPractice } from "@/components/record/mentorship-practice";
+import { Supervision } from "@/components/record/supervision";
+import {
+  FOCUS_TO_TAB,
+  recordTabsFor,
+  subjectHasPractice,
+  subjectRoleFromParam,
+  type SubjectRole,
+} from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
 import type { MentorDraft, ProfileUpdate } from "@/lib/types";
@@ -135,6 +142,16 @@ const SLOT_TITLES: Record<RecordSectionSlot, string> = {
   account: "Account",
   internalNotes: "Internal notes",
   relationships: "Relationships",
+};
+
+// Header role word by SUBJECT role (the person whose record this is). The
+// status/lifecycle vocabulary is a mentor concept; for non-mentor subjects
+// (dev preview only) the word still names the role honestly.
+const SUBJECT_ROLE_LABEL: Record<SubjectRole, string> = {
+  mentor: "Mentor",
+  "lead-mentor": "Lead mentor",
+  supervisor: "Supervisor",
+  admin: "Admin",
 };
 
 /** Read-only chrome chip for a field that sits in the open changeset. */
@@ -305,19 +322,34 @@ export default function MentorRecordPage({
     if (mounted && mentorish) router.replace("/app/profile");
   }, [mounted, mentorish, router]);
 
-  // ── Tabs (Phase 1) ────────────────────────────────────────────────────
+  // ── Tabs ──────────────────────────────────────────────────────────────
   // The active tab lives in the URL (?tab=, mirroring settings) so record
   // views are shareable. ?focus= deep links (roster CTA, shell avatars) map
   // to tabs via FOCUS_TO_TAB. Derived from the query, never state.
-  // Role-gated tab set (Prompt C): Insights shows only for lead-mentor
-  // (+ admin/super-admin, no persona here); everyone else sees the base set.
-  const visibleTabs = recordTabsForRole(roleForPersona(persona));
+  //
+  // TWO gates, kept separate (see lib/record/tabs.ts): the tab SET depends on
+  // the record's SUBJECT role (existence — a supervisor record has Supervision,
+  // not Mentorship) AND the VIEWER role (permission — currently no built tab is
+  // viewer-gated). The dev toggle is the VIEWER; the subject defaults to
+  // "mentor" (this prototype's one record) and is overridable via the dev-only
+  // ?subjectRole= param to preview/verify the non-mentor subject cases.
+  const subjectRole = subjectRoleFromParam(query.subjectRole);
+  const visibleTabs = recordTabsFor({
+    viewerRole: roleForPersona(persona),
+    subjectRole,
+  });
   const tabParam = typeof query.tab === "string" ? query.tab : null;
   const focusTab = focus ? (FOCUS_TO_TAB[focus] ?? null) : null;
   const activeTab =
     tabParam && visibleTabs.some((t) => t.id === tabParam)
       ? tabParam
       : (focusTab ?? "overview");
+
+  // The teen-facing preview rail (phone + "Live to teens" panel) belongs to the
+  // profile-family tabs only — it describes the teen-facing profile's
+  // publication state and has no meaning beside Organization / Mentorship /
+  // Account content. Every other tab spans the full width.
+  const showRail = activeTab === "profile" || activeTab === "first-moments";
 
   // Per-tab scroll memory: each tab remembers its position in the shell's
   // inner scroller and restores it on return. {scroll:false} on the push
@@ -499,8 +531,9 @@ export default function MentorRecordPage({
     linkLabel: string | null;
   };
   const attentionItems: Attention[] = [];
-  // 1. Open escalation on a mentee (critical family).
-  if (publishedSnapshot) {
+  // 1. Open escalation on a mentee (critical family). Mentee-based, so only for
+  // subjects who actually mentor (a supervisor/admin preview has no mentees).
+  if (publishedSnapshot && subjectHasPractice(subjectRole)) {
     const esc = overview.mentees.filter((m) =>
       escalationVisible(m.escalation, now)
     );
@@ -550,8 +583,12 @@ export default function MentorRecordPage({
       : null;
   if (reviewAttention) attentionItems.push(reviewAttention);
   // 3. Mentor quiet: no activity in 5+ days (warning family) — stated as the
-  // observation, never as risk.
-  if (publishedSnapshot && overview.metrics.lastActiveAt != null) {
+  // observation, never as risk. Mentee-based signal → practice subjects only.
+  if (
+    publishedSnapshot &&
+    subjectHasPractice(subjectRole) &&
+    overview.metrics.lastActiveAt != null
+  ) {
     const days = Math.floor((now - overview.metrics.lastActiveAt) / 86_400_000);
     if (days >= 5) {
       attentionItems.push({
@@ -581,7 +618,9 @@ export default function MentorRecordPage({
           ? {
               label: "View mentee",
               onClick: () => {
-                switchTab("overview");
+                // Jump to the Mentees list on the Mentorship tab (where the
+                // list now lives after the tab split).
+                switchTab("mentorship");
                 requestAnimationFrame(() =>
                   document
                     .querySelector('[aria-label="Mentees"]')
@@ -973,44 +1012,8 @@ export default function MentorRecordPage({
     // internalNotes: no longer a section — the composer lives in the right
     // rail's Notes segment (Phase 1), content unchanged.
 
-    if (slot === "relationships") {
-      // A collection of people → shared PersonRow (Prompt B). Team members'
-      // records don't exist in this prototype, so the rows are non-pressable
-      // (no dead chevrons). Mentee count stays a plain caption.
-      return (
-        <SectionShell key={slot} slot={slot}>
-          {!publishedSnapshot ? (
-            // Empty state is a statement about the person — no box.
-            <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-              Nothing here yet — relationships appear once this mentor is
-              published and matched.
-            </p>
-          ) : (
-            <div className={CARD_ROWS}>
-              {overview.team.map((t) => (
-                <PersonRow key={t.id} name={t.name} secondary={t.roleLabel} />
-              ))}
-              <div className="py-2.5">
-                <p
-                  className="text-[var(--text-secondary)]"
-                  style={{ font: "var(--type-row-label)" }}
-                >
-                  Active mentees
-                </p>
-                <p
-                  className="text-[var(--text-primary)] tabular-nums"
-                  style={{ font: "var(--type-row-value)" }}
-                >
-                  {profileHidden
-                    ? `${MENTEE_COUNT} · matching paused while unpublished`
-                    : MENTEE_COUNT}
-                </p>
-              </div>
-            </div>
-          )}
-        </SectionShell>
-      );
-    }
+    // "relationships" retired: Team + the mentee list moved to the Mentorship
+    // practice tab (the tab split). renderSection no longer handles it.
 
     if (slot === "schedule") {
       // Active Hours — editable by staff who hold schedule=edit (lead +
@@ -1094,7 +1097,7 @@ export default function MentorRecordPage({
                     alone; exceptional states add the word — never color
                     alone, WCAG 1.4.1). */}
                 <span
-                  aria-label={`Mentor, ${STATUS_LABELS[lifecycle].toLowerCase()}`}
+                  aria-label={`${SUBJECT_ROLE_LABEL[subjectRole]}, ${STATUS_LABELS[lifecycle].toLowerCase()}`}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
                 >
                   <span
@@ -1110,10 +1113,11 @@ export default function MentorRecordPage({
                     }}
                   />
                   {/* Active shows the role alone (positive dot carries it);
-                      every other standing appends the lifecycle word. */}
+                      every other standing appends the lifecycle word. Role word
+                      follows the SUBJECT (dev preview varies it). */}
                   {lifecycle === "active"
-                    ? "Mentor"
-                    : `Mentor · ${STATUS_LABELS[lifecycle]}`}
+                    ? SUBJECT_ROLE_LABEL[subjectRole]
+                    : `${SUBJECT_ROLE_LABEL[subjectRole]} · ${STATUS_LABELS[lifecycle]}`}
                 </span>
               </div>
               {/* Meta: pronouns · location · capacity — middots, no icons.
@@ -1128,7 +1132,10 @@ export default function MentorRecordPage({
                 {[
                   live.pronouns.join(", "),
                   MEMBERSHIP_GROUPS.join(", "),
-                  `${MENTEE_COUNT} of ${liveCaseloadTotal} mentees`,
+                  // Mentee capacity is practice — omit for non-mentor subjects.
+                  subjectHasPractice(subjectRole)
+                    ? `${MENTEE_COUNT} of ${liveCaseloadTotal} mentees`
+                    : "",
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -1271,16 +1278,11 @@ export default function MentorRecordPage({
             (Prompt 4 composition). Rail fixed at 340px so the device preview +
             its drop shadow sit inside the panel with breathing room. */}
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,900px)_340px]">
-          {/* LEFT — the active tab's content: sections MOVED, not restyled
-              (Phase 1 content mapping); gating unchanged via resolveMode
-              inside each renderer. Overview is the performance dashboard and
-              spans the full width (no Preview rail — see below). */}
-          <div
-            className={cn(
-              "min-w-0 space-y-7",
-              activeTab === "overview" && "lg:col-span-2"
-            )}
-          >
+          {/* LEFT — the active tab's content. The teen-facing preview rail
+              only rides alongside the profile-family tabs; every other tab
+              (Overview, Organization, Mentorship, Supervision, Schedule,
+              Account) spans the full width. */}
+          <div className={cn("min-w-0 space-y-7", !showRail && "lg:col-span-2")}>
             {activeTab === "overview" && (
               <RecordOverview mentorName={mentorName} />
             )}
@@ -1288,49 +1290,51 @@ export default function MentorRecordPage({
             {activeTab === "first-moments" && renderSection("firstMoments")}
             {activeTab === "schedule" && renderSection("schedule")}
             {activeTab === "account" && renderSection("account")}
+            {/* Organization (universal) — org membership only, one card. */}
+            {activeTab === "organization" &&
+              resolveMode("accountOrg", persona) !== "hidden" && (
+                <section
+                  aria-label="Organization"
+                  data-record-section="organization"
+                >
+                  <OrganizationCard
+                    mode={
+                      resolveMode("accountOrg", persona) === "edit"
+                        ? "edit"
+                        : "read"
+                    }
+                  />
+                </section>
+              )}
+            {/* Mentorship (subject = mentor / lead mentor) — the practice
+                surface: mentees, caseload, availability, team. */}
             {activeTab === "mentorship" && (
-              <>
-                {resolveMode("accountOrg", persona) !== "hidden" && (
-                  <section
-                    aria-label="Mentorship"
-                    data-record-section="mentorship"
-                  >
-                    <OrganizationCard
-                      mode={
-                        resolveMode("accountOrg", persona) === "edit"
-                          ? "edit"
-                          : "read"
-                      }
-                      menteeCount={MENTEE_COUNT}
-                    />
-                  </section>
-                )}
-                {renderSection("relationships")}
-              </>
+              <MentorshipPractice
+                mode={
+                  resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"
+                }
+                menteeCount={MENTEE_COUNT}
+                subjectRole={subjectRole}
+                now={now}
+                published={publishedSnapshot !== null}
+                // No-names variant is for the read-mostly supervisor tier, which
+                // no persona resolves to yet (permission-map supervisorTier).
+                redactMentees={false}
+              />
             )}
+            {/* Supervision (subject = supervisor) — supervisees empty state. */}
+            {activeTab === "supervision" && <Supervision />}
           </div>
 
-          {/* RIGHT — utility rail: the teen-facing Preview only. Notes +
-              Activity tabs are deferred (rolling out later), so the segmented
-              control is gone. The preview stays passive and prop-fed
-              (invariant 1). Stacks below the content under lg; the per-tab
-              offset keeps its top edge aligned with the first content card.
-              Hidden on Overview — that tab is the full-width dashboard. */}
-          {activeTab !== "overview" && (
+          {/* RIGHT — the teen-facing Preview rail. Scoped to the profile-family
+              tabs only (see showRail): it shows the teen-facing match card + the
+              "Live to teens" publication panel, which describe the profile, so
+              they have no meaning beside Organization / Mentorship / Account /
+              Schedule content. Passive and prop-fed (invariant 1). */}
+          {showRail && (
           <aside
             aria-label="Profile rail"
-            className="min-w-0 lg:sticky lg:top-6 lg:mt-[var(--rail-offset)]"
-            style={
-              {
-                "--rail-offset": `${
-                  activeTab === "overview"
-                    ? 0
-                    : activeTab === "schedule" || activeTab === "mentorship"
-                      ? 36
-                      : 56
-                }px`,
-              } as React.CSSProperties
-            }
+            className="min-w-0 lg:sticky lg:top-6 lg:mt-[56px]"
           >
             {/* Preview only — Notes + Activity tabs deferred (rolling out
                 later), so the rail segmented control is gone for now. */}
@@ -1356,8 +1360,13 @@ export default function MentorRecordPage({
                   {/* Visibility readout — the subtle "is this profile being seen
                       by potential matches" signal (lifecycle-derived). Text
                       carries the meaning; the dot is decorative; live states get
-                      a soft pulse (motion-safe). */}
-                  <div className="mb-4 flex items-center gap-2.5 rounded-[var(--radius-control)] bg-[var(--surface-s1)] px-3 py-2 ring-1 ring-[color:var(--border-contour)]">
+                      a soft pulse (motion-safe). role=group + aria-label name the
+                      dot+label pair as one region. */}
+                  <div
+                    role="group"
+                    aria-label={`Profile visibility: ${visibility.label}. ${visibility.sub}`}
+                    className="mb-4 flex items-center gap-2.5 rounded-[var(--radius-control)] bg-[var(--surface-s1)] px-3 py-2 ring-1 ring-[color:var(--border-contour)]"
+                  >
                     <span
                       aria-hidden
                       className="relative flex size-2.5 shrink-0 items-center justify-center"

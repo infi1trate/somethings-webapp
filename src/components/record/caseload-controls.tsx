@@ -75,7 +75,7 @@ export function CaseloadControls({
             aria-label="Decrease caseload"
             title={
               caseload.total <= min
-                ? "Capacity can't drop below current mentees"
+                ? "Caseload can't drop below current mentees"
                 : "Decrease caseload"
             }
             className={STEP_BTN}
@@ -109,7 +109,7 @@ export function CaseloadControls({
           className="min-w-0 text-[var(--text-muted)]"
           style={{ font: "var(--type-helper)" }}
         >
-          Capacity adjusts automatically with matching activity.
+          Caseload adjusts automatically with matching activity.
         </span>
       )}
     </div>

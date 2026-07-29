@@ -1,8 +1,9 @@
 "use client";
 
-// AttentionCard (elevated pass) — the record's "needs attention" alert, upgraded
-// from a flat tint strip to a prominent card: an icon in a soft-filled circle,
-// a stylized headline + detail, and an inline filled action button. Colors come
+// AttentionCard (elevated pass) — the record's "needs attention" alert: an icon
+// in a soft-filled circle, a stylized headline + detail, and a plain text-link
+// action (NOT a filled button — the record's ONE filled button is the header
+// Message, and the strip never carries one, whatever the severity). Colors come
 // from the tokenized alert families (--alert-*), critical being a warm coral-red
 // (not plain red). Two variants: "card" (the Overview hero alert) and "band"
 // (the compact cross-tab chrome mirror).
@@ -62,17 +63,13 @@ function AttentionIcon({
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** The word always travels with the color (WCAG 1.4.1) — severity never carries
- *  meaning on its own; the headline text does. */
-function ActionButton({
-  action,
-  accent,
-}: {
-  action: AttentionAction;
-  accent: string;
-}) {
+/** A plain text link, never a filled button (the one-filled-button rule). The
+ *  word always travels with the color (WCAG 1.4.1) — severity never carries
+ *  meaning on its own; the label does. Text uses the family's `fg` ink
+ *  (≥7:1 on the tint) with an underline as the affordance. */
+function ActionLink({ action, fg }: { action: AttentionAction; fg: string }) {
   const cls = cn(
-    "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-white transition-[transform,filter] hover:brightness-110 active:scale-[0.99]",
+    "inline-flex min-h-9 shrink-0 items-center gap-1 rounded-sm text-[13px] font-semibold underline underline-offset-2 transition-opacity hover:opacity-70",
     RING
   );
   const inner = (
@@ -82,16 +79,11 @@ function ActionButton({
     </>
   );
   return action.href ? (
-    <Link href={action.href} className={cls} style={{ backgroundColor: accent }}>
+    <Link href={action.href} className={cls} style={{ color: fg }}>
       {inner}
     </Link>
   ) : (
-    <button
-      type="button"
-      onClick={action.onClick}
-      className={cls}
-      style={{ backgroundColor: accent }}
-    >
+    <button type="button" onClick={action.onClick} className={cls} style={{ color: fg }}>
       {inner}
     </button>
   );
@@ -137,7 +129,7 @@ export function AttentionCard({
           {line}
           {moreText && <span className="opacity-80">{moreText}</span>}
         </p>
-        {action && <ActionButton action={action} accent={fam.accent} />}
+        {action && <ActionLink action={action} fg={fam.fg} />}
       </div>
     );
   }
@@ -171,7 +163,7 @@ export function AttentionCard({
           </p>
         )}
       </div>
-      {action && <ActionButton action={action} accent={fam.accent} />}
+      {action && <ActionLink action={action} fg={fam.fg} />}
     </section>
   );
 }

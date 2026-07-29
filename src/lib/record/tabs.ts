@@ -5,6 +5,10 @@
 
 import type { SettingsRole } from "@/components/settings/tabs-config";
 
+/** The role of the PERSON whose record this is (the subject) — distinct from
+ *  the VIEWER persona/role. Drives which practice tabs EXIST on the record. */
+export type SubjectRole = "mentor" | "lead-mentor" | "supervisor" | "admin";
+
 export interface RecordTabDef {
   id: string;
   label: string;
@@ -12,9 +16,17 @@ export interface RecordTabDef {
    *  dead tab chrome (Phase 1 content mapping: "create the registry entries
    *  but render nothing"). */
   built: boolean;
-  /** Role gate — omit for tabs everyone (who can see the record) gets.
-   *  When set, the tab renders only for these roles. */
+  /** VIEWER permission-gate — omit for tabs every viewer who can see the
+   *  record gets. When set, the tab renders only for these VIEWER roles. This
+   *  is "hidden from some viewers, but the tab still exists" (e.g. the old
+   *  Insights). Currently dormant (no built tab sets it), kept for when a
+   *  viewer-gated tab returns. */
   roles?: SettingsRole[];
+  /** SUBJECT existence-gate — omit for universal tabs. When set, the tab
+   *  EXISTS only when the record's SUBJECT is one of these roles. A supervisor
+   *  record has NO Mentorship tab at all — a different mechanism from `roles`
+   *  (existence, not permission). The two never collapse into one check. */
+  subjectRoles?: SubjectRole[];
 }
 
 export const RECORD_TABS: RecordTabDef[] = [
@@ -23,11 +35,30 @@ export const RECORD_TABS: RecordTabDef[] = [
   { id: "first-moments", label: "First moments", built: true },
   { id: "schedule", label: "Schedule", built: true },
   { id: "account", label: "Account", built: true },
-  { id: "mentorship", label: "Mentorship", built: true },
+  // Organization is UNIVERSAL — org membership (role, groups, join date,
+  // status) is true of every staff type, so no gate. Sits after Account,
+  // before any practice tab.
+  { id: "organization", label: "Organization", built: true },
+  // Practice tabs — subject-conditional (existence, not permission). Only ONE
+  // can apply to a given subject, so they can share the trailing slot.
+  {
+    id: "mentorship",
+    label: "Mentorship",
+    built: true,
+    subjectRoles: ["mentor", "lead-mentor"],
+  },
+  {
+    // TODO-COPY: "Supervision" may be renamed "Team" later — the label is
+    // registry-configurable so a rename is a one-line change here.
+    id: "supervision",
+    label: "Supervision",
+    built: true,
+    subjectRoles: ["supervisor"],
+  },
   // Insights removed — the IMP-6 charts (engagement, retention, bonus, match
   // rate) now live on the Overview tab (see RecordOverview). The tab is gone,
   // not deferred.
-  // Phase 1: registry entries only — do not build, do not render.
+  // Registry entries only — do not build, do not render.
   { id: "care-journey", label: "Care journey", built: false },
   { id: "billing", label: "Billing", built: false },
   { id: "documents", label: "Documents", built: false },
@@ -35,10 +66,49 @@ export const RECORD_TABS: RecordTabDef[] = [
 
 export const BUILT_RECORD_TABS = RECORD_TABS.filter((t) => t.built);
 
-/** Tabs visible to a given role — built tabs minus role-gated ones the role
- *  isn't in. */
-export function recordTabsForRole(role: SettingsRole): RecordTabDef[] {
-  return BUILT_RECORD_TABS.filter((t) => !t.roles || t.roles.includes(role));
+/** Tabs for a specific record view. TWO independent gates, kept separate on
+ *  purpose (see RecordTabDef):
+ *  • `roles`        → VIEWER permission-gate (may this viewer see the tab).
+ *  • `subjectRoles` → SUBJECT existence-gate (does the tab exist for this
+ *    record's subject at all). */
+export function recordTabsFor({
+  viewerRole,
+  subjectRole,
+}: {
+  viewerRole: SettingsRole;
+  subjectRole: SubjectRole;
+}): RecordTabDef[] {
+  return BUILT_RECORD_TABS.filter(
+    (t) =>
+      (!t.roles || t.roles.includes(viewerRole)) &&
+      (!t.subjectRoles || t.subjectRoles.includes(subjectRole))
+  );
+}
+
+const SUBJECT_ROLES: SubjectRole[] = [
+  "mentor",
+  "lead-mentor",
+  "supervisor",
+  "admin",
+];
+
+/** Dev-only subject-role resolver (from `?subjectRole=`). Defaults to "mentor"
+ *  — the only real record in this prototype. No visible control: the toggle is
+ *  the VIEWER; this param lets us preview/verify the subject-conditional tab
+ *  set for non-mentor subjects (Supervision, admin no-practice) until real
+ *  supervisor/admin records exist. */
+export function subjectRoleFromParam(
+  value: string | string[] | null | undefined
+): SubjectRole {
+  return typeof value === "string" && SUBJECT_ROLES.includes(value as SubjectRole)
+    ? (value as SubjectRole)
+    : "mentor";
+}
+
+/** True when the subject is a role that actually mentors teens — the only
+ *  subjects with a mentee list, caseload, and availability. */
+export function subjectHasPractice(role: SubjectRole): boolean {
+  return role === "mentor" || role === "lead-mentor";
 }
 
 /** ?focus= deep links (roster Review CTA, shell avatars) → record tabs. */

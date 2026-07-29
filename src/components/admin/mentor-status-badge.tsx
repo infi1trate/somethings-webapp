@@ -214,7 +214,7 @@ export function AvailabilityMenu({
         </DropdownMenuItem>
         {atCap && (
           <p className="px-2.5 pt-1.5 text-[11px] leading-tight text-[var(--text-muted)]">
-            At capacity — shows as Full until a mentee slot frees.
+            Every mentee slot is taken — shows as Full until one frees.
           </p>
         )}
       </DropdownMenuContent>
