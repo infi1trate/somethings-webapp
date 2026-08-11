@@ -14,6 +14,7 @@ import { PillButton } from "@/components/settings/pill-button";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { SETTINGS_TABS } from "@/components/settings/tabs-config";
 import { Input } from "@/components/ui/input";
+import { AttentionCard } from "@/components/record/attention-card";
 import {
   MentorStatusBadge,
   AvailabilityCell,
@@ -210,6 +211,32 @@ export default function ComponentsAuditPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Attention strip (families)"
+          note="The record's attention band, all three severity families. Critical is RESERVED for genuine escalations; warning carries the derived recency states (waiting-on-mentor, teen-quiet); warm is review-waiting. Action is a plain text link — never a filled button (the record's one filled button is the header Message). All copy TODO-COPY."
+        >
+          <div className="space-y-3">
+            <AttentionCard
+              variant="band"
+              severity="critical"
+              line="1 mentee needs attention · Escalated by mentor"
+              action={{ label: "View mentee", onClick: () => {} }}
+            />
+            <AttentionCard
+              variant="band"
+              severity="warning"
+              line="1 mentee waiting on a reply · No reply in 5 days"
+              action={{ label: "View mentee", onClick: () => {} }}
+            />
+            <AttentionCard
+              variant="band"
+              severity="warm"
+              line="Submitted for review — waiting on the team."
+              action={{ label: "Open review console", onClick: () => {} }}
+            />
           </div>
         </Panel>
 

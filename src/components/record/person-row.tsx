@@ -46,20 +46,27 @@ function initial(name: string) {
 
 const NEUTRAL_TINT = { bg: "var(--surface-s1)", fg: "var(--text-muted)" };
 
-/** Escalation chip — names the observable cause (vocabulary law: never a
- *  predicted departure). Exception, so it speaks: critical-family tint + icon
- *  + the cause text (text carries meaning, WCAG 1.4.1). */
-function EscalationChip({ reason }: { reason: string }) {
+export type PersonAttention = {
+  /** Names the observable cause (vocabulary law: never a prediction). */
+  text: string;
+  /** critical = genuine escalations only; warning = derived attention
+   *  (waiting-on-mentor, teen-quiet). Tokens per family, text carries the
+   *  meaning (WCAG 1.4.1). */
+  tone: "critical" | "warning";
+};
+
+/** Attention chip — an exception, so it speaks: family tint + icon + cause. */
+function AttentionChip({ text, tone }: PersonAttention) {
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium"
       style={{
-        backgroundColor: "var(--alert-critical-bg)",
-        color: "var(--alert-critical-fg)",
+        backgroundColor: `var(--alert-${tone}-bg)`,
+        color: `var(--alert-${tone}-fg)`,
       }}
     >
       <AlertTriangle className="size-3" aria-hidden />
-      {reason}
+      {text}
     </span>
   );
 }
@@ -82,9 +89,9 @@ export interface PersonRowProps {
   name: string;
   /** Secondary caption: role (staff) or relationship context (mentees). */
   secondary?: React.ReactNode;
-  /** Escalation cause (e.g. "No reply in 5 days") → a chip. Null/undefined =
-   *  no escalation. Names the observable cause, never a prediction. */
-  escalation?: string | null;
+  /** Attention chip (observable cause + severity family). Undefined/null =
+   *  no chip. critical is reserved for genuine escalations. */
+  attention?: PersonAttention | null;
   /** Video calls in the trailing window → a quiet care chip. 0 = omitted. */
   videoCount?: number;
   /** Right-aligned element before the chevron (chip, count, recency). */
@@ -100,7 +107,7 @@ export interface PersonRowProps {
 export function PersonRow({
   name,
   secondary,
-  escalation,
+  attention,
   videoCount = 0,
   trailing,
   redactName = false,
@@ -109,7 +116,7 @@ export function PersonRow({
 }: PersonRowProps) {
   const tint = redactName ? NEUTRAL_TINT : tintFor(name);
   const displayName = redactName ? "Mentee" : name;
-  const hasChips = (!redactName && !!escalation) || videoCount > 0;
+  const hasChips = (!redactName && !!attention) || videoCount > 0;
 
   const body = (
     <>
@@ -138,9 +145,9 @@ export function PersonRow({
       </span>
       {(hasChips || trailing != null) && (
         <span className="flex shrink-0 items-center gap-2">
-          {/* Escalation is withheld in the no-names variant along with the
+          {/* Attention is withheld in the no-names variant along with the
               identity. Video is a count, so it survives. */}
-          {!redactName && escalation && <EscalationChip reason={escalation} />}
+          {!redactName && attention && <AttentionChip {...attention} />}
           {videoCount > 0 && <VideoChip count={videoCount} />}
           {trailing}
         </span>

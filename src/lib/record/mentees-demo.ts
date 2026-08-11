@@ -22,9 +22,17 @@ export interface DemoMentee {
   id: string;
   name: string;
   matchedAt: number; // → relationship length
-  lastInteractionAt: number; // → recency ("replied yesterday")
+  // Direction-aware recency: one timestamp per party's LAST message. The pair's
+  // last exchange is the later of the two; who sent it decides the copy — the
+  // difference between "coach the mentor" (mentor owes a reply) and "check on
+  // the teen" (teen gone quiet). TODO-DATA: the real message store carries per-
+  // message history; these two stamps are the minimal honest projection.
+  mentorLastSentAt: number | null;
+  menteeLastSentAt: number | null;
   // Escalation names the observable cause; the 45-day staleness rule is
   // applied by the consumer (escalations older than 45 days do not render).
+  // GENUINE escalations only (critical family) — the derived waiting-on-mentor
+  // state is a WARNING and is computed from the timestamps, never stored here.
   escalation: { reason: string; at: number } | null;
   videoCount30d: number; // video calls, last 30 days (care signal, not absence)
 }
@@ -60,12 +68,15 @@ export interface DemoOverviewData {
 // Date.now() at module load (keeps SSR/first-paint stable — call post-mount).
 export function getDemoOverview(now: number): DemoOverviewData {
   return {
+    // The four fixtures exercise the four recency states (see menteeRecency):
+    // mentor-replied · mentee-wrote · waiting-on-mentor · teen-quiet.
     mentees: [
       {
         id: "m-jordan",
         name: "Jordan T.",
         matchedAt: now - 122 * DAY, // ~4 months
-        lastInteractionAt: now - 1 * DAY, // replied yesterday
+        mentorLastSentAt: now - 1 * DAY, // mentor replied yesterday
+        menteeLastSentAt: now - 2 * DAY, // teen wrote the day before — active pair
         escalation: null,
         videoCount30d: 0,
       },
@@ -73,7 +84,8 @@ export function getDemoOverview(now: number): DemoOverviewData {
         id: "m-sam",
         name: "Sam K.",
         matchedAt: now - 15 * DAY, // ~2 weeks
-        lastInteractionAt: now - 3 * 60 * MIN, // earlier today
+        mentorLastSentAt: now - 1 * DAY,
+        menteeLastSentAt: now - 3 * 60 * MIN, // teen wrote earlier today
         escalation: null,
         videoCount30d: 3, // video-comfort: low chat volume may be video, not absence
       },
@@ -81,15 +93,20 @@ export function getDemoOverview(now: number): DemoOverviewData {
         id: "m-riley",
         name: "Riley M.",
         matchedAt: now - 44 * DAY, // ~6 weeks
-        lastInteractionAt: now - 5 * DAY,
-        escalation: { reason: "No reply in 5 days", at: now - 5 * DAY }, // < 45d → renders
+        mentorLastSentAt: now - 6 * DAY,
+        menteeLastSentAt: now - 5 * DAY, // teen wrote 5d ago; mentor hasn't replied
+        // → derived waiting-on-mentor WARNING (was a hand-written escalation;
+        // the direction data now computes it — escalation stays for genuine
+        // escalation records only).
+        escalation: null,
         videoCount30d: 0,
       },
       {
         id: "m-alex",
         name: "Alex P.",
         matchedAt: now - 92 * DAY, // ~3 months
-        lastInteractionAt: now - 2 * DAY,
+        mentorLastSentAt: now - 2 * DAY, // mentor replied…
+        menteeLastSentAt: now - 9 * DAY, // …but the teen hasn't written in 9d → teen-quiet
         escalation: null,
         videoCount30d: 1,
       },
@@ -152,9 +169,109 @@ export function relLength(matchedAt: number, now: number): string {
   return `${Math.round(d / 30)} months`;
 }
 
-/** Recency phrase for a mentee's secondary line: "replied yesterday". */
-export function recencyPhrase(lastInteractionAt: number, now: number): string {
-  return `replied ${relativeAgo(lastInteractionAt, now)}`;
+/** The pair's last exchange, either direction — for recency sorting. */
+export function lastExchangeAt(m: DemoMentee): number {
+  return Math.max(m.mentorLastSentAt ?? 0, m.menteeLastSentAt ?? 0);
+}
+
+// ── Direction-aware recency (the four states) ─────────────────────────────
+// Who sent last decides what the row says and whether it flags. Thresholds:
+// WAITING_DAYS — mentee wrote, mentor hasn't replied → the WARNING state that
+// drives the row chip + the record's attention strip ("coach the mentor").
+// TEEN_QUIET_DAYS — mentor replied, teen silent since → a GENTLER warning
+// ("check on the teen"). TODO: both thresholds need clinical input.
+export const WAITING_DAYS = 5;
+export const TEEN_QUIET_DAYS = 7;
+
+export type MenteeRecency =
+  | { kind: "mentor-replied"; ago: string } // mentor sent last, pair active
+  | { kind: "mentee-wrote"; ago: string } // mentee sent last, within threshold
+  | { kind: "waiting-on-mentor"; days: number } // mentor owes a reply → warning
+  | { kind: "teen-quiet"; days: number }; // teen silent after mentor replied
+
+export function menteeRecency(m: DemoMentee, now: number): MenteeRecency {
+  const mentorAt = m.mentorLastSentAt ?? 0;
+  const menteeAt = m.menteeLastSentAt ?? 0;
+  if (menteeAt > mentorAt) {
+    // Mentee sent last — the mentor owes the reply.
+    const days = Math.floor((now - menteeAt) / DAY);
+    if (days >= WAITING_DAYS) return { kind: "waiting-on-mentor", days };
+    return { kind: "mentee-wrote", ago: relativeAgo(menteeAt, now) };
+  }
+  // Mentor sent last — is the teen quiet since?
+  const quietDays = Math.floor((now - menteeAt) / DAY);
+  if (menteeAt > 0 && quietDays >= TEEN_QUIET_DAYS)
+    return { kind: "teen-quiet", days: quietDays };
+  return { kind: "mentor-replied", ago: relativeAgo(mentorAt, now) };
+}
+
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+
+/** Secondary-line copy per state (all TODO-COPY). NON-DUPLICATION RULE: when
+ *  the row carries an attention chip (the two flagged states), the secondary
+ *  drops its recency clause — the caller shows relationship length instead —
+ *  so the chip and the line never state the same fact in two moods. */
+export function recencyLine(
+  r: MenteeRecency,
+  menteeName: string,
+  mentorFirstName: string
+): string {
+  switch (r.kind) {
+    case "mentor-replied":
+      return `${mentorFirstName} replied ${r.ago}`;
+    case "mentee-wrote":
+      return `${firstName(menteeName)} wrote ${r.ago}`;
+    case "waiting-on-mentor":
+      return `waiting on ${mentorFirstName} · ${r.days} days`;
+    case "teen-quiet":
+      return `${firstName(menteeName)} last wrote ${r.days}d ago`;
+  }
+}
+
+/** Row-chip copy for the flagged states (TODO-COPY) — names the observable
+ *  cause, never a prediction. Null = no chip. */
+export function recencyChip(
+  r: MenteeRecency
+): { text: string; tone: "warning" } | null {
+  if (r.kind === "waiting-on-mentor")
+    return { text: `No reply in ${r.days} days`, tone: "warning" };
+  if (r.kind === "teen-quiet")
+    return { text: `Last wrote ${r.days}d ago`, tone: "warning" };
+  return null;
+}
+
+// ── Dev-only fixture expander ──────────────────────────────────────────────
+// TODO-DATA: lets ?demoMentees=N preview the Mentees list at scale (search +
+// sort chrome appears at 9+). Deterministic — index-seeded, no randomness.
+const EXTRA_NAMES = [
+  "Maya R.", "Eli S.", "Nora B.", "Owen C.", "Zoe L.",
+  "Ivan D.", "Lena F.", "Theo G.", "Ruth H.", "Cole J.",
+  "Isla K.", "Finn M.",
+];
+
+export function expandMentees(
+  base: DemoMentee[],
+  count: number,
+  now: number
+): DemoMentee[] {
+  if (count <= base.length) return base;
+  const extras: DemoMentee[] = Array.from(
+    { length: count - base.length },
+    (_, i) => {
+      const mentorAt = now - ((i % 4) + 1) * DAY;
+      const menteeAt = now - ((i % 3) + 1) * DAY - 6 * 60 * MIN;
+      return {
+        id: `m-extra-${i}`,
+        name: EXTRA_NAMES[i % EXTRA_NAMES.length],
+        matchedAt: now - (20 + i * 9) * DAY,
+        mentorLastSentAt: mentorAt,
+        menteeLastSentAt: menteeAt,
+        escalation: null,
+        videoCount30d: i % 5 === 0 ? 2 : 0,
+      };
+    }
+  );
+  return [...base, ...extras];
 }
 
 /**

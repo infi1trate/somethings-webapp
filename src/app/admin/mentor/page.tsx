@@ -54,6 +54,7 @@ import { SegmentedControl } from "@/components/record/segmented-control";
 import {
   escalationVisible,
   getDemoOverview,
+  menteeRecency,
 } from "@/lib/record/mentees-demo";
 import { PillButton } from "@/components/settings/pill-button";
 import {
@@ -531,9 +532,11 @@ export default function MentorRecordPage({
     linkLabel: string | null;
   };
   const attentionItems: Attention[] = [];
-  // 1. Open escalation on a mentee (critical family). Mentee-based, so only for
-  // subjects who actually mentor (a supervisor/admin preview has no mentees).
+  // Mentee-based items — only for subjects who actually mentor (a
+  // supervisor/admin preview has no mentees).
   if (publishedSnapshot && subjectHasPractice(subjectRole)) {
+    // 1. Open escalation on a mentee (critical family — RESERVED for genuine
+    // escalation records; the derived recency states below are warnings).
     const esc = overview.mentees.filter((m) =>
       escalationVisible(m.escalation, now)
     );
@@ -546,6 +549,44 @@ export default function MentorRecordPage({
           esc.length === 1
             ? `1 mentee needs attention · ${first.reason}`
             : `${esc.length} mentees need attention · ${first.reason}`,
+        href: null,
+        linkLabel: null,
+      });
+    }
+    // 2. Waiting on the mentor (warning family) — the mentee wrote and the
+    // mentor hasn't replied in WAITING_DAYS+. Direction-aware: this is the
+    // "coach the mentor" signal. TODO-COPY.
+    const waiting = overview.mentees
+      .map((m) => menteeRecency(m, now))
+      .filter((r) => r.kind === "waiting-on-mentor");
+    if (waiting.length > 0) {
+      const days = Math.max(...waiting.map((r) => r.days));
+      attentionItems.push({
+        id: "waiting",
+        severity: "warning",
+        line:
+          waiting.length === 1
+            ? `1 mentee waiting on a reply · No reply in ${days} days`
+            : `${waiting.length} mentees waiting on a reply · Longest ${days} days`,
+        href: null,
+        linkLabel: null,
+      });
+    }
+    // 3. Teen gone quiet after the mentor replied (gentler, same warning
+    // family) — the "check on the teen" signal. Threshold TODO: clinical
+    // input (TEEN_QUIET_DAYS). TODO-COPY.
+    const teenQuiet = overview.mentees
+      .map((m) => menteeRecency(m, now))
+      .filter((r) => r.kind === "teen-quiet");
+    if (teenQuiet.length > 0) {
+      const days = Math.max(...teenQuiet.map((r) => r.days));
+      attentionItems.push({
+        id: "teen-quiet",
+        severity: "warning",
+        line:
+          teenQuiet.length === 1
+            ? `1 mentee quiet lately · Last wrote ${days} days ago`
+            : `${teenQuiet.length} mentees quiet lately · Longest ${days} days`,
         href: null,
         linkLabel: null,
       });
@@ -614,7 +655,7 @@ export default function MentorRecordPage({
       ? null
       : attention.href && reviewMode
         ? { label: attention.linkLabel ?? "Review details", href: attention.href }
-        : attention.id === "escalation"
+        : ["escalation", "waiting", "teen-quiet"].includes(attention.id)
           ? {
               label: "View mentee",
               onClick: () => {
@@ -1223,12 +1264,10 @@ export default function MentorRecordPage({
         )}
 
         {/* ── Attention banner: the top attention item, mirrored into the
-            chrome so it travels across tabs — but only when severity warrants
-            (critical/warm; warning-family items live in the Overview strip
-            only). Passive tint from the item's severity family, 16px radius,
-            no shadow. TODO(Prompt A): fold into the condensing header band. */}
+            chrome so it travels across tabs. All three families render here —
+            warning carries the derived recency states (waiting-on-mentor,
+            teen-quiet); critical is reserved for genuine escalations. */}
         {attention &&
-          attention.severity !== "warning" &&
           activeTab !== "overview" && (
             <AttentionCard
               variant="band"
@@ -1320,6 +1359,12 @@ export default function MentorRecordPage({
                 // No-names variant is for the read-mostly supervisor tier, which
                 // no persona resolves to yet (permission-map supervisorTier).
                 redactMentees={false}
+                // Dev-only scale preview (?demoMentees=12) — TODO-DATA.
+                demoCount={
+                  typeof query.demoMentees === "string"
+                    ? Number(query.demoMentees) || undefined
+                    : undefined
+                }
               />
             )}
             {/* Supervision (subject = supervisor) — supervisees empty state. */}
