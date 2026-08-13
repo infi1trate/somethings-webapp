@@ -126,7 +126,7 @@ export function SectionCard({
           )}
         </span>
         {!disabled && (
-          <span className="flex size-[var(--target-min)] shrink-0 items-center justify-center rounded-full transition-colors hover:bg-black/[0.04]">
+          <span className="flex size-[var(--target-min)] shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[var(--tint-hover)]">
             <ChevronDown
               aria-hidden
               className={cn(

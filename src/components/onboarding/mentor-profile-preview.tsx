@@ -1,5 +1,10 @@
 "use client";
 
+// FIXED IDENTITY — DO NOT THEME. This renders the TEEN-facing mobile app, not
+// staff chrome. Its palette must stay put in dark mode: the preview shows what
+// teens actually see, and teens do not share a staff member's appearance
+// setting. Hard-coded whites/purples here are deliberate; on a dark staff page
+// it reads as a real device screen. (Dark-mode pass, gaps.md.)
 import {
   useCallback,
   useEffect,

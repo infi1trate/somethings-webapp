@@ -1,12 +1,17 @@
 /*
- * ── MENTOR SETTINGS DESIGN TOKENS ──────────────────────────────────────────
+ * ── SOMETHINGS SEMANTIC DESIGN TOKENS ──────────────────────────────────────
  * Source: mentor-settings-build-spec §2, extracted from Figma node 388:1586
- * (MO-4 Mentor Onboarding). Phase 0 foundation.
+ * (MO-4 Mentor Onboarding), aligned to the Bloom Design System.
  *
- * Scope: NEW settings surfaces only (src/components/settings/*, /dev/components).
- * These are deliberately namespaced (--surface-*, --text-*, …) and do NOT touch
- * the legacy app tokens in globals.css — conflicts between the two systems are
- * logged in design-system-gaps.md (Figma values win on the new surfaces).
+ * Scope: PRODUCT-WIDE. (Historical note: this file began as settings-only and
+ * its header said so; it now carries ~550 usages across every staff surface —
+ * record, roster, review, settings, activity. The shadcn layer in globals.css
+ * ALIASES these tokens rather than duplicating them, so there is exactly one
+ * source of truth per colour.)
+ *
+ * TWO MODES. `:root` is Light; the `.dark` block at the bottom mirrors every
+ * COLOUR token in the same order and grouping. Type/radii/spacing are
+ * mode-invariant and are NOT duplicated there.
  *
  * Contrast ratios below were measured (WCAG 2.2 relative luminance), not copied.
  */
@@ -143,9 +148,187 @@
   --dot-warning: #ea580c;
   --dot-critical: var(--state-error);
 
+  /* Status chip families — the semantic set gaps.md #70/#117 asked for,
+     replacing raw Tailwind `-100/-800` pairs that cannot follow the theme.
+     LIGHT VALUES ARE THE EXACT TAILWIND HEXES IN USE TODAY, so tokenizing is
+     pixel-identical in light; only dark gains new values. Measured on their
+     own bg: info 6.59 · progress 8.06 · positive 6.78 · attention 6.37 ·
+     warn 6.38 (all ≥4.5 ✓). */
+  --status-info-bg: #e0f2fe; /* sky-100 */
+  --status-info-fg: #075985; /* sky-800 */
+  --status-progress-bg: #e0e7ff; /* indigo-100 */
+  --status-progress-fg: #3730a3; /* indigo-800 */
+  --status-positive-bg: #d1fae5; /* emerald-100 */
+  --status-positive-fg: #065f46; /* emerald-800 */
+  --status-attention-bg: #fef3c7; /* amber-100 */
+  --status-attention-fg: #92400e; /* amber-800 */
+  --status-warn-bg: #ffedd5; /* orange-100 */
+  --status-warn-fg: #9a3412; /* orange-800 */
+  --status-neutral-bg: #f3eee6;
+  --status-neutral-fg: var(--text-secondary);
+
+  /* Brand ink — the brand colour as TEXT. Pure tangelo #ff5001 only reaches
+     ~3.1:1 on white, so text use steps to tangelo/600 (Bloom text/onDestructive);
+     --brand itself stays #ff5001 for FILLS, where it is a background. */
+  --brand-ink: #cf4203;
+
+  /* Interaction state layers — Bloom's `stateLayers/primary` mechanic: a black
+     wash in light, a WHITE wash in dark. Hard-coded `bg-black/[0.04]` hovers are
+     invisible on a dark ground, which is what makes an unthemed dark mode feel
+     dead on contact. Three semantic levels replace five ad-hoc opacities that
+     had accumulated (0.02/0.03/0.04/0.05/0.06); the largest light-mode change is
+     1% alpha — imperceptible, and the set is now legible as intent. */
+  --tint-faint: rgb(0 0 0 / 0.02); /* barely-there row wash */
+  --tint-hover: rgb(0 0 0 / 0.04); /* the standard hover */
+  --tint-press: rgb(0 0 0 / 0.06); /* pressed / active */
+
+  /* Ink ON an inverted fill. Several surfaces fill with --text-primary (the
+     pill button, the sidebar tooltip, the selected chip) — that fill correctly
+     inverts to white in dark, so hard-coded `text-white` on it would vanish.
+     Pair them: fill --text-primary, write --text-inverse. */
+  --text-inverse: #ffffff;
+
+  /* Chart series (record Overview). Only Engagement needs a per-mode value:
+     #2f6fed is 4.55:1 on the white card but only 2.93:1 on the dark one. The
+     other three clear 3:1 in both modes and stay put, so the dataviz-validated
+     CVD-safe hue relationships are unchanged. */
+  --chart-engagement: #2f6fed;
+
   /* Elevated type roles. */
   --type-record-name: 700 30px/34px var(--font-avantt); /* header-card name */
   --type-record-name-tracking: -0.4px;
   --type-field-label: 500 12px/16px var(--font-lausanne); /* form-card labels */
   --type-field-label-tracking: 0.2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * DARK MODE
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Applied by the `.dark` class on <html> (see lib/use-appearance.ts, and the
+ * pre-paint script in layout.tsx that sets it before first paint).
+ *
+ * Derived from the Bloom Design System's dark mode (Figma Sa4b7dThvpfjrznUyqIbEh,
+ * collection "Color Tokens", modes Light/Dark). Bloom's read-only API resolves
+ * only one mode at a time, so these are built from its LIVE-VERIFIED PRIMITIVE
+ * RAMPS using its documented dark mapping — accurate in structure and hue,
+ * pending an exact-hex swap (see design-system-gaps.md).
+ *
+ *   warmGrey  950 #0e0d0c · 900 #272421 · 800 #3f3b36 · 700 #58534b
+ *             600 #716a60 · 500 #8a8275 · 400 #a0998d · 300 #b5b0a6
+ *   tangelo   900 #441804 · 400 #ff6f2f · 300 #ff8e5d      sunshine 900 #625804 · 400 #ffe94b
+ *   forest    400 #78bc64                                  periwinkle 300 #8c91ff
+ *
+ * TWO PRINCIPLES:
+ *  1. ELEVATION IS PRESERVED, NOT INVERTED. Light goes ground(dark) → panel →
+ *     card(lightest); dark keeps that direction on a near-black ground. The card
+ *     is warmGrey/900 + 5% white — Bloom's own `stateLayers/primary` mechanic
+ *     (white overlay in dark) rather than an invented off-ramp colour.
+ *  2. SHADOWS DON'T CARRY DARK. Bloom's Elevation collection is single-mode
+ *     pure-black at 7–9%, which is nearly invisible on dark. Separation here
+ *     comes from surface contrast + the white contour; shadows only deepen.
+ *
+ * MEASURED (WCAG 2.2), text on card #322f2c / panel #272421:
+ *   primary 12.9 / 15.4 · secondary 6.0 / 7.2 · muted 4.7 / 5.5 (all ≥4.5 ✓)
+ *   tertiary 3.4 / 4.1 — decorative only, as in light (documented above)
+ *   brand-ink 5.7 · focus 4.7 · dots 4.8–10.8 (all ≥3 ✓)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+.dark {
+  /* ── Color ──────────────────────────────────────────────────────────── */
+  --surface-s2: #0e0d0c; /* app ground — warmGrey/950 */
+  --surface-s1: #272421; /* main content panel — warmGrey/900 */
+  --surface-s0: #272421; /* == s1, mirroring light */
+  --border-subtle: #3f3b36; /* hairline, one step ABOVE the card */
+  --text-primary: #ffffff;
+  --text-secondary: #b5b0a6; /* warmGrey/300 */
+  --text-tertiary: #8a8275; /* ⚠ decorative only, as in light */
+  --text-muted: #a0998d; /* warmGrey/400 — 4.71:1 on card ✓ */
+  --state-inactive: #58534b; /* disabled fill — warmGrey/700 */
+  --button-border-default: #b5b0a6;
+  /* Teen-facing preview keeps its own identity in both modes — the phone mock
+     shows what TEENS see, and teens don't share staff appearance settings. */
+  --preview-accent: #b164ff;
+  --preview-chip-bg: #f1ece3;
+
+  --icon-primary: #ffffff;
+  --icon-secondary: #b5b0a6;
+  --icon-tertiary: #8a8275;
+
+  --surface-card: #322f2c; /* warmGrey/900 + 5% white (stateLayers/primary) */
+  --border-contour: rgb(255 255 255 / 10%); /* contour flips light-on-dark */
+
+  --state-dirty: #fcd34d; /* unsaved indicator, lifted for dark */
+  --state-error: #ff6f2f; /* tangelo/400 — also feeds --dot-critical */
+  --focus-ring: #8c91ff; /* periwinkle/300 — 4.68:1 on card ✓ */
+
+  /* ── Elevation ──────────────────────────────────────────────────────── */
+  /* Deepened rather than softened: on dark, a shadow reads only if it is
+     darker than an already-dark ground. */
+  --shadow-panel: 0 0 12px rgb(0 0 0 / 0.45);
+  --shadow-tile: 0 0 6px rgb(0 0 0 / 0.45);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -14px rgb(0 0 0 / 0.55);
+  --shadow-card-hover: 0 2px 6px rgb(0 0 0 / 0.36),
+    0 16px 40px -16px rgb(0 0 0 / 0.65);
+  --shadow-alert: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -14px rgb(68 24 4 / 0.7);
+
+  /* Glass accents — dark translucent over the panel. */
+  --glass-bg: rgb(39 36 33 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.1);
+
+  /* Alert families — Bloom's *Highlight dark pattern: deep tint + lifted ink.
+     BALANCED FOR EVEN VISUAL WEIGHT: the bands are tuned to near-identical
+     presence against the panel (1.23 / 1.30 / 1.30) so no severity physically
+     shouts over another — HUE carries the urgency, luminance does not. A first
+     pass used Bloom's raw *Highlight steps and inverted the hierarchy: warning
+     sunshine/900 read at 2.14 while critical tangelo/900 sat at 1.01, i.e. the
+     mildest state was twice as loud as the most severe.
+     Ink measured on its own bg: critical 5.53 · warm 6.75 · warning 9.63 (≥4.5 ✓);
+     accents 4.51 / 5.79 / 9.63 (≥3 ✓). */
+  --alert-critical-bg: #5c2109;
+  --alert-critical-border: #7d3413;
+  --alert-critical-fg: #ff8e5d; /* tangelo/300 */
+  --alert-critical-accent: #ff6f2f; /* tangelo/400 */
+  --alert-warm-bg: #4d3110;
+  --alert-warm-border: #6b481d;
+  --alert-warm-fg: #ffb27a;
+  --alert-warm-accent: #ff9d52;
+  --alert-warning-bg: #403706;
+  --alert-warning-border: #5c500c;
+  --alert-warning-fg: #ffe94b; /* sunshine/400 */
+  --alert-warning-accent: #ffe94b;
+
+  /* Status dots (--dot-critical follows --state-error above). */
+  --dot-positive: #78bc64; /* forest/400 */
+  --dot-warning: #ffe94b; /* sunshine/400 */
+
+  /* Status chip families — deep tint + lifted ink, mirroring the alerts.
+     Measured: info 8.32 · progress 8.02 · positive 9.94 · attention 10.39 ·
+     warn 9.28 · neutral 6.16 (all ≥4.5 ✓). */
+  --status-info-bg: #082f49;
+  --status-info-fg: #7dd3fc;
+  --status-progress-bg: #1e1b4b;
+  --status-progress-fg: #a5b4fc;
+  --status-positive-bg: #022c22;
+  --status-positive-fg: #6ee7b7;
+  --status-attention-bg: #451a03;
+  --status-attention-fg: #fcd34d;
+  --status-warn-bg: #431407;
+  --status-warn-fg: #fdba74;
+  --status-neutral-bg: #322f2c;
+  --status-neutral-fg: var(--text-secondary);
+
+  /* Brand: the fill stays pure tangelo; the INK lifts for legibility on dark. */
+  --brand-ink: #ff8e5d; /* tangelo/300 — 5.71:1 on card ✓ */
+
+  /* Interaction state layers flip to a white wash (Bloom stateLayers/primary).
+     Slightly higher alpha than light: an equal-opacity white on dark reads
+     weaker than black on light. */
+  --tint-faint: rgb(255 255 255 / 0.04);
+  --tint-hover: rgb(255 255 255 / 0.06);
+  --tint-press: rgb(255 255 255 / 0.09);
+
+  /* The inverted fill is now white, so its ink goes near-black. */
+  --text-inverse: #0e0d0c;
+
+  /* Engagement lifts to stay ≥3:1 on the dark card (4.27:1). */
+  --chart-engagement: #5b8ff9;
 }

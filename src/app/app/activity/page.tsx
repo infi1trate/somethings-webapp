@@ -88,7 +88,7 @@ export default function ActivityPage() {
                   <Link
                     href={entryHref(item)}
                     className={cn(
-                      "flex min-h-11 items-center gap-3.5 px-[var(--card-pad)] py-4 transition-colors hover:bg-black/[0.02]",
+                      "flex min-h-11 items-center gap-3.5 px-[var(--card-pad)] py-4 transition-colors hover:bg-[var(--tint-faint)]",
                       RING
                     )}
                   >

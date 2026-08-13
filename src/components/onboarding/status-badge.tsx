@@ -13,9 +13,9 @@ const LABELS: Record<ProfileStatus, string> = {
 const STYLES: Record<ProfileStatus, string> = {
   invited: "bg-muted text-muted-foreground",
   pending: "bg-secondary text-secondary-foreground",
-  in_review: "bg-amber-100 text-amber-800",
-  published: "bg-emerald-100 text-emerald-800",
-  rejected: "bg-orange-100 text-orange-800",
+  in_review: "bg-[var(--status-attention-bg)] text-[var(--status-attention-fg)]",
+  published: "bg-[var(--status-positive-bg)] text-[var(--status-positive-fg)]",
+  rejected: "bg-[var(--status-warn-bg)] text-[var(--status-warn-fg)]",
 };
 
 export function StatusBadge({ status }: { status: ProfileStatus }) {

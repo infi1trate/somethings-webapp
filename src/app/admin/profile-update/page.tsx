@@ -183,7 +183,7 @@ export default function AdminProfileUpdatePage({
                       key={f.fieldId}
                       data-diff-field={f.fieldId}
                       className={cn(
-                        "rounded-2xl border bg-white p-4 transition-colors",
+                        "rounded-2xl border bg-[var(--surface-card)] p-4 transition-colors",
                         isFlagged
                           ? "border-orange-300 ring-1 ring-orange-200"
                           : "border-[var(--border-subtle)]",
@@ -302,7 +302,7 @@ export default function AdminProfileUpdatePage({
               <div
                 role="group"
                 aria-label="Preview version"
-                className="flex rounded-full border border-[var(--border-subtle)] bg-white p-1"
+                className="flex rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1"
               >
                 {(["live", "proposed"] as const).map((side) => (
                   <button

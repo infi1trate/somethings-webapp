@@ -23,7 +23,11 @@ const CARD =
 
 // Series colors (fixed order). Engagement blue + Caseload orange are the
 // CVD-safe pair; Target green is dashed (secondary encoding) — see header note.
-const C_ENGAGEMENT = "#2f6fed";
+// Engagement is a TOKEN because #2f6fed only reaches 2.93:1 on the dark card —
+// it lifts to a brighter blue in dark (see settings-tokens.css). The other
+// three already clear 3:1 in both modes (tangelo 4.05, green 5.56, pale 8.88),
+// and the hues are unchanged, so the validated CVD-safe pairing still holds.
+const C_ENGAGEMENT = "var(--chart-engagement)";
 const C_CASELOAD = "var(--brand)"; // #ff5001
 const C_TARGET = "var(--doodle-green)"; // #3dbe6b
 const C_RETAINED = "var(--brand)";
@@ -224,7 +228,9 @@ function EngagementCard({ first }: { first: string }) {
           <g>
             <line x1={hx} x2={hx} y1={M.top} y2={VB_H - M.bottom} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="3 3" />
             <circle cx={hx} cy={py(cas)} r={4} fill={C_CASELOAD} stroke="#fff" strokeWidth={2} />
-            <circle cx={hx} cy={py(eng)} r={4} fill={C_ENGAGEMENT} stroke="#fff" strokeWidth={2} />
+            {/* Ring is the CARD colour, not white — it reads as a cut-out that
+                separates the marker from the line in either mode. */}
+            <circle cx={hx} cy={py(eng)} r={4} fill={C_ENGAGEMENT} stroke="var(--surface-card)" strokeWidth={2} />
             <g transform={`translate(${Math.min(hx + 8, VB_W - 128)}, ${M.top})`}>
               <rect width={120} height={52} rx={8} fill="var(--surface-card)" stroke="var(--border-contour)" />
               <text x={10} y={18} fontSize={11} className="fill-[var(--text-muted)]">Day {days[hoverIdx]}</text>

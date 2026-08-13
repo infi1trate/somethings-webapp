@@ -83,9 +83,9 @@ const CHIP =
   "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors";
 const CHIP_ON = "border-foreground bg-foreground text-background";
 const CHIP_OFF =
-  "border-[var(--border-subtle)] bg-white text-foreground hover:bg-black/[0.03]";
+  "border-[var(--border-subtle)] bg-[var(--surface-card)] text-foreground hover:bg-[var(--tint-faint)]";
 const CONTROL =
-  "rounded-full border border-[var(--border-subtle)] bg-white px-4 py-1.5 text-sm text-[var(--text-secondary)]";
+  "rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-1.5 text-sm text-[var(--text-secondary)]";
 
 export function Roster({
   role,
@@ -354,7 +354,7 @@ export function Roster({
       {/* Review queues — supervisor mentors only. */}
       {showQueues && (
         <>
-          <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white">
+          <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
             <div className="flex items-center justify-between border-b border-[var(--surface-s2)] px-5 py-3">
               <h2 className="text-sm font-semibold">Needs review</h2>
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-medium text-secondary-foreground">
@@ -381,7 +381,7 @@ export function Roster({
             )}
           </section>
 
-          <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white">
+          <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
             <div className="flex items-center justify-between border-b border-[var(--surface-s2)] px-5 py-3">
               <h2 className="text-sm font-semibold">Profile updates</h2>
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-medium text-secondary-foreground">
@@ -419,7 +419,7 @@ export function Roster({
       )}
 
       {/* Roster table */}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-white">
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-[var(--surface-s2)] text-left text-[var(--text-secondary)]">
@@ -577,7 +577,7 @@ function MentorRowView({
       className={cn(
         "border-b border-[var(--surface-s2)] last:border-0",
         row.highlight && "bg-amber-50/60",
-        row.recordHref && "cursor-pointer transition-colors hover:bg-black/[0.02]"
+        row.recordHref && "cursor-pointer transition-colors hover:bg-[var(--tint-faint)]"
       )}
     >
       <td className="px-5 py-3">
@@ -598,7 +598,7 @@ function MentorRowView({
               caseload.onOpen();
             }}
             aria-label={`${row.name} — mentees, ${caseload.count} of ${caseload.total}`}
-            className="group/cl -mx-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[var(--text-primary)] tabular-nums transition-colors hover:bg-black/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            className="group/cl -mx-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[var(--text-primary)] tabular-nums transition-colors hover:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
           >
             {caseload.count} of {caseload.total}
             <UsersRound

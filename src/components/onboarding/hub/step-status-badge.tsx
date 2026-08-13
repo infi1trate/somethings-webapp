@@ -44,27 +44,27 @@ const SPECS: Record<StepCardState, BadgeSpec> = {
   in_progress: {
     label: "In progress",
     Icon: Loader2,
-    className: "bg-sky-100 text-sky-800",
+    className: "bg-[var(--status-info-bg)] text-[var(--status-info-fg)]",
   },
   in_review: {
     label: "In review",
     Icon: Clock,
-    className: "bg-amber-100 text-amber-800",
+    className: "bg-[var(--status-attention-bg)] text-[var(--status-attention-fg)]",
   },
   returned: {
     label: "Needs changes",
     Icon: AlertCircle,
-    className: "bg-orange-100 text-orange-800",
+    className: "bg-[var(--status-warn-bg)] text-[var(--status-warn-fg)]",
   },
   done: {
     label: "Done",
     Icon: Check,
-    className: "bg-emerald-100 text-emerald-800",
+    className: "bg-[var(--status-positive-bg)] text-[var(--status-positive-fg)]",
   },
   approved: {
     label: "Approved",
     Icon: Check,
-    className: "bg-emerald-100 text-emerald-800",
+    className: "bg-[var(--status-positive-bg)] text-[var(--status-positive-fg)]",
   },
 };
 

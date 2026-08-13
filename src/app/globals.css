@@ -70,20 +70,32 @@
  * we ship Inter and expose --font-display to swap in Avantt @font-face later.
  * ──────────────────────────────────────────────────────────────────────────
  */
+/* The shadcn token layer ALIASES the semantic tokens in settings-tokens.css
+   rather than duplicating hexes. One source of truth per colour, so `bg-card`
+   and `var(--surface-card)` can never disagree — which is exactly the bug that
+   made the Select trigger render dark-on-dark (shadcn --card flipped with
+   `.dark` while the app's --text-primary did not). Because var() resolves at
+   use time, these follow Bloom into dark automatically: `.dark` overrides the
+   semantic tokens once, and this whole layer comes with it. */
 :root {
-  --card: #ffffff;
-  --card-foreground: #1f1e1d;
-  --popover: #ffffff;
-  --popover-foreground: #1f1e1d;
-  --primary: #000000;
+  /* Aliased — the semantic token's LIGHT value is byte-identical to the hex
+     that used to live here, so these unify with zero light-mode change. */
+  --card: var(--surface-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-primary);
+  --muted: var(--status-neutral-bg);
+  --destructive: var(--state-error);
+  /* Not aliased — the semantic equivalents differ from these legacy hexes, so
+     aliasing would silently restyle light mode. Light values are preserved
+     exactly; `.dark` below gives each an explicit dark counterpart. */
+  --primary: #000000; /* the ONE filled button */
   --primary-foreground: #ffffff;
   --secondary: #f1ece3;
-  --secondary-foreground: #1f1e1d;
-  --muted: #f3eee6;
+  --secondary-foreground: var(--text-primary);
   --muted-foreground: #797774;
   --accent: #f1ece4;
-  --accent-foreground: #1f1e1d;
-  --destructive: #cc3300;
+  --accent-foreground: var(--text-primary);
   --border: #e7e0d5;
   --input: #e2dccf;
   --ring: #ff5001;
@@ -102,50 +114,56 @@
   --chart-4: #b8b2a9;
   --chart-5: #dfdad3;
   --radius: 0.75rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1f1e1d;
+  --sidebar: var(--surface-card); /* identical → aliased */
+  --sidebar-foreground: var(--text-primary);
   --sidebar-primary: #000000;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f2f2f2;
-  --sidebar-accent-foreground: #1f1e1d;
+  --sidebar-accent-foreground: var(--text-primary);
   --sidebar-border: #e5e0d8;
   --sidebar-ring: #ff5001;
+  /* The page ground behind un-shelled routes (onboarding, hub, invite). NOT
+     --surface-s2: that is the app-shell canvas and is a full step darker. */
   --background: #faf6ef;
-  --foreground: #1f1e1d;
+  --foreground: var(--text-primary);
 }
 
+/* Dark mode lives in settings-tokens.css — the semantic layer. Everything
+   aliased above (card, popover, background, border, ring, sidebar, …) follows
+   it automatically, so almost nothing belongs here. What remains are the few
+   tokens that are NOT aliases and need an explicit per-mode value.
+   (This replaced the stock shadcn `.dark` scaffold — generic neutral oklch
+   greys that overrode only the shadcn layer, which is why flipping the theme
+   appeared to restyle "only the menu".) */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* The ONE filled button. Explicit so it stays a deliberate, high-contrast
+     surface rather than a muddy mid-grey. */
+  --primary: #ffffff;
+  --primary-foreground: #0e0d0c;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0e0d0c;
+
+  /* The non-aliased tokens above (their light hexes predate the semantic set
+     and differ slightly, so they are kept per-mode rather than unified). */
+  --secondary: var(--surface-s1);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--surface-s1);
+  --border: var(--border-subtle);
+  --input: var(--border-subtle);
+  --ring: var(--focus-ring);
+  --sidebar-accent: var(--surface-s1);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--focus-ring);
+  --background: var(--surface-s2);
+
+  /* Chart series — the record's Overview dashboard. Engagement blue lifts for
+     dark; Caseload keeps brand tangelo; the neutral steps invert. The CVD-safe
+     pairing verified in the dataviz pass is preserved (hues unchanged). */
+  --chart-1: #ff5001;
+  --chart-2: #ffffff;
+  --chart-3: #b5b0a6;
+  --chart-4: #8a8275;
+  --chart-5: #58534b;
 }
 
 @layer base {

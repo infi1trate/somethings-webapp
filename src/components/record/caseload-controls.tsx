@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 const MAX_TOTAL = 20;
 
 const STEP_BTN =
-  "flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+  "flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 /** Resolve a mentor's caseload: the stored override, else automatic at the
  *  caller-supplied default capacity. */

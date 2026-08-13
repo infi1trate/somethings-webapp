@@ -29,7 +29,7 @@ const RING =
 
 // 44px targets (WCAG 2.5.8 at the spec's bar — Phase 8 sweep).
 const ICON_BTN =
-  "flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-black/[0.05] hover:text-[var(--text-primary)] disabled:opacity-35 disabled:hover:bg-transparent";
+  "flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] disabled:opacity-35 disabled:hover:bg-transparent";
 
 function arrayMove<T>(list: T[], from: number, to: number): T[] {
   const next = [...list];
@@ -118,7 +118,7 @@ export function FirstMessagesEditor({
                 "min-h-11 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                 RING,
                 active
-                  ? "bg-[var(--text-primary)] text-white"
+                  ? "bg-[var(--text-primary)] text-[var(--text-inverse)]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               )}
             >
@@ -149,7 +149,7 @@ export function FirstMessagesEditor({
                 }
                 dragFrom.current = null;
               }}
-              className="flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-white px-3 py-2.5"
+              className="flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 py-2.5"
             >
               <span
                 aria-hidden

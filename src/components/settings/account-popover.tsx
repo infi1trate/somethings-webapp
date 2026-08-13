@@ -59,7 +59,7 @@ function AvatarFace({
   ) : (
     <span
       className={cn(
-        "flex items-center justify-center rounded-full bg-white font-display font-bold text-[var(--text-primary)] shadow-[var(--shadow-tile)]",
+        "flex items-center justify-center rounded-full bg-[var(--surface-card)] font-display font-bold text-[var(--text-primary)] shadow-[var(--shadow-tile)]",
         textClass,
         className
       )}
@@ -112,7 +112,7 @@ export function AccountPopover({
   };
 
   const rowClass = cn(
-    "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[14px] leading-[20px] text-[var(--text-primary)] transition-colors hover:bg-black/[0.04]",
+    "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[14px] leading-[20px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
     RING
   );
 
@@ -136,7 +136,7 @@ export function AccountPopover({
             {/* Plain hover tooltip — NOT the menu (that's the click target). */}
             <span
               role="presentation"
-              className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-data-[state=open]:opacity-0"
+              className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-[var(--text-inverse)] opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-data-[state=open]:opacity-0"
             >
               Account
             </span>
@@ -171,7 +171,7 @@ export function AccountPopover({
               <div className="truncate text-[15px] font-medium leading-[20px] text-[var(--text-primary)]">
                 {name}
               </div>
-              <span className="mt-0.5 inline-flex items-center rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
+              <span className="mt-0.5 inline-flex items-center rounded-full bg-[var(--tint-press)] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
                 {roleLabel}
               </span>
             </div>
@@ -208,7 +208,7 @@ export function AccountPopover({
               onClick={() => setTheme(isDark ? "light" : "dark")}
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
               className={cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)]",
+                "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                 RING
               )}
             >
@@ -226,7 +226,7 @@ export function AccountPopover({
                 setConfirmSignOut(true);
               }}
               className={cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)]",
+                "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                 RING
               )}
             >

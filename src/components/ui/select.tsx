@@ -44,7 +44,10 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit items-center justify-between gap-1.5 rounded-xl border border-input bg-card py-2 pr-3 pl-4 text-sm whitespace-nowrap transition-[color,box-shadow,border-color] outline-none select-none hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-4 aria-invalid:ring-destructive/15 data-placeholder:text-muted-foreground/70 data-[size=default]:h-12 data-[size=sm]:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        // Default height is a PLAIN `h-12` (not `data-[size=default]:h-12`) so
+        // tailwind-merge lets a caller's own height class win — a data-variant
+        // would out-specify it and silently render 48px where 36px was asked for.
+        "flex h-12 w-fit items-center justify-between gap-1.5 rounded-xl border border-input bg-card py-2 pr-3 pl-4 text-sm whitespace-nowrap transition-[color,box-shadow,border-color] outline-none select-none hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-4 aria-invalid:ring-destructive/15 data-placeholder:text-muted-foreground/70 data-[size=sm]:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

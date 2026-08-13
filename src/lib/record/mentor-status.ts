@@ -5,9 +5,11 @@
 //
 // WCAG 1.4.1: every badge pairs a tint with a Lucide icon AND a text label —
 // the label is always the source of truth, color is never the sole signal.
-// Contrast: the -100/-800 Tailwind tint pairs (and text-secondary on muted) all
-// exceed 4.5:1. (Raw tints reused from StepStatusBadge's established idiom;
-// tokenizing them into a semantic status-chip set is tracked in gaps.md.)
+// Contrast: measured ≥4.5:1 in BOTH modes (light 6.4–8.1, dark 8.0–10.4).
+// The tints are now the semantic --status-* token families (settings-tokens.css)
+// rather than raw Tailwind scales, so they follow light/dark — raw `-100/-800`
+// pairs could not. Light values are the exact former hexes. Resolves gaps.md
+// #70/#117.
 
 import {
   Ban,
@@ -42,30 +44,30 @@ export const STATUS_BADGE: Record<
   "in-training": {
     label: "In Training",
     icon: GraduationCap,
-    className: "bg-sky-100 text-sky-800",
+    className: "bg-[var(--status-info-bg)] text-[var(--status-info-fg)]",
   },
   guided: {
     label: "Guided",
     icon: Compass,
-    className: "bg-indigo-100 text-indigo-800",
+    className: "bg-[var(--status-progress-bg)] text-[var(--status-progress-fg)]",
   },
   // positive
   active: {
     label: "Active",
     icon: CircleCheck,
-    className: "bg-emerald-100 text-emerald-800",
+    className: "bg-[var(--status-positive-bg)] text-[var(--status-positive-fg)]",
   },
   // muted/warning
   paused: {
     label: "Paused",
     icon: PauseCircle,
-    className: "bg-amber-100 text-amber-800",
+    className: "bg-[var(--status-attention-bg)] text-[var(--status-attention-fg)]",
   },
   // neutral-off
   deactivated: {
     label: "Deactivated",
     icon: Ban,
-    className: "bg-muted text-[var(--text-secondary)]",
+    className: "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
   },
 };
 

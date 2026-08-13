@@ -73,7 +73,7 @@ function GroupsEditor({
             type="button"
             aria-label={`Remove ${g}`}
             onClick={() => onChange(value.filter((x) => x !== g))}
-            className="rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-black/[0.06] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
+            className="rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
           >
             <X className="size-3.5" aria-hidden />
           </button>
@@ -88,7 +88,7 @@ function GroupsEditor({
             <button
               type="button"
               aria-label="Add group"
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[color:var(--border-contour)] py-1 pl-2 pr-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-black/[0.03] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[color:var(--border-contour)] py-1 pl-2 pr-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-faint)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
             >
               <Plus className="size-3.5" aria-hidden />
               Add

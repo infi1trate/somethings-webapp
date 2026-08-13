@@ -33,7 +33,7 @@ export function PillButton({
       aria-busy={loading || undefined}
       className={cn(
         "inline-flex h-[var(--button-h)] items-center justify-center gap-2 rounded-full px-[var(--button-px)]",
-        "font-display text-[16px] font-bold leading-[1.1] tracking-[-0.16px] text-white",
+        "font-display text-[16px] font-bold leading-[1.1] tracking-[-0.16px] text-[var(--text-inverse)]",
         "transition disabled:cursor-not-allowed",
         disabled && !loading
           ? "bg-[var(--state-inactive)]"

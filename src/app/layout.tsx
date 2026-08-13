@@ -31,6 +31,20 @@ export const metadata: Metadata = {
   description: "Set up your mentor profile on Somethings.",
 };
 
+// Pre-paint theme script. The theme lives in localStorage (see
+// lib/use-appearance.ts), which React can only read AFTER hydration — so
+// without this the page paints light for a frame and then snaps to dark.
+//
+// This is a RAW inline <script> in <head> on purpose. next/script's
+// `beforeInteractive` is the more idiomatic App Router path, but in App Router
+// it defers the source into Next's `self.__next_s` queue, which the runtime
+// drains after the document parses — i.e. after first paint, which is exactly
+// the flash we are removing. A synchronous inline script in <head> is the only
+// form with a hard ordering guarantee. React 19 logs a dev-only
+// "Encountered a script tag while rendering React component" notice for it;
+// that is cosmetic, and the class it sets is what every later render reads.
+const THEME_SCRIPT = `(function(){try{var c=localStorage.getItem("somethings.theme")||"system";var d=c==="dark"||(c==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,8 +53,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // The script above mutates <html>'s class before React hydrates, which
+      // would otherwise be reported as a hydration mismatch.
+      suppressHydrationWarning
       className={`${lausanne.variable} ${avantt.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <Toaster />

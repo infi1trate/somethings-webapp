@@ -29,7 +29,7 @@ export function SecuritySection() {
             type="button"
             onClick={() => setConfirmOpen(true)}
             className={cn(
-              "flex w-full items-center gap-4 rounded-[var(--radius-card)] px-[var(--card-pad)] py-2.5 text-left transition-colors hover:bg-black/[0.03]",
+              "flex w-full items-center gap-4 rounded-[var(--radius-card)] px-[var(--card-pad)] py-2.5 text-left transition-colors hover:bg-[var(--tint-faint)]",
               RING
             )}
           >

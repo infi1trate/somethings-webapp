@@ -1200,7 +1200,7 @@ export default function MentorRecordPage({
                     <button
                       type="button"
                       aria-label="More actions"
-                      className="flex size-11 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                      className="flex size-11 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                     >
                       <MoreHorizontal className="size-5" aria-hidden />
                     </button>
@@ -1213,7 +1213,7 @@ export default function MentorRecordPage({
                           setOverflowOpen(false);
                           switchTab("overview");
                         }}
-                        className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-black/[0.04]"
+                        className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]"
                       >
                         Review profile
                       </button>
@@ -1227,7 +1227,7 @@ export default function MentorRecordPage({
                             setDeactivateOpen(true);
                           }}
                           className={cn(
-                            "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-black/[0.04]",
+                            "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-[var(--tint-hover)]",
                             deactivated
                               ? "text-[var(--text-primary)]"
                               : "text-[var(--state-error)]"
@@ -1244,7 +1244,7 @@ export default function MentorRecordPage({
                             setUnpublishOpen(true);
                           }}
                           className={cn(
-                            "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-black/[0.04]",
+                            "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-[var(--tint-hover)]",
                             profileHidden
                               ? "text-[var(--text-primary)]"
                               : "text-[var(--state-error)]"
@@ -1298,7 +1298,7 @@ export default function MentorRecordPage({
                 "relative min-h-11 shrink-0 rounded-md px-3 py-2 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
                 activeTab === t.id
                   ? "font-semibold text-[var(--text-primary)]"
-                  : "font-normal text-[var(--text-secondary)] hover:bg-black/[0.04] hover:text-[var(--text-primary)]"
+                  : "font-normal text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]"
               )}
             >
               {t.label}

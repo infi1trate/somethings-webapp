@@ -121,7 +121,7 @@ export function EditRow({
               onClick={onEditStart}
               aria-label={`Edit ${label}`}
               className={cn(
-                "flex h-11 shrink-0 items-center rounded-full px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-black/[0.04] hover:text-[var(--text-primary)]",
+                "flex h-11 shrink-0 items-center rounded-full px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                 RING
               )}
             >

@@ -12,7 +12,7 @@ import { useSpotifyOembed } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
 
 const ICON_BTN =
-  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-black/[0.05] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 export function SpotifyChip({ url }: { url: string }) {
   const { parsed, art, title } = useSpotifyOembed(url);

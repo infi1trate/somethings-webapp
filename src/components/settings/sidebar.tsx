@@ -102,7 +102,7 @@ export function SettingsSidebar({
                 className={cn(
                   "relative flex size-[var(--sidebar-tile)] items-center justify-center rounded-2xl transition-colors",
                   active
-                    ? "bg-white shadow-[var(--shadow-tile)]"
+                    ? "bg-[var(--surface-card)] shadow-[var(--shadow-tile)]"
                     : "group-hover:bg-white/60"
                 )}
               >
@@ -118,7 +118,7 @@ export function SettingsSidebar({
                 {badge > 0 && (
                   <span
                     aria-label={`${badge} unread`}
-                    className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--state-error)] px-1 text-[10px] font-semibold leading-none text-white"
+                    className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--state-error)] px-1 text-[10px] font-semibold leading-none text-[var(--text-inverse)]"
                   >
                     {badge}
                   </span>
@@ -151,7 +151,7 @@ export function SettingsSidebar({
         >
           <span
             className={cn(
-              "flex size-[var(--sidebar-utility)] items-center justify-center rounded-full bg-white shadow-[var(--shadow-tile)] transition-colors",
+              "flex size-[var(--sidebar-utility)] items-center justify-center rounded-full bg-[var(--surface-card)] shadow-[var(--shadow-tile)] transition-colors",
               activeId === "settings"
                 ? "text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -166,7 +166,7 @@ export function SettingsSidebar({
           aria-label="Help"
           className={cn("flex size-11 items-center justify-center rounded-full", RING)}
         >
-          <span className="flex size-[var(--sidebar-utility)] items-center justify-center rounded-full bg-white text-[var(--text-secondary)] shadow-[var(--shadow-tile)] transition-colors hover:text-[var(--text-primary)]">
+          <span className="flex size-[var(--sidebar-utility)] items-center justify-center rounded-full bg-[var(--surface-card)] text-[var(--text-secondary)] shadow-[var(--shadow-tile)] transition-colors hover:text-[var(--text-primary)]">
             <HelpCircle className="size-4" aria-hidden />
           </span>
         </button>

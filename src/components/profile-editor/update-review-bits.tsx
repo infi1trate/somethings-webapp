@@ -29,7 +29,7 @@ const RING =
 // variant exists in §2; interim on muted surface — gaps.md #43).
 export function InReviewChip() {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-black/[0.06] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--tint-press)] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
       <Clock3 className="size-3" aria-hidden />
       In review
     </span>

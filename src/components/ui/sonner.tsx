@@ -1,11 +1,15 @@
 "use client"
 
-import { useTheme } from "next-themes"
+// Theme comes from useAppearance (the app's own shared store), NOT next-themes:
+// this app never mounts a next-themes ThemeProvider, so `useTheme()` always fell
+// back to "system" and toasts followed the OS instead of the in-app Light/Dark
+// switch — a visible mismatch whenever the two disagreed.
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { useAppearance } from "@/lib/use-appearance"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { theme } = useAppearance()
 
   return (
     <Sonner

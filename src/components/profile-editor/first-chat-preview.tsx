@@ -1,3 +1,8 @@
+// FIXED IDENTITY — DO NOT THEME. This renders the TEEN-facing mobile app, not
+// staff chrome. Its palette must stay put in dark mode: the preview shows what
+// teens actually see, and teens do not share a staff member's appearance
+// setting. Hard-coded whites/purples here are deliberate; on a dark staff page
+// it reads as a real device screen. (Dark-mode pass, gaps.md.)
 // Chat-style FIRST MOMENTS preview (§4 rev, Phase 5b) — a NEW preview variant:
 // the first-chat thread a teen gets when they open the mentor's chat. Online
 // first messages render as chat bubbles in list order, then the story as an

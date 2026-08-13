@@ -165,7 +165,7 @@ export function UserRecordShell({
               "relative min-h-11 shrink-0 rounded-md px-3 py-2 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
               activeTab === t.id
                 ? "font-semibold text-[var(--text-primary)]"
-                : "font-normal text-[var(--text-secondary)] hover:bg-black/[0.04] hover:text-[var(--text-primary)]"
+                : "font-normal text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]"
             )}
           >
             {t.label}

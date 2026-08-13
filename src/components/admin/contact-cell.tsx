@@ -54,7 +54,7 @@ export function ContactCell({ person }: { person: ContactPerson }) {
         <button
           type="button"
           aria-label={`Contact ${name}`}
-          className="group/ct relative inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] hover:bg-black/[0.04] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)] data-[state=open]:bg-black/[0.05] data-[state=open]:text-[var(--text-primary)]"
+          className="group/ct relative inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)] data-[state=open]:bg-[var(--tint-press)] data-[state=open]:text-[var(--text-primary)]"
         >
           <MessageSquare className="size-4" aria-hidden />
           Contact
