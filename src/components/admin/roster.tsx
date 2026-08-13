@@ -63,6 +63,7 @@ import {
 } from "@/lib/record/mentor-status";
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { recordHrefFor } from "@/lib/record/subject";
 
 export type RosterSegment = "teens" | "mentors";
 export type RosterRole = "supervisor" | "lead";
@@ -162,7 +163,12 @@ export function Roster({
   // ── Mentors segment ─────────────────────────────────────────────────────────
   const mentorRows = useMemo<MentorRow[]>(() => {
     const base: MentorRow[] = isLead ? leadUmbrellaMentors() : [...DEMO_MENTORS];
-    const rows: MentorRow[] = [...base];
+    // Every fixture mentor now has a record (subject-identity layer) — before
+    // this, only the store-backed mentor was navigable and the rest were inert.
+    const rows: MentorRow[] = base.map((m) => ({
+      ...m,
+      recordHref: recordHrefFor(m.id),
+    }));
     // The store-backed live mentor (the one with real review flows) renders
     // for BOTH staff roles — the lead manages them (role migration), the
     // supervisor retains view/edit. Both rows open the record.
@@ -183,7 +189,7 @@ export function Roster({
         status: liveLifecycle(status, accountStatus, profileHidden),
         accepting: true,
         capacity: slots.total,
-        recordHref: "/admin/mentor",
+        recordHref: recordHrefFor("live"),
         highlight: needsReview,
       });
     }
@@ -634,16 +640,21 @@ function MentorRowView({
 }
 
 function TeenRowView({ teen }: { teen: DemoTeen }) {
+  const router = useRouter();
+  const href = recordHrefFor(teen.id);
   return (
-    <tr className="border-b border-[var(--surface-s2)] last:border-0">
+    <tr
+      onClick={() => router.push(href)}
+      className="cursor-pointer border-b border-[var(--surface-s2)] transition-colors last:border-0 hover:bg-[var(--tint-faint)]"
+    >
       <td className="px-5 py-3">
-        <NameCell name={teen.name} goesBy={teen.goesBy} />
+        <NameCell name={teen.name} goesBy={teen.goesBy} recordHref={href} />
       </td>
       <td className="px-5 py-3 text-[var(--text-secondary)]">{mentorName(teen.mentorId)}</td>
       <td className="px-5 py-3 text-[var(--text-secondary)]">{teen.group}</td>
       <td className="px-5 py-3"><StatusPill active={teen.active} /></td>
       <td className="px-5 py-3 text-[var(--text-secondary)] tabular-nums">{relJoined(teen.joinedDaysAgo)}</td>
-      <td className="px-5 py-3">
+      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
         <ContactCell
           person={{ id: teen.id, name: teen.name, phone: teen.phone, email: teen.email }}
         />

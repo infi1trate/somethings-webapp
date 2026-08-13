@@ -20,6 +20,8 @@ import {
   MentorStatusMenu,
 } from "@/components/admin/mentor-status-badge";
 import { liveLifecycle } from "@/lib/record/mentor-status";
+import { DeactivateAction } from "@/components/record/deactivate-action";
+import type { MentorLifecycleStatus } from "@/lib/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { Plus, X } from "lucide-react";
 import {
@@ -118,6 +120,11 @@ export function OrganizationCard({
   const profileHidden = useOnboardingStore((s) => s.profileHidden);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
+  const clearMentorStatus = useOnboardingStore((s) => s.clearMentorStatus);
+  const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
+  const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
+  const persona = useOnboardingStore((s) => s.persona);
+  const staffActor = persona === "supervisor" ? "Supervisor" : "Lead mentor";
   const mentorRole = useOnboardingStore((s) => s.mentorRole);
   const setMentorRole = useOnboardingStore((s) => s.setMentorRole);
   const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
@@ -132,10 +139,37 @@ export function OrganizationCard({
   const lifecycle =
     mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
 
+  /** Write a lifecycle choice to the REAL axis where one exists, and release
+   *  the override so the derived value governs again. Deactivated/Paused/Active
+   *  all map to store state; In Training and Guided don't (no source), so they
+   *  remain overrides. This is what keeps the menu, the header, the overflow
+   *  and the roster in agreement. */
+  const applyLifecycle = (next: MentorLifecycleStatus) => {
+    if (next === "deactivated") {
+      setAccountStatus(
+        "deactivated",
+        new Date().toLocaleDateString(undefined, { dateStyle: "long" })
+      );
+      clearMentorStatus("live");
+    } else if (next === "paused") {
+      if (accountStatus === "deactivated") setAccountStatus("active");
+      setProfileHidden(true, staffActor);
+      clearMentorStatus("live");
+    } else if (next === "active") {
+      if (accountStatus === "deactivated") setAccountStatus("active");
+      if (profileHidden) setProfileHidden(false, staffActor);
+      clearMentorStatus("live");
+    } else {
+      // in-training / guided — no store axis carries these.
+      setMentorStatus("live", next);
+    }
+  };
+
   return (
-    // No card heading — the "Organization" tab name already says it (tab-echo
-    // rule). Soft surface card with inset top-border dividers after the first
-    // row (never bottom — Tailwind v4's divide-y compiles to bottom borders).
+    <div>
+    {/* No card heading — the "Organization" tab name already says it (tab-echo
+        rule). Soft surface card with inset top-border dividers after the first
+        row (never bottom — Tailwind v4's divide-y compiles to bottom borders). */}
     <div className="rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 [&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]">
         {/* Role — staff-toggleable (lead + supervisor). Read viewers see the
             value; editors get a select. */}
@@ -190,9 +224,15 @@ export function OrganizationCard({
           onEditStart={() => {}}
           onCancel={() => {}}
         />
-        {/* Status — org membership state, bound to the same header/overflow
-            deactivate flow (never stored separately). Dots are decorative;
-            text carries meaning (gaps.md #65 interim green). */}
+        {/* Status — org membership state. The lifecycle AXES are authoritative:
+            Deactivated is accountStatus, Paused is profileHidden, Active clears
+            both. Picking one of those from the menu writes the real axis AND
+            releases any manual override, so this row, the header pill, the
+            overflow menu and the roster can never disagree again. (They used
+            to: the menu wrote only mentorStatuses[id], and because lifecycle
+            reads `override ?? derived` with nothing ever deleting the key, one
+            click permanently masked the real state.) In Training / Guided have
+            no axis, so they stay override-only. */}
         {/* Lifecycle badge — same vocabulary + component as the Mentors roster
             Status column, so table and record read identically. Staff (edit
             mode = lead + supervisor) can change it inline via the same menu the
@@ -206,7 +246,7 @@ export function OrganizationCard({
                 <MentorStatusMenu
                   status={lifecycle}
                   name={mentorName}
-                  onChange={(s) => setMentorStatus("live", s)}
+                  onChange={applyLifecycle}
                 />
               ) : (
                 <MentorStatusBadge status={lifecycle} />
@@ -225,6 +265,20 @@ export function OrganizationCard({
         />
         {/* Availability + Caseload live on the Mentorship tab now — they are
             mentoring PRACTICE, not org membership (the tab split). */}
+      </div>
+
+      {/* Deactivation belongs WITH status — it IS a status change. It used to
+          live only behind the header's overflow, two clicks and a menu away
+          from the control it duplicates. Both paths now write the same axis. */}
+      {mode === "edit" && (
+        <DeactivateAction
+          name={mentorName}
+          deactivated={deactivated}
+          onConfirm={(reactivate) =>
+            applyLifecycle(reactivate ? "active" : "deactivated")
+          }
+        />
+      )}
     </div>
   );
 }

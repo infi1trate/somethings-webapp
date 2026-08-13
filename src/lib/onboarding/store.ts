@@ -118,6 +118,10 @@ interface OnboardingState {
    *  (live). Only the accepting/not-accepting intent is stored — "Full" is
    *  always derived from the caseload (count === cap), never stored. */
   mentorAccepting: Record<string, boolean>;
+  /** Per-MENTEE active/inactive override, keyed by teen id. Sparse: a missing
+   *  key falls back to the fixture's own `active`. Toggled from the record's
+   *  mentee table (deactivating confirms — it stands down a live mentorship). */
+  menteeActive: Record<string, boolean>;
   /** The record subject's org role + group memberships — staff-editable on the
    *  Mentorship › Organization card. Single-mentor prototype, so plain fields
    *  rather than per-mentor keyed maps. */
@@ -212,6 +216,12 @@ interface OnboardingState {
   /** Manually set a mentor's availability INTENT (open to new mentees?). "Full"
    *  stays derived from the caseload — only this intent is stored. */
   setMentorAccepting: (mentorId: string, accepting: boolean) => void;
+  setMenteeActive: (teenId: string, active: boolean) => void;
+  /** Release a manual lifecycle override so the DERIVED standing shows again.
+   *  Without this the override map was a one-way door: `mentorStatuses[id] ??
+   *  liveLifecycle(...)` meant one dropdown click permanently masked the real
+   *  accountStatus/profileHidden axes. */
+  clearMentorStatus: (mentorId: string) => void;
   /** Staff edits to the record subject's org role + group memberships. */
   setMentorRole: (role: string) => void;
   setMentorGroups: (groups: string[]) => void;
@@ -251,6 +261,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       caseloads: {},
       mentorStatuses: {},
       mentorAccepting: {},
+      menteeActive: {},
       mentorRole: "Mentor",
       mentorGroups: ["North Carolina", "New Jersey"],
       schedule: cloneSchedule(DEFAULT_SCHEDULE),
@@ -583,6 +594,16 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           mentorAccepting: { ...state.mentorAccepting, [mentorId]: accepting },
         })),
+      setMenteeActive: (teenId, active) =>
+        set((state) => ({
+          menteeActive: { ...state.menteeActive, [teenId]: active },
+        })),
+      clearMentorStatus: (mentorId) =>
+        set((state) => {
+          const next = { ...state.mentorStatuses };
+          delete next[mentorId];
+          return { mentorStatuses: next };
+        }),
 
       setMentorRole: (role) => set({ mentorRole: role }),
       setMentorGroups: (groups) => set({ mentorGroups: groups }),
@@ -613,6 +634,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           caseloads: {}, // caseload overrides reset with the mentor
           mentorStatuses: {}, // status overrides reset with the mentor
           mentorAccepting: {}, // availability intent resets with the mentor
+          menteeActive: {},
           mentorRole: "Mentor",
           mentorGroups: ["North Carolina", "New Jersey"],
           schedule: cloneSchedule(DEFAULT_SCHEDULE),
@@ -647,7 +669,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v23: mentorRole + mentorGroups (staff-editable org role + memberships) —
       // backfill "Mentor" / the default groups.
       // v24: schedule (Active Hours) — backfill DEFAULT_SCHEDULE.
-      version: 24,
+      // v25: menteeActive (per-mentee active/inactive override) — sparse map;
+      //      backfill {} so a missing key falls back to the fixture's `active`.
+      version: 25,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -926,6 +950,12 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.schedule = cloneSchedule(DEFAULT_SCHEDULE);
           }
         }
+        if (version < 25) {
+          const st = s as unknown as { menteeActive?: unknown };
+          if (typeof st.menteeActive !== "object" || st.menteeActive === null) {
+            st.menteeActive = {};
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -1038,6 +1068,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.schedule = cloneSchedule(DEFAULT_SCHEDULE);
         }
+        // v25 shape: menteeActive is always a plain object.
+        if (
+          typeof (merged as { menteeActive?: unknown }).menteeActive !== "object" ||
+          merged.menteeActive === null
+        ) {
+          merged.menteeActive = {};
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -1092,6 +1129,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         caseloads: state.caseloads,
         mentorStatuses: state.mentorStatuses,
         mentorAccepting: state.mentorAccepting,
+        menteeActive: state.menteeActive,
         mentorRole: state.mentorRole,
         mentorGroups: state.mentorGroups,
         schedule: state.schedule,

@@ -18,6 +18,7 @@
 // label + dot avatar stand in. Wired but dormant (no persona resolves to that
 // tier yet — see permission-map's supervisorTier).
 
+import Link from "next/link";
 import { AlertTriangle, ChevronRight, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +56,13 @@ export type PersonAttention = {
   tone: "critical" | "warning";
 };
 
-/** Attention chip — an exception, so it speaks: family tint + icon + cause. */
+/** Attention chip — an exception, so it speaks: family tint + icon + cause.
+ *  Exported as AttentionChipInline for surfaces that aren't PersonRow (the
+ *  mentee table renders it beside the name in its own markup). */
+export function AttentionChipInline(props: PersonAttention) {
+  return <AttentionChip {...props} />;
+}
+
 function AttentionChip({ text, tone }: PersonAttention) {
   return (
     <span
@@ -101,6 +108,10 @@ export interface PersonRowProps {
   redactName?: boolean;
   /** Provided → the whole row is pressable and shows a trailing chevron. */
   onPress?: () => void;
+  /** Navigational variant — the row becomes a real <Link>. Preferred over
+   *  onPress when the destination is a URL: it keeps middle-click, open-in-
+   *  new-tab and the browser's own affordances. Ignored if onPress is set. */
+  href?: string;
   className?: string;
 }
 
@@ -112,11 +123,13 @@ export function PersonRow({
   trailing,
   redactName = false,
   onPress,
+  href,
   className,
 }: PersonRowProps) {
   const tint = redactName ? NEUTRAL_TINT : tintFor(name);
   const displayName = redactName ? "Mentee" : name;
   const hasChips = (!redactName && !!attention) || videoCount > 0;
+  const pressable = !!onPress || !!href;
 
   const body = (
     <>
@@ -152,7 +165,7 @@ export function PersonRow({
           {trailing}
         </span>
       )}
-      {onPress && (
+      {pressable && (
         <ChevronRight
           className="size-3.5 shrink-0 text-[var(--text-muted)]"
           aria-hidden
@@ -161,30 +174,44 @@ export function PersonRow({
     </>
   );
 
+  // Inset rounded highlight — macOS list pattern, matches the field rows
+  // (canvas tone, 10px radius, 8px in from the card padding).
+  const highlight = (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute -inset-x-3 inset-y-0 rounded-[10px] transition-colors",
+        "group-hover:bg-[var(--surface-s1)] group-focus-visible:bg-[var(--surface-s1)]",
+        "group-focus-visible:outline-2 group-focus-visible:outline-offset-0 group-focus-visible:outline-[color:var(--focus-ring)]",
+        RING
+      )}
+    />
+  );
+  const pressableCls = cn(
+    "group relative flex min-h-11 w-full items-center gap-3 py-1.5 text-left focus-visible:outline-none",
+    className
+  );
+
   if (onPress) {
     return (
       <button
         type="button"
         onClick={onPress}
         aria-label={`${displayName} — open`}
-        className={cn(
-          "group relative flex min-h-11 w-full items-center gap-3 py-1.5 text-left focus-visible:outline-none",
-          className
-        )}
+        className={pressableCls}
       >
-        {/* Inset rounded highlight — macOS list pattern, matches the field
-            rows (canvas tone, 10px radius, 8px in from the card padding). */}
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute -inset-x-3 inset-y-0 rounded-[10px] transition-colors",
-            "group-hover:bg-[var(--surface-s1)] group-focus-visible:bg-[var(--surface-s1)]",
-            "group-focus-visible:outline-2 group-focus-visible:outline-offset-0 group-focus-visible:outline-[color:var(--focus-ring)]",
-            RING
-          )}
-        />
+        {highlight}
         {body}
       </button>
+    );
+  }
+
+  if (href) {
+    return (
+      <Link href={href} aria-label={`${displayName} — open`} className={pressableCls}>
+        {highlight}
+        {body}
+      </Link>
     );
   }
 

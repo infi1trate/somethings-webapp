@@ -99,6 +99,7 @@ import {
   OrganizationCard,
   MEMBERSHIP_GROUPS,
 } from "@/components/record/organization";
+import { LEAD_PERSONA_ID } from "@/lib/record/people-demo";
 import { toast } from "sonner";
 import {
   sectionsForTab,
@@ -153,6 +154,7 @@ const SUBJECT_ROLE_LABEL: Record<SubjectRole, string> = {
   "lead-mentor": "Lead mentor",
   supervisor: "Supervisor",
   admin: "Admin",
+  teen: "Teen",
 };
 
 /** Read-only chrome chip for a field that sits in the open changeset. */
@@ -1353,22 +1355,16 @@ export default function MentorRecordPage({
                   resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"
                 }
                 menteeCount={MENTEE_COUNT}
-                subjectRole={subjectRole}
                 now={now}
                 published={publishedSnapshot !== null}
-                // No-names variant is for the read-mostly supervisor tier, which
-                // no persona resolves to yet (permission-map supervisorTier).
-                redactMentees={false}
-                // Dev-only scale preview (?demoMentees=12) — TODO-DATA.
-                demoCount={
-                  typeof query.demoMentees === "string"
-                    ? Number(query.demoMentees) || undefined
-                    : undefined
-                }
               />
             )}
-            {/* Supervision (subject = supervisor) — supervisees empty state. */}
-            {activeTab === "supervision" && <Supervision />}
+            {/* Supervision (subject = lead mentor / supervisor). Reachable here
+                only via the dev ?subjectRole= preview — real staff records live
+                at /admin/person/[id], where the id resolves real supervisees. */}
+            {activeTab === "supervision" && (
+              <Supervision subjectId={LEAD_PERSONA_ID} />
+            )}
           </div>
 
           {/* RIGHT — the teen-facing Preview rail. Scoped to the profile-family

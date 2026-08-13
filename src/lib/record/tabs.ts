@@ -6,8 +6,14 @@
 import type { SettingsRole } from "@/components/settings/tabs-config";
 
 /** The role of the PERSON whose record this is (the subject) — distinct from
- *  the VIEWER persona/role. Drives which practice tabs EXIST on the record. */
-export type SubjectRole = "mentor" | "lead-mentor" | "supervisor" | "admin";
+ *  the VIEWER persona/role. Drives which practice tabs EXIST on the record.
+ *  Mirrors PersonRole in people-demo (the data layer's own enum). */
+export type SubjectRole =
+  | "mentor"
+  | "lead-mentor"
+  | "supervisor"
+  | "admin"
+  | "teen";
 
 export interface RecordTabDef {
   id: string;
@@ -38,12 +44,20 @@ export interface RecordTabDef {
 // A permission-gated tab (e.g. a returning Insights via `roles`) goes LAST.
 export const RECORD_TABS: RecordTabDef[] = [
   { id: "overview", label: "Overview", built: true },
-  // Practice tabs — subject-conditional (existence, not permission).
+  // PRACTICE TABS — subject-conditional (existence, not permission), and
+  // mutually exclusive, so they share the slot after Overview.
+  //
+  // The hierarchy decides these: mentors supervise mentees, lead mentors
+  // supervise mentors, supervisors supervise leads (and mentors as a branch).
+  // So Mentorship = "the mentees I work with" and belongs to MENTORS; for a
+  // TEEN it is the same relationship seen from the other side — the mentors
+  // they've been matched with. Leads and supervisors get Supervision instead:
+  // they oversee staff, and teens are never directly theirs.
   {
     id: "mentorship",
     label: "Mentorship",
     built: true,
-    subjectRoles: ["mentor", "lead-mentor"],
+    subjectRoles: ["mentor", "teen"],
   },
   {
     // TODO-COPY: "Supervision" may be renamed "Team" later — the label is
@@ -51,15 +65,33 @@ export const RECORD_TABS: RecordTabDef[] = [
     id: "supervision",
     label: "Supervision",
     built: true,
-    subjectRoles: ["supervisor"],
+    subjectRoles: ["lead-mentor", "supervisor"],
   },
   // Organization is UNIVERSAL — org membership (role, groups, join date,
-  // status) is true of every staff type, so no gate. Sits directly after the
+  // status) is true of every person, so no gate. Sits directly after the
   // practice tab (for subjects without one, directly after Overview).
   { id: "organization", label: "Organization", built: true },
-  { id: "profile", label: "Profile", built: true },
-  { id: "first-moments", label: "First moments", built: true },
-  { id: "schedule", label: "Schedule", built: true },
+  // The teen-facing MATCH CARD trio. Only a mentor has one — a teen doesn't
+  // publish a profile to teens, and staff don't match. Gated so their records
+  // don't show three tabs of someone else's content.
+  {
+    id: "profile",
+    label: "Profile",
+    built: true,
+    subjectRoles: ["mentor"],
+  },
+  {
+    id: "first-moments",
+    label: "First moments",
+    built: true,
+    subjectRoles: ["mentor"],
+  },
+  {
+    id: "schedule",
+    label: "Schedule",
+    built: true,
+    subjectRoles: ["mentor"],
+  },
   { id: "account", label: "Account", built: true },
   // Insights removed — the IMP-6 charts (engagement, retention, bonus, match
   // rate) now live on the Overview tab (see RecordOverview). The tab is gone,
@@ -96,6 +128,7 @@ const SUBJECT_ROLES: SubjectRole[] = [
   "lead-mentor",
   "supervisor",
   "admin",
+  "teen",
 ];
 
 /** Dev-only subject-role resolver (from `?subjectRole=`). Defaults to "mentor"
@@ -111,10 +144,16 @@ export function subjectRoleFromParam(
     : "mentor";
 }
 
-/** True when the subject is a role that actually mentors teens — the only
- *  subjects with a mentee list, caseload, and availability. */
+/** True when the subject actually mentors teens — the only subjects with a
+ *  mentee list, a caseload and an availability. Leads/supervisors oversee STAFF
+ *  (see Supervision) and teens are on the receiving side of the relationship. */
 export function subjectHasPractice(role: SubjectRole): boolean {
-  return role === "mentor" || role === "lead-mentor";
+  return role === "mentor";
+}
+
+/** True when the subject oversees other staff — the Supervision subjects. */
+export function subjectSupervises(role: SubjectRole): boolean {
+  return role === "lead-mentor" || role === "supervisor";
 }
 
 /** ?focus= deep links (roster Review CTA, shell avatars) → record tabs. */

@@ -15,6 +15,8 @@
 // describe that an exchange happened, never its content; numbers describe how
 // mentoring is going, never grade the person.
 
+import type { DemoTeen } from "@/lib/record/people-demo";
+
 const MIN = 60_000;
 const DAY = 86_400_000;
 
@@ -172,6 +174,27 @@ export function relLength(matchedAt: number, now: number): string {
 /** The pair's last exchange, either direction — for recency sorting. */
 export function lastExchangeAt(m: DemoMentee): number {
   return Math.max(m.mentorLastSentAt ?? 0, m.menteeLastSentAt ?? 0);
+}
+
+/** Adapt a teen (the ONE person universe, people-demo) into the mentee shape
+ *  this module's recency machinery reads. The two fixtures used to be disjoint
+ *  — teens had ids/groups/join dates, mentees had the direction timestamps, and
+ *  nothing joined them. Teens now carry both; this converts their stable
+ *  days-ago numbers into the absolute stamps `menteeRecency` compares. */
+export function teenAsMentee(t: DemoTeen, now: number): DemoMentee {
+  const at = (days: number | undefined) =>
+    days === undefined ? null : now - days * DAY;
+  return {
+    id: t.id,
+    name: t.goesBy ?? t.name,
+    matchedAt: now - (t.matchedDaysAgo ?? t.joinedDaysAgo) * DAY,
+    mentorLastSentAt: at(t.mentorLastSentDaysAgo),
+    menteeLastSentAt: at(t.menteeLastSentDaysAgo),
+    escalation: t.escalation
+      ? { reason: t.escalation.reason, at: now - t.escalation.daysAgo * DAY }
+      : null,
+    videoCount30d: t.videoCount30d ?? 0,
+  };
 }
 
 // ── Direction-aware recency (the four states) ─────────────────────────────
