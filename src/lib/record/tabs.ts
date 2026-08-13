@@ -31,9 +31,10 @@ export interface RecordTabDef {
 
 // ORDER INVARIANT: the slot after Overview is always the subject's PRACTICE
 // tab when one exists (Mentorship for mentor/lead-mentor, Supervision for
-// supervisor — mutually exclusive by subject, so they share the slot). The
+// supervisor — mutually exclusive by subject, so they share the slot), with
+// Organization directly after it (org context beside practice context). The
 // mentor-app mirror is preserved as a SUBSEQUENCE: Profile, First moments,
-// Schedule, Account keep their relative order. Organization closes the bar.
+// Schedule, Account keep their relative order and close the bar.
 // A permission-gated tab (e.g. a returning Insights via `roles`) goes LAST.
 export const RECORD_TABS: RecordTabDef[] = [
   { id: "overview", label: "Overview", built: true },
@@ -52,13 +53,14 @@ export const RECORD_TABS: RecordTabDef[] = [
     built: true,
     subjectRoles: ["supervisor"],
   },
+  // Organization is UNIVERSAL — org membership (role, groups, join date,
+  // status) is true of every staff type, so no gate. Sits directly after the
+  // practice tab (for subjects without one, directly after Overview).
+  { id: "organization", label: "Organization", built: true },
   { id: "profile", label: "Profile", built: true },
   { id: "first-moments", label: "First moments", built: true },
   { id: "schedule", label: "Schedule", built: true },
   { id: "account", label: "Account", built: true },
-  // Organization is UNIVERSAL — org membership (role, groups, join date,
-  // status) is true of every staff type, so no gate.
-  { id: "organization", label: "Organization", built: true },
   // Insights removed — the IMP-6 charts (engagement, retention, bonus, match
   // rate) now live on the Overview tab (see RecordOverview). The tab is gone,
   // not deferred; if it returns it is `roles`-gated and slots last (invariant).
