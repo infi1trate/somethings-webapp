@@ -353,10 +353,12 @@ export function Roster({
         </span>
       </div>
 
-      {/* Review queues — supervisor mentors only. */}
       {/* Review inbox — extracted to review-queues.tsx so the Team page can
-          mount it too (the Mentors roster it used to live in merged away). */}
-      {showQueues && <ReviewQueues />}
+          mount it too (the Mentors roster it used to live in merged away). It
+          renders nothing when nothing needs acting on, so its own root carries
+          the separation from the filter bar — a wrapper here would leave an
+          empty margin behind. */}
+      {showQueues && <ReviewQueues className="mt-6" />}
 
       {/* Roster table */}
       <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
