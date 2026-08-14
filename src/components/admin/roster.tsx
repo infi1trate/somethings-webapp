@@ -25,9 +25,7 @@ import {
   Search,
   UsersRound,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { changesetSummary, relTime } from "@/lib/onboarding/profile-update";
 import { useMounted } from "@/lib/use-mounted";
 import {
   DEMO_MENTORS,
@@ -64,6 +62,7 @@ import {
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { recordHrefFor } from "@/lib/record/subject";
+import { ReviewQueues } from "@/components/admin/review-queues";
 
 export type RosterSegment = "teens" | "mentors";
 export type RosterRole = "supervisor" | "lead";
@@ -100,7 +99,6 @@ export function Roster({
   const mounted = useMounted();
   const status = useOnboardingStore((s) => s.status);
   const draft = useOnboardingStore((s) => s.draft);
-  const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const slots = useOnboardingStore((s) => s.slots);
   const caseloads = useOnboardingStore((s) => s.caseloads);
   // Live mentor lifecycle is derived from these existing axes (see liveLifecycle).
@@ -133,8 +131,6 @@ export function Roster({
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
     "Jordan Rivera";
   const needsReview = mounted && status === "in_review";
-  const update = mounted ? profileUpdate : null;
-  const updateFlagged = update?.status === "changes-requested";
 
   const heading = isMentors ? "Mentors" : "Teens";
   const q = search.trim().toLowerCase();
@@ -358,71 +354,9 @@ export function Roster({
       </div>
 
       {/* Review queues — supervisor mentors only. */}
-      {showQueues && (
-        <>
-          <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
-            <div className="flex items-center justify-between border-b border-[var(--surface-s2)] px-5 py-3">
-              <h2 className="text-sm font-semibold">Needs review</h2>
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-medium text-secondary-foreground">
-                {needsReview ? 1 : 0}
-              </span>
-            </div>
-            {needsReview ? (
-              <div className="flex items-center gap-4 px-5 py-4">
-                <span className="flex size-11 items-center justify-center overflow-hidden rounded-full bg-secondary font-display text-sm font-bold text-secondary-foreground">
-                  {initials(liveName)}
-                </span>
-                <div className="min-w-0">
-                  <p className="font-semibold leading-tight">{liveName}</p>
-                  <p className="text-sm text-[var(--text-secondary)]">Mentor · submitted for review</p>
-                </div>
-                <Button asChild className="ml-auto">
-                  <Link href="/admin/review">Review</Link>
-                </Button>
-              </div>
-            ) : (
-              <p className="px-5 py-5 text-sm text-[var(--text-secondary)]">
-                Nothing waiting for review right now.
-              </p>
-            )}
-          </section>
-
-          <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
-            <div className="flex items-center justify-between border-b border-[var(--surface-s2)] px-5 py-3">
-              <h2 className="text-sm font-semibold">Profile updates</h2>
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-medium text-secondary-foreground">
-                {update && !updateFlagged ? 1 : 0}
-              </span>
-            </div>
-            {update ? (
-              <div className={cn("flex items-center gap-4 px-5 py-4", updateFlagged && "opacity-70")}>
-                <span className="flex size-11 items-center justify-center overflow-hidden rounded-full bg-secondary font-display text-sm font-bold text-secondary-foreground">
-                  {initials(liveName)}
-                </span>
-                <div className="min-w-0">
-                  <p className="font-semibold leading-tight">{liveName}</p>
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    {changesetSummary(update)} · {relTime(update.updatedAt)}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    updateFlagged ? "border border-orange-300 text-orange-700" : "bg-secondary text-secondary-foreground"
-                  )}
-                >
-                  {updateFlagged ? "Changes requested" : "Pending"}
-                </span>
-                <Button asChild variant={updateFlagged ? "outline" : "default"} className="ml-auto">
-                  <Link href="/admin/mentor?focus=review">{updateFlagged ? "View" : "Review"}</Link>
-                </Button>
-              </div>
-            ) : (
-              <p className="px-5 py-5 text-sm text-[var(--text-secondary)]">No profile updates waiting.</p>
-            )}
-          </section>
-        </>
-      )}
+      {/* Review inbox — extracted to review-queues.tsx so the Team page can
+          mount it too (the Mentors roster it used to live in merged away). */}
+      {showQueues && <ReviewQueues />}
 
       {/* Roster table */}
       <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">

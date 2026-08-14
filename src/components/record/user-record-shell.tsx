@@ -25,9 +25,13 @@ export interface UserRecordTab {
   label: string;
 }
 
-export type StatusDot = "positive" | "warning" | "critical";
+export type StatusDot = "positive" | "warning" | "critical" | "none";
 
+// "none" = role-only pill (no dot). The record header stopped carrying
+// lifecycle state — it lives on Organization, and echoing it here made the
+// header a second status surface that could read stale.
 const DOT_VAR: Record<StatusDot, string> = {
+  none: "transparent",
   positive: "var(--dot-positive)",
   warning: "var(--dot-warning)",
   critical: "var(--dot-critical)",
@@ -122,11 +126,13 @@ export function UserRecordShell({
               aria-label={statusAriaLabel}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
             >
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: DOT_VAR[statusDot] }}
-              />
+              {statusDot !== "none" && (
+                <span
+                  aria-hidden
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: DOT_VAR[statusDot] }}
+                />
+              )}
               {roleLabel}
               {statusText ? ` · ${statusText}` : ""}
             </span>

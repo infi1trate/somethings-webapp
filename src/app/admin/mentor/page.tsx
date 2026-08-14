@@ -97,7 +97,7 @@ import {
 import { RACE_OPTIONS, SEX_OPTIONS } from "@/lib/options";
 import {
   OrganizationCard,
-  MEMBERSHIP_GROUPS,
+  JOIN_DATE,
 } from "@/components/record/organization";
 import { LEAD_PERSONA_ID } from "@/lib/record/people-demo";
 import { toast } from "sonner";
@@ -109,7 +109,7 @@ import {
   resolveMode,
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
-import { liveLifecycle, STATUS_LABELS } from "@/lib/record/mentor-status";
+import { liveLifecycle } from "@/lib/record/mentor-status";
 import { RecordOverview } from "@/components/record/record-overview";
 import { ActiveHoursEditor } from "@/components/record/active-hours";
 import { StaffProfileFields } from "@/components/record/staff-profile-fields";
@@ -303,12 +303,6 @@ export default function MentorRecordPage({
   // fields (internalNotes / activity feed) stay; only the record UI is pulled.
   const profileHidden = useOnboardingStore((s) => s.profileHidden);
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
-  // Caseload prompt: capacity reads through the caseload override (key "live")
-  // so the header meta / Mentees card / Mentorship tab stay coherent with the
-  // lead's mentee modal.
-  const liveCaseloadTotal = useOnboardingStore(
-    (s) => s.caseloads["live"]?.total ?? s.slots.total
-  );
   const mentorish = persona === "mentor" || persona === "new-mentor";
   // The Lead Mentor manages mentors (role migration) — they view this record
   // inside their own app chrome; the mount gate keeps hydration stable.
@@ -1079,7 +1073,7 @@ export default function MentorRecordPage({
         {/* Back link — persona-aware: the lead returns to their mentors list,
             the supervisor to the console directory. */}
         <Link
-          href={isLead ? "/app/mentors" : "/admin/users"}
+          href={isLead ? "/app/team" : "/admin/users"}
           className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
@@ -1139,28 +1133,15 @@ export default function MentorRecordPage({
                     pill with a tokenized status dot (active = positive dot
                     alone; exceptional states add the word — never color
                     alone, WCAG 1.4.1). */}
+                {/* Role only. The lifecycle STATE left the header — it is
+                    read and changed on the Organization tab, and repeating it
+                    here made the header a second, stale-looking status
+                    surface. The pill still says what KIND of record this is. */}
                 <span
-                  aria-label={`${SUBJECT_ROLE_LABEL[subjectRole]}, ${STATUS_LABELS[lifecycle].toLowerCase()}`}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
+                  aria-label={SUBJECT_ROLE_LABEL[subjectRole]}
+                  className="inline-flex shrink-0 items-center rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
                 >
-                  <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor:
-                        lifecycle === "deactivated"
-                          ? "var(--dot-critical)"
-                          : lifecycle === "active" || lifecycle === "guided"
-                            ? "var(--dot-positive)"
-                            : "var(--dot-warning)", // paused / in-training
-                    }}
-                  />
-                  {/* Active shows the role alone (positive dot carries it);
-                      every other standing appends the lifecycle word. Role word
-                      follows the SUBJECT (dev preview varies it). */}
-                  {lifecycle === "active"
-                    ? SUBJECT_ROLE_LABEL[subjectRole]
-                    : `${SUBJECT_ROLE_LABEL[subjectRole]} · ${STATUS_LABELS[lifecycle]}`}
+                  {SUBJECT_ROLE_LABEL[subjectRole]}
                 </span>
               </div>
               {/* Meta: pronouns · location · capacity — middots, no icons.
@@ -1172,14 +1153,10 @@ export default function MentorRecordPage({
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {[
-                  live.pronouns.join(", "),
-                  MEMBERSHIP_GROUPS.join(", "),
-                  // Mentee capacity is practice — omit for non-mentor subjects.
-                  subjectHasPractice(subjectRole)
-                    ? `${MENTEE_COUNT} of ${liveCaseloadTotal} mentees`
-                    : "",
-                ]
+                {/* Pronouns + start date. Groups and the mentee count moved
+                    out — both are owned by tabs below (Organization,
+                    Mentorship) and duplicating them here aged badly. */}
+                {[live.pronouns.join(", "), `Joined ${JOIN_DATE}`]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -1355,8 +1332,6 @@ export default function MentorRecordPage({
                   resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"
                 }
                 menteeCount={MENTEE_COUNT}
-                now={now}
-                published={publishedSnapshot !== null}
               />
             )}
             {/* Supervision (subject = lead mentor / supervisor). Reachable here

@@ -82,7 +82,7 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
     // Role migration: the Lead Mentor manages mentors — land on their
     // management home (the mentors roster + review queues), parallel to the
     // Supervisor's /admin/users.
-    go: () => enterPersona("lead-mentor", "/app/mentors"),
+    go: () => enterPersona("lead-mentor", "/app/team"),
   },
   // Supervisor replaces Admin: same console destination, unchanged review
   // behavior; the settings surface renders all five tabs for this persona.

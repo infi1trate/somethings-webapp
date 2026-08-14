@@ -1,18 +1,16 @@
 "use client";
 
-// Lead Mentor's "Mentors" view — their management home (role migration): the
-// umbrella roster PLUS the review queues (Needs review / Profile updates),
-// since the Lead Mentor owns mentor reviews now. Rendered inside the mentor
-// app shell. A real route, so it takes precedence over the /app/[section]
-// catch-all.
+// The Mentors roster MERGED INTO Team — a lead's mentors and their peers were
+// two destinations describing the same people. This route stays as a redirect
+// so existing links (the review console's return path, bookmarks) don't break.
 
-import { MentorShell } from "@/components/mentor/mentor-shell";
-import { Roster } from "@/components/admin/roster";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function MentorsPage() {
-  return (
-    <MentorShell active="mentors">
-      <Roster role="lead" segment="mentors" showQueues />
-    </MentorShell>
-  );
+export default function MentorsRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/app/team");
+  }, [router]);
+  return null;
 }

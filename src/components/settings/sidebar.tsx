@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Settings,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,6 +33,9 @@ export const SIDEBAR_ITEMS: SidebarItemDef[] = [
   { id: "activity", label: "Activity", icon: Bell },
   { id: "tasks", label: "Tasks", icon: ListChecks },
   { id: "teens", label: "Teens", icon: Users },
+  // Team = the staff directory (leads + supervisors, plus a lead's own
+  // mentors). It absorbed the old separate "Mentors" roster.
+  { id: "team", label: "Team", icon: UsersRound },
 ];
 
 // Bottom utility cluster (settings-04): Settings gear (all personas →

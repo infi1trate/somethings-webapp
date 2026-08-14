@@ -15,6 +15,7 @@
 // state (bound to the header overflow round trips) and shows no affordance.
 
 import { RecordRow } from "@/components/record/row";
+import { PersonRow } from "@/components/record/person-row";
 import {
   MentorStatusBadge,
   MentorStatusMenu,
@@ -43,6 +44,13 @@ import {
 // editable (stored on the onboarding store); Join date stays read-only.
 export const MEMBERSHIP_GROUPS = ["North Carolina", "New Jersey"];
 export const JOIN_DATE = "March 25, 2026";
+
+// The live mentor's chain of support. TODO-DATA: fixed for the one store-backed
+// mentor (fixture people carry real leadId/supervisorId edges instead).
+const TEAM = [
+  { id: "t-stephen", name: "Stephen Rowe", roleLabel: "Supervisor" },
+  { id: "t-brandy", name: "Brandy Forrestor", roleLabel: "Lead mentor" },
+];
 
 // Staff-editable org fields (lead + supervisor can set these on the record).
 const ROLE_OPTIONS = ["Mentor", "Lead mentor", "Supervisor"];
@@ -279,6 +287,22 @@ export function OrganizationCard({
           }
         />
       )}
+
+      {/* Team — who this mentor reports to. Moved here from the Mentorship tab:
+          a supervisor and a lead mentor are ORG context (the same shape as the
+          "Reports to" block on a fixture person's record), not mentoring
+          practice. Their records don't exist in this prototype, so the rows
+          stay non-pressable rather than showing dead chevrons. */}
+      <section aria-label="Team" data-record-section="team" className="mt-7">
+        <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+          Team
+        </h2>
+        <div className="mt-3 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 shadow-[var(--shadow-card)]">
+          {TEAM.map((t) => (
+            <PersonRow key={t.id} name={t.name} secondary={t.roleLabel} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

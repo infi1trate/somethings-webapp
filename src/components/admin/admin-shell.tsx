@@ -15,7 +15,7 @@ import {
   Bell,
   ListChecks,
   Users,
-  GraduationCap,
+  UsersRound,
 } from "lucide-react";
 import {
   SettingsSidebar,
@@ -34,12 +34,17 @@ const NAV: SidebarItemDef[] = [
   { id: "activity", label: "Activity", icon: Bell },
   { id: "tasks", label: "Tasks", icon: ListChecks },
   { id: "teens", label: "Teens", icon: Users },
-  { id: "mentors", label: "Mentors", icon: GraduationCap },
+  // Mentors merged into Team — one staff directory instead of a roster plus
+  // a peer list describing the same people.
+  { id: "team", label: "Team", icon: UsersRound },
 ];
 
 const HREFS: Record<string, string> = {
   teens: "/admin/users?segment=teens",
-  mentors: "/admin/users?segment=mentors",
+  // Team is the shared staff directory (it replaced the Mentors roster) and
+  // lives on the app route for every persona — the supervisor just sees it
+  // inside this console's chrome.
+  team: "/app/team",
 };
 
 export function AdminShell({

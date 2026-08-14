@@ -32,7 +32,8 @@ import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordTabsFor } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject } from "@/lib/record/subject";
-import { teensForMentor, superviseesOf } from "@/lib/record/people-demo";
+import { relJoined } from "@/lib/record/people-demo";
+import { JOIN_DATE } from "@/components/record/organization";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { toast } from "sonner";
@@ -91,15 +92,12 @@ export default function PersonRecordPage({
       subject.person.status)
     : null;
 
-  // Meta line: pronouns · group · the load that matters for this role.
-  const load = isTeen
-    ? null
-    : subject.role === "mentor"
-      ? `${teensForMentor(subject.id).length} of ${subject.person?.capacity ?? 0} mentees`
-      : `${superviseesOf(subject.id).length} supervised`;
-  const meta = [subject.pronouns, subject.group, load]
-    .filter(Boolean)
-    .join(" · ");
+  // Pronouns + start date only. Groups and the load moved out of the header —
+  // they're owned by the tabs below and duplicating them here aged badly.
+  const joined = subject.teen
+    ? `Joined ${relJoined(subject.teen.joinedDaysAgo)}`
+    : `Joined ${JOIN_DATE}`;
+  const meta = [subject.pronouns, joined].filter(Boolean).join(" · ");
 
   const roleLabel = {
     mentor: "Mentor",
@@ -115,30 +113,12 @@ export default function PersonRecordPage({
         avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
         name={subject.goesBy ?? subject.name}
         roleLabel={roleLabel}
-        statusDot={
-          isTeen
-            ? subject.teen?.active
-              ? "positive"
-              : "warning"
-            : status === "deactivated"
-              ? "critical"
-              : status === "active" || status === "guided"
-                ? "positive"
-                : "warning"
-        }
-        statusText={
-          isTeen
-            ? subject.teen?.active
-              ? undefined
-              : "Inactive"
-            : status === "active"
-              ? undefined
-              : undefined
-        }
-        statusAriaLabel={`${roleLabel}${isTeen ? "" : `, ${status}`}`}
+        // Role only — the lifecycle state is read and changed on Organization.
+        statusDot="none"
+        statusAriaLabel={roleLabel}
         meta={meta}
         backLink={{
-          href: isTeen ? "/app/teens" : "/app/mentors",
+          href: isTeen ? "/app/teens" : "/app/team",
           label: isTeen ? "Teens" : "Mentors",
         }}
         primaryAction={

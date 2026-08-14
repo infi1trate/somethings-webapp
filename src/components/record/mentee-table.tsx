@@ -57,9 +57,16 @@ type SortKey = "name" | "status" | "joined";
 export function MenteeTable({
   mentorId,
   mentorName,
+  capacityLabel,
+  caseloadSlot,
 }: {
   mentorId: string;
   mentorName: string;
+  /** "4 of 5 mentees · Automatic" — capacity shown beside the heading, so the
+   *  number reads as a property of THIS list rather than a separate panel. */
+  capacityLabel?: string;
+  /** The capacity + availability controls, folded into the card header. */
+  caseloadSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const [now] = useState(() => Date.now());
@@ -96,8 +103,17 @@ export function MenteeTable({
 
   return (
     <section aria-label="Mentees" data-record-section="mentees">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
         <h2 className={H}>Mentees</h2>
+        {capacityLabel && (
+          <p
+            className="text-[var(--text-secondary)] tabular-nums"
+            style={{ font: "var(--type-row-label)" }}
+          >
+            {capacityLabel}
+          </p>
+        )}
+        <span className="ml-auto" />
         <button
           type="button"
           onClick={() => setPicking(true)}
@@ -107,6 +123,12 @@ export function MenteeTable({
           Add mentee
         </button>
       </div>
+
+      {caseloadSlot && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+          {caseloadSlot}
+        </div>
+      )}
 
       <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)]">
         <table className="w-full min-w-[720px] border-collapse text-left">

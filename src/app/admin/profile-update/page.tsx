@@ -53,7 +53,7 @@ export default function AdminProfileUpdatePage({
   const fromRecord = query.from === "record";
   // Lead-owned flow (role migration): the default return is the lead's
   // mentors list — this console renders in the lead's own app chrome.
-  const returnHref = fromRecord ? "/admin/mentor" : "/app/mentors";
+  const returnHref = fromRecord ? "/admin/mentor" : "/app/team";
   const focusField = typeof query.focus === "string" ? query.focus : null;
   const persona = useOnboardingStore((s) => s.persona);
   const draft = useOnboardingStore((s) => s.draft);

@@ -6,14 +6,13 @@
 // right/bottom edges. Content scrolls INSIDE the panel.
 //
 // Role-aware nav (identical styling, only the item set changes): a Mentor sees
-// the base rail (Home, Chat, Activity, Tasks, Teens); a Lead Mentor gets the
-// same plus a Mentors roster (rendered here in the mentor app, not the
-// console).
+// the base rail (Home, Chat, Activity, Tasks, Teens, Team); a Lead Mentor sees
+// the same minus Teens — they supervise mentors, not teens, and the mentors
+// they lead live inside Team.
 //
 // Panel padding: §2 specs ~47×35, but hosted pages currently carry their own
 // 24–40px insets — the panel adds none to avoid double-padding (gaps.md #21).
 
-import { GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   SettingsSidebar,
@@ -24,12 +23,13 @@ import { roleForPersona } from "@/components/settings/tabs-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
-// Lead Mentor rail = the base + a Mentors roster (GraduationCap mirrors the
-// Supervisor console's Mentors icon).
-const LEAD_ITEMS: SidebarItemDef[] = [
-  ...SIDEBAR_ITEMS,
-  { id: "mentors", label: "Mentors", icon: GraduationCap },
-];
+// Lead Mentor rail = the base MINUS Teens. Leads supervise mentors, not teens
+// (teens reach them through the mentor who holds the match), so a Teens
+// destination would be a list they don't own. The mentors they DO lead live in
+// Team, which absorbed the old separate "Mentors" roster.
+const LEAD_ITEMS: SidebarItemDef[] = SIDEBAR_ITEMS.filter(
+  (i) => i.id !== "teens"
+);
 
 export function MentorShell({
   active,
@@ -64,16 +64,16 @@ export function MentorShell({
   // client-only, localStorage-backed) — then the Lead swap applies.
   const isLead = mounted && roleForPersona(persona) === "lead";
   const items = isLead ? LEAD_ITEMS : SIDEBAR_ITEMS;
-  // Role migration: the Lead Mentor owns mentor reviews — badge the Mentors
-  // item with what's waiting (a submitted profile + an open, non-flagged
-  // changeset), mirroring the roster queues' counts.
+  // Role migration: the Lead Mentor owns mentor reviews — badge the TEAM item
+  // (the queues moved there with the Mentors roster it absorbed) with what's
+  // waiting: a submitted profile + an open, non-flagged changeset.
   const reviewsWaiting = isLead
     ? (status === "in_review" ? 1 : 0) +
       (profileUpdate && profileUpdate.status !== "changes-requested" ? 1 : 0)
     : 0;
   const badges = {
     ...(unread > 0 ? { activity: unread } : {}),
-    ...(reviewsWaiting > 0 ? { mentors: reviewsWaiting } : {}),
+    ...(reviewsWaiting > 0 ? { team: reviewsWaiting } : {}),
   };
 
   return (
