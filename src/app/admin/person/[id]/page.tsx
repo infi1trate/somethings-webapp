@@ -28,6 +28,7 @@ import { Supervision } from "@/components/record/supervision";
 import { PersonMentorship } from "@/components/record/person-mentorship";
 import { TeenMentors } from "@/components/record/teen-mentors";
 import { PersonOrganization } from "@/components/record/person-organization";
+import { ContactActions } from "@/components/record/contact-actions";
 import {
   PersonFirstMomentsSection,
   PersonProfileSection,
@@ -230,16 +231,19 @@ function PersonAccount({
 }: {
   subject: NonNullable<ReturnType<typeof resolveSubject>> & { kind: "fixture" };
 }) {
-  const rows: [string, string | undefined][] = [
-    ["Full name", subject.name],
-    ["Goes by", subject.goesBy],
-    ["Phone", subject.phone],
-    ["Email", subject.email],
+  // Phone + email carry ACTIONS here (call / email / copy). They used to live in
+  // a Contact dropdown on every directory row, which handed out PII from a list;
+  // the capability moved to the record you had to open for this one person.
+  const rows: [string, string | undefined, "phone" | "email" | null][] = [
+    ["Full name", subject.name, null],
+    ["Goes by", subject.goesBy, null],
+    ["Phone", subject.phone, "phone"],
+    ["Email", subject.email, "email"],
   ];
   return (
     <section aria-label="Account" data-record-section="account">
       <div className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 shadow-[var(--shadow-card)] [&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]">
-        {rows.map(([label, value]) => (
+        {rows.map(([label, value, kind]) => (
           <div
             key={label}
             className="grid min-h-13 grid-cols-[168px_minmax(0,1fr)] gap-x-6 py-3.5"
@@ -253,12 +257,17 @@ function PersonAccount({
             >
               {label}
             </span>
-            <span
-              className="text-[var(--text-primary)]"
-              style={{ font: "var(--type-row-value)" }}
-            >
-              {value ?? (
-                <span className="text-[var(--text-muted)]">Not recorded</span>
+            <span className="flex min-w-0 items-center gap-1">
+              <span
+                className="min-w-0 truncate text-[var(--text-primary)]"
+                style={{ font: "var(--type-row-value)" }}
+              >
+                {value ?? (
+                  <span className="text-[var(--text-muted)]">Not recorded</span>
+                )}
+              </span>
+              {kind && (
+                <ContactActions kind={kind} value={value} name={subject.name} />
               )}
             </span>
           </div>

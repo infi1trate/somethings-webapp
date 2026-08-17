@@ -44,18 +44,9 @@ import { MentorShell } from "@/components/mentor/mentor-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { displayOrEmpty, RecordRow } from "@/components/record/row";
-import {
-  AttentionCard,
-  type AttentionAction,
-} from "@/components/record/attention-card";
 import { SpotifyChip } from "@/components/record/spotify-chip";
 import { InterestTags, PlainTags } from "@/components/record/interest-tags";
 import { SegmentedControl } from "@/components/record/segmented-control";
-import {
-  escalationVisible,
-  getDemoOverview,
-  menteeRecency,
-} from "@/lib/record/mentees-demo";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   ChangesRequestedChip,
@@ -66,8 +57,6 @@ import {
 // renders, so this record can't drift into its own paradigm again.
 import { FirstMomentsRows } from "@/components/record/person-profile";
 import { clientId } from "@/lib/files";
-import { changeProgress } from "@/lib/onboarding/change-requests";
-import { changesetSummary } from "@/lib/onboarding/profile-update";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -123,7 +112,6 @@ import { Supervision } from "@/components/record/supervision";
 import {
   FOCUS_TO_TAB,
   recordTabsFor,
-  subjectHasPractice,
   subjectRoleFromParam,
   type SubjectRole,
 } from "@/lib/record/tabs";
@@ -299,7 +287,6 @@ export default function MentorRecordPage({
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const status = useOnboardingStore((s) => s.status);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
-  const changeRequests = useOnboardingStore((s) => s.changeRequests);
   const activity = useOnboardingStore((s) => s.activity);
   const staffEditAccountField = useOnboardingStore(
     (s) => s.staffEditAccountField
@@ -389,9 +376,6 @@ export default function MentorRecordPage({
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
-  // "Now" captured once (lazy init) — the reference point for the Overview's
-  // demo elapsed-time values; keeps render pure (no Date.now() in render).
-  const [now] = useState(() => Date.now());
   const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
 
   if (!mounted || mentorish) {
@@ -519,159 +503,20 @@ export default function MentorRecordPage({
   // above, so Date.now() here is client-only. Mentee names/avatars render for
   // the manager tier (lead — the primary manager — and supervisor oversight);
   // the future read-mostly middle tier would degrade to counts + durations.
-  const overview = getDemoOverview(now);
 
-  // ── Attention by exception (Prompt C) ─────────────────────────────────
-  // One strip at a time, highest severity wins; the rest surface via "and N
-  // more". Healthy record → no items → no strip (absence of chrome is the
-  // reward state). All copy TODO-COPY. Vocabulary law: escalations name the
-  // observable cause ("No reply in 5 days"), never a predicted departure.
-  type Attention = {
-    id: string;
-    severity: "critical" | "warm" | "warning";
-    line: string;
-    href: string | null;
-    linkLabel: string | null;
-  };
-  const attentionItems: Attention[] = [];
-  // Mentee-based items — only for subjects who actually mentor (a
-  // supervisor/admin preview has no mentees).
-  if (publishedSnapshot && subjectHasPractice(subjectRole)) {
-    // 1. Open escalation on a mentee (critical family — RESERVED for genuine
-    // escalation records; the derived recency states below are warnings).
-    const esc = overview.mentees.filter((m) =>
-      escalationVisible(m.escalation, now)
-    );
-    if (esc.length > 0) {
-      const first = esc[0].escalation!;
-      attentionItems.push({
-        id: "escalation",
-        severity: "critical",
-        line:
-          esc.length === 1
-            ? `1 mentee needs attention · ${first.reason}`
-            : `${esc.length} mentees need attention · ${first.reason}`,
-        href: null,
-        linkLabel: null,
-      });
-    }
-    // 2. Waiting on the mentor (warning family) — the mentee wrote and the
-    // mentor hasn't replied in WAITING_DAYS+. Direction-aware: this is the
-    // "coach the mentor" signal. TODO-COPY.
-    const waiting = overview.mentees
-      .map((m) => menteeRecency(m, now))
-      .filter((r) => r.kind === "waiting-on-mentor");
-    if (waiting.length > 0) {
-      const days = Math.max(...waiting.map((r) => r.days));
-      attentionItems.push({
-        id: "waiting",
-        severity: "warning",
-        line:
-          waiting.length === 1
-            ? `1 mentee waiting on a reply · No reply in ${days} days`
-            : `${waiting.length} mentees waiting on a reply · Longest ${days} days`,
-        href: null,
-        linkLabel: null,
-      });
-    }
-    // 3. Teen gone quiet after the mentor replied (gentler, same warning
-    // family) — the "check on the teen" signal. Threshold TODO: clinical
-    // input (TEEN_QUIET_DAYS). TODO-COPY.
-    const teenQuiet = overview.mentees
-      .map((m) => menteeRecency(m, now))
-      .filter((r) => r.kind === "teen-quiet");
-    if (teenQuiet.length > 0) {
-      const days = Math.max(...teenQuiet.map((r) => r.days));
-      attentionItems.push({
-        id: "teen-quiet",
-        severity: "warning",
-        line:
-          teenQuiet.length === 1
-            ? `1 mentee quiet lately · Last wrote ${days} days ago`
-            : `${teenQuiet.length} mentees quiet lately · Longest ${days} days`,
-        href: null,
-        linkLabel: null,
-      });
-    }
-  }
-  // 2. Change request waiting (warm family) — the existing review state, only
-  // when something is genuinely open (never the healthy "live and current").
-  const reviewAttention: Attention | null = preLane
-    ? status === "in_review"
-      ? {
-          id: "review",
-          severity: "warm",
-          line: "Submitted for review — waiting on the team.",
-          href: "/admin/review?from=record",
-          linkLabel: "Open review console",
-        }
-      : {
-          id: "review",
-          severity: "warm",
-          line: `Changes requested — waiting on the mentor (${(() => {
-            const p = changeProgress(changeRequests, draft);
-            return `${p.addressed} of ${p.total} addressed`;
-          })()}).`,
-          href: "/admin/review?from=record",
-          linkLabel: "View in review console",
-        }
-    : postLane && profileUpdate
-      ? {
-          id: "review",
-          severity: "warm",
-          line: `${changesetSummary(profileUpdate)} · ${profileUpdate.fields.length} change${profileUpdate.fields.length === 1 ? "" : "s"} waiting`,
-          href: "/admin/profile-update?from=record",
-          linkLabel: "Open full review",
-        }
-      : null;
-  if (reviewAttention) attentionItems.push(reviewAttention);
-  // 3. Mentor quiet: no activity in 5+ days (warning family) — stated as the
-  // observation, never as risk. Mentee-based signal → practice subjects only.
-  if (
-    publishedSnapshot &&
-    subjectHasPractice(subjectRole) &&
-    overview.metrics.lastActiveAt != null
-  ) {
-    const days = Math.floor((now - overview.metrics.lastActiveAt) / 86_400_000);
-    if (days >= 5) {
-      attentionItems.push({
-        id: "quiet",
-        severity: "warning",
-        line: `No activity in ${days} days`,
-        href: null,
-        linkLabel: null,
-      });
-    }
-  }
-  // 4. Sustained signal drop (warning) — needs 7-day-below-target time series
-  // that this prototype has no source for, so it never fires. TODO: wire to
-  // IMP-6/MO-8 when the coaching flow lands.
-  const attention = attentionItems[0] ?? null;
-  const attentionMore = Math.max(0, attentionItems.length - 1);
-  // The alert's action (elevated pass): review alerts link to their console
-  // (lead review viewers only — the lead owns the flows); an escalation jumps
-  // to the mentee in the Mentees card. Colors come from the tokenized alert
-  // families inside AttentionCard.
-  const attnAction: AttentionAction | null =
-    attention == null
-      ? null
-      : attention.href && reviewMode
-        ? { label: attention.linkLabel ?? "Review details", href: attention.href }
-        : ["escalation", "waiting", "teen-quiet"].includes(attention.id)
-          ? {
-              label: "View mentee",
-              onClick: () => {
-                // Jump to the Mentees list on the Mentorship tab (where the
-                // list now lives after the tab split).
-                switchTab("mentorship");
-                requestAnimationFrame(() =>
-                  document
-                    .querySelector('[aria-label="Mentees"]')
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                );
-              },
-            }
-          : null;
+  // ── Attention by exception — REMOVED (user request: "remove these in-record
+  // notifications for now, we can rebuild these later").
+  //
+  // This derived a single highest-severity strip from mentee recency
+  // (waiting-on-mentor / teen-quiet), open escalations, review state and mentor
+  // quiet, and rendered it as a band above the tab bar. The band is gone and the
+  // whole derivation with it — dead code behind a removed surface rots.
+  //
+  // Rebuilding: the inputs all still exist and are still used elsewhere —
+  // `menteeRecency` + `escalationVisible` (lib/record/mentees-demo.ts, which the
+  // mentee table's inline row chips already use) and `AttentionCard` itself
+  // (components/record/attention-card.tsx, still exercised on /dev/components).
+  // Git history has the exact derivation if it's wanted verbatim.
   // The record-scoped save (invariant 2): mock latency/failure, then the
   // staff write path — draft/staffPhoto update + staff-attributed activity.
   const staffSave =
@@ -1031,7 +876,16 @@ export default function MentorRecordPage({
                 onClose={() => setAccountEditing(null)}
               />
             {/* Contact — the mentor-facing verification flows stay in
-                settings; staff set values directly (record-scoped path). */}
+                settings; staff set values directly (record-scoped path).
+
+                NO ContactActions here, unlike the fixture-person record. These
+                rows are PRESSABLE editors: StaffFieldRow → RecordRow wraps the
+                whole row in a <button> when editable, so a nested <button>/<a>
+                would be invalid HTML and its click bubbles up and opens the
+                editor (observed). Staff lose nothing — pressing the row opens an
+                input holding the value, which is strictly more than copy.
+                Parity needs a trailing slot on RecordRow rendered OUTSIDE its
+                button; that's a shared-primitive change, see gaps.md. */}
               <StaffFieldRow<string>
                 label="Phone number"
                 value={draft.phone}
@@ -1274,22 +1128,6 @@ export default function MentorRecordPage({
             </div>
           </header>
         )}
-
-        {/* ── Attention banner: the top attention item, mirrored into the
-            chrome so it travels across tabs. All three families render here —
-            warning carries the derived recency states (waiting-on-mentor,
-            teen-quiet); critical is reserved for genuine escalations. */}
-        {attention &&
-          activeTab !== "overview" && (
-            <AttentionCard
-              variant="band"
-              severity={attention.severity}
-              line={attention.line}
-              moreCount={attentionMore}
-              action={attnAction}
-              className="mt-5 max-w-[900px]"
-            />
-          )}
 
         {/* ── Tab bar: text tabs directly on the canvas — the surface pass
             deleted the full-bleed baseline hairline (spacing does the work);

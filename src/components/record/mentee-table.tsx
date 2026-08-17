@@ -2,8 +2,10 @@
 
 // MENTEE TABLE — the mentor record's list of the teens they work with.
 // Structure from Figma MO-4.1 node 2004:27273: four columns (Name · Status ·
-// Joined · Contact), sortable headers on the first three, 32px initials
-// avatars, a binary Active/Inactive pill, and a ghost Contact dropdown.
+// Joined · Chat), sortable headers on the first three, 32px initials avatars,
+// and a binary Active/Inactive pill. The last column was a Contact dropdown
+// holding the teen's phone + email; that PII moved to the teen's own record
+// (Account tab) and the column is now a plain Chat action.
 //
 // TWO DEPARTURES FROM THE DESIGN, both deliberate:
 //  1. A flagged row keeps its ATTENTION CHIP beside the name. The design has no
@@ -21,7 +23,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ChevronsUpDown, Plus } from "lucide-react";
-import { ContactCell } from "@/components/admin/contact-cell";
+import { ChatAction } from "@/components/admin/chat-action";
 import { AttentionChipInline } from "@/components/record/person-row";
 import {
   Dialog,
@@ -152,7 +154,7 @@ export function MenteeTable({
                 scope="col"
                 className="px-5 py-3 text-[14px] font-medium leading-[20px] text-[var(--text-secondary)]"
               >
-                Contact
+                Chat
               </th>
             </tr>
           </thead>
@@ -231,13 +233,10 @@ export function MenteeTable({
                     className="px-5 py-3"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ContactCell
-                      person={{
-                        id: t.id,
-                        name: t.name,
-                        phone: t.phone,
-                        email: t.email,
-                      }}
+                    <ChatAction
+                      personId={t.id}
+                      name={t.name}
+                      subjectRole="teen"
                     />
                   </td>
                 </tr>

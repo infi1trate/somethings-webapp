@@ -25,7 +25,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { NameCell, SortHead } from "@/components/admin/roster";
-import { ContactCell } from "@/components/admin/contact-cell";
+import { ChatAction } from "@/components/admin/chat-action";
 import {
   AvailabilityMenu,
   MentorStatusMenu,
@@ -247,7 +247,7 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
               <SortHead label="Mentees" k="load" {...sortProps} />
               <SortHead label="Status" k="status" {...sortProps} />
               <SortHead label="Availability" k="availability" {...sortProps} />
-              <th className="px-5 py-3 font-medium">Contact</th>
+              <th className="px-5 py-3 font-medium">Chat</th>
             </tr>
           </thead>
           <tbody>
@@ -300,13 +300,10 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
                     )}
                   </td>
                   <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                    <ContactCell
-                      person={{
-                        id: r.id,
-                        name: r.name,
-                        phone: r.phone,
-                        email: r.email,
-                      }}
+                    <ChatAction
+                      personId={r.id}
+                      name={r.name}
+                      subjectRole={roleOf(r)}
                     />
                   </td>
                 </tr>

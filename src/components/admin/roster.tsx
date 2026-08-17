@@ -34,6 +34,7 @@ import {
   leadUmbrellaTeens,
   mentorName,
   relJoined,
+  roleOf,
   TENURE_FILTERS,
   teensForMentor,
   type DemoMentorRow,
@@ -45,7 +46,7 @@ import {
   CaseloadModal,
   type CaseloadPerson,
 } from "@/components/record/caseload-modal";
-import { ContactCell } from "@/components/admin/contact-cell";
+import { ChatAction } from "@/components/admin/chat-action";
 import {
   AvailabilityMenu,
   MentorStatusMenu,
@@ -348,9 +349,10 @@ export function Roster({
                   {/* Availability — a separate, mentor-only axis (secondary to
                       Status). Profile column removed: incomplete → In Training. */}
                   <SortHead label="Availability" k="availability" {...sortProps} />
-                  {/* Contact replaces the Phone column — PII gated behind a
-                      deliberate click (see contact-cell.tsx). Not sortable. */}
-                  <th className="px-5 py-3 font-medium">Contact</th>
+                  {/* Chat only. The Phone column became a Contact dropdown,
+                      then this: phone + email are stored data and live on the
+                      person's record, not in a directory row. Not sortable. */}
+                  <th className="px-5 py-3 font-medium">Chat</th>
                 </>
               ) : (
                 <>
@@ -359,7 +361,7 @@ export function Roster({
                   <SortHead label="Group" k="group" {...sortProps} />
                   <SortHead label="Status" k="status" {...sortProps} />
                   <SortHead label="Joined" k="joined" {...sortProps} />
-                  <th className="px-5 py-3 font-medium">Contact</th>
+                  <th className="px-5 py-3 font-medium">Chat</th>
                 </>
               )}
             </tr>
@@ -540,8 +542,12 @@ function MentorRowView({
       {/* stopPropagation so opening the Contact menu doesn't fire the row's
           record navigation. */}
       <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-        <ContactCell
-          person={{ id: row.id, name: row.name, phone: row.phone, email: row.email }}
+        {/* Chat only. Phone + email moved to the person's Account tab — a
+            directory row shouldn't hand out PII. */}
+        <ChatAction
+          personId={row.id}
+          name={row.name}
+          subjectRole={roleOf(row)}
         />
       </td>
     </tr>
@@ -564,9 +570,7 @@ function TeenRowView({ teen }: { teen: DemoTeen }) {
       <td className="px-5 py-3"><StatusPill active={teen.active} /></td>
       <td className="px-5 py-3 text-[var(--text-secondary)] tabular-nums">{relJoined(teen.joinedDaysAgo)}</td>
       <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-        <ContactCell
-          person={{ id: teen.id, name: teen.name, phone: teen.phone, email: teen.email }}
-        />
+        <ChatAction personId={teen.id} name={teen.name} subjectRole="teen" />
       </td>
     </tr>
   );
