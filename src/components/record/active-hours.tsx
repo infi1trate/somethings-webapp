@@ -80,7 +80,10 @@ function TimeSelect({
   );
 }
 
-function ActiveHoursForm({
+/** Exported so a FIXTURE person's Schedule tab reuses this exact editor with
+ *  their own schedule + save target — the store-bound wrapper above is only for
+ *  the one live mentor. Same control, so the two records can't drift. */
+export function ActiveHoursForm({
   initial,
   editable,
   onSave,

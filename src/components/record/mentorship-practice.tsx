@@ -1,25 +1,24 @@
 "use client";
 
-// MentorshipPractice — the subject-conditional PRACTICE surface of the record.
-// Exists only when the record's SUBJECT is a mentor.
+// MentorshipPractice — the subject-conditional PRACTICE surface of the record
+// for the STORE-BACKED mentor ("live"). Exists only when the subject is a
+// mentor.
 //
-// ONE CARD now. Caseload used to be its own panel paired with Team; Team moved
-// to Organization (it's org context, not practice), and capacity folded into
-// the Mentees card header — "4 of 5 mentees" reads as a property OF the list it
-// governs, with the Automatic/Custom control and Availability on the row
-// beneath it, directly above the table they constrain.
+// ONE CARD, ONE HEADER LINE. Caseload used to be its own panel paired with Team;
+// Team moved to Organization (org context, not practice) and capacity folded
+// into the Mentees header. It has now folded further: the readout IS the
+// affordance, and the Automatic/Custom control plus stepper live inside its
+// popover instead of occupying a permanent second row.
 //
 // Only MENTORS reach this tab. Lead mentors and supervisors supervise staff,
 // not teens, so they get Supervision; a teen sees the same relationship from
-// the other side (teen-mentors.tsx).
+// the other side (teen-mentors.tsx). A fixture mentor's record renders the same
+// MenteeTable from /admin/person/[id] — same props, same controls.
 //
 // Vocabulary law: "mentees" for the people, "caseload" for how many they can
 // take; escalations name the observable cause, never a prediction.
 
-import {
-  CaseloadControls,
-  useCaseload,
-} from "@/components/record/caseload-controls";
+import { CaseloadPopover, useCaseload } from "@/components/record/caseload-controls";
 import { MenteeTable } from "@/components/record/mentee-table";
 import {
   AvailabilityCell,
@@ -43,60 +42,48 @@ export function MentorshipPractice({
   const mentorAccepting = useOnboardingStore((s) => s.mentorAccepting);
   const setMentorAccepting = useOnboardingStore((s) => s.setMentorAccepting);
   const slots = useOnboardingStore((s) => s.slots);
-  const caseloads = useOnboardingStore((s) => s.caseloads);
   const draft = useOnboardingStore((s) => s.draft);
   const mentorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "this mentor";
+  const firstName = draft.firstName?.trim() || "this mentor";
 
   const lifecycle =
     mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
-  const cap = caseloads["live"]?.total ?? slots.total;
-  const accepting = mentorAccepting["live"] ?? true;
-  const availability = availabilityFor(lifecycle, menteeCount, cap, accepting);
-  const atCap = menteeCount >= cap;
   const caseload = useCaseload("live", slots.total);
+  const accepting = mentorAccepting["live"] ?? true;
+  const availability = availabilityFor(
+    lifecycle,
+    menteeCount,
+    caseload.total,
+    accepting
+  );
+  const atCap = menteeCount >= caseload.total;
 
   return (
     <MenteeTable
       mentorId="live"
       mentorName={mentorName}
-      capacityLabel={`${menteeCount} of ${caseload.total} mentees${
-        mode === "read"
-          ? ` · ${caseload.mode === "automatic" ? "Automatic" : "Custom"}`
-          : ""
-      }`}
-      caseloadSlot={
-        <>
-          {mode === "edit" && (
-            <CaseloadControls
-              mentorId="live"
-              currentCount={menteeCount}
-              defaultTotal={slots.total}
-            />
-          )}
-          <span className="flex items-center gap-2">
-            <span
-              className="text-[var(--text-muted)]"
-              style={{
-                font: "var(--type-field-label)",
-                letterSpacing: "var(--type-field-label-tracking)",
-              }}
-            >
-              Availability
-            </span>
-            {mode === "edit" ? (
-              <AvailabilityMenu
-                value={availability}
-                accepting={accepting}
-                atCap={atCap}
-                name={mentorName}
-                onChange={(a) => setMentorAccepting("live", a)}
-              />
-            ) : (
-              <AvailabilityCell value={availability} />
-            )}
-          </span>
-        </>
+      capacitySlot={
+        <CaseloadPopover
+          mentorId="live"
+          mentorName={firstName}
+          currentCount={menteeCount}
+          defaultTotal={slots.total}
+          editable={mode === "edit"}
+        />
+      }
+      availabilitySlot={
+        mode === "edit" ? (
+          <AvailabilityMenu
+            value={availability}
+            accepting={accepting}
+            atCap={atCap}
+            name={mentorName}
+            onChange={(a) => setMentorAccepting("live", a)}
+          />
+        ) : (
+          <AvailabilityCell value={availability} />
+        )
       }
     />
   );

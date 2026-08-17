@@ -57,16 +57,18 @@ type SortKey = "name" | "status" | "joined";
 export function MenteeTable({
   mentorId,
   mentorName,
-  capacityLabel,
-  caseloadSlot,
+  capacitySlot,
+  availabilitySlot,
 }: {
   mentorId: string;
   mentorName: string;
-  /** "4 of 5 mentees · Automatic" — capacity shown beside the heading, so the
-   *  number reads as a property of THIS list rather than a separate panel. */
-  capacityLabel?: string;
-  /** The capacity + availability controls, folded into the card header. */
-  caseloadSlot?: React.ReactNode;
+  /** Caseload readout ("4 of 5 mentees") beside the heading, so the number
+   *  reads as a property of THIS list. A CaseloadPopover when the viewer may
+   *  adjust it, plain text when not — the controls used to occupy a permanent
+   *  second row here. */
+  capacitySlot?: React.ReactNode;
+  /** Availability readout or menu, on the same line. */
+  availabilitySlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const [now] = useState(() => Date.now());
@@ -103,16 +105,13 @@ export function MenteeTable({
 
   return (
     <section aria-label="Mentees" data-record-section="mentees">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+      {/* ONE header line: heading · caseload · availability · Add mentee. The
+          caseload controls used to sit in a second row below this one; they now
+          live inside the readout's popover. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h2 className={H}>Mentees</h2>
-        {capacityLabel && (
-          <p
-            className="text-[var(--text-secondary)] tabular-nums"
-            style={{ font: "var(--type-row-label)" }}
-          >
-            {capacityLabel}
-          </p>
-        )}
+        {capacitySlot}
+        {availabilitySlot}
         <span className="ml-auto" />
         <button
           type="button"
@@ -123,12 +122,6 @@ export function MenteeTable({
           Add mentee
         </button>
       </div>
-
-      {caseloadSlot && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
-          {caseloadSlot}
-        </div>
-      )}
 
       <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)]">
         <table className="w-full min-w-[720px] border-collapse text-left">

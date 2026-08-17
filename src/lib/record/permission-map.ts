@@ -14,23 +14,30 @@ import type { Persona } from "@/lib/types";
 //
 // OWNERSHIP (role migration): the LEAD MENTOR is the core role that manages
 // mentors — reviews, profile change requests, account edits, internal notes,
-// destructive account actions. The Supervisor retains view + staff-edit
-// oversight of anyone's profile, but the approve/send-back review flows are
-// exclusively the lead's: the admin column's review-mediated slots read as
-// plain "read".
+// destructive account actions. The approve/send-back REVIEW flows stay
+// exclusively the lead's: the admin column's `reviewWorkflow` reads as plain
+// "read".
+//
+// EDIT PARITY (user-mandated): a SUPERVISOR edits teen-facing profile content
+// on the same terms as a lead — `matchingProfile` and `firstMoments` are "edit"
+// in the admin column too. A supervisor sits ABOVE the lead in the hierarchy, so
+// the old read-only middle ground meant the more senior role could see a problem
+// in a profile and not fix it. Reviewing a submission and editing a published
+// profile stay separate powers: parity here does NOT hand the supervisor the
+// review console.
 //
 // EDIT-ANYTHING (lead): a Lead Mentor may edit any field on any record,
 // including the teen-facing Profile + First-moments content — so those slots
-// are "edit" for leadMentor (not "review"). NOTE: the record page renders
-// those two sections read-only with a request-change affordance today; inline
-// staff editors for the rich match-card fields (photo/media/vibe/…) are the
-// pending render work (gaps.md). The keep-reviewWorkflow="review" preserves the
-// approve/send-back console the lead still runs.
+// are "edit" for leadMentor (not "review"). The inline staff editors for the
+// live mentor's rich match-card fields are built; on a FIXTURE person's record
+// the same two slots gate text-field editors instead, because the asset-backed
+// fields (photo / audio intro / vibe board / story slides) hold real uploads
+// that no demo person has.
 export const permissionMap = {
   identity:           { mentor: "hidden", leadMentor: "read",   supervisorTier: "read", admin: "read" },
   reviewWorkflow:     { mentor: "hidden", leadMentor: "review", supervisorTier: "read", admin: "read" },
-  matchingProfile:    { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "read" },
-  firstMoments:       { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "read" },
+  matchingProfile:    { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
+  firstMoments:       { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
   schedule:           { mentor: "hidden", leadMentor: "edit",   supervisorTier: "edit", admin: "edit" },
   accountSelfService: { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },
   accountOrg:         { mentor: "hidden", leadMentor: "edit",   supervisorTier: "read", admin: "edit" },

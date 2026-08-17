@@ -20,6 +20,9 @@ import {
   cloneSchedule,
   type Schedule,
 } from "@/lib/schedule";
+// Type-only: the shape of a staff edit to another person's profile. people-demo
+// holds no store import, so this stays one-directional.
+import type { PersonProfile } from "@/lib/record/people-demo";
 import {
   PROFILE_SECTIONS,
   normForCompare,
@@ -122,6 +125,19 @@ interface OnboardingState {
    *  key falls back to the fixture's own `active`. Toggled from the record's
    *  mentee table (deactivating confirms — it stands down a live mentorship). */
   menteeActive: Record<string, boolean>;
+  /** Staff edits to ANOTHER person's teen-facing profile, keyed by person id.
+   *  Sparse and PARTIAL: a missing key (or field) falls back to the fixture in
+   *  people-demo, so this map holds only what a lead/supervisor changed.
+   *
+   *  Why a separate map rather than `draft`: `draft` is the ONE store-backed
+   *  mentor's own profile with the whole gated review-changeset flow attached.
+   *  A lead editing someone else's record is a staff edit to a different
+   *  person, not a change request against their own — same pattern as
+   *  `caseloads` / `mentorStatuses`. Never keyed by "live". */
+  personProfiles: Record<string, PersonProfile>;
+  /** Staff edits to another person's Active Hours, keyed by person id. Whole
+   *  schedules (the editor commits all of it), fixture default underneath. */
+  personSchedules: Record<string, Schedule>;
   /** The record subject's org role + group memberships — staff-editable on the
    *  Mentorship › Organization card. Single-mentor prototype, so plain fields
    *  rather than per-mentor keyed maps. */
@@ -227,6 +243,11 @@ interface OnboardingState {
   setMentorGroups: (groups: string[]) => void;
   /** Replace the Active Hours schedule (the editor commits the whole thing). */
   setSchedule: (schedule: Schedule) => void;
+  /** Staff edit to another person's profile — MERGES the patch over any
+   *  existing override, so callers send only the field they changed. */
+  setPersonProfile: (personId: string, patch: PersonProfile) => void;
+  /** Staff edit to another person's Active Hours (whole schedule). */
+  setPersonSchedule: (personId: string, schedule: Schedule) => void;
   /** The "You're approved!" CTA — the mentor has entered their live home. */
   markHomeEntered: () => void;
   setHasHydrated: () => void;
@@ -262,6 +283,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       mentorStatuses: {},
       mentorAccepting: {},
       menteeActive: {},
+      personProfiles: {},
+      personSchedules: {},
       mentorRole: "Mentor",
       mentorGroups: ["North Carolina", "New Jersey"],
       schedule: cloneSchedule(DEFAULT_SCHEDULE),
@@ -598,6 +621,18 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           menteeActive: { ...state.menteeActive, [teenId]: active },
         })),
+      setPersonProfile: (personId, patch) =>
+        set((state) => ({
+          personProfiles: {
+            ...state.personProfiles,
+            // Merge, so editing the bio doesn't wipe an earlier interests edit.
+            [personId]: { ...state.personProfiles[personId], ...patch },
+          },
+        })),
+      setPersonSchedule: (personId, schedule) =>
+        set((state) => ({
+          personSchedules: { ...state.personSchedules, [personId]: schedule },
+        })),
       clearMentorStatus: (mentorId) =>
         set((state) => {
           const next = { ...state.mentorStatuses };
@@ -635,6 +670,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           mentorStatuses: {}, // status overrides reset with the mentor
           mentorAccepting: {}, // availability intent resets with the mentor
           menteeActive: {},
+          // Staff edits to other people's records clear too — reset is the dev
+          // "start over", and leaving them would strand edits whose fixture
+          // baseline has just been restored.
+          personProfiles: {},
+          personSchedules: {},
           mentorRole: "Mentor",
           mentorGroups: ["North Carolina", "New Jersey"],
           schedule: cloneSchedule(DEFAULT_SCHEDULE),
@@ -671,7 +711,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v24: schedule (Active Hours) — backfill DEFAULT_SCHEDULE.
       // v25: menteeActive (per-mentee active/inactive override) — sparse map;
       //      backfill {} so a missing key falls back to the fixture's `active`.
-      version: 25,
+      // v26: personProfiles + personSchedules (staff edits to OTHER people's
+      //      teen-facing profile + Active Hours) — sparse maps keyed by person
+      //      id; backfill {} so every field falls back to the people-demo
+      //      fixture until a lead/supervisor actually changes it.
+      version: 26,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -956,6 +1000,24 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.menteeActive = {};
           }
         }
+        if (version < 26) {
+          const st = s as unknown as {
+            personProfiles?: unknown;
+            personSchedules?: unknown;
+          };
+          if (
+            typeof st.personProfiles !== "object" ||
+            st.personProfiles === null
+          ) {
+            st.personProfiles = {};
+          }
+          if (
+            typeof st.personSchedules !== "object" ||
+            st.personSchedules === null
+          ) {
+            st.personSchedules = {};
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -1075,6 +1137,21 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.menteeActive = {};
         }
+        // v26 shape: the person-override maps are always plain objects.
+        if (
+          typeof (merged as { personProfiles?: unknown }).personProfiles !==
+            "object" ||
+          merged.personProfiles === null
+        ) {
+          merged.personProfiles = {};
+        }
+        if (
+          typeof (merged as { personSchedules?: unknown }).personSchedules !==
+            "object" ||
+          merged.personSchedules === null
+        ) {
+          merged.personSchedules = {};
+        }
         return merged;
       },
       // Quota-resilient: if a write exceeds the localStorage limit (or storage
@@ -1130,6 +1207,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         mentorStatuses: state.mentorStatuses,
         mentorAccepting: state.mentorAccepting,
         menteeActive: state.menteeActive,
+        personProfiles: state.personProfiles,
+        personSchedules: state.personSchedules,
         mentorRole: state.mentorRole,
         mentorGroups: state.mentorGroups,
         schedule: state.schedule,

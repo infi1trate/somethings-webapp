@@ -25,9 +25,15 @@ import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
-import { MenteeTable } from "@/components/record/mentee-table";
+import { PersonMentorship } from "@/components/record/person-mentorship";
 import { TeenMentors } from "@/components/record/teen-mentors";
 import { PersonOrganization } from "@/components/record/person-organization";
+import {
+  PersonFirstMomentsSection,
+  PersonProfileSection,
+  PersonScheduleSection,
+  useResolvedProfile,
+} from "@/components/record/person-profile";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordTabsFor } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
@@ -53,6 +59,9 @@ export default function PersonRecordPage({
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
 
   const subject = resolveSubject(id);
+  // Resolved BEFORE the early return below — hooks can't sit after a
+  // conditional exit. An empty id resolves to {} harmlessly.
+  const profile = useResolvedProfile(subject?.id ?? "");
   const isLead = mounted && persona === "lead-mentor";
 
   // Mentor personas have no business on staff record surfaces (same rule as
@@ -97,7 +106,11 @@ export default function PersonRecordPage({
   const joined = subject.teen
     ? `Joined ${relJoined(subject.teen.joinedDaysAgo)}`
     : `Joined ${JOIN_DATE}`;
-  const meta = [subject.pronouns, joined].filter(Boolean).join(" · ");
+  // Pronouns follow the staff-editable override, so changing them on Profile
+  // updates the header rather than leaving two disagreeing values on screen.
+  const meta = [profile.pronouns ?? subject.pronouns, joined]
+    .filter(Boolean)
+    .join(" · ");
 
   const roleLabel = {
     mentor: "Mentor",
@@ -147,10 +160,20 @@ export default function PersonRecordPage({
           (isTeen ? (
             <TeenMentors teenId={subject.id} />
           ) : (
-            <MenteeTable mentorId={subject.id} mentorName={subject.name} />
+            // Was a bare MenteeTable — no caseload, so capacity was readable on
+            // the live record only. Same component set as that record now.
+            <PersonMentorship subject={subject} />
           ))}
         {activeTab === "supervision" && <Supervision subjectId={subject.id} />}
         {activeTab === "organization" && <PersonOrganization subject={subject} />}
+        {/* The teen-facing trio. The registry already gated these to mentor
+            subjects; they rendered NOTHING until now, so a lead opening
+            Profile on one of their mentors got an empty page. */}
+        {activeTab === "profile" && <PersonProfileSection subject={subject} />}
+        {activeTab === "first-moments" && (
+          <PersonFirstMomentsSection subject={subject} />
+        )}
+        {activeTab === "schedule" && <PersonScheduleSection subject={subject} />}
         {activeTab === "account" && <PersonAccount subject={subject} />}
       </UserRecordShell>
     </Shell>

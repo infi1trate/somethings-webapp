@@ -14,6 +14,12 @@
 // person.
 
 import type { MentorLifecycleStatus } from "@/lib/types";
+import {
+  WEEKDAYS,
+  type DaySchedule,
+  type Schedule,
+  type Weekday,
+} from "@/lib/schedule";
 
 /** Who a person IS on the platform. Drives which practice tab their record
  *  has (see lib/record/tabs.ts) and which relationships they carry.
@@ -77,8 +83,12 @@ export interface DemoTeen {
   goesBy?: string;
   phone: string;
   /** Teens are reached by phone in this demo — no email on file, so the
-   *  Contact menu shows Chat / Call / Copy number only. */
+   *  Contact menu shows Chat / Call / Copy number only. Left absent on purpose
+   *  rather than invented: minors reaching a mentor by phone is the real shape
+   *  here, and adding addresses would change the Contact menu everywhere. */
   email?: string;
+  /** For the record header. */
+  pronouns?: string;
   group: string;
   active: boolean;
   /** Days since the teen joined the platform — drives the tenure buckets. */
@@ -117,13 +127,13 @@ export interface DemoTeen {
 // both leads report to supervisor `s-stephen`. The store-backed mentor ("live")
 // also reports to `s-brandy` — matching the Team card the record already shows.
 export const DEMO_MENTORS: DemoMentorRow[] = [
-  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", status: "in-training", capacity: 5, leadId: "s-brandy" },
-  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", status: "active", accepting: true, capacity: 4, leadId: "s-brandy" },
-  { id: "m3", name: "Devon Clark", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", status: "active", accepting: true, capacity: 3, leadId: "s-brandy" },
-  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", status: "active", accepting: false, capacity: 4, leadId: "s-omar" },
+  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", status: "in-training", capacity: 5, leadId: "s-brandy", pronouns: "he/him" },
+  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", status: "active", accepting: true, capacity: 4, leadId: "s-brandy", pronouns: "she/her" },
+  { id: "m3", name: "Devon Clark", goesBy: "Dev", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", status: "active", accepting: true, capacity: 3, leadId: "s-brandy", pronouns: "they/them" },
+  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", status: "active", accepting: false, capacity: 4, leadId: "s-omar", pronouns: "she/her" },
   // m5 intentionally has no email — the Contact menu skips Email/Copy-email.
-  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", status: "paused", capacity: 2, leadId: "s-omar" },
-  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", status: "in-training", capacity: 3, leadId: "s-omar" },
+  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", status: "paused", capacity: 2, leadId: "s-omar", pronouns: "he/him" },
+  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", status: "in-training", capacity: 3, leadId: "s-omar", pronouns: "she/her" },
 ];
 
 /** Staff above the mentors. These existed only as display STRINGS in
@@ -170,40 +180,323 @@ export const DEMO_STAFF: DemoMentorRow[] = [
 /** Every non-teen person, mentors + staff. */
 export const DEMO_PEOPLE: DemoMentorRow[] = [...DEMO_MENTORS, ...DEMO_STAFF];
 
+// ── Teen-facing profile content ─────────────────────────────────────────────
+// TODO-DATA. Field names MIRROR MentorDraft so a fixture mentor's record reads
+// identically to the store-backed one.
+//
+// TEXT ONLY, deliberately. The match-card photo, chat avatar, audio intro, vibe
+// board and story slides are all ASSET-backed on MentorDraft (data URLs the live
+// mentor actually uploaded). There are no real assets for demo people, and
+// inventing binary content would make the record lie about what's on file — so
+// those slots render as honest "Not on file" rows and stay read-only.
+//
+// PROFILE COMPLETENESS TRACKS STATUS. This codebase derives "in-training" FROM
+// an incomplete profile (see the DemoMentorRow.status note), so the two
+// in-training mentors — m1 and m6 — carry deliberately PARTIAL profiles. A
+// fully-filled in-training profile would contradict the status badge on the
+// same screen. The four active/paused mentors are complete.
+export interface PersonProfile {
+  /** Teen-facing display name (MentorDraft.displayName). */
+  displayName?: string;
+  /** Editable here as well as read from DemoMentorRow — a staff edit to
+   *  pronouns has to land somewhere, and the record header reads the resolved
+   *  value (override ?? fixture row). */
+  pronouns?: string;
+  languages?: string[];
+  bio?: string;
+  /** "Title · Artist". The live mentor stores a Spotify URL; a label is what
+   *  the record actually renders, and a fake URL would invite a dead click. */
+  spotifyTrack?: string;
+  /** Interest NAMES only — MentorDraft.InterestEntry pairs each with a photo,
+   *  which is one of the asset fields above. */
+  interests?: string[];
+  /** Canned openers, split the way MentorDraft.firstMessages is. */
+  firstMessages?: { online?: string[]; offline?: string[] };
+}
+
+export const MENTOR_PROFILES: Record<string, PersonProfile> = {
+  // m1 — IN TRAINING: has written a bio and picked languages, hasn't finished
+  // the match-card extras yet. Intentionally incomplete (see note above).
+  m1: {
+    displayName: "John",
+    languages: ["English"],
+    bio: "I coach middle-school basketball on weekends and I'm usually the person friends call when they need help fixing something. Still finding my footing here, but I'm a good listener and I don't rattle easily.",
+  },
+  m2: {
+    displayName: "Maria",
+    languages: ["English", "Spanish"],
+    bio: "I grew up in Newark and I work in a hospital lab, which means I'm calm about blood and terrible at horror movies. I'm happiest cooking for too many people at once. If you want someone who'll actually remember what you told them last week, that's me.",
+    spotifyTrack: "Pa'lla Voy · Marc Anthony",
+    interests: ["Cooking", "Running", "Photography"],
+    firstMessages: {
+      online: [
+        "Hey! I'm Maria — really glad you're here. No pressure to say anything big, I'm around.",
+        "Tell me one thing that went okay this week. Small counts.",
+      ],
+      offline: [
+        "Just got your message — I'm away from my phone but I'll write back tonight.",
+      ],
+    },
+  },
+  m3: {
+    displayName: "Dev",
+    languages: ["English", "ASL"],
+    bio: "I fix bikes, I draw a lot, and I have strong opinions about breakfast. I came to mentoring because someone did it for me at fifteen and it changed the shape of things. I'm easy to talk to and hard to shock.",
+    spotifyTrack: "Motion Sickness · Phoebe Bridgers",
+    interests: ["Cycling", "Drawing", "Music", "Board games"],
+    firstMessages: {
+      online: [
+        "Hi, I'm Dev. Whenever you feel like talking, I'm here — and if you'd rather just send a meme first, that works too.",
+      ],
+      offline: [
+        "I'm offline right now but your message is safe with me. Back tomorrow morning.",
+      ],
+    },
+  },
+  m4: {
+    displayName: "Aisha",
+    languages: ["English", "Yoruba"],
+    bio: "I teach ninth-grade biology, so I've heard every excuse ever invented and I'm still on your side. Outside school I garden badly and read a lot. I believe most things get lighter once you say them out loud to someone.",
+    spotifyTrack: "Essence · Wizkid",
+    interests: ["Gardening", "Reading", "Hiking"],
+    firstMessages: {
+      online: [
+        "Hey, I'm Aisha. You don't owe me a big introduction — start wherever you want.",
+        "What's something you're actually looking forward to?",
+      ],
+      offline: [
+        "I'm with my class right now. I'll get back to you this afternoon.",
+      ],
+    },
+  },
+  m5: {
+    displayName: "Tomás",
+    languages: ["Spanish", "English"],
+    bio: "I'm a carpenter and a very slow guitarist. I have two kids and a dog who thinks he's a third kid. I'm not going to give you advice you didn't ask for — mostly I'm just steady, and I show up when I say I will.",
+    spotifyTrack: "Vivir Mi Vida · Marc Anthony",
+    interests: ["Woodworking", "Guitar", "Fishing"],
+    firstMessages: {
+      online: [
+        "Hola — I'm Tomás. Happy to talk in English or Spanish, whichever feels easier.",
+      ],
+      offline: ["On a job site today. I'll write back this evening."],
+    },
+  },
+  // m6 — IN TRAINING: interests picked, bio not written yet.
+  m6: {
+    displayName: "Priya",
+    languages: ["English", "Hindi", "Malayalam"],
+    interests: ["Baking", "Film", "Swimming"],
+  },
+};
+
+/** A mentor's teen-facing profile, or an empty object when we hold nothing.
+ *  Never returns undefined — callers render per-field empty states. */
+export function profileFor(id: string): PersonProfile {
+  return MENTOR_PROFILES[id] ?? {};
+}
+
+/** Which profile fields we hold for this mentor — drives the record's
+ *  completeness line, and explains the "in-training" badge on the same page. */
+export function profileCompleteness(id: string): {
+  filled: number;
+  total: number;
+} {
+  const p = profileFor(id);
+  const slots = [
+    p.displayName,
+    p.languages?.length,
+    p.bio,
+    p.spotifyTrack,
+    p.interests?.length,
+    p.firstMessages?.online?.length,
+  ];
+  return { filled: slots.filter(Boolean).length, total: slots.length };
+}
+
+// ── Active Hours ────────────────────────────────────────────────────────────
+// TODO-DATA. The store holds ONE schedule (the live mentor's), so fixture
+// mentors carry their own here. Shapes match lib/schedule's Schedule exactly.
+function days(
+  spec: Partial<Record<Weekday, [string, string]>>
+): Record<Weekday, DaySchedule> {
+  return WEEKDAYS.reduce(
+    (acc, d) => {
+      const hours = spec[d];
+      acc[d] = hours
+        ? { enabled: true, from: hours[0], to: hours[1] }
+        : { enabled: false, from: "9:00 AM", to: "5:00 PM" };
+      return acc;
+    },
+    {} as Record<Weekday, DaySchedule>
+  );
+}
+
+export const MENTOR_SCHEDULES: Record<string, Schedule> = {
+  m1: {
+    timezone: "America/Chicago",
+    autoDetect: false,
+    days: days({
+      Tuesday: ["6:00 PM", "9:00 PM"],
+      Thursday: ["6:00 PM", "9:00 PM"],
+      Saturday: ["10:00 AM", "2:00 PM"],
+    }),
+  },
+  m2: {
+    timezone: "America/New_York",
+    autoDetect: false,
+    days: days({
+      Monday: ["7:00 PM", "10:00 PM"],
+      Wednesday: ["7:00 PM", "10:00 PM"],
+      Friday: ["7:00 PM", "10:00 PM"],
+      Sunday: ["1:00 PM", "5:00 PM"],
+    }),
+  },
+  m3: {
+    timezone: "America/Chicago",
+    autoDetect: false,
+    days: days({
+      Monday: ["4:00 PM", "8:00 PM"],
+      Tuesday: ["4:00 PM", "8:00 PM"],
+      Wednesday: ["4:00 PM", "8:00 PM"],
+      Thursday: ["4:00 PM", "8:00 PM"],
+    }),
+  },
+  m4: {
+    timezone: "America/New_York",
+    autoDetect: false,
+    days: days({
+      Monday: ["3:30 PM", "6:00 PM"],
+      Tuesday: ["3:30 PM", "6:00 PM"],
+      Thursday: ["3:30 PM", "6:00 PM"],
+      Saturday: ["9:00 AM", "12:00 PM"],
+    }),
+  },
+  m5: {
+    timezone: "America/New_York",
+    autoDetect: false,
+    days: days({ Saturday: ["11:00 AM", "3:00 PM"], Sunday: ["11:00 AM", "3:00 PM"] }),
+  },
+  m6: {
+    timezone: "America/Chicago",
+    autoDetect: false,
+    days: days({
+      Wednesday: ["5:00 PM", "8:00 PM"],
+      Friday: ["5:00 PM", "8:00 PM"],
+    }),
+  },
+};
+
+/** A mentor's Active Hours, or null when we hold none (staff and teens keep no
+ *  teen-facing schedule). */
+export function scheduleFor(id: string): Schedule | null {
+  return MENTOR_SCHEDULES[id] ?? null;
+}
+
 // t13–t16 are matched to the store-backed mentor ("live") and carry the full
 // relationship detail, so the record's mentee table renders real people instead
 // of the old parallel DemoMentee fixture. Between them they exercise all four
 // recency states: mentor-replied · mentee-wrote · waiting-on-mentor · teen-quiet.
 export const DEMO_TEENS: DemoTeen[] = [
-  { id: "t1", name: "Nick Casparro", phone: "+17078892558", group: "North Carolina", active: true, joinedDaysAgo: 1, mentorId: "m1" },
-  { id: "t2", name: "Patricia Johnson", phone: "+19089101254", group: "New Jersey", active: true, joinedDaysAgo: 4, mentorId: "m2" },
-  { id: "t3", name: "Amy Hashing", phone: "+19089101035", group: "North Carolina", active: true, joinedDaysAgo: 12, mentorId: "m1" },
-  { id: "t4", name: "John Kneeland", phone: "+12158805908", group: "Illinois", active: false, joinedDaysAgo: 40, mentorId: "m3" },
-  { id: "t5", name: "Marcus Lee", goesBy: "Marc", phone: "+13125550210", group: "Illinois", active: true, joinedDaysAgo: 2, mentorId: "m3" },
-  { id: "t6", name: "Sofia Ramos", phone: "+19735550267", group: "New Jersey", active: true, joinedDaysAgo: 25, mentorId: "m2" },
-  { id: "t7", name: "Ethan Park", phone: "+17078893390", group: "North Carolina", active: true, joinedDaysAgo: 6, mentorId: "m4" },
-  { id: "t8", name: "Zoe Bennett", phone: "+19089104412", group: "North Carolina", active: true, joinedDaysAgo: 55, mentorId: "m1" },
-  { id: "t9", name: "Liam Foster", phone: "+19735550318", group: "New Jersey", active: true, joinedDaysAgo: 18, mentorId: "m4" },
-  { id: "t10", name: "Ava Mitchell", phone: "+13125550344", group: "Illinois", active: true, joinedDaysAgo: 3, mentorId: "m5" },
-  { id: "t11", name: "Noah Diaz", phone: "+17078895501", group: "North Carolina", active: true, joinedDaysAgo: 9, mentorId: "m2" },
-  { id: "t12", name: "Mia Chen", phone: "+19089108833", group: "New Jersey", active: true, joinedDaysAgo: 70, mentorId: "m6" },
+  // t1–t12 now carry the SAME relationship detail t13–t16 always had, so every
+  // mentor's mentee table reads like a real caseload instead of blank columns.
+  // Most are quiet-and-fine; the exceptions (t3 waiting, t8 quiet, t9 escalated)
+  // are deliberately few — defaults whisper, exceptions speak.
+  {
+    id: "t1", name: "Nick Casparro", pronouns: "he/him", phone: "+17078892558",
+    group: "North Carolina", active: true, joinedDaysAgo: 1, mentorId: "m1",
+    matchedDaysAgo: 1, mentorLastSentDaysAgo: 0, menteeLastSentDaysAgo: 1,
+    videoCount30d: 0,
+  },
+  {
+    id: "t2", name: "Patricia Johnson", goesBy: "Pat", pronouns: "she/her", phone: "+19089101254",
+    group: "New Jersey", active: true, joinedDaysAgo: 4, mentorId: "m2",
+    matchedDaysAgo: 4, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    videoCount30d: 1,
+  },
+  {
+    // Teen wrote 6d ago and the mentor hasn't replied → waiting-on-mentor.
+    id: "t3", name: "Amy Hashing", pronouns: "she/her", phone: "+19089101035",
+    group: "North Carolina", active: true, joinedDaysAgo: 12, mentorId: "m1",
+    matchedDaysAgo: 12, mentorLastSentDaysAgo: 7, menteeLastSentDaysAgo: 6,
+    videoCount30d: 0,
+  },
+  {
+    id: "t4", name: "John Kneeland", pronouns: "he/him", phone: "+12158805908",
+    group: "Illinois", active: false, joinedDaysAgo: 40, mentorId: "m3",
+    matchedDaysAgo: 40, mentorLastSentDaysAgo: 12, menteeLastSentDaysAgo: 20,
+    videoCount30d: 0,
+    pastMentors: [{ mentorId: "m1", range: "Jan 2025 – Mar 2025" }],
+  },
+  {
+    id: "t5", name: "Marcus Lee", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
+    group: "Illinois", active: true, joinedDaysAgo: 2, mentorId: "m3",
+    matchedDaysAgo: 2, mentorLastSentDaysAgo: 0, menteeLastSentDaysAgo: 0,
+    videoCount30d: 0,
+  },
+  {
+    id: "t6", name: "Sofia Ramos", pronouns: "she/her", phone: "+19735550267",
+    group: "New Jersey", active: true, joinedDaysAgo: 25, mentorId: "m2",
+    matchedDaysAgo: 25, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
+    videoCount30d: 2,
+  },
+  {
+    id: "t7", name: "Ethan Park", pronouns: "he/him", phone: "+17078893390",
+    group: "North Carolina", active: true, joinedDaysAgo: 6, mentorId: "m4",
+    matchedDaysAgo: 6, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
+    videoCount30d: 1,
+  },
+  {
+    // Mentor replied, teen has been quiet 9 days → teen-quiet.
+    id: "t8", name: "Zoe Bennett", pronouns: "she/her", phone: "+19089104412",
+    group: "North Carolina", active: true, joinedDaysAgo: 55, mentorId: "m1",
+    matchedDaysAgo: 55, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 9,
+    videoCount30d: 1,
+  },
+  {
+    id: "t9", name: "Liam Foster", pronouns: "he/him", phone: "+19735550318",
+    group: "New Jersey", active: true, joinedDaysAgo: 18, mentorId: "m4",
+    matchedDaysAgo: 18, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 1,
+    videoCount30d: 3,
+    // Names the observable cause, not a prediction about the teen.
+    escalation: { reason: "Asked about changing schools mid-year", daysAgo: 3 },
+  },
+  {
+    id: "t10", name: "Ava Mitchell", pronouns: "she/her", phone: "+13125550344",
+    group: "Illinois", active: true, joinedDaysAgo: 3, mentorId: "m5",
+    matchedDaysAgo: 3, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    videoCount30d: 0,
+  },
+  {
+    id: "t11", name: "Noah Diaz", pronouns: "he/him", phone: "+17078895501",
+    group: "North Carolina", active: true, joinedDaysAgo: 9, mentorId: "m2",
+    matchedDaysAgo: 9, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 3,
+    videoCount30d: 1,
+  },
+  {
+    id: "t12", name: "Mia Chen", pronouns: "she/her", phone: "+19089108833",
+    group: "New Jersey", active: true, joinedDaysAgo: 70, mentorId: "m6",
+    matchedDaysAgo: 70, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
+    videoCount30d: 4,
+    pastMentors: [{ mentorId: "m4", range: "Dec 2024 – Feb 2025" }],
+  },
 
   // ── The live mentor's mentees ──────────────────────────────────────────
   {
-    id: "t13", name: "Jordan Tate", goesBy: "Jordy", phone: "+19089102201",
+    id: "t13", name: "Jordan Tate", goesBy: "Jordy", pronouns: "they/them", phone: "+19089102201",
     group: "North Carolina", active: true, joinedDaysAgo: 122, mentorId: "live",
     matchedDaysAgo: 122, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
     pastMentors: [{ mentorId: "m5", range: "Feb 2025 – Apr 2025" }],
   },
   {
-    id: "t14", name: "Sam Karim", phone: "+13125550788",
+    id: "t14", name: "Sam Karim", pronouns: "he/him", phone: "+13125550788",
     group: "Illinois", active: true, joinedDaysAgo: 15, mentorId: "live",
     matchedDaysAgo: 15, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 3, // video-comfort: low chat volume may be video, not absence
   },
   {
-    id: "t15", name: "Riley Moss", phone: "+17078894102",
+    id: "t15", name: "Riley Moss", pronouns: "she/her", phone: "+17078894102",
     group: "North Carolina", active: true, joinedDaysAgo: 44, mentorId: "live",
     // Teen wrote 5d ago, mentor hasn't replied → derived waiting-on-mentor.
     matchedDaysAgo: 44, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 5,
@@ -211,7 +504,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     pastMentors: [{ mentorId: "m2", range: "Jun 2025 – Sep 2025" }],
   },
   {
-    id: "t16", name: "Alex Petrov", phone: "+19735550655",
+    id: "t16", name: "Alex Petrov", pronouns: "he/him", phone: "+19735550655",
     group: "New Jersey", active: false, joinedDaysAgo: 92, mentorId: "live",
     // Mentor replied, but the teen has been quiet 9 days → teen-quiet.
     matchedDaysAgo: 92, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 9,

@@ -12,8 +12,13 @@
 //   Custom    — the lead sets total mentee slots by hand with a stepper.
 //     Capacity can't drop below the mentor's current mentees.
 
-import { Minus, Plus } from "lucide-react";
+import { ChevronDown, Minus, Plus } from "lucide-react";
 import { SegmentedControl } from "@/components/record/segmented-control";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useOnboardingStore, type Caseload } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +32,89 @@ const STEP_BTN =
 export function useCaseload(mentorId: string, defaultTotal: number): Caseload {
   const stored = useOnboardingStore((s) => s.caseloads[mentorId]);
   return stored ?? { mode: "automatic", total: defaultTotal };
+}
+
+/** CASELOAD READOUT — "3 of 4 mentees" beside the Mentees heading, pressable
+ *  when the viewer may adjust it.
+ *
+ *  This REPLACES an inline row that carried a segmented control, a stepper and
+ *  a full helper sentence in the card header: three controls' worth of chrome
+ *  permanently on screen to express one number that rarely changes. Now the
+ *  number is the affordance and the machinery appears on demand — the popover
+ *  has room for the helper copy the header never did.
+ *
+ *  A read-only viewer gets the same readout with no press surface: nothing here
+ *  may look pressable without being pressable. */
+export function CaseloadPopover({
+  mentorId,
+  mentorName,
+  currentCount,
+  defaultTotal,
+  editable,
+}: {
+  mentorId: string;
+  mentorName: string;
+  /** Active mentees right now — the floor for custom capacity. */
+  currentCount: number;
+  /** Capacity when no override is stored. */
+  defaultTotal: number;
+  editable: boolean;
+}) {
+  const caseload = useCaseload(mentorId, defaultTotal);
+  const label = `${currentCount} of ${caseload.total} mentees`;
+
+  if (!editable) {
+    return (
+      <p
+        className="text-[var(--text-secondary)] tabular-nums"
+        style={{ font: "var(--type-row-label)" }}
+      >
+        {label}
+      </p>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Caseload: ${label}. Adjust.`}
+          className={cn(
+            // Negative margin so the resting readout sits on the same optical
+            // line as plain text — the hit area grows, the layout doesn't move.
+            "-mx-2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 tabular-nums text-[var(--text-secondary)] transition-colors",
+            "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+          )}
+          style={{ font: "var(--type-row-label)" }}
+        >
+          {label}
+          <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 gap-3 p-4">
+        <div>
+          <p className="font-display text-[14px] font-bold leading-[20px] text-[var(--text-primary)]">
+            Caseload
+          </p>
+          <p
+            className="mt-0.5 text-[var(--text-muted)]"
+            style={{ font: "var(--type-helper)" }}
+          >
+            How many mentees {mentorName} holds at once.
+          </p>
+        </div>
+        {/* Stacked in here — the popover has the width the header didn't. */}
+        <CaseloadControls
+          mentorId={mentorId}
+          currentCount={currentCount}
+          defaultTotal={defaultTotal}
+          className="flex-col items-start gap-3"
+        />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function CaseloadControls({

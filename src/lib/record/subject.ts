@@ -86,6 +86,7 @@ export function resolveSubject(id: string): Subject | null {
       phone: teen.phone,
       email: teen.email,
       group: teen.group,
+      pronouns: teen.pronouns,
       teen,
     };
   }
