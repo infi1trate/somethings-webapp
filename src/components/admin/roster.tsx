@@ -26,7 +26,6 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { useMounted } from "@/lib/use-mounted";
 import {
   DEMO_MENTORS,
   DEMO_TEENS,
@@ -54,7 +53,6 @@ import {
 import {
   availabilityFor,
   availabilityRank,
-  liveLifecycle,
   STATUS_ORDER,
   STATUS_LABELS,
   statusRank,
@@ -62,6 +60,7 @@ import {
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { recordHrefFor } from "@/lib/record/subject";
+import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
 import { ReviewQueues } from "@/components/admin/review-queues";
 
 export type RosterSegment = "teens" | "mentors";
@@ -96,14 +95,9 @@ export function Roster({
   segment: RosterSegment;
   showQueues: boolean;
 }) {
-  const mounted = useMounted();
-  const status = useOnboardingStore((s) => s.status);
-  const draft = useOnboardingStore((s) => s.draft);
-  const slots = useOnboardingStore((s) => s.slots);
   const caseloads = useOnboardingStore((s) => s.caseloads);
-  // Live mentor lifecycle is derived from these existing axes (see liveLifecycle).
-  const accountStatus = useOnboardingStore((s) => s.accountStatus);
-  const profileHidden = useOnboardingStore((s) => s.profileHidden);
+  // The live mentor's name/status/capacity/groups now come from
+  // useLiveMentorRow, so this component no longer reads those store axes itself.
   // Manual status overrides (staff toggle) win over fixture/derived status.
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
@@ -127,10 +121,8 @@ export function Roster({
   // mentee set (mentees-demo); keeps render pure.
   const [now] = useState(() => Date.now());
 
-  const liveName =
-    [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
-    "Jordan Rivera";
-  const needsReview = mounted && status === "in_review";
+  // The store-backed mentor as a directory row — shared with the Team table.
+  const liveRow = useLiveMentorRow();
 
   const heading = isMentors ? "Mentors" : "Teens";
   const q = search.trim().toLowerCase();
@@ -167,30 +159,11 @@ export function Roster({
     }));
     // The store-backed live mentor (the one with real review flows) renders
     // for BOTH staff roles — the lead manages them (role migration), the
-    // supervisor retains view/edit. Both rows open the record.
-    if (mounted && draft.firstName) {
-      rows.unshift({
-        id: "live",
-        name: liveName,
-        goesBy:
-          draft.displayName.trim() &&
-          draft.displayName.trim() !== draft.firstName.trim()
-            ? draft.displayName.trim()
-            : undefined,
-        phone: draft.phone || "+1 (415) 555-0188",
-        email: draft.email || undefined,
-        group: "California",
-        // Lifecycle derived from the store's existing axes; no "accepting" flag
-        // exists on the store yet, so the live mentor defaults to accepting.
-        status: liveLifecycle(status, accountStatus, profileHidden),
-        accepting: true,
-        capacity: slots.total,
-        recordHref: recordHrefFor("live"),
-        highlight: needsReview,
-      });
-    }
+    // supervisor retains view/edit. Built by the SHARED hook so this table and
+    // the Team directory can't disagree about whether they exist.
+    if (liveRow) rows.unshift(liveRow);
     return rows;
-  }, [isLead, mounted, draft.firstName, draft.displayName, draft.phone, draft.email, liveName, status, accountStatus, profileHidden, needsReview, slots.total]);
+  }, [isLead, liveRow]);
 
   // ── Caseload (lead view) — current mentees + capacity per mentor ───────────
   // The live mentor's mentee set is the record's (mentees-demo) so counts match
@@ -449,7 +422,7 @@ export function Roster({
 
 // ── Rows ──────────────────────────────────────────────────────────────────────
 
-function SortHead({
+export function SortHead({
   label,
   k,
   sortKey,
@@ -599,7 +572,7 @@ function TeenRowView({ teen }: { teen: DemoTeen }) {
   );
 }
 
-function NameCell({
+export function NameCell({
   name,
   goesBy,
   recordHref,

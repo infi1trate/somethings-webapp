@@ -60,7 +60,12 @@ import { PillButton } from "@/components/settings/pill-button";
 import {
   ChangesRequestedChip,
   InReviewChip,
+  saveGatedWithToasts,
 } from "@/components/profile-editor/update-review-bits";
+// The shared First-moments row set — same component every other mentor record
+// renders, so this record can't drift into its own paradigm again.
+import { FirstMomentsRows } from "@/components/record/person-profile";
+import { clientId } from "@/lib/files";
 import { changeProgress } from "@/lib/onboarding/change-requests";
 import { changesetSummary } from "@/lib/onboarding/profile-update";
 import { Button } from "@/components/ui/button";
@@ -124,6 +129,7 @@ import {
 } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
+import { firstMomentStory } from "@/lib/types";
 import type { MentorDraft, ProfileUpdate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -807,18 +813,43 @@ export default function MentorRecordPage({
           slot={slot}
           helper={
             fmEditable
-              ? "Edit the first messages and the story directly."
+              ? "Sent in chat the first time a teen opens the conversation. One message per line."
               : "Edits route through review"
           }
         >
           {fmEditable ? (
-            // Lead: inline staff editors (can add content even when empty).
+            // SAME row set as every other mentor's record (person-profile.tsx).
+            // This used to mount StaffProfileFields, which renders the mentor's
+            // own accordion editor — an Online/Offline segmented control plus an
+            // "Add message" list builder — so this one record behaved unlike the
+            // other six. Staff now read and edit the same two lanes everywhere;
+            // the mentor's own self-view keeps the richer editor.
             <div className={CARD_ROWS}>
-              <StaffProfileFields
-                sections={fmSections}
-                live={live}
-                activity={activity}
-                staffActor={staffActor}
+              <FirstMomentsRows
+                online={live.firstMessages.online.map((m) => m.text)}
+                offline={live.firstMessages.offline.map((m) => m.text)}
+                editable
+                chip={changesetChip(profileUpdate, "firstMessages")}
+                story={
+                  firstMomentStory(live.stories).slides.length
+                    ? `${firstMomentStory(live.stories).slides.length} slides`
+                    : ""
+                }
+                storyHint="Story slides are uploads, added by the mentor during onboarding."
+                onSaveLane={(lane, lines) => {
+                  // Preserve each message's existing id so the changeset diffs
+                  // against the same entities instead of looking fully rewritten.
+                  const prev = live.firstMessages[lane];
+                  saveGatedWithToasts({
+                    firstMessages: {
+                      ...live.firstMessages,
+                      [lane]: lines.map((text, i) => ({
+                        id: prev[i]?.id ?? clientId("fm"),
+                        text,
+                      })),
+                    },
+                  });
+                }}
               />
             </div>
           ) : fmEmpty ? (
@@ -1070,14 +1101,14 @@ export default function MentorRecordPage({
   return (
     <StaffShell lead={isLead}>
       <div ref={containerRef} className="px-6 py-6 lg:px-10">
-        {/* Back link — persona-aware: the lead returns to their mentors list,
-            the supervisor to the console directory. */}
+        {/* Back link — both staff roles return to Team, the one staff
+            directory (the supervisor's separate Users surface is retired). */}
         <Link
-          href={isLead ? "/app/team" : "/admin/users"}
+          href="/app/team"
           className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          {isLead ? "Mentors" : "Users"}
+          Team
         </Link>
 
         {/* ── Identity header (Prompt 3 lockup): one horizontal unit — 56px

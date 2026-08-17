@@ -40,7 +40,10 @@ const NAV: SidebarItemDef[] = [
 ];
 
 const HREFS: Record<string, string> = {
-  teens: "/admin/users?segment=teens",
+  // The supervisor's Teens list is the shared /app/teens route (already
+  // supervisor-aware: it renders the full roster for this persona). The old
+  // /admin/users?segment=teens surface is retired.
+  teens: "/app/teens",
   // Team is the shared staff directory (it replaced the Mentors roster) and
   // lives on the app route for every persona — the supervisor just sees it
   // inside this console's chrome.

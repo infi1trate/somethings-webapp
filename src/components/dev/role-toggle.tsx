@@ -80,8 +80,7 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
     key: "lead-mentor",
     label: "Lead Mentor",
     // Role migration: the Lead Mentor manages mentors — land on their
-    // management home (the mentors roster + review queues), parallel to the
-    // Supervisor's /admin/users.
+    // management home: Team (the staff directory + review queues).
     go: () => enterPersona("lead-mentor", "/app/team"),
   },
   // Supervisor replaces Admin: same console destination, unchanged review
@@ -89,7 +88,8 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
   {
     key: "supervisor",
     label: "Supervisor",
-    go: () => enterPersona("supervisor", "/admin/users"),
+    // Team, not the retired /admin/users — a supervisor's staff directory.
+    go: () => enterPersona("supervisor", "/app/team"),
   },
 ];
 

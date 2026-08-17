@@ -69,6 +69,7 @@ function TextRow({
   label,
   display,
   hint,
+  chip,
   editable,
   initial,
   multiline,
@@ -79,6 +80,8 @@ function TextRow({
   /** Read-state rendering (may differ from the edit-buffer text). */
   display: React.ReactNode;
   hint?: string;
+  /** Review-state chip (trailing) — the live mentor's gated fields use it. */
+  chip?: React.ReactNode;
   editable: boolean;
   /** Edit-buffer seed. */
   initial: string;
@@ -104,6 +107,7 @@ function TextRow({
       label={label}
       value={displayOrEmpty(display)}
       hint={hint}
+      chip={chip}
       state={state}
       locked={!editable}
       onEditStart={start}
@@ -231,6 +235,90 @@ export function PersonProfileSection({
 
 // ── First moments ───────────────────────────────────────────────────────────
 
+/** THE First-moments row set for a mentor RECORD — shared by every mentor,
+ *  including the store-backed one.
+ *
+ *  The live mentor's record used to mount the MENTOR'S OWN editor here (the
+ *  accordion with an Online/Offline segmented control and an "Add message"
+ *  list builder), so one mentor's record behaved unlike the other six. Staff
+ *  read and edit the same two lanes on every record now; the mentor's own
+ *  self-view keeps its richer editor, which is a different surface with its
+ *  own review semantics.
+ *
+ *  Lanes are plain string arrays here. Callers own the write: a fixture person
+ *  patches `personProfiles`, the live mentor goes through the gated changeset. */
+export function FirstMomentsRows({
+  online,
+  offline,
+  editable,
+  onSaveLane,
+  story,
+  storyHint,
+  chip,
+}: {
+  online: string[];
+  offline: string[];
+  editable: boolean;
+  onSaveLane: (lane: "online" | "offline", lines: string[]) => void;
+  /** Read-state for the Story row. Story slides are uploaded images. */
+  story?: React.ReactNode;
+  storyHint?: string;
+  /** Review-state chip. One gated field covers BOTH lanes, so it shows on both
+   *  rather than implying only one is in review. */
+  chip?: React.ReactNode;
+}) {
+  const count = (a: string[]) =>
+    a.length ? `${a.length} message${a.length > 1 ? "s" : ""}` : "";
+  return (
+    <>
+      <TextRow
+        label="When they're around"
+        display={count(online)}
+        hint={online[0]}
+        chip={chip}
+        editable={editable}
+        initial={formatLines(online)}
+        multiline
+        placeholder="Hey! I'm glad you're here."
+        onCommit={(raw) => onSaveLane("online", parseLines(raw))}
+      />
+      <TextRow
+        label="When they're away"
+        display={count(offline)}
+        hint={offline[0]}
+        chip={chip}
+        editable={editable}
+        initial={formatLines(offline)}
+        multiline
+        placeholder="I'm offline right now — back tomorrow."
+        onCommit={(raw) => onSaveLane("offline", parseLines(raw))}
+      />
+      <RecordRow
+        label="Story"
+        value={displayOrEmpty(story ?? "")}
+        hint={storyHint ?? "Story slides are uploads. None are on file for this profile."}
+        state="read"
+        locked
+        onEditStart={() => {}}
+        onCancel={() => {}}
+      />
+    </>
+  );
+}
+
+/** The heading + copy above the rows, shared so both records read identically. */
+export function FirstMomentsHeader() {
+  return (
+    <>
+      <h2 className={H}>First messages</h2>
+      <p className="mt-1 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
+        Sent in chat the first time a teen opens the conversation. One message
+        per line.
+      </p>
+    </>
+  );
+}
+
 export function PersonFirstMomentsSection({
   subject,
 }: {
@@ -251,39 +339,14 @@ export function PersonFirstMomentsSection({
 
   return (
     <section aria-label="First moments" data-record-section="first-moments">
-      <h2 className={H}>First messages</h2>
-      <p className="mt-1 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-        Sent in chat the first time a teen opens the conversation. One message
-        per line.
-      </p>
+      <FirstMomentsHeader />
       <div className={`mt-3 ${CARD}`}>
-        <TextRow
-          label="When they're around"
-          display={
-            fm.online?.length ? `${fm.online.length} message${fm.online.length > 1 ? "s" : ""}` : ""
-          }
-          hint={fm.online?.[0]}
+        <FirstMomentsRows
+          online={fm.online ?? []}
+          offline={fm.offline ?? []}
           editable={editable}
-          initial={formatLines(fm.online)}
-          multiline
-          placeholder="Hey! I'm glad you're here."
-          onCommit={(raw) => setLane("online", parseLines(raw))}
+          onSaveLane={setLane}
         />
-        <TextRow
-          label="When they're away"
-          display={
-            fm.offline?.length
-              ? `${fm.offline.length} message${fm.offline.length > 1 ? "s" : ""}`
-              : ""
-          }
-          hint={fm.offline?.[0]}
-          editable={editable}
-          initial={formatLines(fm.offline)}
-          multiline
-          placeholder="I'm offline right now — back tomorrow."
-          onCommit={(raw) => setLane("offline", parseLines(raw))}
-        />
-        <AssetsRow label="Story" items="Story slides" />
       </div>
     </section>
   );

@@ -1,30 +1,21 @@
-"use client";
+// RETIRED — the supervisor "Users" surface is gone.
+//
+// It was a second directory of the same people Team already lists: the mentors
+// segment duplicated Team's staff table, and the teens segment duplicated
+// /app/teens (which is already supervisor-aware). Team became a table so it
+// covers what this page did.
+//
+// Kept as a REDIRECT rather than deleted — the URL is bookmarked, and a 404 on
+// a route that worked yesterday is worse than a hop. `?segment=teens` keeps its
+// meaning and lands on Teens; anything else goes to Team.
 
-// Supervisor roster — split into Teens / Mentors segments (nav restructure).
-// Thin wrapper: read the segment from the URL and render the shared Roster in
-// the console shell. The review queues belong to the Mentors segment (the
-// supervisor's review actions). Next 16 note (invariant 5): the
-// use(searchParams) prop pattern — no useSearchParams, no page-root Suspense.
+import { redirect } from "next/navigation";
 
-import { use } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { Roster, type RosterSegment } from "@/components/admin/roster";
-
-export default function AdminUsersPage({
+export default async function AdminUsersPage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const query = use(searchParams);
-  // Default to mentors — the review-centric view, and where the record/review
-  // "back to users" links land.
-  const segment: RosterSegment = query.segment === "teens" ? "teens" : "mentors";
-
-  return (
-    <AdminShell active={segment}>
-      {/* Role migration: the review queues moved to the Lead Mentor's
-          /app/mentors — the supervisor roster is a plain directory. */}
-      <Roster role="supervisor" segment={segment} showQueues={false} />
-    </AdminShell>
-  );
+  const query = await searchParams;
+  redirect(query.segment === "teens" ? "/app/teens" : "/app/team");
 }
