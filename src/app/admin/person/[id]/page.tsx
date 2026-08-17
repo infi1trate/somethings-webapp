@@ -37,8 +37,8 @@ import {
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordTabsFor } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
-import { resolveSubject } from "@/lib/record/subject";
-import { relJoined } from "@/lib/record/people-demo";
+import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
+import { relJoined, teensForMentor } from "@/lib/record/people-demo";
 import { JOIN_DATE } from "@/components/record/organization";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
@@ -64,20 +64,30 @@ export default function PersonRecordPage({
   const profile = useResolvedProfile(subject?.id ?? "");
   const isLead = mounted && persona === "lead-mentor";
 
-  // Mentor personas have no business on staff record surfaces (same rule as
-  // /admin/mentor).
+  // A mentor persona has no business on STAFF record surfaces — but their own
+  // mentee's record is legitimately theirs to open. This guard used to bounce
+  // every mentor to /app/profile, so pressing a teen row on Teens landed the
+  // mentor on their OWN self-view (the reported bug): the row's href was always
+  // right, this redirect overrode it.
   const mentorish = persona === "mentor" || persona === "new-mentor";
+  const ownMentee =
+    subject?.role === "teen" &&
+    teensForMentor(LIVE_ID).some((t) => t.id === subject.id);
+  // Scoped, not blanket: a mentor may open a teen they hold the match with, and
+  // nobody else — not another mentor's teen, not a staff record.
+  const bounceMentor = mentorish && !ownMentee;
   useEffect(() => {
-    if (mounted && mentorish) router.replace("/app/profile");
-  }, [mounted, mentorish, router]);
+    if (mounted && bounceMentor) router.replace("/app/profile");
+  }, [mounted, bounceMentor, router]);
 
-  const Shell = isLead ? MentorShell : AdminShell;
+  // Mentor + lead both live in the app chrome; the supervisor has the console.
+  const Shell = isLead || mentorish ? MentorShell : AdminShell;
 
   if (!subject || subject.kind === "live") {
     // "live" has its own deep record; anything unknown is a genuine 404.
     if (subject?.kind === "live") router.replace("/admin/mentor");
     return (
-      <Shell active="mentors">
+      <Shell active={mentorish ? "teens" : "mentors"}>
         <div className="px-6 py-6 lg:px-10">
           <p className="text-[15px] text-[var(--text-secondary)]">
             {subject ? "Taking you to that record…" : "We couldn't find that person."}
@@ -121,7 +131,7 @@ export default function PersonRecordPage({
   }[subject.role];
 
   return (
-    <Shell active={isTeen ? "teens" : "mentors"}>
+    <Shell active={isTeen ? "teens" : "team"}>
       <UserRecordShell
         avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
         name={subject.goesBy ?? subject.name}
@@ -132,7 +142,9 @@ export default function PersonRecordPage({
         meta={meta}
         backLink={{
           href: isTeen ? "/app/teens" : "/app/team",
-          label: isTeen ? "Teens" : "Mentors",
+          // "Team" — the destination is the staff directory; "Mentors" was left
+          // over from the roster it replaced.
+          label: isTeen ? "Teens" : "Team",
         }}
         primaryAction={
           <PillButton
@@ -201,10 +213,11 @@ function PersonOverview({
           </h2>
           {statusBadge}
         </div>
+        {/* One template string, not `{roleLabel} text` — that adjacency was
+            rendering as "Teenon the platform" (two text nodes, no space between
+            them). Interpolating the whole sentence can't lose the space. */}
         <p className="mt-2 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          {roleLabel} on the platform. Performance history for this person
-          isn&rsquo;t connected yet &mdash; the tabs above carry what we hold
-          today.
+          {`${roleLabel} on the platform. Performance history for this person isn’t connected yet — the tabs above carry what we hold today.`}
         </p>
       </div>
     </section>
