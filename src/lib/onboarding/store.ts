@@ -27,7 +27,11 @@ import {
   PROFILE_SECTIONS,
   normForCompare,
 } from "@/lib/onboarding/profile-sections";
-import { isGatedField, cloneValue } from "@/lib/onboarding/profile-update";
+import {
+  isGatedField,
+  isImmediateTeenFacingField,
+  cloneValue,
+} from "@/lib/onboarding/profile-update";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
 
 // A persisted-shape copy of the draft (no password, no volatile blob url) — the
@@ -363,6 +367,39 @@ export const useOnboardingStore = create<OnboardingState>()(
           const snap = state.publishedSnapshot;
           if (!snap) return { draft }; // pre-publish: plain write
           const now = Date.now();
+
+          // ── Immediate teen-facing keys (first moments) ────────────────────
+          // These are NOT gated, so they never enter the changeset. But the
+          // record and the phone preview read `publishedSnapshot ?? draft`, so
+          // writing only the draft would leave staff looking at the OLD value
+          // forever. Move the snapshot too, and log ONE activity entry so the
+          // change stays auditable without asking anyone to approve it.
+          const immediateKeys = Object.keys(patch).filter(
+            isImmediateTeenFacingField
+          );
+          const immediate: Partial<OnboardingState> = {};
+          if (immediateKeys.length > 0) {
+            immediate.publishedSnapshot = {
+              ...snap,
+              ...Object.fromEntries(
+                immediateKeys.map((k) => [
+                  k,
+                  (draft as unknown as Record<string, unknown>)[k],
+                ])
+              ),
+            } as typeof snap;
+            immediate.activity = [
+              {
+                id: `act-${now}`,
+                type: "profile_update_live" as const,
+                fieldIds: immediateKeys,
+                createdAt: now,
+                read: false,
+              },
+              ...state.activity,
+            ];
+          }
+
           const prior = state.profileUpdate;
           let fields = prior ? [...prior.fields] : [];
           let touched = false;
@@ -406,7 +443,8 @@ export const useOnboardingStore = create<OnboardingState>()(
               touched = true;
             }
           }
-          if (fields.length === 0) return { draft, profileUpdate: null };
+          if (fields.length === 0)
+            return { draft, profileUpdate: null, ...immediate };
           const status =
             touched || !prior
               ? ("pending" as const) // new/resubmitted work → back in the queue
@@ -420,6 +458,7 @@ export const useOnboardingStore = create<OnboardingState>()(
               updatedAt: now,
               fields,
             },
+            ...immediate,
           };
         }),
 
@@ -715,7 +754,13 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      teen-facing profile + Active Hours) — sparse maps keyed by person
       //      id; backfill {} so every field falls back to the people-demo
       //      fixture until a lead/supervisor actually changes it.
-      version: 26,
+      // v27: first moments UNGATED. Any open changeset may still hold
+      //      firstMessages/stories entries that no longer have a review path —
+      //      they'd be stuck in a queue nothing can approve. APPLY them (the
+      //      draft already holds the proposed value, so publishing is just
+      //      snapshotting it — same reasoning as approveProfileUpdate), drop the
+      //      entries, and clear the changeset when nothing gated remains.
+      version: 27,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1018,6 +1063,33 @@ export const useOnboardingStore = create<OnboardingState>()(
             st.personSchedules = {};
           }
         }
+        if (version < 27) {
+          // Release first-moments fields from any open changeset, publishing
+          // the mentor's proposed value rather than discarding their work.
+          const st = s as unknown as {
+            profileUpdate?: ProfileUpdate | null;
+            draft?: Record<string, unknown>;
+            publishedSnapshot?: Record<string, unknown> | null;
+          };
+          const u = st.profileUpdate;
+          if (u && Array.isArray(u.fields)) {
+            const releasing = u.fields.filter((f) =>
+              isImmediateTeenFacingField(f.fieldId)
+            );
+            if (releasing.length > 0) {
+              // The draft holds the proposed value — snapshotting it publishes.
+              if (st.publishedSnapshot && st.draft) {
+                for (const f of releasing) {
+                  st.publishedSnapshot[f.fieldId] = st.draft[f.fieldId];
+                }
+              }
+              const rest = u.fields.filter(
+                (f) => !isImmediateTeenFacingField(f.fieldId)
+              );
+              st.profileUpdate = rest.length > 0 ? { ...u, fields: rest } : null;
+            }
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -1151,6 +1223,22 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.personSchedules === null
         ) {
           merged.personSchedules = {};
+        }
+        // v27 invariant: NO ungated field may sit in the changeset. Such an
+        // entry is unreachable — no surface can approve it — so it would pin a
+        // "Profile updates" queue item forever. Idempotent, so it also repairs a
+        // store stamped v27 whose migrate didn't run (the rehydrate/write race
+        // this merge exists for).
+        if (merged.profileUpdate) {
+          const keep = merged.profileUpdate.fields.filter(
+            (f) => !isImmediateTeenFacingField(f.fieldId)
+          );
+          if (keep.length !== merged.profileUpdate.fields.length) {
+            merged.profileUpdate =
+              keep.length > 0
+                ? { ...merged.profileUpdate, fields: keep }
+                : null;
+          }
         }
         return merged;
       },

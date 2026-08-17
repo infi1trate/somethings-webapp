@@ -1,10 +1,19 @@
 // Profile Update Review — field taxonomy + helpers (spec §2/§3).
-// Rule of thumb: teen-visible ⇒ gated (hold-until-approved via the changeset).
+// Rule of thumb: teen-visible ⇒ gated (hold-until-approved via the changeset),
+// with ONE deliberate exception — see FIRST MOMENTS below.
 // Interpretation notes (logged in design-system-gaps.md):
 //  • BOTH teen-visible photos are gated: matchCardPhoto (renders in the phone
 //    preview) and accountPhoto (the chat avatar — product-confirmed teen-facing).
-//  • First-moments fields are absent from the spec's table but are teen-visible
-//    reviewed content — gated, same changeset (one model, no parallel loops).
+//  • FIRST MOMENTS ARE NOT GATED (product decision). `firstMessages` and
+//    `stories` used to sit in this list, which meant a mentor's opening messages
+//    waited on a Lead Mentor's approval and the lead got a queue entry asking
+//    for it. A mentor may now change their own first moments whenever they like
+//    and it is live on save. Staff keep oversight two ways that don't block the
+//    mentor: the change lands in the record's activity trail, and a lead or
+//    supervisor can edit these fields directly on the record. Removing them from
+//    here is the ENTIRE mechanism — `saveGatedFields` only enqueues gated keys,
+//    and both review surfaces (the Profile-updates queue and the Team nav badge)
+//    key off `profileUpdate !== null`.
 //  • First/Last name are ACCOUNT IDENTITY (§9 v1.1) — locked post-approval,
 //    never teen-visible; the teen-facing name is the gated displayName.
 
@@ -37,10 +46,29 @@ export const GATED_FIELDS: GatedFieldMeta[] = [
   { fieldId: "media", label: "Audio intro", noun: "audio intro", surface: "profile" },
   { fieldId: "vibe", label: "My vibe", noun: "vibe photos", surface: "profile" },
   { fieldId: "interests", label: "Interests", noun: "interests", surface: "profile" },
-  // First moments tab (taxonomy gap — see header note)
-  { fieldId: "firstMessages", label: "First messages", noun: "first messages", surface: "first-moments" },
-  { fieldId: "stories", label: "Story", noun: "story", surface: "first-moments" },
+  // NOTHING from the First moments tab — `firstMessages` and `stories` publish
+  // immediately (see the FIRST MOMENTS note in the header). The "first-moments"
+  // value stays on GatedFieldMeta["surface"] because it still names a real
+  // surface in the taxonomy; it simply has no gated members.
 ];
+
+/** Teen-facing fields that publish IMMEDIATELY — no changeset, but the snapshot
+ *  the record and teens read from still has to move, or "immediate" is a lie on
+ *  the one screen staff actually look at (`publishedSnapshot ?? draft`). Kept
+ *  beside GATED_FIELDS so the two lists are read together and a field can't
+ *  silently belong to neither. */
+export const IMMEDIATE_TEEN_FACING_FIELDS: (keyof MentorDraft & string)[] = [
+  "firstMessages",
+  "stories",
+];
+
+const IMMEDIATE_IDS = new Set<string>(IMMEDIATE_TEEN_FACING_FIELDS);
+
+/** True when a save to this field should write the published snapshot straight
+ *  away (and log an activity entry) instead of enqueuing a review changeset. */
+export function isImmediateTeenFacingField(fieldId: string): boolean {
+  return IMMEDIATE_IDS.has(fieldId);
+}
 
 const GATED_IDS = new Set<string>(GATED_FIELDS.map((f) => f.fieldId));
 

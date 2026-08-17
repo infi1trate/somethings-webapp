@@ -1,13 +1,25 @@
 "use client";
 
-// The First moments tab (§3 rev, Phase 5b) under PROFILE UPDATE REVIEW: what
-// a teen gets the first time they open the mentor's chat. Hosts the sections
-// MOVED from Matching profile — the same Phase-3 components (FirstMessagesEditor,
-// StorySlidesEditor from matching-extensions.tsx) — plus the live chat preview.
-// Gated edits enqueue into the one open profileUpdate changeset on save — no
-// submit CTA, no editing lock (§1.6). Section chips + notes mirror Matching.
+// The First moments tab (§3 rev, Phase 5b): what a teen gets the first time they
+// open the mentor's chat. Hosts the sections MOVED from Matching profile — the
+// same Phase-3 components (FirstMessagesEditor, StorySlidesEditor from
+// matching-extensions.tsx) — plus the live chat preview.
+//
+// NO REVIEW CYCLE (product decision). These two fields are no longer in
+// GATED_FIELDS, so a save is LIVE IMMEDIATELY: nothing enqueues into the
+// changeset, no lead is asked to approve it, and no queue item or nav badge
+// appears. All the review chrome this tab used to carry — the notes banner,
+// In review / Changes requested chips, the reviewer's note callout, the pending
+// helper line and Discard change — is GONE rather than left unreachable: with
+// the fields ungated none of it can ever fire, and dead affordances read as
+// bugs. The gated Profile tab keeps all of it.
+//
+// Staff oversight didn't disappear, it moved off the mentor's critical path: the
+// save logs a `profile_update_live` activity entry (the record's audit trail),
+// and a lead or supervisor can edit these fields directly on the record.
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { SectionCard } from "@/components/settings/section-card";
 import {
   FirstMessagesEditor,
@@ -16,37 +28,38 @@ import {
 import { FirstChatPreview } from "@/components/profile-editor/first-chat-preview";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { sectionsForTab } from "@/lib/onboarding/profile-sections";
-import {
-  ChangesBanner,
-  ChangesRequestedChip,
-  DiscardChange,
-  InReviewChip,
-  ReviewNoteCallout,
-  pendingHelper,
-  saveGatedWithToasts,
-} from "@/components/profile-editor/update-review-bits";
 import { firstMomentStory } from "@/lib/types";
-import type { StorySlide } from "@/lib/types";
+import type { MentorDraft, StorySlide } from "@/lib/types";
 
 const HELPER_BY_KEY: Record<string, string> = {
   "first-messages":
-    "Sent automatically when a teen opens your chat for the first time.",
-  "first-moment-story": "Up to 6 images — no captions needed.",
+    "Sent automatically when a teen opens your chat for the first time. Changes go live right away.",
+  "first-moment-story": "Up to 6 images — no captions needed. Changes go live right away.",
 };
 
 const FM_SECTIONS = sectionsForTab("first-moments");
 
 export function FirstMomentsEditor() {
   const draft = useOnboardingStore((s) => s.draft);
-  const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
+  const publishedSnapshot = useOnboardingStore((s) => s.publishedSnapshot);
+  const saveGatedFields = useOnboardingStore((s) => s.saveGatedFields);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  // One save path for this tab. `saveGatedFields` still owns the write (it also
+  // moves the published snapshot for these fields, so the record and teens see
+  // the change at once) — this only adds the confirmation the review toasts used
+  // to give. Pre-publish there is nothing live yet, so the copy stays neutral.
+  const publishNow = (patch: Partial<MentorDraft>) => {
+    saveGatedFields(patch);
+    toast(publishedSnapshot ? "Saved — teens see this now." : "Saved.");
+  };
 
   // LIBRARY-READY write path: today exactly one 'first-moment' story exists;
   // writes update that entry inside stories[] so future types slot in.
   const setSlides = (slides: StorySlide[]) => {
     const story = firstMomentStory(draft.stories);
     const rest = draft.stories.filter((s) => s.type !== "first-moment");
-    saveGatedWithToasts({ stories: [...rest, { ...story, slides }] });
+    publishNow({ stories: [...rest, { ...story, slides }] });
   };
 
   const editorFor = (key: string) => {
@@ -55,7 +68,7 @@ export function FirstMomentsEditor() {
         return (
           <FirstMessagesEditor
             value={draft.firstMessages}
-            onChange={(v) => saveGatedWithToasts({ firstMessages: v })}
+            onChange={(v) => publishNow({ firstMessages: v })}
           />
         );
       case "first-moment-story":
@@ -72,65 +85,24 @@ export function FirstMomentsEditor() {
 
   return (
     <div className="pb-16">
-      {/* Notes-left banner (§4.2) — scrolls to the first flagged section. */}
-      <ChangesBanner />
-
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_392px]">
         <div className="min-w-0 space-y-[var(--card-gap)]">
-          {FM_SECTIONS.map((section) => {
-            const pu = profileUpdate?.fields.find(
-              (f) => f.fieldId === section.fieldKey
-            );
-            const puFlagged = pu?.fieldStatus === "changes-requested";
-            return (
-              <div
-                key={section.step}
-                {...(puFlagged
-                  ? { "data-flagged-field": section.fieldKey }
-                  : {})}
-              >
-                <SectionCard
-                  title={section.label}
-                  status={section.summary(draft)}
-                  flagged={puFlagged}
-                  chip={
-                    pu ? (
-                      puFlagged ? (
-                        <ChangesRequestedChip />
-                      ) : (
-                        <InReviewChip />
-                      )
-                    ) : undefined
-                  }
-                  notice={
-                    pu ? (
-                      puFlagged && pu.adminNote ? (
-                        <ReviewNoteCallout note={pu.adminNote} />
-                      ) : (
-                        <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-                          {pendingHelper(section.fieldKey)}
-                        </p>
-                      )
-                    ) : undefined
-                  }
-                  expanded={openId === section.step}
-                  onToggle={() =>
-                    setOpenId((o) => (o === section.step ? null : section.step))
-                  }
-                >
-                  <p className="mb-4 text-xs leading-relaxed text-[var(--text-secondary)]">
-                    {HELPER_BY_KEY[section.step] ?? ""}
-                  </p>
-                  {editorFor(section.step)}
-                  {pu && (
-                    <div className="mt-4">
-                      <DiscardChange fieldId={section.fieldKey} />
-                    </div>
-                  )}
-                </SectionCard>
-              </div>
-            );
-          })}
+          {FM_SECTIONS.map((section) => (
+            <SectionCard
+              key={section.step}
+              title={section.label}
+              status={section.summary(draft)}
+              expanded={openId === section.step}
+              onToggle={() =>
+                setOpenId((o) => (o === section.step ? null : section.step))
+              }
+            >
+              <p className="mb-4 text-xs leading-relaxed text-[var(--text-secondary)]">
+                {HELPER_BY_KEY[section.step] ?? ""}
+              </p>
+              {editorFor(section.step)}
+            </SectionCard>
+          ))}
         </div>
 
         {/* Live chat preview — passive output, never an editing surface. */}

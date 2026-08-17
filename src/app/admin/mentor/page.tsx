@@ -829,7 +829,9 @@ export default function MentorRecordPage({
                 online={live.firstMessages.online.map((m) => m.text)}
                 offline={live.firstMessages.offline.map((m) => m.text)}
                 editable
-                chip={changesetChip(profileUpdate, "firstMessages")}
+                // No review chip: first moments aren't gated, so these fields
+                // can never sit in the changeset. The gated Profile tab keeps
+                // its chips.
                 story={
                   firstMomentStory(live.stories).slides.length
                     ? `${firstMomentStory(live.stories).slides.length} slides`
