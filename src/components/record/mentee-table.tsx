@@ -3,9 +3,11 @@
 // MENTEE TABLE — the mentor record's list of the teens they work with.
 // Structure from Figma MO-4.1 node 2004:27273: four columns (Name · Status ·
 // Joined · Chat), sortable headers on the first three, 32px initials avatars,
-// and a binary Active/Inactive pill. The last column was a Contact dropdown
-// holding the teen's phone + email; that PII moved to the teen's own record
-// (Account tab) and the column is now a plain Chat action.
+// and a binary Active/Inactive pill. The pill carries a caret so it reads as
+// changeable rather than as a static label — matching every other Status column
+// in the app. The last column was a Contact dropdown holding the teen's phone +
+// email; that PII moved to the teen's own record (Account tab) and the column is
+// now a plain Chat action.
 //
 // TWO DEPARTURES FROM THE DESIGN, both deliberate:
 //  1. A flagged row keeps its ATTENTION CHIP beside the name. The design has no
@@ -210,20 +212,35 @@ export function MenteeTable({
                     className="px-5 py-3"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {/* Caret marks the pill as changeable — without it the
+                        status read as a static label. Sits OUTSIDE the pill in
+                        muted ink, matching MentorStatusMenu / AvailabilityMenu
+                        so every Status column in the app signals the same way.
+                        No rotate-on-open here: this toggles (with a confirm on
+                        deactivate) rather than opening a menu, so a flipping
+                        caret would promise a surface that never appears. */}
                     <button
                       type="button"
                       onClick={() =>
                         active ? setConfirming(t) : setMenteeActive(t.id, true)
                       }
                       aria-label={`${t.name} — ${active ? "Active" : "Inactive"}. Change status`}
-                      className={cn(
-                        "inline-flex min-h-6 items-center rounded-full px-2.5 text-[12px] font-medium leading-4 transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
-                        active
-                          ? "bg-[var(--text-primary)] text-[var(--text-inverse)]"
-                          : "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]"
-                      )}
+                      className="inline-flex items-center gap-1 rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                     >
-                      {active ? "Active" : "Inactive"}
+                      <span
+                        className={cn(
+                          "inline-flex min-h-6 items-center rounded-full px-2.5 text-[12px] font-medium leading-4",
+                          active
+                            ? "bg-[var(--text-primary)] text-[var(--text-inverse)]"
+                            : "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]"
+                        )}
+                      >
+                        {active ? "Active" : "Inactive"}
+                      </span>
+                      <ChevronDown
+                        className="size-3.5 shrink-0 text-[var(--text-muted)]"
+                        aria-hidden
+                      />
                     </button>
                   </td>
                   <td className="px-5 py-3 text-[14px] leading-[20px] text-[var(--text-secondary)] tabular-nums">
@@ -255,10 +272,13 @@ export function MenteeTable({
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Set {confirming?.name} to inactive?</DialogTitle>
+            {/* One interpolated string. `They stay matched with {mentorName} and
+                …` rendered as "Brandon Forresterand" — a leading expression whose
+                following text run wraps to the next line loses the space between
+                them. Same bug class as the record Overview's "Teenon the
+                platform"; interpolating the whole sentence can't lose it. */}
             <DialogDescription>
-              They stay matched with {mentorName} and nothing is deleted, but
-              they&rsquo;ll be treated as an inactive mentorship in counts and
-              attention. You can set them back to active any time.
+              {`They stay matched with ${mentorName} and nothing is deleted, but they’ll be treated as an inactive mentorship in counts and attention. You can set them back to active any time.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
