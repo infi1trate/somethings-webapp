@@ -9,14 +9,18 @@
 // email; that PII moved to the teen's own record (Account tab) and the column is
 // now a plain Chat action.
 //
-// TWO DEPARTURES FROM THE DESIGN, both deliberate:
-//  1. A flagged row keeps its ATTENTION CHIP beside the name. The design has no
-//     chip, but the record's attention strip deep-links here with "View mentee"
-//     — landing on a list with no indication of WHICH mentee needs attention
-//     would break that thread. The chip is the care signal the whole attention
-//     system hangs on.
-//  2. Rows are pressable (→ the teen's own record). The design shows no row
-//     affordance, but every other person list in the product navigates.
+// ONE DEPARTURE FROM THE DESIGN: rows are pressable (→ the teen's own record).
+// The design shows no row affordance, but every other person list in the product
+// navigates.
+//
+// NO ATTENTION CHIP. A flagged row used to carry one beside the name, kept
+// because the record's attention band deep-linked here with "View mentee" and
+// landing on a list with no indication of WHICH mentee needed attention would
+// have broken that thread. Both the band and the chips are removed now (user
+// request — "we can rebuild these later"), so the thread has no loose end. The
+// derivation still exists in lib/record/mentees-demo.ts (menteeRecency,
+// recencyChip, escalationVisible) and AttentionChipInline is still exported from
+// person-row.tsx, so rebuilding starts from working parts.
 //
 // Status is a real toggle: deactivating CONFIRMS (it ends an active mentoring
 // relationship), reactivating is one click. It persists to the store's
@@ -26,7 +30,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ChevronsUpDown, Plus } from "lucide-react";
 import { ChatAction } from "@/components/admin/chat-action";
-import { AttentionChipInline } from "@/components/record/person-row";
 import {
   Dialog,
   DialogContent,
@@ -42,12 +45,6 @@ import {
   teensForMentor,
   type DemoTeen,
 } from "@/lib/record/people-demo";
-import {
-  menteeRecency,
-  recencyChip,
-  teenAsMentee,
-  escalationVisible,
-} from "@/lib/record/mentees-demo";
 import { recordHrefFor } from "@/lib/record/subject";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
@@ -75,7 +72,6 @@ export function MenteeTable({
   availabilitySlot?: React.ReactNode;
 }) {
   const router = useRouter();
-  const [now] = useState(() => Date.now());
   const [sort, setSort] = useState<SortKey>("name");
   const [asc, setAsc] = useState(true);
   const [confirming, setConfirming] = useState<DemoTeen | null>(null);
@@ -173,11 +169,6 @@ export function MenteeTable({
             )}
             {rows.map((t) => {
               const active = isActive(t);
-              const mentee = teenAsMentee(t, now);
-              const r = menteeRecency(mentee, now);
-              const chip = escalationVisible(mentee.escalation, now)
-                ? { text: mentee.escalation!.reason, tone: "critical" as const }
-                : recencyChip(r);
               return (
                 <tr
                   key={t.id}
@@ -197,8 +188,6 @@ export function MenteeTable({
                           <span className="truncate text-[14px] font-medium leading-[20px] text-[var(--text-primary)]">
                             {t.name}
                           </span>
-                          {/* Departure 1 — keeps the attention thread alive. */}
-                          {active && chip && <AttentionChipInline {...chip} />}
                         </span>
                         {t.goesBy && (
                           <span className="block truncate text-[12px] leading-4 text-[var(--text-secondary)]">
