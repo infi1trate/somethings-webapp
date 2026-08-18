@@ -22,7 +22,7 @@ import { PillButton } from "@/components/settings/pill-button";
 import { Textarea } from "@/components/ui/textarea";
 import { downscaleImageToWebP, readFileAsDataUrl, clientId } from "@/lib/files";
 import { cn } from "@/lib/utils";
-import { SettingsTabBar } from "@/components/settings/tab-bar";
+import { SegmentedControl } from "@/components/record/segmented-control";
 import type { FirstMessage, FirstMessages, StorySlide } from "@/lib/types";
 
 const RING =
@@ -79,24 +79,33 @@ export function FirstMessagesEditor({
 
   return (
     <div className="space-y-4">
-      {/* Online/Offline uses the SHARED tab bar, not a pill segmented control
-          — Figma MO-4.1 node 2015:40149 builds this from the same Tabs/Tabs
-          component as the page-level tab bar (48px, 1.5px active underline on a
-          continuous hairline, bold active label). Reusing SettingsTabBar means
-          the two tab rows on this screen can't drift, and its ←/→/Home/End
-          roving tabindex replaces the hand-rolled arrow handling this had.
-          w-fit keeps the hairline at group width, as the design shows. */}
-      <SettingsTabBar
-        tabs={CHANNELS.map((c) => ({
-          id: c.id,
-          label: `${c.label} (${value[c.id].length})`,
-        }))}
-        activeId={channel}
-        onChange={(id) => setChannel(id as Channel)}
+      {/* Online/Offline is a SEGMENTED CONTROL, not underline tabs. Underline
+          tabs are the page-level scope (this screen already has a row of them
+          above); repeating that treatment inside a card flattens the hierarchy —
+          the two rows read as peers when one is subordinate. A contained pill
+          reads as local. semantics="tabs" because these DO switch a visible
+          panel, so aria-controls + role="tabpanel" apply. */}
+      <SegmentedControl
+        size="md"
+        semantics="tabs"
         ariaLabel="First-message channel"
-        className="w-fit"
+        options={CHANNELS.map((c) => ({
+          value: c.id,
+          label: `${c.label} (${value[c.id].length})`,
+          controls: `fm-panel-${c.id}`,
+        }))}
+        value={channel}
+        onChange={setChannel}
       />
 
+      {/* The panel the segments control. Keyed by channel so React remounts it
+          on switch, and labelled by its segment for the tabs pattern. */}
+      <div
+        id={`fm-panel-${channel}`}
+        role="tabpanel"
+        aria-label={`${channel === "online" ? "Online" : "Offline"} first messages`}
+        className="space-y-4"
+      >
       {/* Reorderable message list — drag handle + keyboard up/down (2.5.7). */}
       {list.length === 0 ? (
         <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
@@ -178,6 +187,7 @@ export function FirstMessagesEditor({
         <PillButton onClick={add} disabled={!compose.trim()}>
           Add message
         </PillButton>
+      </div>
       </div>
     </div>
   );

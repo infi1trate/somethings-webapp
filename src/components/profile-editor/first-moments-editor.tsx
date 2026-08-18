@@ -91,7 +91,17 @@ export function FirstMomentsEditor() {
             <SectionCard
               key={section.step}
               title={section.label}
-              status={section.summary(draft)}
+              // Empty value renders NOTHING, not an orphan em dash. The
+              // section registry returns "—" as its empty marker (EMPTY in
+              // profile-sections.ts) and SectionCard renders `status`
+              // unconditionally, so an untouched card showed a bare dash under
+              // its title. Filtered here rather than in the shared registry:
+              // the Profile tab's cards are out of scope for this pass.
+              status={
+                section.summary(draft) === "—"
+                  ? undefined
+                  : section.summary(draft)
+              }
               expanded={openId === section.step}
               onToggle={() =>
                 setOpenId((o) => (o === section.step ? null : section.step))
