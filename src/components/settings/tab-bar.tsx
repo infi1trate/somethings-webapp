@@ -5,18 +5,30 @@ import { cn } from "@/lib/utils";
 import {
   tabsForRole,
   type SettingsRole,
-  type SettingsTabDef,
 } from "@/components/settings/tabs-config";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
+/** The bar only ever reads id + label, so any caller with those can use it —
+ *  a local two-tab control shouldn't have to fake registry fields (roles,
+ *  status) it has no concept of. SettingsTabDef satisfies this structurally. */
+export interface TabBarItem {
+  id: string;
+  label: string;
+}
+
 interface SettingsTabBarProps {
-  role: SettingsRole;
+  /** Only needed when `tabs` is omitted — the registry lookup wants a role. */
+  role?: SettingsRole;
   activeId: string;
   onChange: (id: string) => void;
-  /** Escape hatch for demos; production nav derives from the §3 registry. */
-  tabs?: SettingsTabDef[];
+  /** Explicit tabs. Production settings nav derives from the §3 registry
+   *  instead; local controls (e.g. the first-messages Online/Offline channel)
+   *  pass their own. */
+  tabs?: TabBarItem[];
+  /** Accessible name for the tablist. Defaults to the settings nav's. */
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -31,9 +43,10 @@ export function SettingsTabBar({
   activeId,
   onChange,
   tabs,
+  ariaLabel = "Settings sections",
   className,
 }: SettingsTabBarProps) {
-  const list = tabs ?? tabsForRole(role);
+  const list: TabBarItem[] = tabs ?? (role ? tabsForRole(role) : []);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const select = (index: number) => {
@@ -45,7 +58,7 @@ export function SettingsTabBar({
   return (
     <div
       role="tablist"
-      aria-label="Settings sections"
+      aria-label={ariaLabel}
       className={cn(
         "flex items-end gap-7 border-b border-[var(--border-subtle)]",
         className

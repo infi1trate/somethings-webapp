@@ -22,6 +22,7 @@ import { PillButton } from "@/components/settings/pill-button";
 import { Textarea } from "@/components/ui/textarea";
 import { downscaleImageToWebP, readFileAsDataUrl, clientId } from "@/lib/files";
 import { cn } from "@/lib/utils";
+import { SettingsTabBar } from "@/components/settings/tab-bar";
 import type { FirstMessage, FirstMessages, StorySlide } from "@/lib/types";
 
 const RING =
@@ -56,7 +57,6 @@ export function FirstMessagesEditor({
   const [channel, setChannel] = useState<Channel>("online");
   const [compose, setCompose] = useState("");
   const [announce, setAnnounce] = useState("");
-  const segRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const dragFrom = useRef<number | null>(null);
 
   const list = value[channel];
@@ -70,12 +70,6 @@ export function FirstMessagesEditor({
     setAnnounce(`Moved to position ${to + 1} of ${list.length}`);
   };
 
-  const selectChannel = (i: number) => {
-    const c = CHANNELS[(i + CHANNELS.length) % CHANNELS.length];
-    segRefs.current[CHANNELS.indexOf(c)]?.focus();
-    setChannel(c.id);
-  };
-
   const add = () => {
     const text = compose.trim();
     if (!text) return;
@@ -85,48 +79,23 @@ export function FirstMessagesEditor({
 
   return (
     <div className="space-y-4">
-      {/* Online/Offline segmented control — arrow-key navigable (§6). */}
-      <div
-        role="tablist"
-        aria-label="First-message channel"
-        className="inline-flex rounded-full border border-[var(--border-subtle)] bg-[var(--surface-s1)] p-1"
-      >
-        {CHANNELS.map((c, i) => {
-          const active = channel === c.id;
-          const count = value[c.id].length;
-          return (
-            <button
-              key={c.id}
-              ref={(el) => {
-                segRefs.current[i] = el;
-              }}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => setChannel(c.id)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowRight") {
-                  e.preventDefault();
-                  selectChannel(i + 1);
-                } else if (e.key === "ArrowLeft") {
-                  e.preventDefault();
-                  selectChannel(i - 1);
-                }
-              }}
-              className={cn(
-                "min-h-11 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                RING,
-                active
-                  ? "bg-[var(--text-primary)] text-[var(--text-inverse)]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              )}
-            >
-              {c.label} ({count})
-            </button>
-          );
-        })}
-      </div>
+      {/* Online/Offline uses the SHARED tab bar, not a pill segmented control
+          — Figma MO-4.1 node 2015:40149 builds this from the same Tabs/Tabs
+          component as the page-level tab bar (48px, 1.5px active underline on a
+          continuous hairline, bold active label). Reusing SettingsTabBar means
+          the two tab rows on this screen can't drift, and its ←/→/Home/End
+          roving tabindex replaces the hand-rolled arrow handling this had.
+          w-fit keeps the hairline at group width, as the design shows. */}
+      <SettingsTabBar
+        tabs={CHANNELS.map((c) => ({
+          id: c.id,
+          label: `${c.label} (${value[c.id].length})`,
+        }))}
+        activeId={channel}
+        onChange={(id) => setChannel(id as Channel)}
+        ariaLabel="First-message channel"
+        className="w-fit"
+      />
 
       {/* Reorderable message list — drag handle + keyboard up/down (2.5.7). */}
       {list.length === 0 ? (
