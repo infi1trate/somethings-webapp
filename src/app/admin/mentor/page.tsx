@@ -90,7 +90,11 @@ import {
 } from "@/components/ui/select";
 import { RACE_OPTIONS, SEX_OPTIONS } from "@/lib/options";
 import { OrganizationCard } from "@/components/record/organization";
-import { LEAD_PERSONA_ID, teensForMentor } from "@/lib/record/people-demo";
+import {
+  LEAD_PERSONA_ID,
+  defaultMenteeStatus,
+  teensForMentor,
+} from "@/lib/record/people-demo";
 import { toast } from "sonner";
 import {
   sectionsForTab,
@@ -293,7 +297,7 @@ export default function MentorRecordPage({
   const caseloads = useOnboardingStore((s) => s.caseloads);
   const slots = useOnboardingStore((s) => s.slots);
   const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
-  const menteeActive = useOnboardingStore((s) => s.menteeActive);
+  const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
   const activity = useOnboardingStore((s) => s.activity);
   const staffEditAccountField = useOnboardingStore(
     (s) => s.staffEditAccountField
@@ -465,7 +469,7 @@ export default function MentorRecordPage({
   // ONE derivation of the active count, shared by the header meta and the
   // Mentorship tab, so the two can't disagree. An ended match never counts.
   const activeMenteeCount = teensForMentor("live").filter(
-    (t) => menteeActive[t.id] ?? t.active
+    (t) => (menteeStatus[t.id] ?? defaultMenteeStatus(t)) === "active"
   ).length;
   // Visibility readout for the rail preview — is this profile actually being
   // seen by potential mentee matches? Derived from the lifecycle (existing
@@ -1226,12 +1230,7 @@ export default function MentorRecordPage({
             {/* Mentorship (subject = mentor / lead mentor) — the practice
                 surface: mentees, caseload, availability, team. */}
             {activeTab === "mentorship" && (
-              <MentorshipPractice
-                mode={
-                  resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"
-                }
-                menteeCount={activeMenteeCount}
-              />
+              <MentorshipPractice />
             )}
             {/* Supervision (subject = lead mentor / supervisor). Reachable here
                 only via the dev ?subjectRole= preview — real staff records live

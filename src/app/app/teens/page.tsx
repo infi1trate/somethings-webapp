@@ -14,7 +14,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { Roster } from "@/components/admin/roster";
-import { MenteeList } from "@/components/record/mentee-list";
+import { MenteeTable } from "@/components/record/mentee-table";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
@@ -23,7 +23,6 @@ export default function TeensPage() {
   const router = useRouter();
   const persona = useOnboardingStore((s) => s.persona);
   const draft = useOnboardingStore((s) => s.draft);
-  const slots = useOnboardingStore((s) => s.slots);
   const isLead = mounted && persona === "lead-mentor";
 
   useEffect(() => {
@@ -59,7 +58,7 @@ export default function TeensPage() {
           </p>
         </header>
         <div className="mt-7 max-w-[900px]">
-          <MenteeList mentorId="live" mentorName={mentorName} capacityTotal={slots.total} />
+          <MenteeTable mentorId="live" mentorName={mentorName} />
         </div>
       </div>
     </MentorShell>

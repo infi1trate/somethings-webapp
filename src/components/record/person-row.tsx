@@ -35,7 +35,9 @@ const TINTS = [
   { bg: "#f5e7ea", fg: "#9a4257" },
 ];
 
-function tintFor(seed: string) {
+/** Exported so surfaces that can't use a whole PersonRow (e.g. a table cell)
+ *  still get the SAME avatar treatment instead of minting a second one. */
+export function avatarTintFor(seed: string) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
   return TINTS[Math.abs(h) % TINTS.length];
@@ -126,7 +128,7 @@ export function PersonRow({
   href,
   className,
 }: PersonRowProps) {
-  const tint = redactName ? NEUTRAL_TINT : tintFor(name);
+  const tint = redactName ? NEUTRAL_TINT : avatarTintFor(name);
   const displayName = redactName ? "Mentee" : name;
   const hasChips = (!redactName && !!attention) || videoCount > 0;
   const pressable = !!onPress || !!href;

@@ -578,6 +578,14 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
   return DEMO_TEENS.filter((t) => t.mentorId === mentorId);
 }
 
+/** A teen's default match standing, before any staff override. The fixtures
+ *  carry a boolean, so they can only express two of the three states. */
+export function defaultMenteeStatus(
+  t: DemoTeen
+): "active" | "paused" | "deactivated" {
+  return t.active ? "active" : "deactivated";
+}
+
 /** ENDED matches for a mentor, from the two shapes the fixtures carry:
  *   1. a teen still pointing at this mentor whose match is stood down
  *      (`active: false`) — NO end date exists for these, only the flag;
@@ -589,11 +597,14 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
  *  `PastMatch.outcome` is the fix; until then this section can only say that
  *  something stopped, not how it went. */
 export function pastMenteesFor(
-  mentorId: string
+  mentorId: string,
+  /** Override-aware "has this match ended?" — the caller has store access, this
+   *  module doesn't. Defaults to the fixture flag. */
+  hasEnded: (t: DemoTeen) => boolean = (t) => t.active === false
 ): { teen: DemoTeen; endedLabel: string | null }[] {
   const out: { teen: DemoTeen; endedLabel: string | null }[] = [];
   for (const t of DEMO_TEENS) {
-    if (t.mentorId === mentorId && t.active === false) {
+    if (t.mentorId === mentorId && hasEnded(t)) {
       out.push({ teen: t, endedLabel: null });
       continue;
     }

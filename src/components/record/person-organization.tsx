@@ -14,7 +14,11 @@ import { RecordRow } from "@/components/record/row";
 import { PersonRow } from "@/components/record/person-row";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { DeactivateAction } from "@/components/record/deactivate-action";
-import { DEMO_PEOPLE, roleOf } from "@/lib/record/people-demo";
+import {
+  DEMO_PEOPLE,
+  defaultMenteeStatus,
+  roleOf,
+} from "@/lib/record/people-demo";
 import { recordHrefFor, type FixtureSubject } from "@/lib/record/subject";
 import { resolveMode } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -31,8 +35,8 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const persona = useOnboardingStore((s) => s.persona);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
-  const menteeActive = useOnboardingStore((s) => s.menteeActive);
-  const setMenteeActive = useOnboardingStore((s) => s.setMenteeActive);
+  const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
+  const setMenteeStatus = useOnboardingStore((s) => s.setMenteeStatus);
   const [, force] = useState(0);
 
   const canEdit = resolveMode("accountOrg", persona) === "edit";
@@ -48,7 +52,9 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
     ? (mentorStatuses[subject.id] ?? subject.person.status)
     : null;
   const teenActive = isTeen
-    ? (menteeActive[subject.id] ?? subject.teen?.active ?? true)
+    ? (menteeStatus[subject.id] ??
+        (subject.teen ? defaultMenteeStatus(subject.teen) : "active")) !==
+      "deactivated"
     : true;
 
   return (
@@ -122,7 +128,7 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
               if (status) {
                 setMentorStatus(subject.id, next ? "active" : "deactivated");
               } else {
-                setMenteeActive(subject.id, next);
+                setMenteeStatus(subject.id, next ? "active" : "deactivated");
               }
               force((n) => n + 1);
             }}

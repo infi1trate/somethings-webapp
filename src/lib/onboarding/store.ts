@@ -52,6 +52,9 @@ function snapshotDraft(draft: MentorDraft): MentorDraft {
  *  notifications-config.ts), so no exhaustive backfill is needed. */
 export type NotificationPrefs = Record<string, Record<string, boolean>>;
 
+/** A mentee match's standing. "paused" has NOT ended — see menteeStatus. */
+export type MenteeStatus = "active" | "paused" | "deactivated";
+
 /** A mentor's caseload setting (caseload prompt): capacity mode + total mentee
  *  slots. "automatic" = capacity adjusts by the matching algorithm (TODO-DATA:
  *  no algorithm exists in this prototype — honest stub); "custom" = the lead
@@ -125,10 +128,14 @@ interface OnboardingState {
    *  (live). Only the accepting/not-accepting intent is stored — "Full" is
    *  always derived from the caseload (count === cap), never stored. */
   mentorAccepting: Record<string, boolean>;
-  /** Per-MENTEE active/inactive override, keyed by teen id. Sparse: a missing
-   *  key falls back to the fixture's own `active`. Toggled from the record's
-   *  mentee table (deactivating confirms — it stands down a live mentorship). */
-  menteeActive: Record<string, boolean>;
+  /** Per-MENTEE match standing, keyed by teen id. Sparse: a missing key falls
+   *  back to the fixture's own `active` (see defaultMenteeStatus). Replaces the
+   *  old binary `menteeActive` — the mentee table shows three states, and two
+   *  parallel sources for one fact is how they drift apart.
+   *
+   *  "paused" has NOT ended: the row stays in the list but stops counting as
+   *  active. Only "deactivated" moves a mentee to Past mentees. */
+  menteeStatus: Record<string, MenteeStatus>;
   /** Staff edits to ANOTHER person's teen-facing profile, keyed by person id.
    *  Sparse and PARTIAL: a missing key (or field) falls back to the fixture in
    *  people-demo, so this map holds only what a lead/supervisor changed.
@@ -236,7 +243,7 @@ interface OnboardingState {
   /** Manually set a mentor's availability INTENT (open to new mentees?). "Full"
    *  stays derived from the caseload — only this intent is stored. */
   setMentorAccepting: (mentorId: string, accepting: boolean) => void;
-  setMenteeActive: (teenId: string, active: boolean) => void;
+  setMenteeStatus: (teenId: string, status: MenteeStatus) => void;
   /** Release a manual lifecycle override so the DERIVED standing shows again.
    *  Without this the override map was a one-way door: `mentorStatuses[id] ??
    *  liveLifecycle(...)` meant one dropdown click permanently masked the real
@@ -286,7 +293,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       caseloads: {},
       mentorStatuses: {},
       mentorAccepting: {},
-      menteeActive: {},
+      menteeStatus: {},
       personProfiles: {},
       personSchedules: {},
       mentorRole: "Mentor",
@@ -656,9 +663,9 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           mentorAccepting: { ...state.mentorAccepting, [mentorId]: accepting },
         })),
-      setMenteeActive: (teenId, active) =>
+      setMenteeStatus: (teenId, status) =>
         set((state) => ({
-          menteeActive: { ...state.menteeActive, [teenId]: active },
+          menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
       setPersonProfile: (personId, patch) =>
         set((state) => ({
@@ -708,7 +715,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           caseloads: {}, // caseload overrides reset with the mentor
           mentorStatuses: {}, // status overrides reset with the mentor
           mentorAccepting: {}, // availability intent resets with the mentor
-          menteeActive: {},
+          menteeStatus: {},
           // Staff edits to other people's records clear too — reset is the dev
           // "start over", and leaving them would strand edits whose fixture
           // baseline has just been restored.
@@ -754,13 +761,17 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      teen-facing profile + Active Hours) — sparse maps keyed by person
       //      id; backfill {} so every field falls back to the people-demo
       //      fixture until a lead/supervisor actually changes it.
+      // v28: menteeActive (boolean) → menteeStatus (active/paused/deactivated).
+      //      The mentee table shows three states; a boolean can only carry two,
+      //      and keeping both would be two sources for one fact. Migrate in
+      //      place: false → "deactivated", anything else → "active".
       // v27: first moments UNGATED. Any open changeset may still hold
       //      firstMessages/stories entries that no longer have a review path —
       //      they'd be stuck in a queue nothing can approve. APPLY them (the
       //      draft already holds the proposed value, so publishing is just
       //      snapshotting it — same reasoning as approveProfileUpdate), drop the
       //      entries, and clear the changeset when nothing gated remains.
-      version: 27,
+      version: 28,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1090,6 +1101,20 @@ export const useOnboardingStore = create<OnboardingState>()(
             }
           }
         }
+        if (version < 28) {
+          const st = s as unknown as {
+            menteeActive?: Record<string, boolean>;
+            menteeStatus?: Record<string, MenteeStatus>;
+          };
+          if (typeof st.menteeStatus !== "object" || st.menteeStatus === null) {
+            const out: Record<string, MenteeStatus> = {};
+            for (const [id, wasActive] of Object.entries(st.menteeActive ?? {})) {
+              out[id] = wasActive === false ? "deactivated" : "active";
+            }
+            st.menteeStatus = out;
+          }
+          delete st.menteeActive;
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -1202,12 +1227,12 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.schedule = cloneSchedule(DEFAULT_SCHEDULE);
         }
-        // v25 shape: menteeActive is always a plain object.
+        // v28 shape: menteeStatus is always a plain object.
         if (
-          typeof (merged as { menteeActive?: unknown }).menteeActive !== "object" ||
-          merged.menteeActive === null
+          typeof (merged as { menteeStatus?: unknown }).menteeStatus !== "object" ||
+          merged.menteeStatus === null
         ) {
-          merged.menteeActive = {};
+          merged.menteeStatus = {};
         }
         // v26 shape: the person-override maps are always plain objects.
         if (
@@ -1294,7 +1319,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         caseloads: state.caseloads,
         mentorStatuses: state.mentorStatuses,
         mentorAccepting: state.mentorAccepting,
-        menteeActive: state.menteeActive,
+        menteeStatus: state.menteeStatus,
         personProfiles: state.personProfiles,
         personSchedules: state.personSchedules,
         mentorRole: state.mentorRole,
