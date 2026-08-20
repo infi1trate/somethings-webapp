@@ -37,10 +37,10 @@ import {
 } from "@/components/record/person-profile";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordTabsFor } from "@/lib/record/tabs";
+import { headerDotFor } from "@/lib/record/mentor-status";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
-import { relJoined, teensForMentor } from "@/lib/record/people-demo";
-import { JOIN_DATE } from "@/components/record/organization";
+import { teensForMentor } from "@/lib/record/people-demo";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { toast } from "sonner";
@@ -112,14 +112,20 @@ export default function PersonRecordPage({
       subject.person.status)
     : null;
 
-  // Pronouns + start date only. Groups and the load moved out of the header —
-  // they're owned by the tabs below and duplicating them here aged badly.
-  const joined = subject.teen
-    ? `Joined ${relJoined(subject.teen.joinedDaysAgo)}`
-    : `Joined ${JOIN_DATE}`;
-  // Pronouns follow the staff-editable override, so changing them on Profile
-  // updates the header rather than leaving two disagreeing values on screen.
-  const meta = [profile.pronouns ?? subject.pronouns, joined]
+  // Meta: pronouns · location · caseload. The JOIN DATE left the header — it is
+  // a reference fact and lives on Organization; the header carries who this
+  // person is and what they hold. Pronouns follow the staff-editable override so
+  // changing them on Profile updates the header rather than leaving two
+  // disagreeing values on screen.
+  const menteeLoad =
+    subject.role === "mentor" && subject.person
+      ? `${teensForMentor(subject.id).length} of ${subject.person.capacity} mentees`
+      : null;
+  const meta = [
+    profile.pronouns ?? subject.pronouns,
+    subject.group,
+    menteeLoad,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -137,8 +143,10 @@ export default function PersonRecordPage({
         avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
         name={subject.goesBy ?? subject.name}
         roleLabel={roleLabel}
-        // Role only — the lifecycle state is read and changed on Organization.
-        statusDot="none"
+        // ONE status statement: the role badge with the dot embedded
+        // ("● Mentor"). No separate Active pill, no avatar dot. The WORD for the
+        // standing stays on Organization — the dot is the glanceable half.
+        statusDot={status ? headerDotFor(status) : "none"}
         statusAriaLabel={roleLabel}
         meta={meta}
         backLink={{

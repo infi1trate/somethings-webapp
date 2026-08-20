@@ -89,11 +89,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RACE_OPTIONS, SEX_OPTIONS } from "@/lib/options";
-import {
-  OrganizationCard,
-  JOIN_DATE,
-} from "@/components/record/organization";
-import { LEAD_PERSONA_ID } from "@/lib/record/people-demo";
+import { OrganizationCard } from "@/components/record/organization";
+import { LEAD_PERSONA_ID, teensForMentor } from "@/lib/record/people-demo";
 import { toast } from "sonner";
 import {
   sectionsForTab,
@@ -103,7 +100,11 @@ import {
   resolveMode,
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
-import { liveLifecycle } from "@/lib/record/mentor-status";
+import {
+  headerDotFor,
+  liveLifecycle,
+  STATUS_LABELS,
+} from "@/lib/record/mentor-status";
 import { RecordOverview } from "@/components/record/record-overview";
 import { ActiveHoursEditor } from "@/components/record/active-hours";
 import { StaffProfileFields } from "@/components/record/staff-profile-fields";
@@ -125,10 +126,12 @@ import { cn } from "@/lib/utils";
 // (record-04b did the R4 centralization). ?focus= deep links map to tabs in
 // lib/record/tabs.ts (FOCUS_TO_TAB) since Phase 1.
 
-// Stub org data (record-05): the record's one mentor has four active
-// mentees. Single source for the header capacity item, the Overview
-// snapshot, and the Relationships row.
-const MENTEE_COUNT = 4;
+// The mentee count is DERIVED, not stubbed — see activeMenteeCount below. The
+// old `MENTEE_COUNT = 4` constant is gone: an ended match must not be counted,
+// and the mentee list derives its own figure from the fixtures + the
+// menteeActive overrides, so a hardcoded header number gave two different
+// answers to one question on a single screen ("4 of 5 mentees" over a list
+// reading "3 active").
 
 const SLOT_TITLES: Record<RecordSectionSlot, string> = {
   reviewWorkflow: "Review workflow",
@@ -287,6 +290,10 @@ export default function MentorRecordPage({
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const status = useOnboardingStore((s) => s.status);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const caseloads = useOnboardingStore((s) => s.caseloads);
+  const slots = useOnboardingStore((s) => s.slots);
+  const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
+  const menteeActive = useOnboardingStore((s) => s.menteeActive);
   const activity = useOnboardingStore((s) => s.activity);
   const staffEditAccountField = useOnboardingStore(
     (s) => s.staffEditAccountField
@@ -451,6 +458,15 @@ export default function MentorRecordPage({
   // the roster or the record's Status row) wins over the derived value.
   const lifecycle =
     mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
+  // Header: ONE status statement (the role pill's dot) + a meta line of
+  // pronouns · location · caseload.
+  const headerLifecycle = lifecycle;
+  const headerCaseloadTotal = caseloads["live"]?.total ?? slots.total;
+  // ONE derivation of the active count, shared by the header meta and the
+  // Mentorship tab, so the two can't disagree. An ended match never counts.
+  const activeMenteeCount = teensForMentor("live").filter(
+    (t) => menteeActive[t.id] ?? t.active
+  ).length;
   // Visibility readout for the rail preview — is this profile actually being
   // seen by potential mentee matches? Derived from the lifecycle (existing
   // axes), never color-alone: the label is the source of truth, the dot + pulse
@@ -1020,14 +1036,22 @@ export default function MentorRecordPage({
                     pill with a tokenized status dot (active = positive dot
                     alone; exceptional states add the word — never color
                     alone, WCAG 1.4.1). */}
-                {/* Role only. The lifecycle STATE left the header — it is
-                    read and changed on the Organization tab, and repeating it
-                    here made the header a second, stale-looking status
-                    surface. The pill still says what KIND of record this is. */}
+                {/* ONE status statement: the role badge with the dot embedded
+                    ("● Mentor"). No separate Active pill, no avatar dot. The
+                    WORD for the standing stays on Organization — the dot is the
+                    glanceable half, never colour alone (WCAG 1.4.1: the word is
+                    one tab away and the aria-label carries it). */}
                 <span
-                  aria-label={SUBJECT_ROLE_LABEL[subjectRole]}
-                  className="inline-flex shrink-0 items-center rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
+                  aria-label={`${SUBJECT_ROLE_LABEL[subjectRole]} — ${STATUS_LABELS[headerLifecycle]}`}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
                 >
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: `var(--dot-${headerDotFor(headerLifecycle)})`,
+                    }}
+                  />
                   {SUBJECT_ROLE_LABEL[subjectRole]}
                 </span>
               </div>
@@ -1040,10 +1064,14 @@ export default function MentorRecordPage({
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {/* Pronouns + start date. Groups and the mentee count moved
-                    out — both are owned by tabs below (Organization,
-                    Mentorship) and duplicating them here aged badly. */}
-                {[live.pronouns.join(", "), `Joined ${JOIN_DATE}`]
+                {/* pronouns · location · caseload. The JOIN DATE left the
+                    header — a reference fact, owned by Organization. Groups
+                    stand in for location (no location field exists). */}
+                {[
+                  live.pronouns.join(", "),
+                  mentorGroups.join(", "),
+                  `${activeMenteeCount} of ${headerCaseloadTotal} mentees`,
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -1202,7 +1230,7 @@ export default function MentorRecordPage({
                 mode={
                   resolveMode("accountOrg", persona) === "edit" ? "edit" : "read"
                 }
-                menteeCount={MENTEE_COUNT}
+                menteeCount={activeMenteeCount}
               />
             )}
             {/* Supervision (subject = lead mentor / supervisor). Reachable here

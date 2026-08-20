@@ -144,3 +144,16 @@ export function liveLifecycle(
   if (profileHidden) return "paused"; // published but hidden from teens
   return "active";
 }
+
+/** Header dot tone for a lifecycle standing. The record header carries exactly
+ *  ONE status statement — the role badge with this dot embedded ("● Mentor") —
+ *  so the tone is the only place standing is expressed up there. Never colour
+ *  alone: the word lives on the Organization tab (WCAG 1.4.1). */
+export function headerDotFor(
+  status: MentorLifecycleStatus
+): "positive" | "warning" | "critical" {
+  if (status === "deactivated") return "critical";
+  if (status === "active" || status === "guided") return "positive";
+  // in-training, paused — in motion, not wrong.
+  return "warning";
+}

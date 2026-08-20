@@ -35,13 +35,23 @@ export interface RecordTabDef {
   subjectRoles?: SubjectRole[];
 }
 
-// ORDER INVARIANT: the slot after Overview is always the subject's PRACTICE
-// tab when one exists (Mentorship for mentor/lead-mentor, Supervision for
-// supervisor — mutually exclusive by subject, so they share the slot), with
-// Organization directly after it (org context beside practice context). The
-// mentor-app mirror is preserved as a SUBSEQUENCE: Profile, First moments,
-// Schedule, Account keep their relative order and close the bar.
-// A permission-gated tab (e.g. a returning Insights via `roles`) goes LAST.
+// ORDER INVARIANT
+//   Overview · [practice] · Profile · First moments · Schedule · Account ·
+//   Organization · [permission-gated, e.g. Insights]
+//
+// Slot two is always the subject's PRACTICE tab when one exists (Mentorship for
+// mentor/teen, Supervision for lead-mentor/supervisor — mutually exclusive by
+// subject, so they share the slot).
+//
+// The mentor-app mirror is preserved as a SUBSEQUENCE: Profile → First moments →
+// Schedule → Account keep their relative order, so a mentor moving between their
+// own settings and their record meets the same sequence.
+//
+// PAPERWORK ANCHORS THE END. Organization moved out of slot three (it sat beside
+// practice as "org context beside practice context") to the tail: role, groups,
+// join date and lifecycle standing are reference facts a reader consults, not
+// work they do. Putting them third pushed the teen-facing content — the actual
+// daily work — behind administrivia. A permission-gated tab still goes after it.
 export const RECORD_TABS: RecordTabDef[] = [
   { id: "overview", label: "Overview", built: true },
   // PRACTICE TABS — subject-conditional (existence, not permission), and
@@ -67,10 +77,6 @@ export const RECORD_TABS: RecordTabDef[] = [
     built: true,
     subjectRoles: ["lead-mentor", "supervisor"],
   },
-  // Organization is UNIVERSAL — org membership (role, groups, join date,
-  // status) is true of every person, so no gate. Sits directly after the
-  // practice tab (for subjects without one, directly after Overview).
-  { id: "organization", label: "Organization", built: true },
   // The teen-facing MATCH CARD trio. Only a mentor has one — a teen doesn't
   // publish a profile to teens, and staff don't match. Gated so their records
   // don't show three tabs of someone else's content.
@@ -93,6 +99,10 @@ export const RECORD_TABS: RecordTabDef[] = [
     subjectRoles: ["mentor"],
   },
   { id: "account", label: "Account", built: true },
+  // Organization is UNIVERSAL — org membership (role, groups, join date,
+  // status) is true of every person, so no gate. Anchors the END (see the order
+  // invariant): reference facts, not daily work.
+  { id: "organization", label: "Organization", built: true },
   // Insights removed — the IMP-6 charts (engagement, retention, bonus, match
   // rate) now live on the Overview tab (see RecordOverview). The tab is gone,
   // not deferred; if it returns it is `roles`-gated and slots last (invariant).

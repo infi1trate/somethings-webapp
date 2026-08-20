@@ -426,7 +426,12 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "Illinois", active: false, joinedDaysAgo: 40, mentorId: "m3",
     matchedDaysAgo: 40, mentorLastSentDaysAgo: 12, menteeLastSentDaysAgo: 20,
     videoCount30d: 0,
-    pastMentors: [{ mentorId: "m1", range: "Jan 2025 – Mar 2025" }],
+    pastMentors: [
+      { mentorId: "m1", range: "Jan 2025 – Mar 2025" },
+      // TODO-DATA: gives the live mentor a DATED ended match so the Past mentees
+      // section exercises both copy paths (dated vs. flag-only).
+      { mentorId: "live", range: "Jun 2024 – Jan 2025" },
+    ],
   },
   {
     id: "t5", name: "Marcus Lee", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
@@ -571,6 +576,32 @@ export function leadUmbrellaTeens(): DemoTeen[] {
 
 export function teensForMentor(mentorId: string): DemoTeen[] {
   return DEMO_TEENS.filter((t) => t.mentorId === mentorId);
+}
+
+/** ENDED matches for a mentor, from the two shapes the fixtures carry:
+ *   1. a teen still pointing at this mentor whose match is stood down
+ *      (`active: false`) — NO end date exists for these, only the flag;
+ *   2. a teen who lists this mentor in `pastMentors` — carries a human range
+ *      ("Jun 2024 – Jan 2025"), so the end month is recoverable.
+ *
+ *  GAP (reported): neither shape records an OUTCOME. A graduation and a rematch
+ *  are indistinguishable here, so the copy stays neutral ("ended"). Adding
+ *  `PastMatch.outcome` is the fix; until then this section can only say that
+ *  something stopped, not how it went. */
+export function pastMenteesFor(
+  mentorId: string
+): { teen: DemoTeen; endedLabel: string | null }[] {
+  const out: { teen: DemoTeen; endedLabel: string | null }[] = [];
+  for (const t of DEMO_TEENS) {
+    if (t.mentorId === mentorId && t.active === false) {
+      out.push({ teen: t, endedLabel: null });
+      continue;
+    }
+    const past = t.pastMentors?.find((p) => p.mentorId === mentorId);
+    // Second half of "Jun 2024 – Jan 2025" is the end.
+    if (past) out.push({ teen: t, endedLabel: past.range.split("–").pop()?.trim() ?? null });
+  }
+  return out;
 }
 
 /** Display name for a mentor id. Searches staff too, so a teen matched to a

@@ -1,31 +1,35 @@
 "use client";
 
-// MentorshipPractice — the subject-conditional PRACTICE surface of the record
-// for the STORE-BACKED mentor ("live"). Exists only when the subject is a
-// mentor.
+// MentorshipPractice — the Mentorship tab for the STORE-BACKED mentor ("live").
 //
-// ONE CARD, ONE HEADER LINE. Caseload used to be its own panel paired with Team;
-// Team moved to Organization (org context, not practice) and capacity folded
-// into the Mentees header. It has now folded further: the readout IS the
-// affordance, and the Automatic/Custom control plus stepper live inside its
-// popover instead of occupying a permanent second row.
+// THE FULL CARE NETWORK AROUND THIS MENTOR — who holds him up, who he holds up.
 //
-// Only MENTORS reach this tab. Lead mentors and supervisors supervise staff,
-// not teens, so they get Supervision; a teen sees the same relationship from
-// the other side (teen-mentors.tsx). A fixture mentor's record renders the same
-// MenteeTable from /admin/person/[id] — same props, same controls.
+// Composition: the care-network band (Team beside Practice) over the mentee list.
+// Team came back from the Organization tab and Practice replaced the strip of
+// controls that used to live in the Mentees card header — the network reads as one
+// thing now instead of an orphaned card above a data table.
 //
-// Vocabulary law: "mentees" for the people, "caseload" for how many they can
-// take; escalations name the observable cause, never a prediction.
+// Only MENTORS reach this tab. Lead mentors and supervisors supervise staff, so
+// they get Supervision; a teen sees the same relationship from the other side
+// (teen-mentors.tsx). A fixture mentor's record renders the SAME two components
+// from person-mentorship.tsx — one Mentorship tab, two data adapters.
+//
+// Vocabulary law: "mentees" for the people, "caseload" for the capacity concept.
 
-import { CaseloadPopover, useCaseload } from "@/components/record/caseload-controls";
-import { MenteeTable } from "@/components/record/mentee-table";
-import {
-  AvailabilityCell,
-  AvailabilityMenu,
-} from "@/components/admin/mentor-status-badge";
+import { CareNetwork, type NetworkPerson } from "@/components/record/care-network";
+import { MenteeList } from "@/components/record/mentee-list";
+import { useCaseload } from "@/components/record/caseload-controls";
 import { availabilityFor, liveLifecycle } from "@/lib/record/mentor-status";
+import { DEMO_PEOPLE, LEAD_PERSONA_ID, roleOf } from "@/lib/record/people-demo";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+
+const ROLE_LABEL: Record<string, string> = {
+  mentor: "Mentor",
+  "lead-mentor": "Lead mentor",
+  supervisor: "Supervisor",
+  admin: "Admin",
+  teen: "Teen",
+};
 
 export function MentorshipPractice({
   mode,
@@ -41,11 +45,12 @@ export function MentorshipPractice({
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const mentorAccepting = useOnboardingStore((s) => s.mentorAccepting);
   const setMentorAccepting = useOnboardingStore((s) => s.setMentorAccepting);
+  const setCaseload = useOnboardingStore((s) => s.setCaseload);
   const slots = useOnboardingStore((s) => s.slots);
   const draft = useOnboardingStore((s) => s.draft);
+
   const mentorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "this mentor";
-  const firstName = draft.firstName?.trim() || "this mentor";
 
   const lifecycle =
     mentorStatuses["live"] ?? liveLifecycle(status, accountStatus, profileHidden);
@@ -57,34 +62,36 @@ export function MentorshipPractice({
     caseload.total,
     accepting
   );
-  const atCap = menteeCount >= caseload.total;
+
+  // The live mentor reports to Brandy, who reports to Stephen — the same edges
+  // people-demo encodes, so Team says the same thing here as in the directory.
+  const lead = DEMO_PEOPLE.find((p) => p.id === LEAD_PERSONA_ID);
+  const supervisor = lead?.supervisorId
+    ? DEMO_PEOPLE.find((p) => p.id === lead.supervisorId)
+    : undefined;
+  const team: NetworkPerson[] = [supervisor, lead]
+    .filter((p): p is NonNullable<typeof p> => !!p)
+    .map((p) => ({ id: p.id, name: p.name, roleLabel: ROLE_LABEL[roleOf(p)] }));
 
   return (
-    <MenteeTable
-      mentorId="live"
-      mentorName={mentorName}
-      capacitySlot={
-        <CaseloadPopover
-          mentorId="live"
-          mentorName={firstName}
-          currentCount={menteeCount}
-          defaultTotal={slots.total}
-          editable={mode === "edit"}
-        />
-      }
-      availabilitySlot={
-        mode === "edit" ? (
-          <AvailabilityMenu
-            value={availability}
-            accepting={accepting}
-            atCap={atCap}
-            name={mentorName}
-            onChange={(a) => setMentorAccepting("live", a)}
-          />
-        ) : (
-          <AvailabilityCell value={availability} />
-        )
-      }
-    />
+    <div className="space-y-7">
+      <CareNetwork
+        team={team}
+        menteeCount={menteeCount}
+        caseload={caseload}
+        onCaseloadMode={(m) => setCaseload("live", { ...caseload, mode: m })}
+        availability={availability}
+        accepting={accepting}
+        atCap={menteeCount >= caseload.total}
+        mentorName={mentorName}
+        onAcceptingChange={(a) => setMentorAccepting("live", a)}
+        editable={mode === "edit"}
+      />
+      <MenteeList
+        mentorId="live"
+        mentorName={mentorName}
+        capacityTotal={caseload.total}
+      />
+    </div>
   );
 }
