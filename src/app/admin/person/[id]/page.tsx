@@ -186,7 +186,6 @@ export default function PersonRecordPage({
             <PersonMentorship subject={subject} />
           ))}
         {activeTab === "supervision" && <Supervision subjectId={subject.id} />}
-        {activeTab === "organization" && <PersonOrganization subject={subject} />}
         {/* The teen-facing trio. The registry already gated these to mentor
             subjects; they rendered NOTHING until now, so a lead opening
             Profile on one of their mentors got an empty page. */}
@@ -249,8 +248,20 @@ function PersonAccount({
     ["Email", subject.email, "email"],
   ];
   return (
-    <section aria-label="Account" data-record-section="account">
-      <div className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 shadow-[var(--shadow-card)] [&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]">
+    <div className="space-y-7">
+      {/* ORGANIZATION first (Figma 2162:5663) — its own tab is gone. */}
+      <section aria-label="Organization group">
+        <h2 className="mb-3 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+          Organization
+        </h2>
+        <PersonOrganization subject={subject} />
+      </section>
+
+      <section aria-label="Account" data-record-section="account">
+        <h2 className="mb-3 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+          Account
+        </h2>
+        <div className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-1.5 shadow-[var(--shadow-card)] [&>*+*]:border-t [&>*+*]:border-[var(--border-subtle)]">
         {rows.map(([label, value, kind]) => (
           <div
             key={label}
@@ -281,6 +292,7 @@ function PersonAccount({
           </div>
         ))}
       </div>
-    </section>
+      </section>
+    </div>
   );
 }

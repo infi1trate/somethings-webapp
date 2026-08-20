@@ -1,6 +1,10 @@
 "use client";
 
-// PERSON ORGANIZATION — the universal Organization tab for a FIXTURE person
+// PERSON ORGANIZATION — the org facts for a FIXTURE person, rendered inside the
+// ACCOUNT tab (Figma 2162:5663). The Organization tab no longer exists: Team
+// went to Mentorship and these rows are account facts, so the tab held nothing.
+//
+// (was: the universal Organization tab for a FIXTURE person)
 // (staff, fixture mentors, teens). The store-backed mentor has its own
 // OrganizationCard wired to live store state; this is the same anatomy for
 // people whose facts come from the fixtures.
@@ -136,6 +140,11 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
         )}
       </section>
 
+      {/* REPORTS TO stays here. It is team-shaped, and Team moved to the
+          Mentorship tab — but a lead/supervisor subject has Supervision instead
+          of Mentorship, and a teen has neither, so routing it there would drop
+          the edge for exactly the people it describes. It rides along with the
+          org rows into Account. */}
       {reportsTo && (
         <section aria-label="Reports to" data-record-section="reports-to">
           <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">

@@ -1210,23 +1210,33 @@ export default function MentorRecordPage({
             {activeTab === "profile" && renderSection("matchingProfile")}
             {activeTab === "first-moments" && renderSection("firstMoments")}
             {activeTab === "schedule" && renderSection("schedule")}
-            {activeTab === "account" && renderSection("account")}
-            {/* Organization (universal) — org membership only, one card. */}
-            {activeTab === "organization" &&
-              resolveMode("accountOrg", persona) !== "hidden" && (
-                <section
-                  aria-label="Organization"
-                  data-record-section="organization"
-                >
-                  <OrganizationCard
-                    mode={
-                      resolveMode("accountOrg", persona) === "edit"
-                        ? "edit"
-                        : "read"
-                    }
-                  />
-                </section>
-              )}
+            {/* ORGANIZATION above ACCOUNT (Figma 2162:5663). Its own tab is
+                gone: Team moved to Mentorship (the care network, not paperwork)
+                and these four rows are account facts — the same drawer as name,
+                phone and email — so the tab held nothing. Rendered as a sibling
+                above the Account shell, which titles its own section. */}
+            {activeTab === "account" && (
+              <div className="space-y-7">
+                {resolveMode("accountOrg", persona) !== "hidden" && (
+                  <section
+                    aria-label="Organization"
+                    data-record-section="organization"
+                  >
+                    <h2 className="mb-3 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                      Organization
+                    </h2>
+                    <OrganizationCard
+                      mode={
+                        resolveMode("accountOrg", persona) === "edit"
+                          ? "edit"
+                          : "read"
+                      }
+                    />
+                  </section>
+                )}
+                {renderSection("account")}
+              </div>
+            )}
             {/* Mentorship (subject = mentor / lead mentor) — the practice
                 surface: mentees, caseload, availability, team. */}
             {activeTab === "mentorship" && (
