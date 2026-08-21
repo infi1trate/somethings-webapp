@@ -16,23 +16,30 @@
 import type { PersonRole } from "@/lib/record/people-demo";
 import { cn } from "@/lib/utils";
 
-/** TODO-COPY. "Mentee" is the RELATIONSHIP word and the Bloom spec's label for
- *  this row; see the note in people-demo on why the person-domain type stays
- *  `DemoTeen`. */
+/** TODO-COPY. SENTENCE CASE — "Lead mentor", not "Lead Mentor". This diverges
+ *  from the published Figma, which title-cases it; the product's own copy law
+ *  wins, and a label that shouts one role louder than the rest is exactly the
+ *  flatness the tint ramp is here to fix.
+ *
+ *  "Mentee" is the RELATIONSHIP word and the spec's label for this row; see the
+ *  note in people-demo on why the person-domain type stays `DemoTeen`. */
 export const ROLE_LABEL: Record<PersonRole, string> = {
   teen: "Mentee",
   mentor: "Mentor",
-  "lead-mentor": "Lead Mentor",
+  "lead-mentor": "Lead mentor",
   supervisor: "Supervisor",
   admin: "Admin",
 };
 
-const TONE: Record<PersonRole, string> = {
-  teen: "border border-[color:var(--role-mentee-border)] bg-[var(--role-mentee-bg)] text-[var(--role-mentee-fg)]",
-  mentor: "bg-[var(--role-mentor-bg)] text-[var(--role-mentor-fg)]",
-  "lead-mentor": "bg-[var(--role-lead-bg)] text-[var(--role-lead-fg)]",
-  supervisor: "bg-[var(--role-supervisor-bg)] text-[var(--role-supervisor-fg)]",
-  admin: "bg-[var(--role-admin-bg)] text-[var(--role-admin-fg)]",
+/** The tint per role, exported so the record HEADER badge and the directory
+ *  cell pull from one map — a role that looked different in two places would
+ *  defeat the point of a taxonomy. */
+export const ROLE_BADGE_TONE: Record<PersonRole, string> = {
+  teen: "border border-[color:var(--badge-role-mentee-border)] bg-[var(--badge-role-mentee-bg)] text-[var(--badge-role-mentee-fg)]",
+  mentor: "bg-[var(--badge-role-mentor-bg)] text-[var(--badge-role-mentor-fg)]",
+  "lead-mentor": "bg-[var(--badge-role-leadMentor-bg)] text-[var(--badge-role-leadMentor-fg)]",
+  supervisor: "bg-[var(--badge-role-supervisor-bg)] text-[var(--badge-role-supervisor-fg)]",
+  admin: "bg-[var(--badge-role-admin-bg)] text-[var(--badge-role-admin-fg)]",
 };
 
 export function RoleLabel({
@@ -46,7 +53,7 @@ export function RoleLabel({
     <span
       className={cn(
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1",
-        TONE[role],
+        ROLE_BADGE_TONE[role],
         className
       )}
       style={{ font: "var(--type-label-sm)" }}

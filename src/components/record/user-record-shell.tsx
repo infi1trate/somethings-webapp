@@ -12,6 +12,8 @@
 // follow-up, so this shell is built to match it as a drop-in.
 
 import Link from "next/link";
+import { ROLE_BADGE_TONE, ROLE_LABEL } from "@/components/record/role-label";
+import type { PersonRole } from "@/lib/record/people-demo";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +32,39 @@ export type StatusDot = "positive" | "warning" | "critical" | "none";
 // "none" = role-only pill (no dot). The record header stopped carrying
 // lifecycle state — it lives on Organization, and echoing it here made the
 // header a second status surface that could read stale.
+/** The role badge: role tint + the state dot, one statement. Lives here rather
+ *  than in RoleLabel because only the header carries a dot — a directory cell
+ *  showing five dots would be noise. */
+function RoleBadge({
+  role,
+  statusDot,
+  ariaLabel,
+}: {
+  role: PersonRole;
+  statusDot: StatusDot;
+  ariaLabel: string;
+}) {
+  return (
+    <span
+      aria-label={ariaLabel}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1",
+        ROLE_BADGE_TONE[role]
+      )}
+      style={{ font: "var(--type-label-sm)" }}
+    >
+      {statusDot !== "none" && (
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: DOT_VAR[statusDot] }}
+        />
+      )}
+      {ROLE_LABEL[role]}
+    </span>
+  );
+}
+
 const DOT_VAR: Record<StatusDot, string> = {
   none: "transparent",
   positive: "var(--dot-positive)",
@@ -40,7 +75,7 @@ const DOT_VAR: Record<StatusDot, string> = {
 export function UserRecordShell({
   avatar,
   name,
-  roleLabel,
+  role,
   statusDot = "positive",
   statusText,
   statusAriaLabel,
@@ -57,10 +92,14 @@ export function UserRecordShell({
 }: {
   avatar: { src: string | null; initial: string };
   name: string;
-  roleLabel: string;
+  /** Drives the role TINT (badge-role-* taxonomy). The label comes from the
+   *  shared ROLE_LABEL map, so wording and colour can't disagree. */
+  role: PersonRole;
   statusDot?: StatusDot;
-  /** Word shown in the pill after the role when a state is exceptional (e.g.
-   *  "· Unpublished"); omit for the default (active) state — a dot alone. */
+  /** EXCEPTION WORD, rendered as a SECOND chip beside the role badge — never
+   *  colour alone (WCAG 1.4.1), and never folded into the role pill, because a
+   *  role and a state are two different facts. Omit for the default state: the
+   *  dot inside the role badge carries it, and defaults whisper. */
   statusText?: string;
   statusAriaLabel: string;
   /** pronouns · location · [context] — a single middot-joined string. */
@@ -122,20 +161,23 @@ export function UserRecordShell({
             >
               {name}
             </h1>
-            <span
-              aria-label={statusAriaLabel}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
-            >
-              {statusDot !== "none" && (
-                <span
-                  aria-hidden
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: DOT_VAR[statusDot] }}
-                />
-              )}
-              {roleLabel}
-              {statusText ? ` · ${statusText}` : ""}
-            </span>
+            {/* ONE STATUS STATEMENT. The role badge carries its own tint AND
+                the state dot; there is no separate "Active" pill and no avatar
+                dot, so a reader counts one thing rather than three. */}
+            <RoleBadge
+              role={role}
+              statusDot={statusDot}
+              ariaLabel={statusAriaLabel}
+            />
+            {/* Exceptions get a WORD. */}
+            {statusText && (
+              <span
+                className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--status-attention-bg)] px-2.5 py-1 text-[var(--status-attention-fg)]"
+                style={{ font: "var(--type-label-sm)" }}
+              >
+                {statusText}
+              </span>
+            )}
           </div>
           <p
             className="text-[var(--text-secondary)]"

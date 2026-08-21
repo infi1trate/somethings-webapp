@@ -180,21 +180,22 @@
   --status-locked-bg: #ffeaee; /* blush/50 */
   --status-locked-fg: #da071f; /* blush/700 #f93b51 was 3.16:1 → 4.53:1 */
 
-  /* ROLE LABEL — Bloom "Role Label" (Figma 3466:10231). A warm neutral ramp that
+  /* ROLE BADGE TAXONOMY — Bloom "Role Label" (Figma 3466:10231), named
+     badge-role-* per MO-4.1. A warm neutral ramp that
      gains weight with authority: mentee outlined, mentor barely there, then
      progressively filled to Admin. Replaces one flat outlined pill that gave
      every role the same visual rank. */
-  --role-mentee-bg: #ffffff; /* neutralGrey/50 */
-  --role-mentee-border: #decdab; /* ivory/200 */
-  --role-mentee-fg: #8c733a; /* ivory/600 #947a3d was 4.11:1 → 4.54:1 */
-  --role-mentor-bg: #f6f4ef; /* ecru/50 */
-  --role-mentor-fg: #65593e; /* ecru/700 — 6.26:1 */
-  --role-lead-bg: #d4cbb5; /* ecru/200 */
-  --role-lead-fg: #49402d; /* ecru/800 — 6.33:1 */
-  --role-supervisor-bg: #82734f; /* ecru/600 */
-  --role-supervisor-fg: #ffffff; /* 4.65:1 */
-  --role-admin-bg: #3c3c3c; /* neutralGrey/800 */
-  --role-admin-fg: #ffffff; /* 11.03:1 */
+  --badge-role-mentee-bg: #ffffff; /* neutralGrey/50 */
+  --badge-role-mentee-border: #decdab; /* ivory/200 */
+  --badge-role-mentee-fg: #8c733a; /* ivory/600 #947a3d was 4.11:1 → 4.54:1 */
+  --badge-role-mentor-bg: #f6f4ef; /* ecru/50 */
+  --badge-role-mentor-fg: #65593e; /* ecru/700 — 6.26:1 */
+  --badge-role-leadMentor-bg: #d4cbb5; /* ecru/200 */
+  --badge-role-leadMentor-fg: #49402d; /* ecru/800 — 6.33:1 */
+  --badge-role-supervisor-bg: #82734f; /* ecru/600 */
+  --badge-role-supervisor-fg: #ffffff; /* 4.65:1 */
+  --badge-role-admin-bg: #3c3c3c; /* neutralGrey/800 */
+  --badge-role-admin-fg: #ffffff; /* 11.03:1 */
 
   /* Brand ink — the brand colour as TEXT. Pure tangelo #ff5001 only reaches
      ~3.1:1 on white, so text use steps to tangelo/600 (Bloom text/onDestructive);
@@ -350,17 +351,17 @@
   --status-locked-bg: #4a0d15;
   --status-locked-fg: #ffb3bd;
 
-  --role-mentee-bg: transparent;
-  --role-mentee-border: #6b5a34;
-  --role-mentee-fg: #d8bf82;
-  --role-mentor-bg: #322f2c;
-  --role-mentor-fg: #cfc6b4;
-  --role-lead-bg: #4a422f;
-  --role-lead-fg: #e6ddc7;
-  --role-supervisor-bg: #82734f;
-  --role-supervisor-fg: #ffffff;
-  --role-admin-bg: #e8e4dc;
-  --role-admin-fg: #26241f;
+  --badge-role-mentee-bg: transparent;
+  --badge-role-mentee-border: #6b5a34;
+  --badge-role-mentee-fg: #d8bf82;
+  --badge-role-mentor-bg: #322f2c;
+  --badge-role-mentor-fg: #cfc6b4;
+  --badge-role-leadMentor-bg: #4a422f;
+  --badge-role-leadMentor-fg: #e6ddc7;
+  --badge-role-supervisor-bg: #82734f;
+  --badge-role-supervisor-fg: #ffffff;
+  --badge-role-admin-bg: #e8e4dc;
+  --badge-role-admin-fg: #26241f;
 
   /* Brand: the fill stays pure tangelo; the INK lifts for legibility on dark. */
   --brand-ink: #ff8e5d; /* tangelo/300 — 5.71:1 on card ✓ */

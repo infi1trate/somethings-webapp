@@ -148,7 +148,7 @@ export default function MentorSelfRecord({
       <UserRecordShell
         avatar={{ src: avatarSrc, initial }}
         name={name}
-        roleLabel="Mentor"
+        role="mentor"
         statusDot={profileHidden ? "warning" : "positive"}
         statusText={profileHidden ? "Unpublished" : undefined}
         statusAriaLabel={`Mentor, ${profileHidden ? "unpublished" : "active"}`}

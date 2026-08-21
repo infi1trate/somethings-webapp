@@ -78,7 +78,7 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
   { key: "mentor", label: "Mentor", go: () => enterPersona("mentor", mentorDest()) },
   {
     key: "lead-mentor",
-    label: "Lead Mentor",
+    label: "Lead mentor",
     // Role migration: the Lead Mentor manages mentors — land on their
     // management home: Team (the staff directory + review queues).
     go: () => enterPersona("lead-mentor", "/app/team"),

@@ -42,7 +42,7 @@ export const STATUS_BADGE: Record<
 > = {
   // in-progress tones (sky → indigo read as "advancing")
   "in-training": {
-    label: "In Training",
+    label: "In training",
     icon: GraduationCap,
     className: "bg-[var(--status-info-bg)] text-[var(--status-info-fg)]",
   },

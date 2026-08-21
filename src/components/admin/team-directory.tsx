@@ -38,7 +38,6 @@ import {
   leadUmbrellaMentors,
   roleOf,
   superviseesOf,
-  type PersonRole,
 } from "@/lib/record/people-demo";
 import { getDemoOverview } from "@/lib/record/mentees-demo";
 import { recordHrefFor } from "@/lib/record/subject";
