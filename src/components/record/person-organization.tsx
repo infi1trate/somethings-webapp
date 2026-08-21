@@ -13,13 +13,15 @@
 // standing. Deactivation sits here too — surfaced as an explicit action rather
 // than hidden behind the header's overflow.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { RecordRow } from "@/components/record/row";
 import { PersonRow } from "@/components/record/person-row";
 import {
-  AccountStanding,
-  type TeenStanding,
-} from "@/components/record/account-standing";
+  MentorStatusBadge,
+  MentorStatusMenu,
+} from "@/components/admin/mentor-status-badge";
+import { DeactivateAction } from "@/components/record/deactivate-action";
+import { ConfirmDialog } from "@/components/record/confirm-dialog";
 import {
   DEMO_PEOPLE,
   defaultMenteeStatus,
@@ -28,10 +30,15 @@ import {
 import { recordHrefFor, type FixtureSubject } from "@/lib/record/subject";
 import { resolveMode, staffActorFor } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import type { MentorLifecycleStatus } from "@/lib/types";
 // Role wording comes from the ONE shared map (Bloom Role Label) — six local
 // copies of this had drifted into "Lead mentor" vs "Lead Mentor" and all six
 // still said "Teen".
 import { ROLE_LABEL } from "@/components/record/role-label";
+
+/** A teen holds three of the five lifecycle states — "in training" and "guided"
+ *  describe a mentor's onboarding. Same menu chrome, shorter list. */
+const TEEN_STATES: MentorLifecycleStatus[] = ["active", "paused", "deactivated"];
 
 export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const persona = useOnboardingStore((s) => s.persona);
@@ -41,7 +48,13 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const accountLocks = useOnboardingStore((s) => s.accountLocks);
   const setAccountLock = useOnboardingStore((s) => s.setAccountLock);
   const draft = useOnboardingStore((s) => s.draft);
+  const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
   const [, force] = useState(0);
+  // Picking "Deactivated" from the menu routes through the SAME confirm the
+  // band's button uses — otherwise the menu is a silent way around the
+  // deliberate path for the one transition that ends pairings.
+  const [pendingDeactivate, setPendingDeactivate] = useState(false);
+  const returnFocusTo = useRef<HTMLElement | null>(null);
 
   // Admin, supervisor and lead mentor all resolve to "edit" here — all three are
   // accountable for a person's standing.
@@ -60,10 +73,20 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const status = subject.person
     ? (mentorStatuses[subject.id] ?? subject.person.status)
     : null;
-  const teenStanding: TeenStanding = isTeen
+  // ONE value for the row, whichever kind of person this is: a staff lifecycle
+  // or a teen's mentee state, which is a subset of the same enum.
+  const standing: MentorLifecycleStatus = isTeen
     ? ((menteeStatus[subject.id] ??
-        (subject.teen ? defaultMenteeStatus(subject.teen) : "active")) as TeenStanding)
-    : "active";
+        (subject.teen ? defaultMenteeStatus(subject.teen) : "active")) as MentorLifecycleStatus)
+    : status ?? "active";
+  const deactivated = standing === "deactivated";
+
+  /** Write a standing choice to whichever axis this person's state lives on. */
+  const applyStanding = (next: MentorLifecycleStatus) => {
+    if (isTeen) setMenteeStatus(subject.id, next as "active" | "paused" | "deactivated");
+    else setMentorStatus(subject.id, next);
+    force((n) => n + 1);
+  };
 
   return (
     <div className="space-y-6">
@@ -95,41 +118,73 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
               onCancel={() => {}}
             />
           )}
+        {/* Status — the LAST row of the Organization card, exactly as the live
+            mentor's card does it (Figma 2218:8660). The badge with a caret IS
+            the control; a separate "Standing" section with a native select was
+            foreign chrome and is gone. Read viewers get the badge alone. */}
+        <RecordRow
+          label="Status"
+          value={
+            canEdit ? (
+              <MentorStatusMenu
+                status={standing}
+                name={subject.goesBy ?? subject.name}
+                options={isTeen ? TEEN_STATES : undefined}
+                onChange={(next) => {
+                  // The one transition that ends pairings gets the same confirm
+                  // the band's button uses.
+                  if (next === "deactivated") setPendingDeactivate(true);
+                  else applyStanding(next);
+                }}
+              />
+            ) : (
+              <MentorStatusBadge status={standing} />
+            )
+          }
+          state="read"
+          locked
+          onEditStart={() => {}}
+          onCancel={() => {}}
+        />
         </div>
 
-        {/* STANDING + the two account actions. Was a read-only "Active" /
-            "Inactive" pill — a BINARY, so "paused" was unreachable from the one
-            page that owns a person's standing. Deactivate and Lock live with it,
-            because a reader deciding one is deciding between all three. */}
-        <div className="mt-3">
-          <AccountStanding
+        {/* Deactivation belongs WITH status — it IS a status change — and the
+            LOCK sits beside it, because a reader deciding one is deciding
+            between both. */}
+        {canEdit && (
+          <DeactivateAction
             name={subject.goesBy ?? subject.name}
-            standing={isTeen ? teenStanding : null}
-            onStandingChange={
-              canEdit && isTeen
-                ? (next) => {
-                    setMenteeStatus(subject.id, next);
-                    force((n) => n + 1);
-                  }
-                : undefined
+            deactivated={deactivated}
+            noun={isTeen ? "mentee" : "account"}
+            onConfirm={(reactivate) =>
+              applyStanding(reactivate ? "active" : "deactivated")
             }
-            staffStatus={status}
             lock={accountLocks[subject.id] ?? null}
-            onLockChange={
-              canEdit
-                ? (lock) => {
-                    setAccountLock(subject.id, lock);
-                    force((n) => n + 1);
-                  }
-                : undefined
-            }
+            onLockChange={(lock) => {
+              setAccountLock(subject.id, lock);
+              force((n) => n + 1);
+            }}
+            blocked={{ email: subject.email, phone: subject.phone }}
             actor={actorName}
             actorRole={staffActorFor(persona)}
-            blocked={{ email: subject.email, phone: subject.phone }}
-            canEdit={canEdit}
           />
-        </div>
+        )}
       </section>
+
+      <ConfirmDialog
+        open={pendingDeactivate}
+        onOpenChange={setPendingDeactivate}
+        returnFocusTo={returnFocusTo}
+        title={`Deactivate ${subject.goesBy ?? subject.name}?`}
+        description={
+          isTeen
+            ? "They stop being an active user, and their pairing moves to Past mentees. Nothing is deleted, and you can set them active again."
+            : "They'll be removed from matching right away. Active mentorships are paused, not ended. You can reactivate them later — nothing is deleted."
+        }
+        confirmLabel="Deactivate"
+        tone="destructive"
+        onConfirm={() => applyStanding("deactivated")}
+      />
 
       {/* REPORTS TO stays here. It is team-shaped, and Team moved to the
           Mentorship tab — but a lead/supervisor subject has Supervision instead

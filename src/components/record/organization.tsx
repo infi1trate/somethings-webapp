@@ -20,6 +20,7 @@
 // (Role, Groups, Join date) carry the lock badge with a why; Status is derived
 // state (bound to the header overflow round trips) and shows no affordance.
 
+import { useRef, useState } from "react";
 import { RecordRow } from "@/components/record/row";
 import {
   MentorStatusBadge,
@@ -27,6 +28,7 @@ import {
 } from "@/components/admin/mentor-status-badge";
 import { liveLifecycle } from "@/lib/record/mentor-status";
 import { DeactivateAction } from "@/components/record/deactivate-action";
+import { ConfirmDialog } from "@/components/record/confirm-dialog";
 import type { MentorLifecycleStatus } from "@/lib/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { staffActorFor } from "@/lib/record/permission-map";
@@ -134,6 +136,8 @@ export function OrganizationCard({
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
   const persona = useOnboardingStore((s) => s.persona);
   const staffActor = staffActorFor(persona);
+  const accountLocks = useOnboardingStore((s) => s.accountLocks);
+  const setAccountLock = useOnboardingStore((s) => s.setAccountLock);
   const mentorRole = useOnboardingStore((s) => s.mentorRole);
   const setMentorRole = useOnboardingStore((s) => s.setMentorRole);
   const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
@@ -143,6 +147,8 @@ export function OrganizationCard({
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "this mentor";
 
   const deactivated = accountStatus === "deactivated";
+  const [pendingDeactivate, setPendingDeactivate] = useState(false);
+  const returnFocusTo = useRef<HTMLElement | null>(null);
   // Shared lifecycle vocabulary with the Mentors roster + header pill. A manual
   // staff override (set from here or the roster) wins over the derived standing.
   const lifecycle =
@@ -255,7 +261,12 @@ export function OrganizationCard({
                 <MentorStatusMenu
                   status={lifecycle}
                   name={mentorName}
-                  onChange={applyLifecycle}
+                  onChange={(next) => {
+                    // Same confirm as the band's button — the menu used to
+                    // commit the one destructive transition silently.
+                    if (next === "deactivated") setPendingDeactivate(true);
+                    else applyLifecycle(next);
+                  }}
                 />
               ) : (
                 <MentorStatusBadge status={lifecycle} />
@@ -286,8 +297,24 @@ export function OrganizationCard({
           onConfirm={(reactivate) =>
             applyLifecycle(reactivate ? "active" : "deactivated")
           }
+          lock={accountLocks["live"] ?? null}
+          onLockChange={(lock) => setAccountLock("live", lock)}
+          blocked={{ email: draft.email, phone: draft.phone }}
+          actor={mentorName}
+          actorRole={staffActor}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDeactivate}
+        onOpenChange={setPendingDeactivate}
+        returnFocusTo={returnFocusTo}
+        title={`Deactivate ${mentorName}?`}
+        description="They'll be removed from matching right away, and teens won't see their profile. Active mentorships are paused, not ended. You can reactivate them later — nothing is deleted."
+        confirmLabel="Deactivate"
+        tone="destructive"
+        onConfirm={() => applyLifecycle("deactivated")}
+      />
 
     </div>
   );

@@ -64,11 +64,18 @@ export function MentorStatusMenu({
   status,
   name,
   onChange,
+  options = STATUS_ORDER,
 }: {
   status: MentorLifecycleStatus;
   /** Person name — for the accessible action labels. */
   name: string;
   onChange: (next: MentorLifecycleStatus) => void;
+  /** Which states this subject can hold. Defaults to the full staff lifecycle;
+   *  a TEEN passes the three mentee states, since "in training" and "guided"
+   *  describe a mentor's onboarding and mean nothing for a teen. Same badge,
+   *  caret and menu chrome either way — the option list is the only difference,
+   *  which is why this is a prop rather than a second component. */
+  options?: MentorLifecycleStatus[];
 }) {
   return (
     <DropdownMenu>
@@ -87,7 +94,7 @@ export function MentorStatusMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-52">
         <DropdownMenuLabel>Set status</DropdownMenuLabel>
-        {STATUS_ORDER.map((s) => (
+        {options.map((s) => (
           <DropdownMenuItem
             key={s}
             onSelect={() => onChange(s)}
