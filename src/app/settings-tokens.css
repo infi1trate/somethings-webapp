@@ -154,18 +154,47 @@
      pixel-identical in light; only dark gains new values. Measured on their
      own bg: info 6.59 · progress 8.06 · positive 6.78 · attention 6.37 ·
      warn 6.38 (all ≥4.5 ✓). */
-  --status-info-bg: #e0f2fe; /* sky-100 */
-  --status-info-fg: #075985; /* sky-800 */
-  --status-progress-bg: #e0e7ff; /* indigo-100 */
-  --status-progress-fg: #3730a3; /* indigo-800 */
-  --status-positive-bg: #d1fae5; /* emerald-100 */
-  --status-positive-fg: #065f46; /* emerald-800 */
-  --status-attention-bg: #fef3c7; /* amber-100 */
-  --status-attention-fg: #92400e; /* amber-800 */
-  --status-warn-bg: #ffedd5; /* orange-100 */
+  /* STATUS LABEL — Bloom "Status Label" (Figma 3466:10142). These were Tailwind
+     stand-ins (sky-100/indigo-100/emerald-100/amber-100) pending tokenization,
+     gaps.md #117; they now carry Bloom's OWN ramps. Type is Label/Small/Web
+     (500 12px/16px Lausanne, tracking 0) with a 4px icon gap.
+
+     THREE OF BLOOM'S PAIRINGS FAIL AA AT 12px AND ARE DARKENED IN-HUE — flagged,
+     not silently shipped. Each keeps its hue and saturation; only lightness
+     moved, to the first value that clears 4.5:1. */
+  --status-info-bg: #b8f1ff; /* sky/100 */
+  --status-info-fg: #005b76; /* sky/800 — 6.19:1 */
+  --status-progress-bg: #c3c4ff; /* periwinkle/100 */
+  --status-progress-fg: #0713f6; /* periwinkle/700 — 5.20:1 */
+  --status-positive-bg: #beefd6; /* emerald/100 */
+  --status-positive-fg: #0f7542; /* emerald/700 #11884d was 3.55:1 → 4.53:1 */
+  --status-attention-bg: #ffd49c; /* apricot/200 */
+  --status-attention-fg: #844b04; /* apricot/800 — 5.07:1 */
+  --status-warn-bg: #ffedd5; /* orange-100 — no Bloom counterpart in the spec */
   --status-warn-fg: #9a3412; /* orange-800 */
-  --status-neutral-bg: #f3eee6;
-  --status-neutral-fg: var(--text-secondary);
+  --status-neutral-bg: #dcdcdc; /* neutralGrey/100 */
+  --status-neutral-fg: #525252; /* neutralGrey/700 — 5.70:1 */
+  /* LOCKED is a TEEN-ONLY status the Bloom spec adds and this codebase had no
+     enum member for (reported). Token minted now so the value exists when the
+     enum does. */
+  --status-locked-bg: #ffeaee; /* blush/50 */
+  --status-locked-fg: #da071f; /* blush/700 #f93b51 was 3.16:1 → 4.53:1 */
+
+  /* ROLE LABEL — Bloom "Role Label" (Figma 3466:10231). A warm neutral ramp that
+     gains weight with authority: mentee outlined, mentor barely there, then
+     progressively filled to Admin. Replaces one flat outlined pill that gave
+     every role the same visual rank. */
+  --role-mentee-bg: #ffffff; /* neutralGrey/50 */
+  --role-mentee-border: #decdab; /* ivory/200 */
+  --role-mentee-fg: #8c733a; /* ivory/600 #947a3d was 4.11:1 → 4.54:1 */
+  --role-mentor-bg: #f6f4ef; /* ecru/50 */
+  --role-mentor-fg: #65593e; /* ecru/700 — 6.26:1 */
+  --role-lead-bg: #d4cbb5; /* ecru/200 */
+  --role-lead-fg: #49402d; /* ecru/800 — 6.33:1 */
+  --role-supervisor-bg: #82734f; /* ecru/600 */
+  --role-supervisor-fg: #ffffff; /* 4.65:1 */
+  --role-admin-bg: #3c3c3c; /* neutralGrey/800 */
+  --role-admin-fg: #ffffff; /* 11.03:1 */
 
   /* Brand ink — the brand colour as TEXT. Pure tangelo #ff5001 only reaches
      ~3.1:1 on white, so text use steps to tangelo/600 (Bloom text/onDestructive);
@@ -303,6 +332,9 @@
   /* Status chip families — deep tint + lifted ink, mirroring the alerts.
      Measured: info 8.32 · progress 8.02 · positive 9.94 · attention 10.39 ·
      warn 9.28 · neutral 6.16 (all ≥4.5 ✓). */
+  /* Bloom specifies these labels for LIGHT only. Dark keeps the established
+     inversion (deep bg + light fg from the same hue) rather than inventing a
+     dark ramp the design system hasn't published — flagged as a gap. */
   --status-info-bg: #082f49;
   --status-info-fg: #7dd3fc;
   --status-progress-bg: #1e1b4b;
@@ -315,6 +347,20 @@
   --status-warn-fg: #fdba74;
   --status-neutral-bg: #322f2c;
   --status-neutral-fg: var(--text-secondary);
+  --status-locked-bg: #4a0d15;
+  --status-locked-fg: #ffb3bd;
+
+  --role-mentee-bg: transparent;
+  --role-mentee-border: #6b5a34;
+  --role-mentee-fg: #d8bf82;
+  --role-mentor-bg: #322f2c;
+  --role-mentor-fg: #cfc6b4;
+  --role-lead-bg: #4a422f;
+  --role-lead-fg: #e6ddc7;
+  --role-supervisor-bg: #82734f;
+  --role-supervisor-fg: #ffffff;
+  --role-admin-bg: #e8e4dc;
+  --role-admin-fg: #26241f;
 
   /* Brand: the fill stays pure tangelo; the INK lifts for legibility on dark. */
   --brand-ink: #ff8e5d; /* tangelo/300 — 5.71:1 on card ✓ */

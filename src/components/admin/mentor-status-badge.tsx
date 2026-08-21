@@ -37,11 +37,15 @@ export function MentorStatusBadge({
   const { label, icon: Icon, className: tint } = STATUS_BADGE[status];
   return (
     <span
+      // Bloom Label/Small/Web: 500 12px/16px Lausanne, tracking 0, 4px icon gap
+      // (Figma 3466:10142). `gap-1` is 4px and the type token carries the rest,
+      // replacing the ad-hoc `text-xs font-medium`.
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1",
         tint,
         className
       )}
+      style={{ font: "var(--type-label-sm)" }}
     >
       <Icon className="size-3" aria-hidden />
       {label}
