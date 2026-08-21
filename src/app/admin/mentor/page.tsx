@@ -95,6 +95,7 @@ import {
   defaultMenteeStatus,
 } from "@/lib/record/people-demo";
 import { currentMenteesOf } from "@/lib/record/relationships";
+import { ROLE_BADGE_TONE, ROLE_LABEL } from "@/components/record/role-label";
 import { toast } from "sonner";
 import {
   sectionsForTab,
@@ -118,7 +119,6 @@ import {
   FOCUS_TO_TAB,
   recordTabsFor,
   subjectRoleFromParam,
-  type SubjectRole,
 } from "@/lib/record/tabs";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useMounted } from "@/lib/use-mounted";
@@ -150,14 +150,6 @@ const SLOT_TITLES: Record<RecordSectionSlot, string> = {
 // Header role word by SUBJECT role (the person whose record this is). The
 // status/lifecycle vocabulary is a mentor concept; for non-mentor subjects
 // (dev preview only) the word still names the role honestly.
-const SUBJECT_ROLE_LABEL: Record<SubjectRole, string> = {
-  mentor: "Mentor",
-  "lead-mentor": "Lead mentor",
-  supervisor: "Supervisor",
-  admin: "Admin",
-  teen: "Mentee",
-};
-
 /** Read-only chrome chip for a field that sits in the open changeset. */
 function changesetChip(update: ProfileUpdate | null, fieldId: string) {
   const f = update?.fields.find((x) => x.fieldId === fieldId);
@@ -1041,18 +1033,19 @@ export default function MentorRecordPage({
                 >
                   {mentorName}
                 </h1>
-                {/* The header's ONLY pill: role + status — a soft-filled
-                    pill with a tokenized status dot (active = positive dot
-                    alone; exceptional states add the word — never color
-                    alone, WCAG 1.4.1). */}
-                {/* ONE status statement: the role badge with the dot embedded
-                    ("● Mentor"). No separate Active pill, no avatar dot. The
-                    WORD for the standing stays on Organization — the dot is the
-                    glanceable half, never colour alone (WCAG 1.4.1: the word is
-                    one tab away and the aria-label carries it). */}
+                {/* ONE STATUS STATEMENT: the role badge carries its own tint
+                    (badge-role-* taxonomy) AND the state dot. No separate
+                    "Active" pill, no avatar dot — a reader counts one thing.
+                    The tint map is shared with the directory cell and the
+                    UserRecordShell header, so a role can't look like two
+                    different things in two places. */}
                 <span
-                  aria-label={`${SUBJECT_ROLE_LABEL[subjectRole]} — ${STATUS_LABELS[headerLifecycle]}`}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-s1)] px-3 py-1 text-[13px] font-medium text-[var(--text-primary)] ring-1 ring-[color:var(--border-contour)]"
+                  aria-label={`${ROLE_LABEL[subjectRole]} — ${STATUS_LABELS[headerLifecycle]}`}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1",
+                    ROLE_BADGE_TONE[subjectRole]
+                  )}
+                  style={{ font: "var(--type-label-sm)" }}
                 >
                   <span
                     aria-hidden
@@ -1061,8 +1054,19 @@ export default function MentorRecordPage({
                       backgroundColor: `var(--dot-${headerDotFor(headerLifecycle)})`,
                     }}
                   />
-                  {SUBJECT_ROLE_LABEL[subjectRole]}
+                  {ROLE_LABEL[subjectRole]}
                 </span>
+                {/* EXCEPTIONS GET A WORD — a second chip, never folded into the
+                    role pill and never colour alone. Default (active) renders
+                    nothing: the dot above carries it. */}
+                {headerLifecycle !== "active" && (
+                  <span
+                    className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--status-attention-bg)] px-2.5 py-1 text-[var(--status-attention-fg)]"
+                    style={{ font: "var(--type-label-sm)" }}
+                  >
+                    {STATUS_LABELS[headerLifecycle]}
+                  </span>
+                )}
               </div>
               {/* Meta: pronouns · location · capacity — middots, no icons.
                   Groups stand in for location (no location field exists). */}

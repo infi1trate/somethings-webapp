@@ -1,29 +1,34 @@
 "use client";
 
-// MENTEES — the mentor's matched teens. Name (+ exception chip) · Matched · chat
-// · overflow. Built on the shared RelationshipTable, same as the supervisor's
-// Mentors table.
+// MENTEES — the mentor's matched teens. Name (+ chip) · Days in mentorship ·
+// chat · overflow, on the shared RelationshipTable.
 //
 // THE STATUS COLUMN AND ITS INLINE DROPDOWN ARE GONE. They were the bug: a
 // person's platform status rendered inside a relationship's table, with a
 // one-click mutation on it, so a user intending to end a pairing could instead
-// change someone's account. And the control could never have ended a pairing —
-// `menteeStatus` is keyed by TEEN ID, not by match, so "deactivate" only hid the
-// row while mutating the teen's account.
+// change someone's account.
 //
-// PRESENCE IN THE LIST MEANS MATCHED. That is what the list is for, so no column
-// restates it. A non-active PLATFORM state surfaces as a read-only exception
-// chip beside the name — describing the person, sitting with the person, and
-// impossible to actuate. Active mentees carry no chip: defaults whisper.
+// WHERE EACH STATE LIVES, per product decision:
+//   active      — the list, no chip. Defaults whisper.
+//   paused      — the list, in a collapsed group, with a "Paused" chip. Still
+//                 matched, so still here; set apart because the reader's default
+//                 question is "who am I working with this week".
+//   deactivated — NOT here. Deactivation ends the pairing, so the row belongs in
+//                 Past mentees. Sourced from `menteeStatus` (keyed by teen id)
+//                 rather than from an ended-pairing event, because that is the
+//                 only place the state is recorded — flagged: it means the
+//                 account action still implies a relationship outcome, which is
+//                 the coupling the relationship layer otherwise avoids.
 //
-// MATCHED, not "Joined". The old column read `joinedDaysAgo` — the person's
-// platform join date — inside a table of relationships. It now reads the
-// relationship's own start date.
+// PAUSED DOES NOT OCCUPY A SLOT (product decision), so the capacity caption
+// counts ACTIVE against the total.
 //
-// PAST MENTEES keeps both histories: the fixtures' own past matches AND the
-// unmatches staff performed in-session, which carry a real timestamp.
+// PAST MENTEES carries three sources: deactivated pairings, the fixtures' own
+// past matches, and unmatches performed in-session. Outcome is DERIVED — a teen
+// whose pairing here ended and who now has a different mentor was rematched.
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import {
   Dialog,
@@ -38,19 +43,20 @@ import {
   type RelationshipRow,
 } from "@/components/record/relationship-table";
 import { ConfirmDialog } from "@/components/record/confirm-dialog";
-import { PersonRow } from "@/components/record/person-row";
+import { PersonRow, avatarTintFor } from "@/components/record/person-row";
 import {
   DEMO_TEENS,
   defaultMenteeStatus,
   pastMenteesFor,
-  relJoined,
+  personById,
   type DemoTeen,
 } from "@/lib/record/people-demo";
 import { relLength, teenAsMentee } from "@/lib/record/mentees-demo";
 import {
+  currentMentorId,
   currentMenteesOf,
+  daysInMentorship,
   endedMatchesFor,
-  matchedDaysAgo,
   type RelationshipSlice,
 } from "@/lib/record/relationships";
 import { recordHrefFor } from "@/lib/record/subject";
@@ -61,13 +67,18 @@ import { toast } from "sonner";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+const LINK =
+  "rounded-sm font-medium text-[var(--text-primary)] underline underline-offset-2 hover:opacity-70";
 
 export function MenteeTable({
   mentorId,
   mentorName,
+  /** Total caseload slots, for the capacity caption. Omit to hide the caption. */
+  capacity,
 }: {
   mentorId: string;
   mentorName: string;
+  capacity?: number;
 }) {
   const [now] = useState(() => Date.now());
   const persona = useOnboardingStore((s) => s.persona);
@@ -77,7 +88,6 @@ export function MenteeTable({
   const endRelationship = useOnboardingStore((s) => s.endRelationship);
 
   const slice: RelationshipSlice = { events: relationshipEvents };
-  // A mentor manages their own pairings; staff above them can too.
   const canAct =
     isSupervisorTier(persona) ||
     persona === "lead-mentor" ||
@@ -98,17 +108,37 @@ export function MenteeTable({
     [mentorId, relationshipEvents]
   );
 
-  const rows: RelationshipRow[] = live.map((t) => ({
+  // Deactivated pairings leave the card entirely.
+  const inCard = live.filter((t) => statusOf(t) !== "deactivated");
+  const deactivated = live.filter((t) => statusOf(t) === "deactivated");
+
+  const rows: RelationshipRow[] = inCard.map((t) => ({
     id: t.id,
     name: t.name,
     goesBy: t.goesBy,
-    sinceDays: matchedDaysAgo(t),
-    // The chip is the PERSON's platform state. Null for active.
+    sinceDays: daysInMentorship(t),
     exception: exceptionFor(statusOf(t)),
+    paused: statusOf(t) === "paused",
   }));
 
-  // Two histories, one section: the fixtures' recorded past matches, plus the
-  // unmatches performed in-session (which carry a true timestamp).
+  const activeCount = rows.filter((r) => !r.paused).length;
+  const pausedCount = rows.length - activeCount;
+
+  // TODO-COPY. PAUSED DOES NOT OCCUPY A SLOT, so open slots come off the ACTIVE
+  // count. The paused clause still renders, because a caption that hid four
+  // paused pairings while advertising four open slots would be true and useless.
+  const caption =
+    capacity === undefined
+      ? undefined
+      : [
+          `${activeCount} active`,
+          pausedCount > 0 ? `${pausedCount} paused` : null,
+          `${Math.max(0, capacity - activeCount)} of ${capacity} slots open`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+  // ── Past mentees: three sources, one list ────────────────────────────────
   const fixturePast = useMemo(
     () => pastMenteesFor(mentorId, () => false),
     [mentorId]
@@ -118,7 +148,68 @@ export function MenteeTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mentorId, relationshipEvents]
   );
-  const pastCount = fixturePast.length + endedPast.length;
+
+  /** OUTCOME IS DERIVED, not recorded. No outcome field exists on either
+   *  `PastMatch` or `RelationshipEvent` (audited). But a teen's CURRENT mentor is
+   *  reachable, and a teen whose pairing here ended and who now sits with a
+   *  different mentor was rematched by definition.
+   *
+   *  The gap this leaves: it cannot tell "rematched" from "left, came back, got
+   *  matched to someone else". Both read as rematched. Flagged — the fix is an
+   *  outcome on the event, not more inference here. */
+  const outcomeFor = (teen: DemoTeen) => {
+    const current = currentMentorId(teen, slice);
+    if (current && current !== mentorId) {
+      const m = current === "live" ? null : personById(current);
+      return {
+        kind: "rematched" as const,
+        mentorId: current,
+        // "live" has no fixture row, so its name comes from the draft — same
+        // "Jordan Rivera" fallback the other six surfaces use, rather than a
+        // vague "their current mentor" that names nobody.
+        mentorName:
+          m?.name ??
+          ([draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
+            "Jordan Rivera"),
+      };
+    }
+    return { kind: "ended" as const };
+  };
+
+  const pastEntries = [
+    ...deactivated.map((teen) => ({
+      key: `deact-${teen.id}`,
+      teen,
+      // TODO-COPY — the account state is why this pairing is over.
+      tail: "ended · account deactivated",
+    })),
+    ...endedPast.map((e) => {
+      const o = outcomeFor(e.teen);
+      return {
+        key: `${e.teen.id}-${e.endedAt}`,
+        teen: e.teen,
+        tail:
+          o.kind === "rematched"
+            ? { rematchedTo: o.mentorName, mentorId: o.mentorId }
+            : // TODO-COPY
+              "ended",
+      };
+    }),
+    ...fixturePast.map(({ teen, endedLabel }) => {
+      const o = outcomeFor(teen);
+      return {
+        key: `fix-${teen.id}`,
+        teen,
+        tail:
+          o.kind === "rematched"
+            ? { rematchedTo: o.mentorName, mentorId: o.mentorId }
+            : // TODO-COPY
+              endedLabel
+              ? `ended ${endedLabel}`
+              : "ended",
+      };
+    }),
+  ];
 
   const actorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || mentorName;
@@ -129,16 +220,20 @@ export function MenteeTable({
         variant="mentees"
         /* TODO-COPY */
         title="Mentees"
+        caption={caption}
         rows={rows}
-        /* The RELATIONSHIP fact. */
-        sinceLabel="Matched"
+        /* PHASE 3 — A NAMED PLATFORM METRIC, deliberately NOT the elapsed-time
+           standard the rest of these surfaces use. "122 days", never "4 months":
+           a named metric keeps its own unit so it stays comparable across records
+           and against wherever else the platform reports it. The clock does NOT
+           pause (no pause history exists — see formatDaysInMentorship). */
+        sinceLabel="Days in mentorship"
+        sinceFormat="metric"
         addLabel={canAct ? "Add mentee" : undefined}
         onAdd={canAct ? () => setPicking(true) : undefined}
         onEndRelationship={
           canAct
             ? (row, trigger) => {
-                // The table hands up the ⋯ control; activeElement here would be
-                // the menu item, which unmounts a moment later.
                 returnFocusTo.current = trigger;
                 setUnmatching(row);
               }
@@ -150,7 +245,7 @@ export function MenteeTable({
         emptyLabel="No mentees matched yet."
       />
 
-      {pastCount > 0 && (
+      {pastEntries.length > 0 && (
         <section
           aria-label="Past mentees"
           data-record-section="past-mentees"
@@ -171,7 +266,7 @@ export function MenteeTable({
                 style={{ font: "var(--type-row-label)" }}
               >
                 {/* TODO-COPY */}
-                Past mentees ({pastCount})
+                Past mentees ({pastEntries.length})
               </span>
               <ChevronDown
                 className={cn(
@@ -183,46 +278,21 @@ export function MenteeTable({
             </button>
             {pastOpen && (
               <ul className="pb-1.5 [&>li+li]:border-t [&>li+li]:border-[var(--border-subtle)]">
-                {/* In-session unmatches first — newest history at the top. */}
-                {endedPast.map((e) => (
-                  <li key={`${e.teen.id}-${e.endedAt}`}>
-                    <PersonRow
-                      name={e.teen.goesBy ?? e.teen.name}
-                      /* TODO-COPY — elapsed-time standard, and it names who
-                         ended it. */
-                      secondary={`unmatched ${relJoined(
-                        Math.round((now - e.endedAt) / 86_400_000)
-                      ).toLowerCase()} by ${e.actor}`}
-                      href={recordHrefFor(e.teen.id)}
+                {pastEntries.map(({ key, teen, tail }) => (
+                  <li key={key}>
+                    <PastMenteeRow
+                      teen={teen}
+                      together={`together ${relLength(teenAsMentee(teen, now).matchedAt, now)}`}
+                      tail={tail}
                     />
                   </li>
                 ))}
-                {fixturePast.map(({ teen, endedLabel }) => {
-                  const m = teenAsMentee(teen, now);
-                  return (
-                    <li key={teen.id}>
-                      <PersonRow
-                        name={teen.goesBy ?? teen.name}
-                        // TODO-COPY. Neutral "ended" — no outcome is recorded, so
-                        // a graduation and a rematch can't be told apart.
-                        secondary={
-                          endedLabel
-                            ? `together ${relLength(m.matchedAt, now)} · ended in ${endedLabel}`
-                            : `together ${relLength(m.matchedAt, now)} · ended`
-                        }
-                        href={recordHrefFor(teen.id)}
-                      />
-                    </li>
-                  );
-                })}
               </ul>
             )}
           </div>
         </section>
       )}
 
-      {/* UNMATCH — names what happens AND what doesn't. The second sentence is
-          the point: this is the action that used to change an account. */}
       <ConfirmDialog
         open={!!unmatching}
         onOpenChange={(o) => !o && setUnmatching(null)}
@@ -259,6 +329,83 @@ export function MenteeTable({
         mentorName={mentorName}
       />
     </>
+  );
+}
+
+/** ONE PAST-MENTEE ROW.
+ *
+ *  Not PersonRow, because PersonRow wraps the whole row in a <Link> and the
+ *  rematched form needs a SECOND link inside it (the current mentor's name).
+ *  That nests <a> in <a> — invalid HTML, a hydration error, and the inner click
+ *  also fires the outer navigation. Measured: React reported exactly that.
+ *
+ *  So the row's own link is a FULL-BLEED OVERLAY BEHIND the content: content is
+ *  pointer-events-none, and the one genuinely interactive child opts back in
+ *  with pointer-events-auto. This is the same pattern the mentee list uses for
+ *  its two-affordance rows.
+ *
+ *  NO STATUS CHIPS here — these pairings are over, and the teen's current state
+ *  lives on their own record. */
+function PastMenteeRow({
+  teen,
+  together,
+  tail,
+}: {
+  teen: DemoTeen;
+  together: string;
+  tail: string | { rematchedTo: string; mentorId: string };
+}) {
+  const display = teen.goesBy ?? teen.name;
+  return (
+    <div className="group relative flex min-h-11 items-center gap-3 py-1.5">
+      {/* BEHIND the content, covering the row. */}
+      <Link
+        href={recordHrefFor(teen.id)}
+        aria-label={`${display} — open record`}
+        className={cn(
+          "absolute -inset-x-3 inset-y-0 z-0 rounded-[10px] transition-colors",
+          "group-hover:bg-[var(--surface-s1)]",
+          "focus-visible:bg-[var(--surface-s1)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
+        )}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none relative z-10 flex size-[30px] shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
+        style={{
+          backgroundColor: avatarTintFor(display).bg,
+          color: avatarTintFor(display).fg,
+        }}
+      >
+        {display.charAt(0).toUpperCase()}
+      </span>
+      <span className="pointer-events-none relative z-10 min-w-0 flex-1">
+        <span
+          className="block truncate text-[var(--text-primary)]"
+          style={{ font: "var(--type-row-value)" }}
+        >
+          {display}
+        </span>
+        <span
+          className="block truncate text-[var(--text-secondary)]"
+          style={{ font: "var(--type-row-label)" }}
+        >
+          {typeof tail === "string" ? (
+            `${together} · ${tail}`
+          ) : (
+            <>
+              {`${together} · rematched to `}
+              {/* The one live target inside a pointer-events-none subtree. */}
+              <Link
+                href={recordHrefFor(tail.mentorId)}
+                className={cn("pointer-events-auto", LINK, RING)}
+              >
+                {tail.rematchedTo}
+              </Link>
+            </>
+          )}
+        </span>
+      </span>
+    </div>
   );
 }
 

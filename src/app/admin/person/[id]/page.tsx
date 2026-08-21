@@ -41,10 +41,25 @@ import {
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { ROLE_LABEL } from "@/components/record/role-label";
 import { recordTabsFor } from "@/lib/record/tabs";
-import { headerDotFor } from "@/lib/record/mentor-status";
+import { headerDotFor, STATUS_LABELS } from "@/lib/record/mentor-status";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
 import { currentMenteesOf } from "@/lib/record/relationships";
+import { defaultMenteeStatus } from "@/lib/record/people-demo";
+
+/** TODO-COPY — a teen's platform standing, sentence case. */
+const TEEN_STATUS_LABEL: Record<"active" | "paused" | "deactivated", string> = {
+  active: "Active",
+  paused: "Paused",
+  deactivated: "Deactivated",
+};
+
+/** The dot inside the role badge, for a teen. Same three-tone vocabulary the
+ *  staff lifecycle uses, so one glance reads the same way on either record. */
+const TEEN_STATUS_DOT: Record<
+  "active" | "paused" | "deactivated",
+  "positive" | "warning" | "critical"
+> = { active: "positive", paused: "warning", deactivated: "critical" };
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { toast } from "sonner";
@@ -62,6 +77,7 @@ export default function PersonRecordPage({
   const router = useRouter();
   const persona = useOnboardingStore((s) => s.persona);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
 
   const subject = resolveSubject(id);
@@ -114,6 +130,11 @@ export default function PersonRecordPage({
     tabParam && tabs.some((t) => t.id === tabParam) ? tabParam : tabs[0]?.id;
 
   const isTeen = subject.role === "teen";
+  // A teen's platform standing lives in `menteeStatus`, not the staff lifecycle.
+  const teenStatus =
+    (subject.teen
+      ? (menteeStatus[subject.id] ?? defaultMenteeStatus(subject.teen))
+      : "active") as "active" | "paused" | "deactivated";
   const status = subject.person
     ? ((mentorStatuses[subject.id] as typeof subject.person.status) ??
       subject.person.status)
@@ -144,12 +165,36 @@ export default function PersonRecordPage({
       <UserRecordShell
         avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
         name={subject.goesBy ?? subject.name}
-        roleLabel={roleLabel}
-        // ONE status statement: the role badge with the dot embedded
-        // ("● Mentor"). No separate Active pill, no avatar dot. The WORD for the
-        // standing stays on Organization — the dot is the glanceable half.
-        statusDot={status ? headerDotFor(status) : "none"}
-        statusAriaLabel={roleLabel}
+        role={subject.role}
+        // ONE status statement: the role badge carries its tint and the state
+        // dot. No separate Active pill, no avatar dot.
+        // A TEEN has no staff lifecycle, so their dot comes from their mentee
+        // status — otherwise a teen's badge carried no default-state signal at
+        // all while every staff badge did.
+        statusDot={
+          status
+            ? headerDotFor(status)
+            : isTeen
+              ? TEEN_STATUS_DOT[teenStatus]
+              : "none"
+        }
+        // EXCEPTIONS GET A WORD — a second chip. Staff exceptions come from the
+        // lifecycle; a TEEN's come from their mentee status, which is the only
+        // place a teen's platform standing is recorded.
+        statusText={
+          status && status !== "active"
+            ? STATUS_LABELS[status]
+            : isTeen && teenStatus !== "active"
+              ? TEEN_STATUS_LABEL[teenStatus]
+              : undefined
+        }
+        statusAriaLabel={
+          status
+            ? `${roleLabel}, ${STATUS_LABELS[status].toLowerCase()}`
+            : isTeen
+              ? `${roleLabel}, ${TEEN_STATUS_LABEL[teenStatus].toLowerCase()}`
+              : roleLabel
+        }
         meta={meta}
         backLink={{
           href: isTeen ? "/app/mentees" : "/app/team",

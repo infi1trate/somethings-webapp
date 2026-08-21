@@ -27,6 +27,7 @@ export default function MenteesPage() {
   const mounted = useMounted();
   const router = useRouter();
   const persona = useOnboardingStore((s) => s.persona);
+  const slots = useOnboardingStore((s) => s.slots);
   const draft = useOnboardingStore((s) => s.draft);
   const isLead = mounted && persona === "lead-mentor";
 
@@ -64,7 +65,11 @@ export default function MenteesPage() {
           </p>
         </header>
         <div className="mt-7 max-w-[900px]">
-          <MenteeTable mentorId="live" mentorName={mentorName} />
+          <MenteeTable
+            mentorId="live"
+            mentorName={mentorName}
+            capacity={slots.total}
+          />
         </div>
       </div>
     </MentorShell>

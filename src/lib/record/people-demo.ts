@@ -518,6 +518,70 @@ export const DEMO_TEENS: DemoTeen[] = [
     videoCount30d: 0,
     pastMentors: [{ mentorId: "m2", range: "Jun 2025 – Sep 2025" }],
   },
+  // TODO-DATA: ten more of the live mentor's mentees, added so the Mentees card's
+  // PAUSED GROUP can exceed its 8-row scroll threshold and its 9+ search
+  // threshold with real rows rather than a contrived duplicate. Long tenures on
+  // purpose — the days-in-mentorship column is only interesting across a spread.
+  {
+    id: "t17", name: "Naomi Reed", pronouns: "she/her", phone: "+19089107000",
+    group: "North Carolina", active: true, joinedDaysAgo: 210, mentorId: "live",
+    matchedDaysAgo: 196, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
+    videoCount30d: 0,
+  },
+  {
+    id: "t18", name: "Caleb Ortiz", pronouns: "he/him", phone: "+19089107001",
+    group: "North Carolina", active: true, joinedDaysAgo: 188, mentorId: "live",
+    matchedDaysAgo: 171, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 2,
+    videoCount30d: 1,
+  },
+  {
+    id: "t19", name: "Simone Ba", pronouns: "she/her", phone: "+19089107002",
+    group: "North Carolina", active: true, joinedDaysAgo: 176, mentorId: "live",
+    matchedDaysAgo: 160, mentorLastSentDaysAgo: 4, menteeLastSentDaysAgo: 3,
+    videoCount30d: 2,
+  },
+  {
+    id: "t20", name: "Theo Lindqvist", pronouns: "he/him", phone: "+19089107003",
+    group: "North Carolina", active: true, joinedDaysAgo: 165, mentorId: "live",
+    matchedDaysAgo: 149, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 4,
+    videoCount30d: 0,
+  },
+  {
+    id: "t21", name: "Imani Clarke", pronouns: "she/her", phone: "+19089107004",
+    group: "North Carolina", active: true, joinedDaysAgo: 151, mentorId: "live",
+    matchedDaysAgo: 140, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 1,
+    videoCount30d: 1,
+  },
+  {
+    id: "t22", name: "Ravi Menon", pronouns: "he/him", phone: "+19089107005",
+    group: "North Carolina", active: true, joinedDaysAgo: 143, mentorId: "live",
+    matchedDaysAgo: 128, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
+    videoCount30d: 2,
+  },
+  {
+    id: "t23", name: "Elena Duarte", pronouns: "she/her", phone: "+19089107006",
+    group: "North Carolina", active: true, joinedDaysAgo: 134, mentorId: "live",
+    matchedDaysAgo: 119, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 3,
+    videoCount30d: 0,
+  },
+  {
+    id: "t24", name: "Jonah Whitfield", pronouns: "he/him", phone: "+19089107007",
+    group: "North Carolina", active: true, joinedDaysAgo: 121, mentorId: "live",
+    matchedDaysAgo: 108, mentorLastSentDaysAgo: 4, menteeLastSentDaysAgo: 4,
+    videoCount30d: 1,
+  },
+  {
+    id: "t25", name: "Yuki Tanaka", pronouns: "they/them", phone: "+19089107008",
+    group: "North Carolina", active: true, joinedDaysAgo: 112, mentorId: "live",
+    matchedDaysAgo: 97, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 1,
+    videoCount30d: 2,
+  },
+  {
+    id: "t26", name: "Marisol Vega", pronouns: "she/her", phone: "+19089107009",
+    group: "North Carolina", active: true, joinedDaysAgo: 103, mentorId: "live",
+    matchedDaysAgo: 90, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 2,
+    videoCount30d: 0,
+  },
   {
     id: "t16", name: "Alex Petrov", pronouns: "he/him", phone: "+19735550655",
     group: "New Jersey", active: false, joinedDaysAgo: 92, mentorId: "live",

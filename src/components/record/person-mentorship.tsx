@@ -13,12 +13,14 @@ import { CareNetwork, type NetworkPerson } from "@/components/record/care-networ
 import { MenteeTable } from "@/components/record/mentee-table";
 import { DEMO_PEOPLE, roleOf } from "@/lib/record/people-demo";
 import type { FixtureSubject } from "@/lib/record/subject";
+import { useOnboardingStore } from "@/lib/onboarding/store";
 // Role wording comes from the ONE shared map (Bloom Role Label) — six local
 // copies of this had drifted into "Lead mentor" vs "Lead Mentor" and all six
 // still said "Teen".
 import { ROLE_LABEL } from "@/components/record/role-label";
 
 export function PersonMentorship({ subject }: { subject: FixtureSubject }) {
+  const caseloads = useOnboardingStore((s) => s.caseloads);
   const person = subject.person;
 
   // Who holds this mentor up: their lead, and the supervisor above that lead.
@@ -38,6 +40,7 @@ export function PersonMentorship({ subject }: { subject: FixtureSubject }) {
       <MenteeTable
         mentorId={subject.id}
         mentorName={subject.name}
+        capacity={caseloads[subject.id]?.total ?? subject.person?.capacity}
       />
     </div>
   );

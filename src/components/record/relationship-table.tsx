@@ -2,8 +2,8 @@
 
 // RELATIONSHIP TABLE — ONE component, two variants. The mentor's Mentees table
 // and the supervisor's Mentors table were two separate implementations (a
-// <table> and a PersonRow list); they render the same shape in the Figma, so
-// they are one component now and can't drift.
+// <table> and a PersonRow list); they render the same shape, so they are one
+// component now and can't drift.
 //
 // THE DISTINCTION THIS TABLE ENFORCES. A row is a RELATIONSHIP. Presence in the
 // list means the pairing exists — that is what the list is for, so it never
@@ -12,16 +12,21 @@
 //
 //   mentees — NO status column. A mentor doesn't administer a teen's account, so
 //     offering the control here made "end this pairing" and "change this
-//     person's account" one click apart. Non-active platform states surface as a
-//     read-only EXCEPTION CHIP after the name: it describes the person, sits
-//     with the person's name, and cannot be actuated.
+//     person's account" one click apart. PAUSED mentees are still matched, so
+//     they stay in this card — grouped away from the active ones, not exiled to
+//     a section of their own. DEACTIVATED mentees are not here at all: that ends
+//     the pairing, so they belong in Past mentees (product decision).
 //
 //   mentors — status column KEPT. A supervisor is accountable for their mentors'
-//     standing, and "In training" is legitimately their business. But the pill
-//     opens a CONFIRM (see StatusConfirm in the caller) instead of committing on
-//     selection: a one-click employment-status mutation must not ship.
+//     standing, and "In training" is legitimately their business. The pill opens
+//     a CONFIRM rather than committing on selection.
 //
 // Defaults whisper, exceptions speak: an active mentee carries no chip at all.
+//
+// COLUMN ALIGNMENT ACROSS TWO TABLES. The paused group scrolls internally with
+// its header staying put, which one <table> cannot do — a scrolling <tbody>
+// needs display:block and loses column sizing. So the group is its own table,
+// and both share COLGROUP + table-layout:fixed so the columns line up exactly.
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,6 +38,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Plus,
+  Search,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -45,6 +51,7 @@ import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordHrefFor } from "@/lib/record/subject";
 import { chatHrefFor } from "@/lib/record/chat";
 import { relJoined } from "@/lib/record/people-demo";
+import { formatDaysInMentorship } from "@/lib/record/relationships";
 import type { MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +61,16 @@ const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 const TH =
   "px-5 py-3 text-left text-[14px] font-medium leading-[20px] text-[var(--text-secondary)]";
+const TD = "px-5 py-3";
+const ROW =
+  "cursor-pointer border-b border-[color:var(--surface-s2)] transition-colors last:border-0 hover:bg-[var(--tint-faint)]";
+
+/** Below this many rows, no search chrome renders — a short list carries no
+ *  controls. Counts BOTH groups: the chrome searches across them. */
+const SEARCH_THRESHOLD = 9;
+/** The paused group scrolls past this many rows rather than growing the card. */
+const PAUSED_VISIBLE_ROWS = 8;
+const ROW_PX = 57; // measured row height, for the scroll cap
 
 export type RelationshipVariant = "mentees" | "mentors";
 
@@ -71,16 +88,19 @@ export interface RelationshipRow {
   /** mentees variant only — set ONLY when the platform status is an exception.
    *  Active is undefined, because a default that speaks is noise. */
   exception?: { label: string; tone: "warning" | "muted" } | null;
+  /** mentees variant only — routes the row into the paused group. */
+  paused?: boolean;
 }
 
 /** TODO-COPY — the chip names the PERSON's platform state, and says where that
- *  state lives so it can't be misread as a fact about the pairing. */
+ *  state lives so it can't be misread as a fact about the pairing.
+ *
+ *  Deactivated has no chip here any more: a deactivated mentee is not in this
+ *  card at all (the pairing is over — see Past mentees). */
 export function exceptionFor(
   status: "active" | "paused" | "deactivated"
 ): RelationshipRow["exception"] {
-  if (status === "paused")
-    return { label: "Paused on Somethings", tone: "warning" };
-  if (status === "deactivated") return { label: "Deactivated", tone: "muted" };
+  if (status === "paused") return { label: "Paused", tone: "warning" };
   return null;
 }
 
@@ -91,9 +111,8 @@ function ExceptionChip({
 }) {
   return (
     <span
-      // READ-ONLY, never a control: no button, no menu, no caret. Warning family
-      // for paused (recoverable, worth noticing), muted for deactivated (a
-      // settled fact). The word carries it — colour never alone.
+      // READ-ONLY, never a control: no button, no menu, no caret. The word
+      // carries it — colour never alone (WCAG 1.4.1).
       className={cn(
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5",
         chip.tone === "warning"
@@ -111,27 +130,20 @@ type SortKey = "name" | "status" | "since";
 
 /** Opening a dialog FROM a menu item is a fight over focus: Radix restores focus
  *  to the menu's TRIGGER as the menu closes, and that restore outlives the
- *  dialog's own autofocus — so the dialog opened and focus was immediately
- *  yanked back to the ⋯ button, breaking the trap and Escape (measured; two
- *  animation frames of delay did NOT outlast it either).
- *
- *  The fix is to stop the menu restoring focus at all: `preventFocusRestore` on
- *  DropdownMenuContent. Nothing is lost, because ConfirmDialog returns focus to
- *  the trigger when it closes — the restore was duplicated, and the menu's copy
- *  was the one arriving too late.
- *
- *  That return needs the TRIGGER, so this table hands it up with the callback.
- *  A caller reading `document.activeElement` instead gets the MENU ITEM (which
- *  is what is focused when a menu item is selected) — an element that unmounts a
- *  moment later, so focusing it on close is a no-op and focus lands on <body>. */
+ *  dialog's own autofocus. Stopping the menu's restore fixes it; ConfirmDialog
+ *  already returns focus to the trigger this table hands up. */
 const preventFocusRestore = (e: Event) => e.preventDefault();
 
 export function RelationshipTable({
   variant,
   title,
   rows,
-  /** Column header for the relationship-start date — "Matched" / "Assigned". */
   sinceLabel,
+  /** How the relationship-start value reads. "metric" is the named
+   *  days-in-mentorship format; "elapsed" is the standard prose. */
+  sinceFormat = "elapsed",
+  /** Quiet line under the heading — the capacity readout. */
+  caption,
   addLabel,
   onAdd,
   statusRank,
@@ -144,98 +156,167 @@ export function RelationshipTable({
   title: string;
   rows: RelationshipRow[];
   sinceLabel: string;
+  sinceFormat?: "elapsed" | "metric";
+  caption?: React.ReactNode;
   addLabel?: string;
   onAdd?: () => void;
-  /** mentors variant — sort rank for the status column. */
   statusRank?: (s: MentorLifecycleStatus) => number;
-  /** mentors variant — a selection REQUESTS a change; the caller confirms it.
-   *  `trigger` is the control that opened the menu, for focus return. */
   onStatusSelect?: (
     row: RelationshipRow,
     next: MentorLifecycleStatus,
     trigger: HTMLElement | null
   ) => void;
-  /** Overflow action. Supervisor-tier callers pass it; others don't, and the
-   *  overflow menu then carries View record alone. */
   onEndRelationship?: (
     row: RelationshipRow,
     trigger: HTMLElement | null
   ) => void;
-  /** "Unmatch…" / "Unassign…" — never "Remove" or "Delete". */
   endLabel: string;
   emptyLabel: string;
 }) {
-  const router = useRouter();
   const [sort, setSort] = useState<SortKey>("name");
   const [asc, setAsc] = useState(true);
-  // The ⋯ triggers, by row id — handed to the caller so a confirm can put focus
-  // back where the reader left it.
-  const overflowRefs = useRef<Record<string, HTMLElement | null>>({});
-
-  const sorted = useMemo(() => {
-    const dir = asc ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      if (sort === "since") {
-        // Null (no date on file) sorts last in either direction — an unknown is
-        // not "oldest", and letting it lead the list reads as data.
-        if (a.sinceDays === null || b.sinceDays === null)
-          return a.sinceDays === null ? 1 : -1;
-        return dir * (a.sinceDays - b.sinceDays);
-      }
-      if (sort === "status" && statusRank)
-        return (
-          dir *
-          (statusRank(a.status ?? "active") - statusRank(b.status ?? "active"))
-        );
-      return dir * (a.goesBy ?? a.name).localeCompare(b.goesBy ?? b.name);
-    });
-  }, [rows, sort, asc, statusRank]);
-
-  const toggleSort = (k: SortKey) => {
-    if (k === sort) setAsc((v) => !v);
-    else {
-      setSort(k);
-      setAsc(true);
-    }
-  };
+  const [query, setQuery] = useState("");
+  const [pausedOpenManual, setPausedOpenManual] = useState(false);
 
   const showStatus = variant === "mentors";
   const showChat = variant === "mentees";
   const colCount = 2 + (showStatus ? 1 : 0) + (showChat ? 1 : 0) + 1;
 
+  const compare = (a: RelationshipRow, b: RelationshipRow) => {
+    const dir = asc ? 1 : -1;
+    if (sort === "since") {
+      // Null (no date on file) sorts last in either direction — an unknown is
+      // not "oldest", and letting it lead the list reads as data.
+      if (a.sinceDays === null || b.sinceDays === null)
+        return a.sinceDays === null ? 1 : -1;
+      return dir * (a.sinceDays - b.sinceDays);
+    }
+    if (sort === "status" && statusRank)
+      return (
+        dir * (statusRank(a.status ?? "active") - statusRank(b.status ?? "active"))
+      );
+    return dir * (a.goesBy ?? a.name).localeCompare(b.goesBy ?? b.name);
+  };
+
+  const q = query.trim().toLowerCase();
+  const matches = (r: RelationshipRow) =>
+    !q || (r.goesBy ?? r.name).toLowerCase().includes(q);
+
+  // Sort runs across BOTH groups before the split, so ordering is consistent
+  // whichever group a row lands in.
+  const all = useMemo(
+    () => [...rows].sort(compare),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, sort, asc, statusRank]
+  );
+  const activeRows = all.filter((r) => !r.paused).filter(matches);
+  const pausedAll = all.filter((r) => r.paused);
+  const pausedRows = pausedAll.filter(matches);
+
+  // A search match inside a COLLAPSED paused group auto-expands it — a hidden
+  // hit reads as "no results" and sends the reader looking somewhere else.
+  const searching = q.length > 0;
+  const pausedOpen = pausedOpenManual || (searching && pausedRows.length > 0);
+  const showSearch = rows.length >= SEARCH_THRESHOLD;
+  const scrolls = pausedRows.length > PAUSED_VISIBLE_ROWS;
+
+  const renderSince = (days: number | null) =>
+    days === null ? (
+      // TODO-COPY — honest about missing data rather than borrowing a date that
+      // means something else.
+      <span className="text-[var(--text-muted)]">Not recorded</span>
+    ) : sinceFormat === "metric" ? (
+      <span className="tabular-nums">{formatDaysInMentorship(days)}</span>
+    ) : (
+      relJoined(days)
+    );
+
+  const cols = (
+    <colgroup>
+      <col />
+      {showStatus && <col style={{ width: 180 }} />}
+      <col style={{ width: 190 }} />
+      {showChat && <col style={{ width: 140 }} />}
+      <col style={{ width: 72 }} />
+    </colgroup>
+  );
+
+  const rowFor = (r: RelationshipRow) => (
+    <Row
+      key={r.id}
+      row={r}
+      showStatus={showStatus}
+      showChat={showChat}
+      renderSince={renderSince}
+      onStatusSelect={onStatusSelect}
+      onEndRelationship={onEndRelationship}
+      endLabel={endLabel}
+    />
+  );
+
   return (
-    <section
-      aria-label={title}
-      data-record-section={`relationship-${variant}`}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 className={H2}>{title}</h2>
-        {onAdd && addLabel && (
-          // Outlined, never a second filled button.
-          <button
-            type="button"
-            onClick={onAdd}
-            className={cn(
-              "inline-flex h-8 items-center justify-center gap-2 rounded-full border border-[color:var(--button-border-default)] px-4",
-              "font-display text-[12px] font-bold leading-[16px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-          >
-            <Plus className="size-3.5" aria-hidden />
-            {addLabel}
-          </button>
-        )}
+    <section aria-label={title} data-record-section={`relationship-${variant}`}>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h2 className={H2}>{title}</h2>
+          {caption && (
+            <p
+              className="mt-0.5 text-[var(--text-secondary)]"
+              style={{ font: "var(--type-row-label)" }}
+            >
+              {caption}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {showSearch && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-1.5 text-sm text-[var(--text-secondary)]">
+              <Search className="size-4" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search"
+                aria-label={`Search ${title.toLowerCase()} by name`}
+                className="w-28 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
+              />
+            </span>
+          )}
+          {onAdd && addLabel && (
+            // Outlined, never a second filled button.
+            <button
+              type="button"
+              onClick={onAdd}
+              className={cn(
+                "inline-flex h-8 items-center justify-center gap-2 rounded-full border border-[color:var(--button-border-default)] px-4",
+                "font-display text-[12px] font-bold leading-[16px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+                RING
+              )}
+            >
+              <Plus className="size-3.5" aria-hidden />
+              {addLabel}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)]">
-        <table className="w-full min-w-[640px] border-collapse text-left">
+        {/* GUTTER PARITY. When the paused group scrolls, its scrollbar eats ~15px
+            of inner width, and with table-layout:fixed the flexible Name column
+            absorbs all of it — measured 496px here vs 481px there, a visible
+            15px step between the two groups. `overflow-y: scroll` on this
+            wrapper reserves the SAME gutter without ever showing a thumb (the
+            content is shorter than the box), so both tables get identical inner
+            widths and the columns line up. */}
+        <div className={cn(scrolls && "overflow-y-scroll")}>
+        <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
+          {cols}
           <thead>
             <tr className="border-b border-[color:var(--surface-s2)]">
-              <SortHead label="Name" k="name" sort={sort} asc={asc} onSort={toggleSort} />
+              <SortHead label="Name" k="name" sort={sort} asc={asc} onSort={setSortKey} />
               {showStatus && (
-                <SortHead label="Status" k="status" sort={sort} asc={asc} onSort={toggleSort} />
+                <SortHead label="Status" k="status" sort={sort} asc={asc} onSort={setSortKey} />
               )}
-              <SortHead label={sinceLabel} k="since" sort={sort} asc={asc} onSort={toggleSort} />
+              <SortHead label={sinceLabel} k="since" sort={sort} asc={asc} onSort={setSortKey} />
               {/* The chat column carries no header — the link names itself. */}
               {showChat && <th className={TH} />}
               {/* Overflow column: unheaded, its trigger is labelled per row. */}
@@ -243,144 +324,224 @@ export function RelationshipTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.length === 0 && (
+            {activeRows.length === 0 && pausedRows.length === 0 && (
               <tr>
                 <td
                   colSpan={colCount}
                   className="px-5 py-6 text-[14px] leading-[20px] text-[var(--text-secondary)]"
                 >
-                  {emptyLabel}
+                  {/* TODO-COPY */}
+                  {searching ? "No one matches that name." : emptyLabel}
                 </td>
               </tr>
             )}
-            {sorted.map((r) => {
-              const display = r.goesBy ?? r.name;
-              return (
-                <tr
-                  key={r.id}
-                  onClick={() => router.push(recordHrefFor(r.id))}
-                  className="cursor-pointer border-b border-[color:var(--surface-s2)] transition-colors last:border-0 hover:bg-[var(--tint-faint)]"
-                >
-                  <td className="px-5 py-3">
-                    <span className="flex items-center gap-3">
-                      <span
-                        aria-hidden
-                        className="flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold leading-4"
-                        style={{
-                          backgroundColor: avatarTintFor(display).bg,
-                          color: avatarTintFor(display).fg,
-                        }}
-                      >
-                        {display.charAt(0).toUpperCase()}
-                      </span>
-                      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="truncate text-[14px] font-medium leading-[20px] text-[var(--text-primary)]">
-                          {display}
-                        </span>
-                        {/* The exception chip sits WITH THE NAME, because it is
-                            a fact about the person — not in a column of its own,
-                            which is what made it read as a property of the
-                            pairing. */}
-                        {r.exception && <ExceptionChip chip={r.exception} />}
-                      </span>
-                    </span>
-                  </td>
-
-                  {showStatus && (
-                    // stopPropagation so opening the menu doesn't also navigate.
-                    <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                      {r.status && onStatusSelect ? (
-                        <StatusTrigger
-                          status={r.status}
-                          name={display}
-                          onSelect={(next, trigger) =>
-                            onStatusSelect(r, next, trigger)
-                          }
-                        />
-                      ) : (
-                        r.status && <MentorStatusBadge status={r.status} />
-                      )}
-                    </td>
-                  )}
-
-                  <td className="px-5 py-3 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                    {r.sinceDays === null ? (
-                      // TODO-COPY — honest about missing data rather than
-                      // borrowing a date that means something else.
-                      <span className="text-[var(--text-muted)]">Not recorded</span>
-                    ) : (
-                      relJoined(r.sinceDays)
-                    )}
-                  </td>
-
-                  {showChat && (
-                    <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={chatHrefFor(r.id)}
-                        aria-label={`View chat with ${display}`}
-                        className={cn(
-                          "inline-flex min-h-11 items-center gap-2 rounded-sm text-[14px] font-medium text-[var(--text-primary)]",
-                          "transition-colors hover:text-[var(--text-secondary)]",
-                          RING
-                        )}
-                      >
-                        <MessageSquare className="size-4" aria-hidden />
-                        View chat
-                      </Link>
-                    </td>
-                  )}
-
-                  <td
-                    className="px-5 py-3 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          ref={(el) => {
-                            overflowRefs.current[r.id] = el;
-                          }}
-                          aria-label={`More actions for ${display}`}
-                          className={cn(
-                            "inline-flex size-8 items-center justify-center rounded-full text-[var(--text-muted)]",
-                            "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                            RING
-                          )}
-                        >
-                          <MoreHorizontal className="size-4" aria-hidden />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="min-w-44"
-                        onCloseAutoFocus={preventFocusRestore}
-                      >
-                        <DropdownMenuItem
-                          onSelect={() => router.push(recordHrefFor(r.id))}
-                        >
-                          {/* TODO-COPY */}
-                          View record
-                        </DropdownMenuItem>
-                        {onEndRelationship && (
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              onEndRelationship(r, overflowRefs.current[r.id] ?? null)
-                            }
-                          >
-                            {endLabel}
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
-                </tr>
-              );
-            })}
+            {activeRows.map(rowFor)}
           </tbody>
         </table>
+        </div>
+
+        {/* PAUSED GROUP — still matched, so still in this card, just set apart.
+            Its own table so it can scroll under a header that stays put; the
+            shared colgroup keeps the columns aligned with the active table. */}
+        {pausedAll.length > 0 && (
+          <div className="border-t border-[color:var(--surface-s2)]">
+            <button
+              type="button"
+              onClick={() => setPausedOpenManual((o) => !o)}
+              aria-expanded={pausedOpen}
+              aria-controls="paused-group"
+              className={cn(
+                "flex min-h-11 w-full items-center gap-2 bg-[var(--surface-s1)] px-5 py-2 text-left",
+                RING
+              )}
+            >
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-[var(--text-muted)] transition-transform",
+                  pausedOpen && "rotate-180"
+                )}
+                aria-hidden
+              />
+              <span
+                className="text-[var(--text-secondary)]"
+                style={{ font: "var(--type-row-label)" }}
+              >
+                {/* TODO-COPY */}
+                Paused · {pausedAll.length}
+              </span>
+              {/* When a search hit is hiding in here, say how many — otherwise
+                  the auto-expand looks like the group opened at random. */}
+              {searching && (
+                <span
+                  className="text-[var(--text-muted)]"
+                  style={{ font: "var(--type-label-sm)" }}
+                >
+                  {/* TODO-COPY */}
+                  {/* No leading middot — the flex gap already separates this
+                      from the count, and both produced "10· 1 matching". */}
+                  {pausedRows.length === 0
+                    ? "no matches here"
+                    : `${pausedRows.length} matching`}
+                </span>
+              )}
+            </button>
+            {pausedOpen && (
+              <div
+                id="paused-group"
+                className={cn(scrolls && "overflow-y-auto")}
+                style={scrolls ? { maxHeight: PAUSED_VISIBLE_ROWS * ROW_PX } : undefined}
+              >
+                <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
+                  {cols}
+                  <tbody>{pausedRows.map(rowFor)}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
+  );
+
+  function setSortKey(k: SortKey) {
+    if (k === sort) setAsc((v) => !v);
+    else {
+      setSort(k);
+      setAsc(true);
+    }
+  }
+}
+
+function Row({
+  row: r,
+  showStatus,
+  showChat,
+  renderSince,
+  onStatusSelect,
+  onEndRelationship,
+  endLabel,
+}: {
+  row: RelationshipRow;
+  showStatus: boolean;
+  showChat: boolean;
+  renderSince: (days: number | null) => React.ReactNode;
+  onStatusSelect?: (
+    row: RelationshipRow,
+    next: MentorLifecycleStatus,
+    trigger: HTMLElement | null
+  ) => void;
+  onEndRelationship?: (
+    row: RelationshipRow,
+    trigger: HTMLElement | null
+  ) => void;
+  endLabel: string;
+}) {
+  const router = useRouter();
+  const display = r.goesBy ?? r.name;
+  // Each row owns its own ⋯ ref and hands the element up with the callback, so a
+  // confirm can put focus back where the reader left it. A shared map passed
+  // down as a prop would mean the child mutating the parent's prop.
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <tr onClick={() => router.push(recordHrefFor(r.id))} className={ROW}>
+      <td className={TD}>
+        <span className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold leading-4"
+            style={{
+              backgroundColor: avatarTintFor(display).bg,
+              color: avatarTintFor(display).fg,
+            }}
+          >
+            {display.charAt(0).toUpperCase()}
+          </span>
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="truncate text-[14px] font-medium leading-[20px] text-[var(--text-primary)]">
+              {display}
+            </span>
+            {/* The chip sits WITH THE NAME, because it is a fact about the
+                person — not in a column, which is what made it read as a
+                property of the pairing. */}
+            {r.exception && <ExceptionChip chip={r.exception} />}
+          </span>
+        </span>
+      </td>
+
+      {showStatus && (
+        // stopPropagation so opening the menu doesn't also navigate.
+        <td className={TD} onClick={(e) => e.stopPropagation()}>
+          {r.status && onStatusSelect ? (
+            <StatusTrigger
+              status={r.status}
+              name={display}
+              onSelect={(next, trigger) => onStatusSelect(r, next, trigger)}
+            />
+          ) : (
+            r.status && <MentorStatusBadge status={r.status} />
+          )}
+        </td>
+      )}
+
+      <td className={cn(TD, "text-[14px] leading-[20px] text-[var(--text-secondary)]")}>
+        {renderSince(r.sinceDays)}
+      </td>
+
+      {showChat && (
+        <td className={TD} onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={chatHrefFor(r.id)}
+            aria-label={`View chat with ${display}`}
+            className={cn(
+              "inline-flex min-h-11 items-center gap-2 rounded-sm text-[14px] font-medium text-[var(--text-primary)]",
+              "transition-colors hover:text-[var(--text-secondary)]",
+              RING
+            )}
+          >
+            <MessageSquare className="size-4" aria-hidden />
+            View chat
+          </Link>
+        </td>
+      )}
+
+      <td className={cn(TD, "text-right")} onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              ref={triggerRef}
+              aria-label={`More actions for ${display}`}
+              className={cn(
+                "inline-flex size-8 items-center justify-center rounded-full text-[var(--text-muted)]",
+                "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-44"
+            onCloseAutoFocus={preventFocusRestore}
+          >
+            <DropdownMenuItem onSelect={() => router.push(recordHrefFor(r.id))}>
+              {/* TODO-COPY */}
+              View record
+            </DropdownMenuItem>
+            {onEndRelationship && (
+              <DropdownMenuItem
+                onSelect={() =>
+                  onEndRelationship(r, triggerRef.current)
+                }
+              >
+                {endLabel}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </td>
+    </tr>
   );
 }
 

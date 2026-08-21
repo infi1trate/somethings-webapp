@@ -26,6 +26,8 @@ import { ROLE_LABEL } from "@/components/record/role-label";
 
 export function MentorshipPractice() {
   const draft = useOnboardingStore((s) => s.draft);
+  const caseloads = useOnboardingStore((s) => s.caseloads);
+  const slots = useOnboardingStore((s) => s.slots);
 
   const mentorName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "this mentor";
@@ -46,6 +48,7 @@ export function MentorshipPractice() {
       <MenteeTable
         mentorId="live"
         mentorName={mentorName}
+        capacity={caseloads["live"]?.total ?? slots.total}
       />
     </div>
   );

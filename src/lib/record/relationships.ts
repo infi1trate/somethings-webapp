@@ -195,3 +195,29 @@ export function matchedDaysAgo(teen: DemoTeen): number {
 export function assignedDaysAgo(person: DemoMentorRow): number | null {
   return person.assignedDaysAgo ?? null;
 }
+
+// ─── NAMED PLATFORM METRICS ─────────────────────────────────────────────────
+
+/** "Days in mentorship" — a NAMED PLATFORM METRIC, and a deliberate exception to
+ *  the elapsed-time standard. Everything else on these surfaces reads "2 weeks
+ *  ago"; a named metric keeps its own unit so the number is comparable across
+ *  records and against whatever else reports it. "122 days", never "4 months".
+ *
+ *  THE CLOCK DOES NOT PAUSE. Audited: no pause timestamp exists anywhere in the
+ *  data (`menteeStatus` stores a bare string per teen, with no history), so a
+ *  paused period cannot be excluded even in principle. A teen paused 60 days
+ *  reads 122 days here, not 62. That is what the platform currently means by the
+ *  phrase — when pause history lands, this is the one place to change.
+ *
+ *  New shared utility: nothing like it existed. The four duration helpers already
+ *  in the codebase (relJoined, relLength, relativeAgo, elapsedShort, relTime) all
+ *  produce ELAPSED prose, which is the opposite of what a named metric needs. */
+export function formatDaysInMentorship(days: number): string {
+  // TODO-COPY. Singular matters at 1 — "1 days in mentorship" reads as a bug.
+  return days === 1 ? "1 day" : `${days} days`;
+}
+
+/** Days in mentorship for a teen, from the relationship's own start date. */
+export function daysInMentorship(teen: DemoTeen): number {
+  return matchedDaysAgo(teen);
+}

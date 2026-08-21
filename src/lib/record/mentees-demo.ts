@@ -166,7 +166,10 @@ export function elapsedShort(ts: number, now: number): string {
 /** Relationship length: "2 weeks" / "4 months" (no "ago"). */
 export function relLength(matchedAt: number, now: number): string {
   const d = Math.floor((now - matchedAt) / DAY);
-  if (d < 14) return `${Math.max(1, d)} days`;
+  // Singular at 1 — "together 1 days" surfaced in Past mentees the moment a
+  // day-old pairing ended.
+  if (d <= 1) return "1 day";
+  if (d < 14) return `${d} days`;
   if (d < 60) return `${Math.round(d / 7)} weeks`;
   return `${Math.round(d / 30)} months`;
 }
