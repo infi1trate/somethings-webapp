@@ -36,12 +36,17 @@ export interface RecordTabDef {
 }
 
 // ORDER INVARIANT
-//   Overview · [practice] · Profile · First moments · Schedule · Account ·
-//   [permission-gated, e.g. Insights]
+//   Overview · [Care] · [practice] · Profile · First moments · Schedule ·
+//   Account · [permission-gated, e.g. Insights]
 //
-// Slot two is always the subject's PRACTICE tab when one exists (Mentorship for
+// Slot two belongs to the subject's PRACTICE tab when one exists (Mentorship for
 // mentor/teen, Supervision for lead-mentor/supervisor — mutually exclusive by
-// subject, so they share the slot).
+// subject, so they share the slot) — EXCEPT on a TEEN subject, where CARE takes
+// slot two and Mentorship shifts to three. That is a deliberate, product-directed
+// break of the old "slot two is always the practice tab" rule (MO-9.1): on a teen
+// record the clinical picture is the reason a staff member opened the record, and
+// the mentorship relationship is the context around it. On every other subject
+// the rule is unchanged, because Care doesn't exist there.
 //
 // The mentor-app mirror is preserved as a SUBSEQUENCE: Profile → First moments →
 // Schedule → Account keep their relative order, so a mentor moving between their
@@ -54,6 +59,20 @@ export interface RecordTabDef {
 // permission-gated tab (e.g. a returning Insights) still closes the bar.
 export const RECORD_TABS: RecordTabDef[] = [
   { id: "overview", label: "Overview", built: true },
+  // CARE — the teen record's clinical surface (MO-9.1). SUBJECT-conditional and
+  // NOT viewer-gated: mentors, lead mentors and supervisors all READ it, and only
+  // the supervisor tier ACTS, which is an affordance question inside the tab
+  // rather than a tab-existence one. Adding `roles` here would hide the clinical
+  // picture from the mentor who sits with this teen every week.
+  //
+  // This SUPERSEDES the never-built `care-journey` stub: same territory, and Care
+  // is the name the product uses.
+  {
+    id: "care",
+    label: "Care",
+    built: true,
+    subjectRoles: ["teen"],
+  },
   // PRACTICE TABS — subject-conditional (existence, not permission), and
   // mutually exclusive, so they share the slot after Overview.
   //
@@ -102,8 +121,8 @@ export const RECORD_TABS: RecordTabDef[] = [
   // Insights removed — the IMP-6 charts (engagement, retention, bonus, match
   // rate) now live on the Overview tab (see RecordOverview). The tab is gone,
   // not deferred; if it returns it is `roles`-gated and slots last (invariant).
-  // Registry entries only — do not build, do not render.
-  { id: "care-journey", label: "Care journey", built: false },
+  // Registry entries only — do not build, do not render. ("care-journey" used to
+  // sit here; the built Care tab above took its territory and its name.)
   { id: "billing", label: "Billing", built: false },
   { id: "documents", label: "Documents", built: false },
 ];
