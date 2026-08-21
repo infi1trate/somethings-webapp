@@ -55,6 +55,7 @@ type PermissionColumn = keyof (typeof permissionMap)[RecordSection];
 function columnForPersona(persona: Persona): PermissionColumn {
   switch (persona) {
     case "supervisor":
+    case "admin":
       return "admin";
     case "lead-mentor":
       return "leadMentor";
@@ -86,3 +87,30 @@ export const RECORD_SECTION_ORDER = [
 ] as const;
 
 export type RecordSectionSlot = (typeof RECORD_SECTION_ORDER)[number];
+
+// ── Role tiers ───────────────────────────────────────────────────────────────
+// One place that answers "supervisor or above". Comparing to the literal
+// "supervisor" in call sites silently excluded admin the moment that persona
+// existed — several of them gate ROUTING, so admin would have fallen through to
+// the mentor branch and lost the console.
+
+/** Supervisor or above. */
+export function isSupervisorTier(persona: Persona): boolean {
+  return persona === "supervisor" || persona === "admin";
+}
+
+/** May this viewer ACT on the Care page — assign or change a presentation,
+ *  write a care update? Read is wide (every tier that can open a teen record);
+ *  action is narrow. Below this tier the affordances are ABSENT, never
+ *  disabled: a greyed-out Approve advertises a decision the reader can't take
+ *  part in. */
+export function canActOnCare(persona: Persona): boolean {
+  return isSupervisorTier(persona);
+}
+
+/** Actor label for staff-attributed audit entries. */
+export function staffActorFor(persona: Persona): string {
+  if (persona === "admin") return "Admin";
+  if (persona === "supervisor") return "Supervisor";
+  return "Lead mentor";
+}

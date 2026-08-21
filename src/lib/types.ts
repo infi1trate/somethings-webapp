@@ -5,7 +5,16 @@
 /** Dev-toggle persona (§ Phase 10, decision #11 rev) — which hat the viewer
  *  wears. Maps onto SettingsRole for tab gating (see tabs-config). "Admin" is
  *  renamed Supervisor everywhere (decision #12). */
-export type Persona = "new-mentor" | "mentor" | "lead-mentor" | "supervisor";
+/** Who is viewing. "admin" is a STUB tier (MO-9.1): full supervisor capability
+ *  plus, eventually, managing supervisors — those functions don't exist yet, so
+ *  nothing here grants them. Everywhere that means "supervisor or above" asks
+ *  isSupervisorTier() rather than comparing to a literal. */
+export type Persona =
+  | "new-mentor"
+  | "mentor"
+  | "lead-mentor"
+  | "supervisor"
+  | "admin";
 
 export type ProfileStatus =
   | "invited" // invite received, not yet accepted

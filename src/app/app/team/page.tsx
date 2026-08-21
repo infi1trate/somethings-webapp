@@ -14,6 +14,7 @@ import {
   type TeamScope,
 } from "@/components/admin/team-directory";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
 
 export default function TeamPage() {
@@ -22,7 +23,7 @@ export default function TeamPage() {
 
   const scope: TeamScope = !mounted
     ? "mentor"
-    : persona === "supervisor"
+    : isSupervisorTier(persona)
       ? "supervisor"
       : persona === "lead-mentor"
         ? "lead"
@@ -30,7 +31,7 @@ export default function TeamPage() {
 
   // Supervisors keep the admin console chrome; mentors and leads stay in the
   // mentor app shell (the role migration's "two rails, one route" rule).
-  if (mounted && persona === "supervisor") {
+  if (mounted && isSupervisorTier(persona)) {
     return (
       <AdminShell active="team">
         <TeamDirectory scope={scope} />

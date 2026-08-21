@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { isSupervisorTier } from "@/lib/record/permission-map";
 import { gatedFieldMeta, relTime } from "@/lib/onboarding/profile-update";
 import { LiveProposedGrid } from "@/components/review/diff-card";
 import { useMounted } from "@/lib/use-mounted";
@@ -93,7 +94,7 @@ export default function AdminProfileUpdatePage({
   useEffect(() => {
     if (!mounted || isLead) return;
     router.replace(
-      persona === "supervisor" ? "/admin/mentor" : "/app/profile"
+      isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile"
     );
   }, [mounted, isLead, persona, router]);
 

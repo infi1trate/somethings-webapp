@@ -91,6 +91,16 @@ const PERSONAS: { key: Persona; label: string; go: () => void }[] = [
     // Team, not the retired /admin/users — a supervisor's staff directory.
     go: () => enterPersona("supervisor", "/app/team"),
   },
+  // ADMIN (MO-9.1) — a STUB tier. Full supervisor capability today; managing
+  // supervisors is the eventual difference, and those functions don't exist, so
+  // nothing here grants them. Everywhere that means "supervisor or above" asks
+  // isSupervisorTier(), so admin inherits the console rather than falling
+  // through to the mentor branch.
+  {
+    key: "admin",
+    label: "Admin",
+    go: () => enterPersona("admin", "/app/team"),
+  },
 ];
 
 export function DevRoleToggle() {

@@ -57,9 +57,11 @@ export function tabsForRole(role: SettingsRole): SettingsTabDef[] {
 
 /** The dev toggle's four personas → settings role (§ Phase 10). */
 export function roleForPersona(
-  persona: "new-mentor" | "mentor" | "lead-mentor" | "supervisor"
+  persona: "new-mentor" | "mentor" | "lead-mentor" | "supervisor" | "admin"
 ): SettingsRole {
-  if (persona === "supervisor") return "supervisor";
+  // SettingsRole has no admin tier — admin reads as supervisor here, which is
+  // "full supervisor capability" expressed in the vocabulary this enum has.
+  if (persona === "supervisor" || persona === "admin") return "supervisor";
   if (persona === "lead-mentor") return "lead";
   return "mentor";
 }

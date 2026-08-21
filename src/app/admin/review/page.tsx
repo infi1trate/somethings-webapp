@@ -42,6 +42,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
 import { simulateReview } from "@/lib/mock-api";
 import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
@@ -91,7 +92,7 @@ export default function AdminReviewPage({
   const isLead = persona === "lead-mentor";
   useEffect(() => {
     if (!mounted || isLead) return;
-    router.replace(persona === "supervisor" ? "/admin/mentor" : "/app/profile");
+    router.replace(isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile");
   }, [mounted, isLead, persona, router]);
 
   const firstName = mounted ? draft.firstName || "this mentor" : "this mentor";

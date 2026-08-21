@@ -29,6 +29,7 @@ import { liveLifecycle } from "@/lib/record/mentor-status";
 import { DeactivateAction } from "@/components/record/deactivate-action";
 import type { MentorLifecycleStatus } from "@/lib/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { staffActorFor } from "@/lib/record/permission-map";
 import { Plus, X } from "lucide-react";
 import {
   Select,
@@ -132,7 +133,7 @@ export function OrganizationCard({
   const setAccountStatus = useOnboardingStore((s) => s.setAccountStatus);
   const setProfileHidden = useOnboardingStore((s) => s.setProfileHidden);
   const persona = useOnboardingStore((s) => s.persona);
-  const staffActor = persona === "supervisor" ? "Supervisor" : "Lead mentor";
+  const staffActor = staffActorFor(persona);
   const mentorRole = useOnboardingStore((s) => s.mentorRole);
   const setMentorRole = useOnboardingStore((s) => s.setMentorRole);
   const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
