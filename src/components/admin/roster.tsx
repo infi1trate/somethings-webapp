@@ -10,7 +10,7 @@
 //   role "lead"       → the lead's umbrella (+ the review queues on mentors);
 //                       a CASELOAD column ("x of y") opens the mentee modal
 //                       (teens list primary, caseload adjuster secondary)
-//   segment "teens"   → teen rows: filter by TENURE, show each teen's Mentor
+//   segment "mentees" → teen rows: filter by TENURE, show each teen's Mentor
 //   segment "mentors" → mentor rows: role chips (Teens + Super Admins removed)
 //
 // Data is a marked demo layer (lib/record/people-demo.ts, TODO-DATA).
@@ -61,10 +61,11 @@ import {
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { recordHrefFor } from "@/lib/record/subject";
+import { currentMenteesOf } from "@/lib/record/relationships";
 import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
 import { ReviewQueues } from "@/components/admin/review-queues";
 
-export type RosterSegment = "teens" | "mentors";
+export type RosterSegment = "mentees" | "mentors";
 export type RosterRole = "supervisor" | "lead";
 
 // Mentors tab role chips — "Teens" and "Super Admins" removed (irrelevant here).
@@ -101,6 +102,7 @@ export function Roster({
   // useLiveMentorRow, so this component no longer reads those store axes itself.
   // Manual status overrides (staff toggle) win over fixture/derived status.
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
   const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
   // Manual availability-intent overrides win over the fixture `accepting`.
   const mentorAccepting = useOnboardingStore((s) => s.mentorAccepting);
@@ -125,7 +127,7 @@ export function Roster({
   // The store-backed mentor as a directory row — shared with the Team table.
   const liveRow = useLiveMentorRow();
 
-  const heading = isMentors ? "Mentors" : "Teens";
+  const heading = isMentors ? "Mentors" : "Mentees";
   const q = search.trim().toLowerCase();
   const matchName = (name: string, goesBy?: string) =>
     !q ||
@@ -171,7 +173,10 @@ export function Roster({
   // the record everywhere; demo mentors derive from their teen assignments.
   const liveMentees = useMemo(() => getDemoOverview(now).mentees, [now]);
   const menteeCountFor = (r: MentorRow) =>
-    r.id === "live" ? liveMentees.length : teensForMentor(r.id).length;
+    r.id === "live"
+      ? liveMentees.length
+      : // CURRENT matches, so a load figure never counts an ended pairing.
+        currentMenteesOf(r.id, { events: relationshipEvents }).length;
   const caseloadTotalFor = (r: MentorRow) =>
     caseloads[r.id]?.total ?? r.capacity;
   const peopleFor = (r: MentorRow): CaseloadPerson[] =>
@@ -397,7 +402,7 @@ export function Roster({
                   colSpan={isMentors && isLead ? 7 : 6}
                   className="px-5 py-8 text-center text-[var(--text-secondary)]"
                 >
-                  No {isMentors ? "mentors" : "teens"} match these filters.
+                  No {isMentors ? "mentors" : "mentees"} match these filters.
                 </td>
               </tr>
             )}

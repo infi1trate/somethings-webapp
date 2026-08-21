@@ -93,15 +93,15 @@ import { OrganizationCard } from "@/components/record/organization";
 import {
   LEAD_PERSONA_ID,
   defaultMenteeStatus,
-  teensForMentor,
 } from "@/lib/record/people-demo";
+import { currentMenteesOf } from "@/lib/record/relationships";
 import { toast } from "sonner";
 import {
   sectionsForTab,
   type ProfileSection,
 } from "@/lib/onboarding/profile-sections";
 import {
-  resolveMode,
+  staffActorFor,  resolveMode,
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
 import {
@@ -155,7 +155,7 @@ const SUBJECT_ROLE_LABEL: Record<SubjectRole, string> = {
   "lead-mentor": "Lead mentor",
   supervisor: "Supervisor",
   admin: "Admin",
-  teen: "Teen",
+  teen: "Mentee",
 };
 
 /** Read-only chrome chip for a field that sits in the open changeset. */
@@ -294,6 +294,7 @@ export default function MentorRecordPage({
   const accountStatus = useOnboardingStore((s) => s.accountStatus);
   const status = useOnboardingStore((s) => s.status);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
   const caseloads = useOnboardingStore((s) => s.caseloads);
   const slots = useOnboardingStore((s) => s.slots);
   const mentorGroups = useOnboardingStore((s) => s.mentorGroups);
@@ -468,7 +469,11 @@ export default function MentorRecordPage({
   const headerCaseloadTotal = caseloads["live"]?.total ?? slots.total;
   // ONE derivation of the active count, shared by the header meta and the
   // Mentorship tab, so the two can't disagree. An ended match never counts.
-  const activeMenteeCount = teensForMentor("live").filter(
+  // CURRENT matches only — unmatching frees a caseload slot, which is the
+  // header's whole job.
+  const activeMenteeCount = currentMenteesOf("live", {
+    events: relationshipEvents,
+  }).filter(
     (t) => (menteeStatus[t.id] ?? defaultMenteeStatus(t)) === "active"
   ).length;
   // Visibility readout for the rail preview — is this profile actually being
@@ -517,7 +522,7 @@ export default function MentorRecordPage({
   // Account rows: staff-editable for both staff roles (lead owns the flows).
   const accountMode: "edit" | "read" =
     resolveMode("accountSelfService", persona) === "edit" ? "edit" : "read";
-  const staffActor = persona === "supervisor" ? "Supervisor" : "Lead mentor";
+  const staffActor = staffActorFor(persona);
   // Overview data (Prompt B). TODO-DATA: illustrative fixtures — no IMP-6
   // aggregation layer or mentee entity exists in this prototype. Mount-gated
   // above, so Date.now() here is client-only. Mentee names/avatars render for

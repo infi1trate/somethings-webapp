@@ -33,17 +33,17 @@ const NAV: SidebarItemDef[] = [
   { id: "chats", label: "Chats", icon: MessageCircle },
   { id: "activity", label: "Activity", icon: Bell },
   { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "teens", label: "Teens", icon: Users },
+  { id: "mentees", label: "Mentees", icon: Users },
   // Mentors merged into Team — one staff directory instead of a roster plus
   // a peer list describing the same people.
   { id: "team", label: "Team", icon: UsersRound },
 ];
 
 const HREFS: Record<string, string> = {
-  // The supervisor's Teens list is the shared /app/teens route (already
+  // The supervisor's Mentees list is the shared /app/mentees route (already
   // supervisor-aware: it renders the full roster for this persona). The old
   // /admin/users?segment=teens surface is retired.
-  teens: "/app/teens",
+  mentees: "/app/mentees",
   // Team is the shared staff directory (it replaced the Mentors roster) and
   // lives on the app route for every persona — the supervisor just sees it
   // inside this console's chrome.

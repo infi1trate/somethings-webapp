@@ -28,7 +28,7 @@ import { useMounted } from "@/lib/use-mounted";
 // destination would be a list they don't own. The mentors they DO lead live in
 // Team, which absorbed the old separate "Mentors" roster.
 const LEAD_ITEMS: SidebarItemDef[] = SIDEBAR_ITEMS.filter(
-  (i) => i.id !== "teens"
+  (i) => i.id !== "mentees"
 );
 
 export function MentorShell({

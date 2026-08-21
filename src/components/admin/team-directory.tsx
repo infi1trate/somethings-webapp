@@ -38,11 +38,14 @@ import {
   leadUmbrellaMentors,
   roleOf,
   superviseesOf,
-  teensForMentor,
   type PersonRole,
 } from "@/lib/record/people-demo";
 import { getDemoOverview } from "@/lib/record/mentees-demo";
 import { recordHrefFor } from "@/lib/record/subject";
+// Bloom Role Label ramp (Figma 3466:10231) — replaced a flat outlined pill
+// that gave every role the same visual rank.
+import { RoleLabel } from "@/components/record/role-label";
+import { currentMenteesOf } from "@/lib/record/relationships";
 import { useLiveMentorRow, type StaffRow } from "@/lib/record/use-live-mentor";
 import {
   availabilityFor,
@@ -52,16 +55,11 @@ import {
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+// Role wording comes from the ONE shared map (Bloom Role Label) — six local
+// copies of this had drifted into "Lead mentor" vs "Lead Mentor" and all six
+// still said "Teen".
 
 export type TeamScope = "mentor" | "lead" | "supervisor";
-
-const ROLE_LABEL: Record<PersonRole, string> = {
-  mentor: "Mentor",
-  "lead-mentor": "Lead mentor",
-  supervisor: "Supervisor",
-  admin: "Admin",
-  teen: "Teen",
-};
 
 const ROLE_FILTERS = ["All", "Mentors", "Lead mentors", "Supervisors"] as const;
 type RoleFilter = (typeof ROLE_FILTERS)[number];
@@ -78,6 +76,7 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
   const router = useRouter();
   const caseloads = useOnboardingStore((s) => s.caseloads);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
   const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
   const mentorAccepting = useOnboardingStore((s) => s.mentorAccepting);
   const setMentorAccepting = useOnboardingStore((s) => s.setMentorAccepting);
@@ -116,7 +115,10 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
   // The live mentor's mentee set is the record's, so counts match everywhere.
   const liveMentees = useMemo(() => getDemoOverview(now).mentees, [now]);
   const menteeCountOf = (r: StaffRow) =>
-    r.id === "live" ? liveMentees.length : teensForMentor(r.id).length;
+    r.id === "live"
+      ? liveMentees.length
+      : // CURRENT matches, so a load figure never counts an ended pairing.
+        currentMenteesOf(r.id, { events: relationshipEvents }).length;
   const capOf = (r: StaffRow) => caseloads[r.id]?.total ?? r.capacity;
   const statusOf = (r: StaffRow): MentorLifecycleStatus =>
     (mentorStatuses[r.id] as MentorLifecycleStatus) ?? r.status;
@@ -270,7 +272,7 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
                     />
                   </td>
                   <td className="px-5 py-3">
-                    <RoleBadge role={roleOf(r)} />
+                    <RoleLabel role={roleOf(r)} />
                   </td>
                   <td className="px-5 py-3 text-[var(--text-secondary)]">
                     {r.group}
@@ -329,10 +331,3 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
 /** Role as a quiet outline pill — three staff roles, one neutral treatment.
  *  Status and availability are the coloured axes on this row; a coloured role
  *  would compete with them for the same glance. */
-function RoleBadge({ role }: { role: PersonRole }) {
-  return (
-    <span className="whitespace-nowrap rounded-full border border-[color:var(--border-contour)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
-      {ROLE_LABEL[role]}
-    </span>
-  );
-}

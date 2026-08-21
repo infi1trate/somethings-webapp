@@ -26,14 +26,10 @@ import {
 import { recordHrefFor, type FixtureSubject } from "@/lib/record/subject";
 import { resolveMode } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-
-const ROLE_LABEL: Record<string, string> = {
-  mentor: "Mentor",
-  "lead-mentor": "Lead mentor",
-  supervisor: "Supervisor",
-  admin: "Admin",
-  teen: "Teen",
-};
+// Role wording comes from the ONE shared map (Bloom Role Label) — six local
+// copies of this had drifted into "Lead mentor" vs "Lead Mentor" and all six
+// still said "Teen".
+import { ROLE_LABEL } from "@/components/record/role-label";
 
 export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const persona = useOnboardingStore((s) => s.persona);

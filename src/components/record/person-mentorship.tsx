@@ -13,14 +13,10 @@ import { CareNetwork, type NetworkPerson } from "@/components/record/care-networ
 import { MenteeTable } from "@/components/record/mentee-table";
 import { DEMO_PEOPLE, roleOf } from "@/lib/record/people-demo";
 import type { FixtureSubject } from "@/lib/record/subject";
-
-const ROLE_LABEL: Record<string, string> = {
-  mentor: "Mentor",
-  "lead-mentor": "Lead mentor",
-  supervisor: "Supervisor",
-  admin: "Admin",
-  teen: "Teen",
-};
+// Role wording comes from the ONE shared map (Bloom Role Label) — six local
+// copies of this had drifted into "Lead mentor" vs "Lead Mentor" and all six
+// still said "Teen".
+import { ROLE_LABEL } from "@/components/record/role-label";
 
 export function PersonMentorship({ subject }: { subject: FixtureSubject }) {
   const person = subject.person;

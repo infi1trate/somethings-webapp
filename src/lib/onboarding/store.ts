@@ -23,6 +23,12 @@ import {
 // Type-only: the shape of a staff edit to another person's profile. people-demo
 // holds no store import, so this stays one-directional.
 import type { PersonProfile } from "@/lib/record/people-demo";
+// care-demo is a pure data module with no store import — one-directional.
+import type {
+  CareReviewDecision,
+  CareUpdateRecord,
+} from "@/lib/record/care-demo";
+import type { RelationshipEvent } from "@/lib/record/relationships";
 import {
   PROFILE_SECTIONS,
   normForCompare,
@@ -136,6 +142,30 @@ interface OnboardingState {
    *  "paused" has NOT ended: the row stays in the list but stops counting as
    *  active. Only "deactivated" moves a mentee to Past mentees. */
   menteeStatus: Record<string, MenteeStatus>;
+  /** APPROVED presentation reviews, keyed by review id. APPEND-ONLY BY DESIGN:
+   *  there is no setter that edits or removes an entry, because the record is
+   *  append-only — a correction is a NEW review whose approval lands as its own
+   *  entry referencing the original. Sparse: a missing key means that review is
+   *  still pending, which is what puts it in the action slot. */
+  careReviews: Record<string, CareReviewDecision>;
+  /** Care updates a supervisor has written, keyed by update id. APPEND-ONLY:
+   *  no setter edits or removes one. "Editing" an update appends an amendment
+   *  whose `amends` names the original, and both keep rendering. */
+  careUpdates: Record<string, CareUpdateRecord>;
+  /** When a supervisor last hit refresh on a teen's AI summary, keyed by teen
+   *  id. TODO-DATA: regeneration isn't wired, so this only re-stamps the
+   *  "Updated" date — but it has to persist, or the date would jump backwards
+   *  on the next navigation. */
+  careSummaryRefreshedAt: Record<string, number>;
+  /** APPEND-ONLY log of ended pairings — unmatches and unassignments.
+   *
+   *  An ARRAY, not a map: the same pair could conceivably end, resume and end
+   *  again, and a map keyed by pair would overwrite the first ending. There is
+   *  no setter that edits or removes an entry, and nothing here touches account
+   *  state — that is the whole point of the field existing. The current edge is
+   *  DERIVED by replaying this over the fixture edge (lib/record/relationships),
+   *  so history and present state cannot disagree. */
+  relationshipEvents: RelationshipEvent[];
   /** Staff edits to ANOTHER person's teen-facing profile, keyed by person id.
    *  Sparse and PARTIAL: a missing key (or field) falls back to the fixture in
    *  people-demo, so this map holds only what a lead/supervisor changed.
@@ -244,6 +274,14 @@ interface OnboardingState {
    *  stays derived from the caseload — only this intent is stored. */
   setMentorAccepting: (mentorId: string, accepting: boolean) => void;
   setMenteeStatus: (teenId: string, status: MenteeStatus) => void;
+  /** Record a supervisor's decision on a pending review. NO update/delete
+   *  counterpart exists, on purpose (see careReviews). */
+  approveCareReview: (decision: CareReviewDecision) => void;
+  /** Append a care update. No update/delete counterpart, on purpose. */
+  addCareUpdate: (update: CareUpdateRecord) => void;
+  refreshCareSummary: (teenId: string, at: number) => void;
+  /** End a pairing. APPENDS — there is deliberately no un-end and no delete. */
+  endRelationship: (event: RelationshipEvent) => void;
   /** Release a manual lifecycle override so the DERIVED standing shows again.
    *  Without this the override map was a one-way door: `mentorStatuses[id] ??
    *  liveLifecycle(...)` meant one dropdown click permanently masked the real
@@ -294,6 +332,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       mentorStatuses: {},
       mentorAccepting: {},
       menteeStatus: {},
+      careReviews: {},
+      careUpdates: {},
+      careSummaryRefreshedAt: {},
+      relationshipEvents: [],
       personProfiles: {},
       personSchedules: {},
       mentorRole: "Mentor",
@@ -667,6 +709,22 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
+      approveCareReview: (decision) =>
+        set((state) => ({
+          careReviews: { ...state.careReviews, [decision.reviewId]: decision },
+        })),
+      addCareUpdate: (update) =>
+        set((state) => ({
+          careUpdates: { ...state.careUpdates, [update.id]: update },
+        })),
+      refreshCareSummary: (teenId, at) =>
+        set((state) => ({
+          careSummaryRefreshedAt: { ...state.careSummaryRefreshedAt, [teenId]: at },
+        })),
+      endRelationship: (event) =>
+        set((state) => ({
+          relationshipEvents: [...state.relationshipEvents, event],
+        })),
       setPersonProfile: (personId, patch) =>
         set((state) => ({
           personProfiles: {
@@ -716,6 +774,10 @@ export const useOnboardingStore = create<OnboardingState>()(
           mentorStatuses: {}, // status overrides reset with the mentor
           mentorAccepting: {}, // availability intent resets with the mentor
           menteeStatus: {},
+          careReviews: {}, // dev "start over" restores the pending reviews
+          careUpdates: {},
+          careSummaryRefreshedAt: {},
+          relationshipEvents: [], // dev "start over" restores the fixture edges
           // Staff edits to other people's records clear too — reset is the dev
           // "start over", and leaving them would strand edits whose fixture
           // baseline has just been restored.
@@ -771,7 +833,14 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      draft already holds the proposed value, so publishing is just
       //      snapshotting it — same reasoning as approveProfileUpdate), drop the
       //      entries, and clear the changeset when nothing gated remains.
-      version: 28,
+      // v29: careReviews (approved presentation reviews, keyed by review id) —
+      //      sparse map; backfill {} so every fixture review reads as pending
+      //      again. Append-only: no setter edits or removes an entry.
+      // v30: careUpdates + careSummaryRefreshedAt — sparse maps, both additive.
+      //      Backfill {} so a record with no staff-written updates reads as one.
+      // v31: relationshipEvents (append-only ended-pairing log) — backfill [] so
+      //      an older persisted state reads as "no pairing has been ended".
+      version: 31,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1115,6 +1184,35 @@ export const useOnboardingStore = create<OnboardingState>()(
           }
           delete st.menteeActive;
         }
+        if (version < 31) {
+          const st = s as unknown as { relationshipEvents?: RelationshipEvent[] };
+          if (!Array.isArray(st.relationshipEvents)) st.relationshipEvents = [];
+        }
+        if (version < 30) {
+          const st = s as unknown as {
+            careUpdates?: Record<string, CareUpdateRecord>;
+            careSummaryRefreshedAt?: Record<string, number>;
+          };
+          if (typeof st.careUpdates !== "object" || st.careUpdates === null) {
+            st.careUpdates = {};
+          }
+          if (
+            typeof st.careSummaryRefreshedAt !== "object" ||
+            st.careSummaryRefreshedAt === null
+          ) {
+            st.careSummaryRefreshedAt = {};
+          }
+        }
+        if (version < 29) {
+          // careReviews is new and additive — backfill the empty map so every
+          // fixture review reads as pending on an older persisted state.
+          const st = s as unknown as {
+            careReviews?: Record<string, CareReviewDecision>;
+          };
+          if (typeof st.careReviews !== "object" || st.careReviews === null) {
+            st.careReviews = {};
+          }
+        }
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -1227,6 +1325,31 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.schedule = cloneSchedule(DEFAULT_SCHEDULE);
         }
+        // v31 shape: relationshipEvents is always an ARRAY (not a map).
+        if (!Array.isArray((merged as { relationshipEvents?: unknown }).relationshipEvents)) {
+          merged.relationshipEvents = [];
+        }
+        // v30 shape: the care-update maps are always plain objects.
+        if (
+          typeof (merged as { careUpdates?: unknown }).careUpdates !== "object" ||
+          merged.careUpdates === null
+        ) {
+          merged.careUpdates = {};
+        }
+        if (
+          typeof (merged as { careSummaryRefreshedAt?: unknown })
+            .careSummaryRefreshedAt !== "object" ||
+          merged.careSummaryRefreshedAt === null
+        ) {
+          merged.careSummaryRefreshedAt = {};
+        }
+        // v29 shape: careReviews is always a plain object.
+        if (
+          typeof (merged as { careReviews?: unknown }).careReviews !== "object" ||
+          merged.careReviews === null
+        ) {
+          merged.careReviews = {};
+        }
         // v28 shape: menteeStatus is always a plain object.
         if (
           typeof (merged as { menteeStatus?: unknown }).menteeStatus !== "object" ||
@@ -1320,6 +1443,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         mentorStatuses: state.mentorStatuses,
         mentorAccepting: state.mentorAccepting,
         menteeStatus: state.menteeStatus,
+        careReviews: state.careReviews,
+        careUpdates: state.careUpdates,
+        careSummaryRefreshedAt: state.careSummaryRefreshedAt,
+        relationshipEvents: state.relationshipEvents,
         personProfiles: state.personProfiles,
         personSchedules: state.personSchedules,
         mentorRole: state.mentorRole,

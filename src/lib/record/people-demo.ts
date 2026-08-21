@@ -67,6 +67,14 @@ export interface DemoMentorRow {
   supervisorId?: string;
   /** Pronouns, for the record header. */
   pronouns?: string;
+  /** Days since this person was ASSIGNED to their lead/supervisor — the
+   *  RELATIONSHIP start date, distinct from any platform join date.
+   *
+   *  TODO-DATA: new in the relationship pass. Staff carried no assignment date
+   *  at all before it, so the Supervision table's date column had nothing true
+   *  to show; absent still means absent, and the column says so rather than
+   *  borrowing a date that means something else. */
+  assignedDaysAgo?: number;
 }
 
 /** A past match — the teen's mentor history. TODO-DATA: invented for the demo;
@@ -127,13 +135,13 @@ export interface DemoTeen {
 // both leads report to supervisor `s-stephen`. The store-backed mentor ("live")
 // also reports to `s-brandy` — matching the Team card the record already shows.
 export const DEMO_MENTORS: DemoMentorRow[] = [
-  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", status: "in-training", capacity: 5, leadId: "s-brandy", pronouns: "he/him" },
-  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", status: "active", accepting: true, capacity: 4, leadId: "s-brandy", pronouns: "she/her" },
-  { id: "m3", name: "Devon Clark", goesBy: "Dev", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", status: "active", accepting: true, capacity: 3, leadId: "s-brandy", pronouns: "they/them" },
-  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", status: "active", accepting: false, capacity: 4, leadId: "s-omar", pronouns: "she/her" },
+  { id: "m1", name: "John Smith", phone: "+19089101133", email: "john.smith@example.com", group: "Illinois, North Carolina", status: "in-training", capacity: 5, leadId: "s-brandy", assignedDaysAgo: 34, pronouns: "he/him" },
+  { id: "m2", name: "Maria Lopez", phone: "+17079923410", email: "maria.lopez@example.com", group: "New Jersey", status: "active", accepting: true, capacity: 4, leadId: "s-brandy", assignedDaysAgo: 210, pronouns: "she/her" },
+  { id: "m3", name: "Devon Clark", goesBy: "Dev", phone: "+13125550172", email: "devon.clark@example.com", group: "Illinois", status: "active", accepting: true, capacity: 3, leadId: "s-brandy", assignedDaysAgo: 96, pronouns: "they/them" },
+  { id: "m4", name: "Aisha Bello", phone: "+17078894521", email: "aisha.bello@example.com", group: "North Carolina", status: "active", accepting: false, capacity: 4, leadId: "s-omar", assignedDaysAgo: 61, pronouns: "she/her" },
   // m5 intentionally has no email — the Contact menu skips Email/Copy-email.
-  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", status: "paused", capacity: 2, leadId: "s-omar", pronouns: "he/him" },
-  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", status: "in-training", capacity: 3, leadId: "s-omar", pronouns: "she/her" },
+  { id: "m5", name: "Tomás Rivera", phone: "+19735550143", group: "New Jersey", status: "paused", capacity: 2, leadId: "s-omar", assignedDaysAgo: 402, pronouns: "he/him" },
+  { id: "m6", name: "Priya Nair", phone: "+13125550188", email: "priya.nair@example.com", group: "Illinois", status: "in-training", capacity: 3, leadId: "s-omar", assignedDaysAgo: 12, pronouns: "she/her" },
 ];
 
 /** Staff above the mentors. These existed only as display STRINGS in
@@ -151,6 +159,7 @@ export const DEMO_STAFF: DemoMentorRow[] = [
     role: "lead-mentor",
     supervisorId: "s-stephen",
     pronouns: "she/her",
+    assignedDaysAgo: 520,
   },
   {
     id: "s-omar",
@@ -163,6 +172,7 @@ export const DEMO_STAFF: DemoMentorRow[] = [
     role: "lead-mentor",
     supervisorId: "s-stephen",
     pronouns: "he/him",
+    assignedDaysAgo: 180,
   },
   {
     id: "s-stephen",
@@ -411,20 +421,20 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     id: "t2", name: "Patricia Johnson", goesBy: "Pat", pronouns: "she/her", phone: "+19089101254",
     group: "New Jersey", active: true, joinedDaysAgo: 4, mentorId: "m2",
-    matchedDaysAgo: 4, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    matchedDaysAgo: 2, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 1,
   },
   {
     // Teen wrote 6d ago and the mentor hasn't replied → waiting-on-mentor.
     id: "t3", name: "Amy Hashing", pronouns: "she/her", phone: "+19089101035",
     group: "North Carolina", active: true, joinedDaysAgo: 12, mentorId: "m1",
-    matchedDaysAgo: 12, mentorLastSentDaysAgo: 7, menteeLastSentDaysAgo: 6,
+    matchedDaysAgo: 7, mentorLastSentDaysAgo: 7, menteeLastSentDaysAgo: 6,
     videoCount30d: 0,
   },
   {
     id: "t4", name: "John Kneeland", pronouns: "he/him", phone: "+12158805908",
     group: "Illinois", active: false, joinedDaysAgo: 40, mentorId: "m3",
-    matchedDaysAgo: 40, mentorLastSentDaysAgo: 12, menteeLastSentDaysAgo: 20,
+    matchedDaysAgo: 31, mentorLastSentDaysAgo: 12, menteeLastSentDaysAgo: 20,
     videoCount30d: 0,
     pastMentors: [
       { mentorId: "m1", range: "Jan 2025 – Mar 2025" },
@@ -442,26 +452,26 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     id: "t6", name: "Sofia Ramos", pronouns: "she/her", phone: "+19735550267",
     group: "New Jersey", active: true, joinedDaysAgo: 25, mentorId: "m2",
-    matchedDaysAgo: 25, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
+    matchedDaysAgo: 14, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
   },
   {
     id: "t7", name: "Ethan Park", pronouns: "he/him", phone: "+17078893390",
     group: "North Carolina", active: true, joinedDaysAgo: 6, mentorId: "m4",
-    matchedDaysAgo: 6, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
+    matchedDaysAgo: 3, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 1,
   },
   {
     // Mentor replied, teen has been quiet 9 days → teen-quiet.
     id: "t8", name: "Zoe Bennett", pronouns: "she/her", phone: "+19089104412",
     group: "North Carolina", active: true, joinedDaysAgo: 55, mentorId: "m1",
-    matchedDaysAgo: 55, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 9,
+    matchedDaysAgo: 34, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 9,
     videoCount30d: 1,
   },
   {
     id: "t9", name: "Liam Foster", pronouns: "he/him", phone: "+19735550318",
     group: "New Jersey", active: true, joinedDaysAgo: 18, mentorId: "m4",
-    matchedDaysAgo: 18, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 1,
+    matchedDaysAgo: 14, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 1,
     videoCount30d: 3,
     // Names the observable cause, not a prediction about the teen.
     escalation: { reason: "Asked about changing schools mid-year", daysAgo: 3 },
@@ -469,19 +479,19 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     id: "t10", name: "Ava Mitchell", pronouns: "she/her", phone: "+13125550344",
     group: "Illinois", active: true, joinedDaysAgo: 3, mentorId: "m5",
-    matchedDaysAgo: 3, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    matchedDaysAgo: 2, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 0,
   },
   {
     id: "t11", name: "Noah Diaz", pronouns: "he/him", phone: "+17078895501",
     group: "North Carolina", active: true, joinedDaysAgo: 9, mentorId: "m2",
-    matchedDaysAgo: 9, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 3,
+    matchedDaysAgo: 3, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 3,
     videoCount30d: 1,
   },
   {
     id: "t12", name: "Mia Chen", pronouns: "she/her", phone: "+19089108833",
     group: "New Jersey", active: true, joinedDaysAgo: 70, mentorId: "m6",
-    matchedDaysAgo: 70, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
+    matchedDaysAgo: 40, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 4,
     pastMentors: [{ mentorId: "m4", range: "Dec 2024 – Feb 2025" }],
   },
@@ -490,21 +500,21 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     id: "t13", name: "Jordan Tate", goesBy: "Jordy", pronouns: "they/them", phone: "+19089102201",
     group: "North Carolina", active: true, joinedDaysAgo: 122, mentorId: "live",
-    matchedDaysAgo: 122, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
+    matchedDaysAgo: 118, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
     pastMentors: [{ mentorId: "m5", range: "Feb 2025 – Apr 2025" }],
   },
   {
     id: "t14", name: "Sam Karim", pronouns: "he/him", phone: "+13125550788",
     group: "Illinois", active: true, joinedDaysAgo: 15, mentorId: "live",
-    matchedDaysAgo: 15, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    matchedDaysAgo: 7, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 3, // video-comfort: low chat volume may be video, not absence
   },
   {
     id: "t15", name: "Riley Moss", pronouns: "she/her", phone: "+17078894102",
     group: "North Carolina", active: true, joinedDaysAgo: 44, mentorId: "live",
     // Teen wrote 5d ago, mentor hasn't replied → derived waiting-on-mentor.
-    matchedDaysAgo: 44, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 5,
+    matchedDaysAgo: 40, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 5,
     videoCount30d: 0,
     pastMentors: [{ mentorId: "m2", range: "Jun 2025 – Sep 2025" }],
   },
@@ -512,7 +522,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     id: "t16", name: "Alex Petrov", pronouns: "he/him", phone: "+19735550655",
     group: "New Jersey", active: false, joinedDaysAgo: 92, mentorId: "live",
     // Mentor replied, but the teen has been quiet 9 days → teen-quiet.
-    matchedDaysAgo: 92, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 9,
+    matchedDaysAgo: 65, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 9,
     videoCount30d: 1,
   },
 ];

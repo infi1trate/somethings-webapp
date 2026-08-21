@@ -32,7 +32,7 @@ export const SIDEBAR_ITEMS: SidebarItemDef[] = [
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "activity", label: "Activity", icon: Bell },
   { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "teens", label: "Teens", icon: Users },
+  { id: "mentees", label: "Mentees", icon: Users },
   // Team = the staff directory (leads + supervisors, plus a lead's own
   // mentors). It absorbed the old separate "Mentors" roster.
   { id: "team", label: "Team", icon: UsersRound },

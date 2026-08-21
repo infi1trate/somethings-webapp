@@ -2,7 +2,7 @@
 //
 // It was a second directory of the same people Team already lists: the mentors
 // segment duplicated Team's staff table, and the teens segment duplicated
-// /app/teens (which is already supervisor-aware). Team became a table so it
+// /app/mentees (which is already supervisor-aware). Team became a table so it
 // covers what this page did.
 //
 // Kept as a REDIRECT rather than deleted — the URL is bookmarked, and a 404 on
@@ -17,5 +17,9 @@ export default async function AdminUsersPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const query = await searchParams;
-  redirect(query.segment === "teens" ? "/app/teens" : "/app/team");
+  // Accepts the retired "teens" segment as well as "mentees": this route only
+  // exists to catch old links, so it must not start rejecting the exact spelling
+  // those links carry.
+  const toMentees = query.segment === "mentees" || query.segment === "teens";
+  redirect(toMentees ? "/app/mentees" : "/app/team");
 }

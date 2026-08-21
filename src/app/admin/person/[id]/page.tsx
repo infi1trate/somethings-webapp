@@ -15,7 +15,9 @@
 // Tab set comes from the same registry and the same two gates as the mentor
 // record: `subjectRoles` (does this tab exist for this person) and `roles`
 // (may this viewer see it). A teen gets Mentorship — the same relationship
-// seen from the other side.
+// seen from the other side — plus CARE, which exists only on a teen and is
+// deliberately NOT viewer-gated: every tier that can open this record reads it.
+// Who may ACT inside it is a separate question the tab answers itself.
 
 import { use, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -25,6 +27,7 @@ import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
+import { CareTab } from "@/components/record/care-tab";
 import { PersonMentorship } from "@/components/record/person-mentorship";
 import { TeenMentors } from "@/components/record/teen-mentors";
 import { PersonOrganization } from "@/components/record/person-organization";
@@ -36,11 +39,12 @@ import {
   useResolvedProfile,
 } from "@/components/record/person-profile";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
+import { ROLE_LABEL } from "@/components/record/role-label";
 import { recordTabsFor } from "@/lib/record/tabs";
 import { headerDotFor } from "@/lib/record/mentor-status";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
-import { teensForMentor } from "@/lib/record/people-demo";
+import { currentMenteesOf } from "@/lib/record/relationships";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { toast } from "sonner";
@@ -58,6 +62,7 @@ export default function PersonRecordPage({
   const router = useRouter();
   const persona = useOnboardingStore((s) => s.persona);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
+  const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
 
   const subject = resolveSubject(id);
   // Resolved BEFORE the early return below — hooks can't sit after a
@@ -73,7 +78,9 @@ export default function PersonRecordPage({
   const mentorish = persona === "mentor" || persona === "new-mentor";
   const ownMentee =
     subject?.role === "teen" &&
-    teensForMentor(LIVE_ID).some((t) => t.id === subject.id);
+    currentMenteesOf(LIVE_ID, { events: relationshipEvents }).some(
+      (t) => t.id === subject.id
+    );
   // Scoped, not blanket: a mentor may open a teen they hold the match with, and
   // nobody else — not another mentor's teen, not a staff record.
   const bounceMentor = mentorish && !ownMentee;
@@ -88,7 +95,7 @@ export default function PersonRecordPage({
     // "live" has its own deep record; anything unknown is a genuine 404.
     if (subject?.kind === "live") router.replace("/admin/mentor");
     return (
-      <Shell active={mentorish ? "teens" : "mentors"}>
+      <Shell active={mentorish ? "mentees" : "mentors"}>
         <div className="px-6 py-6 lg:px-10">
           <p className="text-[15px] text-[var(--text-secondary)]">
             {subject ? "Taking you to that record…" : "We couldn't find that person."}
@@ -119,7 +126,8 @@ export default function PersonRecordPage({
   // disagreeing values on screen.
   const menteeLoad =
     subject.role === "mentor" && subject.person
-      ? `${teensForMentor(subject.id).length} of ${subject.person.capacity} mentees`
+      ? // CURRENT matches, so an unmatch frees the slot in the header too.
+        `${currentMenteesOf(subject.id, { events: relationshipEvents }).length} of ${subject.person.capacity} mentees`
       : null;
   const meta = [
     profile.pronouns ?? subject.pronouns,
@@ -129,16 +137,10 @@ export default function PersonRecordPage({
     .filter(Boolean)
     .join(" · ");
 
-  const roleLabel = {
-    mentor: "Mentor",
-    "lead-mentor": "Lead mentor",
-    supervisor: "Supervisor",
-    admin: "Admin",
-    teen: "Teen",
-  }[subject.role];
+  const roleLabel = ROLE_LABEL[subject.role];
 
   return (
-    <Shell active={isTeen ? "teens" : "team"}>
+    <Shell active={isTeen ? "mentees" : "team"}>
       <UserRecordShell
         avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
         name={subject.goesBy ?? subject.name}
@@ -150,10 +152,10 @@ export default function PersonRecordPage({
         statusAriaLabel={roleLabel}
         meta={meta}
         backLink={{
-          href: isTeen ? "/app/teens" : "/app/team",
+          href: isTeen ? "/app/mentees" : "/app/team",
           // "Team" — the destination is the staff directory; "Mentors" was left
           // over from the roster it replaced.
-          label: isTeen ? "Teens" : "Team",
+          label: isTeen ? "Mentees" : "Team",
         }}
         primaryAction={
           <PillButton
@@ -176,6 +178,12 @@ export default function PersonRecordPage({
             roleLabel={roleLabel}
             statusBadge={status ? <MentorStatusBadge status={status} /> : null}
           />
+        )}
+        {/* CARE — teen subjects only (registry-gated), read by every tier.
+            `subject.teen` is the narrowing the resolver gives us; a teen
+            subject always carries it. */}
+        {activeTab === "care" && subject.teen && (
+          <CareTab teen={subject.teen} />
         )}
         {activeTab === "mentorship" &&
           (isTeen ? (
