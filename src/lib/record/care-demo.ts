@@ -185,6 +185,15 @@ const PHQ9_SCORE_13: AssessmentItem[] = [
   { question: "Moving or speaking slowly, or being restless", answer: "Not at all", points: 0 },
   { question: "Thoughts of self-harm", answer: "Not at all", points: 0 },
 ];
+const GAD7_SCORE_12: AssessmentItem[] = [
+  { question: "Feeling nervous, anxious or on edge", answer: "Nearly every day", points: 3 },
+  { question: "Not being able to stop or control worrying", answer: "More than half the days", points: 2 },
+  { question: "Worrying too much about different things", answer: "More than half the days", points: 2 },
+  { question: "Trouble relaxing", answer: "Several days", points: 1 },
+  { question: "Being so restless it's hard to sit still", answer: "Several days", points: 1 },
+  { question: "Becoming easily annoyed", answer: "More than half the days", points: 2 },
+  { question: "Feeling afraid something awful might happen", answer: "Several days", points: 1 },
+];
 const PHQ9_SCORE_11: AssessmentItem[] = [
   { question: "Little interest or pleasure in doing things", answer: "More than half the days", points: 2 },
   { question: "Feeling down, hopeless", answer: "More than half the days", points: 2 },
@@ -470,6 +479,7 @@ export interface CareStoreSlice {
  *  whatever the person universe already records, and everything staff have
  *  appended. Newest-first ordering is the renderer's job — this returns the
  *  union. */
+
 export function careTimelineFor(
   teenId: string,
   now: number,
@@ -477,6 +487,7 @@ export function careTimelineFor(
 ): CareEvent[] {
   return [
     ...fixtureTimelineFor(teenId, now),
+    ...pendingDemoTimeline(teenId, now),
     ...escalationEventFor(teenId, now),
     ...(store.decisions ?? [])
       .filter((d) => d.teenId === teenId)
@@ -759,6 +770,91 @@ function elapsed(days: number): string {
 // two teens carry one so the resting mode is what most records show — a healthy
 // record renders NO slot, and absence is the reward state.
 
+// ── Additional demo subjects with a pending review ──────────────────────────
+// GENERATED, not hand-written, so each one gets a coherent record: an intake
+// assessment whose points add up to its stated score, and a review that cites
+// that same assessment. A pending review above an empty timeline is the shape
+// that made the summary card contradict its own history last time.
+//
+// TODO-DATA: every value invented. `daysAgo` is the teen's intake, which must sit
+// inside their tenure — see PENDING_DEMO for the per-teen numbers.
+
+interface PendingDemo {
+  /** Days since the intake assessment. Must be < the teen's joinedDaysAgo. */
+  daysAgo: number;
+  instrument: "PHQ-9" | "GAD-7";
+  score: number;
+  severity: string;
+  items: AssessmentItem[];
+  /** The code the mapping proposes. */
+  code: string;
+}
+
+const PENDING_DEMO: Record<string, PendingDemo> = {
+  // Sofia Ramos — joined 25d, paused. Anxiety presentation proposed at intake.
+  t6: { daysAgo: 20, instrument: "GAD-7", score: 12, severity: "moderate", items: GAD7_SCORE_12, code: "F41.1" },
+  // Mia Chen — joined 70d. Adjustment presentation proposed.
+  t12: { daysAgo: 61, instrument: "GAD-7", score: 9, severity: "mild", items: GAD7_ITEMS, code: "F43.22" },
+  // Zoe Bennett — joined 55d. Depression presentation proposed.
+  t8: { daysAgo: 48, instrument: "PHQ-9", score: 11, severity: "moderate", items: PHQ9_SCORE_11, code: "F33.0" },
+};
+
+/** A STATED SCORE MUST EQUAL ITS ITEM SUM. `cadenceFor` derives the score from
+ *  `items` while the row renders `result`, so a mismatch puts two different
+ *  numbers for one assessment on one screen — which has now happened twice
+ *  (t13's PHQ-9, then t6's GAD-7). Dev-only, and it throws rather than warns:
+ *  a fixture that contradicts itself should not survive a page load. */
+function assertScoreMatchesItems(teenId: string, d: PendingDemo) {
+  if (process.env.NODE_ENV === "production") return;
+  const sum = d.items.reduce((a, i) => a + i.points, 0);
+  if (sum !== d.score) {
+    throw new Error(
+      `care fixture ${teenId}: ${d.instrument} states ${d.score} but its items sum to ${sum}`
+    );
+  }
+}
+
+function pendingDemoTimeline(teenId: string, now: number): CareEvent[] {
+  const d = PENDING_DEMO[teenId];
+  if (!d) return [];
+  assertScoreMatchesItems(teenId, d);
+  return [
+    {
+      id: `cd-${teenId}-1`,
+      occurredAt: ago(now, d.daysAgo),
+      type: "assessment",
+      description: d.instrument,
+      result: `${d.score} — ${d.severity}`,
+      author: { kind: "system" },
+      visibility: "all_staff",
+      items: d.items,
+    },
+  ];
+}
+
+function pendingDemoReview(teenId: string, now: number): PresentationReview | null {
+  const d = PENDING_DEMO[teenId];
+  if (!d) return null;
+  return {
+    id: `pr-${teenId}-intake`,
+    // Stage is overwritten by the caller from cadence — kept honest there.
+    stage: "intake",
+    recommended: { statement: STATEMENT_OF[d.code] ?? d.code, code: d.code },
+    rationale: {
+      source: "templated",
+      text: `The intake ${d.instrument} scored ${d.score} in the ${d.severity} band. The mapping returns ${STATEMENT_OF[d.code] ?? d.code} for that profile.`,
+    },
+    survey: {
+      instrument: d.instrument,
+      at: ago(now, d.daysAgo),
+      score: d.score,
+      severity: d.severity,
+      items: d.items,
+    },
+    aggregate: null,
+  };
+}
+
 export function pendingReviewFor(
   teenId: string,
   now: number,
@@ -825,6 +921,9 @@ export function pendingReviewFor(
       },
     });
   }
+  // Generated demo subjects — coherent by construction (see PENDING_DEMO).
+  const generated = pendingDemoReview(teenId, now);
+  if (generated) return live(generated);
   return null;
 }
 

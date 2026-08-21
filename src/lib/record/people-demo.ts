@@ -101,6 +101,13 @@ export interface DemoTeen {
   active: boolean;
   /** Days since the teen joined the platform — drives the tenure buckets. */
   joinedDaysAgo: number;
+  /** Platform standing, when it is something other than what `active` can say.
+   *
+   *  `active: boolean` could only ever express two of the three states, so no
+   *  fixture teen could START paused — every paused teen had to be produced by
+   *  a staff action in-session. This field closes that gap; `defaultMenteeStatus`
+   *  prefers it and falls back to the boolean. */
+  menteeState?: "active" | "paused" | "deactivated";
   /** The mentor this teen is matched with. */
   mentorId: string;
 
@@ -427,7 +434,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     // Teen wrote 6d ago and the mentor hasn't replied → waiting-on-mentor.
     id: "t3", name: "Amy Hashing", pronouns: "she/her", phone: "+19089101035",
-    group: "North Carolina", active: true, joinedDaysAgo: 12, mentorId: "m1",
+    group: "North Carolina", active: true, menteeState: "paused", joinedDaysAgo: 12, mentorId: "m1",
     matchedDaysAgo: 7, mentorLastSentDaysAgo: 7, menteeLastSentDaysAgo: 6,
     videoCount30d: 0,
   },
@@ -451,7 +458,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   },
   {
     id: "t6", name: "Sofia Ramos", pronouns: "she/her", phone: "+19735550267",
-    group: "New Jersey", active: true, joinedDaysAgo: 25, mentorId: "m2",
+    group: "New Jersey", active: true, menteeState: "paused", joinedDaysAgo: 25, mentorId: "m2",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
   },
@@ -484,7 +491,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   },
   {
     id: "t11", name: "Noah Diaz", pronouns: "he/him", phone: "+17078895501",
-    group: "North Carolina", active: true, joinedDaysAgo: 9, mentorId: "m2",
+    group: "North Carolina", active: true, menteeState: "paused", joinedDaysAgo: 9, mentorId: "m2",
     matchedDaysAgo: 3, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 3,
     videoCount30d: 1,
   },
@@ -506,7 +513,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   },
   {
     id: "t14", name: "Sam Karim", pronouns: "he/him", phone: "+13125550788",
-    group: "Illinois", active: true, joinedDaysAgo: 15, mentorId: "live",
+    group: "Illinois", active: true, menteeState: "paused", joinedDaysAgo: 15, mentorId: "live",
     matchedDaysAgo: 7, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 3, // video-comfort: low chat volume may be video, not absence
   },
@@ -657,7 +664,8 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
 export function defaultMenteeStatus(
   t: DemoTeen
 ): "active" | "paused" | "deactivated" {
-  return t.active ? "active" : "deactivated";
+  // The explicit field wins; the boolean is the legacy two-state fallback.
+  return t.menteeState ?? (t.active ? "active" : "deactivated");
 }
 
 /** ENDED matches for a mentor, from the two shapes the fixtures carry:

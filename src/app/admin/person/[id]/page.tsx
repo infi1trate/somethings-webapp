@@ -46,6 +46,9 @@ import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
 import { currentMenteesOf } from "@/lib/record/relationships";
 import { defaultMenteeStatus } from "@/lib/record/people-demo";
+import { GuardianDetailsSection } from "@/components/record/guardian-details";
+import { emptyGuardian } from "@/lib/record/guardian";
+import { resolveMode } from "@/lib/record/permission-map";
 
 /** TODO-COPY — a teen's platform standing, sentence case. */
 const TEEN_STATUS_LABEL: Record<"active" | "paused" | "deactivated", string> = {
@@ -294,6 +297,13 @@ function PersonAccount({
   // Phone + email carry ACTIONS here (call / email / copy). They used to live in
   // a Contact dropdown on every directory row, which handed out PII from a list;
   // the capability moved to the record you had to open for this one person.
+  const persona = useOnboardingStore((s) => s.persona);
+  const guardians = useOnboardingStore((s) => s.guardians);
+  const setGuardian = useOnboardingStore((s) => s.setGuardian);
+  const guardian = guardians[subject.id] ?? emptyGuardian();
+  // Same tier that owns standing owns the consent record.
+  const canEditAccount = resolveMode("accountOrg", persona) === "edit";
+
   const rows: [string, string | undefined, "phone" | "email" | null][] = [
     ["Full name", subject.name, null],
     ["Goes by", subject.goesBy, null],
@@ -346,6 +356,17 @@ function PersonAccount({
         ))}
       </div>
       </section>
+
+      {/* PARENT DETAILS — teens only. Below their own account facts, because it
+          is about someone else and reads as context for the person above it. */}
+      {subject.role === "teen" && (
+        <GuardianDetailsSection
+          teenName={subject.goesBy ?? subject.name}
+          guardian={guardian}
+          onChange={(patch) => setGuardian(subject.id, patch)}
+          canEdit={canEditAccount}
+        />
+      )}
     </div>
   );
 }

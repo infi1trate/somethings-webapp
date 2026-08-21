@@ -29,6 +29,8 @@ import type {
   CareUpdateRecord,
 } from "@/lib/record/care-demo";
 import type { RelationshipEvent } from "@/lib/record/relationships";
+import { emptyGuardian } from "@/lib/record/guardian";
+import type { AccountLock, GuardianDetails } from "@/lib/record/guardian";
 import {
   PROFILE_SECTIONS,
   normForCompare,
@@ -166,6 +168,16 @@ interface OnboardingState {
    *  DERIVED by replaying this over the fixture edge (lib/record/relationships),
    *  so history and present state cannot disagree. */
   relationshipEvents: RelationshipEvent[];
+  /** Parent/guardian consent record per teen. Sparse — a missing key means
+   *  nothing has been entered, which is rendered as empty rather than as a
+   *  placeholder: an invented parent name on a minor's consent record would be
+   *  worse than a blank. */
+  guardians: Record<string, GuardianDetails>;
+  /** ACCOUNT LOCKS, keyed by person id. Locking blocks the person's email and
+   *  phone from signing up AGAIN, which is a different and heavier thing than
+   *  deactivation — see lib/record/guardian. Sparse: a missing key means not
+   *  locked. */
+  accountLocks: Record<string, AccountLock>;
   /** Staff edits to ANOTHER person's teen-facing profile, keyed by person id.
    *  Sparse and PARTIAL: a missing key (or field) falls back to the fixture in
    *  people-demo, so this map holds only what a lead/supervisor changed.
@@ -282,6 +294,10 @@ interface OnboardingState {
   refreshCareSummary: (teenId: string, at: number) => void;
   /** End a pairing. APPENDS — there is deliberately no un-end and no delete. */
   endRelationship: (event: RelationshipEvent) => void;
+  setGuardian: (teenId: string, patch: Partial<GuardianDetails>) => void;
+  /** Pass null to UNLOCK. A lock blocks a real person from returning, so the
+   *  remedy has to exist. */
+  setAccountLock: (personId: string, lock: AccountLock | null) => void;
   /** Release a manual lifecycle override so the DERIVED standing shows again.
    *  Without this the override map was a one-way door: `mentorStatuses[id] ??
    *  liveLifecycle(...)` meant one dropdown click permanently masked the real
@@ -336,6 +352,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
+      guardians: {},
+      accountLocks: {},
       personProfiles: {},
       personSchedules: {},
       mentorRole: "Mentor",
@@ -725,6 +743,21 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           relationshipEvents: [...state.relationshipEvents, event],
         })),
+      setGuardian: (teenId, patch) =>
+        set((state) => ({
+          guardians: {
+            ...state.guardians,
+            // Merged, so setting the phone doesn't wipe the consent above it.
+            [teenId]: { ...emptyGuardian(), ...state.guardians[teenId], ...patch },
+          },
+        })),
+      setAccountLock: (personId, lock) =>
+        set((state) => {
+          const next = { ...state.accountLocks };
+          if (lock) next[personId] = lock;
+          else delete next[personId];
+          return { accountLocks: next };
+        }),
       setPersonProfile: (personId, patch) =>
         set((state) => ({
           personProfiles: {
@@ -778,6 +811,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
+          guardians: {},
+          accountLocks: {},
           // Staff edits to other people's records clear too — reset is the dev
           // "start over", and leaving them would strand edits whose fixture
           // baseline has just been restored.
@@ -840,7 +875,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      Backfill {} so a record with no staff-written updates reads as one.
       // v31: relationshipEvents (append-only ended-pairing log) — backfill [] so
       //      an older persisted state reads as "no pairing has been ended".
-      version: 31,
+      // v32: guardians (parent consent per teen) + accountLocks (signup blocks)
+      //      — both sparse and additive; backfill {}.
+      version: 32,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1184,6 +1221,16 @@ export const useOnboardingStore = create<OnboardingState>()(
           }
           delete st.menteeActive;
         }
+        if (version < 32) {
+          const st = s as unknown as {
+            guardians?: Record<string, GuardianDetails>;
+            accountLocks?: Record<string, AccountLock>;
+          };
+          if (typeof st.guardians !== "object" || st.guardians === null)
+            st.guardians = {};
+          if (typeof st.accountLocks !== "object" || st.accountLocks === null)
+            st.accountLocks = {};
+        }
         if (version < 31) {
           const st = s as unknown as { relationshipEvents?: RelationshipEvent[] };
           if (!Array.isArray(st.relationshipEvents)) st.relationshipEvents = [];
@@ -1325,6 +1372,19 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.schedule = cloneSchedule(DEFAULT_SCHEDULE);
         }
+        // v32 shape: both new maps are always plain objects.
+        if (
+          typeof (merged as { guardians?: unknown }).guardians !== "object" ||
+          merged.guardians === null
+        ) {
+          merged.guardians = {};
+        }
+        if (
+          typeof (merged as { accountLocks?: unknown }).accountLocks !== "object" ||
+          merged.accountLocks === null
+        ) {
+          merged.accountLocks = {};
+        }
         // v31 shape: relationshipEvents is always an ARRAY (not a map).
         if (!Array.isArray((merged as { relationshipEvents?: unknown }).relationshipEvents)) {
           merged.relationshipEvents = [];
@@ -1447,6 +1507,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,
+        guardians: state.guardians,
+        accountLocks: state.accountLocks,
         personProfiles: state.personProfiles,
         personSchedules: state.personSchedules,
         mentorRole: state.mentorRole,

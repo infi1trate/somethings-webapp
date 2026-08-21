@@ -16,15 +16,17 @@
 import { useState } from "react";
 import { RecordRow } from "@/components/record/row";
 import { PersonRow } from "@/components/record/person-row";
-import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
-import { DeactivateAction } from "@/components/record/deactivate-action";
+import {
+  AccountStanding,
+  type TeenStanding,
+} from "@/components/record/account-standing";
 import {
   DEMO_PEOPLE,
   defaultMenteeStatus,
   roleOf,
 } from "@/lib/record/people-demo";
 import { recordHrefFor, type FixtureSubject } from "@/lib/record/subject";
-import { resolveMode } from "@/lib/record/permission-map";
+import { resolveMode, staffActorFor } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 // Role wording comes from the ONE shared map (Bloom Role Label) — six local
 // copies of this had drifted into "Lead mentor" vs "Lead Mentor" and all six
@@ -34,12 +36,19 @@ import { ROLE_LABEL } from "@/components/record/role-label";
 export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const persona = useOnboardingStore((s) => s.persona);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
-  const setMentorStatus = useOnboardingStore((s) => s.setMentorStatus);
   const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
   const setMenteeStatus = useOnboardingStore((s) => s.setMenteeStatus);
+  const accountLocks = useOnboardingStore((s) => s.accountLocks);
+  const setAccountLock = useOnboardingStore((s) => s.setAccountLock);
+  const draft = useOnboardingStore((s) => s.draft);
   const [, force] = useState(0);
 
+  // Admin, supervisor and lead mentor all resolve to "edit" here — all three are
+  // accountable for a person's standing.
   const canEdit = resolveMode("accountOrg", persona) === "edit";
+  const actorName =
+    [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
+    staffActorFor(persona);
   const isTeen = subject.role === "teen";
 
   // Who they report to — a mentor's lead, a lead's supervisor.
@@ -51,11 +60,10 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
   const status = subject.person
     ? (mentorStatuses[subject.id] ?? subject.person.status)
     : null;
-  const teenActive = isTeen
-    ? (menteeStatus[subject.id] ??
-        (subject.teen ? defaultMenteeStatus(subject.teen) : "active")) !==
-      "deactivated"
-    : true;
+  const teenStanding: TeenStanding = isTeen
+    ? ((menteeStatus[subject.id] ??
+        (subject.teen ? defaultMenteeStatus(subject.teen) : "active")) as TeenStanding)
+    : "active";
 
   return (
     <div className="space-y-6">
@@ -87,53 +95,40 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
               onCancel={() => {}}
             />
           )}
-          <RecordRow
-            label="Status"
-            value={
-              status ? (
-                <MentorStatusBadge status={status} />
-              ) : (
-                <span
-                  className="inline-flex min-h-6 items-center rounded-full px-2.5 text-[12px] font-medium leading-4"
-                  style={
-                    teenActive
-                      ? {
-                          backgroundColor: "var(--text-primary)",
-                          color: "var(--text-inverse)",
-                        }
-                      : {
-                          backgroundColor: "var(--status-neutral-bg)",
-                          color: "var(--status-neutral-fg)",
-                        }
-                  }
-                >
-                  {teenActive ? "Active" : "Inactive"}
-                </span>
-              )
-            }
-            state="read"
-            locked
-            onEditStart={() => {}}
-            onCancel={() => {}}
-          />
         </div>
 
-        {/* Deactivation lives WITH status — the same concept, one place. */}
-        {canEdit && (
-          <DeactivateAction
+        {/* STANDING + the two account actions. Was a read-only "Active" /
+            "Inactive" pill — a BINARY, so "paused" was unreachable from the one
+            page that owns a person's standing. Deactivate and Lock live with it,
+            because a reader deciding one is deciding between all three. */}
+        <div className="mt-3">
+          <AccountStanding
             name={subject.goesBy ?? subject.name}
-            deactivated={status ? status === "deactivated" : !teenActive}
-            noun={isTeen ? "teen" : "account"}
-            onConfirm={(next) => {
-              if (status) {
-                setMentorStatus(subject.id, next ? "active" : "deactivated");
-              } else {
-                setMenteeStatus(subject.id, next ? "active" : "deactivated");
-              }
-              force((n) => n + 1);
-            }}
+            standing={isTeen ? teenStanding : null}
+            onStandingChange={
+              canEdit && isTeen
+                ? (next) => {
+                    setMenteeStatus(subject.id, next);
+                    force((n) => n + 1);
+                  }
+                : undefined
+            }
+            staffStatus={status}
+            lock={accountLocks[subject.id] ?? null}
+            onLockChange={
+              canEdit
+                ? (lock) => {
+                    setAccountLock(subject.id, lock);
+                    force((n) => n + 1);
+                  }
+                : undefined
+            }
+            actor={actorName}
+            actorRole={staffActorFor(persona)}
+            blocked={{ email: subject.email, phone: subject.phone }}
+            canEdit={canEdit}
           />
-        )}
+        </div>
       </section>
 
       {/* REPORTS TO stays here. It is team-shaped, and Team moved to the
