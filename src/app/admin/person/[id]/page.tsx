@@ -41,11 +41,11 @@ import {
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { ROLE_LABEL } from "@/components/record/role-label";
 import { recordTabsFor } from "@/lib/record/tabs";
-import { headerDotFor, STATUS_LABELS } from "@/lib/record/mentor-status";
+import { STATUS_LABELS } from "@/lib/record/mentor-status";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
 import { currentMenteesOf } from "@/lib/record/relationships";
-import { defaultMenteeStatus } from "@/lib/record/people-demo";
+import { defaultMenteeStatus, isOnlineNow } from "@/lib/record/people-demo";
 import { GuardianDetailsSection } from "@/components/record/guardian-details";
 import { guardianFor } from "@/lib/record/guardian";
 import { resolveMode } from "@/lib/record/permission-map";
@@ -57,12 +57,6 @@ const TEEN_STATUS_LABEL: Record<"active" | "paused" | "deactivated", string> = {
   deactivated: "Deactivated",
 };
 
-/** The dot inside the role badge, for a teen. Same three-tone vocabulary the
- *  staff lifecycle uses, so one glance reads the same way on either record. */
-const TEEN_STATUS_DOT: Record<
-  "active" | "paused" | "deactivated",
-  "positive" | "warning" | "critical"
-> = { active: "positive", paused: "warning", deactivated: "critical" };
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { toast } from "sonner";
@@ -171,16 +165,9 @@ export default function PersonRecordPage({
         role={subject.role}
         // ONE status statement: the role badge carries its tint and the state
         // dot. No separate Active pill, no avatar dot.
-        // A TEEN has no staff lifecycle, so their dot comes from their mentee
-        // status — otherwise a teen's badge carried no default-state signal at
-        // all while every staff badge did.
-        statusDot={
-          status
-            ? headerDotFor(status)
-            : isTeen
-              ? TEEN_STATUS_DOT[teenStatus]
-              : "none"
-        }
+        // PRESENCE, not standing — the dot sits on the avatar. Standing is the
+        // word-chip below.
+        online={isOnlineNow(subject.id)}
         // EXCEPTIONS GET A WORD — a second chip. Staff exceptions come from the
         // lifecycle; a TEEN's come from their mentee status, which is the only
         // place a teen's platform standing is recorded.

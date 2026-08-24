@@ -32,51 +32,39 @@ export type StatusDot = "positive" | "warning" | "critical" | "none";
 // "none" = role-only pill (no dot). The record header stopped carrying
 // lifecycle state — it lives on Organization, and echoing it here made the
 // header a second status surface that could read stale.
-/** The role badge: role tint + the state dot, one statement. Lives here rather
- *  than in RoleLabel because only the header carries a dot — a directory cell
- *  showing five dots would be noise. */
+/** The role badge — a ROLE label and nothing else. It used to carry a state dot
+ *  too, which put two different facts in one pill: the dot meant LIFECYCLE
+ *  STANDING (active / paused / deactivated) while the pill named the role. The
+ *  standing signal was also duplicated, since any non-default state already
+ *  renders as its own word-chip beside this one. Presence now lives on the
+ *  avatar, where the eye goes first and where it can't be mistaken for
+ *  standing. */
 function RoleBadge({
   role,
-  statusDot,
   ariaLabel,
 }: {
   role: PersonRole;
-  statusDot: StatusDot;
   ariaLabel: string;
 }) {
   return (
     <span
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1",
+        "inline-flex shrink-0 items-center rounded-full px-3 py-1",
         ROLE_BADGE_TONE[role]
       )}
       style={{ font: "var(--type-label-sm)" }}
     >
-      {statusDot !== "none" && (
-        <span
-          aria-hidden
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: DOT_VAR[statusDot] }}
-        />
-      )}
       {ROLE_LABEL[role]}
     </span>
   );
 }
 
-const DOT_VAR: Record<StatusDot, string> = {
-  none: "transparent",
-  positive: "var(--dot-positive)",
-  warning: "var(--dot-warning)",
-  critical: "var(--dot-critical)",
-};
-
 export function UserRecordShell({
   avatar,
   name,
   role,
-  statusDot = "positive",
+  online = false,
   statusText,
   statusAriaLabel,
   meta,
@@ -95,7 +83,12 @@ export function UserRecordShell({
   /** Drives the role TINT (badge-role-* taxonomy). The label comes from the
    *  shared ROLE_LABEL map, so wording and colour can't disagree. */
   role: PersonRole;
-  statusDot?: StatusDot;
+  /** ONLINE PRESENCE — the dot at the avatar's bottom-right. This is NOT
+   *  lifecycle standing: a paused teen can be online, and an active one can be
+   *  offline. Standing is the word-chip beside the role badge. Omit or pass
+   *  false for offline, which renders nothing — presence is an exception worth
+   *  noticing, not a label on everyone. */
+  online?: boolean;
   /** EXCEPTION WORD, rendered as a SECOND chip beside the role badge — never
    *  colour alone (WCAG 1.4.1), and never folded into the role pill, because a
    *  role and a state are two different facts. Omit for the default state: the
@@ -130,25 +123,40 @@ export function UserRecordShell({
       {/* Identity header CARD (elevated) — avatar + name + role pill + meta,
           actions top-right on wide, wrapping below on narrow. */}
       <header className="mt-3 flex flex-col gap-5 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-5 py-5 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:px-7 sm:py-6">
-        {avatar.src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatar.src}
-            alt=""
-            className="size-16 shrink-0 rounded-2xl object-cover"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="flex size-16 shrink-0 items-center justify-center rounded-2xl font-display text-2xl font-bold"
-            style={{
-              backgroundColor: "color-mix(in oklab, var(--brand) 12%, white)",
-              color: "color-mix(in oklab, var(--brand) 60%, black)",
-            }}
-          >
-            {avatar.initial}
-          </span>
-        )}
+        {/* PRESENCE LIVES HERE, bottom-right of the avatar — the one place it
+            appears. The ring is the card surface, so the dot reads as sitting
+            ON the avatar rather than floating beside it, and it survives the
+            avatar's own colour. Colour is never the only carrier: its label
+            is announced to a screen reader and the role badge is untouched. */}
+        <span className="relative shrink-0">
+          {avatar.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatar.src}
+              alt=""
+              className="size-16 rounded-2xl object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex size-16 items-center justify-center rounded-2xl font-display text-2xl font-bold"
+              style={{
+                backgroundColor: "color-mix(in oklab, var(--brand) 12%, white)",
+                color: "color-mix(in oklab, var(--brand) 60%, black)",
+              }}
+            >
+              {avatar.initial}
+            </span>
+          )}
+          {online && (
+            <span
+              role="img"
+              aria-label="Online now"
+              className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full ring-2 ring-[color:var(--surface-card)]"
+              style={{ backgroundColor: "var(--dot-positive)" }}
+            />
+          )}
+        </span>
 
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -161,14 +169,9 @@ export function UserRecordShell({
             >
               {name}
             </h1>
-            {/* ONE STATUS STATEMENT. The role badge carries its own tint AND
-                the state dot; there is no separate "Active" pill and no avatar
-                dot, so a reader counts one thing rather than three. */}
-            <RoleBadge
-              role={role}
-              statusDot={statusDot}
-              ariaLabel={statusAriaLabel}
-            />
+            {/* The role, and only the role. Standing is the word-chip beside
+                it; presence is the dot on the avatar. */}
+            <RoleBadge role={role} ariaLabel={statusAriaLabel} />
             {/* Exceptions get a WORD. */}
             {statusText && (
               <span

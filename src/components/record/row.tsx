@@ -201,29 +201,37 @@ export function RecordRow({
 
     if (press) {
       return (
-        <button
-          ref={rowRef}
-          type="button"
-          onClick={press}
-          aria-label={`${label} — open`}
+        // OVERLAY-BEHIND-CONTENT, not a <button> wrapper. Wrapping the row in a
+        // button made any interactive child invalid HTML — <button> inside
+        // <button>, <a> inside <button> — and React reported a hydration error
+        // the moment a display callback rendered SpotifyChip's copy button and
+        // its "open in Spotify" link. It also swallowed those clicks into the
+        // row's own navigation.
+        //
+        // So the row is a DIV with `pointer-events-none`, the row's press target
+        // is a full-bleed button sitting BEHIND the content, and any genuinely
+        // interactive child opts back in with `pointer-events-auto`. Pointer
+        // events inherit, so the grid children need no change and the layout is
+        // untouched.
+        <div
           className={cn(
-            // `isolate` scopes the highlight's negative z-index to this row so
-            // the tint sits BEHIND the content (an absolute layer otherwise
-            // paints over the static text and hides it on hover).
-            "group relative isolate min-h-13 w-full cursor-pointer py-3.5 text-left focus-visible:outline-none",
+            // `isolate` scopes the overlay's negative z-index to this row.
+            "group relative isolate min-h-13 w-full pointer-events-none py-3.5",
             ROW_GRID
           )}
         >
-          {/* Inset highlight — 8px in from the card edges (card px is 24,
-              rows are inset by it, so -16px reaches to 8), row height minus
-              4px, 10px radius. Carries the focus ring too. -z-10 keeps it
-              behind the row content (see `isolate` above). */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -inset-x-4 inset-y-0.5 -z-10 rounded-[10px] transition-colors group-hover:bg-[var(--surface-s1)] group-focus-visible:bg-[var(--surface-s1)] group-focus-visible:outline-2 group-focus-visible:outline-offset-0 group-focus-visible:outline-[color:var(--focus-ring)]"
+          {/* The press target AND the inset highlight, one element. 8px in from
+              the card edges, row height minus 4px, 10px radius; carries the
+              focus ring. -z-10 keeps it behind the row content. */}
+          <button
+            ref={rowRef}
+            type="button"
+            onClick={press}
+            aria-label={`${label} — open`}
+            className="pointer-events-auto absolute -inset-x-4 inset-y-0.5 -z-10 cursor-pointer rounded-[10px] transition-colors hover:bg-[var(--surface-s1)] focus-visible:bg-[var(--surface-s1)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
           />
           {zones}
-        </button>
+        </div>
       );
     }
 

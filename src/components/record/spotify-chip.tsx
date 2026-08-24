@@ -12,7 +12,7 @@ import { useSpotifyOembed } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
 
 const ICON_BTN =
-  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+  "pointer-events-auto flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 export function SpotifyChip({ url }: { url: string }) {
   const { parsed, art, title } = useSpotifyOembed(url);
@@ -36,7 +36,10 @@ export function SpotifyChip({ url }: { url: string }) {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[color:var(--border-contour)] bg-[var(--surface-s1)] px-2.5 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+        // pointer-events-auto: this chip renders inside a RecordRow whose
+        // content is pointer-events-none so the row's own press target sits
+        // behind it. Interactive children opt back in.
+        className="pointer-events-auto inline-flex max-w-full items-center gap-2 rounded-lg border border-[color:var(--border-contour)] bg-[var(--surface-s1)] px-2.5 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
       >
         <Music className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate">{url}</span>

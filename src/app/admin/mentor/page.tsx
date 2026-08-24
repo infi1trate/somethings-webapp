@@ -95,6 +95,7 @@ import {
   defaultMenteeStatus,
 } from "@/lib/record/people-demo";
 import { currentMenteesOf } from "@/lib/record/relationships";
+import { isOnlineNow } from "@/lib/record/people-demo";
 import { ROLE_BADGE_TONE, ROLE_LABEL } from "@/components/record/role-label";
 import { toast } from "sonner";
 import {
@@ -106,7 +107,6 @@ import {
   type RecordSectionSlot,
 } from "@/lib/record/permission-map";
 import {
-  headerDotFor,
   liveLifecycle,
   STATUS_LABELS,
 } from "@/lib/record/mentor-status";
@@ -998,17 +998,20 @@ export default function MentorRecordPage({
           //    pill + meta live inside a defined elevated card; actions sit
           //    top-right on wide, wrap below on narrow.
           <header className="mt-3 flex flex-col gap-5 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-5 py-5 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:px-7 sm:py-6">
+            {/* PRESENCE sits bottom-right of the avatar — the one place it
+                appears. Same treatment as UserRecordShell's header. */}
+            <span className="relative shrink-0">
             {live.accountPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={live.accountPhoto}
                 alt=""
-                className="size-16 shrink-0 rounded-2xl object-cover"
+                className="size-16 rounded-2xl object-cover"
               />
             ) : (
               <span
                 aria-hidden
-                className="flex size-16 shrink-0 items-center justify-center rounded-2xl font-display text-2xl font-bold"
+                className="flex size-16 items-center justify-center rounded-2xl font-display text-2xl font-bold"
                 style={{
                   // No brand ramp exists in the tokens (single --brand
                   // stop) — tint + darkest-stop letterform interims via
@@ -1021,6 +1024,15 @@ export default function MentorRecordPage({
                 {initials}
               </span>
             )}
+            {isOnlineNow("live") && (
+              <span
+                role="img"
+                aria-label="Online now"
+                className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full ring-2 ring-[color:var(--surface-card)]"
+                style={{ backgroundColor: "var(--dot-positive)" }}
+              />
+            )}
+            </span>
 
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -1042,23 +1054,18 @@ export default function MentorRecordPage({
                 <span
                   aria-label={`${ROLE_LABEL[subjectRole]} — ${STATUS_LABELS[headerLifecycle]}`}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1",
+                    "inline-flex shrink-0 items-center rounded-full px-3 py-1",
                     ROLE_BADGE_TONE[subjectRole]
                   )}
                   style={{ font: "var(--type-label-sm)" }}
                 >
-                  <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: `var(--dot-${headerDotFor(headerLifecycle)})`,
-                    }}
-                  />
                   {ROLE_LABEL[subjectRole]}
                 </span>
                 {/* EXCEPTIONS GET A WORD — a second chip, never folded into the
                     role pill and never colour alone. Default (active) renders
-                    nothing: the dot above carries it. */}
+                    nothing, which is the whole of the standing signal now that
+                    the pill's dot is gone: that dot meant STANDING, and presence
+                    took its place on the avatar. */}
                 {headerLifecycle !== "active" && (
                   <span
                     className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--status-attention-bg)] px-2.5 py-1 text-[var(--status-attention-fg)]"

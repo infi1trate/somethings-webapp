@@ -149,7 +149,8 @@ export default function MentorSelfRecord({
         avatar={{ src: avatarSrc, initial }}
         name={name}
         role="mentor"
-        statusDot={profileHidden ? "warning" : "positive"}
+        // The viewer is in the app, so they are online by definition.
+        online
         statusText={profileHidden ? "Unpublished" : undefined}
         statusAriaLabel={`Mentor, ${profileHidden ? "unpublished" : "active"}`}
         meta={meta}
