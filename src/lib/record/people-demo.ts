@@ -594,7 +594,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   },
   {
     id: "t20", name: "Theo Lindqvist", pronouns: "he/him", phone: "+19089107003",
-    group: "North Carolina", active: true, joinedDaysAgo: 165, mentorId: "live",
+    group: "North Carolina", active: false, joinedDaysAgo: 165, mentorId: "live",
     matchedDaysAgo: 149, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 4,
     videoCount30d: 0,
   },
@@ -606,7 +606,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   },
   {
     id: "t22", name: "Ravi Menon", pronouns: "he/him", phone: "+19089107005",
-    group: "North Carolina", active: true, joinedDaysAgo: 143, mentorId: "live",
+    group: "North Carolina", active: false, joinedDaysAgo: 143, mentorId: "live",
     matchedDaysAgo: 128, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 2,
   },
@@ -624,13 +624,13 @@ export const DEMO_TEENS: DemoTeen[] = [
   },
   {
     id: "t25", name: "Yuki Tanaka", pronouns: "they/them", phone: "+19089107008",
-    group: "North Carolina", active: true, joinedDaysAgo: 112, mentorId: "live",
+    group: "North Carolina", active: false, joinedDaysAgo: 112, mentorId: "live",
     matchedDaysAgo: 97, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
   },
   {
     id: "t26", name: "Marisol Vega", pronouns: "she/her", phone: "+19089107009",
-    group: "North Carolina", active: true, joinedDaysAgo: 103, mentorId: "live",
+    group: "North Carolina", active: false, joinedDaysAgo: 103, mentorId: "live",
     matchedDaysAgo: 90, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
   },

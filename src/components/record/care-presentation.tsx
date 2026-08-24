@@ -282,6 +282,18 @@ export function CadenceCard({
                 </span>
               )}
             </>
+          ) : cadence.outstandingSurvey ? (
+            // WAITING ON THE TEEN, not unassigned. "Not yet assigned" on a record
+            // whose survey went out four days ago reads as staff inaction, and
+            // sends a supervisor to assign a second one.
+            <>
+              {cadence.outstandingSurvey.instrument}
+              <span className="block text-[13px] leading-[18px] text-[var(--text-muted)]">
+                {/* TODO-COPY. The send date is a date of record; how long it has
+                    been waiting is a distance, so it keeps the elapsed form. */}
+                {`Sent ${clinicalDate(cadence.outstandingSurvey.sentAt)} · not returned yet`}
+              </span>
+            </>
           ) : (
             <span className="text-[var(--text-muted)]">Not yet assigned</span>
           )}
@@ -319,8 +331,13 @@ export function CadenceCard({
             </>
           ) : (
             <span className="text-[var(--text-muted)]">
-              {/* TODO-COPY — cadence starts at the first survey. */}
-              Starts at the first survey
+              {/* TODO-COPY. Two different reasons for no date, and they must not
+                  share a sentence: a closed record has usually had surveys, so
+                  "starts at the first survey" would contradict the history
+                  printed right below it. */}
+              {cadence.reviewClock === "closed"
+                ? "No review scheduled — this mentorship ended"
+                : "Starts at the first survey"}
             </span>
           )}
         </Row>

@@ -19,13 +19,19 @@
 // OBSERVABLE CAUSE ("said they'd stopped sleeping"), never a forecast. Events
 // record that something happened, never the content of a teen's messages.
 
-import { DEMO_TEENS } from "@/lib/record/people-demo";
+import { DEMO_TEENS, defaultMenteeStatus } from "@/lib/record/people-demo";
 import { statementForCode } from "@/lib/record/dsm5";
 
 /** Event classes, v1. Ordered roughly by how often a reader is looking for them.
  *  Adding a class is a data change, not a refactor — the timeline renders any
  *  member of this union. */
 export type CareEventType =
+  /** A survey SENT but not returned. The teen owes us this one, and until it
+   *  lands the record has an outstanding action rather than a blank page — this
+   *  is the "just joined, needs to take their first survey" state. Deliberately
+   *  the same shape the Cadence card's unbuilt "Assign first survey" action
+   *  would append, so wiring that later is a store write, not a new concept. */
+  | "survey_assigned"
   | "assessment"
   | "presentation_assigned"
   | "presentation_reviewed"
@@ -97,6 +103,7 @@ export const CARE_FILTERS = [
 export type CareFilterId = (typeof CARE_FILTERS)[number]["id"];
 
 const FILTER_OF: Record<CareEventType, Exclude<CareFilterId, "all">> = {
+  survey_assigned: "assessments",
   assessment: "assessments",
   presentation_assigned: "presentation",
   presentation_reviewed: "presentation",
@@ -116,6 +123,9 @@ export function matchesFilter(t: CareEventType, f: CareFilterId): boolean {
  *  from `presentation_reviewed` — a change is a different event than a review
  *  that kept the code, and the two must never look alike. */
 export const TYPE_LABEL: Record<CareEventType, string> = {
+  /* TODO-COPY — names the event, not the wait. "Survey overdue" would be a
+     judgement, and a teen who hasn't answered in two days isn't late. */
+  survey_assigned: "Survey sent",
   assessment: "Assessment",
   presentation_assigned: "Presentation assigned",
   presentation_reviewed: "Presentation reviewed",
@@ -131,6 +141,9 @@ export const TYPE_LABEL: Record<CareEventType, string> = {
  *  PRD's purple. `presentation_changed` takes the warm accent so it separates
  *  from a review at a glance; escalation is the critical family, reserved. */
 export const TYPE_TONE: Record<CareEventType, "neutral" | "warm" | "warning" | "critical"> = {
+  // Neutral: waiting on a survey is the ordinary state of a new record, and
+  // defaults whisper.
+  survey_assigned: "neutral",
   assessment: "neutral",
   presentation_assigned: "neutral",
   presentation_reviewed: "neutral",
@@ -385,6 +398,555 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
 }
 
 
+
+// ─── GENERATED CARE RECORDS ─────────────────────────────────────────────────
+//
+// WHY GENERATED. Three teens carried a hand-written timeline and everyone else
+// got `[]`, which left the Care tab empty on 20 of 26 records — the designed
+// pre-first-survey state, but on almost the whole roster, so the tab could not
+// be judged. Hand-writing twenty more would mean hand-writing ~60 assessment
+// response sets, and A STATED SCORE MUST EQUAL ITS ITEM SUM — a rule this file
+// has already broken twice (t13's PHQ-9, then t6's GAD-7) with only five sets in
+// play. So the response sets are DERIVED from the score instead: the invariant
+// holds by construction, and `assertScoreMatchesItems` becomes a check on the
+// hand-written fixtures alone.
+//
+// t15, t13 and t9 keep their hand-written records untouched. They exist to
+// exercise the amendment chain, the quarterly-overdue boundary and the day-30
+// warning edge; regenerating them would risk those cases for no gain.
+//
+// TODO-DATA: every value below is invented, and no clinical layer exists to
+// replace it yet.
+
+/** Points → the response label, which is the whole instrument's scale. */
+const ANSWER_BY_POINTS = [
+  "Not at all",
+  "Several days",
+  "More than half the days",
+  "Nearly every day",
+] as const;
+
+/** Small deterministic hash. Two teens must not share a response shape, and the
+ *  shape must not change between renders — `Math.random()` would reshuffle every
+ *  expanded breakdown on every keystroke elsewhere on the page. */
+function seedNum(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+/** THE SELF-HARM ITEM NEVER CARRIES POINTS. Every hand-written fixture keeps it
+ *  at zero, and a record that reports self-harm in its expanded breakdown while
+ *  showing no escalation flag contradicts itself on the one subject where that
+ *  matters most. Escalations are authored (`DemoTeen.escalation`), never a side
+ *  effect of a score. */
+const NO_POINTS_QUESTION = "Thoughts of self-harm";
+
+/** A response set whose points sum EXACTLY to `score`.
+ *
+ *  Shape: one seeded "prominent" item takes as much as it can, then the rest
+ *  fill evenly from a seeded offset. That reads like a real response set — a
+ *  couple of items driving the score, several mid, some at zero — where a flat
+ *  round-robin reads as synthetic and a purely greedy fill maxes three items and
+ *  leaves the rest empty. */
+function buildItems(
+  instrument: "PHQ-9" | "GAD-7",
+  score: number,
+  seed: string
+): AssessmentItem[] {
+  const questions = (instrument === "PHQ-9" ? PHQ9_ITEMS : GAD7_ITEMS).map(
+    (i) => i.question
+  );
+  const eligible = questions
+    .map((q, i) => ({ q, i }))
+    .filter(({ q }) => q !== NO_POINTS_QUESTION)
+    .map(({ i }) => i);
+
+  const points = new Array(questions.length).fill(0) as number[];
+  const h = seedNum(`${instrument}:${score}:${seed}`);
+  let left = Math.max(0, Math.min(score, eligible.length * 3));
+
+  // The prominent item.
+  const hot = eligible[h % eligible.length];
+  const give = Math.min(3, left);
+  points[hot] = give;
+  left -= give;
+
+  // Then evenly, one point per pass, from a seeded offset. Bounded by the total
+  // headroom, so the loop cannot spin on an unreachable score.
+  let k = (h >>> 3) % eligible.length;
+  let guard = eligible.length * 3 + 1;
+  while (left > 0 && guard-- > 0) {
+    const i = eligible[k % eligible.length];
+    if (points[i] < 3) {
+      points[i]++;
+      left--;
+    }
+    k++;
+  }
+
+  return questions.map((question, i) => ({
+    question,
+    answer: ANSWER_BY_POINTS[points[i]],
+    points: points[i],
+  }));
+}
+
+/** The severity band a score sits in, so the row's prose and the number can't
+ *  disagree. Standard PHQ-9 / GAD-7 cut-points. */
+function severityFor(instrument: "PHQ-9" | "GAD-7", score: number): string {
+  const cuts =
+    instrument === "PHQ-9"
+      ? [[5, "minimal"], [10, "mild"], [15, "moderate"], [20, "moderately severe"]]
+      : [[5, "minimal"], [10, "mild"], [15, "moderate"]];
+  for (const [ceiling, label] of cuts as [number, string][]) {
+    if (score < ceiling) return label;
+  }
+  return "severe";
+}
+
+// ── The profile table ───────────────────────────────────────────────────────
+
+interface ProfileAssessment {
+  /** Days before `now`. The builder asserts this sits inside the teen's tenure. */
+  daysAgo: number;
+  instrument: "PHQ-9" | "GAD-7";
+  score: number;
+}
+
+interface ProfileUpdate {
+  daysAgo: number;
+  author: string;
+  role: string;
+  standing: string;
+  direction: string;
+  watching: string;
+  /** Index into this profile's own `updates`, for an amendment chain. */
+  amendsIndex?: number;
+}
+
+interface CareProfile {
+  /** A survey sent that has NOT come back. Mutually exclusive with an intake
+   *  assessment in practice, though the builder allows both — a re-survey that
+   *  is outstanding is a legitimate later state. */
+  outstandingSurvey?: { daysAgo: number; instrument: "PHQ-9" | "GAD-7" };
+  assessments?: ProfileAssessment[];
+  /** The presentation set from intake, by the mapping. */
+  assigned?: { daysAgo: number; code: string };
+  /** A supervisor looked and KEPT the code. */
+  reviewed?: { daysAgo: number; code: string; by: string }[];
+  /** A supervisor CHANGED it. `amendsAssigned` threads the correction onto the
+   *  original assignment, which is what renders the superseded treatment. */
+  changed?: { daysAgo: number; from: string; code: string; by: string; note: string };
+  /** A presentation proposal awaiting approval — the billing-code notification.
+   *  Built from this teen's own latest assessment, so the review cites the same
+   *  survey the cadence card reports. */
+  pending?: { code: string };
+  updates?: ProfileUpdate[];
+}
+
+/** THE ROSTER'S CARE JOURNEYS.
+ *
+ *  Coverage is deliberate, not incidental:
+ *    · 19 of the 20 active-or-paused teens have a record (t1 joined yesterday
+ *      and has nothing — the one true empty state on the active side).
+ *    · 3 of the 6 deactivated teens have a record from the mentorship that
+ *      ended; t4, t25 and t26 have none, which is the "it ended before care
+ *      ever started" case and is a real thing this page should be able to show.
+ *    · 12 of 26 carry a pending presentation review.
+ *
+ *  t15 / t13 / t9 are absent from this table on purpose — they are hand-written
+ *  above and must not be generated over.
+ */
+const CARE_PROFILES: Record<string, CareProfile> = {
+  // ── Survey sent, nothing back yet (2–6 days in) ───────────────────────────
+  t5: { outstandingSurvey: { daysAgo: 1, instrument: "PHQ-9" } },
+  t10: { outstandingSurvey: { daysAgo: 2, instrument: "GAD-7" } },
+  t2: { outstandingSurvey: { daysAgo: 3, instrument: "PHQ-9" } },
+  t7: { outstandingSurvey: { daysAgo: 4, instrument: "GAD-7" } },
+
+  // ── First survey in, presentation proposed (9–15 days in) ─────────────────
+  t11: {
+    assessments: [{ daysAgo: 7, instrument: "GAD-7", score: 7 }],
+    pending: { code: "F41.1" },
+  },
+  t3: {
+    assessments: [{ daysAgo: 9, instrument: "PHQ-9", score: 6 }],
+    pending: { code: "F32.0" },
+  },
+  t14: {
+    assessments: [{ daysAgo: 11, instrument: "PHQ-9", score: 14 }],
+    pending: { code: "F32.1" },
+  },
+
+  // ── Presentation in force, inside the day-30 window ───────────────────────
+  // (t15, t8 and t12 hold this stage already — t8/t12 through PENDING_DEMO.)
+
+  // ── Mature records: multiple surveys, reviews, corrections ────────────────
+  t24: {
+    assessments: [
+      { daysAgo: 12, instrument: "PHQ-9", score: 9 },
+      { daysAgo: 104, instrument: "PHQ-9", score: 12 },
+    ],
+    assigned: { daysAgo: 112, code: "F32.1" },
+    pending: { code: "F32.0" },
+  },
+  t23: {
+    assessments: [
+      { daysAgo: 20, instrument: "GAD-7", score: 11 },
+      { daysAgo: 112, instrument: "GAD-7", score: 8 },
+    ],
+    assigned: { daysAgo: 120, code: "F41.1" },
+    pending: { code: "F41.1" },
+  },
+  t21: {
+    assessments: [
+      { daysAgo: 8, instrument: "PHQ-9", score: 7 },
+      { daysAgo: 96, instrument: "PHQ-9", score: 10 },
+      { daysAgo: 140, instrument: "PHQ-9", score: 13 },
+    ],
+    assigned: { daysAgo: 146, code: "F33.0" },
+    reviewed: [{ daysAgo: 8, code: "F33.0", by: "Dr. Amara Patel" }],
+    updates: [
+      {
+        daysAgo: 8,
+        author: "Dr. Amara Patel",
+        role: "Supervisor",
+        standing:
+          "Scores have come down across three surveys, with the sleep and energy items moving first. Contact with the mentor has been steady and mostly teen-initiated.",
+        direction:
+          "Hold the current presentation and the quarterly cadence. Nothing here argues for a change of code.",
+        watching:
+          "Whether the improvement holds through the school term, and whether the appetite items — the ones that haven't moved — start to follow.",
+      },
+    ],
+  },
+  t19: {
+    assessments: [
+      { daysAgo: 16, instrument: "PHQ-9", score: 12 },
+      { daysAgo: 100, instrument: "PHQ-9", score: 9 },
+      { daysAgo: 168, instrument: "PHQ-9", score: 8 },
+    ],
+    assigned: { daysAgo: 172, code: "F41.1" },
+    changed: {
+      daysAgo: 100,
+      from: "F41.1",
+      code: "F33.0",
+      by: "Omar Haddad",
+      note: "The intake mapping keyed on the worry items. Across two surveys the mood items are carrying the score, and the low mood has persisted through a settled period at home.",
+    },
+    pending: { code: "F33.1" },
+    updates: [
+      {
+        daysAgo: 16,
+        author: "Omar Haddad",
+        role: "Supervisor",
+        standing:
+          "The most recent survey moved back up into the moderate band after two quieter quarters. The mood items account for the change.",
+        direction:
+          "Re-reading the presentation this cycle. A recurrent framing may fit better than the single-episode one on record.",
+        watching:
+          "Whether this is the start of a pattern or a single hard month. One survey is a reading, not a trend.",
+      },
+    ],
+  },
+  t18: {
+    assessments: [
+      { daysAgo: 10, instrument: "GAD-7", score: 6 },
+      { daysAgo: 82, instrument: "GAD-7", score: 9 },
+      { daysAgo: 150, instrument: "GAD-7", score: 13 },
+      { daysAgo: 180, instrument: "GAD-7", score: 15 },
+    ],
+    assigned: { daysAgo: 182, code: "F41.1" },
+    reviewed: [
+      { daysAgo: 150, code: "F41.1", by: "Brandy Forrestor" },
+      { daysAgo: 10, code: "F41.1", by: "Brandy Forrestor" },
+    ],
+    updates: [
+      {
+        daysAgo: 10,
+        author: "Brandy Forrestor",
+        role: "Supervisor",
+        standing:
+          "Four surveys, each lower than the last, from the moderate band down into the mild one. The restlessness items dropped first and the worry items followed.",
+        direction:
+          "Keep the presentation and stretch nothing. The current cadence is doing its job.",
+        watching:
+          "The gap between surveys — contact has thinned slightly this quarter, and a longer gap would make the next reading harder to place.",
+      },
+    ],
+  },
+  t17: {
+    assessments: [
+      { daysAgo: 14, instrument: "PHQ-9", score: 11 },
+      { daysAgo: 88, instrument: "PHQ-9", score: 15 },
+      { daysAgo: 154, instrument: "PHQ-9", score: 13 },
+      { daysAgo: 190, instrument: "PHQ-9", score: 10 },
+      { daysAgo: 204, instrument: "PHQ-9", score: 12 },
+    ],
+    assigned: { daysAgo: 206, code: "F32.1" },
+    changed: {
+      daysAgo: 154,
+      from: "F32.1",
+      code: "F33.1",
+      by: "Dr. Amara Patel",
+      note: "A second episode inside the period on file, with a clear interval between them. The recurrent presentation is the better fit and the single-episode code was never re-examined after intake.",
+    },
+    reviewed: [{ daysAgo: 88, code: "F33.1", by: "Dr. Amara Patel" }],
+    pending: { code: "F33.0" },
+    updates: [
+      {
+        daysAgo: 96,
+        author: "Dr. Amara Patel",
+        role: "Supervisor",
+        standing:
+          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction.",
+        direction:
+          "Staying with the recurrent presentation. The pattern of movement is what the code is meant to describe.",
+        watching: "The interval between the peaks, which has been shortening.",
+      },
+      {
+        daysAgo: 14,
+        author: "Dr. Amara Patel",
+        role: "Supervisor",
+        amendsIndex: 0,
+        standing:
+          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The most recent reading is the lowest of the last three.",
+        direction:
+          "Staying with the recurrent presentation, and proposing the milder severity on this cycle's review.",
+        watching:
+          "The interval between the peaks, which has been shortening — though the last one broke that pattern.",
+      },
+    ],
+  },
+
+  // ── Closed records: history that stops when the mentorship ended ──────────
+  // NO pending review and NO next-review date on any of these — see the
+  // deactivated guards in `cadenceFor` and `pendingReviewFor`. A proposal to
+  // update the billing code on a mentorship that ended is noise, not a task.
+  t16: {
+    assessments: [
+      { daysAgo: 44, instrument: "GAD-7", score: 10 },
+      { daysAgo: 84, instrument: "GAD-7", score: 14 },
+    ],
+    assigned: { daysAgo: 86, code: "F41.1" },
+  },
+  t20: {
+    assessments: [
+      { daysAgo: 72, instrument: "PHQ-9", score: 8 },
+      { daysAgo: 156, instrument: "PHQ-9", score: 11 },
+    ],
+    assigned: { daysAgo: 158, code: "F32.0" },
+  },
+  t22: {
+    assessments: [
+      { daysAgo: 52, instrument: "PHQ-9", score: 7 },
+      { daysAgo: 118, instrument: "PHQ-9", score: 12 },
+      { daysAgo: 136, instrument: "PHQ-9", score: 14 },
+    ],
+    assigned: { daysAgo: 138, code: "F32.1" },
+    reviewed: [{ daysAgo: 52, code: "F32.1", by: "Omar Haddad" }],
+    updates: [
+      {
+        daysAgo: 50,
+        author: "Omar Haddad",
+        role: "Supervisor",
+        standing:
+          "Three surveys, each lower than the last. The mentorship ran its course and closed while the record was in its better stretch.",
+        direction:
+          "Closing out the cycle. No change of presentation on the way out.",
+        watching:
+          "Nothing further here — this record is closed. Anything new would start from a fresh intake.",
+      },
+    ],
+  },
+};
+
+/** Tenure in days, for the in-tenure assertion. */
+function tenureOf(teenId: string): number | null {
+  return DEMO_TEENS.find((t) => t.id === teenId)?.joinedDaysAgo ?? null;
+}
+
+/** Is this mentee's mentorship over? A closed record gets no review clock and no
+ *  presentation proposal. */
+function isClosedRecord(teenId: string): boolean {
+  const teen = DEMO_TEENS.find((t) => t.id === teenId);
+  if (!teen) return false;
+  return defaultMenteeStatus(teen) === "deactivated";
+}
+
+/** NOTHING MAY BE DATED BEFORE THE TEEN EXISTED. An assessment outside its
+ *  teen's tenure puts a survey on a record before the sign-up that created it —
+ *  the same class of self-contradiction as a score that disagrees with its
+ *  items, so it gets the same dev-only throw rather than a warning. */
+function assertInTenure(teenId: string, daysAgo: number, what: string) {
+  if (process.env.NODE_ENV === "production") return;
+  const tenure = tenureOf(teenId);
+  if (tenure !== null && daysAgo > tenure) {
+    throw new Error(
+      `care fixture ${teenId}: ${what} is dated ${daysAgo}d ago but the teen joined ${tenure}d ago`
+    );
+  }
+}
+
+function profileTimelineFor(teenId: string, now: number): CareEvent[] {
+  const p = CARE_PROFILES[teenId];
+  if (!p) return [];
+  const events: CareEvent[] = [];
+
+  if (p.outstandingSurvey) {
+    const { daysAgo, instrument } = p.outstandingSurvey;
+    assertInTenure(teenId, daysAgo, `${instrument} send`);
+    events.push({
+      id: `cg-${teenId}-sent`,
+      occurredAt: ago(now, daysAgo),
+      type: "survey_assigned",
+      description: instrument,
+      // TODO-COPY. States the fact, not a verdict on the teen.
+      result: "Sent — not returned yet",
+      author: { kind: "system" },
+      visibility: "all_staff",
+    });
+  }
+
+  for (const [n, a] of (p.assessments ?? []).entries()) {
+    assertInTenure(teenId, a.daysAgo, `${a.instrument} assessment`);
+    const severity = severityFor(a.instrument, a.score);
+    events.push({
+      id: `cg-${teenId}-a${n}`,
+      occurredAt: ago(now, a.daysAgo),
+      type: "assessment",
+      description: a.instrument,
+      result: `${a.score} — ${severity}`,
+      author: { kind: "system" },
+      visibility: "all_staff",
+      items: buildItems(a.instrument, a.score, `${teenId}-${n}`),
+    });
+  }
+
+  if (p.assigned) {
+    assertInTenure(teenId, p.assigned.daysAgo, "presentation assignment");
+    events.push({
+      id: `cg-${teenId}-assigned`,
+      occurredAt: ago(now, p.assigned.daysAgo),
+      type: "presentation_assigned",
+      description: "Presentation set from intake assessment",
+      result: p.assigned.code,
+      code: p.assigned.code,
+      author: { kind: "ai", model: "intake mapping" },
+      visibility: "all_staff",
+      providerNote:
+        "Generated from the intake response set. Not reviewed by a clinician at the time of assignment.",
+    });
+  }
+
+  if (p.changed) {
+    assertInTenure(teenId, p.changed.daysAgo, "presentation change");
+    events.push({
+      id: `cg-${teenId}-changed`,
+      occurredAt: ago(now, p.changed.daysAgo),
+      type: "presentation_changed",
+      description: "Presentation changed after review",
+      result: `${p.changed.from} → ${p.changed.code}`,
+      code: p.changed.code,
+      author: { kind: "person", name: p.changed.by, role: "Supervisor" },
+      // Threads onto the original assignment, which is what renders the
+      // superseded treatment and keeps the original ASSIGNED date intact.
+      amends: `cg-${teenId}-assigned`,
+      visibility: "all_staff",
+      providerNote: p.changed.note,
+    });
+  }
+
+  for (const [n, r] of (p.reviewed ?? []).entries()) {
+    assertInTenure(teenId, r.daysAgo, "presentation review");
+    events.push({
+      id: `cg-${teenId}-r${n}`,
+      occurredAt: ago(now, r.daysAgo),
+      type: "presentation_reviewed",
+      description: "Presentation reviewed on cadence",
+      result: `${r.code} — unchanged`,
+      code: r.code,
+      author: { kind: "person", name: r.by, role: "Supervisor" },
+      visibility: "all_staff",
+    });
+  }
+
+  // Care updates ride the same builder so their timeline rows and the prose in
+  // the main column can never come from two different sources.
+  for (const u of fixtureCareUpdatesFor(teenId, now)) {
+    events.push(careUpdateToEvent(u));
+  }
+
+  return events;
+}
+
+/** Fixture care updates for a teen, in the store's own record shape so every
+ *  consumer treats them identically to one a supervisor writes in-session. */
+export function fixtureCareUpdatesFor(
+  teenId: string,
+  now: number
+): CareUpdateRecord[] {
+  const p = CARE_PROFILES[teenId];
+  if (!p?.updates) return [];
+  return p.updates.map((u, n) => {
+    assertInTenure(teenId, u.daysAgo, "care update");
+    return {
+      id: `cgu-${teenId}-${n}`,
+      teenId,
+      createdAt: ago(now, u.daysAgo),
+      author: u.author,
+      authorRole: u.role,
+      body: { standing: u.standing, direction: u.direction, watching: u.watching },
+      amends:
+        u.amendsIndex === undefined
+          ? undefined
+          : `cgu-${teenId}-${u.amendsIndex}`,
+    };
+  });
+}
+
+/** A presentation proposal for a generated profile, built from that teen's own
+ *  latest assessment so the review cites the survey the cadence card reports.
+ *  Returns null on a closed record — see the note on CARE_PROFILES. */
+function profileReviewFor(
+  teenId: string,
+  now: number
+): Omit<PresentationReview, "stage"> | null {
+  const p = CARE_PROFILES[teenId];
+  if (!p?.pending || isClosedRecord(teenId)) return null;
+  const latest = [...(p.assessments ?? [])].sort((a, b) => a.daysAgo - b.daysAgo)[0];
+  if (!latest) return null;
+  const severity = severityFor(latest.instrument, latest.score);
+  const current = p.changed?.code ?? p.assigned?.code;
+  return {
+    id: `pr-${teenId}-cadence`,
+    recommended: {
+      statement: STATEMENT_OF[p.pending.code] ?? p.pending.code,
+      code: p.pending.code,
+    },
+    rationale: {
+      source: current ? "ai" : "templated",
+      // Names what the scores DID, never what the teen is forecast to do, and
+      // describes contact CADENCE rather than anything anyone wrote.
+      text: current
+        ? `The most recent ${latest.instrument} scored ${latest.score}, in the ${severity} band. Across the surveys on file the movement sits in the items that carry the presentation on record, and ${STATEMENT_OF[p.pending.code] ?? p.pending.code} fits the current scores more closely than ${current} does.`
+        : `The intake ${latest.instrument} scored ${latest.score} in the ${severity} band. The mapping returns ${STATEMENT_OF[p.pending.code] ?? p.pending.code} for that profile.`,
+    },
+    survey: {
+      instrument: latest.instrument,
+      at: ago(now, latest.daysAgo),
+      score: latest.score,
+      severity,
+      items: buildItems(latest.instrument, latest.score, `${teenId}-0`),
+    },
+    aggregate: null,
+  };
+}
+
 // ── Approved reviews → timeline entries ─────────────────────────────────────
 // A supervisor's approval APPENDS; it never edits the recommendation it came
 // from. The decision is store-backed (store v29 `careReviews`) and threaded into
@@ -487,6 +1049,7 @@ export function careTimelineFor(
 ): CareEvent[] {
   return [
     ...fixtureTimelineFor(teenId, now),
+    ...profileTimelineFor(teenId, now),
     ...pendingDemoTimeline(teenId, now),
     ...escalationEventFor(teenId, now),
     ...(store.decisions ?? [])
@@ -540,6 +1103,11 @@ export interface CareAssessment {
 }
 
 export interface CareCadence {
+  /** A survey SENT and not yet returned. Distinct from `assignedSurvey`, which
+   *  is the instrument being tracked FORWARD and only exists once something has
+   *  come back — before the first completion there is no series to lock. A
+   *  record with one of these is waiting on the teen, not blank. */
+  outstandingSurvey: { instrument: string; sentAt: number } | null;
   stage: CadenceStage;
   /** LOCKED AT FIRST COMPLETION — the instrument a teen started on is the one
    *  their scores are comparable against, so this never changes afterwards.
@@ -547,8 +1115,14 @@ export interface CareCadence {
   assignedSurvey: string | null;
   surveyLockedAt: number | null;
   lastAssessment: CareAssessment | null;
-  /** Null only before the first survey — cadence starts at intake. */
+  /** Null before the first survey — cadence starts at intake — and null on a
+   *  CLOSED record, where nobody is going to do the review. */
   nextReviewDue: number | null;
+  /** WHY there is no next review, when there isn't one. The two reasons read
+   *  completely differently and a null date alone cannot tell them apart:
+   *  "starts at the first survey" on a closed record with two surveys on file
+   *  contradicts the history printed directly beneath it. */
+  reviewClock: "scheduled" | "not-started" | "closed";
 }
 
 /** The action slot's payload. Generic slot, specific consumer — see
@@ -676,16 +1250,32 @@ export function cadenceFor(
     .sort((a, b) => b.occurredAt - a.occurredAt);
   const latest = assessments[0];
   const hasPresentation = presentationFor(teenId, now, store) !== null;
+  // The newest survey that was SENT and hasn't come back. Only meaningful while
+  // nothing has been completed after it.
+  const sent = events
+    .filter((e) => e.type === "survey_assigned")
+    .sort((a, b) => b.occurredAt - a.occurredAt)[0];
+  const outstandingSurvey =
+    sent && (!latest || sent.occurredAt > latest.occurredAt)
+      ? { instrument: sent.description, sentAt: sent.occurredAt }
+      : null;
+  // A CLOSED record gets no review clock. Without this the three past-mentee
+  // records read "overdue by 2 months" for a review nobody is going to do, and
+  // an overdue warning on a mentorship that ended is noise dressed as a task.
+  const closed = isClosedRecord(teenId);
 
   if (!latest) {
     // Pre-first-survey: cadence hasn't started. Not an error state — the common
-    // one, through the PRD's "snooze" period.
+    // one, through the PRD's "snooze" period. A record with an outstanding
+    // survey lands here too, and says so rather than reading blank.
     return {
+      outstandingSurvey,
       stage: "intake",
       assignedSurvey: null,
       surveyLockedAt: null,
       lastAssessment: null,
       nextReviewDue: null,
+      reviewClock: closed ? "closed" : "not-started",
     };
   }
 
@@ -706,8 +1296,9 @@ export function cadenceFor(
   const stage: CadenceStage =
     daysSinceFirst < 30 ? "intake" : daysSinceFirst < 120 ? "day30" : "quarterly";
   const dueOffset = stage === "intake" ? 30 : stage === "day30" ? 120 : null;
-  const nextReviewDue =
-    dueOffset !== null
+  const nextReviewDue = closed
+    ? null
+    : dueOffset !== null
       ? firstEver.occurredAt + dueOffset * DAY
       : // Quarterly: 90 days from the last time anyone looked, falling back to
         // the last assessment when the presentation has never been reviewed.
@@ -726,7 +1317,9 @@ export function cadenceFor(
         ).occurredAt + 90 * DAY;
 
   return {
+    outstandingSurvey,
     stage,
+    reviewClock: closed ? "closed" : "scheduled",
     assignedSurvey: instrument,
     surveyLockedAt: lockedAt,
     lastAssessment: {
@@ -864,6 +1457,10 @@ export function pendingReviewFor(
   // renders nothing when nothing is pending. The decision itself survives, in
   // the timeline, where it can be read but not unmade.
   const decided = new Set((store.decisions ?? []).map((d) => d.reviewId));
+  // A CLOSED record never carries a proposal. Asking a supervisor to approve a
+  // billing code for a mentorship that ended is a task with no outcome, and the
+  // slot's whole contract is that something in it needs deciding.
+  if (isClosedRecord(teenId)) return null;
   // STAGE IS DERIVED from cadence, never carried on the fixture. A review that
   // labels itself "90-day review" beside a cadence card reading "Day 30" is the
   // same drift that put the wrong instrument in the locked-survey row.
@@ -924,7 +1521,8 @@ export function pendingReviewFor(
   // Generated demo subjects — coherent by construction (see PENDING_DEMO).
   const generated = pendingDemoReview(teenId, now);
   if (generated) return live(generated);
-  return null;
+  // Roster-wide profiles, built from the teen's own latest assessment.
+  return live(profileReviewFor(teenId, now));
 }
 
 
@@ -992,12 +1590,16 @@ function careUpdateToEvent(u: CareUpdateRecord): CareEvent {
   };
 }
 
-/** Every care update on a teen, newest first. */
+/** Every care update on a teen, newest first — the fixtures plus whatever a
+ *  supervisor has written in-session. Fixtures are unioned HERE rather than at
+ *  the call site so the timeline, the "current update" card and any future
+ *  reader can't disagree about which updates exist. */
 export function careUpdatesFor(
   teenId: string,
+  now: number,
   updates: CareUpdateRecord[]
 ): CareUpdateRecord[] {
-  return updates
+  return [...fixtureCareUpdatesFor(teenId, now), ...updates]
     .filter((u) => u.teenId === teenId)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -1007,9 +1609,10 @@ export function careUpdatesFor(
  *  column carries the current clinical read, not an archive. */
 export function latestCareUpdateFor(
   teenId: string,
+  now: number,
   updates: CareUpdateRecord[]
 ): CareUpdateRecord | null {
-  const mine = careUpdatesFor(teenId, updates);
+  const mine = careUpdatesFor(teenId, now, updates);
   const superseded = new Set(mine.map((u) => u.amends).filter(Boolean));
   return mine.find((u) => !superseded.has(u.id)) ?? null;
 }
@@ -1063,8 +1666,29 @@ export function careAiSummaryFor(
       text: "Scores across three assessments have moved from the mild band into the moderate band, with the mood items accounting for most of the change and the anxiety items flat. Contact has stayed weekly through the period with no gap longer than nine days.",
     };
   }
+  // DERIVED, not asserted. This used to return "scores have held in the same
+  // band across the period" for every teen with two or more assessments — a
+  // claim it never checked, which contradicts any record whose scores actually
+  // moved. Same discipline as the score/items invariant: if the paragraph and
+  // the timeline can disagree, sooner or later they do.
+  const ordered = assessments.sort((a, b) => a.occurredAt - b.occurredAt);
+  const sum = (e: CareEvent) => (e.items ?? []).reduce((a, i) => a + i.points, 0);
+  const first = sum(ordered[0]);
+  const last = sum(ordered[ordered.length - 1]);
+  const bandFirst = ordered[0].result.split("—").pop()!.trim();
+  const bandLast = ordered[ordered.length - 1].result.split("—").pop()!.trim();
+  const n = ordered.length;
+  const sameBand = bandFirst === bandLast;
+  // TODO-COPY. Names what the scores DID and nothing else — no forecast, and no
+  // reference to anything anyone wrote.
+  const movement =
+    last === first
+      ? `Scores have returned the same total across ${n} assessments on file`
+      : sameBand
+        ? `Scores have moved ${last > first ? "up" : "down"} from ${first} to ${last} across ${n} assessments, staying inside the ${bandLast} band`
+        : `Scores have moved ${last > first ? "up" : "down"} from ${first} to ${last} across ${n} assessments, out of the ${bandFirst} band and into the ${bandLast} one`;
   return {
     generatedAt,
-    text: "Assessment scores have held in the same band across the period on file, and mentorship contact has continued without a gap longer than two weeks.",
+    text: `${movement}. Mentorship contact has continued through the period on file.`,
   };
 }

@@ -110,8 +110,8 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
   const summary = careAiSummaryFor(teen.id, now, store);
-  const updates = careUpdatesFor(teen.id, store.updates ?? []);
-  const latestUpdate = latestCareUpdateFor(teen.id, store.updates ?? []);
+  const updates = careUpdatesFor(teen.id, now, store.updates ?? []);
+  const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // Read-wide/act-narrow enforced at the SOURCE: a pending review is only ever
   // fetched for the tier that can decide it, so there is no path by which a
@@ -143,8 +143,18 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
     staffActorFor(persona);
 
+  // ABSENT in three cases, all of them dead tasks:
+  //   · a survey is already out — offering to send the first one reads as though
+  //     the send hadn't happened, and invites a second;
+  //   · one has already come back — the instrument is locked by then;
+  //   · the mentorship ENDED — starting a cadence on a closed record is the same
+  //     empty task as proposing a billing code for one, which this page already
+  //     suppresses.
   const onAssignSurvey =
-    canAct && cadence.assignedSurvey === null
+    canAct &&
+    cadence.assignedSurvey === null &&
+    cadence.outstandingSurvey === null &&
+    cadence.reviewClock !== "closed"
       ? () => toast("Assigning the first survey isn’t built yet.")
       : undefined;
 
