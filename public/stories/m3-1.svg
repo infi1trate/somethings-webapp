@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="The bike, mid-fix">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(18 .5 .5)">
+      <stop offset="0" stop-color="#7b7ff0"/>
+      <stop offset="1" stop-color="#34c3d9"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#1e2140" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1e2140" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="89"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 1415 1255 Q 1415 1255 1363 1504 Q 1311 1753 1061 1728 Q 811 1702 554 1627 Q 296 1552 381 1296 Q 466 1040 608 792 Q 751 544 1044 634 Q 1336 725 1376 990 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1723 18 Q 1723 18 1657 259 Q 1591 500 1336 537 Q 1080 575 912 408 Q 745 241 691 -7 Q 638 -256 878 -313 Q 1118 -371 1279 -322 Q 1439 -273 1581 -127 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1364 18 Q 1364 18 1158 236 Q 953 454 723 483 Q 493 511 280 394 Q 67 277 -6 -17 Q -79 -311 209 -386 Q 496 -461 769 -495 Q 1042 -529 1203 -256 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1330 193 Q 1330 193 1183 435 Q 1035 677 758 806 Q 480 935 333 676 Q 186 416 79 142 Q -29 -133 234 -301 Q 498 -469 830 -460 Q 1162 -450 1246 -128 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1481 1140 Q 1481 1140 1465 1452 Q 1449 1764 1144 1697 Q 839 1631 668 1494 Q 497 1358 459 1121 Q 421 884 596 616 Q 770 347 1020 543 Q 1270 740 1376 940 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1333 Q 540 1186 1120 1333 L 1120 1960 L -40 1960 Z" fill="#1e2140" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">The bike, mid-fix</text>
+</svg>

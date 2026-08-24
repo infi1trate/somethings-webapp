@@ -675,7 +675,8 @@ export default function MentorRecordPage({
           slot={slot}
           helper={
             fmEditable
-              ? "Sent in chat the first time a teen opens the conversation. One message per line."
+              ? /* TODO-COPY */
+                "What a teen gets the first time they open the chat — the messages, then the story. One message per line."
               : "Edits route through review"
           }
         >
@@ -694,12 +695,16 @@ export default function MentorRecordPage({
                 // No review chip: first moments aren't gated, so these fields
                 // can never sit in the changeset. The gated Profile tab keeps
                 // its chips.
-                story={
-                  firstMomentStory(live.stories).slides.length
-                    ? `${firstMomentStory(live.stories).slides.length} slides`
-                    : ""
-                }
-                storyHint="Story slides are uploads, added by the mentor during onboarding."
+                slides={firstMomentStory(live.stories).slides}
+                onSaveSlides={(slides) => {
+                  const current = firstMomentStory(live.stories);
+                  const rest = live.stories.filter(
+                    (s) => s.type !== "first-moment"
+                  );
+                  saveGatedWithToasts({
+                    stories: [...rest, { ...current, slides }],
+                  });
+                }}
                 onSaveLane={(lane, lines) => {
                   // Preserve each message's existing id so the changeset diffs
                   // against the same entities instead of looking fully rewritten.

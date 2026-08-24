@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Top of the ridge">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(112 .5 .5)">
+      <stop offset="0" stop-color="#7bbf57"/>
+      <stop offset="1" stop-color="#ffb200"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#23301c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#23301c" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="129"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 1428 659 Q 1428 659 1358 921 Q 1288 1183 1015 1201 Q 742 1219 555 1060 Q 368 901 412 681 Q 457 460 612 334 Q 767 207 994 212 Q 1222 217 1325 438 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1016 992 Q 1016 992 849 1239 Q 681 1485 395 1630 Q 109 1774 -117 1535 Q -342 1295 -251 1036 Q -159 777 -6 578 Q 148 379 443 403 Q 738 427 877 710 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 764 543 Q 764 543 561 779 Q 357 1015 76 1187 Q -206 1360 -345 1064 Q -485 767 -614 481 Q -743 195 -456 39 Q -170 -117 101 -32 Q 371 54 568 298 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1417 -250 Q 1417 -250 1400 86 Q 1383 421 1017 515 Q 652 609 500 300 Q 349 -9 235 -304 Q 122 -599 401 -790 Q 681 -981 1020 -936 Q 1360 -892 1388 -571 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 564 1182 Q 564 1182 526 1483 Q 488 1783 151 1908 Q -185 2033 -453 1783 Q -721 1534 -701 1192 Q -682 850 -416 669 Q -150 489 180 521 Q 510 554 537 868 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1444 Q 540 1311 1120 1444 L 1120 1960 L -40 1960 Z" fill="#23301c" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Top of the ridge</text>
+</svg>

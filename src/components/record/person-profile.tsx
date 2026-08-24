@@ -12,10 +12,15 @@
 // store's `personProfiles` / `personSchedules` overrides on top — so a staff
 // edit persists without pretending these people have a full MentorDraft.
 //
-// TEXT ONLY, on purpose. MentorDraft's photo / audio intro / vibe board / story
-// slides hold real uploaded assets (data URLs). Demo people have none, and
+// TEXT ONLY, on purpose — EXCEPT THE STORY. MentorDraft's photo / audio intro /
+// vibe board hold real uploaded assets (data URLs). Demo people have none, and
 // inventing them would make the record claim things that aren't on file. Those
-// slots render as one honest, unpressable row rather than four fake ones.
+// slots render as one honest, unpressable row rather than three fake ones.
+//
+// The STORY is different, and is now real here: it is the only asset field the
+// mentor does NOT own, so this record is the only place it can be seen or
+// changed at all. It gets a working editor and fixture panels (see the
+// people-demo note) instead of a dead row.
 //
 // WHO MAY EDIT: the permission map, same as the live record — `matchingProfile`
 // for Profile, `firstMoments` for First moments, `schedule` for Schedule. All
@@ -30,8 +35,12 @@ import {
   type RecordRowState,
 } from "@/components/record/row";
 import { ActiveHoursForm } from "@/components/record/active-hours";
+import { StaffFieldRow } from "@/components/account/field-rows";
+import { StorySlidesEditor } from "@/components/profile-editor/matching-extensions";
 import { profileFor, scheduleFor, type PersonProfile } from "@/lib/record/people-demo";
 import { resolveMode } from "@/lib/record/permission-map";
+import { firstMomentStory } from "@/lib/types";
+import type { StorySlide } from "@/lib/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import type { FixtureSubject } from "@/lib/record/subject";
@@ -252,23 +261,28 @@ export function FirstMomentsRows({
   offline,
   editable,
   onSaveLane,
-  story,
-  storyHint,
+  slides,
+  onSaveSlides,
   chip,
 }: {
   online: string[];
   offline: string[];
   editable: boolean;
   onSaveLane: (lane: "online" | "offline", lines: string[]) => void;
-  /** Read-state for the Story row. Story slides are uploaded images. */
-  story?: React.ReactNode;
-  storyHint?: string;
+  /** The first-moment story's three images, and the write. STAFF-OWNED: a
+   *  mentor never sees this row — `firstMoments` is "hidden" in the mentor
+   *  column, and their own First moments tab drops the section entirely. */
+  slides: StorySlide[];
+  onSaveSlides: (slides: StorySlide[]) => void;
   /** Review-state chip. One gated field covers BOTH lanes, so it shows on both
    *  rather than implying only one is in review. */
   chip?: React.ReactNode;
 }) {
   const count = (a: string[]) =>
     a.length ? `${a.length} message${a.length > 1 ? "s" : ""}` : "";
+  // The Story row is the one row on this card that opens a non-text editor, so
+  // it owns its own open state rather than joining the lanes' TextRow lifecycle.
+  const [storyEditing, setStoryEditing] = useState(false);
   return (
     <>
       <TextRow
@@ -293,16 +307,52 @@ export function FirstMomentsRows({
         placeholder="I'm offline right now — back tomorrow."
         onCommit={(raw) => onSaveLane("offline", parseLines(raw))}
       />
-      <RecordRow
+      {/* STORY — three vertical images, curated by a lead or supervisor. Shown
+          as the images themselves, not as a "3 slides" count: the whole point
+          of a staff reader opening this row is to judge what a teen will see,
+          and a number can't be judged. */}
+      <StaffFieldRow<StorySlide[]>
         label="Story"
-        value={displayOrEmpty(story ?? "")}
-        hint={storyHint ?? "Story slides are uploads. None are on file for this profile."}
-        state="read"
-        locked
-        onEditStart={() => {}}
-        onCancel={() => {}}
+        value={slides}
+        mode={editable ? "edit" : "read"}
+        editing={storyEditing}
+        onEditStart={() => setStoryEditing(true)}
+        onClose={() => setStoryEditing(false)}
+        /* TODO-COPY */
+        hint={
+          slides.length
+            ? "Swiped in chat after the first messages. You picked these — the mentor doesn't see them."
+            : "Three vertical images, added by a lead mentor or supervisor."
+        }
+        display={(v) => <StoryThumbs slides={v} />}
+        editor={(pending, set) => (
+          <StorySlidesEditor value={pending} onChange={set} />
+        )}
+        onSave={async (next) => {
+          onSaveSlides(next);
+          return true;
+        }}
       />
     </>
+  );
+}
+
+/** The read state of a story: the images, small, in order. Vertical because the
+ *  slides are — a 9:16 thumbnail says "phone" before you've read a word. */
+function StoryThumbs({ slides }: { slides: StorySlide[] }) {
+  if (!slides.length) return "";
+  return (
+    <span className="flex items-center gap-1.5">
+      {slides.map((s, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={s.id}
+          src={s.photo}
+          alt={`Story image ${i + 1} of ${slides.length}`}
+          className="h-[64px] w-[36px] shrink-0 rounded-[5px] border border-[color:var(--border-subtle)] object-cover"
+        />
+      ))}
+    </span>
   );
 }
 
@@ -310,10 +360,13 @@ export function FirstMomentsRows({
 export function FirstMomentsHeader() {
   return (
     <>
-      <h2 className={H}>First messages</h2>
+      {/* TODO-COPY. Was "First messages" — the card carries the story too now,
+          and a heading that names only the messages hides the half of this tab
+          the mentor can't see for themselves. */}
+      <h2 className={H}>First moments</h2>
       <p className="mt-1 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
-        Sent in chat the first time a teen opens the conversation. One message
-        per line.
+        What a teen gets the first time they open the chat — the messages, then
+        the story. One message per line.
       </p>
     </>
   );
@@ -337,6 +390,17 @@ export function PersonFirstMomentsSection({
       firstMessages: { ...fm, [lane]: lines },
     });
 
+  // Same library-ready write the live mentor uses: update the 'first-moment'
+  // entry inside stories[] and leave any other type alone.
+  const all = profile.stories ?? [];
+  const setSlides = (slides: StorySlide[]) => {
+    const current = firstMomentStory(all);
+    const rest = all.filter((s) => s.type !== "first-moment");
+    setPersonProfile(subject.id, {
+      stories: [...rest, { ...current, slides }],
+    });
+  };
+
   return (
     <section aria-label="First moments" data-record-section="first-moments">
       <FirstMomentsHeader />
@@ -346,6 +410,8 @@ export function PersonFirstMomentsSection({
           offline={fm.offline ?? []}
           editable={editable}
           onSaveLane={setLane}
+          slides={firstMomentStory(all).slides}
+          onSaveSlides={setSlides}
         />
       </div>
     </section>

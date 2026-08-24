@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Two chapters left">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(65 .5 .5)">
+      <stop offset="0" stop-color="#7bbf57"/>
+      <stop offset="1" stop-color="#ffb200"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#23301c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#23301c" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="122"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 1976 35 Q 1976 35 1792 216 Q 1608 396 1382 576 Q 1155 756 1014 504 Q 872 251 855 27 Q 838 -197 1013 -369 Q 1188 -542 1409 -448 Q 1630 -354 1803 -160 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1451 375 Q 1451 375 1296 546 Q 1140 717 933 856 Q 726 996 508 825 Q 290 654 273 367 Q 256 81 489 -92 Q 722 -265 932 -117 Q 1143 30 1297 203 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1303 1082 Q 1303 1082 1193 1334 Q 1083 1586 824 1591 Q 564 1596 306 1492 Q 48 1388 117 1116 Q 186 844 371 689 Q 556 535 793 590 Q 1030 646 1166 864 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 745 993 Q 745 993 668 1147 Q 590 1300 400 1441 Q 211 1582 -13 1427 Q -236 1273 -143 1038 Q -49 803 103 701 Q 255 598 423 641 Q 592 684 669 838 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1846 41 Q 1846 41 1790 306 Q 1734 572 1457 596 Q 1179 620 914 490 Q 649 360 727 79 Q 804 -203 962 -499 Q 1120 -796 1427 -642 Q 1733 -487 1789 -223 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1388 Q 540 1302 1120 1388 L 1120 1960 L -40 1960 Z" fill="#23301c" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Two chapters left</text>
+</svg>

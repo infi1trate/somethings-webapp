@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="First roll of the year">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(112 .5 .5)">
+      <stop offset="0" stop-color="#ff6f9c"/>
+      <stop offset="1" stop-color="#ffb200"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#3b1f2b" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3b1f2b" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="99"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 2009 1615 Q 2009 1615 1879 1927 Q 1749 2240 1400 2365 Q 1051 2490 913 2167 Q 776 1843 714 1585 Q 652 1326 878 1147 Q 1103 967 1434 969 Q 1765 970 1887 1292 Z" fill="#3b1f2b" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1217 1078 Q 1217 1078 1065 1349 Q 913 1620 635 1622 Q 356 1624 133 1488 Q -90 1353 -22 1111 Q 47 869 194 669 Q 342 469 553 595 Q 765 721 991 899 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 611 242 Q 611 242 379 442 Q 147 643 -77 723 Q -301 802 -631 712 Q -962 622 -838 301 Q -714 -19 -516 -205 Q -317 -391 -72 -292 Q 174 -193 392 24 Z" fill="#3b1f2b" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 435 502 Q 435 502 322 736 Q 209 970 -30 965 Q -268 960 -489 863 Q -710 766 -620 546 Q -529 327 -410 136 Q -291 -54 -70 27 Q 150 108 293 305 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 698 1283 Q 698 1283 555 1539 Q 413 1796 136 1855 Q -140 1915 -306 1713 Q -472 1512 -531 1254 Q -591 996 -347 908 Q -102 819 157 792 Q 416 765 557 1024 Z" fill="#3b1f2b" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1478 Q 540 1400 1120 1478 L 1120 1960 L -40 1960 Z" fill="#3b1f2b" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">First roll of the year</text>
+</svg>

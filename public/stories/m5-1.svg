@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Shop, 7am">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(18 .5 .5)">
+      <stop offset="0" stop-color="#ffb200"/>
+      <stop offset="1" stop-color="#ff6f9c"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#3a2a12" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3a2a12" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="92"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 411 1249 Q 411 1249 309 1480 Q 207 1710 -49 1797 Q -305 1883 -470 1680 Q -635 1478 -713 1212 Q -790 946 -545 792 Q -300 637 -19 678 Q 263 718 337 984 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 334 1509 Q 334 1509 222 1719 Q 110 1928 -134 2052 Q -377 2176 -530 1953 Q -683 1730 -678 1511 Q -673 1293 -528 1054 Q -383 815 -113 923 Q 157 1031 245 1270 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1372 1200 Q 1372 1200 1216 1478 Q 1060 1756 779 1739 Q 497 1721 224 1621 Q -49 1520 17 1232 Q 83 943 266 705 Q 449 468 691 635 Q 933 803 1153 1001 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 676 745 Q 676 745 629 970 Q 583 1195 358 1170 Q 133 1145 -40 1050 Q -213 955 -266 719 Q -319 483 -117 309 Q 85 134 338 209 Q 592 284 634 514 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1687 1270 Q 1687 1270 1676 1475 Q 1664 1679 1445 1720 Q 1226 1761 1116 1595 Q 1007 1430 943 1240 Q 880 1050 1054 920 Q 1229 791 1418 862 Q 1607 933 1647 1102 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1381 Q 540 1277 1120 1381 L 1120 1960 L -40 1960 Z" fill="#3a2a12" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Shop, 7am</text>
+</svg>

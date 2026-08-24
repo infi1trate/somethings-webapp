@@ -16,6 +16,7 @@ import {
   GripVertical,
   ImagePlus,
   Loader2,
+  Trash2,
   X,
 } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
@@ -31,6 +32,20 @@ const RING =
 // 44px targets (WCAG 2.5.8 at the spec's bar — Phase 8 sweep).
 const ICON_BTN =
   "flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] disabled:opacity-35 disabled:hover:bg-transparent";
+
+// REMOVE, NOT AN X. The delete control used to be a bare X sitting between the
+// two reorder arrows — three identical icon buttons in a row, where the
+// destructive one read as "close" or "cancel" rather than "take this image off
+// the story". It now says the word, carries a trash glyph, and is tinted with
+// the error colour so it stops looking like a sibling of the arrows.
+const REMOVE_BTN =
+  "flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold text-[var(--state-error)] transition-colors hover:bg-[var(--alert-critical-bg)]";
+
+// Tiles widened from 132px so the control row fits on ONE line: two 44px arrows
+// plus a labelled Remove need ~164px, and at 132 they overflowed the tile. The
+// bigger image is the better half of the trade anyway — a staff reader opens
+// this editor to judge what a teen will see.
+const TILE_W = "w-[168px]";
 
 function arrayMove<T>(list: T[], from: number, to: number): T[] {
   const next = [...list];
@@ -195,7 +210,10 @@ export function FirstMessagesEditor({
 
 // ── First moment story ──────────────────────────────────────────────────────
 
-const MAX_SLIDES = 6;
+// A story IS three vertical images (user decision) — so three slots, not six,
+// and the tiles carry the phone's aspect rather than a 3:4 crop.
+const MAX_SLIDES = 3;
+const SLIDE_ASPECT = "aspect-[9/16]";
 
 export function StorySlidesEditor({
   value,
@@ -213,7 +231,7 @@ export function StorySlidesEditor({
     const to = index + delta;
     if (to < 0 || to >= value.length) return;
     onChange(arrayMove(value, index, to));
-    setAnnounce(`Moved to slide ${to + 1} of ${value.length}`);
+    setAnnounce(`Moved to image ${to + 1} of ${value.length}`);
   };
 
   const onFile = async (file?: File) => {
@@ -233,7 +251,8 @@ export function StorySlidesEditor({
     <div className="space-y-3">
       {value.length === 0 && (
         <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          Nothing here yet. Add your first slide.
+          {/* TODO-COPY. Staff-facing now: the mentor never sees this editor. */}
+          No story on file yet. Add three vertical images.
         </p>
       )}
 
@@ -252,9 +271,9 @@ export function StorySlidesEditor({
               }
               dragFrom.current = null;
             }}
-            className="group relative w-[132px]"
+            className={cn("group relative", TILE_W)}
           >
-            <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-muted">
+            <div className={cn("relative overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-muted", SLIDE_ASPECT)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={s.photo}
@@ -265,48 +284,54 @@ export function StorySlidesEditor({
                 {i + 1}
               </span>
             </div>
-            {/* Keyboard reorder alternative (2.5.7) + delete — all 44px
-                targets, in a control row under the tile (Phase 8 sweep). */}
-            <div className="flex justify-center">
+            {/* Keyboard reorder alternative (2.5.7) + remove — all 44px
+                targets, in a control row under the tile (Phase 8 sweep). The
+                arrows stay paired on the left and Remove sits apart on the
+                right, so the destructive control isn't one of three lookalikes.
+                Arrows are HIDDEN on a single slide: nowhere to move it. */}
+            <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => move(i, -1)}
                 disabled={i === 0}
-                aria-label={`Move slide ${i + 1} earlier`}
-                className={cn(ICON_BTN, RING)}
+                aria-label={`Move image ${i + 1} earlier`}
+                className={cn(ICON_BTN, RING, value.length < 2 && "hidden")}
               >
                 <ArrowLeft className="size-3.5" aria-hidden />
               </button>
               <button
                 type="button"
-                onClick={() => onChange(value.filter((x) => x.id !== s.id))}
-                aria-label={`Delete slide ${i + 1}`}
-                className={cn(ICON_BTN, RING)}
+                onClick={() => move(i, 1)}
+                disabled={i === value.length - 1}
+                aria-label={`Move image ${i + 1} later`}
+                className={cn(ICON_BTN, RING, value.length < 2 && "hidden")}
               >
-                <X className="size-4" aria-hidden />
+                <ArrowRight className="size-3.5" aria-hidden />
               </button>
               <button
                 type="button"
-                onClick={() => move(i, 1)}
-                disabled={i === value.length - 1}
-                aria-label={`Move slide ${i + 1} later`}
-                className={cn(ICON_BTN, RING)}
+                onClick={() => onChange(value.filter((x) => x.id !== s.id))}
+                /* TODO-COPY */
+                aria-label={`Remove image ${i + 1}`}
+                className={cn(REMOVE_BTN, RING)}
               >
-                <ArrowRight className="size-3.5" aria-hidden />
+                <Trash2 className="size-3.5" aria-hidden />
+                Remove
               </button>
             </div>
           </li>
         ))}
 
         {value.length < MAX_SLIDES && (
-          <li className="w-[132px]">
+          <li className={TILE_W}>
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={processing}
               aria-label="Add a slide"
               className={cn(
-                "flex aspect-[3/4] w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-[var(--border-subtle)] text-[var(--text-secondary)] transition-colors hover:border-[var(--button-border-default)] hover:text-[var(--text-primary)]",
+                "flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-[var(--border-subtle)] text-[var(--text-secondary)] transition-colors hover:border-[var(--button-border-default)] hover:text-[var(--text-primary)]",
+                SLIDE_ASPECT,
                 RING
               )}
             >

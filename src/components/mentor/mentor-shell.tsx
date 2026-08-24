@@ -21,6 +21,7 @@ import {
 } from "@/components/settings/sidebar";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { useMounted } from "@/lib/use-mounted";
 
 // Lead Mentor rail = the base MINUS Teens. Leads supervise mentors, not teens
@@ -59,7 +60,10 @@ export function MentorShell({
     ? (firstName?.trim()?.[0] || "S").toUpperCase()
     : "S";
   const avatarSrc = mounted ? (mentorish ? approvedAvatar : staffPhoto) : null;
-  const unread = mounted ? activity.filter((a) => !a.read).length : 0;
+  // Staff-curated fields don't badge the mentor — see isMentorVisibleActivity.
+  const unread = mounted
+    ? activity.filter((a) => !a.read && isMentorVisibleActivity(a)).length
+    : 0;
   // Mount-gated so SSR / first paint use the default set (persona is
   // client-only, localStorage-backed) — then the Lead swap applies.
   const isLead = mounted && roleForPersona(persona) === "lead";

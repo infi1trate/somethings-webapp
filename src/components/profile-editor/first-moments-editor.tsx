@@ -2,8 +2,12 @@
 
 // The First moments tab (§3 rev, Phase 5b): what a teen gets the first time they
 // open the mentor's chat. Hosts the sections MOVED from Matching profile — the
-// same Phase-3 components (FirstMessagesEditor, StorySlidesEditor from
-// matching-extensions.tsx) — plus the live chat preview.
+// Phase-3 FirstMessagesEditor from matching-extensions.tsx — plus the live chat
+// preview.
+//
+// FIRST MESSAGES ONLY. This tab used to carry the story editor as well; the
+// story is now staff-curated and invisible to the mentor (see FM_SECTIONS
+// below), so this is the mentor's messages and nothing else.
 //
 // NO REVIEW CYCLE (product decision). These two fields are no longer in
 // GATED_FIELDS, so a save is LIVE IMMEDIATELY: nothing enqueues into the
@@ -21,23 +25,24 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/settings/section-card";
-import {
-  FirstMessagesEditor,
-  StorySlidesEditor,
-} from "@/components/profile-editor/matching-extensions";
+import { FirstMessagesEditor } from "@/components/profile-editor/matching-extensions";
 import { FirstChatPreview } from "@/components/profile-editor/first-chat-preview";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { sectionsForTab } from "@/lib/onboarding/profile-sections";
-import { firstMomentStory } from "@/lib/types";
-import type { MentorDraft, StorySlide } from "@/lib/types";
+import { mentorSectionsForTab } from "@/lib/onboarding/profile-sections";
+import type { MentorDraft } from "@/lib/types";
 
 const HELPER_BY_KEY: Record<string, string> = {
   "first-messages":
     "Sent automatically when a teen opens your chat for the first time. Changes go live right away.",
-  "first-moment-story": "Up to 6 images — no captions needed. Changes go live right away.",
 };
 
-const FM_SECTIONS = sectionsForTab("first-moments");
+// THE STORY IS NOT HERE (user decision). A lead mentor or supervisor picks the
+// three images on the mentor's record, and the mentor does not see their own —
+// so the section is ABSENT from this tab rather than read-only, and the chat
+// preview beside it hides the story attachment too. No note stands in for it:
+// naming content the reader can't open is worse than not mentioning it, and
+// this tab still has a job of its own.
+const FM_SECTIONS = mentorSectionsForTab("first-moments");
 
 export function FirstMomentsEditor() {
   const draft = useOnboardingStore((s) => s.draft);
@@ -54,14 +59,6 @@ export function FirstMomentsEditor() {
     toast(publishedSnapshot ? "Saved — teens see this now." : "Saved.");
   };
 
-  // LIBRARY-READY write path: today exactly one 'first-moment' story exists;
-  // writes update that entry inside stories[] so future types slot in.
-  const setSlides = (slides: StorySlide[]) => {
-    const story = firstMomentStory(draft.stories);
-    const rest = draft.stories.filter((s) => s.type !== "first-moment");
-    publishNow({ stories: [...rest, { ...story, slides }] });
-  };
-
   const editorFor = (key: string) => {
     switch (key) {
       case "first-messages":
@@ -69,13 +66,6 @@ export function FirstMomentsEditor() {
           <FirstMessagesEditor
             value={draft.firstMessages}
             onChange={(v) => publishNow({ firstMessages: v })}
-          />
-        );
-      case "first-moment-story":
-        return (
-          <StorySlidesEditor
-            value={firstMomentStory(draft.stories).slides}
-            onChange={setSlides}
           />
         );
       default:
@@ -117,7 +107,10 @@ export function FirstMomentsEditor() {
 
         {/* Live chat preview — passive output, never an editing surface. */}
         <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
-          <FirstChatPreview draft={draft} />
+          {/* showStory={false}: the story is staff-curated and the mentor
+              doesn't see it, so it can't leak back in through a preview of
+              their own chat. */}
+          <FirstChatPreview draft={draft} showStory={false} />
           <p className="text-xs text-[var(--text-muted)]">
             Live preview · the first chat teens see
           </p>

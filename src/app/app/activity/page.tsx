@@ -10,6 +10,7 @@ import Link from "next/link";
 import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { gatedFieldMeta, relTime } from "@/lib/onboarding/profile-update";
 import { accountFieldLabel } from "@/lib/record/account-fields";
 import { useMounted } from "@/lib/use-mounted";
@@ -63,7 +64,11 @@ export default function ActivityPage() {
     if (mounted) markActivityRead();
   }, [mounted, markActivityRead]);
 
-  const items = mounted ? [...activity].sort((a, b) => b.createdAt - a.createdAt) : [];
+  const items = mounted
+    ? activity
+        .filter(isMentorVisibleActivity)
+        .sort((a, b) => b.createdAt - a.createdAt)
+    : [];
 
   return (
     <MentorShell active="activity">

@@ -117,11 +117,23 @@ export interface FirstMessages {
 }
 
 /** One image slide of a story (§4) — image only; the old eyebrow/header text
- *  fields are killed (text lives on the image itself). Max 6 per story,
- *  UI-enforced. Delivered in chat, not on the match card. */
+ *  fields are killed (text lives on the image itself). Delivered in chat, not
+ *  on the match card.
+ *
+ *  THREE PER STORY, and VERTICAL (9:16 — a phone held upright), UI-enforced.
+ *  Was six: a story is now defined as exactly three mobile-oriented images, so
+ *  the editor offers three slots and the tiles carry the phone's aspect rather
+ *  than a 3:4 crop no delivered slide ever had.
+ *
+ *  STAFF-MANAGED (user decision). A mentor does not add, edit or SEE their own
+ *  story — a lead mentor or supervisor curates it on the mentor's record. The
+ *  mentor's own First moments tab holds their first messages only. */
 export interface StorySlide {
   id: string;
-  photo: string; // downscaled WebP data URL
+  /** A downscaled WebP data URL for a real upload; fixture stories point at a
+   *  file under /public/stories instead, so demo slides cost the source tree
+   *  nothing. Both are just an <img src>. */
+  photo: string;
 }
 
 /** LIBRARY-READY (§4 rev): stories are modeled as a collection so future story

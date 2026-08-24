@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Records, alphabetical again">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(112 .5 .5)">
+      <stop offset="0" stop-color="#7b7ff0"/>
+      <stop offset="1" stop-color="#34c3d9"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#1e2140" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1e2140" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="75"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 1294 236 Q 1294 236 1240 466 Q 1185 696 939 739 Q 694 781 502 631 Q 310 481 333 247 Q 356 13 529 -129 Q 702 -271 942 -245 Q 1181 -219 1238 9 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 323 18 Q 323 18 259 160 Q 194 303 32 372 Q -130 440 -322 345 Q -514 249 -468 40 Q -421 -169 -278 -298 Q -135 -427 65 -392 Q 266 -358 294 -170 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 641 722 Q 641 722 484 983 Q 327 1243 31 1370 Q -265 1497 -410 1222 Q -555 947 -657 673 Q -759 400 -506 202 Q -252 5 31 111 Q 314 217 478 470 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1802 1002 Q 1802 1002 1657 1145 Q 1513 1288 1344 1384 Q 1175 1480 1016 1344 Q 856 1208 921 1033 Q 986 858 1077 674 Q 1168 491 1334 611 Q 1501 731 1651 866 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 227 1229 Q 227 1229 158 1445 Q 89 1662 -127 1637 Q -344 1613 -483 1509 Q -622 1405 -658 1211 Q -694 1018 -522 916 Q -351 815 -155 836 Q 41 856 134 1042 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1432 Q 540 1369 1120 1432 L 1120 1960 L -40 1960 Z" fill="#1e2140" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Records, alphabetical again</text>
+</svg>

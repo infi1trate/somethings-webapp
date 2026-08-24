@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Six strings, four chords">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(65 .5 .5)">
+      <stop offset="0" stop-color="#ffb200"/>
+      <stop offset="1" stop-color="#ff6f9c"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#3a2a12" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3a2a12" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="77"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 239 -56 Q 239 -56 153 143 Q 67 342 -149 392 Q -364 441 -606 337 Q -849 232 -821 -43 Q -794 -317 -586 -465 Q -378 -612 -123 -574 Q 132 -536 186 -296 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 651 1165 Q 651 1165 498 1347 Q 345 1529 138 1616 Q -68 1703 -201 1527 Q -333 1351 -455 1106 Q -576 861 -339 671 Q -101 482 170 580 Q 442 678 547 922 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1014 545 Q 1014 545 953 827 Q 892 1109 587 1179 Q 282 1249 160 994 Q 38 739 -80 488 Q -199 236 54 94 Q 307 -49 557 19 Q 807 87 911 316 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 723 -12 Q 723 -12 545 164 Q 367 340 164 437 Q -38 535 -252 394 Q -465 254 -425 8 Q -385 -238 -214 -409 Q -43 -581 249 -581 Q 540 -581 632 -296 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1999 1200 Q 1999 1200 1813 1460 Q 1627 1721 1328 1862 Q 1028 2003 864 1725 Q 700 1446 628 1165 Q 555 884 808 710 Q 1061 537 1383 559 Q 1705 581 1852 891 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1337 Q 540 1263 1120 1337 L 1120 1960 L -40 1960 Z" fill="#3a2a12" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Six strings, four chords</text>
+</svg>

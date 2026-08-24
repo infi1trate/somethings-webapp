@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Nothing yet">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(112 .5 .5)">
+      <stop offset="0" stop-color="#ffb200"/>
+      <stop offset="1" stop-color="#ff6f9c"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#3a2a12" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3a2a12" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="73"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 818 -232 Q 818 -232 613 1 Q 408 235 151 310 Q -105 386 -270 190 Q -435 -5 -455 -242 Q -475 -478 -281 -624 Q -87 -769 148 -718 Q 383 -667 600 -449 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1716 478 Q 1716 478 1641 710 Q 1567 943 1327 950 Q 1087 957 902 833 Q 717 709 629 436 Q 541 163 790 -23 Q 1039 -209 1375 -188 Q 1710 -166 1713 156 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 879 -99 Q 879 -99 840 253 Q 801 606 463 502 Q 125 398 -183 325 Q -491 252 -428 -69 Q -364 -390 -128 -529 Q 109 -668 384 -647 Q 660 -627 769 -363 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1656 202 Q 1656 202 1572 400 Q 1487 598 1261 701 Q 1035 803 853 623 Q 671 444 664 199 Q 658 -45 845 -226 Q 1033 -406 1295 -343 Q 1557 -280 1606 -39 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1147 62 Q 1147 62 994 202 Q 840 342 686 390 Q 531 439 355 356 Q 178 273 206 75 Q 235 -122 360 -318 Q 486 -514 689 -399 Q 893 -284 1020 -111 Z" fill="#3a2a12" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1311 Q 540 1196 1120 1311 L 1120 1960 L -40 1960 Z" fill="#3a2a12" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Nothing yet</text>
+</svg>

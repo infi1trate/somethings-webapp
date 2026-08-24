@@ -19,6 +19,11 @@ export interface ProfileSection {
   /** Labeled group inside the Profile tab (§4 rev): "match-card" = the match
    *  card the teen swipes; "chat" = what teens see inside the chat itself. */
   group?: "match-card" | "chat";
+  /** Who curates this field. Defaults to the mentor — this is their profile.
+   *  "staff" means a lead mentor or supervisor owns it and the MENTOR NEVER
+   *  SEES IT: the section is absent from their own tab, not read-only there.
+   *  Read `mentorSectionsForTab` for the filtered list. */
+  managedBy?: "mentor" | "staff";
   /** Compact read-only summary of the current value, for the review list. */
   summary: (draft: MentorDraft) => string;
 }
@@ -135,18 +140,48 @@ export const PROFILE_SECTIONS: ProfileSection[] = [
     fieldKey: "stories",
     label: "Story", // §4 rev: the First moments tab provides the context
     tab: "first-moments",
+    // STAFF-MANAGED: this section stays in the registry (the record renders it,
+    // and change-request mapping still resolves the slug) but is filtered OUT
+    // of the mentor's own First moments tab. Declared rather than filtered by
+    // slug at the call site, so the reason travels with the section.
+    managedBy: "staff",
     summary: (d) => {
       const n = firstMomentStory(d.stories).slides.length;
-      return n ? `${n} of 6 slides` : EMPTY;
+      return n ? `${n} of 3 images` : EMPTY;
     },
   },
 ];
 
-/** Sections hosted by one settings tab — each tab's editor + CTA scope. */
+/** Everything the MENTOR curates — the full registry minus staff-owned fields.
+ *  This is the reviewable set: a lead's review asks a mentor to fix things, and
+ *  a change request against a field they cannot see or open is a task with no
+ *  way to complete it. */
+export const MENTOR_MANAGED_SECTIONS: ProfileSection[] =
+  PROFILE_SECTIONS.filter((s) => s.managedBy !== "staff");
+
+/** Draft keys a mentor neither edits nor sees. Today: `stories`. */
+export const STAFF_MANAGED_FIELD_KEYS: ReadonlySet<string> = new Set(
+  PROFILE_SECTIONS.filter((s) => s.managedBy === "staff").map((s) => s.fieldKey)
+);
+
+/** Sections hosted by one settings tab — each tab's editor + CTA scope. This is
+ *  the FULL list: the record renders it, and change-request mapping needs every
+ *  slug. Mentor-facing surfaces want `mentorSectionsForTab`. */
 export function sectionsForTab(
   tab: ProfileSection["tab"]
 ): ProfileSection[] {
   return PROFILE_SECTIONS.filter((s) => s.tab === tab);
+}
+
+/** The same list minus anything staff-curated — what the MENTOR sees on their
+ *  own settings tab. Today that drops exactly one section, the first-moment
+ *  story: a lead or supervisor picks those images, and a mentor doesn't see
+ *  their own. Rendering it read-only instead would advertise content they have
+ *  no business reading. */
+export function mentorSectionsForTab(
+  tab: ProfileSection["tab"]
+): ProfileSection[] {
+  return MENTOR_MANAGED_SECTIONS.filter((s) => s.tab === tab);
 }
 
 // Media's in-memory blob `url` is volatile (dead after reload), so compare it on

@@ -14,10 +14,25 @@ import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { firstMomentStory } from "@/lib/types";
 import type { MentorDraft } from "@/lib/types";
 
-export function FirstChatPreview({ draft }: { draft: MentorDraft }) {
+export function FirstChatPreview({
+  draft,
+  showStory = true,
+}: {
+  draft: MentorDraft;
+  /** The story attachment is part of the real first chat, so it shows by
+   *  default. The MENTOR'S OWN view passes false: a lead or supervisor curates
+   *  their story and the mentor doesn't see it — including reflected in a
+   *  preview of their own chat. */
+  showStory?: boolean;
+}) {
   const messages = draft.firstMessages.online;
-  const story = firstMomentStory(draft.stories);
+  const story = showStory
+    ? firstMomentStory(draft.stories)
+    : { slides: [] as never[] };
   const name = draft.displayName || draft.firstName || "Your mentor";
+  // Emptiness is measured against what this preview SHOWS. Measured against the
+  // draft, a mentor with a story and no messages would drop out of the skeleton
+  // branch into a thread with nothing in it.
   const empty = messages.length === 0 && story.slides.length === 0;
 
   return (

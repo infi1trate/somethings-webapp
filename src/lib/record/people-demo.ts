@@ -13,7 +13,7 @@
 // never its content; numbers describe how mentoring is going, never grade the
 // person.
 
-import type { MentorLifecycleStatus } from "@/lib/types";
+import type { MentorLifecycleStatus, Story } from "@/lib/types";
 import {
   WEEKDAYS,
   type DaySchedule,
@@ -201,11 +201,23 @@ export const DEMO_PEOPLE: DemoMentorRow[] = [...DEMO_MENTORS, ...DEMO_STAFF];
 // TODO-DATA. Field names MIRROR MentorDraft so a fixture mentor's record reads
 // identically to the store-backed one.
 //
-// TEXT ONLY, deliberately. The match-card photo, chat avatar, audio intro, vibe
-// board and story slides are all ASSET-backed on MentorDraft (data URLs the live
-// mentor actually uploaded). There are no real assets for demo people, and
-// inventing binary content would make the record lie about what's on file — so
-// those slots render as honest "Not on file" rows and stay read-only.
+// TEXT ONLY, with ONE EXCEPTION. The match-card photo, chat avatar, audio intro
+// and vibe board are ASSET-backed on MentorDraft (data URLs the live mentor
+// actually uploaded). There are no real assets for demo people, and inventing
+// binary content would make the record lie about what's on file — so those slots
+// render as honest "Not on file" rows and stay read-only.
+//
+// THE EXCEPTION IS THE STORY (user request: populate it for every active
+// mentor). It earns one because the story is the only asset field a MENTOR
+// doesn't own — a lead or supervisor curates it, so a staff reader needs
+// something to look at to judge the editor at all, and an empty state on every
+// record leaves that surface untestable.
+//
+// The panels under /public/stories are ILLUSTRATED, not photographic: soft
+// vertical gradient washes with the moment's name set on the image. That keeps
+// faith with the paragraph above — a generated photoreal face on a mentor's
+// profile would be exactly the lie we refuse elsewhere, while an obvious
+// illustration reads as prototype content at a glance. TODO-DATA.
 //
 // PROFILE COMPLETENESS TRACKS STATUS. This codebase derives "in-training" FROM
 // an incomplete profile (see the DemoMentorRow.status note), so the two
@@ -229,6 +241,28 @@ export interface PersonProfile {
   interests?: string[];
   /** Canned openers, split the way MentorDraft.firstMessages is. */
   firstMessages?: { online?: string[]; offline?: string[] };
+  /** The first-moment story — three vertical images a teen swipes on opening
+   *  the chat. Shaped as MentorDraft.stories (a collection) so the record reads
+   *  a fixture person and the live mentor through the same firstMomentStory()
+   *  helper. STAFF-CURATED: writes come from a lead or supervisor on the
+   *  record, never from the mentor. */
+  stories?: Story[];
+}
+
+/** One fixture story from three panel paths — spelling out the Story wrapper
+ *  four times taught nothing. Slide ids are stable so a staff reorder diffs
+ *  against the same entities instead of looking fully rewritten. */
+function story(mentorId: string): Story[] {
+  return [
+    {
+      id: `${mentorId}-first-moment`,
+      type: "first-moment",
+      slides: [1, 2, 3].map((n) => ({
+        id: `${mentorId}-slide-${n}`,
+        photo: `/stories/${mentorId}-${n}.svg`,
+      })),
+    },
+  ];
 }
 
 export const MENTOR_PROFILES: Record<string, PersonProfile> = {
@@ -254,6 +288,7 @@ export const MENTOR_PROFILES: Record<string, PersonProfile> = {
         "Just got your message — I'm away from my phone but I'll write back tonight.",
       ],
     },
+    stories: story("m2"),
   },
   m3: {
     displayName: "Dev",
@@ -269,6 +304,7 @@ export const MENTOR_PROFILES: Record<string, PersonProfile> = {
         "I'm offline right now but your message is safe with me. Back tomorrow morning.",
       ],
     },
+    stories: story("m3"),
   },
   m4: {
     displayName: "Aisha",
@@ -285,6 +321,7 @@ export const MENTOR_PROFILES: Record<string, PersonProfile> = {
         "I'm with my class right now. I'll get back to you this afternoon.",
       ],
     },
+    stories: story("m4"),
   },
   m5: {
     displayName: "Tomás",
@@ -298,6 +335,10 @@ export const MENTOR_PROFILES: Record<string, PersonProfile> = {
       ],
       offline: ["On a job site today. I'll write back this evening."],
     },
+    // PAUSED still gets a story. Paused is a break in an active mentorship, not
+    // an unfinished onboarding — Tomás was matched for 402 days. An empty story
+    // here would read as a gap in his file rather than as a pause.
+    stories: story("m5"),
   },
   // m6 — IN TRAINING: interests picked, bio not written yet.
   m6: {
@@ -320,6 +361,10 @@ export function profileCompleteness(id: string): {
   total: number;
 } {
   const p = profileFor(id);
+  // `stories` is NOT a slot. Completeness measures the MENTOR'S own onboarding
+  // progress — it's what explains the "in training" badge — and the story is
+  // curated by their lead. Counting staff work against a mentor's profile
+  // would let a lead's afternoon push someone's bar to full.
   const slots = [
     p.displayName,
     p.languages?.length,

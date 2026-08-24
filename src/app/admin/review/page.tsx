@@ -45,7 +45,11 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
 import { simulateReview } from "@/lib/mock-api";
-import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
+// MENTOR_MANAGED_SECTIONS, not PROFILE_SECTIONS: this screen's output is a
+// change request the MENTOR has to act on. The first-moment story is curated by
+// a lead or supervisor and the mentor can't see it, so flagging it would send
+// them a task with nothing to open — it is out of the reviewable set.
+import { MENTOR_MANAGED_SECTIONS } from "@/lib/onboarding/profile-sections";
 import { snapshotValue } from "@/lib/onboarding/change-requests";
 import type { ChangeRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -104,11 +108,11 @@ export default function AdminReviewPage({
   // A flagged row with no note yet — blocks submission (so a flagged row is
   // never silently dropped from the payload).
   const isIncomplete = (step: string) => isFlagged(step) && !hasNote(step);
-  const flaggedCount = PROFILE_SECTIONS.filter((s) => isFlagged(s.step)).length;
-  const hasIncomplete = PROFILE_SECTIONS.some((s) => isIncomplete(s.step));
+  const flaggedCount = MENTOR_MANAGED_SECTIONS.filter((s) => isFlagged(s.step)).length;
+  const hasIncomplete = MENTOR_MANAGED_SECTIONS.some((s) => isIncomplete(s.step));
   const canSubmit = flaggedCount > 0 && !hasIncomplete;
   const dirty =
-    !!generalComment.trim() || PROFILE_SECTIONS.some((s) => hasNote(s.step));
+    !!generalComment.trim() || MENTOR_MANAGED_SECTIONS.some((s) => hasNote(s.step));
 
   const toggleFlag = (step: string, next: boolean) => {
     setFlagged((f) => ({ ...f, [step]: next }));
@@ -155,7 +159,7 @@ export default function AdminReviewPage({
   const submitReject = async () => {
     // Guard (button is also disabled): needs ≥1 flagged row, each with a note.
     if (!canSubmit) {
-      const firstEmpty = PROFILE_SECTIONS.find((s) => isIncomplete(s.step));
+      const firstEmpty = MENTOR_MANAGED_SECTIONS.find((s) => isIncomplete(s.step));
       if (firstEmpty) {
         setTouched((t) => ({ ...t, [firstEmpty.step]: true }));
         document.getElementById(`note-${firstEmpty.step}`)?.focus();
@@ -165,7 +169,7 @@ export default function AdminReviewPage({
     // Payload: { decision, sectionFeedback: [{ sectionId, note }], generalComment }.
     // Persist per-section feedback as ChangeRequest[] (dock/revision UI), each
     // with a baseline snapshot of its field for the mentor's edit-detection.
-    const feedback = PROFILE_SECTIONS.filter(
+    const feedback = MENTOR_MANAGED_SECTIONS.filter(
       (s) => isFlagged(s.step) && hasNote(s.step)
     ).map((s) => ({ section: s, note: notes[s.step].trim() }));
     const requests: ChangeRequest[] = feedback.map(({ section, note }) => ({
@@ -230,7 +234,7 @@ export default function AdminReviewPage({
           {/* Field cards — read-only reference. In review mode each card carries
               its own "Needs change" toggle and, when flagged, an inline note. */}
           <div className="mt-6 space-y-3">
-            {PROFILE_SECTIONS.map((section) => {
+            {MENTOR_MANAGED_SECTIONS.map((section) => {
               const on = isFlagged(section.step);
               const showError = isIncomplete(section.step) && touched[section.step];
               return (

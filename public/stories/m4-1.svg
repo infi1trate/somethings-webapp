@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Tomatoes, finally">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(18 .5 .5)">
+      <stop offset="0" stop-color="#7bbf57"/>
+      <stop offset="1" stop-color="#ffb200"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#23301c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#23301c" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="107"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 1854 843 Q 1854 843 1653 1041 Q 1452 1240 1241 1274 Q 1029 1309 764 1229 Q 500 1149 519 852 Q 539 555 751 320 Q 963 85 1253 208 Q 1544 331 1699 587 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 313 498 Q 313 498 236 679 Q 159 860 -26 859 Q -211 859 -327 754 Q -443 649 -452 494 Q -461 338 -332 255 Q -204 171 -8 136 Q 188 101 250 300 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 2002 1185 Q 2002 1185 1862 1447 Q 1722 1709 1441 1764 Q 1159 1819 894 1665 Q 628 1511 590 1167 Q 552 823 865 730 Q 1179 638 1438 665 Q 1697 692 1850 939 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1827 649 Q 1827 649 1789 950 Q 1751 1251 1431 1302 Q 1111 1352 855 1163 Q 599 973 674 686 Q 749 398 947 249 Q 1145 99 1462 56 Q 1778 14 1802 332 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1426 432 Q 1426 432 1280 779 Q 1134 1126 765 1180 Q 397 1234 152 995 Q -92 755 8 480 Q 108 204 279 34 Q 450 -136 708 -94 Q 966 -53 1196 189 Z" fill="#23301c" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1404 Q 540 1306 1120 1404 L 1120 1960 L -40 1960 Z" fill="#23301c" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Tomatoes, finally</text>
+</svg>

@@ -19,7 +19,10 @@
 
 import type { MentorDraft, ProfileUpdate } from "@/lib/types";
 import { firstMomentStory } from "@/lib/types";
-import { PROFILE_SECTIONS } from "@/lib/onboarding/profile-sections";
+import {
+  PROFILE_SECTIONS,
+  STAFF_MANAGED_FIELD_KEYS,
+} from "@/lib/onboarding/profile-sections";
 
 export interface GatedFieldMeta {
   fieldId: keyof MentorDraft & string;
@@ -78,6 +81,27 @@ export function isGatedField(fieldId: string): boolean {
 
 export function gatedFieldMeta(fieldId: string): GatedFieldMeta | undefined {
   return GATED_FIELDS.find((f) => f.fieldId === fieldId);
+}
+
+/** Does this activity entry belong in the MENTOR'S feed?
+ *
+ *  `stories` publishes immediately, which logs a `profile_update_live` entry
+ *  reading "Your profile changes are live." — but the story is curated by a lead
+ *  or supervisor and the mentor cannot see it. Left alone, a lead swapping an
+ *  image notifies the mentor of a change they didn't make, and deep-links them
+ *  to a tab where nothing looks different.
+ *
+ *  The entry is NOT suppressed: the record's audit trail reads the same list,
+ *  and a staff edit to teen-facing content has to stay on the record. It is
+ *  filtered out of the mentor's two surfaces — the feed and the sidebar badge —
+ *  and only when EVERY field it names is staff-managed, so a save that touched
+ *  the messages too still reaches them. */
+export function isMentorVisibleActivity(item: {
+  type: string;
+  fieldIds: string[];
+}): boolean {
+  if (item.type !== "profile_update_live") return true;
+  return !item.fieldIds.every((f) => STAFF_MANAGED_FIELD_KEYS.has(f));
 }
 
 /** Compact human summary of a field VALUE (live or proposed) for diff cards

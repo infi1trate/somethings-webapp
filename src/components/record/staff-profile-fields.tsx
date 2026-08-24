@@ -18,22 +18,14 @@ import { PhotoField } from "@/components/profile-editor/photo-field";
 import { MediaIntroField } from "@/components/onboarding/media-intro-field";
 import { VibeBoardField } from "@/components/onboarding/vibe-board-field";
 import { InterestsDeckField } from "@/components/onboarding/interests-deck-field";
-import {
-  FirstMessagesEditor,
-  StorySlidesEditor,
-} from "@/components/profile-editor/matching-extensions";
+import { FirstMessagesEditor } from "@/components/profile-editor/matching-extensions";
 import { SpotifyChip } from "@/components/record/spotify-chip";
 import { InterestTags, PlainTags } from "@/components/record/interest-tags";
 import { auditLineFor } from "@/lib/record/account-fields";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { saveAccountField } from "@/lib/mock-api";
 import { LANGUAGE_OPTIONS, PRONOUN_OPTIONS } from "@/lib/options";
-import {
-  firstMomentStory,
-  type ActivityItem,
-  type MentorDraft,
-  type StorySlide,
-} from "@/lib/types";
+import type { ActivityItem, MentorDraft } from "@/lib/types";
 import type { ProfileSection } from "@/lib/onboarding/profile-sections";
 
 /** Persistence seam — mirrors the Account tab's staffSave, but writes the
@@ -253,22 +245,9 @@ function FieldRow({
           onSave={staffSave("firstMessages")}
         />
       );
-    case "stories":
-      // The editor works on the first-moment story's slides; the write wraps
-      // them back into the stories[] array (library-ready shape).
-      return (
-        <StaffFieldRow<StorySlide[]>
-          {...common}
-          value={firstMomentStory(live.stories).slides}
-          display={() => s.summary(live)}
-          editor={(p, set) => <StorySlidesEditor value={p} onChange={set} />}
-          onSave={(slides) => {
-            const story = firstMomentStory(live.stories);
-            const rest = live.stories.filter((x) => x.type !== "first-moment");
-            return staffSave("stories")([...rest, { ...story, slides }]);
-          }}
-        />
-      );
+    // NO `case "stories"`. It was unreachable: this component only ever renders
+    // sectionsForTab("profile"), and the story lives on the first-moments tab —
+    // whose rows come from FirstMomentsRows, which owns the one story editor.
     default:
       return (
         <StaffFieldRow<string>

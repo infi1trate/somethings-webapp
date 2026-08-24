@@ -173,9 +173,11 @@ export default function MentorSelfRecord({
 
         {tab === "first-moments" && (
           <div>
+            {/* TODO-COPY. Dropped "then your story": the story is curated by a
+                lead mentor or supervisor and the mentor doesn't see it, so
+                naming it here would advertise content this tab can't open. */}
             <p className={INTRO}>
-              What teens get the first time they open your chat — your first
-              messages, then your story.
+              What teens get the first time they open your chat.
             </p>
             <div className="mt-6">
               <FirstMomentsEditor />

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Sketchbook, page 40">
+  <defs>
+    <linearGradient id="w" gradientTransform="rotate(65 .5 .5)">
+      <stop offset="0" stop-color="#7b7ff0"/>
+      <stop offset="1" stop-color="#34c3d9"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#1e2140" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1e2140" stop-opacity="0.68"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="112"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#w)"/>
+    <path d="M 1357 780 Q 1357 780 1346 1023 Q 1334 1267 1070 1334 Q 805 1401 657 1195 Q 510 990 417 735 Q 323 480 567 333 Q 811 186 1025 299 Q 1239 412 1298 596 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1349 -180 Q 1349 -180 1154 28 Q 960 237 717 361 Q 475 485 251 296 Q 28 108 76 -158 Q 123 -423 314 -569 Q 504 -716 749 -678 Q 993 -640 1171 -410 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 1884 1327 Q 1884 1327 1844 1625 Q 1805 1924 1481 2001 Q 1157 2079 938 1850 Q 719 1621 730 1332 Q 740 1044 957 848 Q 1175 652 1498 681 Q 1822 709 1853 1018 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M 1121 -251 Q 1121 -251 1088 -55 Q 1055 141 851 158 Q 646 175 474 68 Q 303 -39 341 -232 Q 379 -426 525 -498 Q 670 -570 833 -569 Q 997 -569 1059 -410 Z" fill="#ffffff" opacity="0.2" filter="url(#soft)"/>
+  <path d="M 794 -233 Q 794 -233 654 17 Q 513 267 257 266 Q 1 264 -129 105 Q -259 -53 -344 -274 Q -429 -495 -213 -609 Q 3 -723 204 -660 Q 405 -598 600 -415 Z" fill="#1e2140" opacity="0.09" filter="url(#soft)"/>
+  <path d="M-40 1419 Q 540 1308 1120 1419 L 1120 1960 L -40 1960 Z" fill="#1e2140" opacity="0.10" filter="url(#soft)"/>
+  <rect width="1080" height="1920" filter="url(#grain)" opacity="0.16" style="mix-blend-mode:overlay"/>
+  <rect width="1080" height="1920" fill="url(#scrim)"/>
+  <text x="72" y="1788" fill="#ffffff" font-size="66" font-weight="600"
+        font-family="ui-sans-serif, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        letter-spacing="-1">Sketchbook, page 40</text>
+</svg>
