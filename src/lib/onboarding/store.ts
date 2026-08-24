@@ -29,7 +29,7 @@ import type {
   CareUpdateRecord,
 } from "@/lib/record/care-demo";
 import type { RelationshipEvent } from "@/lib/record/relationships";
-import { emptyGuardian } from "@/lib/record/guardian";
+import { guardianFor } from "@/lib/record/guardian";
 import type { AccountLock, GuardianDetails } from "@/lib/record/guardian";
 import {
   PROFILE_SECTIONS,
@@ -747,8 +747,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           guardians: {
             ...state.guardians,
-            // Merged, so setting the phone doesn't wipe the consent above it.
-            [teenId]: { ...emptyGuardian(), ...state.guardians[teenId], ...patch },
+            // Seeded from the FIXTURE, not from empty: every teen has a
+            // guardian on file, so a first edit to one field must not blank the
+            // other four. Merged on top of any earlier staff edit.
+            [teenId]: { ...guardianFor(teenId), ...state.guardians[teenId], ...patch },
           },
         })),
       setAccountLock: (personId, lock) =>

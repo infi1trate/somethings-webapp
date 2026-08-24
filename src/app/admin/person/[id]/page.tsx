@@ -47,7 +47,7 @@ import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
 import { currentMenteesOf } from "@/lib/record/relationships";
 import { defaultMenteeStatus } from "@/lib/record/people-demo";
 import { GuardianDetailsSection } from "@/components/record/guardian-details";
-import { emptyGuardian } from "@/lib/record/guardian";
+import { guardianFor } from "@/lib/record/guardian";
 import { resolveMode } from "@/lib/record/permission-map";
 
 /** TODO-COPY — a teen's platform standing, sentence case. */
@@ -300,7 +300,9 @@ function PersonAccount({
   const persona = useOnboardingStore((s) => s.persona);
   const guardians = useOnboardingStore((s) => s.guardians);
   const setGuardian = useOnboardingStore((s) => s.setGuardian);
-  const guardian = guardians[subject.id] ?? emptyGuardian();
+  // Store override wins; the fixture is the baseline. Same sparse-override
+  // shape as mentorStatuses / menteeStatus / personProfiles.
+  const guardian = guardians[subject.id] ?? guardianFor(subject.id);
   // Same tier that owns standing owns the consent record.
   const canEditAccount = resolveMode("accountOrg", persona) === "edit";
 

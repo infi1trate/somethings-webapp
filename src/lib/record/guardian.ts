@@ -79,3 +79,84 @@ export interface AccountLock {
    *  but the block has to keep naming what it covers. */
   blocked: { email?: string; phone?: string };
 }
+
+// ─── FIXTURES ───────────────────────────────────────────────────────────────
+//
+// EVERY TEEN HAS A GUARDIAN ON FILE. A minor doesn't reach this platform without
+// a parent entering their details, so an empty Parent details card is not a state
+// the product really has — it was only ever the state of a prototype with no
+// fixture behind it. These fill it.
+//
+// The BASELINE, not an override: `guardianFor` is read as
+// `store.guardians[id] ?? guardianFor(id)`, the same sparse-override shape
+// `mentorStatuses`, `menteeStatus` and `personProfiles` use. Staff edits win;
+// the fixture is what a record looks like before anyone touches it, and a dev
+// reset returns to it rather than to blanks.
+//
+// TODO-DATA: invented. `@example.com` is the reserved documentation domain and
+// the 555 exchange is the reserved fictional range — mock PII should be
+// unmistakably mock, never a plausible real address or number.
+//
+// CONSENT VARIES ON PURPOSE. Most are granted, because that is the ordinary
+// case. Three are not, so the states that change the UI stay reachable without
+// anyone having to hand-edit the store:
+//   t1  unknown   — joined yesterday; details entered, consent still pending
+//   t6  declined  — with a reason, which is the only state where the reason
+//                   field is editable
+//   t16 withdrawn — a consent that existed and was taken back
+
+const G = (
+  name: string,
+  phone: string,
+  email: string,
+  consent: ConsentStatus = "granted",
+  optOutReason = ""
+): GuardianDetails => ({ name, phone, email, consent, optOutReason });
+
+const GUARDIANS: Record<string, GuardianDetails> = {
+  t1: G("Gina Casparro", "+19845550118", "gina.casparro@example.com", "unknown"),
+  t2: G("Denise Johnson", "+19085550241", "denise.johnson@example.com"),
+  t3: G("Robert Hashing", "+19845550336", "robert.hashing@example.com"),
+  t4: G("Susan Kneeland", "+12155550472", "susan.kneeland@example.com"),
+  t5: G("Angela Lee", "+13125550519", "angela.lee@example.com"),
+  t6: G(
+    "Elena Ramos",
+    "+19735550604",
+    "elena.ramos@example.com",
+    "declined",
+    "Wants to see how the first few months go before agreeing to updates."
+  ),
+  t7: G("Grace Park", "+19845550788", "grace.park@example.com"),
+  t8: G("Michael Bennett", "+19085550855", "michael.bennett@example.com"),
+  t9: G("Katie Foster", "+19735550923", "katie.foster@example.com"),
+  t10: G("Denise Mitchell", "+13125551047", "denise.mitchell@example.com"),
+  t11: G("Carmen Diaz", "+19085551130", "carmen.diaz@example.com"),
+  t12: G("Wei Chen", "+13125551286", "wei.chen@example.com"),
+  t13: G("Marcia Tate", "+19845551344", "marcia.tate@example.com"),
+  t14: G("Yusuf Karim", "+13125551408", "yusuf.karim@example.com"),
+  t15: G("Dana Moss", "+19845551572", "dana.moss@example.com"),
+  t16: G(
+    "Irina Petrova",
+    "+19735551639",
+    "irina.petrova@example.com",
+    "withdrawn",
+    "Asked us to stop contacting her after the account was closed."
+  ),
+  t17: G("Alicia Reed", "+19845551703", "alicia.reed@example.com"),
+  t18: G("Miguel Ortiz", "+19845551866", "miguel.ortiz@example.com"),
+  t19: G("Fatou Ba", "+19845551942", "fatou.ba@example.com"),
+  t20: G("Anna Lindqvist", "+19845552015", "anna.lindqvist@example.com"),
+  t21: G("Yvonne Clarke", "+19845552183", "yvonne.clarke@example.com"),
+  t22: G("Priya Menon", "+19845552264", "priya.menon@example.com"),
+  t23: G("Rosa Duarte", "+19845552350", "rosa.duarte@example.com"),
+  t24: G("Peter Whitfield", "+19845552477", "peter.whitfield@example.com"),
+  t25: G("Haruko Tanaka", "+19845552519", "haruko.tanaka@example.com"),
+  t26: G("Lucia Vega", "+19845552688", "lucia.vega@example.com"),
+};
+
+/** The guardian record on file for a teen, before any staff edit. Returns an
+ *  empty record for anyone with no fixture — a brand-new teen still has to be
+ *  renderable, and that path is what the empty state is for. */
+export function guardianFor(teenId: string): GuardianDetails {
+  return GUARDIANS[teenId] ?? emptyGuardian();
+}
