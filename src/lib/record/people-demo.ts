@@ -125,8 +125,23 @@ export interface DemoTeen {
    *  copy and whether it flags — see menteeRecency. */
   menteeLastSentDaysAgo?: number;
   /** Genuine escalation record only (critical family). The waiting-on-mentor
-   *  state is DERIVED from the two stamps above, never stored. */
+   *  state is DERIVED from the two stamps above, never stored.
+   *
+   *  LEGACY SHAPE, still the source for the mentee table's row chip and the
+   *  45-day staleness rule (`escalationVisible`). The Care page reads `careFlags`
+   *  instead, and synthesises an entry from this field for a teen that has one
+   *  and no `careFlags` — so Care has one code path and no escalation renders
+   *  twice. */
   escalation?: { reason: string; daysAgo: number };
+  /** CARE FLAGS — escalations and risk flags as first-class records.
+   *
+   *  Added because neither existed as a record: the whole schema was
+   *  `{reason, daysAgo}` with no severity, no open/resolved state, no raiser and
+   *  no resolver, and `risk_flag` was a member of the timeline's type union that
+   *  had never once been instantiated. The Care task region orders by severity
+   *  and History reports a resolution state; neither was derivable.
+   *  TODO-DATA: every value invented. */
+  careFlags?: CareFlagRecord[];
   /** Video calls in the last 30 days — a care signal, not an absence metric. */
   videoCount30d?: number;
   /** Mentors this teen was matched with before their current one. */
@@ -506,6 +521,22 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "New Jersey", active: true, menteeState: "paused", joinedDaysAgo: 25, mentorId: "m2",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
+    careFlags: [
+      {
+        id: "cf-t6-1",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Asked to pause while exams were on",
+        raisedBy: "Maria Lopez",
+        raisedByRole: "Mentor",
+        daysAgo: 14,
+        resolvedDaysAgo: 12,
+        resolvedBy: "Brandy Forrestor",
+        resolvedByRole: "Lead mentor",
+        resolutionNote:
+          "Agreed a four-week pause with the teen and their parent. Nothing else outstanding.",
+      },
+    ],
   },
   {
     id: "t7", name: "Ethan Park", pronouns: "he/him", phone: "+17078893390",
@@ -555,6 +586,17 @@ export const DEMO_TEENS: DemoTeen[] = [
     matchedDaysAgo: 118, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
     pastMentors: [{ mentorId: "m5", range: "Feb 2025 – Apr 2025" }],
+    careFlags: [
+      {
+        id: "cf-t13-1",
+        kind: "escalation",
+        severity: "critical",
+        reason: "Said they had stopped sleeping and had not eaten since Friday",
+        raisedBy: "Brandon Forant",
+        raisedByRole: "Mentor",
+        daysAgo: 2,
+      },
+    ],
   },
   {
     id: "t14", name: "Sam Karim", pronouns: "he/him", phone: "+13125550788",
@@ -579,6 +621,31 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "North Carolina", active: true, joinedDaysAgo: 210, mentorId: "live",
     matchedDaysAgo: 196, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 0,
+    careFlags: [
+      {
+        id: "cf-t17-1",
+        kind: "escalation",
+        severity: "critical",
+        reason: "Told their mentor a family member had been hospitalised",
+        raisedBy: "Brandon Forant",
+        raisedByRole: "Mentor",
+        daysAgo: 40,
+        resolvedDaysAgo: 38,
+        resolvedBy: "Dr. Amara Patel",
+        resolvedByRole: "Supervisor",
+        resolutionNote:
+          "Spoke with the teen and their parent the same evening. Immediate support was in place and the mentorship carried on without a pause.",
+      },
+      {
+        id: "cf-t17-2",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Missed three scheduled calls in a row",
+        raisedBy: "Brandy Forrestor",
+        raisedByRole: "Lead mentor",
+        daysAgo: 6,
+      },
+    ],
   },
   {
     id: "t18", name: "Caleb Ortiz", pronouns: "he/him", phone: "+19089107001",
@@ -603,12 +670,39 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "North Carolina", active: true, joinedDaysAgo: 151, mentorId: "live",
     matchedDaysAgo: 140, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 1,
     videoCount30d: 1,
+    careFlags: [
+      {
+        id: "cf-t21-1",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Mentioned a change of school with two weeks' notice",
+        raisedBy: "Brandon Forant",
+        raisedByRole: "Mentor",
+        daysAgo: 9,
+      },
+    ],
   },
   {
     id: "t22", name: "Ravi Menon", pronouns: "he/him", phone: "+19089107005",
     group: "North Carolina", active: false, joinedDaysAgo: 143, mentorId: "live",
     matchedDaysAgo: 128, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 2,
+    careFlags: [
+      {
+        id: "cf-t22-1",
+        kind: "escalation",
+        severity: "critical",
+        reason: "Said a fight at home had made it hard to be on calls",
+        raisedBy: "Brandon Forant",
+        raisedByRole: "Mentor",
+        daysAgo: 96,
+        resolvedDaysAgo: 94,
+        resolvedBy: "Omar Haddad",
+        resolvedByRole: "Supervisor",
+        resolutionNote:
+          "Checked in with the parent, agreed a different call time, and the calls resumed the following week.",
+      },
+    ],
   },
   {
     id: "t23", name: "Elena Duarte", pronouns: "she/her", phone: "+19089107006",
@@ -706,6 +800,58 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
 
 /** A teen's default match standing, before any staff override. The fixtures
  *  carry a boolean, so they can only express two of the three states. */
+/** An escalation or a risk flag, as a record rather than a sentence.
+ *
+ *  VOCABULARY LAW: `reason` names the OBSERVABLE CAUSE — what someone saw, or
+ *  what a teen said had happened — never a forecast, and never the content of a
+ *  message. "Said they had stopped sleeping", not "at risk of disengaging".
+ *
+ *  RESOLUTION IS THE ABSENCE OF A FIELD. `resolvedDaysAgo === undefined` means
+ *  OPEN, so an unresolved flag cannot be produced by forgetting to set a state —
+ *  the open case is the one carrying LESS data, which is how it actually
+ *  arrives. */
+export interface CareFlagRecord {
+  id: string;
+  kind: "escalation" | "risk_flag";
+  /** Escalations run critical, risk flags warning. Kept separate from `kind`
+   *  because severity is what the task region SORTS on, and a future kind
+   *  should not have to imply its own severity. */
+  severity: "critical" | "warning";
+  reason: string;
+  raisedBy: string;
+  raisedByRole: string;
+  daysAgo: number;
+  /** Absent = OPEN. */
+  resolvedDaysAgo?: number;
+  resolvedBy?: string;
+  resolvedByRole?: string;
+  resolutionNote?: string;
+}
+
+/** Every flag on a teen, newest first. Falls back to the legacy `escalation`
+ *  field so a teen that predates `careFlags` still reports one — with the raiser
+ *  named honestly as unknown rather than invented. */
+export function careFlagsFor(teen: DemoTeen): CareFlagRecord[] {
+  const flags = teen.careFlags?.length
+    ? teen.careFlags
+    : teen.escalation
+      ? [
+          {
+            id: `cf-${teen.id}-legacy`,
+            kind: "escalation" as const,
+            severity: "critical" as const,
+            reason: teen.escalation.reason,
+            // The legacy shape records no raiser. Saying "a mentor" is true of
+            // every escalation in this product; inventing a name would not be.
+            raisedBy: "A mentor",
+            raisedByRole: "Mentor",
+            daysAgo: teen.escalation.daysAgo,
+          },
+        ]
+      : [];
+  return [...flags].sort((a, b) => a.daysAgo - b.daysAgo);
+}
+
 export function defaultMenteeStatus(
   t: DemoTeen
 ): "active" | "paused" | "deactivated" {

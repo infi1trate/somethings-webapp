@@ -19,7 +19,12 @@
 // OBSERVABLE CAUSE ("said they'd stopped sleeping"), never a forecast. Events
 // record that something happened, never the content of a teen's messages.
 
-import { DEMO_TEENS, defaultMenteeStatus } from "@/lib/record/people-demo";
+import {
+  careFlagsFor,
+  DEMO_TEENS,
+  defaultMenteeStatus,
+  type CareFlagRecord,
+} from "@/lib/record/people-demo";
 import { statementForCode } from "@/lib/record/dsm5";
 
 /** Event classes, v1. Ordered roughly by how often a reader is looking for them.
@@ -1012,20 +1017,50 @@ function decisionToEvent(d: CareReviewDecision): CareEvent {
  *  teen wrote. Kept verbatim rather than rewritten: it is pre-existing copy that
  *  already renders on the mentee row, and diverging here would put two different
  *  sentences on one event. The rewrite is a copy decision, not a code one. */
-function escalationEventFor(teenId: string, now: number): CareEvent[] {
+/** Escalations AND risk flags, from the flag records. Was escalation-only, with
+ *  a hardcoded `result: "Supervisor looped in"` and a `system` author — so the
+ *  record never said who raised it and could not say whether it was still open.
+ *  Both now come off the record itself. */
+function flagEventsFor(teenId: string, now: number): CareEvent[] {
   const teen = DEMO_TEENS.find((t) => t.id === teenId);
-  if (!teen?.escalation) return [];
-  return [
-    {
-      id: `ce-esc-${teenId}`,
-      occurredAt: ago(now, teen.escalation.daysAgo),
-      type: "escalation",
-      description: teen.escalation.reason,
-      result: "Supervisor looped in",
-      author: { kind: "system" },
-      visibility: "all_staff",
-    },
-  ];
+  if (!teen) return [];
+  return careFlagsFor(teen).map((f) => ({
+    id: `ce-flag-${f.id}`,
+    occurredAt: ago(now, f.daysAgo),
+    type: f.kind,
+    // WHAT WAS RAISED, never the content of a message.
+    description: f.reason,
+    // The RESULT column carries the resolution state — see flagResultLabel.
+    result: flagResultLabel(f),
+    author: { kind: "person", name: f.raisedBy, role: f.raisedByRole },
+    visibility: "all_staff",
+    providerNote: f.resolutionNote,
+  }));
+}
+
+/** "Resolved · 48h" / "Open" (Prompt C Phase 4). The duration is how long it
+ *  stayed open, which is the one number a supervisor reviewing flag handling
+ *  actually wants — and it is a SPAN, so it keeps the elapsed form. */
+export function flagResultLabel(f: CareFlagRecord): string {
+  if (f.resolvedDaysAgo === undefined) return "Open"; // TODO-COPY
+  const days = f.daysAgo - f.resolvedDaysAgo;
+  // TODO-COPY. Under a day reads in hours: an escalation closed the same evening
+  // should not round to "0 days".
+  const span =
+    days <= 0 ? "same day" : days === 1 ? "24h" : days < 3 ? `${days * 24}h` : `${days} days`;
+  return `Resolved · ${span}`;
+}
+
+/** Open flags only, severity descending then newest first — the task region's
+ *  input. Resolved flags live in History and nowhere else: the region is the
+ *  WORK, and work that is done is not work. */
+export function openFlagsFor(teenId: string): CareFlagRecord[] {
+  const teen = DEMO_TEENS.find((t) => t.id === teenId);
+  if (!teen) return [];
+  const rank = { critical: 0, warning: 1 } as const;
+  return careFlagsFor(teen)
+    .filter((f) => f.resolvedDaysAgo === undefined)
+    .sort((a, b) => rank[a.severity] - rank[b.severity] || a.daysAgo - b.daysAgo);
 }
 
 /** Everything the store contributes to a teen's record. One options object
@@ -1051,7 +1086,7 @@ export function careTimelineFor(
     ...fixtureTimelineFor(teenId, now),
     ...profileTimelineFor(teenId, now),
     ...pendingDemoTimeline(teenId, now),
-    ...escalationEventFor(teenId, now),
+    ...flagEventsFor(teenId, now),
     ...(store.decisions ?? [])
       .filter((d) => d.teenId === teenId)
       .map(decisionToEvent),
@@ -1126,7 +1161,7 @@ export interface CareCadence {
 }
 
 /** The action slot's payload. Generic slot, specific consumer — see
- *  care-action-slot.tsx for why the shell knows nothing about presentations. */
+ *  care-task-region.tsx for how the region orders more than one open task. */
 export interface PresentationReview {
   id: string;
   stage: CadenceStage;
@@ -1150,6 +1185,14 @@ export interface PresentationReview {
 }
 
 /** TODO-COPY */
+/** TODO-COPY.
+ *
+ *  "mentorship signal" IS FORWARD-LOOKING, BY DECISION. Nothing in this codebase
+ *  computes one — which is exactly why AI_SUMMARY_LIMITATION was narrowed to
+ *  "survey history" alone. This label keeps the wider wording on the user's
+ *  explicit call ("keep verbatim — we will build the signal later"), so it is a
+ *  known and accepted overstatement rather than an oversight. Do not narrow it
+ *  without asking; do widen the inputs when the signal lands. */
 export const RATIONALE_SOURCE_LABEL: Record<
   PresentationReview["rationale"]["source"],
   string

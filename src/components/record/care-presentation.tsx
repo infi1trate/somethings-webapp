@@ -6,7 +6,7 @@
 // ONE card (care-summary.tsx), so the four components that used to live here —
 // PresentationCard, PresentationReference, CadenceCard, PresentationSpine — are
 // gone. What remains is what other surfaces import: the clinical date formatter
-// (care-action-slot, care-update-compose, care-summary, care-ai-summary) and the
+// (care-review-card, care-update-compose, care-summary, care-ai-summary) and the
 // statement/code pair.
 //
 // CLINICAL DATES ARE EXPLICIT DATES. The elapsed-time standard ("3d", "2 weeks")

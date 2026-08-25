@@ -45,7 +45,10 @@ import { useRef, useState } from "react";
 import { CareTimeline } from "@/components/record/care-timeline";
 import { CareSummaryCard } from "@/components/record/care-summary";
 import { AiSummaryCard } from "@/components/record/care-ai-summary";
-import { PresentationReviewAction } from "@/components/record/care-action-slot";
+import {
+  CareTaskRegion,
+  careTasksFor,
+} from "@/components/record/care-task-region";
 import {
   CareUpdateByline,
   CareUpdateBodyView,
@@ -120,10 +123,13 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const summary = careAiSummaryFor(teen.id, now, store);
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
-  // Read-wide/act-narrow enforced at the SOURCE: a pending review is only ever
-  // fetched for the tier that can decide it, so there is no path by which a
-  // mentor renders an empty or disabled version of the slot.
-  const fixtureReview = canAct ? pendingReviewFor(teen.id, now, store) : null;
+  // READ-WIDE. This used to be `canAct ? pendingReviewFor(...) : null`, which
+  // enforced act-narrow by BREAKING read-wide: a lead mentor reading a record
+  // could not see that a review was outstanding on it. The review is fetched for
+  // every tier now, and the gate moved to the card — which renders its evidence
+  // for everyone and its provider note and actions only for a viewer who is
+  // handed the callbacks.
+  const fixtureReview = pendingReviewFor(teen.id, now, store);
   // A code picked from resting mode becomes a review with the SAME shape, so it
   // travels the same approve-with-note path rather than a shortcut around it.
   const review =
@@ -199,25 +205,31 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }
         />
 
-        {/* 2 · TASK REGION. Renders NOTHING when no task is open — absence is
-            the reward state, and there is no "all caught up" card. Prompt B
-            generalises this to escalations and risk flags; today the
-            presentation review is its only consumer. */}
-        {review && (
-          <PresentationReviewAction
-            review={review}
-            currentCode={presentation?.code ?? null}
-            actor={staffName}
-            actorRole={staffActorFor(persona)}
-            onChangeRequest={() => openDialog(setSearching)}
-            onApprove={(d) => {
-              approveCareReview({ ...d, teenId: teen.id });
-              setProposed(null);
-              // TODO-COPY
-              toast("Approved. The decision is on the record.");
-            }}
-          />
-        )}
+        {/* 2 · TASK REGION. Zero or more open tasks, severity descending;
+            renders NOTHING when none are open — absence is the reward state,
+            and there is no "all caught up" card. Ordering lives in
+            careTasksFor, with the data, not in this JSX. */}
+        <CareTaskRegion
+          tasks={careTasksFor(teen.id, review)}
+          reviewProps={{
+            currentCode: presentation?.code ?? null,
+            actor: staffName,
+            actorRole: staffActorFor(persona),
+            // ABSENT below supervisor tier — not disabled. Passing undefined
+            // is how the card renders no provider note and no action row.
+            onChangeRequest: canAct
+              ? () => openDialog(setSearching)
+              : undefined,
+            onApprove: canAct
+              ? (d) => {
+                  approveCareReview({ ...d, teenId: teen.id });
+                  setProposed(null);
+                  // TODO-COPY
+                  toast("Approved. The decision is on the record.");
+                }
+              : undefined,
+          }}
+        />
 
         {/* 3 · AI SUMMARY — decision support, typographically subordinate to
             the human clinical text below it. */}

@@ -41,6 +41,7 @@ import {
   type CarePresentation,
 } from "@/lib/record/care-demo";
 import { clinicalDate, Statement } from "@/components/record/care-presentation";
+import { ScoreChip } from "@/components/record/score-chip";
 import {
   currentMentorId,
   daysInMentorship,
@@ -255,13 +256,13 @@ export function CareSummaryCard({
             }
           >
             {cadence.lastAssessment ? (
-              // "11 · Moderate" — the brief's chip format capitalises the band
-              // name; the timeline's prose row keeps it lower case ("11 —
-              // moderate"). Prompt B factors this into one shared score chip.
-              `${cadence.lastAssessment.score} · ${
-                cadence.lastAssessment.severity.charAt(0).toUpperCase() +
-                cadence.lastAssessment.severity.slice(1)
-              }`
+              // THE SHARED CHIP (Prompt B Phase 2): one component across this
+              // cell, the review card's survey evidence and History's Result
+              // column, so a score never reads two ways on one page.
+              <ScoreChip
+                score={cadence.lastAssessment.score}
+                severity={cadence.lastAssessment.severity}
+              />
             ) : (
               <span className="text-[var(--text-muted)]">None yet</span>
             )}
