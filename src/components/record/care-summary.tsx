@@ -48,13 +48,19 @@ import {
   SPARKLINE_MIN_POINTS,
 } from "@/components/record/score-sparkline";
 import { RecordButton } from "@/components/record/record-button";
+import { RecordAvatar } from "@/components/record/record-avatar";
 import {
   currentMentorId,
   daysInMentorship,
+  endedMatchDateFor,
   formatDaysInMentorship,
   type RelationshipSlice,
 } from "@/lib/record/relationships";
-import { DEMO_PEOPLE, type DemoTeen } from "@/lib/record/people-demo";
+import {
+  defaultMenteeStatus,
+  DEMO_PEOPLE,
+  type DemoTeen,
+} from "@/lib/record/people-demo";
 import { LIVE_ID, recordHrefFor } from "@/lib/record/subject";
 import { cn } from "@/lib/utils";
 
@@ -166,7 +172,14 @@ export function CareSummaryCard({
    *  a store. */
   series?: { instrument: string; scores: number[] } | null;
 }) {
-  const mentorId = currentMentorId(teen, relationships);
+  // A DEACTIVATED TEEN'S PAIRING IS OVER even when no relationship event says
+  // so: the fixture population carries `active: false` and nothing else, so
+  // `currentMentorId` happily keeps returning the mentor they last pointed at.
+  // Treating the mentee's own standing as the end of the pairing is what makes
+  // the Mentor cell tell the truth on a closed record.
+  const closed = defaultMenteeStatus(teen) === "deactivated";
+  const liveMentorId = currentMentorId(teen, relationships);
+  const mentorId = closed ? null : liveMentorId;
   const fixtureMentor =
     mentorId && mentorId !== LIVE_ID
       ? DEMO_PEOPLE.find((p) => p.id === mentorId)
@@ -175,36 +188,52 @@ export function CareSummaryCard({
     mentorId === LIVE_ID
       ? (liveMentorName ?? "Jordan Rivera")
       : (fixtureMentor?.goesBy ?? fixtureMentor?.name);
+  // THE ENDED DATE IS OFTEN UNAVAILABLE, and the copy has to survive that.
+  // A match ended in session carries a real `endedAt`; the fixture-deactivated
+  // teens — which are exactly the population showing a closed review clock —
+  // carry only `active: false` and no end date at all. So the month is appended
+  // only when it exists, and the sentence still reads without it. Reported.
+  const endedAt = endedMatchDateFor(teen, relationships);
+  const endedLabel = endedAt
+    ? /* TODO-COPY */ `ended ${new Date(endedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+    : /* TODO-COPY */ "no end date on file";
+
   const due = cadence.nextReviewDue
     ? reviewDueState(cadence.nextReviewDue, now)
     : null;
 
   return (
-    <section aria-label="Care summary" data-record-section="care-summary">
-      <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
-        {/* TODO-COPY */}
-        <h2 className={H2}>Care summary</h2>
-        {/* AN EXPLICIT, DELINEATED CTA — a properly styled secondary button in
-            the block's header row, not a bare underlined link floating above the
-            card. THE NOUN IS THE POINT: "Change presentation" cannot be confused
-            with the care update's "Write care update" one section below, where a
-            lone "Change" could. Supervisor tier only; absent below, never
-            disabled. */}
-        {onChange && presentation ? (
-          <RecordButton onClick={onChange}>
+    <section aria-label="Primary presentation" data-record-section="care-summary">
+      <div className={CARD}>
+        {/* ── THE LOCKUP, INSIDE THE CARD. The section label used to float above
+            the card as an h2 with the Change button beside it, so the card's
+            most important line had a heading it did not own and an action
+            anchored to nothing. Both come inside: a small muted eyebrow named
+            "Primary presentation" — more informative than "Care summary", which
+            described the container rather than the content — and the button on
+            the same row, aligned to it. ──────────────────────────────────── */}
+        <div className="flex min-h-9 flex-wrap items-start justify-between gap-3">
+          <h2 className="text-[var(--text-muted)]" style={LABEL_STYLE}>
             {/* TODO-COPY */}
-            Change presentation
-          </RecordButton>
-        ) : onAssignSurvey ? (
-          <RecordButton onClick={onAssignSurvey}>
-            {/* TODO-COPY */}
-            Assign first survey
-          </RecordButton>
-        ) : null}
-      </div>
+            Primary presentation
+          </h2>
+          {/* EDITORIAL CTA — secondary outline in the section header, never
+              filled: the filled button in this region belongs to a task. */}
+          {onChange && presentation ? (
+            <RecordButton onClick={onChange}>
+              {/* TODO-COPY */}
+              Change presentation
+            </RecordButton>
+          ) : onAssignSurvey ? (
+            <RecordButton onClick={onAssignSurvey}>
+              {/* TODO-COPY */}
+              Assign first survey
+            </RecordButton>
+          ) : null}
+        </div>
 
-      <div className={`mt-3 ${CARD}`}>
         {/* ── HERO: the presentation on record ─────────────────────────── */}
+        <div className="mt-2.5">
         {presentation ? (
           <>
             <p
@@ -247,23 +276,35 @@ export function CareSummaryCard({
           </p>
         )}
 
+        </div>
+
         {/* ── METRICS: a hairline and a grid, NOT a nested card ─────────── */}
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-3 xl:grid-cols-5">
           {/* TODO-COPY on every label. */}
-          <Metric label="Mentor">
+          {/* RELATIONSHIP STATE BELONGS TO THE PAIRING, not to the review
+              cadence — which is why "Mentorship ended" moved out of Next review
+              and into here. A 20px avatar sits beside the name so the metrics row
+              carries a face rather than only a string. */}
+          <Metric
+            label="Mentor"
+            sub={!mentorId && endedLabel ? endedLabel : undefined}
+          >
             {mentorId && mentorName ? (
-              <Link
-                href={recordHrefFor(mentorId)}
-                className={cn(
-                  "rounded-sm underline decoration-[var(--border-contour)] underline-offset-2 transition-opacity hover:opacity-70",
-                  RING
-                )}
-              >
-                {mentorName}
-              </Link>
+              <>
+                <RecordAvatar name={mentorName} size={20} />
+                <Link
+                  href={recordHrefFor(mentorId)}
+                  className={cn(
+                    "min-w-0 truncate rounded-sm underline decoration-[var(--border-contour)] underline-offset-2 transition-opacity hover:opacity-70",
+                    RING
+                  )}
+                >
+                  {mentorName}
+                </Link>
+              </>
             ) : (
-              // Unmatched is a real state, not missing data.
-              <span className="text-[var(--text-muted)]">Unmatched</span>
+              // TODO-COPY. A real state, not missing data.
+              <span className="text-[var(--text-muted)]">No current mentor</span>
             )}
           </Metric>
 
@@ -342,7 +383,7 @@ export function CareSummaryCard({
                     surveys, so "starts at the first survey" would contradict the
                     history further down the page. */}
                 {cadence.reviewClock === "closed"
-                  ? "Mentorship ended"
+                  ? "Not scheduled"
                   : "At first survey"}
               </span>
             )}

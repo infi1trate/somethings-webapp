@@ -21,9 +21,13 @@
 // mixed tasks reaches to the same place every time, whether they are approving a
 // presentation or reviewing an escalation.
 //
+// THE BAND AND ITS LABEL NOW LIVE IN task-label.tsx, as the canonical pair the
+// global Tasks page will consume. This file is the card that hosts them: one
+// surface, contour hairline, no shadow, no border accent, no nesting.
+//
 // FORBIDDEN HERE AND ANYWHERE: left-edge bars, whole-card tints, shadows, icons
-// larger than 16px in the band. The severity marker is an 8px filled dot, which
-// sidesteps the icon-size question entirely and is calmer at a glance.
+// larger than 16px in the band. The severity marker is a 6px filled dot inside
+// the label chip, which sidesteps the icon-size question entirely.
 //
 // COLOUR NEVER CARRIES SEVERITY ALONE. Every tone pairs with a type label in
 // words ("Escalation", "Risk flag", "Review due") and, where it applies, a
@@ -31,60 +35,26 @@
 // same information.
 
 import type React from "react";
+import {
+  TaskBand,
+  TaskLabel,
+  type TaskSeverity,
+} from "@/components/record/task-label";
 import { cn } from "@/lib/utils";
 
-export type TaskTone = "routine" | "warning" | "critical";
-
-/** The band's fill and ink per tone.
- *
- *  TINT VIA color-mix, NOT A HARDCODED ALPHA. The brief asked for 6–8% alpha;
- *  writing `rgb(... / 7%)` would need a literal colour, and the alert families
- *  invert in dark mode (`--alert-warning-accent` is #96590a light, #ffe94b
- *  dark). Mixing 7% of the mode's own accent into the mode's own card surface
- *  gives the same visual weight in both without a second set of tokens.
- *
- *  ROUTINE HAS NO FILL AT ALL — a scheduled review is ordinary work, and this is
- *  the rule the previous action slot broke by tinting it warm. */
-const TONE: Record<
-  TaskTone,
-  { band: string; ink: string; dot: string }
-> = {
-  routine: {
-    band: "transparent",
-    ink: "var(--alert-warm-fg)",
-    dot: "var(--alert-warm-accent)",
-  },
-  warning: {
-    band:
-      "color-mix(in oklab, var(--alert-warning-accent) 7%, var(--surface-card))",
-    ink: "var(--alert-warning-fg)",
-    dot: "var(--alert-warning-accent)",
-  },
-  critical: {
-    band:
-      "color-mix(in oklab, var(--alert-critical-accent) 7%, var(--surface-card))",
-    ink: "var(--alert-critical-fg)",
-    dot: "var(--alert-critical-accent)",
-  },
-};
-
-const LABEL_STYLE = {
-  font: "var(--type-field-label)",
-  letterSpacing: "var(--type-field-label-tracking)",
-} as const;
+/** Kept as an alias so existing call sites read unchanged; the canonical names
+ *  live in task-label.tsx. */
+export type TaskTone = TaskSeverity;
 
 export function TaskCard({
   tone,
   /** The type label — "Escalation", "Risk flag", "Review due". In words, always. */
   type,
-  /** Status or stage, muted, beside the type: "Open", "90-day review", "Crisis". */
+  /** The QUALIFIER, outside the chip: "Open", "90-day review", "Resolved · 48h". */
   meta,
   /** Top right of the band. The primary action, plus an overflow when there are
    *  secondary ones. Omitted entirely below supervisor tier — never disabled. */
   actions,
-  /** Sits under the actions INSIDE the band, so a requirement is read before the
-   *  reach rather than found after the click. */
-  actionHelp,
   /** The provenance line, below the body. */
   footer,
   ariaLabel,
@@ -93,15 +63,13 @@ export function TaskCard({
 }: {
   tone: TaskTone;
   type: string;
-  meta?: React.ReactNode;
+  meta?: string;
   actions?: React.ReactNode;
-  actionHelp?: React.ReactNode;
   footer?: React.ReactNode;
   ariaLabel: string;
   section: string;
   children: React.ReactNode;
 }) {
-  const t = TONE[tone];
   return (
     <section
       aria-label={ariaLabel}
@@ -110,48 +78,10 @@ export function TaskCard({
       // ONE card. Contour hairline, no shadow, no border accent, no nesting.
       className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
-      {/* ── LABEL BAND. Full inner width, closed by a hairline. Rounded top
-          corners come from the card's own overflow-hidden, so the tint stops
-          exactly where the hairline is. ─────────────────────────────────── */}
-      <div
-        className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-[color:var(--border-subtle)] px-[var(--surface-pad-x)] py-3.5"
-        style={{ backgroundColor: t.band }}
-      >
-        <p
-          className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium"
-          style={{ ...LABEL_STYLE, color: t.ink }}
-        >
-          {/* An 8px filled dot — a marker, not an icon, and well under the
-              16px ceiling. Decorative: the words carry the severity. */}
-          <span
-            aria-hidden
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: t.dot }}
-          />
-          <span className="text-[13px] leading-[18px]">{type}</span>
-          {meta && (
-            <>
-              <span aria-hidden className="opacity-40">
-                ·
-              </span>
-              <span className="text-[13px] leading-[18px] text-[var(--text-muted)]">
-                {meta}
-              </span>
-            </>
-          )}
-        </p>
-
-        {actions && (
-          <span className="flex shrink-0 flex-col items-end gap-1.5">
-            <span className="flex items-center gap-2">{actions}</span>
-            {actionHelp && (
-              <span className="text-right text-[12.5px] leading-[17px] text-[var(--text-muted)]">
-                {actionHelp}
-              </span>
-            )}
-          </span>
-        )}
-      </div>
+      {/* ── LABEL BAND — canonical label, fixed height, one centre axis. ── */}
+      <TaskBand severity={tone} actions={actions}>
+        <TaskLabel severity={tone} type={type} qualifier={meta} />
+      </TaskBand>
 
       {/* ── BODY. Sectioned by hairlines and spacing only. ───────────────── */}
       <div className="px-[var(--surface-pad-x)] py-4">{children}</div>
@@ -174,8 +104,6 @@ export function TaskCard({
 /** The hairline that sections a task body, matching the review card's rhythm. */
 export const TASK_SECTION =
   "mt-4 border-t border-[var(--border-subtle)] pt-4";
-
-export { LABEL_STYLE as TASK_LABEL_STYLE };
 
 /** A category chip. Raw values NEVER reach here — callers pass through
  *  `categoryLabel`, which turns anything unknown into "Uncategorised". */

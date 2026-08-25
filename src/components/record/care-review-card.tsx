@@ -45,11 +45,10 @@ import {
 import { TaskCard } from "@/components/record/task-card";
 import {
   DecisionNote,
-  gateHelp,
   noteReady as isNoteReady,
 } from "@/components/record/decision-footer";
 import { clinicalDate } from "@/components/record/care-presentation";
-import { ScoreChip } from "@/components/record/score-chip";
+import { bandLabel, ScoreChip } from "@/components/record/score-chip";
 import {
   RATIONALE_SOURCE_LABEL,
   STAGE_LABEL,
@@ -109,6 +108,16 @@ function ItemTable({ items }: { items: AssessmentItem[] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** The band name as a chip beneath the score. Neutral, like every score chip —
+ *  severity lives in the task label band and nowhere else. */
+function BandChip({ severity }: { severity: string }) {
+  return (
+    <span className="inline-flex w-fit items-center rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[12.5px] leading-[16px] text-[var(--text-secondary)] ring-1 ring-inset ring-[color:var(--border-subtle)]">
+      {bandLabel(severity)}
+    </span>
   );
 }
 
@@ -178,9 +187,50 @@ export function PresentationReviewCard({
   // as an error after — a validation message that only appears post-click
   // teaches the rule by punishing it.
   const noteReady = isNoteReady(note);
+  // APPROVE IS ALWAYS ENABLED. Pressing it with an empty note surfaces the error
+  // AT THE FIELD and moves focus there — see decision-footer's note on choosing
+  // error recovery over error prevention.
+  const [noteError, setNoteError] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement | null>(null);
   const overflowTrigger = useRef<HTMLButtonElement | null>(null);
+
+  /** `decidedAt` is stamped INSIDE the event handler, not here: a timestamp
+   *  computed in render scope is impure — the purity lint is right — and a
+   *  re-render would move the moment a decision claims to have happened. */
+  const approve = (decidedAt: number) => {
+    if (!noteReady) {
+      setNoteError(true);
+      noteRef.current?.focus();
+      return;
+    }
+    setNoteError(false);
+    onApprove?.({
+      reviewId: review.id,
+      decidedAt,
+      note: note.trim(),
+      outcome,
+      code: review.recommended.code,
+      statement: review.recommended.statement,
+      actor,
+      actorRole,
+      previousCode: currentCode ?? undefined,
+    });
+  };
   // One flag for the whole acting half of the card.
   const canAct = !!onApprove;
+
+  /** ONE shape for both variants: the aggregate's weighted score reads in the
+   *  same position as a single survey's, which is what makes the two variants
+   *  legible as the same block rather than two designs. */
+  const evidence = review.aggregate
+    ? {
+        score: review.aggregate.score,
+        severity: review.aggregate.severity,
+        instrument: review.aggregate.surveys[0]?.instrument ?? "",
+        at: review.aggregate.surveys[0]?.at ?? 0,
+        items: [] as AssessmentItem[],
+      }
+    : review.survey;
 
   const outcome: CareReviewDecision["outcome"] =
     currentCode === null
@@ -201,20 +251,7 @@ export function PresentationReviewCard({
         canAct && (
           <>
             <PillButton
-              disabled={!noteReady}
-              onClick={() =>
-                onApprove?.({
-                  reviewId: review.id,
-                  decidedAt: Date.now(),
-                  note: note.trim(),
-                  outcome,
-                  code: review.recommended.code,
-                  statement: review.recommended.statement,
-                  actor,
-                  actorRole,
-                  previousCode: currentCode ?? undefined,
-                })
-              }
+              onClick={() => approve(Date.now())}
               className="h-9 px-5 text-[14px]"
             >
               {/* TODO-COPY */}
@@ -257,7 +294,6 @@ export function PresentationReviewCard({
           </>
         )
       }
-      actionHelp={canAct ? gateHelp(noteReady, "Approving") : undefined}
       /* PROVENANCE, same slot as the flag cards'. It answers a real question
          rather than restating the band: a supervisor looking at a recommendation
          needs to know whether the SCHEDULE surfaced it or a person proposed it —
@@ -301,68 +337,78 @@ export function PresentationReviewCard({
         </div>
       )}
 
-      {/* 3 · SURVEY EVIDENCE, one line, expandable. */}
+      {/* 3 · SURVEY EVIDENCE — a designed block, not a label-value line.
+          A TONAL INSET ROW, radius 12px: permitted because it is a row inside the
+          card's own body rather than a second card. The score is the thing a
+          supervisor reads first, so it gets the size; instrument and date sit
+          beside it as context; the disclosure is pushed right so the row has a
+          clear reading order across rather than a stack. */}
       <div className={SECTION}>
         <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
           {/* TODO-COPY */}
           {review.aggregate ? "Weighted across this period" : "Most recent survey"}
         </p>
 
-        {review.survey && (
+        {evidence && (
           <>
-            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <ScoreChip
-                score={review.survey.score}
-                severity={review.survey.severity}
-              />
-              <span className="text-[13px] leading-[18px] text-[var(--text-muted)]">
-                {`${review.survey.instrument} · ${clinicalDate(review.survey.at)}`}
-              </span>
-            </p>
-            {/* TODO-COPY */}
-            <Disclosure label="Question by question">
-              <ItemTable items={review.survey.items} />
-            </Disclosure>
-          </>
-        )}
+            <div /* 12px explicitly: `rounded-xl` resolves to the theme's --radius-xl
+                  (16.8px here), which is the card radius family and made the
+                  inset read as a nested card rather than a row inside one. */
+              className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[12px] bg-[var(--surface-s1)] px-3.5 py-3">
+              {/* LEFT — the score at 24px tabular, band chip beneath. */}
+              <div className="shrink-0">
+                <p className="text-[24px] font-normal leading-[28px] tabular-nums text-[var(--text-primary)]">
+                  {evidence.score}
+                </p>
+                <p className="mt-1">
+                  <BandChip severity={evidence.severity} />
+                </p>
+              </div>
 
-        {review.aggregate && (
-          <>
-            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <ScoreChip
-                score={review.aggregate.score}
-                severity={review.aggregate.severity}
-              />
-              <span className="text-[13px] leading-[18px] text-[var(--text-muted)]">
-                {/* TODO-COPY — recency-weighted, so the newest survey carries
-                    most of the score; saying so stops a reader reconciling it
-                    against a flat mean and finding a discrepancy. */}
-                {`recency-weighted across ${review.aggregate.surveys.length} surveys`}
-              </span>
-            </p>
-            {/* TODO-COPY */}
-            <Disclosure label="Surveys in this period">
-              <table className="w-full text-left">
-                <tbody>
-                  {review.aggregate.surveys.map((sv) => (
-                    <tr
-                      key={sv.at}
-                      className="border-t border-[var(--border-subtle)]"
-                    >
-                      <td className="py-1.5 pr-3 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                        {clinicalDate(sv.at)}
-                      </td>
-                      <td className="py-1.5 pr-3 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                        {sv.instrument}
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <ScoreChip score={sv.score} severity={sv.severity} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Disclosure>
+              {/* MIDDLE — instrument and date, or the aggregate's qualifier. */}
+              <p className="min-w-0 flex-1 text-[13px] leading-[19px] text-[var(--text-muted)]">
+                {review.aggregate
+                  ? /* TODO-COPY */ `recency-weighted across ${review.aggregate.surveys.length} surveys`
+                  : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
+              </p>
+
+              {/* RIGHT — the disclosure. */}
+              <div className="shrink-0">
+                <Disclosure
+                  /* TODO-COPY */
+                  label={
+                    review.aggregate
+                      ? "Surveys in this period"
+                      : "Question by question"
+                  }
+                >
+                  {review.aggregate ? (
+                    <table className="w-full text-left">
+                      <tbody>
+                        {review.aggregate.surveys.map((sv) => (
+                          <tr
+                            key={sv.at}
+                            className="border-t border-[var(--border-subtle)]"
+                          >
+                            <td className="py-1.5 pr-3 text-[13px] leading-[19px] text-[var(--text-secondary)]">
+                              {clinicalDate(sv.at)}
+                            </td>
+                            <td className="py-1.5 pr-3 text-[13px] leading-[19px] text-[var(--text-secondary)]">
+                              {sv.instrument}
+                            </td>
+                            <td className="py-1.5 text-right">
+                              <ScoreChip score={sv.score} severity={sv.severity} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <ItemTable items={evidence.items} />
+                  )}
+                </Disclosure>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -374,10 +420,15 @@ export function PresentationReviewCard({
         <div className={SECTION}>
           <DecisionNote
             id={`note-${review.id}`}
+            inputRef={noteRef}
+            error={noteError}
             /* TODO-COPY */
             label="Provider note"
             value={note}
-            onChange={setNote}
+            onChange={(v) => {
+              setNote(v);
+              if (noteError && v.trim()) setNoteError(false);
+            }}
             /* TODO-COPY */
             placeholder="What you looked at, and why you are approving this."
           />

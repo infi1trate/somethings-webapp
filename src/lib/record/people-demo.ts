@@ -1076,17 +1076,3 @@ export function relJoined(days: number): string {
 // PRESENCE IS NOT STANDING. A paused teen can be online; an active one can be
 // offline. Standing is the word-chip beside the role badge; this is the dot on
 // the avatar, and the two must never be read as the same fact.
-const ONLINE_NOW = new Set([
-  "live", // the viewer is, by definition, in the app
-  "t13",
-  "t15",
-  "t21",
-  "m2",
-  "s-brandy",
-]);
-
-/** Is this person online right now? Offline renders NOTHING — presence is an
- *  exception worth noticing, not a label on everyone. */
-export function isOnlineNow(personId: string): boolean {
-  return ONLINE_NOW.has(personId);
-}

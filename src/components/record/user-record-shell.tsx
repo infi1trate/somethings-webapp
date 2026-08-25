@@ -64,7 +64,6 @@ export function UserRecordShell({
   avatar,
   name,
   role,
-  online = false,
   statusText,
   statusAriaLabel,
   meta,
@@ -83,12 +82,15 @@ export function UserRecordShell({
   /** Drives the role TINT (badge-role-* taxonomy). The label comes from the
    *  shared ROLE_LABEL map, so wording and colour can't disagree. */
   role: PersonRole;
-  /** ONLINE PRESENCE — the dot at the avatar's bottom-right. This is NOT
-   *  lifecycle standing: a paused teen can be online, and an active one can be
-   *  offline. Standing is the word-chip beside the role badge. Omit or pass
-   *  false for offline, which renders nothing — presence is an exception worth
-   *  noticing, not a label on everyone. */
-  online?: boolean;
+  // PRESENCE IS GONE FROM RECORD HEADERS (user decision, reversing the run that
+  // added it). The dot lived at the avatar's bottom-right, driven by an `online`
+  // prop; it is REMOVED rather than defaulted off, so it cannot return by a
+  // caller passing true. Header status is now the role badge plus a word-bearing
+  // chip for exceptional platform states only — Paused, Deactivated — and the
+  // avatar is identity alone, which is why RecordAvatar has no dot variant.
+  //
+  // `isOnlineNow()` is deleted with it: leaving a presence fixture behind is how
+  // a dot comes back.
   /** EXCEPTION WORD, rendered as a SECOND chip beside the role badge — never
    *  colour alone (WCAG 1.4.1), and never folded into the role pill, because a
    *  role and a state are two different facts. Omit for the default state: the
@@ -147,14 +149,6 @@ export function UserRecordShell({
             >
               {avatar.initial}
             </span>
-          )}
-          {online && (
-            <span
-              role="img"
-              aria-label="Online now"
-              className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full ring-2 ring-[color:var(--surface-card)]"
-              style={{ backgroundColor: "var(--dot-positive)" }}
-            />
           )}
         </span>
 

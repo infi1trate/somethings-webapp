@@ -20,34 +20,19 @@
 
 import Link from "next/link";
 import { AlertTriangle, ChevronRight, Video } from "lucide-react";
+import { RecordAvatar } from "@/components/record/record-avatar";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-// Soft, low-chroma tints — the avatar is identity, not status, so these never
-// carry meaning; the initial rotates through them by name for variety.
-const TINTS = [
-  { bg: "#efe7f7", fg: "#5b41a8" },
-  { bg: "#e6efe8", fg: "#3a7d44" },
-  { bg: "#f2e9df", fg: "#8a5a2b" },
-  { bg: "#e6edf3", fg: "#3f5c78" },
-  { bg: "#f5e7ea", fg: "#9a4257" },
-];
-
-/** Exported so surfaces that can't use a whole PersonRow (e.g. a table cell)
- *  still get the SAME avatar treatment instead of minting a second one. */
-export function avatarTintFor(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return TINTS[Math.abs(h) % TINTS.length];
-}
-
-function initial(name: string) {
-  return (name.trim()[0] || "?").toUpperCase();
-}
-
-const NEUTRAL_TINT = { bg: "var(--surface-s1)", fg: "var(--text-muted)" };
+// THE AVATAR MOVED. Its tints, its initial and its tile now live in
+// record-avatar.tsx, so the 20px and 24px inline placements the care summary
+// needed share one component with this row instead of copying it. `avatarTintFor`
+// is RE-EXPORTED here because four surfaces already import it from this path
+// (care-network, relationship-table, mentee-table) — changing their import lines
+// would be churn for no gain, and one source of truth is the point.
+export { avatarTintFor } from "@/components/record/record-avatar";
 
 export type PersonAttention = {
   /** Names the observable cause (vocabulary law: never a prediction). */
@@ -128,20 +113,13 @@ export function PersonRow({
   href,
   className,
 }: PersonRowProps) {
-  const tint = redactName ? NEUTRAL_TINT : avatarTintFor(name);
   const displayName = redactName ? "Mentee" : name;
   const hasChips = (!redactName && !!attention) || videoCount > 0;
   const pressable = !!onPress || !!href;
 
   const body = (
     <>
-      <span
-        aria-hidden
-        className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
-        style={{ backgroundColor: tint.bg, color: tint.fg }}
-      >
-        {redactName ? "•" : initial(name)}
-      </span>
+      <RecordAvatar name={name} size={30} redact={redactName} />
       <span className="min-w-0 flex-1">
         <span
           className="block truncate text-[var(--text-primary)]"

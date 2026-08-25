@@ -22,7 +22,7 @@
 // reviews are neither, and a form that pre-opens both invites a supervisor to
 // fill them in because they are there.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { MessagesSquare } from "lucide-react";
 import {
@@ -35,11 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { PillButton } from "@/components/settings/pill-button";
 import { CategoryChip } from "@/components/record/task-card";
-import {
-  DecisionNote,
-  gateHelp,
-  noteReady,
-} from "@/components/record/decision-footer";
+import { DecisionNote, noteReady } from "@/components/record/decision-footer";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { chatHrefFor } from "@/lib/record/chat";
 import {
@@ -159,6 +155,10 @@ function FlagReviewBody({
   const [referralType, setReferralType] = useState<ReferralType>("mental_health");
 
   const ready = noteReady(note);
+  // SAME PATTERN AS APPROVE: Close is always live, and pressing it empty puts
+  // the error at the field with focus.
+  const [noteError, setNoteError] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement | null>(null);
   const kindWord = flag.kind === "escalation" ? "escalation" : "risk flag";
   const cats = flag.categories ?? [];
 
@@ -307,10 +307,15 @@ function FlagReviewBody({
         <Step n={3} title="Close note">
           <DecisionNote
             id={`close-note-${flag.id}`}
+            inputRef={noteRef}
+            error={noteError}
             /* TODO-COPY */
             label="What you did"
             value={note}
-            onChange={setNote}
+            onChange={(v) => {
+              setNote(v);
+              if (noteError && v.trim()) setNoteError(false);
+            }}
             permanenceNoun="closure"
             /* TODO-COPY */
             placeholder="What you looked at, who you spoke to, and what happens next."
@@ -318,13 +323,14 @@ function FlagReviewBody({
         </Step>
       </div>
 
-      <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-        <p className="text-[12.5px] leading-[17px] text-[var(--text-muted)] sm:mr-auto">
-          {gateHelp(ready, "Closing")}
-        </p>
+      <DialogFooter>
         <PillButton
-          disabled={!ready}
           onClick={() => {
+            if (!ready) {
+              setNoteError(true);
+              noteRef.current?.focus();
+              return;
+            }
             onClose({
               flagId: flag.id,
               outcome,

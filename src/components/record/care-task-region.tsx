@@ -189,6 +189,9 @@ function FlagTask({
 
 // ── The region ──────────────────────────────────────────────────────────────
 
+const H2 =
+  "font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]";
+
 export function CareTaskRegion({
   tasks,
   teenName,
@@ -211,11 +214,32 @@ export function CareTaskRegion({
     "review"
   >;
 }) {
-  // NOTHING OPEN RENDERS NOTHING.
+  // NOTHING OPEN RENDERS NOTHING — the header included. A section heading over
+  // an empty stack is the "all caught up" card by another name.
   if (tasks.length === 0) return null;
 
   return (
-    <div className="space-y-4" data-record-section="care-task-region">
+    <section
+      aria-label="Action required"
+      data-record-section="care-task-region"
+    >
+      {/* A REAL SECTION HEADER, on the same rhythm as Care summary / Care update
+          / History — the region used to float above the page with no heading of
+          its own, so a stack of task cards read as chrome rather than as a
+          section a reader could name. The count is part of the heading because
+          "two things need you" is the first thing worth knowing. */}
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
+        {/* TODO-COPY */}
+        <h2 className={H2}>{`Action required · ${tasks.length}`}</h2>
+        {/* RESERVED SLOT for a future "View all in Tasks" link. Deliberately
+            empty: the Tasks page does not exist yet (its route falls through the
+            unbuilt-section placeholder), and a link to a placeholder reads as a
+            broken promise. The slot exists so adding it later is one line and
+            does not re-flow the header. */}
+        <span />
+      </div>
+
+      <div className="mt-3 space-y-4">
       {tasks.map((t) =>
         t.kind === "flag" ? (
           <FlagTask
@@ -233,6 +257,7 @@ export function CareTaskRegion({
           />
         )
       )}
-    </div>
+      </div>
+    </section>
   );
 }

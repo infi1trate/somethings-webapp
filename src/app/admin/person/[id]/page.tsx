@@ -45,7 +45,7 @@ import { STATUS_LABELS } from "@/lib/record/mentor-status";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
 import { currentMenteesOf } from "@/lib/record/relationships";
-import { defaultMenteeStatus, isOnlineNow } from "@/lib/record/people-demo";
+import { defaultMenteeStatus } from "@/lib/record/people-demo";
 import { GuardianDetailsSection } from "@/components/record/guardian-details";
 import { guardianFor } from "@/lib/record/guardian";
 import { resolveMode } from "@/lib/record/permission-map";
@@ -167,7 +167,6 @@ export default function PersonRecordPage({
         // dot. No separate Active pill, no avatar dot.
         // PRESENCE, not standing — the dot sits on the avatar. Standing is the
         // word-chip below.
-        online={isOnlineNow(subject.id)}
         // EXCEPTIONS GET A WORD — a second chip. Staff exceptions come from the
         // lifecycle; a TEEN's come from their mentee status, which is the only
         // place a teen's platform standing is recorded.

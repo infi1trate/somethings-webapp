@@ -198,6 +198,25 @@ export function assignedDaysAgo(person: DemoMentorRow): number | null {
 
 // ─── NAMED PLATFORM METRICS ─────────────────────────────────────────────────
 
+/** WHEN this teen's match ended, if that is knowable.
+ *
+ *  Returns null far more often than you would like, and the caller has to cope.
+ *  A match ended IN SESSION appends a `RelationshipEvent` with a real `endedAt`.
+ *  A teen whose fixture simply says `active: false` — which is the entire
+ *  deactivated population — has no end date anywhere: `pastMentors` carries a
+ *  prose range, but that describes a PREVIOUS mentor rather than the end of the
+ *  current pairing, so reading it here would date the wrong event. Reported
+ *  rather than papered over with a guess. */
+export function endedMatchDateFor(
+  teen: DemoTeen,
+  slice: RelationshipSlice = {}
+): number | null {
+  const ev = (slice.events ?? [])
+    .filter((e) => e.kind === "match" && e.personId === teen.id)
+    .sort((a, b) => b.endedAt - a.endedAt)[0];
+  return ev?.endedAt ?? null;
+}
+
 /** "Days in mentorship" — a NAMED PLATFORM METRIC, and a deliberate exception to
  *  the elapsed-time standard. Everything else on these surfaces reads "2 weeks
  *  ago"; a named metric keeps its own unit so the number is comparable across

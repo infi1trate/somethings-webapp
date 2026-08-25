@@ -18,6 +18,7 @@
 
 import { CARE_UPDATE_SECTIONS, type CareUpdateRecord } from "@/lib/record/care-demo";
 import { clinicalDate } from "@/components/record/care-presentation";
+import { RecordAvatar } from "@/components/record/record-avatar";
 
 const LABEL_STYLE = {
   font: "var(--type-field-label)",
@@ -92,15 +93,21 @@ export function CareUpdateByline({
   amendsDate?: number;
 }) {
   return (
-    <p className="text-[12px] leading-[17px] text-[var(--text-muted)]">
-      {`${update.author} · ${update.authorRole} · ${clinicalDate(update.createdAt)}`}
-      {amendsDate !== undefined && (
-        <>
-          {" · "}
-          {/* TODO-COPY */}
-          {`amends the ${clinicalDate(amendsDate)} update`}
-        </>
-      )}
+    // A 24px avatar on the signature line: a care update is AUTHORED clinical
+    // documentation, and an author with a face reads as a person who wrote it
+    // rather than a byline the system generated.
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[17px] text-[var(--text-muted)]">
+      <RecordAvatar name={update.author} size={24} />
+      <span>
+        {`${update.author} · ${update.authorRole} · ${clinicalDate(update.createdAt)}`}
+        {amendsDate !== undefined && (
+          <>
+            {" · "}
+            {/* TODO-COPY */}
+            {`amends the ${clinicalDate(amendsDate)} update`}
+          </>
+        )}
+      </span>
     </p>
   );
 }

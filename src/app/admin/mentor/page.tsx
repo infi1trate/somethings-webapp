@@ -95,7 +95,6 @@ import {
   defaultMenteeStatus,
 } from "@/lib/record/people-demo";
 import { currentMenteesOf } from "@/lib/record/relationships";
-import { isOnlineNow } from "@/lib/record/people-demo";
 import { ROLE_BADGE_TONE, ROLE_LABEL } from "@/components/record/role-label";
 import { toast } from "sonner";
 import {
@@ -1028,14 +1027,6 @@ export default function MentorRecordPage({
               >
                 {initials}
               </span>
-            )}
-            {isOnlineNow("live") && (
-              <span
-                role="img"
-                aria-label="Online now"
-                className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full ring-2 ring-[color:var(--surface-card)]"
-                style={{ backgroundColor: "var(--dot-positive)" }}
-              />
             )}
             </span>
 
