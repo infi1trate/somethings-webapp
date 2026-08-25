@@ -201,10 +201,24 @@ export function UserRecordShell({
         )}
       </header>
 
-      {/* Tabbed workspace — refined active bar on a hairline track. */}
+      {/* Tabbed workspace — refined active bar on a hairline track.
+          NO SCROLLBAR, EVER. `overflow-x-auto` alone rendered a 15px VERTICAL
+          scrollbar inside the strip, for two compounding reasons:
+            1. Per the CSS overflow spec, when one axis is `visible` and the
+               other is not, the `visible` one computes to `auto`. Authoring
+               only overflow-x silently made the y-axis scrollable too.
+            2. The active indicator sat at `-bottom-px` — 1px OUTSIDE the
+               content box — so the newly scrollable y-axis had 1px to report.
+               Measured: clientHeight 44, scrollHeight 45, and the scrollbar
+               was eating 15px of the strip's width.
+          Fixed at both ends: overflow-y is pinned hidden, and the indicator
+          moved inside the box so pinning it cannot clip the bar. The
+          horizontal scrollbar is hidden too — the strip still scrolls by
+          wheel, drag and keyboard, it just doesn't draw chrome over a
+          40px-tall nav. */}
       <nav
         aria-label={sectionsLabel}
-        className="mt-6 flex gap-1 overflow-x-auto border-b border-[color:var(--border-contour)]"
+        className="mt-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[color:var(--border-contour)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {tabs.map((t) => (
           <button
@@ -223,7 +237,10 @@ export function UserRecordShell({
             {activeTab === t.id && (
               <span
                 aria-hidden
-                className="absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-[var(--text-primary)]"
+                // bottom-0, not -bottom-px: see the nav's note. The 2px bar
+                // still reads as sitting on the hairline because the nav's
+                // border-b renders directly beneath it.
+                className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-[var(--text-primary)]"
               />
             )}
           </button>

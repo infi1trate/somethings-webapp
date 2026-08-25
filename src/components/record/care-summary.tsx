@@ -40,8 +40,14 @@ import {
   type CareCadence,
   type CarePresentation,
 } from "@/lib/record/care-demo";
-import { clinicalDate, Statement } from "@/components/record/care-presentation";
+import { clinicalDate } from "@/components/record/care-presentation";
 import { ScoreChip } from "@/components/record/score-chip";
+import { TonalChip } from "@/components/record/tonal-chip";
+import {
+  ScoreSparkline,
+  SPARKLINE_MIN_POINTS,
+} from "@/components/record/score-sparkline";
+import { RecordButton } from "@/components/record/record-button";
 import {
   currentMentorId,
   daysInMentorship,
@@ -61,6 +67,24 @@ const H2 =
 const LABEL_STYLE = {
   font: "var(--type-field-label)",
   letterSpacing: "var(--type-field-label-tracking)",
+} as const;
+
+/** THE STATEMENT STOP. ~30px, -0.4px tracking, 1.15 line-height — the largest
+ *  text on the page after the person's name.
+ *
+ *  LAUSANNE 400, NOT THE DISPLAY FACE, and that is a constraint rather than a
+ *  preference: this app loads exactly two faces, Avantt Bold (700) and TWK
+ *  Lausanne Regular (400). There is no medium weight in either family, and
+ *  browsers synthesise bolder but never lighter, so `font-weight: 500` renders
+ *  as 400 here. The brief asked for medium weight; 400 in the text face is the
+ *  closest available, and it has the property the hierarchy actually needs —
+ *  the person's name (Avantt 700 at the same 30px) still dominates by weight
+ *  AND typeface, so "largest after the name" holds at equal size. Reported. */
+const STATEMENT = {
+  fontSize: "30px",
+  lineHeight: "1.15",
+  letterSpacing: "-0.4px",
+  fontWeight: 400,
 } as const;
 
 /** One metric: label ABOVE value, per the brief. Values are tabular so the
@@ -85,7 +109,9 @@ function Metric({
       <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
         {label}
       </p>
-      <p className="mt-1 truncate tabular-nums text-[15px] leading-[20px] text-[var(--text-primary)]">
+      {/* ~20px, tabular. Values rise so the row scans as data; labels dropped
+          to 12px so the pair reads label-then-value rather than two peers. */}
+      <p className="mt-1 flex min-w-0 items-center gap-2 text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
         {children}
       </p>
       {sub && (
@@ -113,6 +139,7 @@ export function CareSummaryCard({
   onChange,
   onAssignSurvey,
   liveMentorName,
+  series,
 }: {
   teen: DemoTeen;
   presentation: CarePresentation | null;
@@ -134,6 +161,10 @@ export function CareSummaryCard({
    *  caller from the draft, the same way the mentee table and five other
    *  surfaces do it. */
   liveMentorName?: string;
+  /** The locked instrument's scores, oldest → newest, from `scoreSeriesFor`.
+   *  Passed in rather than derived here so this card keeps taking data and not
+   *  a store. */
+  series?: { instrument: string; scores: number[] } | null;
 }) {
   const mentorId = currentMentorId(teen, relationships);
   const fixtureMentor =
@@ -153,33 +184,22 @@ export function CareSummaryCard({
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
         {/* TODO-COPY */}
         <h2 className={H2}>Care summary</h2>
-        {/* A quiet text action, never a filled button. The page's one filled
-            button is Approve inside the task region, and changing a minor's
-            diagnosis should read as deliberate rather than inviting. */}
+        {/* AN EXPLICIT, DELINEATED CTA — a properly styled secondary button in
+            the block's header row, not a bare underlined link floating above the
+            card. THE NOUN IS THE POINT: "Change presentation" cannot be confused
+            with the care update's "Write care update" one section below, where a
+            lone "Change" could. Supervisor tier only; absent below, never
+            disabled. */}
         {onChange && presentation ? (
-          <button
-            type="button"
-            onClick={onChange}
-            className={cn(
-              "rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
-              RING
-            )}
-          >
+          <RecordButton onClick={onChange}>
             {/* TODO-COPY */}
-            Change
-          </button>
+            Change presentation
+          </RecordButton>
         ) : onAssignSurvey ? (
-          <button
-            type="button"
-            onClick={onAssignSurvey}
-            className={cn(
-              "rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
-              RING
-            )}
-          >
+          <RecordButton onClick={onAssignSurvey}>
             {/* TODO-COPY */}
             Assign first survey
-          </button>
+          </RecordButton>
         ) : null}
       </div>
 
@@ -187,9 +207,25 @@ export function CareSummaryCard({
         {/* ── HERO: the presentation on record ─────────────────────────── */}
         {presentation ? (
           <>
-            <Statement value={presentation} />
-            <p className="mt-3 text-[13px] leading-[18px] text-[var(--text-muted)]">
-              {/* TODO-COPY */}
+            <p
+              className="text-[var(--text-primary)]"
+              style={STATEMENT}
+            >
+              {presentation.statement}
+            </p>
+            {/* THE CODE IS AN IDENTIFIER, so it looks like one: a tonal chip
+                with tabular figures rather than a line of grey text that reads
+                as a subtitle. */}
+            <div className="mt-2.5">
+              <TonalChip mono className="text-[var(--text-secondary)]">
+                {presentation.code}
+              </TonalChip>
+            </div>
+            <p
+              className="mt-2.5 text-[var(--text-muted)]"
+              style={{ font: "var(--type-helper)" }}
+            >
+              {/* TODO-COPY. Explicit dates — the clinical-date exception. */}
               {`Assigned ${clinicalDate(presentation.assignedAt)} by ${presentation.assignedBy}${
                 presentation.reviewedAt
                   ? ` · reviewed ${clinicalDate(presentation.reviewedAt)}`
@@ -198,12 +234,16 @@ export function CareSummaryCard({
             </p>
           </>
         ) : (
-          <p className="text-[15px] leading-[20px] text-[var(--text-muted)]">
-            {/* TODO-COPY — an empty state, never an em dash. The cadence facts
-                below still populate: a teen without a presentation still has a
-                mentor, a tenure and a survey clock. */}
-            Not yet assigned. A presentation is set once the first survey is
-            reviewed.
+          // AT STATEMENT SCALE, so the card keeps its shape instead of
+          // collapsing to a caption when nothing is assigned yet. The cadence
+          // facts below still populate: a teen without a presentation still has
+          // a mentor, a tenure and a survey clock.
+          <p
+            className="max-w-[24ch] text-[var(--text-muted)]"
+            style={STATEMENT}
+          >
+            {/* TODO-COPY — an empty state, never an em dash. */}
+            Not yet assigned
           </p>
         )}
 
@@ -256,13 +296,24 @@ export function CareSummaryCard({
             }
           >
             {cadence.lastAssessment ? (
-              // THE SHARED CHIP (Prompt B Phase 2): one component across this
-              // cell, the review card's survey evidence and History's Result
-              // column, so a score never reads two ways on one page.
-              <ScoreChip
-                score={cadence.lastAssessment.score}
-                severity={cadence.lastAssessment.severity}
-              />
+              <>
+                {/* THE SHARED CHIP: one component across this cell, the review
+                    card's survey evidence and History's Result column, so a
+                    score never reads two ways on one page. */}
+                <ScoreChip
+                  score={cadence.lastAssessment.score}
+                  severity={cadence.lastAssessment.severity}
+                />
+                {/* TRAJECTORY, beside the reading. Renders only from three
+                    assessments up — see the sparkline's note. */}
+                {series && series.scores.length >= SPARKLINE_MIN_POINTS && (
+                  <ScoreSparkline
+                    scores={series.scores}
+                    /* TODO-COPY */
+                    label={`${series.instrument} scores over time: ${series.scores.join(", ")}`}
+                  />
+                )}
+              </>
             ) : (
               <span className="text-[var(--text-muted)]">None yet</span>
             )}
@@ -270,13 +321,20 @@ export function CareSummaryCard({
 
           <Metric
             label="Next review"
-            tone={due?.tone === "warning" ? "warning" : "default"}
+            /* The framing moved INSIDE the chip below, so the sub-line is gone
+               and with it the coloured text it used to carry. */
             sub={
-              due ? `${due.label} · ${STAGE_LABEL[cadence.stage]}` : undefined
+              cadence.nextReviewDue ? clinicalDate(cadence.nextReviewDue) : undefined
             }
           >
-            {cadence.nextReviewDue ? (
-              clinicalDate(cadence.nextReviewDue)
+            {cadence.nextReviewDue && due ? (
+              // A TONAL CHIP, not coloured text: neutral while a review is
+              // merely upcoming, warning once it is inside the window or past
+              // it. The framing rides inside the chip so the state and the
+              // stage are one object rather than a colour plus a caption.
+              <TonalChip tone={due.tone === "warning" ? "warning" : "neutral"}>
+                {`${due.label} · ${STAGE_LABEL[cadence.stage]}`}
+              </TonalChip>
             ) : (
               <span className="text-[var(--text-muted)]">
                 {/* TODO-COPY. Two different reasons for no date, and they must

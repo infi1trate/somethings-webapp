@@ -1379,6 +1379,28 @@ export function cadenceFor(
 /** How a due date reads. The date itself is explicit (clinical-date rule); THIS
  *  is the countdown beside it, which keeps the elapsed framing because it is a
  *  distance, not a date of record. */
+/** The teen's assessment scores on the LOCKED instrument, oldest → newest.
+ *
+ *  Single-instrument by construction: PHQ-9 tops out at 27 and GAD-7 at 21, so a
+ *  mixed series would put two scales on one line. The locked instrument is the
+ *  one `cadenceFor` reports, so the sparkline and the Last assessment chip
+ *  beside it are always describing the same measurement. */
+export function scoreSeriesFor(
+  teenId: string,
+  now: number,
+  store: CareStoreSlice = {}
+): { instrument: string; scores: number[] } | null {
+  const assessments = careTimelineFor(teenId, now, store)
+    .filter((e) => e.type === "assessment")
+    .sort((a, b) => a.occurredAt - b.occurredAt);
+  if (assessments.length === 0) return null;
+  const instrument = assessments[assessments.length - 1].description;
+  const scores = assessments
+    .filter((e) => e.description === instrument)
+    .map((e) => (e.items ?? []).reduce((a, i) => a + i.points, 0));
+  return { instrument, scores };
+}
+
 export function reviewDueState(
   dueAt: number,
   now: number

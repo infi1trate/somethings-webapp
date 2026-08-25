@@ -197,8 +197,19 @@ export function PresentationReviewCard({
         </p>
       </div>
 
-      {/* 3 · RATIONALE. Label muted and small; the rationale itself reads as
-          body text. Never unattributed prose. */}
+      {/* 3 · RATIONALE — ONLY WHEN A HUMAN OR A MODEL ACTUALLY WROTE ONE.
+          A `templated` rationale is machine exhaust: the intake mapping
+          restating the score it was just handed ("The intake GAD-7 scored 7 in
+          the mild band. The mapping returns Generalized anxiety disorder for
+          that profile.") tells a supervisor nothing the survey-evidence section
+          below does not already show, and dressing it in a provenance label
+          gave it the same authority as a clinician's reasoning. Intake reviews
+          have no rationale, by design.
+          KEPT for `ai` (a genuine model-produced clinical rationale, 30- and
+          90-day reviews) and for `supervisor` (a human's own reasoning) — both
+          with their provenance label, because unattributed clinical prose is
+          the thing that label exists to prevent. */}
+      {review.rationale.source !== "templated" && (
       <div className={SECTION}>
         <p
           className="flex items-center gap-1.5 text-[var(--text-muted)]"
@@ -213,6 +224,7 @@ export function PresentationReviewCard({
           {review.rationale.text}
         </p>
       </div>
+      )}
 
       {/* 4 · SURVEY EVIDENCE, collapsed by default. One line: score chip,
           instrument, date. */}

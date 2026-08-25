@@ -44,7 +44,7 @@
 import { useRef, useState } from "react";
 import { CareTimeline } from "@/components/record/care-timeline";
 import { CareSummaryCard } from "@/components/record/care-summary";
-import { AiSummaryCard } from "@/components/record/care-ai-summary";
+import { RecordButton } from "@/components/record/record-button";
 import {
   CareTaskRegion,
   careTasksFor,
@@ -57,8 +57,8 @@ import { CareUpdateCompose } from "@/components/record/care-update-compose";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
   cadenceFor,
-  careAiSummaryFor,
   careTimelineFor,
+  scoreSeriesFor,
   latestCareUpdateFor,
   pendingReviewFor,
   presentationFor,
@@ -86,10 +86,12 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const draft = useOnboardingStore((s) => s.draft);
   const careReviews = useOnboardingStore((s) => s.careReviews);
   const careUpdates = useOnboardingStore((s) => s.careUpdates);
-  const summaryRefreshed = useOnboardingStore((s) => s.careSummaryRefreshedAt);
+  // careSummaryRefreshedAt / refreshCareSummary / careAiSummaryFor are all
+  // still in the store and the data layer — they come back into this file when
+  // the AI summary lands in the rail. Removed from here rather than left as
+  // unused locals so the file does not carry plumbing to nothing.
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
-  const refreshCareSummary = useOnboardingStore((s) => s.refreshCareSummary);
   // The match/unmatch log, so the Mentor metric names who they are matched with
   // NOW rather than whoever the fixture row still points at.
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
@@ -120,7 +122,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const events = careTimelineFor(teen.id, now, store);
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
-  const summary = careAiSummaryFor(teen.id, now, store);
+  const series = scoreSeriesFor(teen.id, now, store);
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // READ-WIDE. This used to be `canAct ? pendingReviewFor(...) : null`, which
@@ -203,6 +205,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
             undefined
           }
+          series={series}
         />
 
         {/* 2 · TASK REGION. Zero or more open tasks, severity descending;
@@ -231,38 +234,57 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }}
         />
 
-        {/* 3 · AI SUMMARY — decision support, typographically subordinate to
-            the human clinical text below it. */}
-        <AiSummaryCard
-          summary={summary}
-          refreshedAt={summaryRefreshed[teen.id] ?? null}
-          personId={teen.id}
-          onRefresh={
-            canAct
-              ? () => {
-                  refreshCareSummary(teen.id, Date.now());
-                  // Honest about what a refresh does today: TODO-DATA, the text
-                  // is derived from the timeline, so a refresh re-stamps rather
-                  // than rewrites.
-                  toast("Summary re-checked. Regeneration isn’t wired yet.");
-                }
-              : undefined
-          }
-        />
+        {/* 3 · AI SUMMARY — REMOVED FROM THE MAIN COLUMN this run. It
+            relocates to the rail in a later prompt, and the slot is left empty
+            deliberately rather than closing the gap now and reopening it then:
+            reflowing this column twice would make two review passes disagree
+            about where everything sits. AiSummaryCard, careAiSummaryFor and the
+            refresh action all still exist and are untouched. */}
 
         {/* 4 · THE CURRENT CARE UPDATE, IN FULL. Older ones live in History —
             this carries the current clinical read, not an archive. */}
-        {latestUpdate && (
-          <section aria-label="Care update" data-record-section="care-update">
+        <section aria-label="Care update" data-record-section="care-update">
+          <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
             <h2 className={H2}>Care update</h2>
+            {/* THE SECOND CTA, in its own block's header row — a properly
+                styled secondary button, delineated from the care summary's
+                "Change presentation" by both position and noun. "Amend" once an
+                update exists, because append-only means the existing one is
+                never edited. Supervisor tier only; absent below. */}
+            {canAct && (
+              <RecordButton
+                onClick={() => {
+                  setAmending(latestUpdate ?? null);
+                  openDialog(setComposing);
+                }}
+              >
+                {/* TODO-COPY */}
+                {latestUpdate ? "Amend care update" : "Write care update"}
+              </RecordButton>
+            )}
+          </div>
+          {latestUpdate ? (
             <div className={`mt-3 ${CARD}`}>
               <CareUpdateBodyView update={latestUpdate} />
               <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
                 <CareUpdateByline update={latestUpdate} />
               </div>
             </div>
-          </section>
-        )}
+          ) : (
+            <div className={`mt-3 ${CARD}`}>
+              <p
+                className="text-[var(--text-muted)]"
+                style={{ font: "var(--type-row-value)" }}
+              >
+                {/* TODO-COPY — an empty state, not an absent section: the
+                    heading and its CTA are the affordance a supervisor needs to
+                    find, and hiding the whole block until one exists hides the
+                    way to write the first. */}
+                No care update on file yet.
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* 5 · HISTORY */}
         <section aria-label="History">
