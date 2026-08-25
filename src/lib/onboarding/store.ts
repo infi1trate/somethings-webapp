@@ -156,6 +156,11 @@ interface OnboardingState {
    *  region because the record now holds its resolution — not because anything
    *  was deleted. */
   careFlagClosures: Record<string, CareFlagClosure>;
+  /** v34 — is the Care tab's assistant rail expanded? A PER-USER PREFERENCE, not
+   *  per-record: a reader who wants the history table at full width wants it on
+   *  every teen, and re-collapsing on each navigation would be the product
+   *  forgetting something it was told. */
+  careRailOpen: boolean;
   /** Care updates a supervisor has written, keyed by update id. APPEND-ONLY:
    *  no setter edits or removes one. "Editing" an update appends an amendment
    *  whose `amends` names the original, and both keep rendering. */
@@ -297,6 +302,7 @@ interface OnboardingState {
   approveCareReview: (decision: CareReviewDecision) => void;
   /** Appends a flag closure. No counterpart reopens one — see the field. */
   closeCareFlag: (closure: CareFlagClosure) => void;
+  setCareRailOpen: (open: boolean) => void;
   /** Append a care update. No update/delete counterpart, on purpose. */
   addCareUpdate: (update: CareUpdateRecord) => void;
   refreshCareSummary: (teenId: string, at: number) => void;
@@ -358,6 +364,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       menteeStatus: {},
       careReviews: {},
       careFlagClosures: {},
+      careRailOpen: true,
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -736,6 +743,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
+      setCareRailOpen: (open) => set({ careRailOpen: open }),
       closeCareFlag: (closure) =>
         set((state) => ({
           careFlagClosures: {
@@ -827,6 +835,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           menteeStatus: {},
           careReviews: {}, // dev "start over" restores the pending reviews
           careFlagClosures: {}, // …and reopens the closed flags
+          careRailOpen: true,
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -899,7 +908,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
       //      id) — sparse and additive; backfill {} so an older persisted state
       //      reads as "no flag has been closed". Append-only.
-      version: 33,
+      // v34: careRailOpen (Care assistant rail expanded?) — a SCALAR, not a
+      //      map, so the backfill is a default rather than {}. Defaults OPEN:
+      //      the rail is the tab's opening state, and a reader who has never
+      //      touched it should see what it offers.
+      version: 34,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1281,6 +1294,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.careReviews !== "object" || st.careReviews === null) {
             st.careReviews = {};
           }
+          // v34: a scalar preference — backfill the default, not {}.
+          const st34 = persisted as { careRailOpen?: unknown };
+          if (typeof st34.careRailOpen !== "boolean") {
+            st34.careRailOpen = true;
+          }
           // v33: same backfill, same reasoning as careReviews above.
           const st33 = persisted as { careFlagClosures?: unknown };
           if (
@@ -1463,6 +1481,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.careFlagClosures = {};
         }
         if (
+          typeof (merged as { careRailOpen?: unknown }).careRailOpen !== "boolean"
+        ) {
+          merged.careRailOpen = true;
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1542,6 +1565,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         menteeStatus: state.menteeStatus,
         careReviews: state.careReviews,
         careFlagClosures: state.careFlagClosures,
+        careRailOpen: state.careRailOpen,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,

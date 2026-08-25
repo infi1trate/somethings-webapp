@@ -54,6 +54,10 @@ import {
   type FlagClose,
 } from "@/components/record/flag-review-dialog";
 import {
+  AssistantLauncher,
+  CareAssistantRail,
+} from "@/components/record/care-assistant-rail";
+import {
   CareUpdateByline,
   CareUpdateBodyView,
 } from "@/components/record/care-update-view";
@@ -61,6 +65,7 @@ import { CareUpdateCompose } from "@/components/record/care-update-compose";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
   cadenceFor,
+  careAiSummaryFor,
   careTimelineFor,
   scoreSeriesFor,
   latestCareUpdateFor,
@@ -81,6 +86,8 @@ import {
 } from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { daysInMentorship } from "@/lib/record/relationships";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const H2 =
@@ -96,10 +103,11 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const draft = useOnboardingStore((s) => s.draft);
   const careReviews = useOnboardingStore((s) => s.careReviews);
   const careUpdates = useOnboardingStore((s) => s.careUpdates);
-  // careSummaryRefreshedAt / refreshCareSummary / careAiSummaryFor are all
-  // still in the store and the data layer — they come back into this file when
-  // the AI summary lands in the rail. Removed from here rather than left as
-  // unused locals so the file does not carry plumbing to nothing.
+  // Back, now that the AI summary has landed in the assistant rail.
+  const summaryRefreshed = useOnboardingStore((s) => s.careSummaryRefreshedAt);
+  const refreshCareSummary = useOnboardingStore((s) => s.refreshCareSummary);
+  const careRailOpen = useOnboardingStore((s) => s.careRailOpen);
+  const setCareRailOpen = useOnboardingStore((s) => s.setCareRailOpen);
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
   const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
@@ -144,6 +152,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
   const series = scoreSeriesFor(teen.id, now, store);
+  const summary = careAiSummaryFor(teen.id, now, store);
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // READ-WIDE. This used to be `canAct ? pendingReviewFor(...) : null`, which
@@ -210,8 +219,21 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
     toast(amends ? "Amendment appended." : "Care update saved.");
   };
 
+  const tasks = careTasksFor(teen.id, review, store);
+
   return (
-    <div className="space-y-7">
+    // THE RAIL IS COLLAPSIBLE, and that is the whole reason it can come back:
+    // the history table and the survey breakdowns need the full width, so the
+    // reader decides when 320px is worth spending. Collapsed leaves a slim
+    // launcher on the right edge rather than nothing, so the tool is findable.
+    <div
+      className={cn(
+        "grid items-start gap-6",
+        careRailOpen
+          ? "lg:grid-cols-[minmax(0,1fr)_320px]"
+          : "lg:grid-cols-[minmax(0,1fr)_auto]"
+      )}
+    >
       <div className="min-w-0 space-y-7">
         {/* 1 · CARE SUMMARY — the spine. Leads even with a review pending. */}
         <CareSummaryCard
@@ -234,7 +256,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             and there is no "all caught up" card. Ordering lives in
             careTasksFor, with the data, not in this JSX. */}
         <CareTaskRegion
-          tasks={careTasksFor(teen.id, review, store)}
+          tasks={tasks}
           teenName={teen.goesBy ?? teen.name}
           now={now}
           onReviewFlag={
@@ -265,12 +287,13 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }}
         />
 
-        {/* 3 · AI SUMMARY — REMOVED FROM THE MAIN COLUMN this run. It
-            relocates to the rail in a later prompt, and the slot is left empty
-            deliberately rather than closing the gap now and reopening it then:
-            reflowing this column twice would make two review passes disagree
-            about where everything sits. AiSummaryCard, careAiSummaryFor and the
-            refresh action all still exist and are untouched. */}
+        {/* 3 · AI SUMMARY HAS LEFT THE MAIN COLUMN FOR GOOD. It is now the
+            assistant rail's opening state — a summary about this teen, inside a
+            tool about this teen, under a line that says so. That also resolves
+            what it used to be ambiguous about: floating in this column it read
+            as unattributed commentary on the record, and a reader could
+            reasonably ask "summary of what?". `care-ai-summary.tsx` is deleted;
+            `careAiSummaryFor` still derives the text and the rail renders it. */}
 
         {/* 4 · THE CURRENT CARE UPDATE, IN FULL. Older ones live in History —
             this carries the current clinical read, not an archive. */}
@@ -339,6 +362,44 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
         </p>
       </div>
 
+
+      {/* ── THE ASSISTANT RAIL. Every tier reads it; only the summary refresh
+          is supervisor-gated, and the rail carries no other affordance that
+          could leak — it cannot approve, write, amend or close anything, and it
+          never authors a record entry. ──────────────────────────────────── */}
+      {careRailOpen ? (
+        <CareAssistantRail
+          teenId={teen.id}
+          teenName={teen.goesBy ?? teen.name}
+          summary={summary}
+          summaryRefreshedAt={summaryRefreshed[teen.id] ?? null}
+          onCollapse={() => setCareRailOpen(false)}
+          onRefreshSummary={
+            canAct
+              ? () => {
+                  refreshCareSummary(teen.id, Date.now());
+                  // Honest about what a refresh does today: TODO-DATA, the text
+                  // is derived from the timeline, so this re-stamps rather than
+                  // rewrites.
+                  toast("Summary re-checked. Regeneration isn’t wired yet.");
+                }
+              : undefined
+          }
+          facts={{
+            teenName: teen.goesBy ?? teen.name,
+            presentation,
+            cadence,
+            scores: series?.scores ?? [],
+            instrument: series?.instrument ?? null,
+            mentorLastSentDaysAgo: teen.mentorLastSentDaysAgo,
+            menteeLastSentDaysAgo: teen.menteeLastSentDaysAgo,
+            daysInMentorship: daysInMentorship(teen),
+            openFlagCount: tasks.filter((t) => t.kind === "flag").length,
+          }}
+        />
+      ) : (
+        <AssistantLauncher onOpen={() => setCareRailOpen(true)} />
+      )}
 
       {/* Both dialogs mount only for the tier that can use them. */}
       {canAct && (
