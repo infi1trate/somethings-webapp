@@ -75,6 +75,7 @@ export function UserRecordShell({
   onTabChange,
   sectionsLabel = "Sections",
   rail,
+  tabRowAction,
   children,
 }: {
   avatar: { src: string | null; initial: string };
@@ -108,6 +109,16 @@ export function UserRecordShell({
   sectionsLabel?: string;
   /** Contextual rail content. When omitted the workspace is full-width. */
   rail?: React.ReactNode;
+  /** PAGE-LEVEL CHROME, right-aligned on the tab row.
+   *
+   *  It sits OUTSIDE the nav, not inside it: the nav is `overflow-x-auto`, so
+   *  anything right-aligned within it scrolls away with the tabs at narrow
+   *  widths. The wrapper row below owns the alignment and the nav keeps its own
+   *  scrolling, which is why this is a sibling of the nav rather than a child.
+   *
+   *  Additive and optional — the mentor self-view and /admin/mentor pass
+   *  nothing and render exactly as before. */
+  tabRowAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -210,9 +221,14 @@ export function UserRecordShell({
           horizontal scrollbar is hidden too — the strip still scrolls by
           wheel, drag and keyboard, it just doesn't draw chrome over a
           40px-tall nav. */}
+      {/* THE TAB ROW. A flex row holding the scrolling nav and, optionally,
+          page-level chrome pinned right on the same baseline. The bottom rule
+          moved from the nav to this wrapper so it spans the full width rather
+          than stopping where the tabs stop. */}
+      <div className="mt-6 flex items-end gap-3 border-b border-[color:var(--border-contour)]">
       <nav
         aria-label={sectionsLabel}
-        className="mt-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[color:var(--border-contour)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 flex-1 gap-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {tabs.map((t) => (
           <button
@@ -240,6 +256,13 @@ export function UserRecordShell({
           </button>
         ))}
       </nav>
+        {tabRowAction && (
+          // Separated from the tabs by the gap and by shape — it is a pill, not
+          // a tab, and it must not read as one. `shrink-0` so a long tab set
+          // scrolls underneath it rather than squeezing it.
+          <div className="shrink-0 pb-1.5">{tabRowAction}</div>
+        )}
+      </div>
 
       <div
         className={cn(

@@ -242,14 +242,26 @@ export function CareSummaryCard({
             </p>
             {/* THE CODE IS AN IDENTIFIER, so it looks like one: a tonal chip
                 with tabular figures rather than a line of grey text that reads
-                as a subtitle. */}
-            <div className="mt-2.5">
+                as a subtitle.
+
+                TIGHT TO THE STATEMENT — and tight to its LAST LINE, which is
+                why this is a sibling in normal flow rather than anything
+                absolutely positioned: a wrapping statement pushes the chip down
+                with it. The box gap is 4px, not 8: the statement's 30px/1.15
+                line box carries ~2.25px of half-leading below the descender, so
+                6px of margin lands the OPTICAL gap at 8.25px. Measured on a
+                two-line statement, not assumed. */}
+            <div className="mt-1.5">
               <TonalChip mono className="text-[var(--text-secondary)]">
                 {presentation.code}
               </TonalChip>
             </div>
+            {/* THEN A LARGER BREAK. Statement→chip was 10px and chip→provenance
+                was also 10px, so all three read as equally weighted lines. 18px
+                here against 4px above makes the first two a lockup and the
+                provenance a subordinate note. */}
             <p
-              className="mt-2.5 text-[var(--text-muted)]"
+              className="mt-[18px] text-[var(--text-muted)]"
               style={{ font: "var(--type-helper)" }}
             >
               {/* TODO-COPY. Explicit dates — the clinical-date exception. */}

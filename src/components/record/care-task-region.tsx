@@ -41,9 +41,8 @@
 // could act, so lower tiers could not see that a review existed at all. That
 // enforced act-narrow by breaking read-wide.
 
-import { MessagesSquare } from "lucide-react";
-import Link from "next/link";
 import { PresentationReviewCard } from "@/components/record/care-review-card";
+import { ChatAction } from "@/components/admin/chat-action";
 import {
   CategoryChip,
   TaskCard,
@@ -56,12 +55,10 @@ import {
   type CareStoreSlice,
   type PresentationReview,
 } from "@/lib/record/care-demo";
-import { chatHrefFor } from "@/lib/record/chat";
 import {
   categoryLabel,
   type CareFlagRecord,
 } from "@/lib/record/people-demo";
-import { cn } from "@/lib/utils";
 
 /** FEATURE CHECK (Prompt B Phase 1). The escalation / risk-flag card is a STUB:
  *  it reports the flag and its state and offers no way to resolve one, because
@@ -106,8 +103,6 @@ const KIND_LABEL = {
   risk_flag: "Risk flag",
 } as const;
 
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 /** An open flag. Reports the concern, its categories and where the discussion
  *  is; the decision itself happens in the review modal, because reviewing a
@@ -172,17 +167,18 @@ function FlagTask({
         </div>
       )}
 
-      <Link
-        href={chatHrefFor(flag.conversationWith ?? "")}
-        className={cn(
-          "mt-3 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
-          RING
-        )}
-      >
-        <MessagesSquare className="size-3.5" aria-hidden />
-        {/* TODO-COPY */}
-        {`Open the discussion with ${teenName}`}
-      </Link>
+      {/* THE SHARED TERTIARY, not a text link. A card body has no column header
+          to lean on, so the affordance needs a button's shape — and reusing the
+          directory's tertiary means the two cannot drift. Left-aligned beneath
+          the concern and the category chips. */}
+      <div className="mt-3 -ml-3">
+        <ChatAction
+          personId={flag.conversationWith ?? ""}
+          name={teenName}
+          /* TODO-COPY */
+          label="Open chat"
+        />
+      </div>
     </TaskCard>
   );
 }

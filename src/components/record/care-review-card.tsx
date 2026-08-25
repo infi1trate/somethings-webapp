@@ -69,9 +69,27 @@ const SECTION = "mt-4 border-t border-[var(--border-subtle)] pt-4";
 
 /** The three-column breakdown, as a LOOSE table: no borders, no header fill, no
  *  surrounding card. Hairlines between rows only. */
+/** The band name beside the score, on ONE baseline with it — 12px, card tone,
+ *  hairline ring. Neutral: severity lives in the task label band, and a second
+ *  coloured chip inside the card would be a second severity signal. */
+function BandChip({ severity }: { severity: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)] ring-1 ring-inset ring-[color:var(--border-subtle)]">
+      {bandLabel(severity)}
+    </span>
+  );
+}
+
 function ItemTable({ items }: { items: AssessmentItem[] }) {
   return (
-    <table className="w-full text-left">
+    <table className="w-full table-fixed text-left">
+      <colgroup>
+        {/* Question takes the room; answer is comfortable; points is narrow so
+            the digits line up in a true column. */}
+        <col />
+        <col className="w-[34%]" />
+        <col className="w-[64px]" />
+      </colgroup>
       <thead>
         <tr>
           {/* TODO-COPY */}
@@ -79,7 +97,7 @@ function ItemTable({ items }: { items: AssessmentItem[] }) {
             <th
               key={h}
               className={cn(
-                "pb-1.5 font-medium text-[var(--text-muted)]",
+                "h-8 align-middle font-medium text-[var(--text-muted)]",
                 i === 2 ? "text-right" : "pr-3"
               )}
               style={LABEL_STYLE}
@@ -93,63 +111,23 @@ function ItemTable({ items }: { items: AssessmentItem[] }) {
         {items.map((it) => (
           <tr
             key={it.question}
-            className="border-t border-[var(--border-subtle)] align-top"
+            // Hairlines BETWEEN rows only — no top rule (the header supplies
+            // it), no bottom rule on the last row, no surrounding card.
+            className="border-t border-[var(--border-subtle)]"
           >
-            <td className="py-1.5 pr-3 text-[14px] leading-[20px] text-[var(--text-primary)]">
+            <td className="h-9 pr-3 align-middle text-[13px] leading-[18px] text-[var(--text-primary)]">
               {it.question}
             </td>
-            <td className="py-1.5 pr-3 text-[14px] leading-[20px] text-[var(--text-secondary)]">
+            <td className="h-9 pr-3 text-right align-middle text-[13px] leading-[18px] text-[var(--text-muted)]">
               {it.answer}
             </td>
-            <td className="py-1.5 text-right text-[14px] leading-[20px] tabular-nums text-[var(--text-primary)]">
+            <td className="h-9 text-right align-middle text-[13px] leading-[18px] tabular-nums text-[var(--text-primary)]">
               {it.points}
             </td>
           </tr>
         ))}
       </tbody>
     </table>
-  );
-}
-
-/** The band name as a chip beneath the score. Neutral, like every score chip —
- *  severity lives in the task label band and nowhere else. */
-function BandChip({ severity }: { severity: string }) {
-  return (
-    <span className="inline-flex w-fit items-center rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[12.5px] leading-[16px] text-[var(--text-secondary)] ring-1 ring-inset ring-[color:var(--border-subtle)]">
-      {bandLabel(severity)}
-    </span>
-  );
-}
-
-/** A disclosure that reads as one: the chevron LEADS and rotates, and carries
- *  aria-expanded. Never the trailing navigation position. */
-function Disclosure({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] transition-opacity hover:opacity-70",
-          RING
-        )}
-      >
-        <ChevronRight
-          className={cn("size-3.5 transition-transform", open && "rotate-90")}
-          aria-hidden
-        />
-        {label}
-      </button>
-      {open && <div className="mt-3">{children}</div>}
-    </div>
   );
 }
 
@@ -191,6 +169,9 @@ export function PresentationReviewCard({
   // AT THE FIELD and moves focus there — see decision-footer's note on choosing
   // error recovery over error prevention.
   const [noteError, setNoteError] = useState(false);
+  /** Lifted out of the old Disclosure component: the header must not own the
+   *  body's open state, or it re-renders around it. */
+  const [open, setOpen] = useState(false);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
   const overflowTrigger = useRef<HTMLButtonElement | null>(null);
 
@@ -337,12 +318,17 @@ export function PresentationReviewCard({
         </div>
       )}
 
-      {/* 3 · SURVEY EVIDENCE — a designed block, not a label-value line.
-          A TONAL INSET ROW, radius 12px: permitted because it is a row inside the
-          card's own body rather than a second card. The score is the thing a
-          supervisor reads first, so it gets the size; instrument and date sit
-          beside it as context; the disclosure is pushed right so the row has a
-          clear reading order across rather than a stack. */}
+      {/* 3 · SURVEY EVIDENCE — header row and body are SIBLINGS.
+          THE OLD STRUCTURE WAS THE BUG. The disclosure lived as the third child
+          of a `flex items-center flex-wrap` row, and the expanded table rendered
+          INSIDE it. Measured: expanding took the row 80px → 186px, which made
+          `items-center` re-centre every sibling — the score dropped 53px into
+          dead space — while the table's width forced a wrap that shifted the
+          disclosure 106px left and 10px up. The control migrated because it was
+          inside the thing that grew.
+          Now the header is a fixed-height row that contains only the header, and
+          the body is its sibling. Nothing in the header can move when the body
+          appears, because the body is not in it. */}
       <div className={SECTION}>
         <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
           {/* TODO-COPY */}
@@ -350,66 +336,87 @@ export function PresentationReviewCard({
         </p>
 
         {evidence && (
-          <>
-            <div /* 12px explicitly: `rounded-xl` resolves to the theme's --radius-xl
-                  (16.8px here), which is the card radius family and made the
-                  inset read as a nested card rather than a row inside one. */
-              className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[12px] bg-[var(--surface-s1)] px-3.5 py-3">
-              {/* LEFT — the score at 24px tabular, band chip beneath. */}
-              <div className="shrink-0">
-                <p className="text-[24px] font-normal leading-[28px] tabular-nums text-[var(--text-primary)]">
+          <div className="mt-2 overflow-hidden rounded-[12px] bg-[var(--surface-s1)]">
+            {/* HEADER ROW — fixed 56px, pixel-identical in both states. */}
+            <div className="flex h-14 items-center gap-x-3 px-3.5">
+              {/* ONE BASELINE. `items-baseline` inside a fixed-height flex row,
+                  so the numeral, the chip and the meta line share it rather
+                  than stacking. */}
+              <div className="flex min-w-0 flex-1 items-baseline gap-x-2.5">
+                <span className="shrink-0 text-[24px] font-normal leading-none tabular-nums text-[var(--text-primary)]">
                   {evidence.score}
-                </p>
-                <p className="mt-1">
-                  <BandChip severity={evidence.severity} />
-                </p>
+                </span>
+                <BandChip severity={evidence.severity} />
+                <span className="min-w-0 truncate text-[13px] leading-none text-[var(--text-muted)]">
+                  {review.aggregate
+                    ? /* TODO-COPY */ `recency-weighted across ${review.aggregate.surveys.length} surveys`
+                    : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
+                </span>
               </div>
 
-              {/* MIDDLE — instrument and date, or the aggregate's qualifier. */}
-              <p className="min-w-0 flex-1 text-[13px] leading-[19px] text-[var(--text-muted)]">
-                {review.aggregate
-                  ? /* TODO-COPY */ `recency-weighted across ${review.aggregate.surveys.length} surveys`
-                  : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
-              </p>
-
-              {/* RIGHT — the disclosure. */}
-              <div className="shrink-0">
-                <Disclosure
-                  /* TODO-COPY */
-                  label={
-                    review.aggregate
-                      ? "Surveys in this period"
-                      : "Question by question"
-                  }
-                >
-                  {review.aggregate ? (
-                    <table className="w-full text-left">
-                      <tbody>
-                        {review.aggregate.surveys.map((sv) => (
-                          <tr
-                            key={sv.at}
-                            className="border-t border-[var(--border-subtle)]"
-                          >
-                            <td className="py-1.5 pr-3 text-[13px] leading-[19px] text-[var(--text-secondary)]">
-                              {clinicalDate(sv.at)}
-                            </td>
-                            <td className="py-1.5 pr-3 text-[13px] leading-[19px] text-[var(--text-secondary)]">
-                              {sv.instrument}
-                            </td>
-                            <td className="py-1.5 text-right">
-                              <ScoreChip score={sv.score} severity={sv.severity} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <ItemTable items={evidence.items} />
+              {/* PINNED. Its own flex child in a fixed-height row — it cannot
+                  move, because nothing around it changes size. */}
+              <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                aria-expanded={open}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] transition-opacity hover:opacity-70",
+                  RING
+                )}
+              >
+                {/* TODO-COPY */}
+                Question by question
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 transition-transform",
+                    open && "rotate-90"
                   )}
-                </Disclosure>
-              </div>
+                  aria-hidden
+                />
+              </button>
             </div>
-          </>
+
+            {/* BODY — expanded only, beneath a hairline, full width, BELOW the
+                header rather than beside the score. */}
+            {open && (
+              <div className="border-t border-[var(--border-subtle)] px-3.5 py-3">
+                {/* AGGREGATE: the contributing surveys come FIRST, above the
+                    question table — they are what the weighted score is made
+                    of, so they explain the number before breaking it down. */}
+                {review.aggregate && (
+                  <table className="mb-3 w-full text-left">
+                    <tbody>
+                      {review.aggregate.surveys.map((sv) => (
+                        <tr
+                          key={sv.at}
+                          className="border-b border-[var(--border-subtle)] last:border-0"
+                        >
+                          <td className="h-9 pr-3 text-[13px] text-[var(--text-secondary)]">
+                            {clinicalDate(sv.at)}
+                          </td>
+                          <td className="h-9 pr-3 text-[13px] text-[var(--text-secondary)]">
+                            {sv.instrument}
+                          </td>
+                          <td className="h-9 text-right">
+                            <ScoreChip score={sv.score} severity={sv.severity} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <ItemTable
+                  items={
+                    review.aggregate
+                      ? (review.aggregate.surveys[0]?.items ?? [])
+                      : evidence.items
+                  }
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
 

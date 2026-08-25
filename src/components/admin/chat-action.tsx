@@ -21,12 +21,19 @@ export function ChatAction({
   name,
   subjectRole,
   viewerRole,
+  label = "Chat",
 }: {
   personId: string;
   /** For the accessible name — "Chat with Omar Haddad". */
   name: string;
   subjectRole?: PersonRole;
   viewerRole?: PersonRole;
+  /** VISIBLE LABEL ONLY; the accessible name always names the person. Defaults
+   *  to the compact "Chat" the three table consumers use — the care task cards
+   *  pass "Open chat", because in a card body with no column header the verb has
+   *  to carry itself. Added as a prop rather than forking the component: a
+   *  second tertiary button would drift from this one within a release. */
+  label?: string;
 }) {
   const router = useRouter();
   if (!canChatWith(viewerRole, subjectRole)) return null;
@@ -46,7 +53,7 @@ export function ChatAction({
       }
     >
       <MessageSquare className="size-4" aria-hidden />
-      Chat
+      {label}
     </button>
   );
 }

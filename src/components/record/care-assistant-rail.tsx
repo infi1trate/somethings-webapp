@@ -469,15 +469,21 @@ export function CareAssistantRail({
         ) : null}
 
         {(!started || promptsOpen) && (
-          <div className="mb-2.5 flex flex-wrap gap-1.5">
+          <div className="mb-2.5 flex flex-wrap items-start gap-1.5">
             {SUGGESTED_QUESTIONS.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => ask(s)}
+                // EVEN PADDING WHEN THE TEXT WRAPS. `py-1.5` on a wrapping pill
+                // gives 6px above the first line and 6px below the last, but the
+                // 16px line-height makes a two-line pill look bottom-heavy
+                // against a one-line neighbour on the same row. A min-height
+                // plus centring makes every pill in the set optically level
+                // whether it wraps or not.
                 className={cn(
                   PILL,
-                  "px-3 py-1.5 text-left text-[12.5px] leading-[16px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+                  "flex min-h-8 items-center px-3 py-1.5 text-left text-[12.5px] leading-[16px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
                   RING
                 )}
               >

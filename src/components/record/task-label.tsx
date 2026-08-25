@@ -30,52 +30,26 @@
 
 export type TaskSeverity = "routine" | "warning" | "critical";
 
-/** Chip fill + ink per family.
+/** THE WARM TRIAD. One scale, three steps — see the token block for the ladder
+ *  and its measurements.
  *
- *  The chip sits ON the band, which is itself a wash of the same family, so the
- *  chip has to be a step stronger than the band or it disappears into it. These
- *  are the `--alert-*-bg` tokens — a real tint rather than a mix — with the
- *  family's `-fg` for text. Both invert correctly in dark mode, which a
- *  hardcoded alpha would not. */
-const CHIP: Record<TaskSeverity, { bg: string; fg: string; dot: string }> = {
-  // Routine is NEUTRAL, not warm. A scheduled review is ordinary work; giving it
-  // the warm family was the thing that made routine work look urgent.
-  routine: {
-    bg: "var(--surface-s1)",
-    fg: "var(--text-secondary)",
-    dot: "var(--text-muted)",
-  },
-  warning: {
-    bg: "var(--alert-warning-bg)",
-    fg: "var(--alert-warning-fg)",
-    dot: "var(--alert-warning-accent)",
-  },
-  critical: {
-    bg: "var(--alert-critical-bg)",
-    fg: "var(--alert-critical-fg)",
-    dot: "var(--alert-critical-accent)",
-  },
-};
-
-/** The band's wash per family — a step LIGHTER than the chip, so the chip reads
- *  as sitting on it.
- *
- *  RAISED FROM WHAT WAS THERE. Measured before this pass: routine 0% (no fill at
- *  all), warning 6.7%, critical 6.3% — all effectively invisible, which is what
- *  the brief reported. Now mixed from each family's accent into the card surface
- *  at the brief's targets: routine 5.5%, warning and critical 10%. Mixed rather
- *  than hardcoded because the alert families invert in dark mode. */
-const BAND: Record<TaskSeverity, string> = {
-  routine:
-    "color-mix(in oklab, var(--text-primary) 5.5%, var(--surface-card))",
-  warning:
-    "color-mix(in oklab, var(--alert-warning-accent) 10%, var(--surface-card))",
-  critical:
-    "color-mix(in oklab, var(--alert-critical-accent) 10%, var(--surface-card))",
+ *  THE CHIP IS THE BAND'S OWN INK ON THE CARD SURFACE, not a second tint. The
+ *  previous version gave the chip an `--alert-*-bg` fill sitting on a band of the
+ *  same family, which is two tints of one hue stacked — the chip either vanished
+ *  into the band or fought it. A chip in card tone reads as lifted off the band
+ *  at any alpha, and the ink carries the family. */
+const FAMILY: Record<TaskSeverity, { band: string; ink: string }> = {
+  routine: { band: "var(--band-sand-bg)", ink: "var(--band-sand-fg)" },
+  warning: { band: "var(--band-amber-bg)", ink: "var(--band-amber-fg)" },
+  critical: { band: "var(--band-clay-bg)", ink: "var(--band-clay-fg)" },
 };
 
 export function taskBandFill(severity: TaskSeverity): string {
-  return BAND[severity];
+  return FAMILY[severity].band;
+}
+
+export function taskBandInk(severity: TaskSeverity): string {
+  return FAMILY[severity].ink;
 }
 
 export function TaskLabel({
@@ -90,18 +64,19 @@ export function TaskLabel({
   type: string;
   qualifier?: string;
 }) {
-  const c = CHIP[severity];
+  const ink = taskBandInk(severity);
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
       <span
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1"
-        style={{ backgroundColor: c.bg, color: c.fg }}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-card)] px-2.5 py-1"
+        style={{ color: ink }}
       >
-        {/* 6px dot. Decorative — the type name beside it carries the meaning. */}
+        {/* 6px dot, in the band's OWN darkened hue — a band never carries a
+            colour its text does not. Decorative; the type name carries it. */}
         <span
           aria-hidden
           className="size-1.5 shrink-0 rounded-full"
-          style={{ backgroundColor: c.dot }}
+          style={{ backgroundColor: ink }}
         />
         <span className="text-[12.5px] font-medium leading-[16px]">{type}</span>
       </span>
@@ -137,8 +112,15 @@ export function TaskBand({
 }) {
   return (
     <div
-      className="flex min-h-14 items-center justify-between gap-x-4 gap-y-2 border-b border-[color:var(--border-subtle)] px-[var(--surface-pad-x)] py-2"
-      style={{ backgroundColor: taskBandFill(severity) }}
+      // THE HAIRLINE IS THE BAND'S OWN INK AT LOW ALPHA, not --border-subtle.
+      // A neutral #dfddd8 hairline against a warm tint reads as a seam of a
+      // different colour, and against sand it measured as no line at all. Mixed
+      // from the band's ink so it deepens with the band.
+      className="flex min-h-14 items-center justify-between gap-x-4 gap-y-2 border-b px-[var(--surface-pad-x)] py-2"
+      style={{
+        backgroundColor: taskBandFill(severity),
+        borderBottomColor: `color-mix(in oklab, ${taskBandInk(severity)} 22%, transparent)`,
+      }}
     >
       {children}
       {actions && (

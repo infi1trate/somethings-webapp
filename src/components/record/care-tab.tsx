@@ -53,10 +53,7 @@ import {
   FlagReviewDialog,
   type FlagClose,
 } from "@/components/record/flag-review-dialog";
-import {
-  AssistantLauncher,
-  CareAssistantRail,
-} from "@/components/record/care-assistant-rail";
+import { CareAssistantRail } from "@/components/record/care-assistant-rail";
 import {
   CareUpdateByline,
   CareUpdateBodyView,
@@ -229,9 +226,9 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
     <div
       className={cn(
         "grid items-start gap-6",
-        careRailOpen
-          ? "lg:grid-cols-[minmax(0,1fr)_320px]"
-          : "lg:grid-cols-[minmax(0,1fr)_auto]"
+        // Closed: ONE column. The trigger left this grid for the tab row, so
+        // there is no second track to reserve.
+        careRailOpen ? "lg:grid-cols-[minmax(0,1fr)_320px]" : "grid-cols-1"
       )}
     >
       <div className="min-w-0 space-y-7">
@@ -397,15 +394,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             openFlagCount: tasks.filter((t) => t.kind === "flag").length,
           }}
         />
-      ) : (
-        <AssistantLauncher
-          onOpen={() => setCareRailOpen(true)}
-          // The dot appears when a supervisor has re-stamped the snapshot while
-          // the rail was closed. Cheap signal, and it has a real accessible
-          // label rather than being colour alone.
-          hasUpdate={!!summaryRefreshed[teen.id]}
-        />
-      )}
+      ) : null}
 
       {/* Both dialogs mount only for the tier that can use them. */}
       {canAct && (

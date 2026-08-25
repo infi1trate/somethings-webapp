@@ -651,6 +651,24 @@ export const DEMO_TEENS: DemoTeen[] = [
           "Spoke with the teen and their parent the same evening. Immediate support was in place and the mentorship carried on without a pause.",
       },
       {
+        // A SECOND OPEN ESCALATION, so one record carries all three task types at
+        // once — the only way to see the band triad as a graduated scale in a
+        // single Action required section, which is what the tone work has to be
+        // judged against. It also closes a real gap the audit found: exactly one
+        // escalation was open across 26 teens, so the critical band was
+        // effectively unreviewable.
+        id: "cf-t17-3",
+        kind: "escalation",
+        severity: "critical",
+        reason: "Said a family member had taken their phone away for a week",
+        raisedBy: "Brandy Forrestor",
+        raisedByRole: "Lead mentor",
+        daysAgo: 3,
+        source: "person",
+        categories: ["ABUSE_DISCLOSURE"],
+        conversationWith: "t17",
+      },
+      {
         id: "cf-t17-2",
         kind: "risk_flag",
         severity: "warning",

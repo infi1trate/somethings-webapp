@@ -25,6 +25,7 @@ import { MessagesSquare } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
+import { AssistantLauncher } from "@/components/record/care-assistant-rail";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
 import { CareTab } from "@/components/record/care-tab";
@@ -76,6 +77,11 @@ export default function PersonRecordPage({
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
+  const careRailOpen = useOnboardingStore((s) => s.careRailOpen);
+  const setCareRailOpen = useOnboardingStore((s) => s.setCareRailOpen);
+  const careSummaryRefreshedAt = useOnboardingStore(
+    (s) => s.careSummaryRefreshedAt
+  );
 
   const subject = resolveSubject(id);
   // Resolved BEFORE the early return below — hooks can't sit after a
@@ -160,6 +166,19 @@ export default function PersonRecordPage({
   return (
     <Shell active={isTeen ? "mentees" : "team"}>
       <UserRecordShell
+        // PAGE-LEVEL CHROME, on the tab row. The assistant belongs to the page
+        // rather than to a section, so its collapsed trigger sits with the tabs
+        // instead of in the content column — where it collided with section
+        // CTAs sitting at a different y. Only on Care, only while the rail is
+        // shut.
+        tabRowAction={
+          activeTab === "care" && !careRailOpen ? (
+            <AssistantLauncher
+              onOpen={() => setCareRailOpen(true)}
+              hasUpdate={!!careSummaryRefreshedAt[subject.id]}
+            />
+          ) : undefined
+        }
         avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
         name={subject.goesBy ?? subject.name}
         role={subject.role}

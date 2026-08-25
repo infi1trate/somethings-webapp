@@ -58,9 +58,46 @@
      10px sits a step inside --radius-surface so a field reads as sitting in a
      card rather than echoing it. */
   --radius-control: 10px;
+
+  /* ── TASK BAND TRIAD (new tokens — the system had none) ──────────────────
+     Three steps of ONE warm scale, for the task label bands. Proposed rather
+     than borrowed: the closest existing family is --alert-warm, but that is a
+     SEMANTIC slot already carrying the deactivate band and the review eyebrow,
+     so reusing it would couple a task band's tone to unrelated meanings.
+
+     WHY THE OLD ROUTINE BAND FAILED. It mixed --text-primary into white, which
+     measured a chroma spread of ZERO — a dead neutral grey on a warm cream
+     canvas, which is exactly what "disabled" looks like. Every step here is in
+     the canvas's own hue family (canvas is hsl(44,27%,86%)).
+
+     THE LADDER IS MONOTONIC in all three dimensions, which is what makes the
+     three read as one scale rather than three unrelated semantic colours:
+       saturation   45% → 62% → 72%
+       lightness    92% → 89% → 87%
+       warmth (R−B)  19  →  34  →  48
+     Fill contrast against the white card climbs with it: 1.15 → 1.21 → 1.40.
+
+     INK IS THE BAND'S OWN HUE, DARKENED — never black on a tint. Each clears
+     4.5:1 on its own fill by a wide margin (7.38 / 7.24 / 6.84). The dot uses
+     the same ink, so a band never carries a colour its text does not. */
+  --band-sand-bg: #f4efe1; /* hsl(44,45%,92%) — routine / review due */
+  --band-sand-fg: #5e4a21; /* hsl(40,48%,25%) — 7.38:1 on sand */
+  --band-amber-bg: #f4e8d2; /* hsl(38,62%,89%) — risk flag */
+  --band-amber-fg: #694217; /* hsl(32,64%,25%) — 7.24:1 on amber */
+  --band-clay-bg: #f6d3c6; /* hsl(16,72%,87%) — escalation; earthy, not pink */
+  --band-clay-fg: #75301f; /* hsl(12,58%,29%) — 6.84:1 on clay */
   --surface-pad-x: 24px;
   --surface-pad-y: 20px;
-  --border-contour: rgb(31 30 29 / 8%);
+  /* CONTOUR RAISED 8% → 16%. At 8% the composited edge measured 1.167:1
+     against the canvas — present on all four edges of every card, and
+     invisible. 16% lands at 1.365:1, which is just past the 1.319:1 of surface
+     contrast a white card already gets against the canvas: the edge now reads
+     about as strongly as the surface boundary it accompanies, rather than
+     disappearing behind it. Decorative, so the 3:1 non-text rule does not
+     apply — but "invisible" was a failure. This also fixes the Care assistant
+     panel, whose footer fill (--surface-s1) sits at only 1.20:1 against the
+     canvas and so had almost no surface contrast to fall back on. */
+  --border-contour: rgb(31 30 29 / 16%);
 
   /* Semantic interims — NOT in spec §2; logged in design-system-gaps.md */
   --state-dirty: #b45309; /* unsaved-changes indicator — 4.57:1 on s1 */
@@ -292,7 +329,17 @@
   --icon-tertiary: #8a8275;
 
   --surface-card: #322f2c; /* warmGrey/900 + 5% white (stateLayers/primary) */
-  --border-contour: rgb(255 255 255 / 10%); /* contour flips light-on-dark */
+  --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
+
+  /* The same three hues, inverted: fill dark, ink light. Lifted clear of the
+     dark card (#322f2c) — the first attempt sat at 1.01–1.05:1 against it,
+     which is the dark-mode version of the invisible-band problem. */
+  --band-sand-bg: #4f4730; /* 1.44:1 on the dark card */
+  --band-sand-fg: #e0d3ae; /* 6.19:1 on sand */
+  --band-amber-bg: #5b4929; /* 1.54:1 */
+  --band-amber-fg: #efce95; /* 5.73:1 on amber */
+  --band-clay-bg: #673928; /* 1.39:1 */
+  --band-clay-fg: #f2ac92; /* 5.06:1 on clay */
 
   --state-dirty: #fcd34d; /* unsaved indicator, lifted for dark */
   --state-error: #ff6f2f; /* tangelo/400 — also feeds --dot-critical */
