@@ -1502,7 +1502,10 @@ export function pendingReviewFor(
       },
       rationale: {
         source: "ai",
-        text: "Across the last three assessments the mood items have risen from the mild band into the moderate band, while the items that carried the anxiety presentation have not moved. Mentorship contact has stayed weekly through the period with no gap over nine days. The recurrent-depression presentation fits the current scores more closely than the one on record.",
+        // The contact sentence is GONE: nothing computes message cadence, and an
+        // AI-labelled rationale asserting it contradicts the provenance line
+        // that now says survey history only.
+        text: "Across the last three assessments the mood items have risen from the mild band into the moderate band, while the items that carried the anxiety presentation have not moved. The recurrent-depression presentation fits the current scores more closely than the one on record.",
       },
       survey: null,
       aggregate: {
@@ -1636,9 +1639,17 @@ export interface CareAiSummary {
   generatedAt: number;
 }
 
-/** TODO-COPY */
+/** TODO-COPY.
+ *
+ *  NARROWED FROM "survey history and mentorship activity". This function
+ *  consumes `assessment` events and NOTHING ELSE — no message, contact or video
+ *  data reaches it, and none exists in a shape it could use. On a page carrying a
+ *  clinical diagnosis about a minor, a provenance line that overstates its own
+ *  inputs is the worst possible thing to be wrong about: a reader who believes
+ *  mentorship activity was weighed will read more into the sentence than the
+ *  sentence knows. When contact data lands, widen this again — and not before. */
 export const AI_SUMMARY_LIMITATION =
-  "AI-generated from survey history and mentorship activity, for context only — not a clinical determination.";
+  "AI-generated from survey history, for context only — not a clinical determination.";
 
 /** Null when there isn't enough on file to say anything — the UI renders "Not
  *  enough data yet" rather than a confident sentence built on one data point. */
@@ -1657,7 +1668,8 @@ export function careAiSummaryFor(
   if (teenId === "t15") {
     return {
       generatedAt,
-      text: "Both intake instruments scored in the mild-to-moderate range, with the sleep items the highest across them. Mentorship contact has been steady since the match resumed, with the teen initiating most of the recent exchanges.",
+      // Same trim as t13's rationale — no contact data feeds this function.
+      text: "Both intake instruments scored in the mild-to-moderate range, with the sleep items the highest across them, and the sleep items are the ones that have not moved since.",
     };
   }
   if (teenId === "t13") {
@@ -1687,8 +1699,7 @@ export function careAiSummaryFor(
       : sameBand
         ? `Scores have moved ${last > first ? "up" : "down"} from ${first} to ${last} across ${n} assessments, staying inside the ${bandLast} band`
         : `Scores have moved ${last > first ? "up" : "down"} from ${first} to ${last} across ${n} assessments, out of the ${bandFirst} band and into the ${bandLast} one`;
-  return {
-    generatedAt,
-    text: `${movement}. Mentorship contact has continued through the period on file.`,
-  };
+  // The trailing "mentorship contact has continued" clause is GONE with it: it
+  // was an unsourced claim about data this function never sees.
+  return { generatedAt, text: `${movement}.` };
 }

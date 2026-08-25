@@ -14,17 +14,27 @@
 // greyed-out Approve advertises a decision a mentor cannot take part in, and this
 // page carries a clinical diagnosis about a minor.
 //
-// TWO LAYERS. The MAIN COLUMN is evidentiary: the presentation in force, the
-// cadence, the current care update, the append-only timeline. The RAIL is
-// interpretive: the AI read and the notes. Timeline content is never duplicated
-// into the rail — the Figma exploration's filtered History rail is not built.
+// ONE FULL-WIDTH COLUMN. The 320px interpretive rail is GONE (Prompt A Phase 1):
+// it split the page into an evidentiary column and an interpretive one, which
+// meant survey breakdowns and history rows were squeezed into ~1fr minus 320px
+// for the sake of a card and a list that read perfectly well inline. The rail's
+// Notes segment is deleted outright — care updates now have exactly one home,
+// the main column — and its AI summary moved into the column as its own card.
 //
 // NO PAGE HEADING echoing the tab name — the tab bar already said "Care".
 //
-// COLUMN ORDER: [action slot] → presentation spine + cadence → current care
-// update → history → standing compliance line. The slot takes the top when
-// something is pending; when nothing is, it renders NOTHING and the spine leads.
-// Absence is the reward state — no "all caught up" card.
+// COLUMN ORDER (Prompt A Phase 3):
+//   1. Care summary — presentation on record + the metrics band
+//   2. Task region — renders NOTHING when no task is open
+//   3. AI summary
+//   4. Care update (current, in full)
+//   5. History
+//   6. Standing compliance line
+//
+// THE SUMMARY LEADS, ALWAYS — even with a review pending. The old layout put the
+// action slot above everything, which made a routine scheduled review outrank
+// the diagnosis it concerns. Severity is honest: the task region sits second,
+// and absence is the reward state — no "all caught up" card.
 //
 // PRE-FIRST-SURVEY is the common case, not an edge case. Through the PRD's
 // "snooze" period the presentation reads as an empty state (never an em dash),
@@ -33,24 +43,19 @@
 
 import { useRef, useState } from "react";
 import { CareTimeline } from "@/components/record/care-timeline";
-import {
-  CadenceCard,
-  PresentationReference,
-  PresentationSpine,
-} from "@/components/record/care-presentation";
+import { CareSummaryCard } from "@/components/record/care-summary";
+import { AiSummaryCard } from "@/components/record/care-ai-summary";
 import { PresentationReviewAction } from "@/components/record/care-action-slot";
 import {
-  CareRail,
   CareUpdateByline,
   CareUpdateBodyView,
-} from "@/components/record/care-rail";
+} from "@/components/record/care-update-view";
 import { CareUpdateCompose } from "@/components/record/care-update-compose";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
   cadenceFor,
   careAiSummaryFor,
   careTimelineFor,
-  careUpdatesFor,
   latestCareUpdateFor,
   pendingReviewFor,
   presentationFor,
@@ -82,6 +87,9 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
   const refreshCareSummary = useOnboardingStore((s) => s.refreshCareSummary);
+  // The match/unmatch log, so the Mentor metric names who they are matched with
+  // NOW rather than whoever the fixture row still points at.
+  const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
 
   // The one gate on this page. Read is wide; action is narrow.
   const canAct = canActOnCare(persona);
@@ -110,7 +118,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
   const summary = careAiSummaryFor(teen.id, now, store);
-  const updates = careUpdatesFor(teen.id, now, store.updates ?? []);
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // Read-wide/act-narrow enforced at the SOURCE: a pending review is only ever
@@ -175,52 +182,64 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   };
 
   return (
-    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="space-y-7">
       <div className="min-w-0 space-y-7">
-        {review ? (
-          <>
-            {/* REVIEW-PENDING MODE: the slot takes the top; the spine demotes
-                beneath it and reads as the comparison reference. */}
-            <PresentationReviewAction
-              review={review}
-              currentCode={presentation?.code ?? null}
-              actor={staffName}
-              actorRole={staffActorFor(persona)}
-              onChangeRequest={() => openDialog(setSearching)}
-              onApprove={(d) => {
-                approveCareReview({ ...d, teenId: teen.id });
-                setProposed(null);
-                // TODO-COPY
-                toast("Approved. The decision is on the record.");
-              }}
-            />
-            {/* Same xl split as the resting spine — see PresentationSpine. */}
-            <div className="grid items-start gap-6 xl:grid-cols-2">
-              <PresentationReference
-                presentation={presentation}
-                recommended={review.recommended}
-              />
-              <CadenceCard
-                cadence={cadence}
-                now={now}
-                onAssignSurvey={onAssignSurvey}
-              />
-            </div>
-          </>
-        ) : (
-          // RESTING MODE: the spine leads, and nothing announces that nothing is
-          // wrong.
-          <PresentationSpine
-            presentation={presentation}
-            cadence={cadence}
-            now={now}
-            onChange={canAct ? () => openDialog(setSearching) : undefined}
-            onAssignSurvey={onAssignSurvey}
+        {/* 1 · CARE SUMMARY — the spine. Leads even with a review pending. */}
+        <CareSummaryCard
+          teen={teen}
+          presentation={presentation}
+          cadence={cadence}
+          now={now}
+          relationships={{ events: relationshipEvents }}
+          onChange={canAct ? () => openDialog(setSearching) : undefined}
+          onAssignSurvey={onAssignSurvey}
+          liveMentorName={
+            [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
+            undefined
+          }
+        />
+
+        {/* 2 · TASK REGION. Renders NOTHING when no task is open — absence is
+            the reward state, and there is no "all caught up" card. Prompt B
+            generalises this to escalations and risk flags; today the
+            presentation review is its only consumer. */}
+        {review && (
+          <PresentationReviewAction
+            review={review}
+            currentCode={presentation?.code ?? null}
+            actor={staffName}
+            actorRole={staffActorFor(persona)}
+            onChangeRequest={() => openDialog(setSearching)}
+            onApprove={(d) => {
+              approveCareReview({ ...d, teenId: teen.id });
+              setProposed(null);
+              // TODO-COPY
+              toast("Approved. The decision is on the record.");
+            }}
           />
         )}
 
-        {/* THE CURRENT CARE UPDATE, IN FULL. Older ones live in the timeline —
-            the main column carries the current clinical read, not an archive. */}
+        {/* 3 · AI SUMMARY — decision support, typographically subordinate to
+            the human clinical text below it. */}
+        <AiSummaryCard
+          summary={summary}
+          refreshedAt={summaryRefreshed[teen.id] ?? null}
+          personId={teen.id}
+          onRefresh={
+            canAct
+              ? () => {
+                  refreshCareSummary(teen.id, Date.now());
+                  // Honest about what a refresh does today: TODO-DATA, the text
+                  // is derived from the timeline, so a refresh re-stamps rather
+                  // than rewrites.
+                  toast("Summary re-checked. Regeneration isn’t wired yet.");
+                }
+              : undefined
+          }
+        />
+
+        {/* 4 · THE CURRENT CARE UPDATE, IN FULL. Older ones live in History —
+            this carries the current clinical read, not an archive. */}
         {latestUpdate && (
           <section aria-label="Care update" data-record-section="care-update">
             <h2 className={H2}>Care update</h2>
@@ -233,6 +252,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           </section>
         )}
 
+        {/* 5 · HISTORY */}
         <section aria-label="History">
           <h2 className={H2}>History</h2>
           <div className="mt-3">
@@ -252,43 +272,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
         </p>
       </div>
 
-      {/* THE INTERPRETIVE RAIL. Every action callback is supervisor-gated by
-          being passed or not passed — there is no disabled refresh, no disabled
-          compose, no disabled amend. */}
-      <aside aria-label="Care context" className="min-w-0">
-        <CareRail
-          summary={summary}
-          summaryRefreshedAt={summaryRefreshed[teen.id] ?? null}
-          onRefreshSummary={
-            canAct
-              ? () => {
-                  refreshCareSummary(teen.id, Date.now());
-                  // Honest about what a refresh does today: TODO-DATA, the text
-                  // is a fixture, so a refresh re-stamps rather than rewrites.
-                  toast("Summary re-checked. Regeneration isn’t wired yet.");
-                }
-              : undefined
-          }
-          personId={teen.id}
-          updates={updates}
-          onCompose={
-            canAct
-              ? () => {
-                  setAmending(null);
-                  openDialog(setComposing);
-                }
-              : undefined
-          }
-          onAmend={
-            canAct
-              ? (u) => {
-                  setAmending(u);
-                  openDialog(setComposing);
-                }
-              : undefined
-          }
-        />
-      </aside>
 
       {/* Both dialogs mount only for the tier that can use them. */}
       {canAct && (
