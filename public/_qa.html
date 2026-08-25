@@ -1,0 +1,70 @@
+<title>Care record — QA contact sheet</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin:0; background:#f3f0ea; font:14px/1.5 ui-sans-serif,-apple-system,sans-serif; color:#1f1e1d; }
+  header { padding:28px 32px 8px; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:-0.3px; }
+  header p { margin:0; color:#58534b; max-width:70ch; }
+  .grid { display:flex; flex-wrap:wrap; gap:28px; padding:24px 32px 56px; }
+  figure { margin:0; background:#fff; border:1px solid #dfddd8; border-radius:14px; overflow:hidden; }
+  figcaption { padding:10px 14px; border-bottom:1px solid #eae7e1; background:#faf8f4; }
+  figcaption b { display:block; font-size:13px; }
+  figcaption span { font-size:12px; color:#6e6b67; }
+  iframe { display:block; border:0; width:1120px; height:760px; }
+  .tall iframe { height:1180px; }
+  .note { padding:14px 18px; margin:0 32px 28px; background:#fff; border:1px solid #dfddd8;
+          border-radius:12px; max-width:78ch; }
+  .note b { display:block; margin-bottom:4px; }
+  code { background:#f3f0ea; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+<header>
+  <h1>Care record — QA contact sheet</h1>
+  <p>Live app in iframes, same origin, at full size. Each frame is the real page — scroll inside it.
+     Persona is set to <b>supervisor</b> for the acting states and switched per frame where noted.</p>
+</header>
+
+<div class="note">
+  <b>Three things to drive by hand</b>
+  <span>1 — Press <code>Approve</code> with an empty provider note: the error appears at the field, focus
+  moves there, and it is announced. 2 — Press a suggested-question pill in the rail: thinking dots, then a
+  structured answer with real score chips and a link that scrolls History. 3 — Flip the persona toggle at
+  the bottom of any frame to <code>Mentor</code>: everything stays readable, every action affordance
+  disappears, nothing goes grey.</span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+  // Same origin, so the parent can set the persona the frames will read.
+  const KEY = "somethings.mentor-onboarding";
+  function persona(p) {
+    try { const o = JSON.parse(localStorage[KEY]); o.state.persona = p;
+          o.state.careRailOpen = true; localStorage[KEY] = JSON.stringify(o); } catch (e) {}
+  }
+  persona("supervisor");
+
+  const SHOTS = [
+    ["t13", "Critical escalation + review, stacked", "Action required · 2 — crisis-elevated escalation above a 90-day review. Also the AGGREGATE evidence block.", 1],
+    ["t17", "Risk flag + review, stacked", "Warning band above routine. Care update signature avatar at the foot.", 1],
+    ["t11", "Single-survey evidence block", "Intake review — no rationale (templated is deleted), single-survey evidence variant.", 0],
+    ["t15", "No open tasks", "The Action required section, header included, does not render.", 0],
+    ["t20", "Ended mentorship", "Mentor: “No current mentor · no end date on file”. Next review: “Not scheduled”.", 0],
+    ["t5",  "Snapshot empty state", "“Not enough data yet.” at narrative scale. Outstanding survey, not-yet-assigned presentation.", 0],
+  ];
+
+  const grid = document.getElementById("grid");
+  for (const [id, title, sub, tall] of SHOTS) {
+    const f = document.createElement("figure");
+    if (tall) f.className = "tall";
+    f.innerHTML = `<figcaption><b>${title}</b><span>${sub} — /admin/person/${id}?tab=care</span></figcaption>
+                   <iframe src="/admin/person/${id}?tab=care"></iframe>`;
+    grid.appendChild(f);
+  }
+
+  // NO PER-FRAME PERSONA. Every frame shares one localStorage, so setting the
+  // persona for a single frame races any other frame that happens to load
+  // mid-swap — it would silently render the wrong tier and look like a bug in the
+  // page rather than in this harness. All frames are supervisor; the role matrix
+  // is checked with the app's own persona toggle, which sits at the bottom of
+  // every frame.
+</script>

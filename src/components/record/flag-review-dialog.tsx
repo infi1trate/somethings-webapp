@@ -13,10 +13,12 @@
 // events, not content — and it matters most in exactly this dialog, where the
 // temptation to paste the offending line is strongest.
 //
-// SAME GATING GRAMMAR AS THE PROVIDER NOTE. Close is disabled until the note has
-// non-whitespace content, the requirement and the permanence are stated before
-// the reach, and the note is appended rather than stored as an edit. The gate and
-// the note field are both the shared DecisionNote/gateHelp pair.
+// SAME GATING GRAMMAR AS THE PROVIDER NOTE, and it is no longer a disabled
+// button. Close is always live; pressing it with an empty note moves focus to the
+// field, marks it invalid and announces the requirement from beside it. Both
+// commit paths share `DecisionNote`, so the review card and this modal cannot
+// drift apart. (`gateHelp` — the old "Add a note to enable Closing" line under a
+// disabled primary — is deleted; see decision-footer.)
 //
 // CRISIS AND REFERRAL ARE OPTIONAL AND OFF BY DEFAULT. Defaults whisper: most
 // reviews are neither, and a form that pre-opens both invites a supervisor to
