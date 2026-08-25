@@ -50,6 +50,14 @@
      from the 3:1 non-text rule — if it reads as a line, it's too strong. */
   --surface-card: #ffffff;
   --radius-surface: 16px;
+  /* CONTROL RADIUS. Added because four files already referenced
+     `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
+     resolves to nothing, so the DSM-5 search input, the flag-review selects, the
+     assistant input and its suggested prompts all rendered with square corners on
+     a page where nothing else has them. Defining it fixes every site at once;
+     10px sits a step inside --radius-surface so a field reads as sitting in a
+     card rather than echoing it. */
+  --radius-control: 10px;
   --surface-pad-x: 24px;
   --surface-pad-y: 20px;
   --border-contour: rgb(31 30 29 / 8%);

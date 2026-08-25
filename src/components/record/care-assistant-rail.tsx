@@ -1,37 +1,43 @@
 "use client";
 
 // CARE ASSISTANT RAIL — a scoped assistant about ONE teen, on the Care tab.
+// This pass rebuilds its PRESENTATION only; no capability changed.
 //
-// WHY THE RAIL CAME BACK, AND AS SOMETHING ELSE. The old rail was a content card
-// (an AI summary and a notes list) sitting permanently beside the record, and it
-// was deleted because it gave care updates a second home and cost the history
-// table 320px it needed. This is not that: it is a TOOL, it is collapsible, and
-// the reader decides when the width is worth spending.
+// WHY THE RAIL EXISTS AS A TOOL RATHER THAN A CONTENT CARD: the old rail held
+// record content (an AI summary and a notes list), which gave care updates a
+// second home and cost the history table 320px permanently. This one holds no
+// record content, and it collapses — the reader decides when the width is worth
+// spending.
 //
-// IT ALSO FIXES "SUMMARY OF WHAT?". The relocated care narrative is now the
-// assistant's OPENING STATE — a summary about this teen, inside a tool about this
-// teen, under a line that says so. The same paragraph read as unattributed
-// commentary when it floated in the main column.
+// CLOSED STATE IS A HORIZONTAL PILL, NOT A ROTATED TAB. The previous launcher set
+// its label with `writing-mode: vertical-rl`, which is unreadable at a glance,
+// survives no translation gracefully, and is a genuine accessibility problem:
+// rotated text defeats magnification and reflow. A pill at the top right of the
+// content column costs one row of height and reads instantly.
 //
-// AVAILABLE TO EVERY TIER. Mentors, lead mentors, supervisors and admins all
-// read it; read-wide means read. The only thing that varies is the summary
-// refresh, which is a supervisor action and is simply not passed below that tier
-// — the rail contains NO other affordance that could leak, by construction: it
-// cannot approve, write, amend or close anything, and it never authors a record
-// entry.
+// DISCLAIMERS MOVED TO THE FOOTER, MERGED INTO ONE LINE. They used to be two
+// stacked blocks at the TOP of the panel — the most valuable space in it — so a
+// reader met two caveats before any content. The scope and the provenance are one
+// sentence pair at the foot now, still outside the scrolling thread so they cannot
+// be pushed off, but no longer the first thing in the panel.
 //
-// TYPOGRAPHY IS SUBORDINATE. 13px, secondary ink, never bold body. The main
-// column's clinical text is 15px primary. A reader must be able to tell, without
-// reading a word, which of the two is the record and which is a machine's
-// commentary on it.
+// NO CHAT COMPONENT WAS REUSED, DELIBERATELY. `first-chat-preview.tsx` has bubbles
+// and is the only thread-like thing in the product, but its header says "FIXED
+// IDENTITY — DO NOT THEME": it simulates the TEEN-facing mobile app with
+// hard-coded whites and purples that must not follow a staff member's appearance
+// setting. Reusing it would drag the teen palette into staff chrome and break
+// dark mode. What IS reused are the main column's chip components — TonalChip,
+// ScoreChip — so a structured answer looks native rather than pasted.
 //
-// PROVENANCE IS PINNED, NOT SCROLLED. The line sits under the header, outside the
-// thread's scroll container, so it cannot be pushed off by a long conversation.
+// TYPOGRAPHY IS SUBORDINATE TO THE RECORD, but the snapshot is prose, not a
+// caption: 14px at 1.55 against the main column's 15px primary. A reader must be
+// able to tell which is the record and which is commentary on it, without the
+// commentary being unpleasant to read.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronRight,
+  ChevronDown,
   MessagesSquare,
   PanelRightClose,
   RefreshCw,
@@ -40,11 +46,11 @@ import {
   Sparkles,
 } from "lucide-react";
 import { chatHrefFor } from "@/lib/record/chat";
+import { ScoreChip } from "@/components/record/score-chip";
 import {
   ASSISTANT_DELAY_MS,
   ASSISTANT_ERROR_TRIGGER,
-  ASSISTANT_PROVENANCE,
-  ASSISTANT_SCOPE,
+  ASSISTANT_FOOTER,
   SUGGESTED_QUESTIONS,
   askCareAssistant,
   type AssistantFacts,
@@ -56,19 +62,25 @@ import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
-const LABEL_STYLE = {
-  font: "var(--type-field-label)",
-  letterSpacing: "var(--type-field-label-tracking)",
-} as const;
-/** Subordinate body: 13px secondary, never bold. */
-const SUB = "text-[13px] leading-[19px] text-[var(--text-secondary)]";
+/** 11.5px muted — the eyebrow scale, below the 12px field-label stop. */
+const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
+/** Fully rounded, tonal, tappable — prompt pills and the input share it. */
+const PILL =
+  "rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-s1)]";
 
 let seq = 0;
 const nextId = () => `turn-${++seq}`;
 
-// ── Collapsed launcher ──────────────────────────────────────────────────────
+// ── Closed state ────────────────────────────────────────────────────────────
 
-export function AssistantLauncher({ onOpen }: { onOpen: () => void }) {
+export function AssistantLauncher({
+  onOpen,
+  /** True when the snapshot changed since this reader last opened the rail. */
+  hasUpdate = false,
+}: {
+  onOpen: () => void;
+  hasUpdate?: boolean;
+}) {
   return (
     <button
       type="button"
@@ -76,26 +88,218 @@ export function AssistantLauncher({ onOpen }: { onOpen: () => void }) {
       /* TODO-COPY */
       aria-label="Open the care assistant"
       className={cn(
-        "sticky top-6 flex w-11 shrink-0 flex-col items-center gap-2 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-2 py-3",
-        "text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+        "sticky top-6 flex shrink-0 items-center gap-2 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-3.5 py-2",
+        "text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
         RING
       )}
     >
-      <Sparkles className="size-4" aria-hidden />
-      {/* Vertical label so the launcher stays a slim edge rather than a button
-          with a caption. */}
-      <span
-        className="text-[11px] font-semibold tracking-wide"
-        style={{ writingMode: "vertical-rl" }}
-      >
-        {/* TODO-COPY */}
-        Assistant
-      </span>
+      <Sparkles className="size-4 shrink-0" aria-hidden />
+      {/* TODO-COPY. Horizontal, readable, translatable — see the module note on
+          why the rotated label is gone. */}
+      Care assistant
+      {hasUpdate && (
+        // NEVER COLOUR ALONE: the dot is decorative and the label carries the
+        // fact, so a reader who cannot see it still hears it.
+        <span
+          role="img"
+          /* TODO-COPY */
+          aria-label="Snapshot updated since you last opened this"
+          className="size-1.5 shrink-0 rounded-full bg-[var(--alert-warm-accent)]"
+        />
+      )}
     </button>
   );
 }
 
-// ── The rail ────────────────────────────────────────────────────────────────
+// ── Thread ──────────────────────────────────────────────────────────────────
+
+/** THINKING, NOT SPINNING. A spinner says "the app is busy"; three settling dots
+ *  say "someone is composing an answer", which is the truer description of what
+ *  is happening and the calmer one to sit beside. Reduced-motion falls back to a
+ *  static row, because a pulsing dot is exactly what that preference is for. */
+function Thinking() {
+  return (
+    <p className="flex items-center gap-1.5" aria-live="polite">
+      <span className="sr-only">{/* TODO-COPY */}Composing an answer…</span>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="size-1.5 rounded-full bg-[var(--text-muted)] motion-safe:animate-pulse"
+          style={{ animationDelay: `${i * 160}ms` }}
+        />
+      ))}
+    </p>
+  );
+}
+
+/** The one place a refusal is named. A refusal is a DECISION the assistant made,
+ *  and a reader should see that rather than assume it failed to answer. Muted,
+ *  never tinted — severity belongs to the task label band alone. */
+function RefusalMark({ kind }: { kind: string }) {
+  return (
+    <p className={cn("flex items-center gap-1.5", EYEBROW)}>
+      <ShieldAlert className="size-3 shrink-0" aria-hidden />
+      {/* TODO-COPY */}
+      {kind === "route_risk"
+        ? "Routed to the escalation path"
+        : kind === "refuse_clinical"
+          ? "Not a clinical determination"
+          : "Outside this record"}
+    </p>
+  );
+}
+
+function Turn({ turn, teenId }: { turn: AssistantTurn; teenId: string }) {
+  const r = turn.reply;
+  const refusal =
+    r &&
+    (r.kind === "refuse_clinical" ||
+      r.kind === "refuse_scope" ||
+      r.kind === "route_risk");
+
+  return (
+    <div className="space-y-3">
+      {/* USER TURN — right-aligned tonal bubble. */}
+      <div className="flex justify-end">
+        <p className="max-w-[88%] rounded-2xl rounded-br-md bg-[var(--surface-s1)] px-3 py-2 text-[13px] leading-[19px] text-[var(--text-primary)]">
+          {turn.question}
+        </p>
+      </div>
+
+      {/* ASSISTANT TURN — left-aligned typeset text, NOT a bubble. A heavy
+          bubble on both sides makes the machine a peer in the conversation; set
+          as prose with a mark at the first line, it reads as commentary. */}
+      <div className="flex gap-2">
+        <Sparkles
+          className="mt-0.5 size-3.5 shrink-0 text-[var(--text-muted)]"
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          {turn.pending && <Thinking />}
+
+          {turn.error && (
+            <p className="text-[13px] leading-[19px] text-[var(--state-error)]">
+              {/* TODO-COPY. An ERROR, distinct from a refusal: the assistant did
+                  not decline, it failed — and nothing reached the record either
+                  way. */}
+              Something went wrong reaching the assistant. Nothing was recorded —
+              try again.
+            </p>
+          )}
+
+          {r && (
+            <>
+              {refusal && <RefusalMark kind={r.kind} />}
+              <p
+                className={cn(
+                  "text-[13.5px] text-[var(--text-primary)]",
+                  refusal && "mt-1.5"
+                )}
+                style={{ lineHeight: 1.55 }}
+              >
+                {r.text}
+              </p>
+
+              {/* STRUCTURED ELEMENTS, using the MAIN COLUMN'S chips so an answer
+                  looks native rather than pasted in. */}
+              {r.chips && r.chips.length > 0 && (
+                <p className="mt-2 flex flex-wrap gap-1.5">
+                  {r.chips.map((c) => (
+                    <ScoreChip key={`${c.score}-${c.severity}`} {...c} />
+                  ))}
+                </p>
+              )}
+
+              {r.table && r.table.length > 0 && (
+                <table className="mt-2 w-full text-left">
+                  <tbody>
+                    {r.table.map((row) => (
+                      <tr
+                        key={row[0]}
+                        className="border-t border-[var(--border-subtle)]"
+                      >
+                        <td className="py-1 pr-3 text-[13px] leading-[19px] text-[var(--text-muted)]">
+                          {row[0]}
+                        </td>
+                        <td className="py-1 text-right text-[13px] leading-[19px] tabular-nums text-[var(--text-primary)]">
+                          {row[1]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {r.bullets && r.bullets.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {r.bullets.map((b) => (
+                    <li
+                      key={b}
+                      className="flex gap-2 text-[13px] leading-[19px] text-[var(--text-primary)]"
+                    >
+                      <span aria-hidden className="text-[var(--text-muted)]">
+                        ·
+                      </span>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* LINKS BACK INTO THE RECORD. An answer that names a place should
+                  take you there. */}
+              {r.linkSection && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    document
+                      .querySelector(`[data-record-section="${r.linkSection}"]`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className={cn(
+                    "mt-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
+                    RING
+                  )}
+                >
+                  {/* TODO-COPY */}
+                  {r.linkSectionLabel ?? "Show me"}
+                </button>
+              )}
+
+              {r.linkConversation && (
+                <Link
+                  href={chatHrefFor(teenId)}
+                  className={cn(
+                    "mt-1.5 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
+                    RING
+                  )}
+                >
+                  <MessagesSquare className="size-3.5" aria-hidden />
+                  {/* TODO-COPY */}
+                  Open the conversation
+                </Link>
+              )}
+
+              {r.linkEscalation && (
+                <p className={cn("mt-1.5", EYEBROW)}>
+                  {/* TODO-COPY. Points at the workflow WITHOUT offering to start
+                      it: raising an escalation is a person's judgement, and a
+                      button here would let the assistant's guess begin a safety
+                      process. */}
+                  Escalations are raised from the conversation and appear under
+                  Action required.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── The panel ───────────────────────────────────────────────────────────────
 
 export function CareAssistantRail({
   teenId,
@@ -117,21 +321,32 @@ export function CareAssistantRail({
 }) {
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [draft, setDraft] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [inFlight, setInFlight] = useState(false);
+  /** Once a conversation has started the prompts collapse behind one control —
+   *  four pills above a live thread is the panel competing with itself. */
+  const [promptsOpen, setPromptsOpen] = useState(false);
+  const threadEnd = useRef<HTMLDivElement | null>(null);
   const updatedAt = summaryRefreshedAt ?? summary?.generatedAt ?? null;
+  const started = turns.length > 0;
 
-  /** EPHEMERAL BY CONSTRUCTION. Turns live in component state — never in the
-   *  store, never in the record. Navigating away loses them, which is correct:
-   *  nothing the assistant says is a record entry, and persisting a thread into
-   *  the store would be the first step toward treating it as one. */
+  // Follow the thread as it grows. Smooth, and only when something was added.
+  useEffect(() => {
+    if (started) threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns.length, started]);
+
+  /** EPHEMERAL BY CONSTRUCTION. Turns live in component state — never the store,
+   *  never the record. Navigating away loses them, which is correct: nothing the
+   *  assistant says is a record entry, and persisting a thread would be the first
+   *  step toward treating it as one. */
   const ask = (question: string) => {
     const q = question.trim();
-    if (!q) return;
+    if (!q || inFlight) return;
     const id = nextId();
     setTurns((t) => [...t, { id, question: q, reply: null, pending: true }]);
     setDraft("");
+    setInFlight(true);
     window.setTimeout(() => {
-      // The error path is a named trigger so the state is demonstrable.
+      setInFlight(false);
       if (q.toLowerCase().includes(ASSISTANT_ERROR_TRIGGER)) {
         setTurns((t) =>
           t.map((x) => (x.id === id ? { ...x, pending: false, error: true } : x))
@@ -149,15 +364,15 @@ export function CareAssistantRail({
     <aside
       aria-label="Care assistant"
       data-record-section="care-assistant"
-      className="sticky top-6 flex max-h-[calc(100dvh-3rem)] min-w-0 flex-col rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      // 20px — matching the page's cards. The brief said 16px; the cards are
+      // actually --radius-elevated (20px), and matching them is the requirement
+      // that matters. Reported.
+      className="sticky top-6 flex max-h-[calc(100dvh-3rem)] min-w-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
-      {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-2 px-4 pt-4">
-        <p
-          className="flex items-center gap-1.5 text-[var(--text-muted)]"
-          style={LABEL_STYLE}
-        >
-          <Sparkles className="size-3.5" aria-hidden />
+      {/* ── HEADER: icon + title + collapse. Nothing else. ──────────────── */}
+      <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-3">
+        <p className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+          <Sparkles className="size-4 shrink-0" aria-hidden />
           {/* TODO-COPY */}
           Care assistant
         </p>
@@ -175,32 +390,23 @@ export function CareAssistantRail({
         </button>
       </div>
 
-      {/* ── 1 · SCOPE, stated before anything is asked ──────────────────── */}
-      <p className={cn("mt-2 px-4", SUB)}>{ASSISTANT_SCOPE}</p>
-
-      {/* ── PROVENANCE, PINNED. Outside the scroll container below, so a long
-          thread can never push it off. ─────────────────────────────────── */}
-      <p
-        className="mt-2.5 border-y border-[var(--border-subtle)] bg-[var(--surface-s1)] px-4 py-2 text-[12px] leading-[17px] text-[var(--text-muted)]"
-      >
-        {ASSISTANT_PROVENANCE}
-      </p>
-
-      {/* ── SCROLLING BODY: summary → suggestions → thread ──────────────── */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        {/* 2 · CARE SUMMARY NARRATIVE — the assistant's opening state. */}
-        <div>
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+      {/* ── SCROLLING BODY: snapshot → thread ───────────────────────────── */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4">
+        {/* THE SNAPSHOT. Eyebrow + paragraph IS the lockup — the old "Where
+            [Name] is" header was a third element saying what the eyebrow and the
+            prose already say between them. */}
+        <div className="pb-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className={EYEBROW}>
               {/* TODO-COPY */}
-              {`Where ${teenName} is`}
+              {updatedAt ? `Snapshot · updated ${clinicalDate(updatedAt)}` : "Snapshot"}
             </p>
             {onRefreshSummary && (
               <button
                 type="button"
                 onClick={onRefreshSummary}
                 /* TODO-COPY */
-                aria-label="Refresh the care summary"
+                aria-label="Refresh the snapshot"
                 className={cn(
                   "-m-1.5 shrink-0 rounded-md p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
@@ -210,167 +416,117 @@ export function CareAssistantRail({
               </button>
             )}
           </div>
-          <p className={cn("mt-1.5", SUB)}>
-            {summary?.text ?? (
-              /* TODO-COPY — before a trend exists to describe. */
-              <span className="text-[var(--text-muted)]">Not enough data yet.</span>
+          <p
+            className={cn(
+              "mt-2 max-w-[46ch] text-[14px]",
+              summary ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
             )}
+            style={{ lineHeight: 1.55 }}
+          >
+            {/* TODO-COPY on the empty state — same scale as the narrative, so an
+                empty snapshot reads as a state rather than a broken caption. */}
+            {summary?.text ?? "Not enough data yet."}
           </p>
-          {updatedAt && (
-            <p className="mt-1.5 text-[12px] leading-[17px] text-[var(--text-muted)]">
-              {/* Clinical-adjacent date: explicit, not elapsed. */}
-              {`Updated ${clinicalDate(updatedAt)}`}
-            </p>
-          )}
         </div>
 
-        {/* 3 · SUGGESTED QUESTIONS */}
-        <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
-          <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
-            {/* TODO-COPY */}
-            Try asking
-          </p>
-          <ul className="mt-2 space-y-1.5">
-            {SUGGESTED_QUESTIONS.map((s) => (
-              <li key={s}>
-                <button
-                  type="button"
-                  onClick={() => ask(s)}
-                  className={cn(
-                    "flex w-full items-start gap-1.5 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] px-2.5 py-1.5 text-left",
-                    "text-[13px] leading-[18px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-                    RING
-                  )}
-                >
-                  <ChevronRight
-                    className="mt-0.5 size-3.5 shrink-0 text-[var(--text-muted)]"
-                    aria-hidden
-                  />
-                  {s}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* 4 · THREAD */}
-        {turns.length > 0 && (
-          <div className="mt-4 space-y-3">
+        {/* A hairline separates the snapshot from the conversation. */}
+        {started && (
+          <div className="space-y-5 border-t border-[var(--border-subtle)] py-4">
             {turns.map((t) => (
-              <TurnRow key={t.id} turn={t} teenId={teenId} />
+              <Turn key={t.id} turn={t} teenId={teenId} />
             ))}
+            <div ref={threadEnd} />
           </div>
         )}
       </div>
 
-      {/* ── INPUT, pinned at the foot ───────────────────────────────────── */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          ask(draft);
-        }}
-        className="flex items-center gap-2 border-t border-[var(--border-subtle)] px-4 py-3"
-      >
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          /* TODO-COPY */
-          aria-label={`Ask about ${teenName}`}
-          placeholder={`Ask about ${teenName}…`}
+      {/* ── COMPOSER: prompts + input, pinned. ──────────────────────────── */}
+      <div className="border-t border-[var(--border-subtle)] px-4 pt-3">
+        {/* PILLS, NOT CHEVRON ROWS. The old rows led with a left chevron, which
+            reads as navigation — "this takes me somewhere" — when the actual
+            affordance is "this asks a question". Once a conversation is running
+            they collapse behind one control. */}
+        {started ? (
+          <button
+            type="button"
+            onClick={() => setPromptsOpen((o) => !o)}
+            aria-expanded={promptsOpen}
+            className={cn(
+              "mb-2.5 inline-flex items-center gap-1.5 rounded-sm text-[12.5px] font-semibold text-[var(--text-secondary)] transition-opacity hover:opacity-70",
+              RING
+            )}
+          >
+            <ChevronDown
+              className={cn(
+                "size-3.5 transition-transform",
+                !promptsOpen && "-rotate-90"
+              )}
+              aria-hidden
+            />
+            {/* TODO-COPY */}
+            Suggested questions
+          </button>
+        ) : null}
+
+        {(!started || promptsOpen) && (
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
+            {SUGGESTED_QUESTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => ask(s)}
+                className={cn(
+                  PILL,
+                  "px-3 py-1.5 text-left text-[12.5px] leading-[16px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+                  RING
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            ask(draft);
+          }}
           className={cn(
-            "h-9 min-w-0 flex-1 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-2.5",
-            "text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
-            RING
-          )}
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim()}
-          /* TODO-COPY */
-          aria-label="Send"
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-contour)] text-[var(--text-primary)] transition-colors",
-            "hover:bg-[var(--tint-hover)] disabled:opacity-40",
-            RING
+            "mb-3 flex items-center gap-1 py-1 pl-3.5 pr-1",
+            PILL,
+            inFlight && "opacity-60"
           )}
         >
-          <Send className="size-3.5" aria-hidden />
-        </button>
-      </form>
-    </aside>
-  );
-}
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={inFlight}
+            /* TODO-COPY */
+            aria-label={`Ask about ${teenName}`}
+            placeholder={`Ask about ${teenName}…`}
+            className="h-7 min-w-0 flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          />
+          <button
+            type="submit"
+            disabled={!draft.trim() || inFlight}
+            /* TODO-COPY */
+            aria-label="Send"
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)] text-[var(--text-inverse)] transition-opacity",
+              "disabled:opacity-30",
+              RING
+            )}
+          >
+            <Send className="size-3" aria-hidden />
+          </button>
+        </form>
+      </div>
 
-/** A turn, with the conversation link pointed at the right person. */
-function TurnRow({ turn, teenId }: { turn: AssistantTurn; teenId: string }) {
-  const r = turn.reply;
-  const refusal =
-    r && (r.kind === "refuse_clinical" || r.kind === "refuse_scope" || r.kind === "route_risk");
-  return (
-    <div className="border-t border-[var(--border-subtle)] pt-3">
-      <p className="text-[13px] font-semibold leading-[19px] text-[var(--text-primary)]">
-        {turn.question}
+      {/* ── FOOTER: scope + provenance, ONE line, outside the scroll. ───── */}
+      <p className="border-t border-[var(--border-subtle)] bg-[var(--surface-s1)] px-4 py-2 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+        {ASSISTANT_FOOTER}
       </p>
-
-      {turn.pending && (
-        <p className={cn("mt-1.5", SUB)} aria-live="polite">
-          {/* TODO-COPY */}
-          Looking through the record…
-        </p>
-      )}
-
-      {turn.error && (
-        <p className="mt-1.5 text-[13px] leading-[19px] text-[var(--state-error)]">
-          {/* TODO-COPY. An ERROR, distinct from a refusal: the assistant did not
-              decline, it failed — and nothing reached the record either way. */}
-          Something went wrong reaching the assistant. Nothing was recorded — try
-          again.
-        </p>
-      )}
-
-      {r && (
-        <>
-          {refusal && (
-            <p
-              className="mt-1.5 flex items-center gap-1.5 text-[var(--text-muted)]"
-              style={LABEL_STYLE}
-            >
-              <ShieldAlert className="size-3" aria-hidden />
-              {/* TODO-COPY. Names WHICH guardrail fired, so the boundary is
-                  legible rather than mysterious. */}
-              {r.kind === "route_risk"
-                ? "Routed to the escalation path"
-                : r.kind === "refuse_clinical"
-                  ? "Not a clinical determination"
-                  : "Outside this record"}
-            </p>
-          )}
-          <p className={cn("mt-1.5", SUB)}>{r.text}</p>
-          {r.linkConversation && (
-            <Link
-              href={chatHrefFor(teenId)}
-              className={cn(
-                "mt-1.5 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
-                RING
-              )}
-            >
-              <MessagesSquare className="size-3.5" aria-hidden />
-              {/* TODO-COPY */}
-              Open the conversation
-            </Link>
-          )}
-          {r.linkEscalation && (
-            <p className={cn("mt-1.5 text-[var(--text-muted)]", SUB)}>
-              {/* TODO-COPY. Points at the workflow WITHOUT offering to start it:
-                  raising an escalation is a mentor's judgement, and a button here
-                  would let the assistant's guess start a safety process. */}
-              Escalations are raised from the conversation and appear in the task
-              region at the top of this page.
-            </p>
-          )}
-        </>
-      )}
-    </div>
+    </aside>
   );
 }

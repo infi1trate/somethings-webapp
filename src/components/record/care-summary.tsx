@@ -68,8 +68,6 @@ const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 const CARD =
   "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-4";
-const H2 =
-  "font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]";
 const LABEL_STYLE = {
   font: "var(--type-field-label)",
   letterSpacing: "var(--type-field-label-tracking)",

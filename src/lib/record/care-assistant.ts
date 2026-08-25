@@ -50,6 +50,18 @@ export interface AssistantReply {
   linkConversation?: boolean;
   /** Renders a pointer to the escalation path. */
   linkEscalation?: boolean;
+  // ── STRUCTURED ELEMENTS. Rendered with the MAIN COLUMN'S components, so an
+  // answer looks native rather than pasted in. All optional; a plain answer
+  // carries none of them.
+  /** Score chips, via the shared ScoreChip. */
+  chips?: { score: number; severity: string }[];
+  /** A compact two-column mini-table: [label, value]. */
+  table?: [string, string][];
+  /** A short list. */
+  bullets?: string[];
+  /** Scrolls to a `data-record-section` in the main column. */
+  linkSection?: string;
+  linkSectionLabel?: string;
 }
 
 export interface AssistantTurn {
@@ -62,13 +74,15 @@ export interface AssistantTurn {
   error?: boolean;
 }
 
-/** TODO-COPY. The scope line, stated before anything is asked. */
-export const ASSISTANT_SCOPE =
-  "Answers cover this mentee only — their surveys, their care history and their mentorship activity.";
-
-/** TODO-COPY. Persistent provenance. Must stay visible without scrolling. */
-export const ASSISTANT_PROVENANCE =
-  "AI-generated, for context only — not a clinical determination.";
+/** TODO-COPY. SCOPE AND PROVENANCE IN ONE LINE, in the panel's footer.
+ *
+ *  Was two stacked blocks at the TOP of the panel — the most valuable space in
+ *  it — so a reader met two caveats before any content. Both facts still have to
+ *  be present and still have to survive a long thread, so this sits outside the
+ *  scrolling body; what changed is that it is one sentence pair at the foot
+ *  rather than a preamble. */
+export const ASSISTANT_FOOTER =
+  "Answers cover this mentee only. AI-generated, for context only — not a clinical determination.";
 
 /** TODO-COPY. Care-oriented, non-diagnostic, and deliberately NOT one of them a
  *  question about the presentation — a suggested prompt that gets refused would
@@ -105,6 +119,20 @@ const CONTENT = [
 ];
 
 const hit = (q: string, list: string[]) => list.some((k) => q.includes(k));
+
+/** The band a score falls in, so a chip the assistant emits carries the SAME
+ *  band name the care summary and History show for that number. Re-derived from
+ *  the instrument's cut-points rather than guessed — two surfaces disagreeing
+ *  about whether an 11 is moderate is exactly the kind of contradiction this
+ *  record cannot afford. */
+function severityBandFor(instrument: string | null, score: number): string {
+  const phq = instrument !== "GAD-7";
+  const cuts: [number, string][] = phq
+    ? [[5, "minimal"], [10, "mild"], [15, "moderate"], [20, "moderately severe"]]
+    : [[5, "minimal"], [10, "mild"], [15, "moderate"]];
+  for (const [ceiling, label] of cuts) if (score < ceiling) return label;
+  return "severe";
+}
 
 export interface AssistantFacts {
   teenName: string;
@@ -209,7 +237,16 @@ export function askCareAssistant(
     const dir = last === first ? "held level" : last > first ? "risen" : "come down";
     return {
       kind: "answer",
-      text: `Across ${n} ${f.instrument ?? "survey"} results the score has ${dir}, from ${first} to ${last}. The breakdown for each is in the history table.`,
+      text: `Across ${n} ${f.instrument ?? "survey"} results the score has ${dir}, from ${first} to ${last}.`,
+      // The first and latest reading as real chips — the same component the
+      // care summary and History use.
+      chips: [
+        { score: first, severity: severityBandFor(f.instrument, first) },
+        { score: last, severity: severityBandFor(f.instrument, last) },
+      ],
+      linkSection: "care-timeline",
+      /* TODO-COPY */
+      linkSectionLabel: "See the breakdown in History",
     };
   }
 
@@ -220,20 +257,29 @@ export function askCareAssistant(
         text: `Nothing on ${who}'s record has been reviewed yet, so there's no "since" to summarise.`,
       };
     }
-    const open =
-      f.openFlagCount > 0
-        ? `, and ${f.openFlagCount} open ${f.openFlagCount === 1 ? "item" : "items"} in the task region above`
-        : ", and nothing outstanding in the task region";
     return {
       kind: "answer",
-      text: `Since the last review there ${n === 1 ? "has been 1 survey" : `have been ${n} surveys`} on file${open}. The entries themselves are in the history table.`,
+      text: `Since the last review, here is where things stand.`,
+      table: [
+        ["Surveys on file", String(n)],
+        ["Open items", String(f.openFlagCount)],
+        ["Days in mentorship", `${f.daysInMentorship} days`],
+      ],
+      linkSection: "care-timeline",
+      /* TODO-COPY */
+      linkSectionLabel: "See the entries in History",
     };
   }
 
   if (q.includes("read") || q.includes("check-in") || q.includes("check in")) {
     return {
       kind: "answer",
-      text: `Before your next check-in I'd read the current care update and the most recent survey — both are in the main column. If anything there surprises you, the conversation is the place to look next.`,
+      text: `Two things worth reading first:`,
+      bullets: [
+        /* TODO-COPY */
+        "The current care update — the most recent clinical read",
+        "The latest survey, and how it moved from the one before it",
+      ],
       linkConversation: true,
     };
   }

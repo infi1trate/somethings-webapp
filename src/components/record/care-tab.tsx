@@ -398,7 +398,13 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }}
         />
       ) : (
-        <AssistantLauncher onOpen={() => setCareRailOpen(true)} />
+        <AssistantLauncher
+          onOpen={() => setCareRailOpen(true)}
+          // The dot appears when a supervisor has re-stamped the snapshot while
+          // the rail was closed. Cheap signal, and it has a real accessible
+          // label rather than being colour alone.
+          hasUpdate={!!summaryRefreshed[teen.id]}
+        />
       )}
 
       {/* Both dialogs mount only for the tier that can use them. */}
