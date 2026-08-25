@@ -18,25 +18,17 @@
 // NO OPEN TASKS RENDERS NOTHING. Absence is the reward state — no empty frame,
 // no "all caught up" card. A healthy record is quiet.
 //
-// TWO VISUAL TIERS, HONESTLY ASSIGNED. This is the rule the old slot broke.
+// ONE ANATOMY, THREE TONES — the label band (see task-card.tsx). Every task is
+// the same card; only the band changes temperature. This replaces the previous
+// split, where a flag was a whole-card tint plus a 3px left-edge accent bar and a
+// review was an untinted card with a coloured eyebrow: two anatomies for two
+// things a supervisor works the same way, and the flag half broke rule 3 twice.
 //
-//   ROUTINE (presentation review) — plain card tone, contour hairline. NO tinted
-//   fill, NO left accent bar, NO warning icon. A scheduled cadence review is
-//   ordinary work; the old slot gave it a warm tint, a 3px accent edge and an
-//   AlertCircle, which is alarm chrome on the most predictable event in the
-//   product. If routine work looks urgent, real urgency stops reading.
-//   Prominence comes from POSITION (second on the page) and SCALE (a heading-
-//   weight recommendation), plus a single saturated eyebrow line — a mark, not
-//   a wash.
-//
-//   EXCEPTION (escalations, risk flags) — tinted surface in the critical or
-//   warning family per severity, with the state named IN WORDS. This is the ONLY
-//   tinted treatment anywhere on the Care page.
-//
-// The old slot's tint had a real justification — measured, the warm tint alone
-// sat at 1.02:1 against the panel behind it, so the accent edge was carrying the
-// boundary. That argument still holds for the EXCEPTION tier, which keeps both
-// the tint and the accent. It does not license tinting routine work.
+// The old accent bar had a real justification — measured, the alert tints sat
+// near 1:1 against the surface behind this column, so the bar was carrying the
+// boundary a tint could not. The band solves that differently and better: it is
+// closed by a hairline, so the boundary is structural rather than chromatic, and
+// the tint only has to be perceptible rather than load-bearing.
 //
 // READ-WIDE, ACT-NARROW — and read-wide means READ. Every tier sees every task
 // here: a mentor who raised an escalation needs to see that it is still open, and
@@ -49,14 +41,27 @@
 // could act, so lower tiers could not see that a review existed at all. That
 // enforced act-narrow by breaking read-wide.
 
-import { AlertCircle } from "lucide-react";
+import { MessagesSquare } from "lucide-react";
+import Link from "next/link";
 import { PresentationReviewCard } from "@/components/record/care-review-card";
 import {
-  flagResultLabel,
+  CategoryChip,
+  TaskCard,
+  type TaskTone,
+} from "@/components/record/task-card";
+import { RecordButton } from "@/components/record/record-button";
+import { clinicalDate } from "@/components/record/care-presentation";
+import {
   openFlagsFor,
+  type CareStoreSlice,
   type PresentationReview,
 } from "@/lib/record/care-demo";
-import type { CareFlagRecord } from "@/lib/record/people-demo";
+import { chatHrefFor } from "@/lib/record/chat";
+import {
+  categoryLabel,
+  type CareFlagRecord,
+} from "@/lib/record/people-demo";
+import { cn } from "@/lib/utils";
 
 /** FEATURE CHECK (Prompt B Phase 1). The escalation / risk-flag card is a STUB:
  *  it reports the flag and its state and offers no way to resolve one, because
@@ -64,11 +69,6 @@ import type { CareFlagRecord } from "@/lib/record/people-demo";
  *  the whole exception tier off the page in one line if the stub reads as a
  *  promise the product cannot yet keep. */
 const SHOW_FLAG_TASKS = true;
-
-const LABEL_STYLE = {
-  font: "var(--type-field-label)",
-  letterSpacing: "var(--type-field-label-tracking)",
-} as const;
 
 // ── The task union ──────────────────────────────────────────────────────────
 
@@ -83,32 +83,21 @@ export type CareTask =
  *  sort key, not recency. */
 export function careTasksFor(
   teenId: string,
-  review: PresentationReview | null
+  review: PresentationReview | null,
+  store: CareStoreSlice = {}
 ): CareTask[] {
   const tasks: CareTask[] = [];
   if (SHOW_FLAG_TASKS) {
-    for (const flag of openFlagsFor(teenId)) tasks.push({ kind: "flag", flag });
+    // Closures come from the store, so a flag closed in-session leaves the
+    // region immediately — the whole reward of finishing the work.
+    for (const flag of openFlagsFor(teenId, store))
+      tasks.push({ kind: "flag", flag });
   }
   if (review) tasks.push({ kind: "presentation_review", review });
   return tasks;
 }
 
-// ── Exception tier ──────────────────────────────────────────────────────────
-
-const FAMILY = {
-  critical: {
-    bg: "var(--alert-critical-bg)",
-    border: "var(--alert-critical-border)",
-    accent: "var(--alert-critical-accent)",
-    fg: "var(--alert-critical-fg)",
-  },
-  warning: {
-    bg: "var(--alert-warning-bg)",
-    border: "var(--alert-warning-border)",
-    accent: "var(--alert-warning-accent)",
-    fg: "var(--alert-warning-fg)",
-  },
-} as const;
+// ── Flag tasks ──────────────────────────────────────────────────────────────
 
 /** TODO-COPY. Names the KIND, not the severity — a reader does not need to be
  *  told that an escalation is serious. */
@@ -117,56 +106,84 @@ const KIND_LABEL = {
   risk_flag: "Risk flag",
 } as const;
 
-/** STUB. Reports the flag; resolves nothing. The resolution workflow is
- *  fast-follow, and a Resolve button that opened nothing would be worse than no
- *  button — so there is none, for every tier. */
-function FlagTask({ flag }: { flag: CareFlagRecord }) {
-  const f = FAMILY[flag.severity];
+const RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+
+/** An open flag. Reports the concern, its categories and where the discussion
+ *  is; the decision itself happens in the review modal, because reviewing a
+ *  conversation cannot happen inline.
+ *
+ *  `onReview` absent = read tier. Mentors and lead mentors see the whole card —
+ *  a mentor who raised an escalation needs to see it is still open — and get no
+ *  action, never a disabled one. */
+function FlagTask({
+  flag,
+  teenName,
+  now,
+  onReview,
+}: {
+  flag: CareFlagRecord;
+  teenName: string;
+  /** Fixed at the page's mount. Calling Date.now() in render is impure and the
+   *  lint rule is right to reject it — a re-render would silently move every
+   *  date on the card. */
+  now: number;
+  onReview?: (flag: CareFlagRecord, trigger: HTMLElement) => void;
+}) {
+  const tone: TaskTone = flag.severity === "critical" ? "critical" : "warning";
+  const cats = flag.categories ?? [];
+  const at = now - flag.daysAgo * 86_400_000;
+
   return (
-    <section
-      aria-label={`${KIND_LABEL[flag.kind]} — open`}
-      data-record-section="care-task-flag"
-      // TINT *AND* LEFT ACCENT. Measured, the alert tints sit near 1:1 against
-      // the surface behind this column, so the tint alone is a boundary nobody
-      // can see; the 3px accent is the same semantic family and carries it at
-      // real contrast, with no shadow involved.
-      className="rounded-[var(--radius-elevated)] border border-l-[3px] px-[var(--surface-pad-x)] py-4"
-      style={{
-        backgroundColor: f.bg,
-        borderColor: f.border,
-        borderLeftColor: f.accent,
-      }}
+    <TaskCard
+      tone={tone}
+      section="care-task-flag"
+      ariaLabel={`${KIND_LABEL[flag.kind]} — open`}
+      type={KIND_LABEL[flag.kind]}
+      /* TODO-COPY. "Crisis" is the ONLY extra chrome a crisis elevation gets —
+         the word does the work, per the brief. */
+      meta={flag.crisis ? "Open · Crisis" : "Open"}
+      actions={
+        onReview && (
+          <RecordButton onClick={(e) => onReview(flag, e.currentTarget)}>
+            {/* TODO-COPY — the ellipsis says a modal opens. */}
+            Review…
+          </RecordButton>
+        )
+      }
+      footer={
+        flag.source === "system"
+          ? /* TODO-COPY */ `System-detected from chat · ${clinicalDate(at)}`
+          : /* TODO-COPY */ `Raised by ${flag.raisedBy} · ${flag.raisedByRole} · ${clinicalDate(at)}`
+      }
     >
-      <div className="flex items-start gap-2.5">
-        {/* The warning icon belongs HERE and only here. */}
-        <AlertCircle
-          className="mt-0.5 size-4 shrink-0"
-          style={{ color: f.accent }}
-          aria-hidden
-        />
-        <div className="min-w-0">
-          <p
-            className="flex flex-wrap items-center gap-x-2"
-            style={{ ...LABEL_STYLE, color: f.fg }}
-          >
-            {KIND_LABEL[flag.kind]}
-            <span aria-hidden style={{ color: f.accent }}>
-              ·
-            </span>
-            {/* STATE IN WORDS, never colour alone. */}
-            <span>{flagResultLabel(flag)}</span>
-          </p>
-          <p className="mt-1.5 text-[15px] leading-[20px] text-[var(--text-primary)]">
-            {flag.reason}
-          </p>
-          <p className="mt-1.5 text-[13px] leading-[18px] text-[var(--text-muted)]">
-            {/* TODO-COPY. Who raised it — the old escalation event said
-                "Recorded automatically", which was never true of an escalation. */}
-            {`Raised by ${flag.raisedBy} · ${flag.raisedByRole}`}
-          </p>
+      {/* THE CONCERN, in plain language. Never message content. */}
+      <p className="text-[15px] leading-[22px] text-[var(--text-primary)]">
+        {flag.reason}
+      </p>
+
+      {cats.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {/* MAPPED display names only. An unknown value renders
+              "Uncategorised" — never the raw constant. */}
+          {cats.map((c) => (
+            <CategoryChip key={c} label={categoryLabel(c)} />
+          ))}
         </div>
-      </div>
-    </section>
+      )}
+
+      <Link
+        href={chatHrefFor(flag.conversationWith ?? "")}
+        className={cn(
+          "mt-3 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
+          RING
+        )}
+      >
+        <MessagesSquare className="size-3.5" aria-hidden />
+        {/* TODO-COPY */}
+        {`Open the discussion with ${teenName}`}
+      </Link>
+    </TaskCard>
   );
 }
 
@@ -174,9 +191,18 @@ function FlagTask({ flag }: { flag: CareFlagRecord }) {
 
 export function CareTaskRegion({
   tasks,
+  teenName,
+  now,
+  onReviewFlag,
   reviewProps,
 }: {
   tasks: CareTask[];
+  now: number;
+  /** For the discussion link's label — named, so the link says who. */
+  teenName: string;
+  /** Supervisor tier only; absent below. Takes the trigger element so the modal
+   *  can hand focus back to the button that opened it. */
+  onReviewFlag?: (flag: CareFlagRecord, trigger: HTMLElement) => void;
   /** Everything the review card needs beyond the review itself. Passed as one
    *  object so adding a second acting consumer later does not reshape this
    *  component's signature. */
@@ -192,7 +218,13 @@ export function CareTaskRegion({
     <div className="space-y-4" data-record-section="care-task-region">
       {tasks.map((t) =>
         t.kind === "flag" ? (
-          <FlagTask key={t.flag.id} flag={t.flag} />
+          <FlagTask
+            key={t.flag.id}
+            flag={t.flag}
+            teenName={teenName}
+            now={now}
+            onReview={onReviewFlag}
+          />
         ) : (
           <PresentationReviewCard
             key={t.review.id}

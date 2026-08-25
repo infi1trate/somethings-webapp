@@ -530,6 +530,9 @@ export const DEMO_TEENS: DemoTeen[] = [
         raisedBy: "Maria Lopez",
         raisedByRole: "Mentor",
         daysAgo: 14,
+        source: "person",
+        conversationWith: "t6",
+        outcome: "no_action",
         resolvedDaysAgo: 12,
         resolvedBy: "Brandy Forrestor",
         resolvedByRole: "Lead mentor",
@@ -595,6 +598,12 @@ export const DEMO_TEENS: DemoTeen[] = [
         raisedBy: "Brandon Forant",
         raisedByRole: "Mentor",
         daysAgo: 2,
+        source: "person",
+        categories: ["ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS"],
+        conversationWith: "t13",
+        // CRISIS-ELEVATED. The label band gains the word "Crisis" and nothing
+        // else — no extra chrome, per the brief.
+        crisis: { type: "suicidal_ideation" },
       },
     ],
   },
@@ -630,6 +639,11 @@ export const DEMO_TEENS: DemoTeen[] = [
         raisedBy: "Brandon Forant",
         raisedByRole: "Mentor",
         daysAgo: 40,
+        source: "person",
+        categories: ["ABUSE_DISCLOSURE"],
+        conversationWith: "t17",
+        outcome: "supported",
+        referral: { type: "family_services" },
         resolvedDaysAgo: 38,
         resolvedBy: "Dr. Amara Patel",
         resolvedByRole: "Supervisor",
@@ -644,6 +658,12 @@ export const DEMO_TEENS: DemoTeen[] = [
         raisedBy: "Brandy Forrestor",
         raisedByRole: "Lead mentor",
         daysAgo: 6,
+        source: "person",
+        // DELIBERATELY UNMAPPED, so the "Uncategorised" path is exercised on a
+        // real record rather than only in theory. `unmappedCategories()`
+        // reports it; the chip never shows the raw value.
+        categories: ["CATEGORY_4"],
+        conversationWith: "t17",
       },
     ],
   },
@@ -675,10 +695,15 @@ export const DEMO_TEENS: DemoTeen[] = [
         id: "cf-t21-1",
         kind: "risk_flag",
         severity: "warning",
-        reason: "Mentioned a change of school with two weeks' notice",
-        raisedBy: "Brandon Forant",
-        raisedByRole: "Mentor",
+        // SYSTEM-DETECTED: the reason names what was OBSERVED in the exchange,
+        // never what was written. Events, not content.
+        reason: "Language matching the hate-speech classifier appeared in chat",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
         daysAgo: 9,
+        source: "system",
+        categories: ["HATE_SPEECH_RACIAL_SLURS", "GROOMING_BEHAVIOR"],
+        conversationWith: "t21",
       },
     ],
   },
@@ -696,6 +721,10 @@ export const DEMO_TEENS: DemoTeen[] = [
         raisedBy: "Brandon Forant",
         raisedByRole: "Mentor",
         daysAgo: 96,
+        source: "person",
+        categories: ["ABUSE_DISCLOSURE"],
+        conversationWith: "t22",
+        outcome: "supported",
         resolvedDaysAgo: 94,
         resolvedBy: "Omar Haddad",
         resolvedByRole: "Supervisor",
@@ -810,6 +839,88 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
  *  OPEN, so an unresolved flag cannot be produced by forgetting to set a state —
  *  the open case is the one carrying LESS data, which is how it actually
  *  arrives. */
+/** SAFETY CATEGORIES — the taxonomy, and the ONLY place raw values become
+ *  readable strings.
+ *
+ *  BUILT, NOT REPAIRED. The brief described these as leaking into the UI as raw
+ *  constants; audited, this codebase had NO category taxonomy at all — zero
+ *  SCREAMING_SNAKE literals anywhere in src, and a flag's `reason` was free
+ *  prose. So there was nothing to un-leak; the enum and its display map are new.
+ *
+ *  THE MAP IS THE CONTRACT. Nothing may render a category except through
+ *  `categoryLabel`, which returns "Uncategorised" for anything it does not know.
+ *  That is the point: a value the product has not learned to name must NOT reach
+ *  a supervisor as `CATEGORY_4`, and it must not be silently dropped either —
+ *  an uncategorised safety flag is still a safety flag, and `unmappedCategories`
+ *  exists so the gap is countable rather than invisible.
+ *
+ *  TODO-DATA: the real taxonomy comes from the moderation layer, which does not
+ *  exist yet. These five are the ones the brief named. */
+export const CATEGORY_LABEL: Record<string, string> = {
+  GROOMING_BEHAVIOR: "Grooming behaviour",
+  ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS:
+    "Suicidal ideation with plan or means",
+  CREDIBLE_SPECIFIC_THREAT_TO_HARM_ANOTHER: "Threat to harm another person",
+  HATE_SPEECH_RACIAL_SLURS: "Hate speech or slurs",
+  ABUSE_DISCLOSURE: "Abuse disclosure",
+};
+
+/** TODO-COPY. What an unmapped category reads as. Deliberately not the raw
+ *  value, and deliberately not blank. */
+export const UNCATEGORISED_LABEL = "Uncategorised";
+
+export function categoryLabel(value: string): string {
+  return CATEGORY_LABEL[value] ?? UNCATEGORISED_LABEL;
+}
+
+/** Every category on the roster that has no display name — reported, not
+ *  hidden. Dev-time visibility for a gap that would otherwise only show up as
+ *  an "Uncategorised" chip a reader cannot act on. */
+export function unmappedCategories(): string[] {
+  const seen = new Set<string>();
+  for (const t of DEMO_TEENS) {
+    for (const f of t.careFlags ?? []) {
+      for (const c of f.categories ?? []) {
+        if (!(c in CATEGORY_LABEL)) seen.add(c);
+      }
+    }
+  }
+  return [...seen].sort();
+}
+
+/** What a supervisor did about a flag. TODO-COPY on every label. */
+export const FLAG_OUTCOME = [
+  { id: "supported", label: "Supported in place" },
+  { id: "escalated", label: "Escalated for review" },
+  { id: "referred", label: "Referred out" },
+  { id: "no_action", label: "No action needed" },
+] as const;
+export type FlagOutcome = (typeof FLAG_OUTCOME)[number]["id"];
+
+/** Crisis types, per the brief. Elevation is a FLAG ON an escalation, not a
+ *  third severity — the critical family already carries it and the word
+ *  "Crisis" in the label does the rest. */
+export const CRISIS_TYPE = [
+  { id: "self_harm", label: "Self-harm" },
+  { id: "suicidal_ideation", label: "Suicidal ideation" },
+  { id: "suicide_attempt", label: "Suicide attempt" },
+  { id: "homicidal_ideation", label: "Homicidal ideation" },
+  { id: "other", label: "Other" },
+] as const;
+export type CrisisType = (typeof CRISIS_TYPE)[number]["id"];
+
+export const REFERRAL_TYPE = [
+  { id: "mental_health", label: "Mental health professional" },
+  { id: "medical", label: "Medical provider" },
+  { id: "emergency", label: "Emergency services" },
+  { id: "crisis_hotline", label: "Crisis hotline" },
+  { id: "school_counselor", label: "School counsellor" },
+  { id: "family_services", label: "Family services" },
+  { id: "substance_abuse", label: "Substance abuse treatment" },
+  { id: "other", label: "Other" },
+] as const;
+export type ReferralType = (typeof REFERRAL_TYPE)[number]["id"];
+
 export interface CareFlagRecord {
   id: string;
   kind: "escalation" | "risk_flag";
@@ -826,6 +937,28 @@ export interface CareFlagRecord {
   resolvedBy?: string;
   resolvedByRole?: string;
   resolutionNote?: string;
+
+  // ── Added for the task-card system ────────────────────────────────────
+  /** Safety categories. Raw values — NEVER rendered directly; see
+   *  `categoryLabel`. An empty or absent array is a flag nobody categorised,
+   *  which is different from one categorised as unknown. */
+  categories?: string[];
+  /** WHO OR WHAT RAISED IT. "system" means the moderation layer detected it in
+   *  chat; "person" means a mentor or staff member raised it by hand. The
+   *  provenance line reads differently for each, and conflating them would let
+   *  a machine's guess wear a person's judgement. */
+  source?: "system" | "person";
+  /** The teen whose conversation this came from, for the discussion link. The
+   *  link goes to the CONVERSATION SURFACE — message text is never rendered on
+   *  the record or in the review modal. */
+  conversationWith?: string;
+  /** CRISIS ELEVATION. Set by a supervisor during review; adds the word
+   *  "Crisis" to the label band and nothing else. */
+  crisis?: { type: CrisisType; note?: string };
+  /** A referral made during review. */
+  referral?: { type: ReferralType; detail?: string };
+  /** What the supervisor concluded, recorded at close. */
+  outcome?: FlagOutcome;
 }
 
 /** Every flag on a teen, newest first. Falls back to the legacy `escalation`

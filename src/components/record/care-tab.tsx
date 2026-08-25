@@ -50,6 +50,10 @@ import {
   careTasksFor,
 } from "@/components/record/care-task-region";
 import {
+  FlagReviewDialog,
+  type FlagClose,
+} from "@/components/record/flag-review-dialog";
+import {
   CareUpdateByline,
   CareUpdateBodyView,
 } from "@/components/record/care-update-view";
@@ -68,7 +72,13 @@ import {
   type PresentationRef,
 } from "@/lib/record/care-demo";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
-import { type DemoTeen } from "@/lib/record/people-demo";
+import {
+  CRISIS_TYPE,
+  FLAG_OUTCOME,
+  REFERRAL_TYPE,
+  type CareFlagRecord,
+  type DemoTeen,
+} from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { toast } from "sonner";
@@ -92,6 +102,8 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   // unused locals so the file does not carry plumbing to nothing.
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
+  const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
+  const closeCareFlag = useOnboardingStore((s) => s.closeCareFlag);
   // The match/unmatch log, so the Mentor metric names who they are matched with
   // NOW rather than whoever the fixture row still points at.
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
@@ -106,6 +118,14 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   // recommendation rather than committing — the provider-note gate still stands
   // between it and the record.
   const [proposed, setProposed] = useState<PresentationRef | null>(null);
+  /** The flag whose review modal is open. Null = closed. */
+  const [reviewingFlag, setReviewingFlag] = useState<CareFlagRecord | null>(null);
+  /** WHERE FOCUS GOES AFTER A CLOSE. The dialog's usual trick — hand focus back
+   *  to the trigger — cannot work here: closing a task UNMOUNTS the card the
+   *  trigger lived in, so focus fell to <body> and a keyboard user was dropped
+   *  at the top of a long clinical page. It goes to the History heading instead,
+   *  which is where the resolution they just wrote now lives. */
+  const historyHeading = useRef<HTMLHeadingElement | null>(null);
   // The control that opened a dialog, captured AT CLICK TIME so focus can go
   // back to it on close. Radix's own restore does not fire in this app, and
   // reading activeElement once the dialog is open is already too late.
@@ -118,6 +138,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const store: CareStoreSlice = {
     decisions: Object.values(careReviews),
     updates: Object.values(careUpdates),
+    closures: Object.values(careFlagClosures),
   };
   const events = careTimelineFor(teen.id, now, store);
   const presentation = presentationFor(teen.id, now, store);
@@ -213,7 +234,17 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             and there is no "all caught up" card. Ordering lives in
             careTasksFor, with the data, not in this JSX. */}
         <CareTaskRegion
-          tasks={careTasksFor(teen.id, review)}
+          tasks={careTasksFor(teen.id, review, store)}
+          teenName={teen.goesBy ?? teen.name}
+          now={now}
+          onReviewFlag={
+            canAct
+              ? (flag, trigger) => {
+                  returnFocusTo.current = trigger;
+                  setReviewingFlag(flag);
+                }
+              : undefined
+          }
           reviewProps={{
             currentCode: presentation?.code ?? null,
             actor: staffName,
@@ -288,7 +319,9 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
 
         {/* 5 · HISTORY */}
         <section aria-label="History">
-          <h2 className={H2}>History</h2>
+          <h2 className={H2} ref={historyHeading} tabIndex={-1}>
+            History
+          </h2>
           <div className="mt-3">
             <CareTimeline events={events} />
           </div>
@@ -319,6 +352,46 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             amending={amending}
             onSave={saveUpdate}
             returnFocusTo={returnFocusTo}
+          />
+          <FlagReviewDialog
+            open={!!reviewingFlag}
+            onOpenChange={(o) => !o && setReviewingFlag(null)}
+            flag={reviewingFlag}
+            teenName={teen.goesBy ?? teen.name}
+            now={now}
+            returnFocusTo={returnFocusTo}
+            onClose={(d: FlagClose) => {
+              const flag = reviewingFlag;
+              if (!flag) return;
+              const at = Date.now();
+              closeCareFlag({
+                flagId: d.flagId,
+                teenId: teen.id,
+                closedAt: at,
+                // Elapsed-to-resolution computed AT CLOSE, so History cannot
+                // drift as `now` moves.
+                openDays: flag.daysAgo,
+                outcome: d.outcome,
+                outcomeLabel:
+                  FLAG_OUTCOME.find((o) => o.id === d.outcome)?.label ??
+                  d.outcome,
+                note: d.note,
+                actor: staffName,
+                actorRole: staffActorFor(persona),
+                kind: flag.kind,
+                crisisLabel: d.crisis
+                  ? CRISIS_TYPE.find((c) => c.id === d.crisis!.type)?.label
+                  : undefined,
+                referralLabel: d.referral
+                  ? REFERRAL_TYPE.find((r) => r.id === d.referral!.type)?.label
+                  : undefined,
+              });
+              setReviewingFlag(null);
+              // After the card unmounts — see historyHeading.
+              requestAnimationFrame(() => historyHeading.current?.focus());
+              // TODO-COPY
+              toast("Closed. The resolution is on the record.");
+            }}
           />
           <Dsm5SearchDialog
             open={searching}

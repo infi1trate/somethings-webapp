@@ -1054,22 +1054,80 @@ export function flagResultLabel(f: CareFlagRecord): string {
 /** Open flags only, severity descending then newest first — the task region's
  *  input. Resolved flags live in History and nowhere else: the region is the
  *  WORK, and work that is done is not work. */
-export function openFlagsFor(teenId: string): CareFlagRecord[] {
+export function openFlagsFor(
+  teenId: string,
+  store: CareStoreSlice = {}
+): CareFlagRecord[] {
   const teen = DEMO_TEENS.find((t) => t.id === teenId);
   if (!teen) return [];
+  // A flag closed IN SESSION leaves the region exactly as a fixture-resolved one
+  // does — the region is the work, and work that is done is not work.
+  const closed = new Set((store.closures ?? []).map((c) => c.flagId));
   const rank = { critical: 0, warning: 1 } as const;
   return careFlagsFor(teen)
-    .filter((f) => f.resolvedDaysAgo === undefined)
+    .filter((f) => f.resolvedDaysAgo === undefined && !closed.has(f.id))
     .sort((a, b) => rank[a.severity] - rank[b.severity] || a.daysAgo - b.daysAgo);
+}
+
+/** One closure as a history entry. Resolution state, elapsed-to-resolution, the
+ *  note and the closing supervisor as author — all four, per the brief. */
+function closureToEvent(c: CareFlagClosure): CareEvent {
+  const span =
+    c.openDays <= 0
+      ? "same day"
+      : c.openDays === 1
+        ? "24h"
+        : c.openDays < 3
+          ? `${c.openDays * 24}h`
+          : `${c.openDays} days`;
+  const extra = [c.crisisLabel && `Crisis: ${c.crisisLabel}`, c.referralLabel && `Referral: ${c.referralLabel}`]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    id: `ce-close-${c.flagId}`,
+    occurredAt: c.closedAt,
+    type: c.kind,
+    // TODO-COPY. Names the event, never message content.
+    description: c.kind === "escalation" ? "Escalation closed" : "Risk flag closed",
+    result: `Resolved · ${span}`,
+    author: { kind: "person", name: c.actor, role: c.actorRole },
+    visibility: "all_staff",
+    providerNote: [c.outcomeLabel, extra, c.note].filter(Boolean).join("\n\n"),
+  };
 }
 
 /** Everything the store contributes to a teen's record. One options object
  *  rather than a growing positional tail — every reader below takes the same
  *  shape, so adding a future store-backed event class is one field here instead
  *  of a signature change in five places. */
+/** A supervisor's close of an escalation or risk flag (store v33).
+ *
+ *  APPEND-ONLY, like every decision on this page: closing appends a history
+ *  entry, and the flag leaves the task region because the record now holds its
+ *  resolution rather than because anything was removed. */
+export interface CareFlagClosure {
+  flagId: string;
+  teenId: string;
+  closedAt: number;
+  /** Days the flag stayed open — computed at close, so the elapsed figure in
+   *  History cannot drift as `now` moves. */
+  openDays: number;
+  outcome: string;
+  outcomeLabel: string;
+  note: string;
+  actor: string;
+  actorRole: string;
+  kind: "escalation" | "risk_flag";
+  crisisLabel?: string;
+  referralLabel?: string;
+}
+
 export interface CareStoreSlice {
   decisions?: CareReviewDecision[];
   updates?: CareUpdateRecord[];
+  /** Closed flags, so `flagEventsFor` can report resolution and `openFlagsFor`
+   *  can drop them from the task region. */
+  closures?: CareFlagClosure[];
 }
 
 /** The full append-only timeline for a teen: the hand-written clinical fixtures,
@@ -1093,6 +1151,9 @@ export function careTimelineFor(
     ...(store.updates ?? [])
       .filter((u) => u.teenId === teenId)
       .map(careUpdateToEvent),
+    ...(store.closures ?? [])
+      .filter((c) => c.teenId === teenId)
+      .map(closureToEvent),
   ];
 }
 

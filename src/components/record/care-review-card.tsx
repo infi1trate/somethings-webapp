@@ -7,13 +7,20 @@
 // Containers inside containers, and the nesting was doing the sectioning that
 // typography and a hairline do here.
 //
-// ROUTINE TIER. Plain card tone, contour hairline, no tinted fill, no left
-// accent bar, no warning icon. A scheduled cadence review is ordinary work; the
-// old slot dressed it as an alert. Prominence comes from position, scale, and a
-// single saturated EYEBROW line — a mark, not a wash.
+// ROUTINE TONE ON THE SHARED LABEL BAND (task-card.tsx). The band carries NO
+// fill for a review — a scheduled cadence review is ordinary work — while the
+// escalation and risk-flag cards tint theirs. Same anatomy, different
+// temperature, and the action sits in the same place on all three.
 //
-// SECTION ORDER, top to bottom: eyebrow → recommendation → rationale → survey
-// evidence → provider note → actions. Hairlines between, generous rhythm.
+// SECTION ORDER: band ("Review due · 90-day review" + Approve top right) →
+// recommendation + code → AI rationale (30/90-day only) → survey evidence,
+// collapsed to one line → provider note. Hairlines between, no nested cards.
+//
+// SHORT ENOUGH THAT THE NOTE AND THE BUTTON SHARE A SCREEN. That was the point
+// of moving Approve into the band: with the button at the top and the note as
+// the last body section, a supervisor no longer scrolls past their own reasoning
+// to reach the commit. The helper text stating the requirement rides under the
+// button, so it is read before the reach rather than found after the click.
 //
 // PROVENANCE IS NEVER OPTIONAL. The rationale carries a label saying which kind
 // it is, muted and small, ABOVE prose that reads as body text. Unattributed
@@ -26,9 +33,21 @@
 // accepted overstatement, not an oversight. Do not "fix" it; see
 // RATIONALE_SOURCE_LABEL.
 
-import { useState } from "react";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import { ChevronRight, MoreHorizontal, Sparkles } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TaskCard } from "@/components/record/task-card";
+import {
+  DecisionNote,
+  gateHelp,
+  noteReady as isNoteReady,
+} from "@/components/record/decision-footer";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { ScoreChip } from "@/components/record/score-chip";
 import {
@@ -47,7 +66,7 @@ const LABEL_STYLE = {
   letterSpacing: "var(--type-field-label-tracking)",
 } as const;
 /** The hairline that does the sectioning a nested card used to do. */
-const SECTION = "mt-5 border-t border-[var(--border-subtle)] pt-5";
+const SECTION = "mt-4 border-t border-[var(--border-subtle)] pt-4";
 
 /** The three-column breakdown, as a LOOSE table: no borders, no header fill, no
  *  surrounding card. Hairlines between rows only. */
@@ -158,7 +177,8 @@ export function PresentationReviewCard({
   // requirement is stated in helper text BEFORE the reach for the button, never
   // as an error after — a validation message that only appears post-click
   // teaches the rule by punishing it.
-  const noteReady = note.trim().length > 0;
+  const noteReady = isNoteReady(note);
+  const overflowTrigger = useRef<HTMLButtonElement | null>(null);
   // One flag for the whole acting half of the card.
   const canAct = !!onApprove;
 
@@ -170,64 +190,118 @@ export function PresentationReviewCard({
         : "presentation_changed";
 
   return (
-    <section
-      aria-label="Presentation review"
-      data-record-section="care-review-card"
-      className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-4"
+    <TaskCard
+      tone="routine"
+      section="care-review-card"
+      ariaLabel="Presentation review"
+      /* TODO-COPY */
+      type="Review due"
+      meta={STAGE_LABEL[review.stage]}
+      actions={
+        canAct && (
+          <>
+            <PillButton
+              disabled={!noteReady}
+              onClick={() =>
+                onApprove?.({
+                  reviewId: review.id,
+                  decidedAt: Date.now(),
+                  note: note.trim(),
+                  outcome,
+                  code: review.recommended.code,
+                  statement: review.recommended.statement,
+                  actor,
+                  actorRole,
+                  previousCode: currentCode ?? undefined,
+                })
+              }
+              className="h-9 px-5 text-[14px]"
+            >
+              {/* TODO-COPY */}
+              Approve
+            </PillButton>
+            {/* CHANGE IS A SECONDARY ACTION, in the overflow — one primary per
+                region, and changing a minor's diagnosis is not the thing to
+                make easiest. It opens the same DSM-5 modal the care summary's
+                "Change presentation" does. */}
+            {onChangeRequest && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={overflowTrigger}
+                    type="button"
+                    /* TODO-COPY */
+                    aria-label="More review actions"
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-contour)] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+                      RING
+                    )}
+                  >
+                    <MoreHorizontal className="size-4" aria-hidden />
+                  </button>
+                </DropdownMenuTrigger>
+                {/* preventFocusRestore: opening a dialog from a menu item
+                    otherwise loses the focus trap, because the menu returns
+                    focus to its trigger AFTER the dialog mounts. */}
+                <DropdownMenuContent
+                  align="end"
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  <DropdownMenuItem onSelect={() => onChangeRequest()}>
+                    {/* TODO-COPY */}
+                    Change presentation…
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        )
+      }
+      actionHelp={canAct ? gateHelp(noteReady, "Approving") : undefined}
+      /* PROVENANCE, same slot as the flag cards'. It answers a real question
+         rather than restating the band: a supervisor looking at a recommendation
+         needs to know whether the SCHEDULE surfaced it or a person proposed it —
+         a cadence review and a colleague's proposal deserve different reading.
+         TODO-COPY. */
+      footer={
+        review.rationale.source === "supervisor"
+          ? `Proposed by ${actor} · ${actorRole}`
+          : "Raised by the care cadence"
+      }
     >
-      {/* 1 · EYEBROW. The whole of this card's colour, and it is a mark rather
-          than a wash: type and stage, saturated, small, sentence case. */}
-      <p
-        className="flex flex-wrap items-center gap-x-1.5 font-semibold"
-        style={{ ...LABEL_STYLE, color: "var(--alert-warm-fg)" }}
-      >
-        {/* TODO-COPY */}
-        Review due
-        <span aria-hidden>·</span>
-        {STAGE_LABEL[review.stage]}
-      </p>
-
-      {/* 2 · RECOMMENDATION. Statement at heading weight; code and stage under. */}
-      <div className="mt-2.5">
-        <p className="font-display text-[19px] font-bold leading-[26px] text-[var(--text-primary)]">
+      {/* 1 · RECOMMENDATION. ~20px statement, code beneath. */}
+      <div>
+        <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
           {review.recommended.statement}
         </p>
-        <p className="mt-0.5 text-[13px] leading-[18px] tabular-nums text-[var(--text-secondary)]">
-          {`${review.recommended.code} · ${STAGE_LABEL[review.stage]}`}
+        <p className="mt-1 text-[13px] leading-[18px] tabular-nums text-[var(--text-secondary)]">
+          {review.recommended.code}
         </p>
       </div>
 
-      {/* 3 · RATIONALE — ONLY WHEN A HUMAN OR A MODEL ACTUALLY WROTE ONE.
-          A `templated` rationale is machine exhaust: the intake mapping
-          restating the score it was just handed ("The intake GAD-7 scored 7 in
-          the mild band. The mapping returns Generalized anxiety disorder for
-          that profile.") tells a supervisor nothing the survey-evidence section
-          below does not already show, and dressing it in a provenance label
-          gave it the same authority as a clinician's reasoning. Intake reviews
-          have no rationale, by design.
-          KEPT for `ai` (a genuine model-produced clinical rationale, 30- and
-          90-day reviews) and for `supervisor` (a human's own reasoning) — both
-          with their provenance label, because unattributed clinical prose is
-          the thing that label exists to prevent. */}
+      {/* 2 · RATIONALE — only where a human or a model actually wrote one.
+          A `templated` rationale is the intake mapping restating the score it
+          was just handed; it told a supervisor nothing the survey evidence
+          below does not already show, while a provenance label gave it a
+          clinician's authority. Intake reviews have none, by design. */}
       {review.rationale.source !== "templated" && (
-      <div className={SECTION}>
-        <p
-          className="flex items-center gap-1.5 text-[var(--text-muted)]"
-          style={LABEL_STYLE}
-        >
-          {review.rationale.source === "ai" && (
-            <Sparkles className="size-3" aria-hidden />
-          )}
-          {RATIONALE_SOURCE_LABEL[review.rationale.source]}
-        </p>
-        <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-primary)]">
-          {review.rationale.text}
-        </p>
-      </div>
+        <div className={SECTION}>
+          <p
+            className="flex items-center gap-1.5 text-[var(--text-muted)]"
+            style={LABEL_STYLE}
+          >
+            {review.rationale.source === "ai" && (
+              <Sparkles className="size-3" aria-hidden />
+            )}
+            {RATIONALE_SOURCE_LABEL[review.rationale.source]}
+          </p>
+          <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-primary)]">
+            {review.rationale.text}
+          </p>
+        </div>
       )}
 
-      {/* 4 · SURVEY EVIDENCE, collapsed by default. One line: score chip,
-          instrument, date. */}
+      {/* 3 · SURVEY EVIDENCE, one line, expandable. */}
       <div className={SECTION}>
         <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
           {/* TODO-COPY */}
@@ -266,24 +340,23 @@ export function PresentationReviewCard({
                 {`recency-weighted across ${review.aggregate.surveys.length} surveys`}
               </span>
             </p>
-            {/* TODO-COPY. The contributing surveys, listed — a loose table, no
-                card per survey (the old slot had one each). */}
+            {/* TODO-COPY */}
             <Disclosure label="Surveys in this period">
               <table className="w-full text-left">
                 <tbody>
-                  {review.aggregate.surveys.map((s) => (
+                  {review.aggregate.surveys.map((sv) => (
                     <tr
-                      key={s.at}
+                      key={sv.at}
                       className="border-t border-[var(--border-subtle)]"
                     >
                       <td className="py-1.5 pr-3 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                        {clinicalDate(s.at)}
+                        {clinicalDate(sv.at)}
                       </td>
                       <td className="py-1.5 pr-3 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                        {s.instrument}
+                        {sv.instrument}
                       </td>
                       <td className="py-1.5 text-right">
-                        <ScoreChip score={s.score} severity={s.severity} />
+                        <ScoreChip score={sv.score} severity={sv.severity} />
                       </td>
                     </tr>
                   ))}
@@ -294,88 +367,22 @@ export function PresentationReviewCard({
         )}
       </div>
 
-      {/* 5 · PROVIDER NOTE. Required, and the requirement is stated before the
-          reader reaches for the button. ABSENT below supervisor tier — a note
-          field with no button to enable is furniture. */}
+      {/* 4 · PROVIDER NOTE. The shared gate — same grammar as the flag review
+          modal's close note. ABSENT below supervisor tier: a note field with no
+          button to enable is furniture. */}
       {canAct && (
-      <div className={SECTION}>
-        <label
-          htmlFor={`note-${review.id}`}
-          className="block text-[var(--text-muted)]"
-          style={LABEL_STYLE}
-        >
-          {/* TODO-COPY */}
-          Provider note
-        </label>
-        <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-muted)]">
-          {/* TODO-COPY — the requirement AND the permanence, stated up front. */}
-          Required. Your reasoning is recorded with this decision and cannot be
-          edited afterwards.
-        </p>
-        <textarea
-          id={`note-${review.id}`}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={3}
-          required
-          aria-describedby={`note-help-${review.id}`}
-          className={cn(
-            "mt-2 block w-full max-w-prose resize-y rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-3 py-2.5",
-            "text-[14px] leading-[20px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
-            RING
-          )}
-          /* TODO-COPY */
-          placeholder="What you looked at, and why you are approving this."
-        />
-        <p
-          id={`note-help-${review.id}`}
-          className="mt-1.5 text-[13px] leading-[18px] text-[var(--text-muted)]"
-        >
-          {/* TODO-COPY */}
-          {noteReady
-            ? "Approving appends this to the record."
-            : "Add a note to enable Approve."}
-        </p>
-      </div>
+        <div className={SECTION}>
+          <DecisionNote
+            id={`note-${review.id}`}
+            /* TODO-COPY */
+            label="Provider note"
+            value={note}
+            onChange={setNote}
+            /* TODO-COPY */
+            placeholder="What you looked at, and why you are approving this."
+          />
+        </div>
       )}
-
-      {/* 6 · ACTIONS. Approve is the page's ONE filled button; Change is a text
-          action beside it, and it is not a dead link — it opens the DSM-5 flow,
-          which returns here with a new recommendation and the same note gate. */}
-      {canAct && (
-      <div className={cn(SECTION, "flex flex-wrap items-center gap-x-4 gap-y-2")}>
-        <PillButton
-          disabled={!noteReady}
-          onClick={() =>
-            onApprove?.({
-              reviewId: review.id,
-              decidedAt: Date.now(),
-              note: note.trim(),
-              outcome,
-              code: review.recommended.code,
-              statement: review.recommended.statement,
-              actor,
-              actorRole,
-              previousCode: currentCode ?? undefined,
-            })
-          }
-        >
-          {/* TODO-COPY */}
-          Approve
-        </PillButton>
-        <button
-          type="button"
-          onClick={onChangeRequest}
-          className={cn(
-            "rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2 transition-opacity hover:opacity-70",
-            RING
-          )}
-        >
-          {/* TODO-COPY */}
-          Change
-        </button>
-      </div>
-      )}
-    </section>
+    </TaskCard>
   );
 }

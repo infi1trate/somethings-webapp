@@ -25,6 +25,7 @@ import {
 import type { PersonProfile } from "@/lib/record/people-demo";
 // care-demo is a pure data module with no store import — one-directional.
 import type {
+  CareFlagClosure,
   CareReviewDecision,
   CareUpdateRecord,
 } from "@/lib/record/care-demo";
@@ -150,6 +151,11 @@ interface OnboardingState {
    *  entry referencing the original. Sparse: a missing key means that review is
    *  still pending, which is what puts it in the action slot. */
   careReviews: Record<string, CareReviewDecision>;
+  /** v33 — CLOSED CARE FLAGS, keyed by flag id. Append-only, like careReviews: a
+   *  close is recorded, never unrecorded, and a closed flag leaves the task
+   *  region because the record now holds its resolution — not because anything
+   *  was deleted. */
+  careFlagClosures: Record<string, CareFlagClosure>;
   /** Care updates a supervisor has written, keyed by update id. APPEND-ONLY:
    *  no setter edits or removes one. "Editing" an update appends an amendment
    *  whose `amends` names the original, and both keep rendering. */
@@ -289,6 +295,8 @@ interface OnboardingState {
   /** Record a supervisor's decision on a pending review. NO update/delete
    *  counterpart exists, on purpose (see careReviews). */
   approveCareReview: (decision: CareReviewDecision) => void;
+  /** Appends a flag closure. No counterpart reopens one — see the field. */
+  closeCareFlag: (closure: CareFlagClosure) => void;
   /** Append a care update. No update/delete counterpart, on purpose. */
   addCareUpdate: (update: CareUpdateRecord) => void;
   refreshCareSummary: (teenId: string, at: number) => void;
@@ -349,6 +357,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       mentorAccepting: {},
       menteeStatus: {},
       careReviews: {},
+      careFlagClosures: {},
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -727,6 +736,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
+      closeCareFlag: (closure) =>
+        set((state) => ({
+          careFlagClosures: {
+            ...state.careFlagClosures,
+            [closure.flagId]: closure,
+          },
+        })),
       approveCareReview: (decision) =>
         set((state) => ({
           careReviews: { ...state.careReviews, [decision.reviewId]: decision },
@@ -810,6 +826,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           mentorAccepting: {}, // availability intent resets with the mentor
           menteeStatus: {},
           careReviews: {}, // dev "start over" restores the pending reviews
+          careFlagClosures: {}, // …and reopens the closed flags
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -879,7 +896,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      an older persisted state reads as "no pairing has been ended".
       // v32: guardians (parent consent per teen) + accountLocks (signup blocks)
       //      — both sparse and additive; backfill {}.
-      version: 32,
+      // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
+      //      id) — sparse and additive; backfill {} so an older persisted state
+      //      reads as "no flag has been closed". Append-only.
+      version: 33,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1261,6 +1281,14 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.careReviews !== "object" || st.careReviews === null) {
             st.careReviews = {};
           }
+          // v33: same backfill, same reasoning as careReviews above.
+          const st33 = persisted as { careFlagClosures?: unknown };
+          if (
+            typeof st33.careFlagClosures !== "object" ||
+            st33.careFlagClosures === null
+          ) {
+            st33.careFlagClosures = {};
+          }
         }
         return s as unknown as OnboardingState;
       },
@@ -1428,6 +1456,13 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.personProfiles = {};
         }
         if (
+          typeof (merged as { careFlagClosures?: unknown }).careFlagClosures !==
+            "object" ||
+          merged.careFlagClosures === null
+        ) {
+          merged.careFlagClosures = {};
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1506,6 +1541,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         mentorAccepting: state.mentorAccepting,
         menteeStatus: state.menteeStatus,
         careReviews: state.careReviews,
+        careFlagClosures: state.careFlagClosures,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,
