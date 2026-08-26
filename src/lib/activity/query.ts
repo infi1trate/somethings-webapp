@@ -174,6 +174,27 @@ function isFullDetail(event: ActivityEvent, viewer: ActivityViewer): boolean {
   return relationshipOf(event, viewer) !== "network";
 }
 
+/** THE BILLING CODE, FOR THE ROW SENTENCE (A9 item 3).
+ *
+ *  ═══ WHAT WAS ACTUALLY WRONG. A9 offered two candidate causes — clause (a) not
+ *  implemented, or the code missing from the payload — and it was neither.
+ *  Clause (a) is implemented (`relationshipOf` checks the actor first and wins
+ *  outright) and the code is in the payload on every billing fixture. The row
+ *  carried it the whole time and NOTHING RENDERED IT: `activity-row.tsx` has no
+ *  reference to `payload` at all, and the sentence builder had no clause for a
+ *  code. A projection that carries a field nobody reads looks exactly like a
+ *  projection that withholds it.
+ *
+ *  ONLY BILLING_REVIEW_COMPLETE. The other billing types carry a code in the
+ *  fixtures too, but a code on an OPENED or OVERDUE row states an outcome that has
+ *  not happened yet — the code on those rows is the code under review, and
+ *  rendering it as a trailing outcome would say the review had landed. */
+function billingCodeOf(event: ActivityEvent): string | undefined {
+  if (event.eventType !== "BILLING_REVIEW_COMPLETE") return undefined;
+  const code = event.payload.code;
+  return typeof code === "string" ? code : undefined;
+}
+
 /** SCOPE IS A MEMBERSHIP TEST, not a filter over already-resolved rows.
  *
  *  Scope `mine` admits rows the viewer is the actor of OR owns the object of.
@@ -264,6 +285,10 @@ function coalesceDay(rows: FeedRow[], viewerId: string): FeedRow[] {
         count: ordered.length,
         degraded,
         onConversation: head.onConversation,
+        recordVoice: head.alertType === "action",
+        // NO CODE ON A GROUP, deliberately. A group's members can carry different
+        // codes, and picking the newest one would state a single outcome for a
+        // batch that had several. The code appears when the group is expanded.
       }),
     });
   }
@@ -346,6 +371,14 @@ export function queryFeed({
         teenName,
         actorName,
         onConversation: event.objectType === "conversation",
+        // §5.1 (A9 item 2): an ACTION row is open work and takes past-tense
+        // record voice, never "You raised…". Resolution happens here, so the
+        // sentence builder is told rather than left to guess.
+        recordVoice: alertType === "action",
+        // A9 item 3. RULE 12 DECIDES THIS, and it decides it here: the code is
+        // read from the payload only on a full-detail row, so a degraded row has
+        // no code to pass rather than a code the component declines to render.
+        billingCode: full ? billingCodeOf(event) : undefined,
       }),
       timestamp: rowTimestamp(event.occurredAt),
       absolute: absoluteTimestamp(event.occurredAt),

@@ -31,12 +31,15 @@ import { describe, expect, it } from "vitest";
 import type { ActivityEvent } from "@/lib/activity/events";
 import { queryFeed } from "@/lib/activity/query";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
-import { ACTIVITY_SCENARIOS } from "@/lib/activity/seed";
+import { ACTIVITY_SCENARIOS, SIM_NOW } from "@/lib/activity/seed";
 import { viewById } from "@/lib/activity/views";
 
 const NETWORK = viewById("network");
 const MINE = viewById("mine");
-const NOW = new Date("2026-08-26T20:05:00.000Z").getTime();
+// IMPORTED, NOT RESTATED. This was a hardcoded copy of the old SIM_NOW literal,
+// which meant the seed's clock and the test's clock were two facts that happened
+// to agree — and stopped agreeing the moment A9 moved the shift window.
+const NOW = SIM_NOW;
 
 /** A colleague's row about a teen outside the viewer's caseload. Rich payload on
  *  purpose — a thin one would let a broken query pass. */

@@ -101,9 +101,26 @@ const NONE = r("none", "none", "none");
 const SUP_OWN_WORK = r("activity", "activity", "notification");
 
 /** Supervisor-shaped row for a thing that WANTS the supervisor: raising, and
- *  going overdue. `action` on the caseload; still their own activity if they were
- *  the one who raised it. */
-const SUP_WANTS_ACTION = r("activity", "action", "notification");
+ *  going overdue.
+ *
+ *  ═══ A9 CORRECTION — THE ACTOR CELL WAS "activity" AND THAT WAS THE ACTION LEAK.
+ *
+ *  The reasoning for "activity" was that a supervisor who raised the thing was
+ *  looking at their own work. It is wrong, and the symptom was
+ *  "You raised Maya's escalation." sitting in the default view: `mine` admits
+ *  activity + notification, so an "activity" actor cell put every raising the
+ *  supervisor had done straight into the record — the exact rows A3 step 8
+ *  excludes, and the reason the unread badge over-counted.
+ *
+ *  A raising is OPEN WORK regardless of who opened it. The identity of the person
+ *  who raised it does not change whether the thing still needs someone; it only
+ *  changes who to ask. So all three cells that are not a bystander's read as
+ *  `action`, and the row is reachable through A4's "Include actions" like every
+ *  other action.
+ *
+ *  This also removes the last place an ACTION row could take first-person voice —
+ *  see `recordVoice` in sentences.ts, which §5.1 requires. */
+const SUP_WANTS_ACTION = r("action", "action", "notification");
 
 /** Mentor/lead-shaped row for a thing done TO their teen by someone else. */
 const STAFF_BYSTANDER = r("activity", "notification", "none");

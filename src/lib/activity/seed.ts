@@ -3,11 +3,25 @@
 // TODO-DATA: every event here is a fixture. Nothing in this file is derived from
 // the app's own store; the ledger has no writer yet.
 //
-// SIMULATED NOW is 4:05 PM ET, per the phase prompt's convention. The Tasks page
-// it refers to does not exist (its sidebar item falls through to the unbuilt
-// placeholder), so there was no existing simulator convention to match — this
-// establishes one: a single exported `SIM_NOW`, every timestamp derived from it by
-// offset, so a scenario reads the same on any day it is opened.
+// SIMULATED NOW is 9:40 PM ET — MID-SHIFT. A single exported `SIM_NOW`, with every
+// timestamp derived from it, so a scenario reads the same on any day it is opened.
+//
+// ═══ A9 ITEM 4: WHY `SIM_NOW` MOVED, AND WHY THAT WAS THE ACTUAL BUG ═══
+//
+// It was 4:05 PM, which the original phase prompt gave as the convention. Shifts
+// start at 4:00 PM, so 4:05 PM is FIVE MINUTES INTO THE SHIFT — "today" had a
+// five-minute window to hold history in, and every fixture offset of an hour or
+// more necessarily landed before the shift began. Walk back far enough and the
+// events arrive in the small hours: 12:47 AM, 2:05 AM, 3:23 AM, 4:41 AM, which is
+// what A9 reported.
+//
+// Patching the offsets would not have fixed it. The offsets were only obeying a
+// `now` that left nowhere plausible for them to go. 9:40 PM puts the reader most
+// of the way through a shift, so today's window is 5h40m of real working time and
+// the fixtures have somewhere to be.
+//
+// `placeInShiftWindows` then does the placement, and it is what guarantees the
+// property rather than each call site being careful.
 //
 // DETERMINISTIC BY CONSTRUCTION. No Math.random and no Date.now anywhere: the
 // generated scenarios (heavy-day, network-wide) index off their loop counters, so
@@ -24,19 +38,108 @@ import {
   type ActivityEventType,
 } from "@/lib/activity/events";
 
-/** 4:05 PM ET on 26 August 2026. ET in August is EDT (UTC−4), so 16:05 → 20:05Z.
- *  Exported so the feed, the day grouping and the timestamp ladder all agree on
- *  "now" instead of each reading the wall clock. */
-export const SIM_NOW = new Date("2026-08-26T20:05:00.000Z").getTime();
+/** 9:40 PM ET on 26 August 2026. ET in August is EDT (UTC−4), so 21:40 → 01:40Z
+ *  on the 27th. Exported so the feed, the day grouping and the timestamp ladder
+ *  all agree on "now" instead of each reading the wall clock. */
+export const SIM_NOW = new Date("2026-08-27T01:40:00.000Z").getTime();
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
+const MINUTE = 60_000;
+
+/** THE SHIFT WINDOW. Supervisor shifts start at 4:00 PM ET.
+ *
+ *  The window is closed at 11:45 PM RATHER THAN RUNNING PAST MIDNIGHT, even though
+ *  a real 4:00 PM shift does. Day dividers are the feed's strongest organiser
+ *  (A3 step 6) and A6 never coalesces across one, so letting a shift straddle the
+ *  divider would split a single shift's work into two days on screen — a rendering
+ *  problem imported from a scheduling fact. A fixture does not need to model the
+ *  overnight tail to be plausible. */
+export const SHIFT_START_HOUR = 16;
+const SHIFT_END_HOUR = 23.75;
 
 /** ISO timestamp, `h` hours before SIM_NOW. */
 const at = (h: number): string => new Date(SIM_NOW - h * HOUR).toISOString();
 /** ISO timestamp, `d` days and `h` hours before SIM_NOW. */
 const ago = (d: number, h = 0): string =>
   new Date(SIM_NOW - d * DAY - h * HOUR).toISOString();
+
+/** ═══ PLACE EVERY EVENT INSIDE A SHIFT WINDOW (A9 item 4) ═══
+ *
+ *  Applied to a whole scenario, so the guarantee is structural rather than a rule
+ *  every `at()` call site has to remember. Two properties, both deliberate:
+ *
+ *  THE DAY IS PRESERVED. Each event keeps the local calendar day it was authored
+ *  on, so the `// Yesterday` comments still mean yesterday, the day dividers do not
+ *  move, and A6's within-a-day coalescing groups keep exactly the members they had.
+ *  Only the time of day is rewritten.
+ *
+ *  THE REMAP IS AFFINE, NOT AN EVEN SPREAD. A day's authored times are mapped
+ *  linearly onto that day's window, so RELATIVE SPACING SURVIVES: the seven risk
+ *  flags authored minutes apart stay a tight cluster instead of being combed out
+ *  across eight hours, which is the whole premise of the coalescing fixture.
+ *
+ *  Today's window ends at SIM_NOW, not at 11:45 PM — nothing has happened yet in
+ *  the part of the shift the reader has not lived through. */
+function placeInShiftWindows(events: ActivityEvent[]): ActivityEvent[] {
+  const dayStart = (ms: number) => {
+    const d = new Date(ms);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const todayStart = dayStart(SIM_NOW);
+
+  const byDay = new Map<number, ActivityEvent[]>();
+  for (const e of events) {
+    const key = dayStart(new Date(e.occurredAt).getTime());
+    const bucket = byDay.get(key);
+    if (bucket) bucket.push(e);
+    else byDay.set(key, [e]);
+  }
+
+  const placed = new Map<string, string>();
+  for (const [key, bucket] of byDay) {
+    const windowStart = key + SHIFT_START_HOUR * HOUR;
+    const windowEnd =
+      key === todayStart ? SIM_NOW : key + SHIFT_END_HOUR * HOUR;
+    const span = Math.max(0, windowEnd - windowStart);
+
+    const times = bucket.map((e) => new Date(e.occurredAt).getTime());
+    const lo = Math.min(...times);
+    const hi = Math.max(...times);
+    const authoredSpan = hi - lo;
+
+    for (const e of bucket) {
+      const t = new Date(e.occurredAt).getTime();
+      // ZERO SPAN — a day holding one event, or several authored at one instant.
+      //
+      // This used to place them all at 2/3 of the window, which put EVERY sparse
+      // day at exactly 9:10 PM. Caught in browser verification: long-history
+      // rendered seven consecutive dividers each with one row, all stamped 9:10
+      // PM, which reads as generated data rather than as a quiet week.
+      //
+      // The authored TIME OF DAY is the natural source of variety and costs
+      // nothing — the fixtures already spread their offsets across the clock, so
+      // mapping that position within the authored day onto the window gives each
+      // day a different, deterministic time.
+      const authoredDayFrac = (t - key) / DAY;
+      const frac =
+        authoredSpan === 0 ? authoredDayFrac : (t - lo) / authoredSpan;
+      // Rounded to the minute: a ledger renders times to the minute, and second-
+      // level precision would only produce timestamps that look computed.
+      // INSET FROM BOTH EDGES. Without it a fraction of 0 or 1 lands exactly on
+      // 4:00 PM or 11:45 PM, and enough rows sitting precisely on the boundary is
+      // its own tell that the times were computed.
+      const inset = 0.04 + frac * 0.92;
+      const ms = windowStart + inset * span;
+      placed.set(e.id, new Date(Math.round(ms / MINUTE) * MINUTE).toISOString());
+    }
+  }
+
+  return events.map((e) => ({
+    ...e,
+    occurredAt: placed.get(e.id) ?? e.occurredAt,
+  }));
+}
 
 // ── The cast ────────────────────────────────────────────────────────────────
 // STAFF ids are stable because the viewer identity and A5's clause (a) both
@@ -426,14 +529,18 @@ function scenario(
   unreadCount: number,
   caseload = LYDIA_CASELOAD
 ): ActivityScenario {
+  // ONE CHOKEPOINT. Every scenario is built with plain `at`/`ago` offsets and then
+  // placed, so no builder has to know about the shift window and none can forget
+  // it. `pickUnread` runs on the PLACED events because it sorts by time.
+  const shifted = placeInShiftWindows(events);
   return {
     id,
     label,
     description,
-    events,
+    events: shifted,
     viewerId: VIEWER_SUPERVISOR_ID,
     caseloadTeenIds: caseload,
-    unreadEventIds: pickUnread(events, unreadCount),
+    unreadEventIds: pickUnread(shifted, unreadCount),
   };
 }
 

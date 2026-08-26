@@ -88,6 +88,17 @@ function possessive(name: string): string {
   return `${name}'s`;
 }
 
+/** "an escalation", "a billing review", "a risk flag".
+ *
+ *  The agentless construction hard-coded "A" before the noun, which read
+ *  "A escalation opened for Maya." — latent until A9 routed every ACTION row
+ *  through that branch, because the only nouns reaching it before were "billing
+ *  review" and "risk flag". Vowel test on the noun, which is enough for a closed
+ *  set of five nouns and does not pretend to handle "an hour". */
+function article(noun: string): string {
+  return /^[aeiou]/i.test(noun) ? "an" : "a";
+}
+
 export interface SentenceInput {
   eventType: ActivityEventType;
   /** Resolved per viewer — never read off the event (rule 8). */
@@ -105,6 +116,24 @@ export interface SentenceInput {
   degraded?: boolean;
   /** Risk-flag rows are about a CONVERSATION, which changes the preposition. */
   onConversation?: boolean;
+  /** ═══ §5.1: ACTION ROWS ARE PAST-TENSE RECORD VOICE, NEVER FIRST PERSON ═══
+   *
+   *  A9 item 2. The builder's rule 1 above is "voice follows the actor", and for
+   *  ACTIVITY rows that is right. For an ACTION row it is not: an action row is
+   *  open work, and the spec's own example is agentless —
+   *  "An escalation opened for Maya.", not "You raised Maya's escalation."
+   *
+   *  WHY THE ALERT TYPE AND NOT THE EVENT TYPE decides this: the same
+   *  ESCALATION_RAISED row is an action to the supervisor and a notification to
+   *  the teen's mentor, and only the first takes record voice. Passed in as a flag
+   *  rather than read here, because resolution is the query's job (rule 8). */
+  recordVoice?: boolean;
+  /** The billing code, PRESENT ONLY WHEN THE QUERY GRANTED FULL DETAIL.
+   *
+   *  A9 item 3. Renders as a trailing clause: "You completed Ava's billing review
+   *  — H0038." Absent on a degraded row, because the query omits the payload it
+   *  would have come from — rule 12 decides, not this function. */
+  billingCode?: string;
 }
 
 /** Sentinel for a coalesced group with more than one actor — see `mixedActors`. */
@@ -113,6 +142,20 @@ export const MIXED_ACTOR_ID = "__mixed__";
 /** THE ROW SENTENCE. One function, so the row, the accessible name and any future
  *  feed renderer cannot drift into three different grammars. */
 export function rowSentence(i: SentenceInput): string {
+  const base = rowClause(i);
+  // ── THE BILLING CODE CLAUSE (A9 item 3). An em-dash tail rather than a
+  //    parenthetical: the code IS the outcome of a billing review, not an aside
+  //    about it, and the reader scanning a code history reads the right-hand end
+  //    of the line. Absent whenever the query withheld the payload.
+  if (i.billingCode) return `${stripFullStop(base)} — ${i.billingCode}.`;
+  return base;
+}
+
+function stripFullStop(s: string): string {
+  return s.endsWith(".") ? s.slice(0, -1) : s;
+}
+
+function rowClause(i: SentenceInput): string {
   const noun = OBJECT_NOUN[i.eventType];
   const verb = VERB[i.eventType];
   const isSystem = i.actorId === SYSTEM_ACTOR_ID;
@@ -126,10 +169,16 @@ export function rowSentence(i: SentenceInput): string {
    *  whoever is most recent is the same lie with better manners. */
   const mixedActors = i.actorId === MIXED_ACTOR_ID;
 
-  // ── SYSTEM ACTOR: agentless. A cron job is not a person and must not be
-  //    written as one. "A billing review opened for Jordan." is the prompt's own
-  //    example of this construction.
-  if (isSystem) {
+  // ── AGENTLESS: A SYSTEM ACTOR, OR AN ACTION ROW (§5.1).
+  //
+  //    Two different reasons, one construction. A cron job is not a person and
+  //    must not be written as one. An ACTION row is open work, and naming who
+  //    opened it turns a record into a credit — "You raised Maya's escalation."
+  //    reads as the supervisor's history when it is in fact their queue.
+  //
+  //    "A billing review opened for Jordan." is the prompt's own example, and
+  //    "An escalation opened for Maya." is A9's.
+  if (isSystem || i.recordVoice) {
     if (i.eventType.endsWith("_OVERDUE")) {
       return `${capitalise(possessive(i.teenName))} ${noun} went overdue.`;
     }
@@ -137,7 +186,18 @@ export function rowSentence(i: SentenceInput): string {
       // The TEEN did this one, so they are the subject rather than an object.
       return `${i.teenName} completed a survey.`;
     }
-    return `A ${noun} opened for ${i.teenName}.`;
+    // A COALESCED ACTION GROUP is still agentless, and still takes its count —
+    // the count is not the actor. Degraded groups drop the number (A6).
+    const where = i.onConversation
+      ? `in ${possessive(i.teenName)} conversation`
+      : `for ${i.teenName}`;
+    const n = i.count ?? 1;
+    if (n > 1) {
+      return i.degraded
+        ? `${capitalise(noun)}s opened ${where}.`
+        : `${n} ${noun}s opened ${where}.`;
+    }
+    return `${capitalise(article(noun))} ${noun} opened ${where}.`;
   }
 
   // ── MATCHING IS ITS OWN CONSTRUCTION. Caught in review: the generic

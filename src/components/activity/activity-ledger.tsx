@@ -100,7 +100,12 @@ const COPY = {
     "This feed did not load. Nothing is lost — try again, and the ledger will catch up.",
   errorRetry: "Try again",
   partial: "One range of history did not load. The rest is below.",
-  endOfFeed: "That is the end of the record.",
+  // SPEC §9's OWN WORDS, restored in A9. The built version read "That is the end
+  // of the record.", which is colder than this surface should be and also says
+  // something different: "the record" claims completeness, when what the feed
+  // actually reached is the bottom of a 30-day window. The spec copy names the
+  // window, so a reader who expected more knows where it went.
+  endOfFeed: "That's everything from the last 30 days.",
   loadOlder: "Load older",
 } as const;
 
