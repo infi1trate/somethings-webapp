@@ -178,6 +178,13 @@ interface OnboardingState {
    *  lib/activity/seed.ts and are not persisted at all; only this overlay is,
    *  because only this is the viewer's own state. */
   activityRead: ReadOverlay;
+  /** WHICH SEED SCENARIO THE LEDGER IS SHOWING (v36). Prototype chrome, but
+   *  persisted deliberately: the read/clear overlay is keyed by event id, so a
+   *  reload that reset the scenario would leave the overlay pointing at events
+   *  that were no longer on screen — and the A2 persistence would never actually
+   *  be exercised, because every reload would re-seed from scratch. */
+  activityScenarioId: string;
+  setActivityScenarioId: (id: string) => void;
   seedActivityRead: (overlay: ReadOverlay) => void;
   markActivityRowsRead: (
     viewerId: string,
@@ -399,6 +406,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       careFlagClosures: {},
       careRailOpen: true,
       activityRead: {},
+      activityScenarioId: "typical-shift",
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -784,6 +792,12 @@ export const useOnboardingStore = create<OnboardingState>()(
       // map and nothing else: it does not know the key format, and there is NO
       // action that removes an entry — standing rule 11, clearing is never
       // deleting, and the module deliberately exports no delete.
+      setActivityScenarioId: (id) =>
+        // Switching scenario drops the overlay so the new scenario seeds from its
+        // own fixture decision about what starts unread. NOT a delete of anything
+        // meaningful (rule 11 is about a viewer clearing a ROW) — this is the
+        // prototype simulator swapping one fixture ledger for another.
+        set({ activityScenarioId: id, activityRead: {} }),
       seedActivityRead: (overlay) => set({ activityRead: overlay }),
       markActivityRowsRead: (viewerId, scope, eventIds) =>
         set((s) => ({
@@ -900,6 +914,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           careFlagClosures: {}, // …and reopens the closed flags
           careRailOpen: true,
           activityRead: {}, // dev "start over" returns every row to its seed state
+          activityScenarioId: "typical-shift",
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -972,6 +987,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
       //      id) — sparse and additive; backfill {} so an older persisted state
       //      reads as "no flag has been closed". Append-only.
+      // v36: activityScenarioId (which seed scenario the Activity ledger shows)
+      //      — a SCALAR, so the backfill is a default rather than {}. Defaults to
+      //      the typical shift: the scenario the surface is meant to be judged on.
       // v35: activityRead (the Activity ledger's per-viewer read/clear overlay,
       //      keyed viewerId::scope::eventId) — a MAP, backfilled {}. An empty
       //      overlay means every event reads as unread, which is correct for a
@@ -981,7 +999,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      map, so the backfill is a default rather than {}. Defaults OPEN:
       //      the rail is the tab's opening state, and a reader who has never
       //      touched it should see what it offers.
-      version: 35,
+      version: 36,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1363,6 +1381,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.careReviews !== "object" || st.careReviews === null) {
             st.careReviews = {};
           }
+          // v36: a scalar preference — backfill the default, not {}.
+          const st36 = persisted as { activityScenarioId?: unknown };
+          if (typeof st36.activityScenarioId !== "string") {
+            st36.activityScenarioId = "typical-shift";
+          }
           // v35: a MAP — {} is the right backfill (see the version log above).
           const st35 = persisted as { activityRead?: unknown };
           if (
@@ -1570,6 +1593,12 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.activityRead = {};
         }
         if (
+          typeof (merged as { activityScenarioId?: unknown })
+            .activityScenarioId !== "string"
+        ) {
+          merged.activityScenarioId = "typical-shift";
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1651,6 +1680,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         careFlagClosures: state.careFlagClosures,
         careRailOpen: state.careRailOpen,
         activityRead: state.activityRead,
+        activityScenarioId: state.activityScenarioId,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,
