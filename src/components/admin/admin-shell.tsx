@@ -68,6 +68,10 @@ const HREFS: Record<string, string> = {
   // The Activity ledger. One route, persona-branched inside the page: supervisors
   // get the ledger, mentors and leads keep the profile-update feed.
   activity: "/app/activity",
+  // The Tasks worklist. Same arrangement — supervisors get the worklist, everyone
+  // else keeps the unbuilt-section placeholder. Added here rather than left to the
+  // allowlist gap that made the Activity item silently inert.
+  tasks: "/app/tasks",
 };
 
 export function AdminShell({
