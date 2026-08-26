@@ -67,6 +67,10 @@ export function deadlineFor(taskType: TaskType, clockStart: number): number {
 export function slaLabelFor(taskType: TaskType): string {
   const ms = slaMsFor(taskType);
   if (ms < HOUR) return `${Math.round(ms / MINUTE)}m`;
-  if (ms < 24 * HOUR) return `${Math.round(ms / HOUR)}h`;
+  // `<=`, not `<`: a 24h SLA reads "24h", not "1d". §3.3's own breach-chip example
+  // is "1 past 24h", and a red flag's SLA is exactly 24 hours — the strict
+  // comparison rendered it as "1d", which is the same duration under a name the
+  // spec does not use.
+  if (ms <= 24 * HOUR) return `${Math.round(ms / HOUR)}h`;
   return `${Math.round(ms / (24 * HOUR))}d`;
 }

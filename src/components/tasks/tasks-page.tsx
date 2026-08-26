@@ -7,9 +7,14 @@
 // when the active tab has items — which is why the pre-selected item is derived
 // from the sort rather than left null until someone clicks.
 //
-// T3 SCOPE: the list is real (rows, coalesced groups, keyboard selection, states).
-// The PANE is still a placeholder — T4 owns §5's frame, the mitigation bodies and
-// resolveWithUndo.
+// T4 SCOPE: the pane is real, and resolving works — auto-advance, undo toast, tab
+// completion, and §6's ledger timing rule.
+//
+// RESOLUTION LIVES IN COMPONENT STATE, not the store. Tasks are fixtures with no
+// writer, so a resolved id set plus a payload-override map is the honest model: it
+// is the scenario's own state, it resets with the scenario, and it does not pretend
+// a task service exists. What DOES leave this component is the Activity event, via
+// resolveWithUndo — and that is deliberate, because the ledger is the real record.
 //
 // LAYOUT (§1): list ~40% / pane ~60% at ≥1280px. Below 1100px the pane becomes a
 // full-width takeover with a back affordance. Mobile is not a v1 target, but this
@@ -20,15 +25,19 @@
 // produce zero console errors, so the gate is the only thing between a persisted
 // scenario id and a hydration mismatch.
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
 import { DomainCards } from "@/components/tasks/domain-cards";
 import { NextUpStrip, RespondStrip } from "@/components/tasks/strips";
 import { TaskScenarioSwitcher } from "@/components/tasks/scenario-switcher";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
-import { listEntriesFor, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { TaskPane } from "@/components/tasks/task-pane";
+import { TabComplete } from "@/components/tasks/completion";
+import { UNDO_WINDOW_MS, resolveWithUndo, type ResolveHandle } from "@/lib/tasks/resolve";
+import { listEntriesFor, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   closedToday,
   defaultActiveDomain,
@@ -74,6 +83,14 @@ function closedTodayHref(domain: TaskDomain): string {
   return `/app/activity?scope=mine&domain=${ACTIVITY_DOMAIN_OF[domain]}&range=today`;
 }
 
+/** Open count for a domain, for the completion CTA's "(6)". Counts ITEMS, matching
+ *  the summary cards — see the T3 note on why the card counts tasks rather than
+ *  rows. */
+function listForDomainCount(items: TaskItem[], domain: TaskDomain, now: number): number {
+  void now;
+  return items.filter((i) => i.domain === domain && i.status !== "resolved").length;
+}
+
 export function TasksPage() {
   const mounted = useMounted();
   const [scenarioId, setScenarioId] = useState(DEFAULT_TASK_SCENARIO_ID);
@@ -82,10 +99,25 @@ export function TasksPage() {
    *  on an unrelated re-render. */
   const [now] = useState(() => Date.now());
 
-  const items = useMemo(
-    () => (mounted ? tasksScenario(scenarioId, now) : []),
-    [mounted, scenarioId, now]
-  );
+  /** RESOLVED IDS + PAYLOAD OVERRIDES. Resolving marks the id; the override map
+   *  carries what the pane decided (`flaggedCorrectly`, the confirmed code) onto
+   *  the item, which is where §5 says the open feedback question is parked until
+   *  it is answered (§8.3). */
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+  const [detailById, setDetailById] = useState<Record<string, Record<string, unknown>>>({});
+
+  const items = useMemo(() => {
+    if (!mounted) return [];
+    return tasksScenario(scenarioId, now).map((i) => {
+      const detail = detailById[i.id];
+      const base = detail
+        ? { ...i, payload: { ...i.payload, ...detail } as typeof i.payload }
+        : i;
+      return resolvedIds.has(i.id)
+        ? { ...base, status: "resolved" as const, resolvedAt: now }
+        : base;
+    });
+  }, [mounted, scenarioId, now, resolvedIds, detailById]);
 
   const summaries = useMemo(() => domainSummaries(items, now), [items, now]);
   const head = useMemo(() => nextUp(items, now), [items, now]);
@@ -133,6 +165,26 @@ export function TasksPage() {
   /** Below 1100px the pane is a takeover, so it needs a way back to the list. */
   const [paneTakeover, setPaneTakeover] = useState(false);
 
+  /** THE LIVE UNDO. One at a time — a second resolve flushes the first, because
+   *  two open windows would mean two toasts and an ambiguous `u` key. */
+  const pending = useRef<ResolveHandle | null>(null);
+  /** Set when a tab's last item was just resolved, so the pane can show the
+   *  completion state instead of an empty frame. */
+  const [completedDomain, setCompletedDomain] = useState<TaskDomain | null>(null);
+
+  /** BOUNDARY EMIT (§6). Unmount and page-hide both count as "the session ended
+   *  before the window closed", so the pending event is written rather than lost.
+   *  This is the other half of the timing rule and it is easy to forget — without
+   *  it, closing the tab five seconds after a resolve silently discards it. */
+  useEffect(() => {
+    const flush = () => pending.current?.flush();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
+
   const selectDomain = (d: TaskDomain) => {
     setPickedDomain(d);
     // A new tab means a new pre-selection — dropping both ids lets the derived
@@ -152,6 +204,99 @@ export function TasksPage() {
   };
 
   const nothingOpen = mounted && counts.open === 0;
+
+  /** THE NEXT DOMAIN PER THE GLOBAL SORT, for the completion CTA (§5). Reads
+   *  `nextUp` over the whole remaining open set rather than picking the biggest
+   *  queue — same comparator as everything else (locked decision 8). */
+  const nextDomainAfter = useCallback(
+    (excluding: TaskDomain, current: TaskItem[]): { domain: TaskDomain; count: number } | null => {
+      const head = nextUp(
+        current.filter((i) => i.domain !== excluding),
+        now
+      );
+      if (!head) return null;
+      return {
+        domain: head.domain,
+        count: listForDomainCount(current, head.domain, now),
+      };
+    },
+    [now]
+  );
+
+  /** RESOLVE (§5 + §6).
+   *
+   *  Order matters and it is the order below: mark resolved → advance selection →
+   *  start the undo window → toast. The event is NOT written here; `resolveWithUndo`
+   *  owns that and writes it when the window closes (§6). Nothing in this component
+   *  appends to the ledger. */
+  const onResolve = (item: TaskItem, detail: Record<string, unknown>) => {
+    // ONE PENDING RESOLVE AT A TIME. A second resolve flushes the first, because
+    // two live windows means two toasts and an ambiguous undo.
+    pending.current?.flush();
+
+    // WHERE SELECTION GOES: the next entry in sort order within this tab, computed
+    // BEFORE the item leaves the list.
+    const remaining = entries.filter((e) => !itemsOf(e).every((i) => i.id === item.id));
+    const idx = entries.findIndex((e) => itemsOf(e).some((i) => i.id === item.id));
+    const nextEntry = remaining[Math.min(idx, remaining.length - 1)] ?? null;
+
+    const afterResolve = items.map((i) =>
+      i.id === item.id ? { ...i, status: "resolved" as const } : i
+    );
+    const tabEmptied =
+      afterResolve.filter((i) => i.domain === item.domain && i.status !== "resolved")
+        .length === 0;
+
+    setDetailById((prev) => ({ ...prev, [item.id]: detail }));
+    setResolvedIds((prev) => new Set(prev).add(item.id));
+
+    if (tabEmptied) {
+      setCompletedDomain(item.domain);
+      setSelectedEntryId(null);
+      setPickedId(null);
+    } else if (nextEntry) {
+      setSelectedEntryId(nextEntry.id);
+      setPickedId(paneItemFor(nextEntry).id);
+    }
+
+    const handle = resolveWithUndo({
+      item,
+      decidedAt: Date.now(),
+      detail,
+      onCommitted: () => {
+        if (pending.current === handle) pending.current = null;
+      },
+      onUndone: ({ alreadyCommitted }) => {
+        if (pending.current === handle) pending.current = null;
+        setResolvedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+        setCompletedDomain(null);
+        setPickedDomain(item.domain);
+        setSelectedEntryId(null);
+        setPickedId(item.id);
+        if (alreadyCommitted) {
+          // HONEST ABOUT THE LEDGER. §6: an event, once written, is never
+          // retracted. The row comes back; the record already shows the close.
+          /* TODO-COPY */
+          toast("Restored. The activity record still shows the close.");
+        }
+      },
+    });
+    pending.current = handle;
+
+    /* TODO-COPY. "Flag closed — Undo", 6s (§5). The verb matches the domain so a
+       reader who resolves several in a row can tell which one the toast is
+       about. */
+    const noun =
+      item.domain === "billing" ? "Billing review completed" : "Flag closed";
+    toast(noun, {
+      duration: UNDO_WINDOW_MS,
+      action: { label: "Undo", onClick: () => handle.undo() },
+    });
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-8">
@@ -283,7 +428,18 @@ export function TasksPage() {
                   Back to list
                 </button>
               )}
-              <PanePlaceholder item={selected} />
+              {completedDomain === activeDomain ? (
+                <TabComplete
+                  domain={activeDomain}
+                  next={nextDomainAfter(activeDomain, items)}
+                  onGoNext={(d) => {
+                    setCompletedDomain(null);
+                    selectDomain(d);
+                  }}
+                />
+              ) : (
+                <TaskPane item={selected} now={now} onResolve={onResolve} />
+              )}
             </div>
           </div>
         )}
@@ -311,34 +467,6 @@ export function TasksPage() {
 }
 
 // ── Placeholders (T3 / T4 replace these) ────────────────────────────────────
-
-/** T3 PLACEHOLDER for the pane. §5's frame arrives in T4. */
-function PanePlaceholder({ item }: { item: TaskItem | null }) {
-  return (
-    <div className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5">
-      {item ? (
-        <>
-          <p className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-            {DOMAIN_LABEL[item.domain]}
-          </p>
-          <h2 className="mt-1 font-display text-[18px] font-bold leading-[26px] text-[var(--text-primary)]">
-            {item.teenDisplayName}
-          </h2>
-          <p className="mt-2 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-            {/* TODO-COPY. Honest about being unbuilt rather than mocking up a
-                pane that T4 will replace — a fake pane reviews as a real one. */}
-            The review panel for this task arrives in the next phase.
-          </p>
-        </>
-      ) : (
-        <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
-          {/* TODO-COPY */}
-          Select a task to review it.
-        </p>
-      )}
-    </div>
-  );
-}
 
 /** WHOLE-PAGE EMPTY (§4). Meg's pattern kept: the line, the reassurance, and a
  *  redirect to ongoing chats — the useful next thing when there is no work. */
