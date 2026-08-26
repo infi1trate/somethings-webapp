@@ -44,6 +44,22 @@ export interface ResolveHandle {
   undo(): void;
   /** BOUNDARY EMIT — navigate away, unmount, session end. Idempotent. */
   flush(): void;
+  /** HOLD THE WINDOW OPEN while the reader is reaching for Undo.
+   *
+   *  §7 asks for the undo timer to pause on focus, and sonner does not do it: it
+   *  pauses on pointer hover, pointer drag and page-hidden only (2.0.7 —
+   *  `expanded || interacting || isDocumentHidden`). Keyboard focus pauses
+   *  nothing. So a reader who tabs toward Undo watches it vanish mid-reach, which
+   *  is the one group that needs the window most.
+   *
+   *  The remaining time is preserved rather than restarted, so pausing cannot be
+   *  used — deliberately or accidentally — to extend the window indefinitely and
+   *  then resume with a full 6 seconds. Idempotent in both directions. */
+  pause(): void;
+  resume(): void;
+  /** Milliseconds left in the window; 0 once the phase has left `pending`. Exposed
+   *  for tests and for anything that wants to render the window. */
+  remainingMs(): number;
 }
 
 export interface ResolveOptions {
@@ -89,16 +105,31 @@ export function resolveWithUndo(opts: ResolveOptions): ResolveHandle {
   const draft = buildResolveEvent(item, decidedAt, detail);
 
   let phase: Phase = "pending";
-  let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-    timer = null;
-    commit();
-  }, windowMs);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  /** What is left of the window. Decremented on pause, not recomputed on resume —
+   *  see `pause` in the interface for why that matters. */
+  let remaining = windowMs;
+  /** When the running timer was started, so a pause can subtract correctly.
+   *  `null` while paused. */
+  let startedAt: number | null = null;
 
   const clearTimer = () => {
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
+    startedAt = null;
+  };
+
+  const startTimer = () => {
+    if (phase !== "pending" || timer !== null) return;
+    startedAt = Date.now();
+    timer = setTimeout(() => {
+      timer = null;
+      startedAt = null;
+      remaining = 0;
+      commit();
+    }, remaining);
   };
 
   /** THE ONLY PLACE AN EVENT IS WRITTEN. Guarded by the phase, so it cannot run
@@ -110,6 +141,8 @@ export function resolveWithUndo(opts: ResolveOptions): ResolveHandle {
     if (draft) appendActivityEvent(draft);
     opts.onCommitted?.(draft);
   }
+
+  startTimer();
 
   return {
     item,
@@ -135,6 +168,30 @@ export function resolveWithUndo(opts: ResolveOptions): ResolveHandle {
     },
     flush() {
       commit();
+    },
+    pause() {
+      if (phase !== "pending" || timer === null) return;
+      if (startedAt !== null) {
+        remaining = Math.max(0, remaining - (Date.now() - startedAt));
+      }
+      clearTimer();
+    },
+    resume() {
+      if (phase !== "pending" || timer !== null) return;
+      if (remaining <= 0) {
+        // The window ran out while paused is impossible — a paused window does not
+        // run — but a `pause()` at the very last millisecond can land here. Commit
+        // rather than start a zero-length timer, which would fire on a later tick
+        // and read as a hang.
+        commit();
+        return;
+      }
+      startTimer();
+    },
+    remainingMs() {
+      if (phase !== "pending") return 0;
+      if (startedAt === null) return remaining;
+      return Math.max(0, remaining - (Date.now() - startedAt));
     },
   };
 }

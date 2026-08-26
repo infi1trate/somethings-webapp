@@ -82,9 +82,17 @@ export function BreachChip({ label }: { label: string }) {
   );
 }
 
-/** TODO-COPY. Breach chip text from the worst breach in the domain: "1 past 24h".
- *  Counts the items, names the SLA they blew — the two facts a supervisor needs to
- *  decide whether to open the tab. */
+/** TODO-COPY, AND THE COPY IS GENUINELY AMBIGUOUS — see gap row 221.
+ *
+ *  §3.3 gives the shape as "1 past 24h" without saying which reading it means:
+ *  "1 item past its 24h deadline" (names the SLA) or "1 item overdue by 24h"
+ *  (names the overage). This computes the OVERAGE, because that is the fact the
+ *  supervisor cannot get anywhere else — the SLA is implied by the domain, and a
+ *  Risk flags tab holding both red (24h) and orange (48h) flags could not name one
+ *  SLA truthfully anyway.
+ *
+ *  The wording stays the spec's until a copywriter settles it. "1 past 2h" does
+ *  read as though 2h were the deadline, which is the argument for "overdue by". */
 function breachLabel(summary: DomainSummary): string {
   const hours = Math.floor((summary.worstBreachMs ?? 0) / 3_600_000);
   const past = hours >= 24 ? `${Math.floor(hours / 24)}d` : `${Math.max(1, hours)}h`;

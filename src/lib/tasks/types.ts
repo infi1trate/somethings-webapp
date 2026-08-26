@@ -53,6 +53,28 @@ export const DOMAIN_LABEL: Record<TaskDomain, string> = {
   monitoring: "Monitoring",
 };
 
+/** TODO-COPY. The same labels for a count of one, lowercase.
+ *
+ *  WHY THIS EXISTS: anywhere a count sits next to a domain name, the tab label
+ *  disagrees with it — "1 escalations", "1 risk flags". The tab labels themselves
+ *  never change (locked decision 7: tabs never reorder or rename), so the singular
+ *  is a second table rather than a transform on the first.
+ *
+ *  `billing` and `monitoring` are mass nouns and read the same either way; they are
+ *  listed anyway so the record stays total and nobody has to remember which two
+ *  domains are exceptions. */
+export const DOMAIN_LABEL_ONE: Record<TaskDomain, string> = {
+  escalation: "escalation",
+  riskFlag: "risk flag",
+  billing: "billing",
+  monitoring: "monitoring",
+};
+
+/** TODO-COPY. A count and its domain, in agreement. */
+export function domainCountLabel(domain: TaskDomain, n: number): string {
+  return n === 1 ? DOMAIN_LABEL_ONE[domain] : DOMAIN_LABEL[domain].toLowerCase();
+}
+
 /** THE MAPPING DECISION 6 ASKED FOR, made explicit because the names could not
  *  be made identical. Every Activity deep link from this surface routes through
  *  here rather than passing a Tasks domain string that Activity would silently

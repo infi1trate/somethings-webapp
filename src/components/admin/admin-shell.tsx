@@ -26,8 +26,9 @@ import { useMounted } from "@/lib/use-mounted";
 
 // Supervisor nav. Users split into Teens + Mentors (each a role-filtered
 // roster); AVA/Risk/Onboarding dropped; Upcoming renamed Tasks, Todos renamed
-// Activity. Home/Chats/Activity/Tasks are parity placeholders and navigate
-// nowhere; only Teens + Mentors are wired via HREFS.
+// Activity. Mentees, Team, Activity and Tasks are wired via HREFS; Home and Chats
+// are parity placeholders and navigate nowhere — see the note on HREFS below for
+// why that is deliberate rather than the allowlist gap that made Activity inert.
 const NAV: SidebarItemDef[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "chats", label: "Chats", icon: MessageCircle },

@@ -185,6 +185,15 @@ interface OnboardingState {
    *  be exercised, because every reload would re-seed from scratch. */
   activityScenarioId: string;
   setActivityScenarioId: (id: string) => void;
+  /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
+   *
+   *  The shift-start digest's gate: it renders on the first session after a gap of
+   *  more than 8 hours (Tasks spec §7). PERSISTED, necessarily — the whole
+   *  question is "has it been a shift since you were last here", which component
+   *  state cannot answer across a reload. 0 means never opened, which counts as a
+   *  gap and shows the digest. */
+  tasksLastVisitAt: number;
+  setTasksLastVisitAt: (at: number) => void;
   seedActivityRead: (overlay: ReadOverlay) => void;
   markActivityRowsRead: (
     viewerId: string,
@@ -407,6 +416,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       careRailOpen: true,
       activityRead: {},
       activityScenarioId: "typical-shift",
+      tasksLastVisitAt: 0,
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -792,6 +802,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // map and nothing else: it does not know the key format, and there is NO
       // action that removes an entry — standing rule 11, clearing is never
       // deleting, and the module deliberately exports no delete.
+      setTasksLastVisitAt: (at) => set({ tasksLastVisitAt: at }),
       setActivityScenarioId: (id) =>
         // Switching scenario drops the overlay so the new scenario seeds from its
         // own fixture decision about what starts unread. NOT a delete of anything
@@ -915,6 +926,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           careRailOpen: true,
           activityRead: {}, // dev "start over" returns every row to its seed state
           activityScenarioId: "typical-shift",
+          tasksLastVisitAt: 0, // …and brings the shift-start digest back
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -987,6 +999,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
       //      id) — sparse and additive; backfill {} so an older persisted state
       //      reads as "no flag has been closed". Append-only.
+      // v37: tasksLastVisitAt (when the supervisor last opened the Tasks
+      //      worklist) — a SCALAR, backfilled 0. Zero reads as "never opened",
+      //      which counts as a >8h gap and shows the shift-start digest, so an
+      //      older persisted state meets the digest once rather than never.
       // v36: activityScenarioId (which seed scenario the Activity ledger shows)
       //      — a SCALAR, so the backfill is a default rather than {}. Defaults to
       //      the typical shift: the scenario the surface is meant to be judged on.
@@ -999,7 +1015,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      map, so the backfill is a default rather than {}. Defaults OPEN:
       //      the rail is the tab's opening state, and a reader who has never
       //      touched it should see what it offers.
-      version: 36,
+      version: 37,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1381,6 +1397,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.careReviews !== "object" || st.careReviews === null) {
             st.careReviews = {};
           }
+          // v37: a scalar — 0 means never opened (see the version log above).
+          const st37 = persisted as { tasksLastVisitAt?: unknown };
+          if (typeof st37.tasksLastVisitAt !== "number") {
+            st37.tasksLastVisitAt = 0;
+          }
           // v36: a scalar preference — backfill the default, not {}.
           const st36 = persisted as { activityScenarioId?: unknown };
           if (typeof st36.activityScenarioId !== "string") {
@@ -1599,6 +1620,12 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.activityScenarioId = "typical-shift";
         }
         if (
+          typeof (merged as { tasksLastVisitAt?: unknown }).tasksLastVisitAt !==
+          "number"
+        ) {
+          merged.tasksLastVisitAt = 0;
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1681,6 +1708,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         careRailOpen: state.careRailOpen,
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
+        tasksLastVisitAt: state.tasksLastVisitAt,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,

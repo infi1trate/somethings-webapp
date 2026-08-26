@@ -211,3 +211,80 @@ describe("pane detail rides along on the event", () => {
     expect(activityLedger()[0].payload.domain).toBe("risk");
   });
 });
+
+// ═══ PAUSE / RESUME (§7's "pause timer on focus") ═══════════════════════════
+//
+// sonner does not pause on keyboard focus, so the window's own timer does. These
+// assert the property that makes the pause safe: a pause never GRANTS time.
+
+describe("pause and resume", () => {
+  it("holds the window open while paused", () => {
+    const onCommitted = vi.fn();
+    const h = resolveWithUndo({ item: aFlag(), decidedAt: NOW, onCommitted });
+    vi.advanceTimersByTime(3000);
+    h.pause();
+    // Ten times the window, paused. Nothing is written.
+    vi.advanceTimersByTime(UNDO_WINDOW_MS * 10);
+    expect(h.phase).toBe("pending");
+    expect(onCommitted).not.toHaveBeenCalled();
+    expect(activityLedger()).toHaveLength(0);
+  });
+
+  it("resumes with the time that was left, not a fresh window", () => {
+    const onCommitted = vi.fn();
+    const h = resolveWithUndo({ item: aFlag(), decidedAt: NOW, onCommitted });
+    vi.advanceTimersByTime(5000);
+    h.pause();
+    vi.advanceTimersByTime(60_000);
+    h.resume();
+    // 1s was left. Not 6.
+    vi.advanceTimersByTime(999);
+    expect(onCommitted).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2);
+    expect(onCommitted).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the remaining time", () => {
+    const h = resolveWithUndo({ item: aFlag(), decidedAt: NOW });
+    expect(h.remainingMs()).toBe(UNDO_WINDOW_MS);
+    vi.advanceTimersByTime(2000);
+    expect(h.remainingMs()).toBe(UNDO_WINDOW_MS - 2000);
+    h.pause();
+    vi.advanceTimersByTime(9000);
+    // Paused time does not count against the window.
+    expect(h.remainingMs()).toBe(UNDO_WINDOW_MS - 2000);
+  });
+
+  it("is idempotent in both directions", () => {
+    const onCommitted = vi.fn();
+    const h = resolveWithUndo({ item: aFlag(), decidedAt: NOW, onCommitted });
+    h.pause();
+    h.pause();
+    h.resume();
+    h.resume();
+    vi.advanceTimersByTime(UNDO_WINDOW_MS + 10);
+    expect(onCommitted).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing once the phase has left pending", () => {
+    const h = resolveWithUndo({ item: aFlag(), decidedAt: NOW });
+    h.flush();
+    expect(h.phase).toBe("emitted");
+    h.pause();
+    h.resume();
+    expect(h.phase).toBe("emitted");
+    expect(h.remainingMs()).toBe(0);
+    expect(activityLedger()).toHaveLength(1);
+  });
+
+  it("undo still works while paused, and writes nothing", () => {
+    const onUndone = vi.fn();
+    const h = resolveWithUndo({ item: aFlag(), decidedAt: NOW, onUndone });
+    h.pause();
+    h.undo();
+    expect(h.phase).toBe("undone");
+    expect(onUndone).toHaveBeenCalledWith({ alreadyCommitted: false });
+    vi.advanceTimersByTime(UNDO_WINDOW_MS * 3);
+    expect(activityLedger()).toHaveLength(0);
+  });
+});

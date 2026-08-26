@@ -31,12 +31,15 @@ import { toast } from "sonner";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
 import { DomainCards } from "@/components/tasks/domain-cards";
-import { NextUpStrip, RespondStrip } from "@/components/tasks/strips";
+import { NextUpStrip, RespondStrip, elapsedLabel } from "@/components/tasks/strips";
 import { TaskScenarioSwitcher } from "@/components/tasks/scenario-switcher";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { TaskPane } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
 import { UNDO_WINDOW_MS, resolveWithUndo, type ResolveHandle } from "@/lib/tasks/resolve";
+import { ShiftDigest, isNewShift } from "@/components/tasks/digest";
+import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
+import { useOnboardingStore } from "@/lib/onboarding/store";
 import { listEntriesFor, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   closedToday,
@@ -164,6 +167,9 @@ export function TasksPage() {
 
   /** Below 1100px the pane is a takeover, so it needs a way back to the list. */
   const [paneTakeover, setPaneTakeover] = useState(false);
+  /** Enter focuses the pane — it needs a target, and tabIndex={-1} makes the
+   *  scroll container focusable without adding a tab stop. */
+  const paneRef = useRef<HTMLDivElement | null>(null);
 
   /** THE LIVE UNDO. One at a time — a second resolve flushes the first, because
    *  two open windows would mean two toasts and an ambiguous `u` key. */
@@ -171,6 +177,48 @@ export function TasksPage() {
   /** Set when a tab's last item was just resolved, so the pane can show the
    *  completion state instead of an empty frame. */
   const [completedDomain, setCompletedDomain] = useState<TaskDomain | null>(null);
+
+  /** THE SHIFT-START DIGEST (§7). Gated on a persisted last-visit stamp, because
+   *  "has it been a shift" cannot be answered from component state across a
+   *  reload. Captured ONCE at mount — `isNewShift` is read before the stamp is
+   *  written, or opening the page would immediately disqualify it. */
+  const setLastVisitAt = useOnboardingStore((st) => st.setTasksLastVisitAt);
+  /** ELIGIBILITY IS DECIDED ONCE, IMPERATIVELY, AND BEFORE THE STAMP IS WRITTEN.
+   *
+   *  Read through `getState()` rather than a selector subscription on purpose: the
+   *  page writes `tasksLastVisitAt` on mount, so a subscribed value would change
+   *  under this component and a derived eligibility would flip to false the instant
+   *  the digest appeared. A lazy initializer reads it once, at the only moment the
+   *  question makes sense.
+   *
+   *  `Date.now()` is legal in a lazy initializer — it runs once, outside render's
+   *  purity contract, which is the same reason `now` above uses one. */
+  const [digestEligible] = useState(() =>
+    isNewShift(useOnboardingStore.getState().tasksLastVisitAt, Date.now())
+  );
+  /** The stamp the digest was judged against — the label needs it after the store
+   *  has moved on. */
+  const [digestSince] = useState(
+    () => useOnboardingStore.getState().tasksLastVisitAt
+  );
+  const [digestDismissed, setDigestDismissed] = useState(false);
+  /** AUTO-RETIRES ON THE FIRST RESOLVE (§7) — the moment the reader stops
+   *  orienting and starts working. Not a timer, not a tab change. */
+  const [firstResolveDone, setFirstResolveDone] = useState(false);
+
+  useEffect(() => {
+    if (!mounted) return;
+    // Stamp the visit AFTER eligibility was read, so this session still sees its
+    // own digest and the next one within 8h does not.
+    setLastVisitAt(Date.now());
+  }, [mounted, setLastVisitAt]);
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  /** THE PANE'S LIVE ANNOUNCEMENT (§7): "Next: Marcus, red flag, 22 hours open".
+   *  Polite, and set only on AUTO-ADVANCE — announcing on every click would talk
+   *  over a reader who is navigating deliberately. */
+  const [announcement, setAnnouncement] = useState("");
 
   /** BOUNDARY EMIT (§6). Unmount and page-hide both count as "the session ended
    *  before the window closed", so the pending event is written rather than lost.
@@ -204,6 +252,88 @@ export function TasksPage() {
   };
 
   const nothingOpen = mounted && counts.open === 0;
+
+  const showDigest =
+    mounted &&
+    digestEligible &&
+    !digestDismissed &&
+    !firstResolveDone &&
+    counts.open > 0;
+
+  /** §7's FOCUS PAUSE ON THE UNDO TOAST.
+   *
+   *  A reader who tabs toward Undo must not have it taken away while they are
+   *  reaching. sonner pauses its own timer on pointer hover, pointer drag and
+   *  page-hidden — never on keyboard focus (2.0.7: `expanded || interacting ||
+   *  isDocumentHidden`) — so this pauses the window instead, which is where the
+   *  clock actually lives.
+   *
+   *  ONE LISTENER FOR THE PAGE, aimed at whatever resolve is pending, rather than
+   *  handlers on a button sonner renders itself. Scoped by containment so a focus
+   *  moving BETWEEN elements inside the toast does not resume and re-pause. */
+  useEffect(() => {
+    const region = () => document.querySelector("[data-sonner-toaster]");
+    /** TELL SONNER THE READER IS PRESENT, in the only vocabulary it has.
+     *
+     *  sonner pauses a toast's timer while `expanded` is true, and sets `expanded`
+     *  from pointer presence alone — `onMouseEnter` / `onMouseMove` to set,
+     *  `onMouseLeave` to clear. There is no focus equivalent and no imperative
+     *  pause API, and the toast's duration is captured into a ref at mount, so
+     *  re-issuing it with a longer duration does not move a live timer either.
+     *
+     *  So focus is translated into the presence signal sonner already understands.
+     *  `mouseout` rather than `mouseleave` because React derives `onMouseLeave`
+     *  from the bubbling event. */
+    const signalPresence = (present: boolean) => {
+      const ol = region();
+      if (!ol) return;
+      ol.dispatchEvent(
+        present
+          ? new MouseEvent("mousemove", { bubbles: true })
+          : new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })
+      );
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (!region()?.contains(e.target as Node)) return;
+      if (!pending.current) return;
+      // BOTH CLOCKS PAUSE TOGETHER. The window owns the ledger write and sonner
+      // owns the visible affordance; if only one paused, the Undo button and the
+      // thing it undoes would disagree about how long is left.
+      pending.current.pause();
+      signalPresence(true);
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const r = region();
+      if (!r?.contains(e.target as Node)) return;
+      if (r.contains(e.relatedTarget as Node | null)) return;
+      if (!pending.current) return;
+      pending.current.resume();
+      signalPresence(false);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
+
+  /** `1`–`4` switch tabs, `Enter` focuses the pane, `u` undoes, `?` opens the
+   *  sheet. The list's own ↑/↓/j/k live in the tree (T3). */
+  useTaskShortcuts({
+    onTab: (i) => selectDomain(TASK_DOMAINS[i]),
+    onFocusPane: () => {
+      // BELOW `xl` THE PANE IS `display:none` UNTIL IT TAKES OVER, and the
+      // browser refuses `focus()` on a zero-size element outright — silently, so
+      // the shortcut looked wired and did nothing. The takeover has to be
+      // requested first, and the focus has to wait for the paint that gives the
+      // pane a box. One frame is enough: React has flushed by then.
+      setPaneTakeover(true);
+      requestAnimationFrame(() => paneRef.current?.focus());
+    },
+    onUndo: () => pending.current?.undo(),
+    onHelp: () => setShortcutsOpen(true),
+  });
 
   /** THE NEXT DOMAIN PER THE GLOBAL SORT, for the completion CTA (§5). Reads
    *  `nextUp` over the whole remaining open set rather than picking the biggest
@@ -249,6 +379,7 @@ export function TasksPage() {
 
     setDetailById((prev) => ({ ...prev, [item.id]: detail }));
     setResolvedIds((prev) => new Set(prev).add(item.id));
+    setFirstResolveDone(true);
 
     if (tabEmptied) {
       setCompletedDomain(item.domain);
@@ -256,7 +387,16 @@ export function TasksPage() {
       setPickedId(null);
     } else if (nextEntry) {
       setSelectedEntryId(nextEntry.id);
-      setPickedId(paneItemFor(nextEntry).id);
+      const nextItem = paneItemFor(nextEntry);
+      setPickedId(nextItem.id);
+      // TODO-COPY. §7's example shape: "Next: Marcus, red flag, 22 hours open".
+      // The first name only — the row already carries the initial, and a spoken
+      // "Marcus L." reads the punctuation aloud.
+      setAnnouncement(
+        `Next: ${nextItem.teenDisplayName.split(" ")[0]}, ${DOMAIN_LABEL[
+          nextItem.domain
+        ].toLowerCase()}, ${elapsedLabel(nextItem.openedAt, now)} open`
+      );
     }
 
     const handle = resolveWithUndo({
@@ -292,6 +432,10 @@ export function TasksPage() {
        about. */
     const noun =
       item.domain === "billing" ? "Billing review completed" : "Flag closed";
+    /** SONNER OWNS THE VISIBLE LIFETIME; THE WINDOW OWNS THE LEDGER WRITE. Same
+     *  duration, and the focus effect above pauses both together — see there for
+     *  why the pause is expressed as a presence signal rather than a new duration
+     *  or a `toast.dismiss`. */
     toast(noun, {
       duration: UNDO_WINDOW_MS,
       action: { label: "Undo", onClick: () => handle.undo() },
@@ -347,6 +491,22 @@ export function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* ── SHIFT DIGEST (§7). ABOVE the Respond strip — it is the only element
+             here about the PAST, and reading order is chronological. */}
+      {showDigest && (
+        <div className="mt-4">
+          <ShiftDigest
+            lastVisitAt={digestSince}
+            summaries={summaries}
+            head={head}
+            breachedCount={counts.overdue}
+            onGoToDomain={selectDomain}
+            onStart={openItem}
+            onDismiss={() => setDigestDismissed(true)}
+          />
+        </div>
+      )}
 
       {/* ── RESPOND STRIP (§3.2). Above the tabs, visible from every tab. ── */}
       {escalations.length > 0 && (
@@ -406,6 +566,14 @@ export function TasksPage() {
                 onSelect={(entry, item) => {
                   setSelectedEntryId(entry.id);
                   setPickedId(item.id);
+                  // AND HAND THE PANE THE SCREEN. Below `xl` the grid collapses
+                  // into a takeover — the list and the pane are mutually
+                  // exclusive — so a select that only moved the selection left a
+                  // narrow-viewport reader tapping rows and watching nothing
+                  // happen: the row highlighted, and the pane it selected was
+                  // `display:none`. At `xl` and up both are visible and this is
+                  // a no-op, which is why it went unnoticed on a desktop.
+                  setPaneTakeover(true);
                 }}
                 onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
@@ -438,12 +606,29 @@ export function TasksPage() {
                   }}
                 />
               ) : (
-                <TaskPane item={selected} now={now} onResolve={onResolve} />
+                <div
+                  ref={paneRef}
+                  tabIndex={-1}
+                  // POLITE, and on the pane itself so an auto-advance announces
+                  // the item that arrived rather than the whole page re-reading.
+                  aria-live="polite"
+                  className="rounded-[var(--radius-elevated)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                >
+                  <TaskPane item={selected} now={now} onResolve={onResolve} />
+                </div>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* The announcement text lives OUTSIDE the pane's own markup so a
+          re-render of the pane cannot swallow it. */}
+      <p aria-live="polite" role="status" className="sr-only">
+        {announcement}
+      </p>
+
+      <ShortcutSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       <TaskScenarioSwitcher
         activeId={scenarioId}
