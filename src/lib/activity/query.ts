@@ -41,6 +41,7 @@ import {
   rowTimestamp,
 } from "@/lib/activity/sentences";
 import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
+import { EMPTY_FILTERS, type ActivityFilters } from "@/lib/activity/filters";
 import type { ActivityView } from "@/lib/activity/views";
 
 /** What a row renders from. A PROJECTION of one or more events — never an event.
@@ -89,9 +90,25 @@ export interface FeedQuery {
   view: ActivityView;
   overlay: ReadOverlay;
   unreadOnly: boolean;
+  /** Applied ON TOP OF the view (see filters.ts). Optional so every existing
+   *  caller keeps working; absent means no narrowing. */
+  filters?: ActivityFilters;
   /** Simulated clock — never Date.now() here, so a fixture renders identically
    *  on any day and the day dividers are stable. */
   now: number;
+}
+
+/** THE TYPES A VIEW ADMITS, WIDENED BY `includeActions`.
+ *
+ *  This reaches PAST the view's own type list on purpose — it is the one filter
+ *  that adds rows rather than removing them, which is why it lives in the
+ *  "Additional filters" group in the UI rather than among the domain checkboxes. */
+function admittedTypes(view: ActivityView, f: ActivityFilters): AlertType[] {
+  if (!f.includeActions) return view.types;
+  const widened = new Set<AlertType>(view.types);
+  widened.add("action");
+  widened.add("attention");
+  return [...widened];
 }
 
 /** SCOPE IS A MEMBERSHIP TEST, not a filter over already-resolved rows.
@@ -117,32 +134,46 @@ export function queryFeed({
   view,
   overlay,
   unreadOnly,
+  filters = EMPTY_FILTERS,
   now,
 }: FeedQuery): FeedDay[] {
   const rows: FeedRow[] = [];
+  const types = admittedTypes(view, filters);
 
   for (const event of events) {
     if (!inScope(event, viewer, view.scope)) continue;
 
     const domain = EVENT_DOMAIN[event.eventType];
     if (view.domains && !view.domains.includes(domain)) continue;
+    // FILTER DOMAINS NARROW WITHIN the view's own domain list. Empty = all.
+    if (filters.domains.length > 0 && !filters.domains.includes(domain)) continue;
 
     // RULE 8 — resolved here, per viewer, at read time. Never stored.
     const alertType = resolveAlertType(event, viewer);
     if (alertType === "none") continue;
-    if (!view.types.includes(alertType)) continue;
+    if (!types.includes(alertType)) continue;
 
     const state = getRowState(overlay, viewer.id, view.scope, event.id);
     // CLEARED ROWS ARE OUT OF THE NORMAL FEED but were never deleted (rule 11).
-    // A4's "Cleared items" filter is what brings them back; it will pass a flag
-    // through this same query rather than reaching around it.
-    if (state === "cleared") continue;
+    // `showCleared` is the retrieval path, and it runs through THIS query rather
+    // than reaching around it — so a cleared row can only ever appear because the
+    // query returned it.
+    if (filters.showCleared) {
+      // Cleared view shows ONLY cleared rows. A mixed list would make the
+      // reduced-emphasis treatment meaningless — everything would be a mix of
+      // two emphases with no way to tell which was which.
+      if (state !== "cleared") continue;
+    } else if (state === "cleared") {
+      continue;
+    }
     if (unreadOnly && state !== "unread") continue;
 
     const teenId =
       typeof event.payload.teenId === "string"
         ? event.payload.teenId
         : event.objectId;
+    if (filters.teenId && teenId !== filters.teenId) continue;
+    if (filters.staffId && event.actorId !== filters.staffId) continue;
     const teenName = teenFirstName(teenId);
     const actorName = staffFirstName(event.actorId);
 

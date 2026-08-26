@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   Receipt,
+  RotateCcw,
   ShieldAlert,
   Sparkles,
   UserRound,
@@ -102,11 +103,15 @@ export function ActivityRow({
   row,
   href,
   onClear,
+  onRestore,
   onSeen,
 }: {
   row: FeedRow;
   href: string;
   onClear: (row: FeedRow) => void;
+  /** Present when the Cleared items filter is on. Its presence is what swaps
+   *  Clear for Restore — the row does not need to be told which mode it is in. */
+  onRestore?: (row: FeedRow) => void;
   /** Fired once the row has been on screen for the dwell period. */
   onSeen: (row: FeedRow) => void;
 }) {
@@ -114,6 +119,7 @@ export function ActivityRow({
   const glyph = DOMAIN_GLYPH[row.domain];
   const Icon = glyph.icon;
   const unread = row.state === "unread";
+  const cleared = row.state === "cleared";
 
   /** MARK READ ON VIEW, NOT ON CLICK — with a dwell so that scrolling past at
    *  speed does not silently consume a day of unread rows. ~1s, per A3 step 7.
@@ -163,7 +169,14 @@ export function ActivityRow({
         )}
       />
 
-      <div className="pointer-events-none relative z-10 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+      {/* REDUCED EMPHASIS FOR A CLEARED ROW. Opacity on the content only — never
+          on the action, which must stay legible for Restore to be usable. */}
+      <div
+        className={cn(
+          "pointer-events-none relative z-10 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2",
+          cleared && "opacity-60"
+        )}
+      >
         {/* UNREAD IS NEVER COLOUR OR WEIGHT ALONE. An explicit dot with a text
             alternative — the dot is decorative and the <span class="sr-only">
             carries the fact. */}
@@ -220,17 +233,25 @@ export function ActivityRow({
         >
           <button
             type="button"
-            onClick={() => onClear(row)}
-            aria-label={`Clear. ${row.sentence}`}
+            onClick={() => (onRestore ? onRestore(row) : onClear(row))}
+            aria-label={
+              onRestore
+                ? `Restore. ${row.sentence}`
+                : `Clear. ${row.sentence}`
+            }
             className={cn(
               "inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[12px] font-semibold",
               "text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
               RING
             )}
           >
-            <X className="size-3.5" aria-hidden />
+            {onRestore ? (
+              <RotateCcw className="size-3.5" aria-hidden />
+            ) : (
+              <X className="size-3.5" aria-hidden />
+            )}
             {/* TODO-COPY */}
-            Clear
+            {onRestore ? "Restore" : "Clear"}
           </button>
           <Link
             href={href}

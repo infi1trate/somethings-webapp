@@ -14,7 +14,7 @@
 // standing between a persisted overlay and a hydration mismatch that shows up as
 // silently wrong read state.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter, Search } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
@@ -29,7 +29,14 @@ import {
 import { DEFAULT_VIEW_ID, viewById } from "@/lib/activity/views";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { ActivityRow } from "@/components/activity/activity-row";
+import { FilterDialog } from "@/components/activity/filter-dialog";
 import { ViewRail } from "@/components/activity/view-rail";
+import {
+  EMPTY_FILTERS,
+  activeFilterCount,
+  hasActiveFilters,
+  type ActivityFilters,
+} from "@/lib/activity/filters";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -55,10 +62,19 @@ const SHOW_UNREAD_BADGE = false;
 function Toolbar({
   unreadOnly,
   onUnreadOnly,
+  filters,
+  onOpenFilters,
+  onResetFilters,
+  filterTriggerRef,
 }: {
   unreadOnly: boolean;
   onUnreadOnly: (v: boolean) => void;
+  filters: ActivityFilters;
+  onOpenFilters: () => void;
+  onResetFilters: () => void;
+  filterTriggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+  const count = activeFilterCount(filters);
   return (
     // NOTHING ON THE RIGHT. No density toggle, no bulk select — both were
     // explicitly excluded, and an empty right side is what keeps the toolbar from
@@ -80,23 +96,55 @@ function Toolbar({
         Unread
       </button>
 
-      {/* FILTER AND SEARCH RENDER DISABLED THIS PHASE. A4 fills the filter; search
-          is later. They are present-but-inert on purpose rather than absent: the
-          toolbar's final shape is part of what this phase is being reviewed for,
-          and a toolbar that grows two controls afterwards reviews differently.
-          `aria-disabled` plus `disabled` so the reason is announced, not just the
-          state. */}
+      {/* THE FILTER TRIGGER. The COUNT IS IN THE ACCESSIBLE NAME, not only in the
+          badge — a reader who cannot see the number still needs to know the list
+          in front of them is narrowed. */}
       <button
+        ref={filterTriggerRef}
         type="button"
-        disabled
-        aria-disabled
+        onClick={onOpenFilters}
         /* TODO-COPY */
-        title="Filters are not built yet"
-        className="inline-flex min-h-9 cursor-not-allowed items-center gap-1.5 rounded-full border border-[color:var(--border-subtle)] px-3 text-[13px] font-semibold text-[var(--text-muted)]"
+        aria-label={
+          count === 0
+            ? "Filter activity"
+            : `Filter activity, ${count} ${count === 1 ? "filter" : "filters"} active`
+        }
+        className={cn(
+          "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors",
+          count > 0
+            ? "border-[color:var(--text-primary)] bg-[var(--surface-card)] text-[var(--text-primary)]"
+            : "border-[color:var(--border-contour)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
+          RING
+        )}
       >
         <Filter className="size-3.5" aria-hidden />
         Filter
+        {count > 0 && (
+          <span
+            aria-hidden
+            className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--text-primary)] px-1.5 text-[11.5px] font-semibold leading-[16px] tabular-nums text-[var(--text-inverse)]"
+          >
+            {count}
+          </span>
+        )}
       </button>
+
+      {/* RESET APPEARS ONLY WHEN THERE IS SOMETHING TO RESET. A permanently
+          visible Reset on an unfiltered list is a control that does nothing. */}
+      {hasActiveFilters(filters) && (
+        <button
+          type="button"
+          onClick={onResetFilters}
+          className={cn(
+            "inline-flex min-h-9 items-center rounded-full px-2 text-[13px] font-semibold",
+            "text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          {/* TODO-COPY */}
+          Reset
+        </button>
+      )}
       <button
         type="button"
         disabled
@@ -188,11 +236,15 @@ export function ActivityLedger() {
   const seedActivityRead = useOnboardingStore((s) => s.seedActivityRead);
   const markRows = useOnboardingStore((s) => s.markActivityRowsRead);
   const clearRowAction = useOnboardingStore((s) => s.clearActivityRow);
+  const restoreRowAction = useOnboardingStore((s) => s.restoreActivityRow);
   const scenarioId = useOnboardingStore((s) => s.activityScenarioId);
   const setScenarioId = useOnboardingStore((s) => s.setActivityScenarioId);
 
   const [viewId, setViewId] = useState(DEFAULT_VIEW_ID);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [filters, setFilters] = useState<ActivityFilters>(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterTrigger = useRef<HTMLButtonElement | null>(null);
 
   const scenario = scenarioById(mounted ? scenarioId : DEFAULT_SCENARIO_ID);
   const view = viewById(viewId);
@@ -239,10 +291,11 @@ export function ActivityLedger() {
             view,
             overlay,
             unreadOnly,
+            filters,
             now: SIM_NOW,
           })
         : [],
-    [mounted, scenario, viewer, view, overlay, unreadOnly]
+    [mounted, scenario, viewer, view, overlay, unreadOnly, filters]
   );
 
   /** Unread per view. Returns null when the badge is flagged off, so the rail
@@ -271,6 +324,11 @@ export function ActivityLedger() {
     // that because `eventIds` is the group's membership.
     for (const id of row.eventIds) clearRowAction(viewer.id, view.scope, id);
   };
+  /** RESTORE THE WHOLE GROUP, not a member — same `eventIds` membership, so A6's
+   *  rule ("restoring restores the whole group") is already satisfied. */
+  const onRestore = (row: FeedRow) => {
+    for (const id of row.eventIds) restoreRowAction(viewer.id, view.scope, id);
+  };
 
   return (
     <div className="mx-auto w-full max-w-[880px] px-6 py-8 lg:px-8">
@@ -284,16 +342,25 @@ export function ActivityLedger() {
           activeId={viewId}
           onSelect={(id) => {
             setViewId(id);
-            // SWITCHING VIEWS RESETS FILTERS (A4's rule, honoured here for the one
-            // filter that exists this phase): a view is a different question, and
-            // the filters were answers to the previous one.
+            // SWITCHING VIEWS RESETS FILTERS. A view is a different question, and
+            // the filters were answers to the previous one — carrying "only
+            // escalations" from My caseload into Network silently answers a
+            // question nobody asked.
             setUnreadOnly(false);
+            setFilters(EMPTY_FILTERS);
           }}
           unreadFor={unreadFor}
         />
       </div>
 
-      <Toolbar unreadOnly={unreadOnly} onUnreadOnly={setUnreadOnly} />
+      <Toolbar
+        unreadOnly={unreadOnly}
+        onUnreadOnly={setUnreadOnly}
+        filters={filters}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onResetFilters={() => setFilters(EMPTY_FILTERS)}
+        filterTriggerRef={filterTrigger}
+      />
 
       <div
         id="activity-panel"
@@ -303,7 +370,11 @@ export function ActivityLedger() {
         className="mt-4"
       >
         {total === 0 ? (
-          <EmptyState viewId={viewId} unreadOnly={unreadOnly} />
+          <EmptyState
+            viewId={viewId}
+            unreadOnly={unreadOnly}
+            filtered={hasActiveFilters(filters)}
+          />
         ) : (
           days.map((day) => (
             <section key={day.dayKey} className="mb-1">
@@ -336,6 +407,8 @@ export function ActivityLedger() {
                     row={row}
                     href={hrefFor(row)}
                     onClear={onClear}
+                    // ITS PRESENCE is what swaps Clear for Restore.
+                    onRestore={filters.showCleared ? onRestore : undefined}
                     onSeen={onSeen}
                   />
                 ))}
@@ -344,6 +417,18 @@ export function ActivityLedger() {
           ))
         )}
       </div>
+
+      <FilterDialog
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        applied={filters}
+        onApply={setFilters}
+        caseloadTeenIds={viewer.caseloadTeenIds}
+        // A5 adds network-scope staff here. Absent in caseload scope, so the
+        // group is HIDDEN rather than disabled.
+        networkStaffIds={undefined}
+        returnFocusTo={filterTrigger}
+      />
 
       <ScenarioSimulator activeId={scenario.id} onSelect={setScenarioId} />
     </div>
@@ -369,12 +454,19 @@ function hrefFor(row: FeedRow): string {
 function EmptyState({
   viewId,
   unreadOnly,
+  filtered,
 }: {
   viewId: string;
   unreadOnly: boolean;
+  filtered: boolean;
 }) {
   let copy: string;
-  if (unreadOnly) {
+  if (filtered) {
+    /* TODO-COPY. Names the cause and the way out — a filtered-empty list is a
+       filter problem, not an absence of work, and saying "nothing here" would
+       send a reader looking for a bug. */
+    copy = "No activity matches these filters. Try clearing one.";
+  } else if (unreadOnly) {
     /* TODO-COPY */
     copy = "Everything here has been read.";
   } else if (viewId === "network") {
