@@ -159,7 +159,7 @@ export function ActivityRow({
   }, [row, unread, onSeen]);
 
   return (
-    <li ref={ref} className="group relative">
+    <li ref={ref} data-row-id={row.id} className="group relative">
       {/* BEHIND the content, covering the row. */}
       <Link
         href={href}
@@ -188,9 +188,17 @@ export function ActivityRow({
         <span className="flex w-2 shrink-0 items-center justify-center">
           {unread && (
             <>
+              {/* --text-primary, NOT --brand. Measured: the brand orange
+                  (#ff5001) reaches only 2.99:1 against this panel surface
+                  (rgb 246,244,239) — under the 3:1 floor for a small graphical
+                  indicator, because a warm orange on a warm off-white is a hue
+                  difference more than a luminance one. `--text-primary` measures
+                  15.14:1 and is semantically the right neutral: unread is a state,
+                  not a severity, so it should not borrow a severity colour.
+                  See design-system-gaps.md row 204. */}
               <span
                 aria-hidden
-                className="size-1.5 rounded-full bg-[var(--brand)]"
+                className="size-1.5 rounded-full bg-[var(--text-primary)]"
               />
               <span className="sr-only">Unread. </span>
             </>

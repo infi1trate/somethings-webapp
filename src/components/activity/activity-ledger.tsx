@@ -28,6 +28,7 @@ import {
 } from "@/lib/activity/seed";
 import { DEFAULT_VIEW_ID, viewById } from "@/lib/activity/views";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
+import { RecordButton } from "@/components/record/record-button";
 import { ActivityRow } from "@/components/activity/activity-row";
 import { FilterDialog } from "@/components/activity/filter-dialog";
 import { ViewRail } from "@/components/activity/view-rail";
@@ -56,6 +57,52 @@ const RING =
  *  The component is built rather than deferred so that flipping this flag is the
  *  entire change. */
 const SHOW_UNREAD_BADGE = false;
+
+/** ═══ LOAD STATES ═══
+ *
+ *  Simulated, because there is no fetch to fail — the ledger reads fixtures. They
+ *  exist so the states are DESIGNED rather than discovered in production, and the
+ *  simulator can reach every one of them.
+ *
+ *  "partial" is the interesting one: some day-groups loaded and one range did not.
+ *  The rows that arrived render; the range that failed shows an inline strip IN
+ *  PLACE rather than replacing the whole feed with an error. A reader who can see
+ *  three days of history should not lose it because the fourth timed out. */
+type LoadState = "ready" | "loading" | "error" | "partial";
+
+/** THE PAGINATION WINDOW, in days. 30 per the brief.
+ *
+ *  Infinite scroll AND a real button, and the button is not a fallback — it is the
+ *  keyboard and screen-reader path. An intersection-observer-only feed is
+ *  unreachable for anyone who does not scroll with a pointer, and "scroll more" is
+ *  not an instruction a screen reader can act on. */
+const PAGE_DAYS = 30;
+
+/** TODO-COPY throughout. §9 IS UNAVAILABLE — activity-page-spec.md is not in this
+ *  repository, so this copy is written to the brief's stated CONSTRAINTS rather
+ *  than transcribed:
+ *    · no empty state says "You have no activity"
+ *    · an empty My caseload is a SUCCESS state and reads calm
+ *    · an empty Network is closer to a failure and reads as a RANGE problem, not
+ *      reassurance — deliberately NOT homogenised with the caseload copy
+ *    · errors are non-blaming and carry a next step
+ *    · no exclamation points, no celebration on completion rows */
+const COPY = {
+  emptyMine: "Nothing has happened on your caseload today.",
+  emptyNetwork: "No network activity in this range. Try a wider date range.",
+  emptyBilling: "No billing activity in this range.",
+  emptyUnread: "Everything here has been read.",
+  emptyFiltered: "No activity matches these filters. Try clearing one.",
+  emptyCleared: "You have not cleared anything in this view.",
+  firstRun:
+    "Activity will appear here as work happens on your caseload — reviews, escalations, and survey results.",
+  error:
+    "This feed did not load. Nothing is lost — try again, and the ledger will catch up.",
+  errorRetry: "Try again",
+  partial: "One range of history did not load. The rest is below.",
+  endOfFeed: "That is the end of the record.",
+  loadOlder: "Load older",
+} as const;
 
 // ── Toolbar ─────────────────────────────────────────────────────────────────
 
@@ -168,9 +215,13 @@ function Toolbar({
 function ScenarioSimulator({
   activeId,
   onSelect,
+  loadState,
+  onLoadState,
 }: {
   activeId: string;
   onSelect: (id: string) => void;
+  loadState: LoadState;
+  onLoadState: (s: LoadState) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -221,9 +272,122 @@ function ScenarioSimulator({
                 </button>
               </li>
             ))}
+            {/* LOAD STATES, in the same panel. Every state in the brief has to be
+                reachable from the simulator, and three of them are not properties
+                of the data — they are properties of a fetch that does not exist
+                here. */}
+            <li className="mt-2 border-t border-dashed border-[color:var(--border-contour)] pt-2">
+              <p className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+                {/* TODO-COPY */}
+                Load state
+              </p>
+              <div className="flex flex-wrap gap-1 px-1">
+                {(["ready", "loading", "error", "partial"] as LoadState[]).map(
+                  (st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => onLoadState(st)}
+                      aria-current={st === loadState ? "true" : undefined}
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11.5px] transition-colors",
+                        st === loadState
+                          ? "bg-[var(--surface-s2)] font-semibold text-[var(--text-primary)]"
+                          : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
+                        RING
+                      )}
+                    >
+                      {st}
+                    </button>
+                  )
+                )}
+              </div>
+            </li>
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Load states ─────────────────────────────────────────────────────────────
+
+/** EIGHT SKELETON ROWS, WITH DAY DIVIDERS. The dividers matter: a skeleton that
+ *  omits them re-flows the whole feed the moment real rows arrive, which reads as
+ *  a second load. Shaped like the thing it is standing in for.
+ *
+ *  `motion-safe:animate-pulse` — reduced motion gets a static block. */
+function FeedSkeleton() {
+  return (
+    <div aria-hidden className="mt-1">
+      {[0, 1].map((group) => (
+        <div key={group}>
+          {group > 0 && (
+            <div className="my-3 flex items-center justify-center">
+              <span className="h-[22px] w-[104px] rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+            </div>
+          )}
+          {[0, 1, 2, 3].map((row) => (
+            <div
+              key={row}
+              className="flex min-h-11 items-center gap-3 border-t border-[color:var(--border-subtle)] px-3 py-2 first:border-t-0"
+            >
+              <span className="size-6 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+              <span className="size-4 shrink-0 rounded-[4px] bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+              <span
+                className="h-3 flex-1 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse"
+                style={{ maxWidth: `${58 + ((row * 11) % 30)}%` }}
+              />
+              <span className="h-3 w-12 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ))}
+      {/* The visual skeleton is aria-hidden; this is what a screen reader gets. */}
+      <p className="sr-only" role="status">
+        Loading activity.
+      </p>
+    </div>
+  );
+}
+
+/** NON-BLAMING, WITH A NEXT STEP (standing rule 5). It does not say the reader did
+ *  anything, and it says what is safe: nothing was lost. */
+function FeedError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center"
+    >
+      <p className="max-w-sm text-[14px] leading-[20px] text-[var(--text-secondary)]">
+        {COPY.error}
+      </p>
+      <RecordButton onClick={onRetry}>{COPY.errorRetry}</RecordButton>
+    </div>
+  );
+}
+
+/** THE PARTIAL-FAILURE STRIP. Sits IN PLACE of the range that failed, between the
+ *  day groups that loaded — not at the top, and not instead of them. */
+function PartialFailureStrip({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-surface)] border border-dashed border-[color:var(--border-contour)] px-3.5 py-2.5"
+    >
+      <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
+        {COPY.partial}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className={cn(
+          "shrink-0 rounded-full px-2 py-1 text-[12.5px] font-semibold text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
+          RING
+        )}
+      >
+        {COPY.errorRetry}
+      </button>
     </div>
   );
 }
@@ -245,6 +409,16 @@ export function ActivityLedger() {
   const [filters, setFilters] = useState<ActivityFilters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterTrigger = useRef<HTMLButtonElement | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("ready");
+  /** Days of history loaded. Grows by PAGE_DAYS on "Load older" and on the
+   *  infinite-scroll sentinel — both paths call the same function, so they cannot
+   *  drift. */
+  const [daysLoaded, setDaysLoaded] = useState(PAGE_DAYS);
+  /** POLITE ANNOUNCEMENT after a clear. A live region rather than an alert: a
+   *  clear is a thing the reader just did, so it should not interrupt. */
+  const [announcement, setAnnouncement] = useState("");
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinel = useRef<HTMLDivElement | null>(null);
 
   const scenario = scenarioById(mounted ? scenarioId : DEFAULT_SCENARIO_ID);
   const view = viewById(viewId);
@@ -313,7 +487,37 @@ export function ActivityLedger() {
       });
   }, [mounted, scenario, viewer, overlay]);
 
-  const total = days.reduce((n, d) => n + d.rows.length, 0);
+  /** THE WINDOW. Applied AFTER the query so the query stays a pure projection and
+   *  pagination is a view concern — which is also what lets "Load older" widen it
+   *  without re-deriving anything. */
+  const windowed = useMemo(() => {
+    const cutoff = SIM_NOW - daysLoaded * 86_400_000;
+    return days.filter((d) => {
+      const [y, m, dd] = d.dayKey.split("-").map(Number);
+      return new Date(y, m - 1, dd).getTime() >= cutoff;
+    });
+  }, [days, daysLoaded]);
+
+  const hasOlder = windowed.length < days.length;
+  const total = windowed.reduce((n, d) => n + d.rows.length, 0);
+
+  const loadOlder = () => setDaysLoaded((d) => d + PAGE_DAYS);
+
+  /** INFINITE SCROLL, sharing `loadOlder` with the button. Reduced motion does not
+   *  disable it — this is not an animation — but a reader who never scrolls with a
+   *  pointer still has the button, which is the point of having both. */
+  useEffect(() => {
+    const el = loadMoreSentinel.current;
+    if (!el || !hasOlder || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) loadOlder();
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasOlder]);
 
   /** STAFF WHO APPEAR IN THIS SCENARIO'S NETWORK ROWS — the "Specific staff"
    *  filter's options.
@@ -339,9 +543,28 @@ export function ActivityLedger() {
   const onSeen = (row: FeedRow) =>
     markRows(viewer.id, view.scope, row.eventIds);
   const onClear = (row: FeedRow) => {
-    // A6 will clear every constituent of a group; the loop is already correct for
-    // that because `eventIds` is the group's membership.
+    // Clears every constituent of a group — `eventIds` is the membership.
+    //
+    // FOCUS MOVES TO THE NEXT ROW BEFORE the state change unmounts this one.
+    // Without it the browser drops focus to <body> and a keyboard reader is
+    // silently teleported to the top of a long feed. Captured from the live DOM
+    // rather than from `days`, because the next row on screen is what the reader
+    // was actually looking at.
+    const li = feedRef.current?.querySelector<HTMLElement>(
+      `[data-row-id="${row.id}"]`
+    );
+    const nextLink =
+      li?.nextElementSibling?.querySelector<HTMLElement>("a") ??
+      // Last row in its day: fall forward to the first row of the next day.
+      li?.closest("section")?.nextElementSibling?.querySelector<HTMLElement>("a") ??
+      null;
+
     for (const id of row.eventIds) clearRowAction(viewer.id, view.scope, id);
+    // TODO-COPY. The brief's example: "Cleared. Maya's escalation." — the fact,
+    // then what it was, so a reader who clears several in a row can tell them
+    // apart. No exclamation, no "Done!".
+    setAnnouncement(`Cleared. ${row.sentence}`);
+    requestAnimationFrame(() => nextLink?.focus());
   };
   /** RESTORE THE WHOLE GROUP, not a member — same `eventIds` membership, so A6's
    *  rule ("restoring restores the whole group") is already satisfied. */
@@ -382,20 +605,27 @@ export function ActivityLedger() {
       />
 
       <div
+        ref={feedRef}
         id="activity-panel"
         role="tabpanel"
         aria-labelledby={`activity-tab-${viewId}`}
         tabIndex={-1}
         className="mt-4"
       >
-        {total === 0 ? (
+        {loadState === "loading" ? (
+          <FeedSkeleton />
+        ) : loadState === "error" ? (
+          <FeedError onRetry={() => setLoadState("ready")} />
+        ) : total === 0 ? (
           <EmptyState
             viewId={viewId}
             unreadOnly={unreadOnly}
             filtered={hasActiveFilters(filters)}
+            showCleared={filters.showCleared}
+            firstRun={scenario.events.length === 0}
           />
         ) : (
-          days.map((day) => (
+          windowed.map((day, i) => (
             <section key={day.dayKey} className="mb-1">
               {/* TODAY HAS NO DIVIDER — the feed opens straight into it. */}
               {day.label && (
@@ -432,10 +662,42 @@ export function ActivityLedger() {
                   />
                 ))}
               </ol>
+
+              {/* PARTIAL FAILURE, IN PLACE. Rendered between day groups rather
+                  than at the top, so the rows that loaded keep their position and
+                  the gap is where the missing range actually is. */}
+              {loadState === "partial" && i === 0 && (
+                <PartialFailureStrip onRetry={() => setLoadState("ready")} />
+              )}
             </section>
           ))
         )}
+
+        {/* PAGINATION. The sentinel and the button share `loadOlder`. */}
+        {loadState === "ready" && total > 0 && (
+          <>
+            <div ref={loadMoreSentinel} aria-hidden className="h-1" />
+            {hasOlder ? (
+              <div className="mt-4 flex justify-center">
+                <RecordButton onClick={loadOlder}>{COPY.loadOlder}</RecordButton>
+              </div>
+            ) : (
+              /* END OF FEED. A statement, not a celebration — this is a ledger
+                 and reaching its start is a fact about the record. */
+              <p className="mt-6 text-center text-[12.5px] leading-[16px] text-[var(--text-muted)]">
+                {COPY.endOfFeed}
+              </p>
+            )}
+          </>
+        )}
       </div>
+
+      {/* POLITE LIVE REGION for the clear announcement. Always present so the
+          region is registered before it ever has content — a live region added to
+          the DOM at the same moment as its text is frequently missed. */}
+      <p aria-live="polite" role="status" className="sr-only">
+        {announcement}
+      </p>
 
       <FilterDialog
         open={filtersOpen}
@@ -447,7 +709,17 @@ export function ActivityLedger() {
         returnFocusTo={filterTrigger}
       />
 
-      <ScenarioSimulator activeId={scenario.id} onSelect={setScenarioId} />
+      <ScenarioSimulator
+        activeId={scenario.id}
+        onSelect={(id) => {
+          setScenarioId(id);
+          // A new ledger starts at the first page and in a good state.
+          setDaysLoaded(PAGE_DAYS);
+          setLoadState("ready");
+        }}
+        loadState={loadState}
+        onLoadState={setLoadState}
+      />
     </div>
   );
 }
@@ -472,30 +744,30 @@ function EmptyState({
   viewId,
   unreadOnly,
   filtered,
+  showCleared,
+  firstRun,
 }: {
   viewId: string;
   unreadOnly: boolean;
   filtered: boolean;
+  showCleared: boolean;
+  firstRun: boolean;
 }) {
+  // ORDER MATTERS: the most specific cause wins, so a reader is told the actual
+  // reason the list is empty rather than the most general one that happens to be
+  // true. A first-run record that also has a filter on is still first-run.
   let copy: string;
-  if (filtered) {
-    /* TODO-COPY. Names the cause and the way out — a filtered-empty list is a
-       filter problem, not an absence of work, and saying "nothing here" would
-       send a reader looking for a bug. */
-    copy = "No activity matches these filters. Try clearing one.";
-  } else if (unreadOnly) {
-    /* TODO-COPY */
-    copy = "Everything here has been read.";
-  } else if (viewId === "network") {
-    /* TODO-COPY. A range problem, not reassurance. */
-    copy = "No network activity in this range. Try a wider date range.";
-  } else if (viewId === "billing") {
-    /* TODO-COPY */
-    copy = "No billing activity in this range.";
-  } else {
-    /* TODO-COPY. Calm: a quiet caseload is the good outcome. */
-    copy = "Nothing has happened on your caseload today.";
-  }
+  if (firstRun) copy = COPY.firstRun;
+  else if (showCleared) copy = COPY.emptyCleared;
+  else if (filtered) copy = COPY.emptyFiltered;
+  else if (unreadOnly) copy = COPY.emptyUnread;
+  // THE ASYMMETRY IS DELIBERATE and must not be homogenised: an empty caseload is
+  // a success state and reads calm; an empty Network is closer to a failure and
+  // reads as a range problem rather than reassurance.
+  else if (viewId === "network") copy = COPY.emptyNetwork;
+  else if (viewId === "billing") copy = COPY.emptyBilling;
+  else copy = COPY.emptyMine;
+
   return (
     <div className="flex min-h-[40vh] items-center justify-center">
       <p className="max-w-sm text-center text-[14px] leading-[20px] text-[var(--text-secondary)]">

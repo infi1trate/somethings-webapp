@@ -352,6 +352,46 @@ function networkWide(): ActivityEvent[] {
   return out;
 }
 
+// ── Scenario 6 · long-history ───────────────────────────────────────────────
+// ADDED IN A7, and only because a state was otherwise unreachable. Pagination is
+// a 30-day window, and every other scenario spans at most six days — so the feed
+// is always already complete, "Load older" never appears and end-of-feed can only
+// ever be the empty case. This one runs 48 days back so both are real.
+//
+// Sparse on purpose: two or three events a day over seven weeks, which is what a
+// real quarter of a caseload looks like and is also what makes the 30-day boundary
+// visible rather than buried.
+
+function longHistory(): ActivityEvent[] {
+  seq = 0;
+  const L = STAFF.lydia.id;
+  const out: ActivityEvent[] = [];
+  const teens = [
+    TEENS.maya, TEENS.jordan, TEENS.naomi, TEENS.riley, TEENS.caleb, TEENS.simone,
+  ];
+  const types: ActivityEventType[] = [
+    "BILLING_REVIEW_COMPLETE",
+    "ESCALATION_CLOSED",
+    "PRESENTATION_REVIEW_COMPLETE",
+    "SURVEY_COMPLETED",
+    "TEEN_PAUSED",
+  ];
+  for (let i = 0; i < 54; i++) {
+    const type = types[i % types.length];
+    out.push(
+      make({
+        type,
+        actorId: type === "SURVEY_COMPLETED" ? SYSTEM_ACTOR_ID : L,
+        teenId: teens[i % teens.length].id,
+        // Spread across 48 days, so ~18 days sit beyond the 30-day window.
+        occurredAt: ago(Math.floor((i * 48) / 54), (i % 6) * 2 + 1),
+        payload: { code: "F41.1", index: i },
+      })
+    );
+  }
+  return out;
+}
+
 // ── The registry ────────────────────────────────────────────────────────────
 
 export interface ActivityScenario {
@@ -429,6 +469,13 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     6
   ),
   scenario("first-run", "First run", "No events yet.", [], 0),
+  scenario(
+    "long-history",
+    "Long history",
+    "54 events over 48 days — reaches past the 30-day window.",
+    longHistory(),
+    3
+  ),
 ];
 
 export const DEFAULT_SCENARIO_ID = "typical-shift";
