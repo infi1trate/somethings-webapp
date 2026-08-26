@@ -39,6 +39,23 @@ const NAV: SidebarItemDef[] = [
   { id: "team", label: "Team", icon: UsersRound },
 ];
 
+// AN ALLOWLIST, NOT A PATTERN — and that is the bug this comment exists to stop
+// recurring. The mentor shell routes generically (`/app/${id}` for every item), so
+// a nav item there works the moment its route exists. THIS shell only navigates
+// for ids present below, and an id that is missing hits `if (href)` and silently
+// does nothing: the item highlights, the page does not change, and there is no
+// error anywhere.
+//
+// That is precisely what happened to Activity. The item had been in the supervisor
+// NAV since the Tasks-era nav pass, the route was built, and clicking it did
+// nothing — while the same click worked for a mentor. "Sometimes it doesn't open"
+// is what a silent allowlist miss looks like from the outside.
+//
+// ANY NEW SUPERVISOR ROUTE MUST BE ADDED HERE. The remaining unlisted ids (home,
+// chats, tasks) are unlisted because they have no real destination yet — their
+// routes fall through to the /app/[section] unbuilt-section placeholder, and
+// sending a supervisor to a placeholder is worse than the current inertness. They
+// get wired when they get pages.
 const HREFS: Record<string, string> = {
   // The supervisor's Mentees list is the shared /app/mentees route (already
   // supervisor-aware: it renders the full roster for this persona). The old
@@ -48,6 +65,9 @@ const HREFS: Record<string, string> = {
   // lives on the app route for every persona — the supervisor just sees it
   // inside this console's chrome.
   team: "/app/team",
+  // The Activity ledger. One route, persona-branched inside the page: supervisors
+  // get the ledger, mentors and leads keep the profile-update feed.
+  activity: "/app/activity",
 };
 
 export function AdminShell({
