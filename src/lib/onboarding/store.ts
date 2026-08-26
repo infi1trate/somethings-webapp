@@ -23,6 +23,15 @@ import {
 // Type-only: the shape of a staff edit to another person's profile. people-demo
 // holds no store import, so this stays one-directional.
 import type { PersonProfile } from "@/lib/record/people-demo";
+// activity/read-state is a pure logic module with no store import — same
+// one-directional discipline as care-demo below.
+import {
+  clearRow as clearOverlayRow,
+  markRead as markOverlayRead,
+  restoreRow as restoreOverlayRow,
+  type ActivityScope,
+  type ReadOverlay,
+} from "@/lib/activity/read-state";
 // care-demo is a pure data module with no store import — one-directional.
 import type {
   CareFlagClosure,
@@ -161,6 +170,30 @@ interface OnboardingState {
    *  every teen, and re-collapsing on each navigation would be the product
    *  forgetting something it was told. */
   careRailOpen: boolean;
+  /** THE ACTIVITY LEDGER'S READ/CLEAR OVERLAY (v35). Keyed
+   *  `viewerId::scope::eventId` — see lib/activity/read-state.ts for why scope is
+   *  part of the key and not a filter over it (standing rule 10).
+   *
+   *  NEVER stored on an event row (rule 9). The events are fixtures in
+   *  lib/activity/seed.ts and are not persisted at all; only this overlay is,
+   *  because only this is the viewer's own state. */
+  activityRead: ReadOverlay;
+  seedActivityRead: (overlay: ReadOverlay) => void;
+  markActivityRowsRead: (
+    viewerId: string,
+    scope: ActivityScope,
+    eventIds: string[]
+  ) => void;
+  clearActivityRow: (
+    viewerId: string,
+    scope: ActivityScope,
+    eventId: string
+  ) => void;
+  restoreActivityRow: (
+    viewerId: string,
+    scope: ActivityScope,
+    eventId: string
+  ) => void;
   /** Care updates a supervisor has written, keyed by update id. APPEND-ONLY:
    *  no setter edits or removes one. "Editing" an update appends an amendment
    *  whose `amends` names the original, and both keep rendering. */
@@ -365,6 +398,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       careReviews: {},
       careFlagClosures: {},
       careRailOpen: true,
+      activityRead: {},
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -744,6 +778,35 @@ export const useOnboardingStore = create<OnboardingState>()(
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
       setCareRailOpen: (open) => set({ careRailOpen: open }),
+
+      // ── ACTIVITY LEDGER OVERLAY (v35) ───────────────────────────────────
+      // Each action delegates to lib/activity/read-state.ts. The store holds the
+      // map and nothing else: it does not know the key format, and there is NO
+      // action that removes an entry — standing rule 11, clearing is never
+      // deleting, and the module deliberately exports no delete.
+      seedActivityRead: (overlay) => set({ activityRead: overlay }),
+      markActivityRowsRead: (viewerId, scope, eventIds) =>
+        set((s) => ({
+          activityRead: markOverlayRead(
+            s.activityRead,
+            viewerId,
+            scope,
+            eventIds
+          ),
+        })),
+      clearActivityRow: (viewerId, scope, eventId) =>
+        set((s) => ({
+          activityRead: clearOverlayRow(s.activityRead, viewerId, scope, eventId),
+        })),
+      restoreActivityRow: (viewerId, scope, eventId) =>
+        set((s) => ({
+          activityRead: restoreOverlayRow(
+            s.activityRead,
+            viewerId,
+            scope,
+            eventId
+          ),
+        })),
       closeCareFlag: (closure) =>
         set((state) => ({
           careFlagClosures: {
@@ -836,6 +899,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           careReviews: {}, // dev "start over" restores the pending reviews
           careFlagClosures: {}, // …and reopens the closed flags
           careRailOpen: true,
+          activityRead: {}, // dev "start over" returns every row to its seed state
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -908,11 +972,16 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
       //      id) — sparse and additive; backfill {} so an older persisted state
       //      reads as "no flag has been closed". Append-only.
+      // v35: activityRead (the Activity ledger's per-viewer read/clear overlay,
+      //      keyed viewerId::scope::eventId) — a MAP, backfilled {}. An empty
+      //      overlay means every event reads as unread, which is correct for a
+      //      viewer who has never opened the feed. SCOPE IS IN THE KEY; see
+      //      lib/activity/read-state.ts and standing rule 10.
       // v34: careRailOpen (Care assistant rail expanded?) — a SCALAR, not a
       //      map, so the backfill is a default rather than {}. Defaults OPEN:
       //      the rail is the tab's opening state, and a reader who has never
       //      touched it should see what it offers.
-      version: 34,
+      version: 35,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1294,6 +1363,14 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.careReviews !== "object" || st.careReviews === null) {
             st.careReviews = {};
           }
+          // v35: a MAP — {} is the right backfill (see the version log above).
+          const st35 = persisted as { activityRead?: unknown };
+          if (
+            typeof st35.activityRead !== "object" ||
+            st35.activityRead === null
+          ) {
+            st35.activityRead = {};
+          }
           // v34: a scalar preference — backfill the default, not {}.
           const st34 = persisted as { careRailOpen?: unknown };
           if (typeof st34.careRailOpen !== "boolean") {
@@ -1486,6 +1563,13 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.careRailOpen = true;
         }
         if (
+          typeof (merged as { activityRead?: unknown }).activityRead !==
+            "object" ||
+          merged.activityRead === null
+        ) {
+          merged.activityRead = {};
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1566,6 +1650,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         careReviews: state.careReviews,
         careFlagClosures: state.careFlagClosures,
         careRailOpen: state.careRailOpen,
+        activityRead: state.activityRead,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,
