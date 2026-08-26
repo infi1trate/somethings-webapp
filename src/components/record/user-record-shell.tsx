@@ -22,9 +22,61 @@ export interface Viewer {
   isSelf: boolean;
 }
 
+/** THE TAB BADGE — a small numeric indicator, never a bare dot.
+ *
+ *  NEVER COLOUR ALONE (WCAG 1.4.1). The number carries the count, the accessible
+ *  label carries the meaning in words, and the tone is the third, redundant
+ *  channel. A monochrome print and a screen reader get the same information.
+ *
+ *  TONE COMES FROM THE WORST OPEN ITEM, not from the count: two routine reviews
+ *  stay muted, one open escalation goes critical. A count is not a severity.
+ *
+ *  It sits INSIDE the tab button, so a click anywhere on it activates the tab —
+ *  a badge you can miss by two pixels is a badge that eats clicks. */
+function TabBadge({ tab }: { tab: UserRecordTab }) {
+  const tone = tab.badgeTone ?? "routine";
+  const fill =
+    tone === "critical"
+      ? "var(--band-clay-bg)"
+      : tone === "warning"
+        ? "var(--band-amber-bg)"
+        : "var(--surface-s2)";
+  const ink =
+    tone === "critical"
+      ? "var(--band-clay-fg)"
+      : tone === "warning"
+        ? "var(--band-amber-fg)"
+        : "var(--text-secondary)";
+  return (
+    <span
+      role="img"
+      /* TODO-COPY. Names the tab AND the count, because a screen reader reaching
+         this has already passed the label and should not have to go back. */
+      aria-label={`${tab.label}, ${tab.badge} ${
+        tab.badge === 1 ? "item needs" : "items need"
+      } attention`}
+      className="ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11.5px] font-semibold leading-[16px] tabular-nums"
+      style={{ backgroundColor: fill, color: ink }}
+    >
+      {tab.badge}
+    </span>
+  );
+}
+
 export interface UserRecordTab {
   id: string;
   label: string;
+  /** OPEN ACTION ITEMS on this tab. Omit or 0 to render nothing — a zero badge
+   *  is chrome that says "nothing here", which is what the absent badge already
+   *  says more quietly.
+   *
+   *  ADDITIVE AND OPTIONAL. Every existing consumer (/app/profile, /admin/mentor)
+   *  passes tabs with no badge and renders exactly as before. */
+  badge?: number;
+  /** The badge's family. "routine" is muted — the default, because a review due
+   *  next week is not an exception. "warning"/"critical" only when an escalation
+   *  or risk flag is open. Defaults whisper; exceptions speak. */
+  badgeTone?: "routine" | "warning" | "critical";
 }
 
 export type StatusDot = "positive" | "warning" | "critical" | "none";
@@ -244,6 +296,7 @@ export function UserRecordShell({
             )}
           >
             {t.label}
+            {!!t.badge && t.badge > 0 && <TabBadge tab={t} />}
             {activeTab === t.id && (
               <span
                 aria-hidden

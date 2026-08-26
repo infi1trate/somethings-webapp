@@ -49,6 +49,7 @@ import {
 import { avatarTintFor } from "@/components/record/person-row";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordHrefFor } from "@/lib/record/subject";
+import { TonalChip } from "@/components/record/tonal-chip";
 import { chatHrefFor } from "@/lib/record/chat";
 import { relJoined } from "@/lib/record/people-demo";
 import { formatDaysInMentorship } from "@/lib/record/relationships";
@@ -90,6 +91,81 @@ export interface RelationshipRow {
   exception?: { label: string; tone: "warning" | "muted" } | null;
   /** mentees variant only — routes the row into the paused group. */
   paused?: boolean;
+  /** CARE FACTS for the presentation column. Present only when the caller opted
+   *  in (`showCare`), and only at supervisor tier — see MenteeTable.
+   *
+   *  THE CODE ONLY, NEVER THE STATEMENT. "F41.1", not "Generalised anxiety
+   *  disorder": the statement is too long for a list cell, and a scannable list
+   *  of diagnostic sentences about named minors is a materially different
+   *  exposure from the same fact on one record behind a deliberate click. */
+  care?: {
+    /** Null = nothing assigned yet, which renders a muted em dash, never blank. */
+    code: string | null;
+    reviewDue: "none" | "due" | "overdue";
+    /** Days past due. 0 unless `reviewDue` is "overdue". */
+    overdueDays: number;
+  };
+}
+
+/** THE PRESENTATION CELL — a code, and a review-due chip when one is due.
+ *
+ *  THE CODE ONLY. Never the diagnostic statement: too long for a cell, and a
+ *  scannable column of diagnoses about named minors is a different exposure from
+ *  the same fact on one record. Data minimisation is the reason the whole column
+ *  is supervisor-tier-and-above.
+ *
+ *  NOT-YET-ASSIGNED IS A MUTED EM DASH WITH AN ACCESSIBLE LABEL, never a blank
+ *  cell. A blank reads as a rendering failure and tells a screen reader nothing
+ *  at all; "—" plus "No presentation assigned" says the true thing to both.
+ *
+ *  THE REVIEW CHIP is warning-family only when OVERDUE. A review due next week is
+ *  routine — defaults whisper — and tinting it would make the whole column shout
+ *  on a healthy caseload. */
+function CareCell({
+  care,
+  name,
+}: {
+  care?: RelationshipRow["care"];
+  name: string;
+}) {
+  return (
+    <td className={TD}>
+      <span className="flex flex-wrap items-center gap-1.5">
+        {care?.code ? (
+          <TonalChip mono className="text-[var(--text-secondary)]">
+            {care.code}
+          </TonalChip>
+        ) : (
+          <span
+            className="text-[14px] leading-[20px] text-[var(--text-muted)]"
+            /* TODO-COPY. `aria-label` on the span so the em dash is never the
+               only thing announced — a lone "—" is silence with extra steps. */
+            aria-label={`${name}: no presentation assigned`}
+          >
+            —
+          </span>
+        )}
+        {care && care.reviewDue !== "none" && (
+          <TonalChip tone={care.reviewDue === "overdue" ? "warning" : "neutral"}>
+            {/* TODO-COPY. Elapsed time, per the house rule — everything that is
+                not a named platform metric reads as elapsed.
+
+                "FIRST REVIEW DUE" WHEN THERE IS NO CODE YET. A bare "Review due"
+                beside an em dash reads as a review of nothing — the row appears
+                to contradict itself. It does not: at intake the pending review IS
+                the proposal of a first presentation, so the supervisor's job is
+                to approve one rather than re-examine one. The word "first" is the
+                whole difference between a coherent row and a puzzling one. */}
+            {care.reviewDue === "overdue"
+              ? `Overdue ${care.overdueDays}d`
+              : care.code === null
+                ? "First review due"
+                : "Review due"}
+          </TonalChip>
+        )}
+      </span>
+    </td>
+  );
 }
 
 /** TODO-COPY — the chip names the PERSON's platform state, and says where that
@@ -126,7 +202,7 @@ function ExceptionChip({
   );
 }
 
-type SortKey = "name" | "status" | "since";
+type SortKey = "name" | "status" | "since" | "code" | "review";
 
 /** Opening a dialog FROM a menu item is a fight over focus: Radix restores focus
  *  to the menu's TRIGGER as the menu closes, and that restore outlives the
@@ -135,6 +211,8 @@ type SortKey = "name" | "status" | "since";
 const preventFocusRestore = (e: Event) => e.preventDefault();
 
 export function RelationshipTable({
+  origin,
+  showCare = false,
   variant,
   title,
   rows,
@@ -155,6 +233,15 @@ export function RelationshipTable({
   variant: RelationshipVariant;
   title: string;
   rows: RelationshipRow[];
+  /** ORIGIN STAMP for the record links (see origins.ts). Optional: without it
+   *  the URLs are byte-identical to before and the record falls back to its
+   *  subject-derived back link. */
+  origin?: string;
+  /** THE PRESENTATION COLUMN — OFF BY DEFAULT, and that default is the point.
+   *  This table is shared with Supervision and the mentors variant; a column
+   *  added unconditionally would appear on screens this brief did not touch.
+   *  Only MenteeTable opts in, and only for the supervisor tier. */
+  showCare?: boolean;
   sinceLabel: string;
   sinceFormat?: "elapsed" | "metric";
   caption?: React.ReactNode;
@@ -180,7 +267,9 @@ export function RelationshipTable({
 
   const showStatus = variant === "mentors";
   const showChat = variant === "mentees";
-  const colCount = 2 + (showStatus ? 1 : 0) + (showChat ? 1 : 0) + 1;
+  const showCode = showCare && variant === "mentees";
+  const colCount =
+    2 + (showStatus ? 1 : 0) + (showCode ? 1 : 0) + (showChat ? 1 : 0) + 1;
 
   const compare = (a: RelationshipRow, b: RelationshipRow) => {
     const dir = asc ? 1 : -1;
@@ -190,6 +279,25 @@ export function RelationshipTable({
       if (a.sinceDays === null || b.sinceDays === null)
         return a.sinceDays === null ? 1 : -1;
       return dir * (a.sinceDays - b.sinceDays);
+    }
+    if (sort === "code") {
+      // NO CODE SORTS LAST in either direction — an unassigned presentation is
+      // an unknown, not an empty string that belongs at the top of the alphabet.
+      const ac = a.care?.code ?? null;
+      const bc = b.care?.code ?? null;
+      if (ac === null || bc === null) return ac === null ? 1 : -1;
+      return dir * ac.localeCompare(bc);
+    }
+    if (sort === "review") {
+      // MOST OVERDUE FIRST when ascending — the point of sorting by review is
+      // triage, and triage wants the worst at the top.
+      const rank = (r: RelationshipRow) =>
+        r.care?.reviewDue === "overdue"
+          ? 2000 + r.care.overdueDays
+          : r.care?.reviewDue === "due"
+            ? 1000
+            : 0;
+      return -dir * (rank(a) - rank(b));
     }
     if (sort === "status" && statusRank)
       return (
@@ -235,6 +343,9 @@ export function RelationshipTable({
     <colgroup>
       <col />
       {showStatus && <col style={{ width: 180 }} />}
+      {/* Narrow: a code is five characters and a review chip is short. Wider
+          would invite the diagnostic statement in later. */}
+      {showCode && <col style={{ width: 150 }} />}
       <col style={{ width: 190 }} />
       {showChat && <col style={{ width: 140 }} />}
       <col style={{ width: 72 }} />
@@ -247,6 +358,8 @@ export function RelationshipTable({
       row={r}
       showStatus={showStatus}
       showChat={showChat}
+      showCode={showCode}
+      origin={origin}
       renderSince={renderSince}
       onStatusSelect={onStatusSelect}
       onEndRelationship={onEndRelationship}
@@ -315,6 +428,49 @@ export function RelationshipTable({
               <SortHead label="Name" k="name" sort={sort} asc={asc} onSort={setSortKey} />
               {showStatus && (
                 <SortHead label="Status" k="status" sort={sort} asc={asc} onSort={setSortKey} />
+              )}
+              {showCode && (
+                /* TWO SORTS IN ONE HEADER CELL, because the cell holds two facts.
+                   The alternative was making one control cycle code → review →
+                   code, which is undiscoverable: nothing on screen would tell a
+                   reader the third click does something different. Two labelled
+                   buttons say what they do.
+
+                   TODO-COPY. "Presentation", not "Billing code" — the code IS the
+                   billing code, but on a teen's row the clinical framing is the
+                   honest one; the finance framing reads as what the teen is for. */
+                <th
+                  scope="col"
+                  className={TH}
+                  aria-sort={
+                    sort === "code" || sort === "review"
+                      ? asc
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <SortButton
+                      label="Presentation"
+                      k="code"
+                      sort={sort}
+                      asc={asc}
+                      onSort={setSortKey}
+                    />
+                    <span aria-hidden className="opacity-40">
+                      ·
+                    </span>
+                    <SortButton
+                      /* TODO-COPY */
+                      label="Review"
+                      k="review"
+                      sort={sort}
+                      asc={asc}
+                      onSort={setSortKey}
+                    />
+                  </span>
+                </th>
               )}
               <SortHead label={sinceLabel} k="since" sort={sort} asc={asc} onSort={setSortKey} />
               {/* The chat column carries no header — the link names itself. */}
@@ -416,6 +572,8 @@ function Row({
   row: r,
   showStatus,
   showChat,
+  showCode,
+  origin,
   renderSince,
   onStatusSelect,
   onEndRelationship,
@@ -424,6 +582,8 @@ function Row({
   row: RelationshipRow;
   showStatus: boolean;
   showChat: boolean;
+  showCode: boolean;
+  origin?: string;
   renderSince: (days: number | null) => React.ReactNode;
   onStatusSelect?: (
     row: RelationshipRow,
@@ -443,7 +603,7 @@ function Row({
   // down as a prop would mean the child mutating the parent's prop.
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
-    <tr onClick={() => router.push(recordHrefFor(r.id))} className={ROW}>
+    <tr onClick={() => router.push(recordHrefFor(r.id, origin))} className={ROW}>
       <td className={TD}>
         <span className="flex items-center gap-3">
           <span
@@ -482,6 +642,8 @@ function Row({
           )}
         </td>
       )}
+
+      {showCode && <CareCell care={r.care} name={display} />}
 
       <td className={cn(TD, "text-[14px] leading-[20px] text-[var(--text-secondary)]")}>
         {renderSince(r.sinceDays)}
@@ -525,7 +687,7 @@ function Row({
             className="min-w-44"
             onCloseAutoFocus={preventFocusRestore}
           >
-            <DropdownMenuItem onSelect={() => router.push(recordHrefFor(r.id))}>
+            <DropdownMenuItem onSelect={() => router.push(recordHrefFor(r.id, origin))}>
               {/* TODO-COPY */}
               View record
             </DropdownMenuItem>
@@ -605,6 +767,43 @@ const STATUS_CHOICES: MentorLifecycleStatus[] = [
   "paused",
   "deactivated",
 ];
+
+/** The sort control itself, extracted so a header cell can hold more than one.
+ *  SortHead is the one-sort-per-cell wrapper around it. */
+function SortButton({
+  label,
+  k,
+  sort,
+  asc,
+  onSort,
+}: {
+  label: string;
+  k: SortKey;
+  sort: SortKey;
+  asc: boolean;
+  onSort: (k: SortKey) => void;
+}) {
+  const on = sort === k;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)]",
+        on && "text-[var(--text-primary)]",
+        RING
+      )}
+    >
+      {label}
+      {on && (
+        <ChevronUp
+          className={cn("size-3 transition-transform", !asc && "rotate-180")}
+          aria-hidden
+        />
+      )}
+    </button>
+  );
+}
 
 function SortHead({
   label,

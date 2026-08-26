@@ -50,8 +50,6 @@ import {
   careTasksFor,
 } from "@/components/record/care-task-region";
 import {
-  FlagReviewDialog,
-  type FlagClose,
 } from "@/components/record/flag-review-dialog";
 import { CareAssistantRail } from "@/components/record/care-assistant-rail";
 import {
@@ -62,6 +60,7 @@ import { CareUpdateCompose } from "@/components/record/care-update-compose";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
   cadenceFor,
+  openFlagsFor,
   careAiSummaryFor,
   careTimelineFor,
   scoreSeriesFor,
@@ -75,10 +74,6 @@ import {
 } from "@/lib/record/care-demo";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
 import {
-  CRISIS_TYPE,
-  FLAG_OUTCOME,
-  REFERRAL_TYPE,
-  type CareFlagRecord,
   type DemoTeen,
 } from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
@@ -108,7 +103,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
   const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
-  const closeCareFlag = useOnboardingStore((s) => s.closeCareFlag);
   // The match/unmatch log, so the Mentor metric names who they are matched with
   // NOW rather than whoever the fixture row still points at.
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
@@ -123,8 +117,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   // recommendation rather than committing — the provider-note gate still stands
   // between it and the record.
   const [proposed, setProposed] = useState<PresentationRef | null>(null);
-  /** The flag whose review modal is open. Null = closed. */
-  const [reviewingFlag, setReviewingFlag] = useState<CareFlagRecord | null>(null);
   /** WHERE FOCUS GOES AFTER A CLOSE. The dialog's usual trick — hand focus back
    *  to the trigger — cannot work here: closing a task UNMOUNTS the card the
    *  trigger lived in, so focus fell to <body> and a keyboard user was dropped
@@ -216,7 +208,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
     toast(amends ? "Amendment appended." : "Care update saved.");
   };
 
-  const tasks = careTasksFor(teen.id, review, store);
+  const tasks = careTasksFor(review);
 
   return (
     // THE RAIL IS COLLAPSIBLE, and that is the whole reason it can come back:
@@ -248,22 +240,13 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           series={series}
         />
 
-        {/* 2 · TASK REGION. Zero or more open tasks, severity descending;
-            renders NOTHING when none are open — absence is the reward state,
-            and there is no "all caught up" card. Ordering lives in
-            careTasksFor, with the data, not in this JSX. */}
+        {/* 2 · TASK REGION — the presentation review, and only that.
+            Escalations and risk flags moved to Overview (record-level work, not
+            presentation work); their HISTORY stays in the table below. Renders
+            NOTHING when no review is due — absence is the reward state, and
+            there is no "all caught up" card. */}
         <CareTaskRegion
           tasks={tasks}
-          teenName={teen.goesBy ?? teen.name}
-          now={now}
-          onReviewFlag={
-            canAct
-              ? (flag, trigger) => {
-                  returnFocusTo.current = trigger;
-                  setReviewingFlag(flag);
-                }
-              : undefined
-          }
           reviewProps={{
             currentCode: presentation?.code ?? null,
             actor: staffName,
@@ -391,7 +374,10 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             mentorLastSentDaysAgo: teen.mentorLastSentDaysAgo,
             menteeLastSentDaysAgo: teen.menteeLastSentDaysAgo,
             daysInMentorship: daysInMentorship(teen),
-            openFlagCount: tasks.filter((t) => t.kind === "flag").length,
+            // FROM THE DATA, not from this tab's task list — flags are no
+            // longer Care tasks, but the assistant still needs to know how many
+            // are open to answer honestly.
+            openFlagCount: openFlagsFor(teen.id, store).length,
           }}
         />
       ) : null}
@@ -408,46 +394,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             amending={amending}
             onSave={saveUpdate}
             returnFocusTo={returnFocusTo}
-          />
-          <FlagReviewDialog
-            open={!!reviewingFlag}
-            onOpenChange={(o) => !o && setReviewingFlag(null)}
-            flag={reviewingFlag}
-            teenName={teen.goesBy ?? teen.name}
-            now={now}
-            returnFocusTo={returnFocusTo}
-            onClose={(d: FlagClose) => {
-              const flag = reviewingFlag;
-              if (!flag) return;
-              const at = Date.now();
-              closeCareFlag({
-                flagId: d.flagId,
-                teenId: teen.id,
-                closedAt: at,
-                // Elapsed-to-resolution computed AT CLOSE, so History cannot
-                // drift as `now` moves.
-                openDays: flag.daysAgo,
-                outcome: d.outcome,
-                outcomeLabel:
-                  FLAG_OUTCOME.find((o) => o.id === d.outcome)?.label ??
-                  d.outcome,
-                note: d.note,
-                actor: staffName,
-                actorRole: staffActorFor(persona),
-                kind: flag.kind,
-                crisisLabel: d.crisis
-                  ? CRISIS_TYPE.find((c) => c.id === d.crisis!.type)?.label
-                  : undefined,
-                referralLabel: d.referral
-                  ? REFERRAL_TYPE.find((r) => r.id === d.referral!.type)?.label
-                  : undefined,
-              });
-              setReviewingFlag(null);
-              // After the card unmounts — see historyHeading.
-              requestAnimationFrame(() => historyHeading.current?.focus());
-              // TODO-COPY
-              toast("Closed. The resolution is on the record.");
-            }}
           />
           <Dsm5SearchDialog
             open={searching}

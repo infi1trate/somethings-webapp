@@ -144,6 +144,17 @@ export interface DemoTeen {
   careFlags?: CareFlagRecord[];
   /** Video calls in the last 30 days — a care signal, not an absence metric. */
   videoCount30d?: number;
+  /** ACTIVITIES THE TEEN FINISHED. An Attention-signal source: worth noticing,
+   *  never something anyone has to act on.
+   *
+   *  Stored rather than derived because no activity layer exists — zero hits
+   *  across the repo for a completed activity of any kind. TODO-DATA: the real
+   *  source is the activity service; the shape here is a fixture.
+   *
+   *  The OTHER Attention signal, "say hi to a new teen", is NOT stored: it is
+   *  derived from the no-contact recency state (see mentees-demo), because that
+   *  state is real data the messaging stamps already describe. */
+  completedActivities?: { id: string; name: string; daysAgo: number }[];
   /** Mentors this teen was matched with before their current one. */
   pastMentors?: PastMatch[];
 }
@@ -513,7 +524,10 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     id: "t5", name: "Marcus Lee", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
     group: "Illinois", active: true, joinedDaysAgo: 2, mentorId: "m3",
-    matchedDaysAgo: 2, mentorLastSentDaysAgo: 0, menteeLastSentDaysAgo: 0,
+    // NO STAMPS ON PURPOSE — matched two days ago, neither side has sent
+    // anything. `0` would mean "sent today", the opposite of the fact, which is
+    // why the no-contact state had to exist before this fixture could.
+    matchedDaysAgo: 2,
     videoCount30d: 0,
   },
   {
@@ -532,6 +546,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         daysAgo: 14,
         source: "person",
         conversationWith: "t6",
+        conversationId: "conv-t6-a",
         outcome: "no_action",
         resolvedDaysAgo: 12,
         resolvedBy: "Brandy Forrestor",
@@ -565,7 +580,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   {
     id: "t10", name: "Ava Mitchell", pronouns: "she/her", phone: "+13125550344",
     group: "Illinois", active: true, joinedDaysAgo: 3, mentorId: "m5",
-    matchedDaysAgo: 2, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    matchedDaysAgo: 2,
     videoCount30d: 0,
   },
   {
@@ -601,6 +616,14 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS"],
         conversationWith: "t13",
+        conversationId: "conv-t13-a",
+        // TODO-DATA. EVENTS, NOT CONTENT — this describes the shape of the
+        // exchange and the timing. If a summary here ever reads like a quote it
+        // is wrong, and the review modal is not a place to fix that.
+        momentSummary: {
+          provenance: "ai",
+          text: "Across four exchanges over four days the teen described losing sleep and skipping meals, each message more urgent than the last. Their mentor escalated within an hour of the final one.",
+        },
         // CRISIS-ELEVATED. The label band gains the word "Crisis" and nothing
         // else — no extra chrome, per the brief.
         crisis: { type: "suicidal_ideation" },
@@ -642,6 +665,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ABUSE_DISCLOSURE"],
         conversationWith: "t17",
+        conversationId: "conv-t17-a",
         outcome: "supported",
         referral: { type: "family_services" },
         resolvedDaysAgo: 38,
@@ -667,6 +691,15 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ABUSE_DISCLOSURE"],
         conversationWith: "t17",
+        // A DIFFERENT conversation from cf-t17-2 below — same teen, same
+        // `conversationWith`, separate exchanges. This is the pair that proves
+        // grouping keys on the THREAD and not the person: these two must stay
+        // two cards.
+        conversationId: "conv-t17-c",
+        momentSummary: {
+          provenance: "ai",
+          text: "The teen mentioned losing access to their phone and asked to move a scheduled call. Two earlier exchanges this month referred to tension at home.",
+        },
       },
       {
         id: "cf-t17-2",
@@ -682,6 +715,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         // reports it; the chip never shows the raw value.
         categories: ["CATEGORY_4"],
         conversationWith: "t17",
+        conversationId: "conv-t17-b",
       },
     ],
   },
@@ -690,6 +724,10 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "North Carolina", active: true, joinedDaysAgo: 188, mentorId: "live",
     matchedDaysAgo: 171, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 2,
     videoCount30d: 1,
+    completedActivities: [
+      { id: "act-t18-1", name: "Hot Takes", daysAgo: 2 },
+      { id: "act-t18-2", name: "Two Truths", daysAgo: 11 },
+    ],
   },
   {
     id: "t19", name: "Simone Ba", pronouns: "she/her", phone: "+19089107002",
@@ -708,6 +746,10 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "North Carolina", active: true, joinedDaysAgo: 151, mentorId: "live",
     matchedDaysAgo: 140, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 1,
     videoCount30d: 1,
+    // BOTH SECTIONS AT ONCE — four grouped flags above, an activity below. The
+    // whole point of the lighter Attention treatment is that it does not compete
+    // with Action required, which can only be judged on a record carrying both.
+    completedActivities: [{ id: "act-t21-1", name: "Hot Takes", daysAgo: 5 }],
     careFlags: [
       {
         id: "cf-t21-1",
@@ -722,6 +764,63 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "system",
         categories: ["HATE_SPEECH_RACIAL_SLURS", "GROOMING_BEHAVIOR"],
         conversationWith: "t21",
+        conversationId: "conv-t21-a",
+        momentSummary: {
+          provenance: "system",
+          text: "Three messages in one evening exchange matched two classifier categories. No earlier match exists on this conversation.",
+        },
+      },
+      // ── THE GROUPING CASE ────────────────────────────────────────────────
+      // ONE moderation sweep of ONE evening's exchange, producing four separate
+      // category hits. This is the realistic origin of the failure mode the
+      // grouping is designed against: a classifier does not raise one tidy flag
+      // per conversation, it raises one per match, and four cards for one chat
+      // is already unreadable at 26 teens.
+      //
+      // All four share `conv-t21-a` and the same `daysAgo`, because they came out
+      // of the same sweep. They are NOT duplicates of each other — each names a
+      // different category, which is exactly why the group has to expand rather
+      // than collapse to a single label.
+      {
+        id: "cf-t21-2",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Language matching the threat classifier appeared in the same exchange",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
+        daysAgo: 9,
+        source: "system",
+        categories: ["CREDIBLE_SPECIFIC_THREAT_TO_HARM_ANOTHER"],
+        conversationWith: "t21",
+        conversationId: "conv-t21-a",
+      },
+      {
+        id: "cf-t21-3",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "A second grooming-pattern match in the same exchange",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
+        daysAgo: 9,
+        source: "system",
+        categories: ["GROOMING_BEHAVIOR"],
+        conversationWith: "t21",
+        conversationId: "conv-t21-a",
+      },
+      {
+        // UNMAPPED, inside a group — so the expanded list exercises the
+        // "Uncategorised" chip too, not just the collapsed count.
+        id: "cf-t21-4",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "An uncategorised classifier match in the same exchange",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
+        daysAgo: 9,
+        source: "system",
+        categories: ["CATEGORY_4"],
+        conversationWith: "t21",
+        conversationId: "conv-t21-a",
       },
     ],
   },
@@ -742,6 +841,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ABUSE_DISCLOSURE"],
         conversationWith: "t22",
+        conversationId: "conv-t22-a",
         outcome: "supported",
         resolvedDaysAgo: 94,
         resolvedBy: "Omar Haddad",
@@ -756,6 +856,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "North Carolina", active: true, joinedDaysAgo: 134, mentorId: "live",
     matchedDaysAgo: 119, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 3,
     videoCount30d: 0,
+    completedActivities: [{ id: "act-t23-1", name: "Icebreakers", daysAgo: 4 }],
   },
   {
     id: "t24", name: "Jonah Whitfield", pronouns: "he/him", phone: "+19089107007",
@@ -970,6 +1071,35 @@ export interface CareFlagRecord {
    *  link goes to the CONVERSATION SURFACE — message text is never rendered on
    *  the record or in the review modal. */
   conversationWith?: string;
+  /** THE CONVERSATION THIS FLAG CAME OUT OF — a THREAD id, and emphatically NOT
+   *  a person id.
+   *
+   *  `conversationWith` above is the PERSON (the teen), which on a teen's own
+   *  record is the same value on every flag they have. Grouping on it therefore
+   *  groups by teen, which collapses unrelated concerns raised months apart into
+   *  one card and hides them behind a single count. That is the exact failure the
+   *  grouping is meant to prevent, inverted.
+   *
+   *  So the key is its own field. Flags that arose from ONE exchange share one
+   *  `conversationId`; flags from separate exchanges do not, even on the same
+   *  teen with the same `conversationWith`. Absent = ungrouped, rendered as its
+   *  own card.
+   *
+   *  TODO-DATA: the real id comes from the messaging layer, which does not exist
+   *  yet. `conv-<teen>-<letter>` is a fixture shape, not a contract. */
+  conversationId?: string;
+  /** A SYSTEM- OR AI-WRITTEN SUMMARY OF THE FLAGGED MOMENT — a description of
+   *  what happened, never the words that were said. Vocabulary law: events, not
+   *  content. If a fixture here ever reads like a quote, it is wrong.
+   *
+   *  `provenance` separates the two very different things this can be: a
+   *  deterministic classifier reporting what it matched ("system"), and a model
+   *  writing prose about an exchange ("ai"). They earn different trust and the
+   *  card labels them differently, so they are never merged into one flag.
+   *
+   *  Absent on most flags, deliberately — a card with no summary is the common
+   *  case and has to look finished without one. */
+  momentSummary?: { text: string; provenance: "system" | "ai" };
   /** CRISIS ELEVATION. Set by a supervisor during review; adds the word
    *  "Crisis" to the label band and nothing else. */
   crisis?: { type: CrisisType; note?: string };

@@ -39,7 +39,6 @@ import Link from "next/link";
 import {
   ChevronDown,
   MessagesSquare,
-  PanelRightClose,
   RefreshCw,
   Send,
   ShieldAlert,
@@ -73,23 +72,43 @@ const nextId = () => `turn-${++seq}`;
 
 // ── Closed state ────────────────────────────────────────────────────────────
 
+/** ONE CONTROL, ONE PLACE — open AND close.
+ *
+ *  The panel used to have its own close icon in its header, so opening happened
+ *  in the tab row and closing happened 600px away inside the thing being closed.
+ *  A reader who collapsed the panel then wanted it back had to hunt for a
+ *  different control in a different place. Now it is this button, in this
+ *  position, in both directions — and Esc, which the panel owns.
+ *
+ *  ACTIVE IS FILLED. Not a tint, not a heavier border: the same ink fill the
+ *  primary buttons use, so "on" is unmistakable at a glance and at any zoom.
+ *  INACTIVE keeps a full contour and semibold text rather than becoming a text
+ *  link — it sits in a row with section CTAs and a borderless label would read as
+ *  one more piece of text. */
 export function AssistantLauncher({
-  onOpen,
+  onToggle,
+  open,
   /** True when the snapshot changed since this reader last opened the rail. */
   hasUpdate = false,
 }: {
-  onOpen: () => void;
+  onToggle: () => void;
+  open: boolean;
   hasUpdate?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onOpen}
-      /* TODO-COPY */
-      aria-label="Open the care assistant"
+      onClick={onToggle}
+      aria-expanded={open}
+      /* TODO-COPY. The accessible name states the ACTION, and aria-expanded
+         states the state — a reader gets both without the label flipping. */
+      aria-label="Care assistant"
       className={cn(
-        "sticky top-6 flex shrink-0 items-center gap-2 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-3.5 py-2",
-        "text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+        "sticky top-6 flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2",
+        "text-[13px] font-semibold transition-colors",
+        open
+          ? "border-[color:var(--text-primary)] bg-[var(--text-primary)] text-[var(--text-inverse)]"
+          : "border-[color:var(--border-contour)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
         RING
       )}
     >
@@ -97,9 +116,10 @@ export function AssistantLauncher({
       {/* TODO-COPY. Horizontal, readable, translatable — see the module note on
           why the rotated label is gone. */}
       Care assistant
-      {hasUpdate && (
-        // NEVER COLOUR ALONE: the dot is decorative and the label carries the
-        // fact, so a reader who cannot see it still hears it.
+      {hasUpdate && !open && (
+        // NEVER COLOUR ALONE: the dot is decorative and the accessible label
+        // carries the fact, so a reader who cannot see it still hears it. Hidden
+        // while open — the reader is looking at the thing that updated.
         <span
           role="img"
           /* TODO-COPY */
@@ -327,12 +347,30 @@ export function CareAssistantRail({
   const [promptsOpen, setPromptsOpen] = useState(false);
   const threadEnd = useRef<HTMLDivElement | null>(null);
   const updatedAt = summaryRefreshedAt ?? summary?.generatedAt ?? null;
+  /** FIRST NAME ONLY in the input. "Ask about Naomi…" is how a colleague would
+   *  say it; "Ask about Naomi Reed…" is how a database would. */
+  const firstName = teenName.trim().split(/\s+/)[0] || teenName;
   const started = turns.length > 0;
 
   // Follow the thread as it grows. Smooth, and only when something was added.
   useEffect(() => {
     if (started) threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns.length, started]);
+
+  /** ESC CLOSES. On the WINDOW rather than the panel, so it works wherever focus
+   *  is — a reader who has just typed in the input, or who never clicked into the
+   *  panel at all, both get the same behaviour.
+   *
+   *  It does NOT preventDefault or stopPropagation: a dialog opened from the main
+   *  column must still win Esc for itself, and Radix listens in the capture phase
+   *  above this. Closing the rail behind an open modal would be a surprise. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) onCollapse();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCollapse]);
 
   /** EPHEMERAL BY CONSTRUCTION. Turns live in component state — never the store,
    *  never the record. Navigating away loses them, which is correct: nothing the
@@ -369,25 +407,16 @@ export function CareAssistantRail({
       // that matters. Reported.
       className="sticky top-6 flex max-h-[calc(100dvh-3rem)] min-w-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
-      {/* ── HEADER: icon + title + collapse. Nothing else. ──────────────── */}
-      <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-3">
+      {/* ── HEADER: icon + title. NOTHING ELSE. ─────────────────────────
+          THE CLOSE ICON IS GONE. Open and close are one control in one place —
+          the tab-row toggle — plus Esc below. A second closer inside the panel
+          meant the two directions of one action lived in two different places. */}
+      <div className="flex items-center gap-2 px-4 pt-3.5 pb-3">
         <p className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
           <Sparkles className="size-4 shrink-0" aria-hidden />
           {/* TODO-COPY */}
           Care assistant
         </p>
-        <button
-          type="button"
-          onClick={onCollapse}
-          /* TODO-COPY */
-          aria-label="Collapse the care assistant"
-          className={cn(
-            "-m-1.5 shrink-0 rounded-md p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-            RING
-          )}
-        >
-          <PanelRightClose className="size-4" aria-hidden />
-        </button>
       </div>
 
       {/* ── SCROLLING BODY: snapshot → thread ───────────────────────────── */}
@@ -427,6 +456,31 @@ export function CareAssistantRail({
                 empty snapshot reads as a state rather than a broken caption. */}
             {summary?.text ?? "Not enough data yet."}
           </p>
+
+          {/* MOMENT DEEP LINKS. The snapshot refers to specific discussions; each
+              one gets a pointer to the conversation surface. The LABEL NAMES WHEN,
+              never what — the link is how a reader gets the words, and the only
+              place they render. */}
+          {summary?.moments && summary.moments.length > 0 && (
+            <ul className="mt-2.5 space-y-1">
+              {summary.moments.map((m) => (
+                <li key={m.label}>
+                  <Link
+                    href={chatHrefFor(m.conversationWith)}
+                    className={cn(
+                      "inline-flex items-start gap-1.5 rounded-sm text-[13px] leading-[18px] text-[var(--text-secondary)]",
+                      "underline decoration-[color:var(--border-contour)] underline-offset-2",
+                      "transition-colors hover:text-[var(--text-primary)] hover:decoration-[color:var(--text-primary)]",
+                      RING
+                    )}
+                  >
+                    <MessagesSquare className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    {m.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* A hairline separates the snapshot from the conversation. */}
@@ -509,8 +563,8 @@ export function CareAssistantRail({
             onChange={(e) => setDraft(e.target.value)}
             disabled={inFlight}
             /* TODO-COPY */
-            aria-label={`Ask about ${teenName}`}
-            placeholder={`Ask about ${teenName}…`}
+            aria-label={`Ask about ${firstName}`}
+            placeholder={`Ask about ${firstName}…`}
             className="h-7 min-w-0 flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
           <button

@@ -84,14 +84,26 @@ export interface AssistantTurn {
 export const ASSISTANT_FOOTER =
   "Answers cover this mentee only. AI-generated, for context only — not a clinical determination.";
 
-/** TODO-COPY. Care-oriented, non-diagnostic, and deliberately NOT one of them a
- *  question about the presentation — a suggested prompt that gets refused would
- *  be a trap the product laid itself. */
+/** TODO-COPY. EXACTLY THREE, two to four words each.
+ *
+ *  WAS FOUR FULL SENTENCES. Four question-shaped pills above a live thread is the
+ *  panel arguing with itself for attention, and a sentence in a pill reads as
+ *  something to consider rather than something to press. These are QUICK ACTIONS
+ *  as much as questions — the shortest phrase that names what comes back.
+ *
+ *  Care-oriented and non-diagnostic, and deliberately NOT one of them a question
+ *  about the presentation: a suggested prompt that gets refused would be a trap
+ *  the product laid itself.
+ *
+ *  EACH ONE MUST HIT A REAL ROUTING BRANCH BELOW. Shortening these could easily
+ *  have dropped the keyword that routes them — verified: "contact" hits the
+ *  contact branch, "review" the since-last-review branch, "check-in" the
+ *  what-to-read branch. A pill that falls through to the "I'm not sure I follow"
+ *  fallback would be worse than no pill. */
 export const SUGGESTED_QUESTIONS = [
-  "How has contact changed this month?",
-  "Summarise what's happened since the last review",
-  "What has their survey trend been?",
-  "What should I read before my next check-in?",
+  "Contact trend",
+  "Since last review",
+  "Read before check-in",
 ] as const;
 
 // ── Routing ─────────────────────────────────────────────────────────────────

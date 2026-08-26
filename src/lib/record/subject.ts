@@ -15,6 +15,7 @@
 //
 // Consumers branch on `kind` and render what the subject actually has.
 
+import { withOrigin } from "@/lib/record/origins";
 import {
   DEMO_PEOPLE,
   DEMO_TEENS,
@@ -94,9 +95,17 @@ export function resolveSubject(id: string): Subject | null {
   return null;
 }
 
-/** Where a person's record lives. One place that knows the URL shape. */
-export function recordHrefFor(id: string): string {
-  return id === LIVE_ID ? "/admin/mentor" : `/admin/person/${id}`;
+/** Where a person's record lives. One place that knows the URL shape.
+ *
+ *  `from` STAMPS THE ORIGIN so the record's back link can name where the reader
+ *  came from instead of guessing from the subject's role (see origins.ts for why
+ *  a param and not history). OPTIONAL and additive: every call site that omits it
+ *  produces exactly the URL it produced before, and the record falls back to its
+ *  old subject-derived back link. Each stamped call site is an independent
+ *  improvement rather than part of a migration. */
+export function recordHrefFor(id: string, from?: string): string {
+  const base = id === LIVE_ID ? "/admin/mentor" : `/admin/person/${id}`;
+  return withOrigin(base, from);
 }
 
 /** Display name, preferring the teen-facing "goes by" when set. */

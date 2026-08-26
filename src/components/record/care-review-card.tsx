@@ -49,6 +49,7 @@ import {
 } from "@/components/record/decision-footer";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { bandLabel, ScoreChip } from "@/components/record/score-chip";
+import { INSTRUMENT_MAX } from "@/lib/record/care-demo";
 import {
   RATIONALE_SOURCE_LABEL,
   STAGE_LABEL,
@@ -213,6 +214,20 @@ export function PresentationReviewCard({
       }
     : review.survey;
 
+  /** THE DENOMINATOR, from the instrument definition — never a literal in the
+   *  markup. A per-card constant is exactly how one surface ends up printing
+   *  "/21" beside a PHQ-9 score, and a wrong denominator on a minor's record is
+   *  worse than no denominator.
+   *
+   *  Falls back to the score itself when the instrument is unknown, so the pair
+   *  still reads as a fraction rather than "9 / undefined". An unknown instrument
+   *  is a data problem, and it should look like a full bar rather than a crash. */
+  const maxScore =
+    (evidence &&
+      INSTRUMENT_MAX[evidence.instrument as keyof typeof INSTRUMENT_MAX]) ||
+    evidence?.score ||
+    0;
+
   const outcome: CareReviewDecision["outcome"] =
     currentCode === null
       ? "presentation_assigned"
@@ -336,37 +351,66 @@ export function PresentationReviewCard({
         </p>
 
         {evidence && (
-          <div className="mt-2 overflow-hidden rounded-[12px] bg-[var(--surface-s1)]">
-            {/* HEADER ROW — fixed 56px, pixel-identical in both states. */}
-            <div className="flex h-14 items-center gap-x-3 px-3.5">
-              {/* ONE BASELINE. `items-baseline` inside a fixed-height flex row,
-                  so the numeral, the chip and the meta line share it rather
-                  than stacking. */}
-              <div className="flex min-w-0 flex-1 items-baseline gap-x-2.5">
-                <span className="shrink-0 text-[24px] font-normal leading-none tabular-nums text-[var(--text-primary)]">
-                  {evidence.score}
+          <div className="mt-2 overflow-hidden rounded-[var(--radius-inset)] bg-[var(--surface-s1)]">
+            {/* ══ THE HEADER IS THE DISCLOSURE ══════════════════════════════
+                THE WHOLE ROW IS THE TARGET, not the caret. A 14px chevron is a
+                ~14px hit area next to a 200px row that looks pressable and is
+                not; readers aim at the number and nothing happens. It is a real
+                <button> spanning the panel, so Enter and Space come free, focus
+                is native, and the caret drops to what it should always have been
+                — a state indicator with `aria-hidden`.
+
+                FIXED HEIGHT, PIXEL-IDENTICAL IN BOTH STATES. 68px, holding two
+                lines: the score lockup on one baseline, the provenance beneath.
+                The expanded body is a SIBLING of this button, never a child, so
+                nothing the body does can move anything in here. */}
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              className={cn(
+                "flex h-[68px] w-full cursor-pointer items-center gap-x-3 px-3.5 text-left",
+                "transition-colors hover:bg-[var(--tint-hover)]",
+                RING
+              )}
+            >
+              <span className="flex min-w-0 flex-1 flex-col gap-y-1">
+                {/* LINE 1 — score, denominator, band. ONE BASELINE via
+                    `items-baseline`, so the 24px numeral and the 14px
+                    denominator sit on the same line rather than centring on
+                    each other's boxes. */}
+                <span className="flex items-baseline gap-x-2.5">
+                  <span className="flex shrink-0 items-baseline gap-x-1">
+                    <span className="text-[24px] font-normal leading-none tabular-nums text-[var(--text-primary)]">
+                      {evidence.score}
+                    </span>
+                    {/* THE DENOMINATOR. A bare "9" has no scale — it could be
+                        anything out of anything. The maximum comes from the
+                        INSTRUMENT DEFINITION (INSTRUMENT_MAX), never a literal
+                        here: a per-card constant is how one surface ends up
+                        saying /21 for a PHQ-9. */}
+                    <span className="text-[14px] leading-none tabular-nums text-[var(--text-muted)]">
+                      / {maxScore}
+                    </span>
+                  </span>
+                  <BandChip severity={evidence.severity} />
                 </span>
-                <BandChip severity={evidence.severity} />
-                <span className="min-w-0 truncate text-[13px] leading-none text-[var(--text-muted)]">
+
+                {/* LINE 2 — provenance, muted, beneath. For the aggregate this
+                    is the qualifier that explains the number instead. */}
+                <span className="min-w-0 truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
                   {review.aggregate
                     ? /* TODO-COPY */ `recency-weighted across ${review.aggregate.surveys.length} surveys`
                     : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
                 </span>
-              </div>
+              </span>
 
-              {/* PINNED. Its own flex child in a fixed-height row — it cannot
-                  move, because nothing around it changes size. */}
-              <button
-                type="button"
-                onClick={() => setOpen((o) => !o)}
-                aria-expanded={open}
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] transition-opacity hover:opacity-70",
-                  RING
-                )}
-              >
-                {/* TODO-COPY */}
-                Question by question
+              {/* PINNED, and now a LABEL rather than a control. Its own flex
+                  child in a fixed-height row, so it cannot move. */}
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+                {/* TODO-COPY. Was "Question by question" — this names the thing
+                    the reader gets rather than describing the layout of it. */}
+                Survey answers
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",
@@ -374,8 +418,8 @@ export function PresentationReviewCard({
                   )}
                   aria-hidden
                 />
-              </button>
-            </div>
+              </span>
+            </button>
 
             {/* BODY — expanded only, beneath a hairline, full width, BELOW the
                 header rather than beside the score. */}

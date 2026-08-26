@@ -213,11 +213,31 @@ export type MenteeRecency =
   | { kind: "mentor-replied"; ago: string } // mentor sent last, pair active
   | { kind: "mentee-wrote"; ago: string } // mentee sent last, within threshold
   | { kind: "waiting-on-mentor"; days: number } // mentor owes a reply → warning
-  | { kind: "teen-quiet"; days: number }; // teen silent after mentor replied
+  | { kind: "teen-quiet"; days: number } // teen silent after mentor replied
+  // NO CONTACT AT ALL — matched, and neither side has sent anything yet.
+  //
+  // This state was MISSING, and its absence was a live bug rather than a gap:
+  // `menteeRecency` coerced both stamps with `?? 0`, so a pair with no messages
+  // fell through to "mentor-replied" and rendered `relativeAgo(0, now)` — the
+  // mentor last replied at the Unix epoch. No fixture teen hit it (every one
+  // carried both stamps), so it never showed; the first teen who genuinely had
+  // not been messaged would have.
+  //
+  // It is NOT a warning. A pair matched yesterday with no messages is the
+  // expected beginning of every mentorship — defaults whisper. The Overview's
+  // "Worth a look" reads this state to surface "say hi", which is why it had to
+  // become representable rather than stay coerced.
+  | { kind: "no-contact"; sinceMatch: number };
 
 export function menteeRecency(m: DemoMentee, now: number): MenteeRecency {
   const mentorAt = m.mentorLastSentAt ?? 0;
   const menteeAt = m.menteeLastSentAt ?? 0;
+  // BEFORE the coercions below can lie about it: no messages either way.
+  if (mentorAt === 0 && menteeAt === 0)
+    return {
+      kind: "no-contact",
+      sinceMatch: Math.max(0, Math.floor((now - m.matchedAt) / DAY)),
+    };
   if (menteeAt > mentorAt) {
     // Mentee sent last — the mentor owes the reply.
     const days = Math.floor((now - menteeAt) / DAY);
@@ -251,6 +271,12 @@ export function recencyLine(
       return `waiting on ${mentorFirstName} · ${r.days} days`;
     case "teen-quiet":
       return `${firstName(menteeName)} last wrote ${r.days}d ago`;
+    case "no-contact":
+      // TODO-COPY. States the fact and nothing more — no nudge, no deadline.
+      // The nudge belongs to the Overview alert, not to a directory row.
+      return r.sinceMatch === 0
+        ? "matched today · no messages yet"
+        : `matched ${r.sinceMatch}d ago · no messages yet`;
   }
 }
 
