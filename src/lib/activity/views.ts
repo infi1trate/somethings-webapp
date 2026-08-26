@@ -48,7 +48,19 @@ export const ACTIVITY_VIEWS: ActivityView[] = [
   },
   {
     id: "network",
-    label: "Network",
+    /** TODO-COPY. RENAMED FROM "Network" by request.
+     *
+     *  THE ID AND THE INTERNAL VOCABULARY DELIBERATELY DID NOT MOVE. `network` is
+     *  one of the three values of `ViewerRelationship`, and standing rules 10 and
+     *  12 are written in terms of it ("Network-scope detail degradation is enforced
+     *  at the data layer"). Renaming the relationship would edit the vocabulary of
+     *  a load-bearing rule, which those rules say to stop and ask about rather than
+     *  do in passing. So this is the label only — the one string a reader sees.
+     *
+     *  NOTE THE COLLISION, since it is worth a decision: the supervisor sidebar
+     *  already has a "Team" item (the staff directory). Two different surfaces now
+     *  answer to the same word. Flagged in gap row 238. */
+    label: "Team",
     scope: "all",
     // NOTIFICATION only, per the phase prompt. For a supervisor this is
     // structurally the set of rows about other people's teens — see the

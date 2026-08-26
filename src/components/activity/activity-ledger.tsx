@@ -19,6 +19,8 @@ import { AlignJustify, Filter, Rows3, Search } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { queryFeed, unreadRowCount, type FeedRow } from "@/lib/activity/query";
+import { objectDetailFor } from "@/lib/activity/inspector";
+import { ObjectInspector } from "@/components/activity/object-inspector";
 import { seedOverlay } from "@/lib/activity/read-state";
 import {
   ACTIVITY_SCENARIOS,
@@ -93,7 +95,8 @@ const PAGE_DAYS = 30;
  *    · no exclamation points, no celebration on completion rows */
 const COPY = {
   emptyMine: "Nothing has happened on your caseload today.",
-  emptyNetwork: "No network activity in this range. Try a wider date range.",
+  // RENAMED WITH THE TAB. The key keeps the internal name (see views.ts).
+  emptyNetwork: "No team activity in this range. Try a wider date range.",
   emptyBilling: "No billing activity in this range.",
   emptyUnread: "Everything here has been read.",
   emptyFiltered: "No activity matches these filters. Try clearing one.",
@@ -515,6 +518,13 @@ export function ActivityLedger({
    *  read before hydration renders the wrong layout for one frame and reports
    *  nothing. */
   const density: ActivityDensity = mounted ? storedDensity : "dense";
+
+  /** ═══ SELECTION (A12) ═══
+   *
+   *  The row id, not the row — a row object is rebuilt on every query and holding
+   *  one would pin a stale sentence, a stale state and a stale count in the pane
+   *  after the reader cleared something or switched density. */
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const view = viewById(viewId);
 
   const viewer: ActivityViewer = useMemo(
@@ -595,6 +605,42 @@ export function ActivityLedger({
   const hasOlder = windowed.length < days.length;
   const total = windowed.reduce((n, d) => n + d.rows.length, 0);
 
+  /** THE SELECTED ROW, RE-FOUND IN THE CURRENT RESULT SET each render — which is
+   *  what makes the selection survive a density change and evaporate when the row
+   *  leaves the view (cleared, filtered out, marked read under Unread-only). A
+   *  selection pointing at a row nobody can see would leave the pane describing
+   *  something absent from the list beside it. */
+  const selectedRow = useMemo(() => {
+    if (!selectedRowId) return null;
+    for (const day of windowed) {
+      for (const row of day.rows) {
+        if (row.id === selectedRowId) return row;
+        const member = row.members?.find((m) => m.id === selectedRowId);
+        if (member) return member;
+      }
+    }
+    return null;
+  }, [selectedRowId, windowed]);
+
+  /** ═══ THE PANE'S CONTENT COMES FROM THE DATA LAYER, GATED THERE ═══
+   *
+   *  A12's hard rule. `objectDetailFor` recomputes the viewer's relationship
+   *  through the same function A5's degradation uses and returns null for a
+   *  bystander — so this component has no branch that could decide otherwise, and
+   *  no shape it could half-render. */
+  const objectDetail = useMemo(
+    () =>
+      selectedRow
+        ? objectDetailFor({
+            row: selectedRow,
+            events: scenario.events,
+            viewer,
+            now: SIM_NOW,
+          })
+        : null,
+    [selectedRow, scenario.events, viewer]
+  );
+
   /** ═══ IS THE FEED ALREADY ONE DOMAIN? (A10 item 6) ═══
    *
    *  If it is, every row's type glyph is the same glyph, and a column of twelve
@@ -608,6 +654,25 @@ export function ActivityLedger({
   const effectiveDomains =
     filters.domains.length > 0 ? filters.domains : view.domains;
   const singleDomain = effectiveDomains?.length === 1;
+
+  /** ESCAPE DESELECTS AND CLOSES THE PANE (A12).
+   *
+   *  On the document rather than the list, because the reader may well be focused
+   *  inside the pane — on its link — when they decide to dismiss it, and a handler
+   *  scoped to the list would not hear that.
+   *
+   *  IT YIELDS TO ANY OPEN DIALOG. The filter popover is a Radix dialog and owns
+   *  Escape while it is up; closing the pane out from under it would dismiss two
+   *  things on one keystroke. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (document.querySelector('[role="dialog"]')) return;
+      setSelectedRowId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const loadOlder = () => setDaysLoaded((d) => d + PAGE_DAYS);
 
@@ -714,6 +779,21 @@ export function ActivityLedger({
         filterTriggerRef={filterTrigger}
       />
 
+      {/* ═══ TWO COLUMNS (A12): THE LIST, THEN THE INSPECTOR ═══
+          
+          A3's 880px single-column constraint no longer applies — A12 retires it.
+          The list is a FIXED 480px and the pane takes the rest, rather than the
+          two sharing a fraction: a ledger row is a sentence, and a column that
+          grows with the window makes the reading line longer than it should be
+          while the pane, which holds short labelled values, gets no benefit.
+          
+          THE PANE ONLY EXISTS AT `xl` AND UP. Below that the list is already the
+          full width of a narrow window, and a 480px list beside anything is not
+          possible — so the selection still happens (the row highlights) and the
+          pane is simply not rendered rather than being crammed in. A12 does not
+          specify a narrow-window behaviour; this is the conservative reading, and
+          it is called out rather than assumed. */}
+      <div className="grid gap-4 xl:grid-cols-[480px_minmax(0,1fr)]">
       {/* ═══ ONE ELEVATED CONTAINER (A10 items 1 and 3) ═══
           
           The feed used to sit directly on the page background with no figure/
@@ -805,6 +885,13 @@ export function ActivityLedger({
                     showGlyph={!singleDomain}
                     showDivider={rowIndex > 0}
                     density={density}
+                    selected={selectedRowId === row.id}
+                    onSelect={(r) =>
+                      // CLICKING THE SELECTED ROW AGAIN DESELECTS. The pane is a
+                      // reading aid, not a mode, and Escape should not be the only
+                      // way out of it.
+                      setSelectedRowId((cur) => (cur === r.id ? null : r.id))
+                    }
                   />
                 ))}
               </ol>
@@ -840,6 +927,15 @@ export function ActivityLedger({
             )}
           </>
         )}
+      </div>
+
+        {/* THE INSPECTOR. Hidden below `xl` — see the note on the grid above. */}
+        <div className="hidden xl:block">
+          <ObjectInspector
+            detail={objectDetail}
+            hasSelection={selectedRow !== null}
+          />
+        </div>
       </div>
 
       {/* POLITE LIVE REGION for the clear announcement. Always present so the
@@ -887,7 +983,7 @@ function hrefFor(row: FeedRow): string {
 
 /** THE EMPTY STATES. Deliberately asymmetric, and A7 formalises the rest.
  *
- *  An empty "My caseload" is a SUCCESS state and reads calm. An empty "Network" is
+ *  An empty "My caseload" is a SUCCESS state and reads calm. An empty "Team" is
  *  closer to a failure and reads as a range problem, not reassurance. They are not
  *  homogenised, and neither says "You have no activity" (standing rule 5). */
 function EmptyState({

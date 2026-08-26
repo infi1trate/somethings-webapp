@@ -72,6 +72,10 @@ export interface FeedRow {
   lead: string;
   timestamp: string;
   absolute: string;
+  /** WHAT THE ROW IS ABOUT, carried so A12's inspector can branch without going
+   *  back to the event — which it must not do, because the event still has its
+   *  payload and the row is the projection that may not. */
+  objectType: "teen" | "mentor" | "conversation";
   /** THE COALESCING OBJECT — the conversation for risk-flag events, the teen
    *  otherwise. Carried on the row so the group key is derived once, at the point
    *  the event is read, rather than re-derived from objectType downstream. */
@@ -470,6 +474,7 @@ export function queryFeed({
       id: event.id,
       eventIds: [event.id],
       eventType: event.eventType,
+      objectType: event.objectType,
       groupObjectId: event.objectId,
       onConversation: event.objectType === "conversation",
       actorId: event.actorId,

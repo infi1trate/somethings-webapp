@@ -147,30 +147,59 @@ function placeInShiftWindows(events: ActivityEvent[]): ActivityEvent[] {
 
 export const VIEWER_SUPERVISOR_ID = "sup-lydia";
 
+/** STAFF. `leadId` and `reviewStatus` were added for A12's mentor inspector; they
+ *  are only meaningful on mentors, and are absent on everyone else rather than
+ *  filled with a placeholder. */
 export const STAFF = {
   lydia: { id: "sup-lydia", firstName: "Lydia", role: "supervisor" as const },
   omar: { id: "sup-omar", firstName: "Omar", role: "supervisor" as const },
   amara: { id: "sup-amara", firstName: "Amara", role: "supervisor" as const },
   priya: { id: "sup-priya", firstName: "Priya", role: "supervisor" as const },
   brandy: { id: "lead-brandy", firstName: "Brandy", role: "leadMentor" as const },
-  brandon: { id: "mentor-brandon", firstName: "Brandon", role: "mentor" as const },
-  maria: { id: "mentor-maria", firstName: "Maria", role: "mentor" as const },
+  brandon: {
+    id: "mentor-brandon",
+    firstName: "Brandon",
+    role: "mentor" as const,
+    leadId: "lead-brandy",
+    /** TODO-COPY / TODO-DATA. */
+    reviewStatus: "Profile approved",
+  },
+  maria: {
+    id: "mentor-maria",
+    firstName: "Maria",
+    role: "mentor" as const,
+    leadId: "lead-brandy",
+    reviewStatus: "Profile update pending",
+  },
 };
 
-/** TEENS — FIRST NAMES ONLY. No surname exists in this file to render. */
+/** TEENS — FIRST NAMES ONLY. No surname exists in this file to render.
+ *
+ *  ═══ `status`, `intakeDaysAgo` AND `mentorId` WERE ADDED FOR A12 ═══
+ *
+ *  The object inspector needs a teen's status, intake date and assigned mentor,
+ *  and none of the three was reachable: no event payload carries them, and the
+ *  join to the app's own people fixtures is blocked by gap row 207 — this file
+ *  invents its own teen ids (`teen-maya`) which do not match `t5`…`t26`.
+ *
+ *  So they are seeded HERE, in the ledger's own cast, rather than by re-keying
+ *  committed fixtures across a phase boundary or by a lookup that would resolve to
+ *  nothing on every row. That keeps A12 self-contained and leaves row 207's
+ *  decision where it belongs — with whoever owns the fixtures. TODO-DATA, like
+ *  everything else in this file. */
 export const TEENS = {
-  maya: { id: "teen-maya", firstName: "Maya" },
-  jordan: { id: "teen-jordan", firstName: "Jordan" },
-  naomi: { id: "teen-naomi", firstName: "Naomi" },
-  riley: { id: "teen-riley", firstName: "Riley" },
-  caleb: { id: "teen-caleb", firstName: "Caleb" },
-  simone: { id: "teen-simone", firstName: "Simone" },
-  imani: { id: "teen-imani", firstName: "Imani" },
-  elena: { id: "teen-elena", firstName: "Elena" },
-  marcus: { id: "teen-marcus", firstName: "Marcus" },
-  ava: { id: "teen-ava", firstName: "Ava" },
-  theo: { id: "teen-theo", firstName: "Theo" },
-  sofia: { id: "teen-sofia", firstName: "Sofia" },
+  maya: { id: "teen-maya", firstName: "Maya", status: "Active", intakeDaysAgo: 140, mentorId: "mentor-brandon" },
+  jordan: { id: "teen-jordan", firstName: "Jordan", status: "Active", intakeDaysAgo: 96, mentorId: "mentor-maria" },
+  naomi: { id: "teen-naomi", firstName: "Naomi", status: "Active", intakeDaysAgo: 212, mentorId: "mentor-brandon" },
+  riley: { id: "teen-riley", firstName: "Riley", status: "Paused", intakeDaysAgo: 61, mentorId: "mentor-maria" },
+  caleb: { id: "teen-caleb", firstName: "Caleb", status: "Active", intakeDaysAgo: 24, mentorId: "mentor-brandon" },
+  simone: { id: "teen-simone", firstName: "Simone", status: "Active", intakeDaysAgo: 178, mentorId: "mentor-maria" },
+  imani: { id: "teen-imani", firstName: "Imani", status: "Active", intakeDaysAgo: 133, mentorId: "mentor-brandon" },
+  elena: { id: "teen-elena", firstName: "Elena", status: "Active", intakeDaysAgo: 45, mentorId: "mentor-maria" },
+  marcus: { id: "teen-marcus", firstName: "Marcus", status: "Active", intakeDaysAgo: 301, mentorId: "mentor-brandon" },
+  ava: { id: "teen-ava", firstName: "Ava", status: "Active", intakeDaysAgo: 88, mentorId: "mentor-maria" },
+  theo: { id: "teen-theo", firstName: "Theo", status: "Ended", intakeDaysAgo: 254, mentorId: "mentor-brandon" },
+  sofia: { id: "teen-sofia", firstName: "Sofia", status: "Active", intakeDaysAgo: 17, mentorId: "mentor-maria" },
 };
 
 /** The viewer's caseload in every scenario except network-wide, which
@@ -585,7 +614,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
   ),
   scenario(
     "network-wide",
-    "Network wide",
+    "Team wide",
     "39 events across four supervisors, most outside caseload.",
     networkWide(),
     6

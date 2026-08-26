@@ -147,6 +147,8 @@ export function ActivityRow({
   showGlyph = true,
   showDivider = true,
   density = "dense",
+  selected = false,
+  onSelect,
 }: {
   row: FeedRow;
   href: string;
@@ -164,6 +166,14 @@ export function ActivityRow({
    *  change per density, so building them as two components would mean two copies
    *  of the mark-read observer, the link layer and the action bar. */
   density?: ActivityDensity;
+  /** A12: the row is SELECTED — the object inspector is showing its object. A
+   *  PERSISTENT treatment, and deliberately not the hover one: hover is where the
+   *  cursor is, selection is what the pane is about, and a reader moving the mouse
+   *  across the list must not lose track of which row the pane belongs to. */
+  selected?: boolean;
+  /** A12: a single click SELECTS rather than navigating. The row's own Open action
+   *  still navigates — see the note on the overlay below. */
+  onSelect?: (row: FeedRow) => void;
   onClear: (row: FeedRow) => void;
   /** Present when the Cleared items filter is on. Its presence is what swaps
    *  Clear for Restore — the row does not need to be told which mode it is in. */
@@ -256,9 +266,26 @@ export function ActivityRow({
         />
       )}
 
-      {/* BEHIND the content, INSET from the container's edges, ABOVE the divider. */}
-      <Link
-        href={href}
+      {/* ═══ THE FULL-ROW TARGET. A BUTTON NOW, NOT A LINK (A12) ═══
+          
+          It used to be a link covering the row, and clicking anywhere navigated
+          away. A12 reassigns the primary click: a single click SELECTS and opens
+          the object inspector, and the row's own Open action — still a real link,
+          in the action bar — is the thing that navigates.
+          
+          That is a genuine semantic change, so the element changed with it. A
+          control that does not navigate must not be an anchor: screen-reader users
+          are told "link" and expect to leave, and middle-click and cmd-click would
+          silently open a tab on a control whose job is now to select.
+          
+          `aria-current` rather than `aria-selected`, because `aria-selected` is
+          only meaningful inside a listbox/grid/tab container and this is an ordered
+          list of feed items — A10's divider work and A7's list semantics both
+          depend on that staying an `<ol>`. */}
+      <button
+        type="button"
+        onClick={() => onSelect?.(row)}
+        aria-current={selected ? "true" : undefined}
         // THE ACCESSIBLE NAME IS THE FULL SENTENCE PLUS THE ABSOLUTE TIME —
         // never the truncated visual string, and never the time-of-day alone
         // (the day divider that supplies the date is not in the accessible name).
@@ -267,7 +294,12 @@ export function ActivityRow({
           detailed
             ? "absolute inset-0 z-[1] rounded-[var(--radius-inset)] transition-colors"
             : "absolute inset-y-0 left-1.5 right-1.5 z-[1] rounded-[var(--radius-inset)] transition-colors",
-          "group-hover:bg-[var(--tint-hover)]",
+          // SELECTED: a stronger fill AND a contour. Two channels, because the
+          // fill alone is one step along the same ladder hover uses and would be
+          // ambiguous the moment the cursor sat on a different row.
+          selected
+            ? "bg-[var(--tint-press)] outline outline-1 outline-[color:var(--border-contour)]"
+            : "group-hover:bg-[var(--tint-hover)]",
           "focus-visible:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
         )}
       />
@@ -455,11 +487,19 @@ export function ActivityRow({
           </button>
         )}
 
-        {/* DENSE ONLY — detailed carries the time on line 1, beside the actor. */}
+        {/* DENSE ONLY — detailed carries the time on line 1, beside the actor.
+            
+            FADES OUT WHILE THE ACTIONS ARE UP. In dense mode the action cluster is
+            out of flow at the right edge (see below), so it would otherwise sit on
+            top of the time. Opacity rather than `display`, so nothing reflows and
+            the element keeps its box. */}
         {!detailed && (
           <time
             dateTime={row.occurredAt}
-            className="shrink-0 tabular-nums text-[12px] leading-[16px] text-[var(--text-muted)]"
+            className={cn(
+              "shrink-0 tabular-nums text-[12px] leading-[16px] text-[var(--text-muted)]",
+              "transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+            )}
           >
             {row.timestamp}
           </time>
@@ -471,7 +511,22 @@ export function ActivityRow({
           className={cn(
             "pointer-events-auto flex shrink-0 items-center gap-1",
             "opacity-0 transition-opacity",
-            "group-hover:opacity-100 group-focus-within:opacity-100"
+            "group-hover:opacity-100 group-focus-within:opacity-100",
+            // ═══ OUT OF FLOW IN DENSE MODE (A12) ═══
+            //
+            // A12 asks to verify dense rows still read at a 480px list width, and
+            // they did not: this cluster reserved 114px whether or not it was
+            // visible, leaving the sentence 230px for the 282px it needed. It was
+            // in flow on purpose — so the row would not reflow when the actions
+            // appeared — but `opacity-0` on an absolutely-positioned element
+            // achieves the same thing without charging the sentence for space
+            // nobody can see. Tab order is unaffected: DOM order is what decides
+            // it, and that has not changed.
+            //
+            // Detailed mode keeps it in flow — a full-width card has the room, and
+            // there the time is on line 1 where nothing would cover it.
+            !detailed &&
+              "absolute right-1.5 top-1/2 z-20 -translate-y-1/2"
           )}
         >
           <button
