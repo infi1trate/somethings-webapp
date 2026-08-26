@@ -7,12 +7,13 @@
 // a FeedRow, which is a projection.
 //
 // PHASE BOUNDARIES, so the seams are visible:
-//   · A3 (this phase) — scope, view types/domains, unread-only, day grouping.
-//     FeedRow carries `degraded` and `count`, both wired but always false/1: no
-//     row in this phase renders a payload field at all, so nothing can leak yet.
-//   · A5 will populate `degraded` and OMIT the payload from the projection.
-//   · A6 will populate `count` and collapse groups.
-// The shape is final now so those phases add logic rather than reshaping callers.
+//   · A3 — scope, view types/domains, unread-only, day grouping.
+//   · A5 — DEGRADATION. `isFullDetail` decides, and the payload is attached or
+//     omitted. A degraded row has no payload key at all, so no component can read
+//     one by accident. Also fires the third-party access log.
+//   · A6 will populate `count` and collapse groups, and must suppress the count
+//     on degraded rows — coalescing manufactures a number that no single event
+//     carries, and flag volume on one conversation is clinical signal.
 
 import {
   EVENT_DOMAIN,
@@ -42,6 +43,7 @@ import {
 } from "@/lib/activity/sentences";
 import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
 import { EMPTY_FILTERS, type ActivityFilters } from "@/lib/activity/filters";
+import { recordNetworkAccess } from "@/lib/activity/access-log";
 import type { ActivityView } from "@/lib/activity/views";
 
 /** What a row renders from. A PROJECTION of one or more events — never an event.
@@ -70,9 +72,23 @@ export interface FeedRow {
   actorIsSystem: boolean;
   actorName: string;
   teenName: string;
-  /** A5 sets this. False everywhere in A3. */
+  /** TRUE WHEN THIS ROW WAS DEGRADED — the viewer is neither the actor nor the
+   *  current caseload owner. Its presence tells the component how to render; the
+   *  ENFORCEMENT is that `payload` is absent, not that the component checks this. */
   degraded: boolean;
-  /** A6 sets this. Always 1 in A3. */
+  /** THE PAYLOAD, PRESENT ONLY ON FULL-DETAIL ROWS.
+   *
+   *  Standing rule 12: degradation is enforced HERE by omitting the key, not in a
+   *  component by declining to read it. Billing code values, risk-flag clinical
+   *  categories, risk tiers and escalation reasons all live in here, and on a
+   *  degraded row there is nothing to hide because there is nothing to have. */
+  payload?: Record<string, unknown>;
+  /** A6 sets this. Always 1 in A3.
+   *
+   *  SUPPRESSED ON DEGRADED ROWS (A6): a count is not on A5's withheld-field list
+   *  because no individual event carries one — coalescing MANUFACTURES it, and
+   *  "7 risk flags in one conversation in one day" is clinical signal assembled
+   *  out of rows that were each individually degraded. */
   count: number;
 }
 
@@ -111,6 +127,30 @@ function admittedTypes(view: ActivityView, f: ActivityFilters): AlertType[] {
   return [...widened];
 }
 
+/** ═══ THE DEGRADATION TEST (standing rule 12, A5) ═══
+ *
+ *  FULL DETAIL if EITHER clause holds:
+ *    (a) the viewer IS the actor, or
+ *    (b) the viewer currently owns the object's caseload.
+ *  Otherwise the row degrades: actor first name, verb, teen first name, and
+ *  nothing else.
+ *
+ *  CLAUSE (a) IS THE LOAD-BEARING ONE and it is easy to miss. Caseload composition
+ *  changes. If degradation resolved only against present-day ownership, a
+ *  supervisor's OWN past rows would retroactively lose their detail and their
+ *  first-person voice the moment a teen was reassigned — in a ledger whose entire
+ *  premise is that rows never change. Clause (a) pins self-authored history open
+ *  permanently.
+ *
+ *  NO POINT-IN-TIME RECONSTRUCTION for clause (b), deliberately. Historical
+ *  caseload snapshots do not exist in this data model and inventing them inside a
+ *  feed query would be a data-modelling decision smuggled in as a rendering fix.
+ *  Present-day ownership is the correct approximation for OTHER people's rows, and
+ *  clause (a) covers the case that actually matters. */
+function isFullDetail(event: ActivityEvent, viewer: ActivityViewer): boolean {
+  return relationshipOf(event, viewer) !== "network";
+}
+
 /** SCOPE IS A MEMBERSHIP TEST, not a filter over already-resolved rows.
  *
  *  Scope `mine` admits rows the viewer is the actor of OR owns the object of.
@@ -139,6 +179,8 @@ export function queryFeed({
 }: FeedQuery): FeedDay[] {
   const rows: FeedRow[] = [];
   const types = admittedTypes(view, filters);
+  /** Teens whose rows degraded — the audit log's subject list. */
+  const degradedTeenIds = new Set<string>();
 
   for (const event of events) {
     if (!inScope(event, viewer, view.scope)) continue;
@@ -177,6 +219,12 @@ export function queryFeed({
     const teenName = teenFirstName(teenId);
     const actorName = staffFirstName(event.actorId);
 
+    // ── RULE 12. The payload is attached or it is NOT PRESENT. There is no
+    //    branch further down that decides whether to render it, because on a
+    //    degraded row it does not exist to render.
+    const full = isFullDetail(event, viewer);
+    if (!full) degradedTeenIds.add(teenId);
+
     rows.push({
       id: event.id,
       eventIds: [event.id],
@@ -198,8 +246,27 @@ export function queryFeed({
       actorIsSystem: isSystemEvent(event.eventType) || event.actorType === "system",
       actorName,
       teenName,
-      degraded: false, // A5
+      degraded: !full,
+      // OMITTED, not blanked, when degraded — see the field comment.
+      ...(full ? { payload: event.payload } : {}),
       count: 1, // A6
+    });
+  }
+
+  // ── THIRD-PARTY ACCESS LOG. Every network-scope load that actually returned
+  //    rows about teens outside the viewer's caseload. Fires once per query
+  //    rather than once per row: the access is "they opened Network and saw
+  //    these", not thirty separate events.
+  //
+  //    The seam is a marked stub — there is no audit log in this codebase to
+  //    route into (see access-log.ts). The call site is here so the coverage is
+  //    already right the day one exists.
+  if (view.scope === "all" && degradedTeenIds.size > 0) {
+    recordNetworkAccess({
+      viewerId: viewer.id,
+      rowCount: rows.filter((r) => r.degraded).length,
+      teenIds: [...degradedTeenIds],
+      at: now,
     });
   }
 

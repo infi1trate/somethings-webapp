@@ -317,6 +317,27 @@ export function ActivityLedger() {
 
   const total = days.reduce((n, d) => n + d.rows.length, 0);
 
+  /** STAFF WHO APPEAR IN THIS SCENARIO'S NETWORK ROWS — the "Specific staff"
+   *  filter's options.
+   *
+   *  NETWORK SCOPE ONLY, and `undefined` rather than `[]` in caseload scope so the
+   *  dialog HIDES the group rather than rendering it empty or disabled. A disabled
+   *  filter advertises a narrowing that cannot apply here, which is the same
+   *  objection standing rule 1 makes about greyed-out actions.
+   *
+   *  The viewer is excluded: filtering "activity by Lydia" while you ARE Lydia is
+   *  what My caseload already is. */
+  const networkStaffIds = useMemo(() => {
+    if (!mounted || view.scope !== "all") return undefined;
+    const ids = new Set<string>();
+    for (const e of scenario.events) {
+      if (e.actorType === "system") continue;
+      if (e.actorId === viewer.id) continue;
+      ids.add(e.actorId);
+    }
+    return [...ids].sort();
+  }, [mounted, view.scope, scenario, viewer.id]);
+
   const onSeen = (row: FeedRow) =>
     markRows(viewer.id, view.scope, row.eventIds);
   const onClear = (row: FeedRow) => {
@@ -424,9 +445,7 @@ export function ActivityLedger() {
         applied={filters}
         onApply={setFilters}
         caseloadTeenIds={viewer.caseloadTeenIds}
-        // A5 adds network-scope staff here. Absent in caseload scope, so the
-        // group is HIDDEN rather than disabled.
-        networkStaffIds={undefined}
+        networkStaffIds={networkStaffIds}
         returnFocusTo={filterTrigger}
       />
 
