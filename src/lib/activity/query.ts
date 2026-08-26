@@ -38,7 +38,7 @@ import {
   MIXED_ACTOR_ID,
   absoluteTimestamp,
   dayDividerLabel,
-  rowSentence,
+  rowSentenceParts,
   rowTimestamp,
 } from "@/lib/activity/sentences";
 import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
@@ -65,6 +65,11 @@ export interface FeedRow {
   occurredAt: string;
   /** Pre-rendered, so the row component owns no grammar. */
   sentence: string;
+  /** THE SUBJECT-AND-VERB CLAUSE at the head of `sentence`, for A10's unread
+   *  emphasis. A PREFIX of `sentence`, always — the component slices the
+   *  remainder off rather than being handed it, so the emphasised part and the
+   *  full string cannot drift apart or double up. */
+  lead: string;
   timestamp: string;
   absolute: string;
   /** THE COALESCING OBJECT — the conversation for risk-flag events, the teen
@@ -189,6 +194,18 @@ function isFullDetail(event: ActivityEvent, viewer: ActivityViewer): boolean {
  *  fixtures too, but a code on an OPENED or OVERDUE row states an outcome that has
  *  not happened yet — the code on those rows is the code under review, and
  *  rendering it as a trailing outcome would say the review had landed. */
+/** `sentence` and `lead` from one build, so they cannot disagree.
+ *
+ *  Spread into the row: `lead` is by construction a prefix of `sentence`, which is
+ *  the invariant the component relies on when it slices the remainder off. */
+function sentenceFields(input: Parameters<typeof rowSentenceParts>[0]): {
+  sentence: string;
+  lead: string;
+} {
+  const { lead, rest } = rowSentenceParts(input);
+  return { sentence: lead + rest, lead };
+}
+
 function billingCodeOf(event: ActivityEvent): string | undefined {
   if (event.eventType !== "BILLING_REVIEW_COMPLETE") return undefined;
   const code = event.payload.code;
@@ -276,7 +293,7 @@ function coalesceDay(rows: FeedRow[], viewerId: string): FeedRow[] {
       degraded,
       // DISCLOSURE DROPPED on a degraded group — nothing behind it worth opening.
       ...(degraded ? {} : { members: ordered }),
-      sentence: rowSentence({
+      ...sentenceFields({
         eventType: head.eventType,
         actorId: singleActor ?? MIXED_ACTOR_ID,
         viewerId,
@@ -364,7 +381,7 @@ export function queryFeed({
       alertType,
       state,
       occurredAt: event.occurredAt,
-      sentence: rowSentence({
+      ...sentenceFields({
         eventType: event.eventType,
         actorId: event.actorId,
         viewerId: viewer.id,

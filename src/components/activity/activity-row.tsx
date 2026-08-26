@@ -106,9 +106,20 @@ export function ActivityRow({
   onClear,
   onRestore,
   onSeen,
+  showGlyph = true,
+  showDivider = true,
 }: {
   row: FeedRow;
   href: string;
+  /** GLYPH SUPPRESSION (A10 item 6). False when the view or an applied filter has
+   *  already constrained the feed to ONE domain — twelve identical receipt icons
+   *  down the Billing tab carry no information and cost the row its leftmost
+   *  content column. The domain is still named, by the tab the reader chose. */
+  showGlyph?: boolean;
+  /** False for the first row in a day group. The divider is drawn INSIDE the row
+   *  rather than by the list's `divide-y`, so the hover fill can cover it — see
+   *  the note on the fill below. */
+  showDivider?: boolean;
   onClear: (row: FeedRow) => void;
   /** Present when the Cleared items filter is on. Its presence is what swaps
    *  Clear for Restore — the row does not need to be told which mode it is in. */
@@ -160,7 +171,28 @@ export function ActivityRow({
 
   return (
     <li ref={ref} data-row-id={row.id} className="group relative">
-      {/* BEHIND the content, covering the row. */}
+      {/* ═══ THE DIVIDER, DRAWN INSIDE THE ROW AND INSET FROM THE CONTAINER EDGE.
+          
+          A10 item 4: a hovered row whose fill was bounded above and below by
+          full-bleed hairlines read as a TABLE CELL rather than a list item. Of the
+          two remedies offered, this takes the first — inset the fill and let it
+          sit ON TOP of the dividers — because the alternative (dropping the
+          divider next to the hovered row) makes the list visibly restructure
+          under the cursor, and on a 12-row feed that is a lot of motion for a
+          hover.
+          
+          The `divide-y` that used to live on the parent <ol> is gone: a border on
+          the list item is painted by the item's own box and nothing inside it can
+          cover it. As an absolutely-positioned child at z-0 it can be covered, by
+          a fill at z-[1]. */}
+      {showDivider && (
+        <span
+          aria-hidden
+          className="absolute inset-x-3 top-0 z-0 h-px bg-[var(--border-subtle)]"
+        />
+      )}
+
+      {/* BEHIND the content, INSET from the container's edges, ABOVE the divider. */}
       <Link
         href={href}
         // THE ACCESSIBLE NAME IS THE FULL SENTENCE PLUS THE ABSOLUTE TIME —
@@ -168,11 +200,42 @@ export function ActivityRow({
         // (the day divider that supplies the date is not in the accessible name).
         aria-label={`${row.sentence} ${row.absolute}${unread ? ". Unread" : ""}`}
         className={cn(
-          "absolute inset-0 z-0 rounded-[10px] transition-colors",
-          "group-hover:bg-[var(--tint-faint)]",
-          "focus-visible:bg-[var(--tint-faint)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
+          "absolute inset-y-0 left-1.5 right-1.5 z-[1] rounded-[var(--radius-inset)] transition-colors",
+          "group-hover:bg-[var(--tint-hover)]",
+          "focus-visible:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
         )}
       />
+
+      {/* ═══ UNREAD: A SURFACE STEP, NOT A DOT ALONE (A10 item 5, spec §12).
+          
+          Also inset and also above the divider, so an unread row reads as one
+          continuous tinted band instead of a fill with hairlines cutting across
+          its top and bottom. Below the hover fill in the stack, so hovering an
+          unread row still visibly responds.
+          
+          ═══ `--tint-faint`, NOT `--surface-s1` ═══
+          
+          A step "above the default surface" has to mean LIGHTER in light mode and
+          LIGHTER IN DARK MODE TOO, and the surface ladder does not do that: in
+          dark, `--surface-s1` (#272421) is DARKER than `--surface-card` (#322f2c),
+          so an unread row built from it recessed instead of lifting — measured
+          1.16:1 the wrong way. The `--tint-*` family is the one that flips
+          polarity with the theme (black at 2/4/6% in light, white at 4/6/9% in
+          dark), which is exactly the property this needs.
+          
+          IT ALSO GIVES A MONOTONIC LADDER, so no two states collide:
+            read, resting     card
+            unread, resting   card + faint
+            read, hovered     card + hover
+            unread, hovered   card + faint + hover
+          Hover always adds to whatever the row was already showing, because it is
+          painted on top rather than swapped in. See gap row 232. */}
+      {unread && (
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-1.5 right-1.5 z-0 rounded-[var(--radius-inset)] bg-[var(--tint-faint)]"
+        />
+      )}
 
       {/* REDUCED EMPHASIS FOR A CLEARED ROW. Opacity on the content only — never
           on the action, which must stay legible for Restore to be usable. */}
@@ -182,50 +245,63 @@ export function ActivityRow({
           cleared && "opacity-60"
         )}
       >
-        {/* UNREAD IS NEVER COLOUR OR WEIGHT ALONE. An explicit dot with a text
-            alternative — the dot is decorative and the <span class="sr-only">
-            carries the fact. */}
-        <span className="flex w-2 shrink-0 items-center justify-center">
-          {unread && (
-            <>
-              {/* --text-primary, NOT --brand. Measured: the brand orange
-                  (#ff5001) reaches only 2.99:1 against this panel surface
-                  (rgb 246,244,239) — under the 3:1 floor for a small graphical
-                  indicator, because a warm orange on a warm off-white is a hue
-                  difference more than a luminance one. `--text-primary` measures
-                  15.14:1 and is semantically the right neutral: unread is a state,
-                  not a severity, so it should not borrow a severity colour.
-                  See design-system-gaps.md row 204. */}
-              <span
-                aria-hidden
-                className="size-1.5 rounded-full bg-[var(--text-primary)]"
-              />
-              <span className="sr-only">Unread. </span>
-            </>
-          )}
-        </span>
+        {/* THE UNREAD DOT LIVES IN THE CONTAINER'S LEFT PADDING (A10 item 5).
+            
+            It used to occupy a 8px column at the head of the content, which meant
+            every row — read or unread — carried an empty gutter it did not need,
+            and the dot itself aligned to nothing. Absolutely positioned in the
+            padding the row already has before its avatar, it aligns to the row's
+            optical centre and costs the content nothing.
+            
+            IN THE ROW'S OWN GUTTER, not the container's. A first attempt hung it
+            outside the row at a negative offset and the container's
+            `overflow-hidden` clipped it against the border — the gutter it needs
+            is the one already sitting in front of the avatar.
+            
+            The dot is one of THREE channels now, not the only one: the row also
+            takes a surface step and the lead clause takes weight. Spec §12 —
+            never shape or colour alone. */}
+        {unread && (
+          <>
+            {/* --text-primary, NOT --brand. Measured: the brand orange (#ff5001)
+                reaches only 2.99:1 against this panel surface (rgb 246,244,239) —
+                under the 3:1 floor for a small graphical indicator, because a warm
+                orange on a warm off-white is a hue difference more than a
+                luminance one. `--text-primary` measures 15.14:1 and is
+                semantically the right neutral: unread is a state, not a severity.
+                See design-system-gaps.md row 204. */}
+            <span
+              aria-hidden
+              className="absolute left-1 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-[var(--text-primary)]"
+            />
+            <span className="sr-only">Unread. </span>
+          </>
+        )}
 
         <ActorAvatar row={row} />
 
-        <span
-          aria-hidden
-          className="flex size-4 shrink-0 items-center justify-center"
-          style={{ color: glyph.tint }}
-        >
-          <Icon className="size-4" />
-        </span>
-        {/* The glyph's meaning in words, for anyone who cannot see the tint. */}
-        <span className="sr-only">{glyph.label}. </span>
+        {/* SUPPRESSED WHOLESALE when the feed is already one domain (item 6) —
+            the sr-only label goes with it, because "Billing." repeated down a
+            Billing tab is the same absence of information read aloud. */}
+        {showGlyph && (
+          <>
+            <span
+              aria-hidden
+              className="flex size-4 shrink-0 items-center justify-center"
+              style={{ color: glyph.tint }}
+            >
+              <Icon className="size-4" />
+            </span>
+            <span className="sr-only">{glyph.label}. </span>
+          </>
+        )}
 
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate text-[14px] leading-[20px]",
-            unread
-              ? "font-medium text-[var(--text-primary)]"
-              : "text-[var(--text-primary)]"
-          )}
-        >
-          {row.sentence}
+        <span className="min-w-0 flex-1 truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
+          {/* WEIGHT ON THE NAME AND VERB ONLY. The lead is a prefix of the full
+              sentence by construction (see FeedRow.lead), so the remainder is a
+              slice and the two halves cannot double up or drop a character. */}
+          <span className={unread ? "font-semibold" : undefined}>{row.lead}</span>
+          {row.sentence.slice(row.lead.length)}
         </span>
 
         {/* DISCLOSURE. Expands IN PLACE; it does not navigate. `pointer-events-auto`

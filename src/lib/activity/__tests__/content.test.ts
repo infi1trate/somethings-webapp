@@ -247,3 +247,51 @@ describe("A9 leaves rules 8-12 intact", () => {
     expect(sup).not.toBe(mentor);
   });
 });
+
+// ═══ A10 · THE LEAD CLAUSE ═════════════════════════════════════════════════
+//
+// The unread row emphasises its subject-and-verb clause by rendering `lead` in a
+// heavier weight and then slicing the remainder off `sentence`. That only works
+// while `lead` is a genuine PREFIX — if it ever stops being one, the row silently
+// renders a duplicated fragment or drops a word, with no error anywhere.
+
+describe("row.lead is always a prefix of row.sentence", () => {
+  const everyRow = () => {
+    const out: FeedRow[] = [];
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const viewId of ["mine", "network", "billing"]) {
+        for (const includeActions of [false, true]) {
+          const rows = rowsOf(s.id, viewId, includeActions);
+          out.push(...rows, ...rows.flatMap((r) => r.members ?? []));
+        }
+      }
+    }
+    return out;
+  };
+
+  it("holds for every row of every view of every scenario", () => {
+    const rows = everyRow();
+    expect(rows.length).toBeGreaterThan(50);
+    for (const r of rows) {
+      expect(r.sentence.startsWith(r.lead), `${r.lead} :: ${r.sentence}`).toBe(true);
+    }
+  });
+
+  it("the lead is never empty and never the whole sentence with its stop", () => {
+    for (const r of everyRow()) {
+      expect(r.lead.length).toBeGreaterThan(0);
+      // The remainder always carries at least the full stop, so slicing cannot
+      // leave the sentence unterminated.
+      expect(r.sentence.slice(r.lead.length)).toMatch(/\.$/);
+    }
+  });
+
+  it("the lead carries the actor and the verb, not the object", () => {
+    const rows = rowsOf("typical-shift", "mine");
+    const self = rows.find((r) => r.lead.startsWith("You "));
+    expect(self).toBeDefined();
+    // "You closed" — two words, no teen name in it.
+    expect(self!.lead.split(" ").length).toBe(2);
+    expect(self!.lead).not.toContain("'s");
+  });
+});

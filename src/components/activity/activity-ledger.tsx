@@ -525,6 +525,20 @@ export function ActivityLedger({
   const hasOlder = windowed.length < days.length;
   const total = windowed.reduce((n, d) => n + d.rows.length, 0);
 
+  /** ═══ IS THE FEED ALREADY ONE DOMAIN? (A10 item 6) ═══
+   *
+   *  If it is, every row's type glyph is the same glyph, and a column of twelve
+   *  identical receipts is decoration occupying the row's leftmost content slot.
+   *
+   *  THE FILTER WINS OVER THE VIEW when it is set, because filters narrow WITHIN
+   *  the view (see filters.ts) — a Billing view with a billing filter is still one
+   *  domain, and an all-domain view filtered to one domain is one domain too. Read
+   *  from the SAME two sources the query reads, so the suppression cannot disagree
+   *  with what the feed actually contains. */
+  const effectiveDomains =
+    filters.domains.length > 0 ? filters.domains : view.domains;
+  const singleDomain = effectiveDomains?.length === 1;
+
   const loadOlder = () => setDaysLoaded((d) => d + PAGE_DAYS);
 
   /** INFINITE SCROLL, sharing `loadOlder` with the button. Reduced motion does not
@@ -628,13 +642,40 @@ export function ActivityLedger({
         filterTriggerRef={filterTrigger}
       />
 
+      {/* ═══ ONE ELEVATED CONTAINER (A10 items 1 and 3) ═══
+          
+          The feed used to sit directly on the page background with no figure/
+          ground separation at all, which is most of why it read as loose text
+          rather than as a record.
+          
+          ONE CONTAINER WITH INTERNAL DIVIDERS, not per-row cards: per-row cards
+          are A11's detailed-mode treatment, and using them here would leave that
+          phase with nothing to change. `--surface-card` is a lighter fill than
+          the page's `--surface-s1`, and elevation is a surface step plus a contour
+          — this design language has no shadows to step through.
+          
+          `overflow-hidden` so the inset row fills and the unread bands cannot
+          paint over the rounded corners.
+          
+          MIN-HEIGHT so the container occupies the content region instead of
+          ending where the content does and leaving most of the viewport as dead
+          page (item 3). `flex-col` with the pagination inside means the
+          end-of-feed caption sits INSIDE the container, at the end of the record
+          it belongs to, rather than floating on the page below it. Clamped at
+          both ends: a floor so a three-row feed still reads as a surface, a
+          ceiling so a very tall window does not stretch it into emptiness. */}
       <div
         ref={feedRef}
         id="activity-panel"
         role="tabpanel"
         aria-labelledby={`activity-tab-${viewId}`}
         tabIndex={-1}
-        className="mt-4"
+        className={cn(
+          "mt-4 flex flex-col overflow-hidden",
+          "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
+          "min-h-[clamp(360px,calc(100dvh-17rem),820px)]",
+          "px-1.5 py-1.5"
+        )}
       >
         {loadState === "loading" ? (
           <FeedSkeleton />
@@ -653,10 +694,14 @@ export function ActivityLedger({
             <section key={day.dayKey} className="mb-1">
               {/* TODAY HAS NO DIVIDER — the feed opens straight into it. */}
               {day.label && (
-                <div className="my-3 flex items-center justify-center">
+                /* RHYTHM (A10 item 2, and see the report): the ROWS were already
+                   49px, under the 52-56px target. The 96px pitch the feed
+                   actually carries came from HERE — 24px of margin plus a
+                   generously padded pill between every day group. Halved. */
+                <div className="mb-1 mt-2 flex items-center justify-center">
                   <span
                     id={`activity-day-${day.dayKey}`}
-                    className="rounded-full bg-[var(--surface-s2)] px-3 py-1 text-[11.5px] font-semibold leading-[16px] text-[var(--text-secondary)]"
+                    className="rounded-full bg-[var(--surface-s2)] px-2.5 py-0.5 text-[11.5px] font-semibold leading-[16px] text-[var(--text-secondary)]"
                   >
                     {day.label}
                   </span>
@@ -672,9 +717,11 @@ export function ActivityLedger({
                 }
                 /* TODO-COPY */
                 aria-label={day.label ? undefined : "Today"}
-                className="divide-y divide-[color:var(--border-subtle)]"
+                /* NO `divide-y`. The divider moved inside the row so the hover
+                   fill can cover it (item 4) — a border on the list item is
+                   painted by the item's own box and nothing inside it can. */
               >
-                {day.rows.map((row) => (
+                {day.rows.map((row, rowIndex) => (
                   <ActivityRow
                     key={row.id}
                     row={row}
@@ -683,6 +730,8 @@ export function ActivityLedger({
                     // ITS PRESENCE is what swaps Clear for Restore.
                     onRestore={filters.showCleared ? onRestore : undefined}
                     onSeen={onSeen}
+                    showGlyph={!singleDomain}
+                    showDivider={rowIndex > 0}
                   />
                 ))}
               </ol>
@@ -697,18 +746,22 @@ export function ActivityLedger({
           ))
         )}
 
-        {/* PAGINATION. The sentinel and the button share `loadOlder`. */}
+        {/* PAGINATION, INSIDE THE CONTAINER (item 3). The sentinel and the
+            button share `loadOlder`. `mt-auto` puts the caption at the bottom of
+            the container when the content is shorter than the min-height, so a
+            quiet feed reads as a record with room left rather than as a caption
+            stranded in whitespace. */}
         {loadState === "ready" && total > 0 && (
           <>
             <div ref={loadMoreSentinel} aria-hidden className="h-1" />
             {hasOlder ? (
-              <div className="mt-4 flex justify-center">
+              <div className="mt-4 flex justify-center pb-2">
                 <RecordButton onClick={loadOlder}>{COPY.loadOlder}</RecordButton>
               </div>
             ) : (
               /* END OF FEED. A statement, not a celebration — this is a ledger
                  and reaching its start is a fact about the record. */
-              <p className="mt-6 text-center text-[12.5px] leading-[16px] text-[var(--text-muted)]">
+              <p className="mt-auto pb-2 pt-6 text-center text-[12.5px] leading-[16px] text-[var(--text-muted)]">
                 {COPY.endOfFeed}
               </p>
             )}

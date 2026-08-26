@@ -142,20 +142,43 @@ export const MIXED_ACTOR_ID = "__mixed__";
 /** THE ROW SENTENCE. One function, so the row, the accessible name and any future
  *  feed renderer cannot drift into three different grammars. */
 export function rowSentence(i: SentenceInput): string {
-  const base = rowClause(i);
+  const { lead, rest } = rowSentenceParts(i);
+  return lead + rest;
+}
+
+/** THE SENTENCE, SPLIT AT THE END OF ITS SUBJECT-AND-VERB CLAUSE.
+ *
+ *  A10 item 5 asks for an unread row to carry increased weight on the name and
+ *  verb rather than on the whole line — bolding a whole sentence is a shout, and
+ *  three of them in a row stop reading as emphasis at all.
+ *
+ *  RETURNED AS PARTS RATHER THAN MARKED UP, because the grammar lives here and
+ *  the markup lives in the component; and returned FROM THE SAME BUILDER as the
+ *  full sentence, so the two can never disagree about where the clause ends. The
+ *  component reconstructs `rest` by slicing the full sentence, so there is exactly
+ *  one string of record. */
+export function rowSentenceParts(i: SentenceInput): {
+  lead: string;
+  rest: string;
+} {
+  const { lead, rest } = rowClause(i);
   // ── THE BILLING CODE CLAUSE (A9 item 3). An em-dash tail rather than a
   //    parenthetical: the code IS the outcome of a billing review, not an aside
   //    about it, and the reader scanning a code history reads the right-hand end
   //    of the line. Absent whenever the query withheld the payload.
-  if (i.billingCode) return `${stripFullStop(base)} — ${i.billingCode}.`;
-  return base;
+  if (i.billingCode) {
+    return { lead, rest: `${stripFullStop(rest)} — ${i.billingCode}.` };
+  }
+  return { lead, rest };
 }
 
 function stripFullStop(s: string): string {
   return s.endsWith(".") ? s.slice(0, -1) : s;
 }
 
-function rowClause(i: SentenceInput): string {
+/** Every construction, as (subject-and-verb, remainder). The remainder always
+ *  begins with its own leading space or is a bare full stop. */
+function rowClause(i: SentenceInput): { lead: string; rest: string } {
   const noun = OBJECT_NOUN[i.eventType];
   const verb = VERB[i.eventType];
   const isSystem = i.actorId === SYSTEM_ACTOR_ID;
@@ -180,11 +203,15 @@ function rowClause(i: SentenceInput): string {
   //    "An escalation opened for Maya." is A9's.
   if (isSystem || i.recordVoice) {
     if (i.eventType.endsWith("_OVERDUE")) {
-      return `${capitalise(possessive(i.teenName))} ${noun} went overdue.`;
+      // The subject IS the overdue thing, so the whole clause is the lead.
+      return {
+        lead: `${capitalise(possessive(i.teenName))} ${noun} went overdue`,
+        rest: ".",
+      };
     }
     if (i.eventType === "SURVEY_COMPLETED") {
       // The TEEN did this one, so they are the subject rather than an object.
-      return `${i.teenName} completed a survey.`;
+      return { lead: `${i.teenName} completed`, rest: " a survey." };
     }
     // A COALESCED ACTION GROUP is still agentless, and still takes its count —
     // the count is not the actor. Degraded groups drop the number (A6).
@@ -194,10 +221,13 @@ function rowClause(i: SentenceInput): string {
     const n = i.count ?? 1;
     if (n > 1) {
       return i.degraded
-        ? `${capitalise(noun)}s opened ${where}.`
-        : `${n} ${noun}s opened ${where}.`;
+        ? { lead: `${capitalise(noun)}s opened`, rest: ` ${where}.` }
+        : { lead: `${n} ${noun}s opened`, rest: ` ${where}.` };
     }
-    return `${capitalise(article(noun))} ${noun} opened ${where}.`;
+    return {
+      lead: `${capitalise(article(noun))} ${noun} opened`,
+      rest: ` ${where}.`,
+    };
   }
 
   // ── MATCHING IS ITS OWN CONSTRUCTION. Caught in review: the generic
@@ -206,9 +236,10 @@ function rowClause(i: SentenceInput): string {
   //    BETWEEN people, so the teen is the object and the mentor is where they
   //    went — no possessive at all.
   if (i.eventType === "TEEN_MATCHED") {
-    return isSelf
-      ? `You matched ${i.teenName} with a mentor.`
-      : `${i.actorName} matched ${i.teenName} with a mentor.`;
+    return {
+      lead: isSelf ? "You matched" : `${i.actorName} matched`,
+      rest: ` ${i.teenName} with a mentor.`,
+    };
   }
 
   // ── COALESCED (A6). Degraded groups carry NO COUNT — enforced upstream in the
@@ -219,26 +250,28 @@ function rowClause(i: SentenceInput): string {
       : `for ${i.teenName}`;
     // Passive, and number-free when degraded.
     return i.degraded
-      ? `${capitalise(noun)}s were ${verb} ${where}.`
-      : `${n} ${noun}s were ${verb} ${where}.`;
+      ? { lead: `${capitalise(noun)}s were ${verb}`, rest: ` ${where}.` }
+      : { lead: `${n} ${noun}s were ${verb}`, rest: ` ${where}.` };
   }
   if (n > 1 && !i.degraded) {
     const plural = `${n} ${noun}s`;
     const where = i.onConversation
       ? `in ${possessive(i.teenName)} conversation`
       : `for ${i.teenName}`;
-    return isSelf
-      ? `You ${verb} ${plural} ${where}.`
-      : `${i.actorName} ${verb} ${plural} ${where}.`;
+    return {
+      lead: isSelf ? `You ${verb}` : `${i.actorName} ${verb}`,
+      rest: ` ${plural} ${where}.`,
+    };
   }
   if (n > 1 && i.degraded) {
     // No number. "Lydia closed risk flags in Maya's conversation."
     const where = i.onConversation
       ? `in ${possessive(i.teenName)} conversation`
       : `for ${i.teenName}`;
-    return isSelf
-      ? `You ${verb} ${noun}s ${where}.`
-      : `${i.actorName} ${verb} ${noun}s ${where}.`;
+    return {
+      lead: isSelf ? `You ${verb}` : `${i.actorName} ${verb}`,
+      rest: ` ${noun}s ${where}.`,
+    };
   }
 
   // ── SINGLE ROW.
@@ -246,7 +279,10 @@ function rowClause(i: SentenceInput): string {
     ? `a ${noun} in ${possessive(i.teenName)} conversation`
     : `${possessive(i.teenName)} ${noun}`;
 
-  return isSelf ? `You ${verb} ${object}.` : `${i.actorName} ${verb} ${object}.`;
+  return {
+    lead: isSelf ? `You ${verb}` : `${i.actorName} ${verb}`,
+    rest: ` ${object}.`,
+  };
 }
 
 function capitalise(s: string): string {
