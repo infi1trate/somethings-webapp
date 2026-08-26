@@ -7,10 +7,9 @@
 // when the active tab has items — which is why the pre-selected item is derived
 // from the sort rather than left null until someone clicks.
 //
-// T2 SCOPE: route, header, both strips, the four cards, and PLACEHOLDERS for the
-// list and pane. T3 fills the list, T4 the pane. The placeholders are here rather
-// than deferred because the layout's proportions are part of what this phase is
-// being reviewed for, and a shell reviewed without them reviews differently.
+// T3 SCOPE: the list is real (rows, coalesced groups, keyboard selection, states).
+// The PANE is still a placeholder — T4 owns §5's frame, the mitigation bodies and
+// resolveWithUndo.
 //
 // LAYOUT (§1): list ~40% / pane ~60% at ≥1280px. Below 1100px the pane becomes a
 // full-width takeover with a back affordance. Mobile is not a v1 target, but this
@@ -28,12 +27,13 @@ import { useMounted } from "@/lib/use-mounted";
 import { DomainCards } from "@/components/tasks/domain-cards";
 import { NextUpStrip, RespondStrip } from "@/components/tasks/strips";
 import { TaskScenarioSwitcher } from "@/components/tasks/scenario-switcher";
+import { Worklist, type ListState } from "@/components/tasks/worklist";
+import { listEntriesFor, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   closedToday,
   defaultActiveDomain,
   domainSummaries,
   headerCounts,
-  listForDomain,
   nextUp,
   openEscalations,
   preselectedFor,
@@ -99,30 +99,55 @@ export function TasksPage() {
   const [pickedDomain, setPickedDomain] = useState<TaskDomain | null>(null);
   const activeDomain = pickedDomain ?? defaultActiveDomain(items, now);
 
-  const list = useMemo(
-    () => listForDomain(items, activeDomain, now),
+  /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
+  const entries = useMemo(
+    () => listEntriesFor(items, activeDomain, now),
     [items, activeDomain, now]
   );
 
-  /** PRE-SELECTED PANE ITEM = head of the active tab's list (§3). Same
-   *  not-chosen-yet pattern; T3 makes this keyboard-navigable. */
+  /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves
+   *  the other three alone — that is the requirement, and a single page-level
+   *  state could not express it. */
+  const [listStates, setListStates] = useState<Partial<Record<TaskDomain, ListState>>>({});
+  const listState: ListState = listStates[activeDomain] ?? "ready";
+
+  /** SELECTION. `selectedEntryId` is the ENTRY id — a group id for a collapsed
+   *  group — while `selected` is the ITEM the pane shows. Two ids because
+   *  selecting a group selects its highest-priority child in the pane (§4), so
+   *  the row that is highlighted and the item being reviewed are not the same
+   *  object. */
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [pickedId, setPickedId] = useState<string | null>(null);
+
+  const activeEntry: ListEntry | null =
+    entries.find((e) => e.id === selectedEntryId) ?? entries[0] ?? null;
   const selected: TaskItem | null =
-    list.find((i) => i.id === pickedId) ?? preselectedFor(items, activeDomain, now);
+    // An explicitly picked child wins; otherwise the entry's pane item, which for
+    // a group is its head.
+    (pickedId
+      ? entries.flatMap((e) => (e.kind === "group" ? e.members : [e.item])).find((i) => i.id === pickedId)
+      : null) ??
+    (activeEntry ? paneItemFor(activeEntry) : null) ??
+    preselectedFor(items, activeDomain, now);
 
   /** Below 1100px the pane is a takeover, so it needs a way back to the list. */
   const [paneTakeover, setPaneTakeover] = useState(false);
 
   const selectDomain = (d: TaskDomain) => {
     setPickedDomain(d);
-    // A new tab means a new pre-selection — dropping the picked id lets the
-    // derived head apply rather than stranding a selection from another domain.
+    // A new tab means a new pre-selection — dropping both ids lets the derived
+    // head apply rather than stranding a selection from another domain.
     setPickedId(null);
+    setSelectedEntryId(null);
   };
 
   const openItem = (item: TaskItem) => {
     setPickedDomain(item.domain);
     setPickedId(item.id);
+    // The Next-up CTA jumps across tabs, so the entry that owns the item may not
+    // be in the current entry list yet. Clearing the entry id lets the derived
+    // head apply on the new tab and the picked id then narrows to the item.
+    setSelectedEntryId(null);
     setPaneTakeover(true);
   };
 
@@ -227,15 +252,19 @@ export function TasksPage() {
             )}
           >
             <div className={cn(paneTakeover && "hidden xl:block")}>
-              <ListPlaceholder
+              <Worklist
+                entries={entries}
                 domain={activeDomain}
-                count={list.length}
-                selectedId={selected?.id ?? null}
-                items={list}
-                onSelect={(item) => {
+                now={now}
+                selectedId={selectedEntryId ?? activeEntry?.id ?? null}
+                state={listState}
+                onSelect={(entry, item) => {
+                  setSelectedEntryId(entry.id);
                   setPickedId(item.id);
-                  setPaneTakeover(true);
                 }}
+                onRetry={() =>
+                  setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
+                }
               />
             </div>
             <div className={cn(!paneTakeover && "hidden xl:block")}>
@@ -260,71 +289,30 @@ export function TasksPage() {
         )}
       </div>
 
-      <TaskScenarioSwitcher activeId={scenarioId} onSelect={setScenarioId} />
+      <TaskScenarioSwitcher
+        activeId={scenarioId}
+        onSelect={(id) => {
+          setScenarioId(id);
+          setPickedDomain(null);
+          setSelectedEntryId(null);
+          setPickedId(null);
+          setListStates({});
+        }}
+        listState={listState}
+        onListState={(st) =>
+          // APPLIED TO THE ACTIVE DOMAIN ONLY, which is how "other tabs
+          // unaffected" becomes demonstrable rather than merely claimed.
+          setListStates((prev) => ({ ...prev, [activeDomain]: st }))
+        }
+        activeDomainLabel={DOMAIN_LABEL[activeDomain]}
+      />
     </div>
   );
 }
 
 // ── Placeholders (T3 / T4 replace these) ────────────────────────────────────
 
-/** T2 PLACEHOLDER. Rows are the minimum that lets the shell be judged — teen,
- *  mentor, age — and deliberately NOT the full anatomy from §4: no coalescing, no
- *  differentiator chips, no keyboard navigation. T3 owns those.
- *
- *  NO MESSAGE SNIPPETS (locked decision 12), here or ever. */
-function ListPlaceholder({
-  domain,
-  count,
-  items,
-  selectedId,
-  onSelect,
-}: {
-  domain: TaskDomain;
-  count: number;
-  items: TaskItem[];
-  selectedId: string | null;
-  onSelect: (item: TaskItem) => void;
-}) {
-  if (count === 0) return <EmptyTab domain={domain} />;
-  return (
-    <ul className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
-      {items.map((item) => (
-        <li key={item.id}>
-          <button
-            type="button"
-            onClick={() => onSelect(item)}
-            aria-current={item.id === selectedId ? "true" : undefined}
-            className={cn(
-              "flex w-full items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 py-3 text-left transition-colors first:border-t-0",
-              item.id === selectedId
-                ? "bg-[var(--surface-s2)]"
-                : "hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-          >
-            <span
-              aria-hidden
-              className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[12px] font-semibold text-[var(--text-secondary)]"
-            >
-              {item.teenDisplayName.charAt(0)}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {item.teenDisplayName}
-              </span>
-              <span className="block truncate text-[12px] leading-[16px] text-[var(--text-muted)]">
-                {/* TODO-COPY */}
-                to {item.mentorName}
-              </span>
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** T2 PLACEHOLDER for the pane. §5's frame arrives in T4. */
+/** T3 PLACEHOLDER for the pane. §5's frame arrives in T4. */
 function PanePlaceholder({ item }: { item: TaskItem | null }) {
   return (
     <div className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5">
@@ -348,25 +336,6 @@ function PanePlaceholder({ item }: { item: TaskItem | null }) {
           Select a task to review it.
         </p>
       )}
-    </div>
-  );
-}
-
-/** TODO-COPY. Per-domain empty copy (§4). THE MONITORING EMPTY STATE MUST NOT
- *  CELEBRATE — no "Nice work", no exclamation. An empty monitoring queue means
- *  nobody has written anything worth reading, which is neither good nor bad. */
-function EmptyTab({ domain }: { domain: TaskDomain }) {
-  const copy: Record<TaskDomain, string> = {
-    escalation: "No active escalations.",
-    riskFlag: "No open flags.",
-    billing: "No billing reviews open.",
-    monitoring: "Nothing to monitor right now.",
-  };
-  return (
-    <div className="flex min-h-[30vh] items-center justify-center rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-6">
-      <p className="text-center text-[14px] leading-[20px] text-[var(--text-secondary)]">
-        {copy[domain]}
-      </p>
     </div>
   );
 }

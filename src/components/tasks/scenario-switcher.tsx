@@ -17,6 +17,7 @@
 
 import { useState } from "react";
 import { TASK_SCENARIOS } from "@/lib/tasks/seed";
+import type { ListState } from "@/components/tasks/worklist";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -25,9 +26,18 @@ const RING =
 export function TaskScenarioSwitcher({
   activeId,
   onSelect,
+  listState,
+  onListState,
+  activeDomainLabel,
 }: {
   activeId: string;
   onSelect: (id: string) => void;
+  /** Per-domain list state (§4). The switcher writes it for the ACTIVE tab only,
+   *  which is what makes "other tabs unaffected" demonstrable rather than
+   *  claimed — switch to error, then switch tabs and watch the others load. */
+  listState: ListState;
+  onListState: (s: ListState) => void;
+  activeDomainLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -70,6 +80,35 @@ export function TaskScenarioSwitcher({
                 </button>
               </li>
             ))}
+            {/* LIST STATE, for the active tab only. Loading and error are not
+                properties of the fixtures — there is no fetch here — so they have
+                to be simulated to be designed at all (§7's states audit needs
+                every one reachable from this switcher). */}
+            <li className="mt-2 border-t border-dashed border-[color:var(--border-contour)] pt-2">
+              <p className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+                {/* TODO-COPY */}
+                {activeDomainLabel} list state
+              </p>
+              <div className="flex flex-wrap gap-1 px-1">
+                {(["ready", "loading", "error"] as ListState[]).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => onListState(st)}
+                    aria-current={st === listState ? "true" : undefined}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11.5px] transition-colors",
+                      st === listState
+                        ? "bg-[var(--surface-s2)] font-semibold text-[var(--text-primary)]"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
+                      RING
+                    )}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </li>
           </ul>
         )}
       </div>
