@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
@@ -61,6 +62,16 @@ import {
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { recordHrefFor } from "@/lib/record/subject";
+import {
+  BILLING_CODE_FILTERS,
+  billingCodeDescription,
+  billingCodeSortValue,
+  billingCodeStateFor,
+  billingHistoryHref,
+  matchesBillingFilter,
+  type BillingCodeFilter,
+  type BillingCodeState,
+} from "@/lib/record/billing-code";
 import { currentMenteesOf } from "@/lib/record/relationships";
 import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
 import { ReviewQueues } from "@/components/admin/review-queues";
@@ -117,6 +128,12 @@ export function Roster({
   const [roleFilter, setRoleFilter] = useState<MentorRoleFilter>("All");
   const [tenure, setTenure] = useState<TenureBucket>("all");
   const [sortKey, setSortKey] = useState<string>("name");
+  /** THE CODE FILTER — the supervisor's "see all mentees and their current codes"
+   *  affordance. Teens segment only; the mentors segment has no codes. */
+  const [codeFilter, setCodeFilter] = useState<BillingCodeFilter>("All codes");
+  /** Fixed at mount — `Date.now()` in render scope is impure and every date and
+   *  overdue figure in the column would move on a re-render. */
+  const [rosterNow] = useState(() => Date.now());
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   // Which mentor's mentee modal is open (lead only).
   const [caseloadRow, setCaseloadRow] = useState<MentorRow | null>(null);
@@ -236,7 +253,8 @@ export function Roster({
       (t) =>
         matchName(t.name, t.goesBy) &&
         matchStatus(t.active) &&
-        inTenureBucket(t.joinedDaysAgo, tenure)
+        inTenureBucket(t.joinedDaysAgo, tenure) &&
+        matchesBillingFilter(billingCodeStateFor(t.id, rosterNow), codeFilter)
     );
     const val = (t: DemoTeen): string | number => {
       switch (sortKey) {
@@ -244,13 +262,15 @@ export function Roster({
         case "group": return t.group;
         case "status": return t.active ? 1 : 0;
         case "joined": return t.joinedDaysAgo;
+        case "code":
+          return billingCodeSortValue(billingCodeStateFor(t.id, rosterNow));
         default: return t.name;
       }
     };
     rows = [...rows].sort((a, b) => cmp(val(a), val(b)));
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLead, q, statusFilter, tenure, sortKey, sortDir]);
+  }, [isLead, q, statusFilter, tenure, sortKey, sortDir, codeFilter, rosterNow]);
 
   const sortProps = { sortKey, sortDir, onSort: toggleSort };
 
@@ -281,6 +301,27 @@ export function Roster({
                 {f.label}
               </button>
             ))}
+
+        {/* THE CODE FILTER — teens segment only; the mentors segment has no codes.
+            A <select> rather than a fifth chip group: the filter row already has
+            a tenure chip set, and two chip sets side by side read as one set with
+            an arbitrary break in it. This is also the affordance the brief calls
+            the supervisor's "see all mentees and their current codes" path. */}
+        {!isMentors && (
+          <select
+            value={codeFilter}
+            onChange={(e) => setCodeFilter(e.target.value as BillingCodeFilter)}
+            /* TODO-COPY */
+            aria-label="Filter by billing code state"
+            className={cn(CONTROL, "cursor-pointer")}
+          >
+            {BILLING_CODE_FILTERS.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           value={statusFilter}
@@ -362,6 +403,11 @@ export function Roster({
               ) : (
                 <>
                   <SortHead label="Name" k="name" {...sortProps} />
+                  {/* TODO-COPY. "Billing code", not "Presentation" — see
+                      design-system-gaps.md row 206: the mentor-record surface
+                      calls the same value "Presentation" and one of the two
+                      headings should win. */}
+                  <SortHead label="Billing code" k="code" {...sortProps} />
                   <SortHead label="Mentor" k="mentor" {...sortProps} />
                   <SortHead label="Group" k="group" {...sortProps} />
                   <SortHead label="Status" k="status" {...sortProps} />
@@ -394,7 +440,9 @@ export function Roster({
                     }
                   />
                 ))
-              : teenView.map((t) => <TeenRowView key={t.id} teen={t} />)}
+              : teenView.map((t) => (
+                  <TeenRowView key={t.id} teen={t} now={rosterNow} />
+                ))}
             {((isMentors && mentorView.length === 0) ||
               (!isMentors && teenView.length === 0)) && (
               <tr>
@@ -559,9 +607,96 @@ function MentorRowView({
   );
 }
 
-function TeenRowView({ teen }: { teen: DemoTeen }) {
+/** THE BILLING-CODE CELL. One column; the STATE IS THE TREATMENT of the value,
+ *  never a second column.
+ *
+ *  NEVER COLOUR ALONE (WCAG 1.4.1). The expired state carries a glyph AND the word
+ *  "Re-review" AND the tint — three channels, so a monochrome print, a
+ *  forced-colors mode and a colourblind reader all get it.
+ *
+ *  NO COUNTDOWN. A countdown is an obligation and obligation lives in Tasks; this
+ *  cell answers "is it current", never "how long have you got". The SLA constant is
+ *  deliberately not imported anywhere near here.
+ *
+ *  THE CODE IS THE LINK, to the object-scoped Activity feed — which IS the code's
+ *  history, because the ledger is append-only and BILLING_REVIEW_COMPLETE is the
+ *  only billing ACTIVITY event. No separate history screen.
+ *
+ *  `stopPropagation` because the whole row already navigates to the record; without
+ *  it the code link would be swallowed by the row's own click. */
+function BillingCodeCell({ teen, now }: { teen: DemoTeen; now: number }) {
+  const state: BillingCodeState = billingCodeStateFor(teen.id, now);
+  // FIRST NAME ONLY in the description (standing rule 6).
+  const first = teen.goesBy ?? teen.name.split(" ")[0];
+  const description = billingCodeDescription(state, first);
+
+  // The em-dash states. A MUTED EM DASH WITH AN ACCESSIBLE LABEL, never a blank
+  // cell — a blank reads as a rendering failure and says nothing to a screen
+  // reader.
+  if (state.kind === "pending" || state.kind === "none") {
+    return (
+      <td className="px-5 py-3">
+        <span className="flex items-center gap-1.5" title={description}>
+          <span
+            aria-label={description}
+            className={cn(
+              "tabular-nums",
+              state.kind === "none"
+                ? "text-[var(--text-muted)]"
+                : "text-[var(--text-secondary)]"
+            )}
+          >
+            —
+          </span>
+          {state.kind === "pending" && (
+            <span className="rounded-full bg-[var(--surface-s2)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+              {/* TODO-COPY */}
+              Pending
+            </span>
+          )}
+        </span>
+      </td>
+    );
+  }
+
+  const expired = state.kind === "expired";
+  return (
+    <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+      <span className="flex flex-wrap items-center gap-1.5">
+        <Link
+          href={billingHistoryHref(teen.id)}
+          aria-label={description}
+          title={description}
+          className={cn(
+            "rounded-sm tabular-nums text-[var(--text-primary)] underline decoration-transparent underline-offset-2",
+            "transition-colors hover:decoration-[color:var(--text-primary)]",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+          )}
+          // --font-mono, not Geist Mono: Geist is not loaded in this project.
+          // See design-system-gaps.md row 205.
+          style={{ fontFamily: "var(--font-mono)" }}
+        >
+          {state.code}
+        </Link>
+        {expired && (
+          <span
+            className="inline-flex items-center gap-1 text-[12px] leading-[16px]"
+            style={{ color: "var(--band-amber-fg)" }}
+          >
+            <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+            {/* TODO-COPY. The WORD, so the glyph and the tint are never alone. */}
+            Re-review
+          </span>
+        )}
+      </span>
+    </td>
+  );
+}
+
+function TeenRowView({ teen, now }: { teen: DemoTeen; now: number }) {
   const router = useRouter();
-  const href = recordHrefFor(teen.id);
+  // ORIGIN: back goes to the Teens list this row lives on.
+  const href = recordHrefFor(teen.id, "teens");
   return (
     <tr
       onClick={() => router.push(href)}
@@ -570,6 +705,7 @@ function TeenRowView({ teen }: { teen: DemoTeen }) {
       <td className="px-5 py-3">
         <NameCell name={teen.name} goesBy={teen.goesBy} recordHref={href} />
       </td>
+      <BillingCodeCell teen={teen} now={now} />
       <td className="px-5 py-3 text-[var(--text-secondary)]">{mentorName(teen.mentorId)}</td>
       <td className="px-5 py-3 text-[var(--text-secondary)]">{teen.group}</td>
       <td className="px-5 py-3"><StatusPill active={teen.active} /></td>

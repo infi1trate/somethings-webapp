@@ -394,7 +394,17 @@ function PartialFailureStrip({ onRetry }: { onRetry: () => void }) {
 
 // ── The ledger ──────────────────────────────────────────────────────────────
 
-export function ActivityLedger() {
+export function ActivityLedger({
+  /** A8 deep link: ?objectId=<teenId>. Seeds the teen filter. */
+  initialTeenId = null,
+  /** A8 deep link: ?domain=billing. Seeds the domain filter AND the view, because
+   *  arriving on a billing deep link and landing in My caseload would filter a
+   *  view that may not contain the teen at all. */
+  initialDomain = null,
+}: {
+  initialTeenId?: string | null;
+  initialDomain?: string | null;
+} = {}) {
   const mounted = useMounted();
   const overlay = useOnboardingStore((s) => s.activityRead);
   const seedActivityRead = useOnboardingStore((s) => s.seedActivityRead);
@@ -404,9 +414,18 @@ export function ActivityLedger() {
   const scenarioId = useOnboardingStore((s) => s.activityScenarioId);
   const setScenarioId = useOnboardingStore((s) => s.setActivityScenarioId);
 
-  const [viewId, setViewId] = useState(DEFAULT_VIEW_ID);
+  const [viewId, setViewId] = useState(
+    // A billing deep link opens the Billing view — scope `all`, every type, one
+    // domain — which is the only view guaranteed to contain the row being linked
+    // to regardless of whose caseload the teen is on.
+    initialDomain === "billing" ? "billing" : DEFAULT_VIEW_ID
+  );
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [filters, setFilters] = useState<ActivityFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<ActivityFilters>(() =>
+    initialTeenId
+      ? { ...EMPTY_FILTERS, teenId: initialTeenId }
+      : EMPTY_FILTERS
+  );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterTrigger = useRef<HTMLButtonElement | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("ready");

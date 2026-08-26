@@ -74,9 +74,13 @@ export default function ActivityPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   // use(searchParams) PROP PATTERN — never useSearchParams, and no page-root
-  // Suspense (standing rule 3). Read here rather than in A8 so the pattern is in
-  // place before the object-scoped deep link needs it.
-  void use(searchParams);
+  // Suspense (standing rule 3).
+  const query = use(searchParams);
+  // A8's object-scoped deep link: /app/activity?objectId=<teenId>&domain=billing.
+  // The Teens list's billing code points here, because the append-only ledger IS
+  // the code's history.
+  const objectId = typeof query.objectId === "string" ? query.objectId : null;
+  const domain = typeof query.domain === "string" ? query.domain : null;
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const activity = useOnboardingStore((s) => s.activity);
@@ -104,7 +108,7 @@ export default function ActivityPage({
   if (supervisor) {
     return (
       <AdminShell active="activity">
-        <ActivityLedger />
+        <ActivityLedger initialTeenId={objectId} initialDomain={domain} />
       </AdminShell>
     );
   }
