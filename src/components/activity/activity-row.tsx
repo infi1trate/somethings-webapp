@@ -25,10 +25,11 @@
 // reader would. `opacity` rather than `display`, so they keep their place in the
 // tab order at all times and the row does not reflow when they appear.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ChevronRight,
   ClipboardCheck,
   Receipt,
   RotateCcw,
@@ -120,6 +121,10 @@ export function ActivityRow({
   const Icon = glyph.icon;
   const unread = row.state === "unread";
   const cleared = row.state === "cleared";
+  const [open, setOpen] = useState(false);
+  /** A GROUP OF ONE HAS NO DISCLOSURE, and neither does a DEGRADED group — the
+   *  query omits `members` in both cases, so the row does not decide this. */
+  const members = row.members;
 
   /** MARK READ ON VIEW, NOT ON CLICK — with a dwell so that scrolling past at
    *  speed does not silently consume a day of unread rows. ~1s, per A3 step 7.
@@ -215,6 +220,34 @@ export function ActivityRow({
           {row.sentence}
         </span>
 
+        {/* DISCLOSURE. Expands IN PLACE; it does not navigate. `pointer-events-auto`
+            lifts it above the full-row link layer. */}
+        {members && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-label={
+              open
+                ? `Hide the ${members.length} events behind this row`
+                : `Show the ${members.length} events behind this row`
+            }
+            className={cn(
+              "pointer-events-auto inline-flex size-6 shrink-0 items-center justify-center rounded-full",
+              "text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            <ChevronRight
+              className={cn(
+                "size-3.5 transition-transform motion-reduce:transition-none",
+                open && "rotate-90"
+              )}
+              aria-hidden
+            />
+          </button>
+        )}
+
         <time
           dateTime={row.occurredAt}
           className="shrink-0 tabular-nums text-[12px] leading-[16px] text-[var(--text-muted)]"
@@ -267,6 +300,30 @@ export function ActivityRow({
           </Link>
         </span>
       </div>
+
+      {/* CONSTITUENTS, indented beneath. A nested <ol> so the list semantics hold
+          all the way down, and each member is a plain row: no disclosure of its
+          own, no group treatment. */}
+      {members && open && (
+        <ol className="relative z-10 mb-1 ml-9 border-l border-[color:var(--border-subtle)] pl-3">
+          {members.map((m) => (
+            <li
+              key={m.id}
+              className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-0.5 py-1"
+            >
+              <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                {m.sentence}
+              </span>
+              <time
+                dateTime={m.occurredAt}
+                className="shrink-0 tabular-nums text-[11.5px] leading-[16px] text-[var(--text-muted)]"
+              >
+                {m.timestamp}
+              </time>
+            </li>
+          ))}
+        </ol>
+      )}
     </li>
   );
 }

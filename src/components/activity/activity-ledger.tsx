@@ -18,8 +18,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter, Search } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
-import { queryFeed, visibleEventIds, type FeedRow } from "@/lib/activity/query";
-import { seedOverlay, unreadCount } from "@/lib/activity/read-state";
+import { queryFeed, unreadRowCount, type FeedRow } from "@/lib/activity/query";
+import { seedOverlay } from "@/lib/activity/read-state";
 import {
   ACTIVITY_SCENARIOS,
   DEFAULT_SCENARIO_ID,
@@ -302,17 +302,15 @@ export function ActivityLedger() {
    *  renders nothing rather than a zero. */
   const unreadFor = useMemo(() => {
     if (!SHOW_UNREAD_BADGE || !mounted) return undefined;
-    return (id: string) => {
-      const v = viewById(id);
-      const ids = visibleEventIds({
+    return (id: string) =>
+      // ROWS, not events — a coalesced group counts as one (A6).
+      unreadRowCount({
         events: scenario.events,
         viewer,
-        view: v,
+        view: viewById(id),
         overlay,
         now: SIM_NOW,
       });
-      return unreadCount(overlay, viewer.id, v.scope, ids);
-    };
   }, [mounted, scenario, viewer, overlay]);
 
   const total = days.reduce((n, d) => n + d.rows.length, 0);

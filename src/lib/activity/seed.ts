@@ -223,14 +223,25 @@ function heavyDay(): ActivityEvent[] {
       })
     );
   }
-  // The filter-only twin: 5 RAISED events on another conversation, same day.
+  // THE FILTER-ONLY TWIN: 5 RAISED events on another conversation, same day.
+  //
+  // ON AN IN-CASELOAD TEEN, and that matters. The first draft put these on Imani,
+  // who is NOT in this viewer's caseload — so the relationship resolved to
+  // `network`, `inScope` excluded them from My caseload entirely, and the
+  // filter-only path could never be exercised no matter how the filter was set.
+  // Caught by the A6 test, which is exactly what it is for: A6 warns that a
+  // default-view screenshot does not prove coalescing, and the same is true of a
+  // fixture that cannot reach the view under test.
+  //
+  // On Jordan the relationship is `caseload`, RISK_FLAG_RAISED resolves to
+  // ACTION, and the group appears only once "Include actions" is on.
   for (let i = 0; i < 5; i++) {
     out.push(
       make({
         type: "RISK_FLAG_RAISED",
         actorId: SYSTEM_ACTOR_ID,
-        teenId: TEENS.imani.id,
-        conversationId: "conv-imani-heavy",
+        teenId: TEENS.jordan.id,
+        conversationId: "conv-jordan-heavy",
         occurredAt: at(3.2 + i * 0.1),
         payload: { categories: ["GROOMING_BEHAVIOR"], index: i },
       })

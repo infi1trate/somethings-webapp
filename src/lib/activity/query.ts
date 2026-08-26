@@ -11,9 +11,8 @@
 //   · A5 — DEGRADATION. `isFullDetail` decides, and the payload is attached or
 //     omitted. A degraded row has no payload key at all, so no component can read
 //     one by accident. Also fires the third-party access log.
-//   · A6 will populate `count` and collapse groups, and must suppress the count
-//     on degraded rows — coalescing manufactures a number that no single event
-//     carries, and flag volume on one conversation is clinical signal.
+//   · A6 — COALESCING. Groups by (eventType, objectId, day), suppresses the count
+//     and the disclosure on degraded groups, and never groups across a day.
 
 import {
   EVENT_DOMAIN,
@@ -36,6 +35,7 @@ import {
   type ActivityViewer,
 } from "@/lib/activity/resolve-alert-type";
 import {
+  MIXED_ACTOR_ID,
   absoluteTimestamp,
   dayDividerLabel,
   rowSentence,
@@ -67,9 +67,18 @@ export interface FeedRow {
   sentence: string;
   timestamp: string;
   absolute: string;
+  /** THE COALESCING OBJECT — the conversation for risk-flag events, the teen
+   *  otherwise. Carried on the row so the group key is derived once, at the point
+   *  the event is read, rather than re-derived from objectType downstream. */
+  groupObjectId: string;
+  /** Whether the sentence takes the conversation preposition. Needed again when a
+   *  group rebuilds its sentence. */
+  onConversation: boolean;
   /** Drives the avatar treatment: a system event gets the Somethings glyph
    *  rather than a person (A3 step 7). */
   actorIsSystem: boolean;
+  /** The actor id, kept so a group can tell whether its members share one. */
+  actorId: string;
   actorName: string;
   teenName: string;
   /** TRUE WHEN THIS ROW WAS DEGRADED — the viewer is neither the actor nor the
@@ -83,13 +92,27 @@ export interface FeedRow {
    *  categories, risk tiers and escalation reasons all live in here, and on a
    *  degraded row there is nothing to hide because there is nothing to have. */
   payload?: Record<string, unknown>;
-  /** A6 sets this. Always 1 in A3.
+  /** THE DISPLAY COUNT. 1 for an ungrouped row, N for a group — and ALWAYS 1 for
+   *  a DEGRADED group, which is the whole of A6's privacy rule.
    *
-   *  SUPPRESSED ON DEGRADED ROWS (A6): a count is not on A5's withheld-field list
-   *  because no individual event carries one — coalescing MANUFACTURES it, and
-   *  "7 risk flags in one conversation in one day" is clinical signal assembled
-   *  out of rows that were each individually degraded. */
+   *  A count is not on A5's withheld-field list because no individual event
+   *  carries one: coalescing MANUFACTURES it. And "7 risk flags on one
+   *  conversation in one day" is clinical signal — flag volume is a strong
+   *  inference about a teen's state — assembled out of rows that were each
+   *  individually degraded. The group leaks what its members do not.
+   *
+   *  RESIDUAL SURFACE, stated plainly: `eventIds` below still has N entries on a
+   *  degraded group, because clearing the group has to clear its members and
+   *  there is no server-side group handle to clear by instead. Nothing renders
+   *  from its length, and the tests assert the display count and the sentence are
+   *  both number-free — but sealing it completely needs a backend that can accept
+   *  "clear this group" as one operation. Flagged rather than papered over. */
   count: number;
+  /** THE CONSTITUENT ROWS, for the disclosure. ABSENT on a group of one (there is
+   *  nothing to disclose) and ABSENT on a degraded group (expanding it would
+   *  reveal N identical degraded sentences, so there is nothing behind it worth
+   *  opening — the control is dropped rather than disabled). */
+  members?: FeedRow[];
 }
 
 export interface FeedDay {
@@ -168,6 +191,86 @@ function inScope(
   return rel === "actor" || rel === "caseload";
 }
 
+/** ═══ COALESCING (A6) ═══
+ *
+ *  GROUP KEY IS (eventType, objectId, day). One conversation can generate thirty
+ *  risk flags; ungrouped, one chat buries a day of history.
+ *
+ *  NOTE THE AXIS. Slack stacks ACTORS against one object ("Eden +18"). This stacks
+ *  EVENTS against one object. Actor stacking is deliberately not implemented — no
+ *  supervisor event type has multiple actors against one object.
+ *
+ *  NEVER ACROSS A DAY DIVIDER. Day grouping is the stronger organiser, so this
+ *  runs INSIDE each day bucket rather than over the flat list — which makes
+ *  cross-day coalescing structurally impossible rather than merely forbidden.
+ *
+ *  A GROUP OF ONE IS A PLAIN ROW. No disclosure control, no count, no members —
+ *  identical to an ungrouped row, because it is one.
+ *
+ *  MIXED ACTORS. The brief's key does not include the actor, and its premise is
+ *  that no supervisor event type has multiple actors against one object. If that
+ *  premise ever breaks, "You closed 7" would be a lie when you closed three — so
+ *  a mixed-actor group falls back to an agentless sentence rather than crediting
+ *  the whole batch to whoever happens to be most recent. */
+function coalesceDay(rows: FeedRow[], viewerId: string): FeedRow[] {
+  const groups = new Map<string, FeedRow[]>();
+  for (const row of rows) {
+    // The day is implicit — this only ever runs within one day's bucket.
+    const key = `${row.eventType}::${row.groupObjectId}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const out: FeedRow[] = [];
+  for (const [key, members] of groups) {
+    if (members.length === 1) {
+      out.push(members[0]);
+      continue;
+    }
+    // Newest first inside the group; the collapsed row takes the most recent
+    // timestamp, because that is when the batch last moved.
+    const ordered = [...members].sort((a, b) =>
+      b.occurredAt.localeCompare(a.occurredAt)
+    );
+    const head = ordered[0];
+    const degraded = ordered.some((r) => r.degraded);
+    const actors = new Set(ordered.map((r) => r.actorId));
+    const singleActor = actors.size === 1 ? head.actorId : null;
+
+    out.push({
+      ...head,
+      id: `group:${key}`,
+      // Every constituent — what Clear and mark-read act on. Clearing a collapsed
+      // group clears every member; restoring restores the whole group.
+      eventIds: ordered.flatMap((r) => r.eventIds),
+      // UNREAD IF ANY CONSTITUENT IS UNREAD.
+      state: ordered.some((r) => r.state === "unread")
+        ? "unread"
+        : ordered.some((r) => r.state === "cleared")
+          ? "cleared"
+          : "read",
+      // DEGRADED GROUP: display count stays 1, so no number can render.
+      count: degraded ? 1 : ordered.length,
+      degraded,
+      // DISCLOSURE DROPPED on a degraded group — nothing behind it worth opening.
+      ...(degraded ? {} : { members: ordered }),
+      sentence: rowSentence({
+        eventType: head.eventType,
+        actorId: singleActor ?? MIXED_ACTOR_ID,
+        viewerId,
+        teenName: head.teenName,
+        actorName: singleActor ? head.actorName : "",
+        count: ordered.length,
+        degraded,
+        onConversation: head.onConversation,
+      }),
+    });
+  }
+  // Re-sort: a group's timestamp is its newest member, which can move it.
+  return out.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+}
+
 export function queryFeed({
   events,
   viewer,
@@ -229,6 +332,9 @@ export function queryFeed({
       id: event.id,
       eventIds: [event.id],
       eventType: event.eventType,
+      groupObjectId: event.objectId,
+      onConversation: event.objectType === "conversation",
+      actorId: event.actorId,
       domain,
       alertType,
       state,
@@ -286,15 +392,33 @@ export function queryFeed({
   return [...byDay.entries()].map(([dayKey, dayRows]) => ({
     dayKey,
     label: dayKey === todayKey ? null : dayDividerLabel(dayKey, now),
-    rows: dayRows,
+    // COALESCE WITHIN THE DAY — see coalesceDay. Running it here rather than over
+    // the flat list is what makes cross-day grouping impossible by construction.
+    rows: coalesceDay(dayRows, viewer.id),
   }));
 }
 
-/** Every event id currently visible in a view — what the unread badge counts
- *  against, since absent-means-unread makes a count from the overlay alone
- *  impossible. Runs the same query, so the badge and the feed cannot disagree. */
+/** Every event id currently visible in a view. Kept for callers that need the
+ *  full membership (mark-all-read would use it). NOT what the badge counts — see
+ *  `unreadRowCount`. */
 export function visibleEventIds(q: Omit<FeedQuery, "unreadOnly">): string[] {
   return queryFeed({ ...q, unreadOnly: false }).flatMap((d) =>
     d.rows.flatMap((r) => r.eventIds)
   );
+}
+
+/** THE UNREAD COUNT THE BADGE SHOWS — ROWS, NOT EVENTS.
+ *
+ *  A GROUP COUNTS AS ONE (A6). Counting its members would tell a supervisor there
+ *  are seven things to look at when there is one conversation to open, which is
+ *  the same over-counting the coalescing exists to prevent — just moved into the
+ *  number.
+ *
+ *  Reads each row's own `state`, which the coalescer already computed as "unread
+ *  if ANY constituent is unread". So the badge cannot disagree with the dot on the
+ *  row: both come from the same field. */
+export function unreadRowCount(q: Omit<FeedQuery, "unreadOnly">): number {
+  return queryFeed({ ...q, unreadOnly: false })
+    .flatMap((d) => d.rows)
+    .filter((r) => r.state === "unread").length;
 }

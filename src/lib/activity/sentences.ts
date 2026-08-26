@@ -107,6 +107,9 @@ export interface SentenceInput {
   onConversation?: boolean;
 }
 
+/** Sentinel for a coalesced group with more than one actor — see `mixedActors`. */
+export const MIXED_ACTOR_ID = "__mixed__";
+
 /** THE ROW SENTENCE. One function, so the row, the accessible name and any future
  *  feed renderer cannot drift into three different grammars. */
 export function rowSentence(i: SentenceInput): string {
@@ -115,6 +118,13 @@ export function rowSentence(i: SentenceInput): string {
   const isSystem = i.actorId === SYSTEM_ACTOR_ID;
   const isSelf = i.actorId === i.viewerId;
   const n = i.count ?? 1;
+  /** A COALESCED GROUP WHOSE MEMBERS HAVE DIFFERENT ACTORS. The group key is
+   *  (eventType, objectId, day) and excludes the actor, so this is reachable in
+   *  principle even though the brief's premise says no supervisor event type has
+   *  multiple actors against one object. It gets an AGENTLESS sentence: "You
+   *  closed 7" would be a lie when you closed three, and crediting the batch to
+   *  whoever is most recent is the same lie with better manners. */
+  const mixedActors = i.actorId === MIXED_ACTOR_ID;
 
   // ── SYSTEM ACTOR: agentless. A cron job is not a person and must not be
   //    written as one. "A billing review opened for Jordan." is the prompt's own
@@ -143,6 +153,15 @@ export function rowSentence(i: SentenceInput): string {
 
   // ── COALESCED (A6). Degraded groups carry NO COUNT — enforced upstream in the
   //    query, and re-enforced here so a caller that forgets cannot leak it.
+  if (n > 1 && mixedActors) {
+    const where = i.onConversation
+      ? `in ${possessive(i.teenName)} conversation`
+      : `for ${i.teenName}`;
+    // Passive, and number-free when degraded.
+    return i.degraded
+      ? `${capitalise(noun)}s were ${verb} ${where}.`
+      : `${n} ${noun}s were ${verb} ${where}.`;
+  }
   if (n > 1 && !i.degraded) {
     const plural = `${n} ${noun}s`;
     const where = i.onConversation
