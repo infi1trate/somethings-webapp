@@ -41,7 +41,7 @@ import {
   rowSentenceParts,
   rowTimestamp,
 } from "@/lib/activity/sentences";
-import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
+import { staffFirstName, staffRoleLabel, teenFirstName } from "@/lib/activity/seed";
 import { EMPTY_FILTERS, type ActivityFilters } from "@/lib/activity/filters";
 import { recordNetworkAccess } from "@/lib/activity/access-log";
 import type { ActivityView } from "@/lib/activity/views";
@@ -84,7 +84,20 @@ export interface FeedRow {
   actorIsSystem: boolean;
   /** The actor id, kept so a group can tell whether its members share one. */
   actorId: string;
+  /** DID THE VIEWER DO THIS? (A11 avatar economy.)
+   *
+   *  On roughly 70% of a supervisor's rows the leading avatar was their own
+   *  initial, on their own first-person row — the strongest visual slot in the row
+   *  spent telling the reader who they are. Those rows drop the avatar and let the
+   *  type glyph lead.
+   *
+   *  RESOLVED HERE rather than by testing the sentence for "You ", which would tie
+   *  a layout decision to a string the grammar is free to change. */
+  actorIsSelf: boolean;
   actorName: string;
+  /** The actor's role, for line 1 of a detailed row. Empty for the system actor —
+   *  see `staffRoleLabel`. */
+  actorRole: string;
   teenName: string;
   /** TRUE WHEN THIS ROW WAS DEGRADED — the viewer is neither the actor nor the
    *  current caseload owner. Its presence tells the component how to render; the
@@ -97,6 +110,22 @@ export interface FeedRow {
    *  categories, risk tiers and escalation reasons all live in here, and on a
    *  degraded row there is nothing to hide because there is nothing to have. */
   payload?: Record<string, unknown>;
+  /** ═══ LINE 3 OF A DETAILED ROW: THE OBJECT'S OWN CONTEXT (A11) ═══
+   *
+   *  Short facts about the thing the event happened to, not about the event.
+   *  ABSENT — not empty — on a degraded row, for the same reason `payload` is:
+   *  every one of these is drawn from the payload, so a row that has no payload
+   *  has no context line to render and no component can assemble one (rule 12).
+   *
+   *  A11 lists five candidate facts. THREE OF THE FIVE EXIST in this data model:
+   *  the billing code, the conversation, and the SLA outcome (plus a survey's
+   *  instrument and score, which is the same shape). The teen's mentor and days
+   *  since intake DO NOT — the ledger's teen ids are its own invented universe
+   *  (`teen-maya`) and do not join to the app's people fixtures (`t5`…`t26`), which
+   *  is gap row 207. Rendering "whichever of these the event carries" is what A11
+   *  asks for, so the two absent ones are simply never carried; flagged rather
+   *  than faked from a lookup that would silently resolve to nothing. */
+  context?: string[];
   /** THE DISPLAY COUNT. 1 for an ungrouped row, N for a group — and ALWAYS 1 for
    *  a DEGRADED group, which is the whole of A6's privacy rule.
    *
@@ -206,6 +235,65 @@ function sentenceFields(input: Parameters<typeof rowSentenceParts>[0]): {
   return { sentence: lead + rest, lead };
 }
 
+/** LINE 3's FACTS, from the payload, in a fixed order.
+ *
+ *  Returns `{}` rather than `{ context: [] }` when there is nothing to say, so an
+ *  empty context and an absent one are the same thing downstream and a detailed
+ *  row renders two lines instead of two lines and a gap.
+ *
+ *  ONLY CALLED ON FULL-DETAIL ROWS. That is the enforcement, not a check inside. */
+function contextFieldsOf(event: ActivityEvent): { context?: string[] } {
+  const p = event.payload;
+  const out: string[] = [];
+  const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+  const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+
+  // TODO-COPY on every label below.
+  const code = str(p.code);
+  // Not on a COMPLETE row: the sentence already ends with the code there, and
+  // saying it twice on one row reads as two different codes at a glance.
+  if (code && event.eventType !== "BILLING_REVIEW_COMPLETE") {
+    out.push(`Code under review ${code}`);
+  }
+  const previous = str(p.previousCode);
+  if (previous) out.push(`Was ${previous}`);
+
+  if (event.objectType === "conversation") {
+    // The conversation itself, named rather than id-dumped.
+    out.push("In a monitored conversation");
+  }
+
+  const outcome = str(p.outcome);
+  if (outcome) out.push(`Outcome ${outcome}`);
+  const late = num(p.hoursLate);
+  if (late !== undefined) out.push(`${late}h past its deadline`);
+
+  const instrument = str(p.instrument);
+  const score = num(p.score);
+  if (instrument) out.push(score !== undefined ? `${instrument} ${score}` : instrument);
+
+  const categories = Array.isArray(p.categories)
+    ? p.categories.filter((c): c is string => typeof c === "string")
+    : [];
+  if (categories.length > 0) {
+    // Underscored wire values are never rendered raw.
+    out.push(categories.map(humaniseCategory).join(", "));
+  }
+
+  const reason = str(p.reason);
+  if (reason && reason !== "withheld") out.push(reason);
+
+  return out.length > 0 ? { context: out } : {};
+}
+
+/** `HATE_SPEECH_RACIAL_SLURS` → `Hate speech racial slurs`. Sentence case, per the
+ *  surface's own rule — and never the raw wire value, which is the same discipline
+ *  the sentence builder holds to. */
+function humaniseCategory(c: string): string {
+  const words = c.toLowerCase().replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function billingCodeOf(event: ActivityEvent): string | undefined {
   if (event.eventType !== "BILLING_REVIEW_COMPLETE") return undefined;
   const code = event.payload.code;
@@ -293,6 +381,14 @@ function coalesceDay(rows: FeedRow[], viewerId: string): FeedRow[] {
       degraded,
       // DISCLOSURE DROPPED on a degraded group — nothing behind it worth opening.
       ...(degraded ? {} : { members: ordered }),
+      // A MIXED-ACTOR GROUP IS NOBODY'S OWN ROW, so it keeps its leading avatar
+      // (which the group's agentless sentence then does not contradict).
+      actorIsSelf: singleActor === viewerId,
+      // NO CONTEXT LINE ON A GROUP. Its members carry different codes, different
+      // categories and different outcomes; showing the newest member's as the
+      // group's would state one batch member's facts for all of them. The context
+      // is there when the group is expanded.
+      context: undefined,
       ...sentenceFields({
         eventType: head.eventType,
         actorId: singleActor ?? MIXED_ACTOR_ID,
@@ -401,10 +497,13 @@ export function queryFeed({
       absolute: absoluteTimestamp(event.occurredAt),
       actorIsSystem: isSystemEvent(event.eventType) || event.actorType === "system",
       actorName,
+      actorRole: staffRoleLabel(event.actorId),
       teenName,
       degraded: !full,
+      actorIsSelf: event.actorId === viewer.id,
       // OMITTED, not blanked, when degraded — see the field comment.
       ...(full ? { payload: event.payload } : {}),
+      ...(full ? contextFieldsOf(event) : {}),
       count: 1, // A6
     });
   }

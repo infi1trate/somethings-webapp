@@ -77,3 +77,29 @@ export function viewById(id: string): ActivityView {
     ACTIVITY_VIEWS.find((v) => v.id === DEFAULT_VIEW_ID)!
   );
 }
+
+/** ═══ READING DENSITY (A11) ═══
+ *
+ *  Two settings, and they are not the same list at two sizes:
+ *
+ *    dense     one container, internal dividers, ONE LINE per row (~52px).
+ *              [leading element] [event sentence] [timestamp]
+ *    detailed  per-row cards with gaps and NO dividers, two or three lines
+ *              (~88px). Actor and role and time on line 1, the sentence on line
+ *              2, and the object's own context on line 3 when the event carries
+ *              any.
+ *
+ *  SPEC §11 ARGUED AGAINST THIS TOGGLE and is superseded (A11, recorded here
+ *  rather than only in a commit message): the argument was that a ledger row is
+ *  one sentence with nothing behind it to reveal. The built row turned out to
+ *  withhold real context — the code a review landed on, which conversation a flag
+ *  was in, how late an overdue thing was — so there IS something for a detailed
+ *  mode to show. What §11 correctly rejected was an EVENT DETAIL PANE, which is a
+ *  different thing and is A12's business.
+ *
+ *  IN THIS FILE because density is a property of the QUERY's presentation, not of
+ *  a component: the data layer decides what context line 3 may contain, since a
+ *  degraded row must not have one at all (rule 12). */
+export type ActivityDensity = "dense" | "detailed";
+
+export const DEFAULT_DENSITY: ActivityDensity = "dense";

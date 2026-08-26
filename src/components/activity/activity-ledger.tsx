@@ -15,7 +15,7 @@
 // silently wrong read state.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Filter, Search } from "lucide-react";
+import { AlignJustify, Filter, Rows3, Search } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { queryFeed, unreadRowCount, type FeedRow } from "@/lib/activity/query";
@@ -26,7 +26,11 @@ import {
   SIM_NOW,
   scenarioById,
 } from "@/lib/activity/seed";
-import { DEFAULT_VIEW_ID, viewById } from "@/lib/activity/views";
+import {
+  DEFAULT_VIEW_ID,
+  viewById,
+  type ActivityDensity,
+} from "@/lib/activity/views";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { RecordButton } from "@/components/record/record-button";
 import { ActivityRow } from "@/components/activity/activity-row";
@@ -118,6 +122,8 @@ function Toolbar({
   onOpenFilters,
   onResetFilters,
   filterTriggerRef,
+  density,
+  onDensity,
 }: {
   unreadOnly: boolean;
   onUnreadOnly: (v: boolean) => void;
@@ -125,12 +131,16 @@ function Toolbar({
   onOpenFilters: () => void;
   onResetFilters: () => void;
   filterTriggerRef: React.RefObject<HTMLButtonElement | null>;
+  density: ActivityDensity;
+  onDensity: (d: ActivityDensity) => void;
 }) {
   const count = activeFilterCount(filters);
   return (
-    // NOTHING ON THE RIGHT. No density toggle, no bulk select — both were
-    // explicitly excluded, and an empty right side is what keeps the toolbar from
-    // reading as a table header.
+    // THE RIGHT SIDE NOW CARRIES THE DENSITY TOGGLE (A11) and nothing else. It
+    // was deliberately empty before — a density toggle was excluded, and spec §11
+    // argued a ledger row has no body to reveal. A11 supersedes that: the built
+    // row withholds real context, so there is something for detailed mode to
+    // show. Bulk select stays excluded.
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <button
         type="button"
@@ -208,6 +218,56 @@ function Toolbar({
         <Search className="size-3.5" aria-hidden />
         Search
       </button>
+
+      {/* ═══ DENSITY (A11). RIGHT SIDE, TWO ICONS, ONE CONTROL ═══
+          
+          `ml-auto` rather than a spacer, so it stays on the right when the
+          toolbar wraps on a narrow window instead of stranding itself on its own
+          line under the left-hand group.
+          
+          A RADIOGROUP, not two toggle buttons. The two options are mutually
+          exclusive and exactly one is always chosen, which is what a radiogroup
+          means; two independent `aria-pressed` buttons would announce a state
+          where both or neither could be on. Arrow keys come free with the roles.
+          
+          ICON-ONLY, SO EACH CARRIES ITS NAME. `aria-label` on each radio and a
+          `title` for the pointer reader — an unlabelled pair of line icons is a
+          guess for everyone. */}
+      <div
+        role="radiogroup"
+        /* TODO-COPY */
+        aria-label="Row density"
+        className="ml-auto inline-flex items-center gap-0.5 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-0.5"
+      >
+        {(
+          [
+            { value: "dense" as const, Icon: AlignJustify, label: "Compact rows" },
+            { value: "detailed" as const, Icon: Rows3, label: "Detailed rows" },
+          ]
+        ).map(({ value, Icon, label }) => {
+          const on = density === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={label}
+              title={label}
+              onClick={() => onDensity(value)}
+              className={cn(
+                "inline-flex size-8 items-center justify-center rounded-full transition-colors",
+                on
+                  ? "bg-[var(--text-primary)] text-[var(--text-inverse)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              <Icon className="size-4" aria-hidden />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -416,6 +476,11 @@ export function ActivityLedger({
   const markRows = useOnboardingStore((s) => s.markActivityRowsRead);
   const clearRowAction = useOnboardingStore((s) => s.clearActivityRow);
   const restoreRowAction = useOnboardingStore((s) => s.restoreActivityRow);
+  /** PERSISTED PER USER (store v38). Read behind `useMounted` like every other
+   *  store read on this surface — a density read before hydration renders the
+   *  wrong layout for one frame with no error to show for it. */
+  const storedDensity = useOnboardingStore((st) => st.activityDensity);
+  const setDensity = useOnboardingStore((st) => st.setActivityDensity);
   const scenarioId = useOnboardingStore((s) => s.activityScenarioId);
   const setScenarioId = useOnboardingStore((s) => s.setActivityScenarioId);
 
@@ -445,6 +510,11 @@ export function ActivityLedger({
   const loadMoreSentinel = useRef<HTMLDivElement | null>(null);
 
   const scenario = scenarioById(mounted ? scenarioId : DEFAULT_SCENARIO_ID);
+
+  /** Same `mounted` gate as the scenario above, and for the same reason: a store
+   *  read before hydration renders the wrong layout for one frame and reports
+   *  nothing. */
+  const density: ActivityDensity = mounted ? storedDensity : "dense";
   const view = viewById(viewId);
 
   const viewer: ActivityViewer = useMemo(
@@ -634,6 +704,8 @@ export function ActivityLedger({
       </div>
 
       <Toolbar
+        density={density}
+        onDensity={setDensity}
         unreadOnly={unreadOnly}
         onUnreadOnly={setUnreadOnly}
         filters={filters}
@@ -732,6 +804,7 @@ export function ActivityLedger({
                     onSeen={onSeen}
                     showGlyph={!singleDomain}
                     showDivider={rowIndex > 0}
+                    density={density}
                   />
                 ))}
               </ol>

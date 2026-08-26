@@ -32,6 +32,7 @@ import {
   type ActivityScope,
   type ReadOverlay,
 } from "@/lib/activity/read-state";
+import type { ActivityDensity } from "@/lib/activity/views";
 // care-demo is a pure data module with no store import — one-directional.
 import type {
   CareFlagClosure,
@@ -193,7 +194,12 @@ interface OnboardingState {
    *  state cannot answer across a reload. 0 means never opened, which counts as a
    *  gap and shows the digest. */
   tasksLastVisitAt: number;
+  /** ACTIVITY FEED DENSITY (v38). Per user, persisted — A11 asks for the choice to
+   *  survive, and a reading-density preference that resets every session is worse
+   *  than no toggle at all. */
+  activityDensity: ActivityDensity;
   setTasksLastVisitAt: (at: number) => void;
+  setActivityDensity: (density: ActivityDensity) => void;
   seedActivityRead: (overlay: ReadOverlay) => void;
   markActivityRowsRead: (
     viewerId: string,
@@ -417,6 +423,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       activityRead: {},
       activityScenarioId: "typical-shift",
       tasksLastVisitAt: 0,
+      activityDensity: "dense",
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -803,6 +810,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // action that removes an entry — standing rule 11, clearing is never
       // deleting, and the module deliberately exports no delete.
       setTasksLastVisitAt: (at) => set({ tasksLastVisitAt: at }),
+      setActivityDensity: (density) => set({ activityDensity: density }),
       setActivityScenarioId: (id) =>
         // Switching scenario drops the overlay so the new scenario seeds from its
         // own fixture decision about what starts unread. NOT a delete of anything
@@ -927,6 +935,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           activityRead: {}, // dev "start over" returns every row to its seed state
           activityScenarioId: "typical-shift",
           tasksLastVisitAt: 0, // …and brings the shift-start digest back
+          activityDensity: "dense",
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -999,6 +1008,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
       //      id) — sparse and additive; backfill {} so an older persisted state
       //      reads as "no flag has been closed". Append-only.
+      // v38: activityDensity ("dense" | "detailed") — the Activity feed's reading
+      //      density. A SCALAR WITH A CLOSED VALUE SET, so the migration backfills
+      //      "dense" and the merge self-heals anything outside the union rather
+      //      than trusting a persisted string to still be one of two words.
       // v37: tasksLastVisitAt (when the supervisor last opened the Tasks
       //      worklist) — a SCALAR, backfilled 0. Zero reads as "never opened",
       //      which counts as a >8h gap and shows the shift-start digest, so an
@@ -1015,7 +1028,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      map, so the backfill is a default rather than {}. Defaults OPEN:
       //      the rail is the tab's opening state, and a reader who has never
       //      touched it should see what it offers.
-      version: 37,
+      version: 38,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1402,6 +1415,13 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st37.tasksLastVisitAt !== "number") {
             st37.tasksLastVisitAt = 0;
           }
+        }
+        if (version < 38) {
+          // v38: closed union — anything unrecognised becomes the default.
+          const st38 = persisted as { activityDensity?: unknown };
+          if (st38.activityDensity !== "detailed") {
+            st38.activityDensity = "dense";
+          }
           // v36: a scalar preference — backfill the default, not {}.
           const st36 = persisted as { activityScenarioId?: unknown };
           if (typeof st36.activityScenarioId !== "string") {
@@ -1626,6 +1646,12 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.tasksLastVisitAt = 0;
         }
         if (
+          merged.activityDensity !== "dense" &&
+          merged.activityDensity !== "detailed"
+        ) {
+          merged.activityDensity = "dense";
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1709,6 +1735,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
         tasksLastVisitAt: state.tasksLastVisitAt,
+        activityDensity: state.activityDensity,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,

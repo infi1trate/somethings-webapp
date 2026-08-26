@@ -195,6 +195,21 @@ export function staffFirstName(id: string): string {
   return Object.values(STAFF).find((s) => s.id === id)?.firstName ?? "A colleague";
 }
 
+/** TODO-COPY. The actor's ROLE, for line 1 of a detailed row (A11).
+ *
+ *  EMPTY FOR THE SYSTEM ACTOR rather than "Automatic" or "System": the name is
+ *  already "Somethings", and giving a cron job a job title is the same mistake as
+ *  giving it a person-shaped avatar (A3 step 7). The detailed row omits the
+ *  separator when this is empty, so there is no dangling middot. */
+export function staffRoleLabel(id: string): string {
+  if (id === SYSTEM_ACTOR_ID) return "";
+  const role = Object.values(STAFF).find((s) => s.id === id)?.role;
+  if (role === "supervisor") return "Supervisor";
+  if (role === "leadMentor") return "Lead mentor";
+  if (role === "mentor") return "Mentor";
+  return "";
+}
+
 // ── Builders ────────────────────────────────────────────────────────────────
 
 let seq = 0;

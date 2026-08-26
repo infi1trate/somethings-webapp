@@ -295,3 +295,95 @@ describe("row.lead is always a prefix of row.sentence", () => {
     expect(self!.lead).not.toContain("'s");
   });
 });
+
+// ═══ A11 · DETAILED MODE MUST NOT BECOME A LEAK ════════════════════════════
+//
+// Detailed mode's whole purpose is to show more, which makes it the second-most
+// likely place (after A12's pane) for degraded detail to escape. The defence is
+// that `context` is built in the query alongside `payload` and omitted by the same
+// branch — so these assert the branch, not the component.
+
+describe("the detailed row's context line respects rule 12", () => {
+  it("no degraded row anywhere carries a context line", () => {
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const viewId of ["mine", "network", "billing"]) {
+        for (const r of rowsOf(s.id, viewId, true)) {
+          if (!r.degraded) continue;
+          expect(r.context, `${s.id}/${viewId}/${r.id}`).toBeUndefined();
+        }
+      }
+    }
+  });
+
+  it("network scope is all-degraded and so all context-free", () => {
+    const rows = rowsOf("network-wide", "network", true);
+    expect(rows.length).toBeGreaterThan(10);
+    expect(rows.every((r) => r.degraded)).toBe(true);
+    expect(rows.every((r) => r.context === undefined)).toBe(true);
+  });
+
+  it("full-detail rows DO carry context, or the mode would be empty", () => {
+    const rows = rowsOf("typical-shift", "mine", true).filter((r) => !r.degraded);
+    expect(rows.some((r) => (r.context?.length ?? 0) > 0)).toBe(true);
+  });
+
+  it("context never contains a raw wire value", () => {
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const r of rowsOf(s.id, "mine", true)) {
+        for (const line of r.context ?? []) {
+          expect(line).not.toMatch(/_/);
+          expect(line).not.toMatch(/^[A-Z_]{4,}$/);
+        }
+      }
+    }
+  });
+
+  it("a completed review does not state its code twice", () => {
+    // The sentence already ends with it; a context line repeating it reads as two
+    // different codes at a glance.
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const r of rowsOf(s.id, "billing", true)) {
+        if (r.eventType !== "BILLING_REVIEW_COMPLETE") continue;
+        const code = typeof r.payload?.code === "string" ? r.payload.code : null;
+        if (!code) continue;
+        expect(r.sentence).toContain(code);
+        expect((r.context ?? []).join(" ")).not.toContain(code);
+      }
+    }
+  });
+
+  it("a coalesced group states no member's context as the group's", () => {
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const r of rowsOf(s.id, "mine", true)) {
+        if (r.count > 1) expect(r.context).toBeUndefined();
+      }
+    }
+  });
+});
+
+describe("the avatar economy's flag is resolved, not inferred", () => {
+  it("actorIsSelf agrees with the actor id on every row", () => {
+    for (const s of ACTIVITY_SCENARIOS) {
+      const viewerId = viewerFor(s.id).id;
+      for (const r of rowsOf(s.id, "mine", true)) {
+        expect(r.actorIsSelf).toBe(r.actorId === viewerId);
+      }
+    }
+  });
+
+  it("a first-person sentence and actorIsSelf never disagree", () => {
+    // The layout drops the avatar on `actorIsSelf`; if that ever diverged from the
+    // grammar, a row would say "You closed…" beside somebody else's avatar.
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const r of rowsOf(s.id, "mine", true)) {
+        if (r.lead.startsWith("You ")) expect(r.actorIsSelf).toBe(true);
+      }
+    }
+  });
+
+  it("the system actor keeps its own treatment rather than counting as self", () => {
+    const rows = rowsOf("typical-shift", "mine", true).filter((r) => r.actorIsSystem);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => !r.actorIsSelf)).toBe(true);
+  });
+});
