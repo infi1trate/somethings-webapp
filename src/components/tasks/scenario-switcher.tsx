@@ -41,7 +41,14 @@ export function TaskScenarioSwitcher({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="fixed bottom-20 right-4 z-40 max-w-[260px]">
+        // ANCHORED CLEAR OF THE DEV BAR (40px). This used to be `bottom-20` to dodge
+    // the floating persona pill, which no longer exists — the pill became a full
+    // width bottom bar (dev-bar.tsx) and the page is padded clear of it, so this
+    // only has to clear the bar itself.
+    //
+    // STILL A SEPARATE PANEL, and that is the remaining step: this switcher's
+    // state is page-local, so folding it into the bar means lifting it. Reported.
+    <div className="fixed bottom-12 right-4 z-40 max-w-[260px]">
       <div className="rounded-[var(--radius-surface)] border border-dashed border-[color:var(--border-contour)] bg-[var(--surface-card)] p-2">
         <button
           type="button"

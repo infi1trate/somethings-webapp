@@ -213,6 +213,14 @@
      but belongs to the nav). Two surfaces meaning "inset" had no shared name, so
      the second one to change would have drifted. */
   --radius-inset: 12px;
+
+  /* THE DEV BAR'S HEIGHT. The prototype harness is a fixed full-width strip along
+     the bottom (components/dev/dev-bar.tsx) and it must NOT overlay the product,
+     so the two app shells subtract it from their viewport height rather than
+     running to 100dvh and hiding their last 40px underneath it.
+     FALLS BACK TO 0 by every consumer using var(--dev-bar-h, 0px), so removing
+     the harness needs no shell edits. */
+  --dev-bar-h: 40px;
   --shadow-card: 0 1px 2px rgb(31 30 29 / 0.04), 0 10px 28px -14px rgb(31 30 29 / 0.14);
   --shadow-card-hover: 0 2px 5px rgb(31 30 29 / 0.06), 0 16px 40px -16px rgb(31 30 29 / 0.2);
   --shadow-alert: 0 1px 2px rgb(201 53 29 / 0.05), 0 12px 32px -14px rgb(201 53 29 / 0.22);

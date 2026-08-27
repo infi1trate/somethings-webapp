@@ -81,7 +81,7 @@ export function MentorShell({
   };
 
   return (
-    <div className="flex h-dvh bg-[var(--surface-s2)]">
+    <div className="flex h-[calc(100dvh-var(--dev-bar-h,0px))] bg-[var(--surface-s2)]">
       <SettingsSidebar
         activeId={active}
         items={items}

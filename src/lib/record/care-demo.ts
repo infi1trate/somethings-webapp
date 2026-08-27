@@ -524,7 +524,10 @@ export const INSTRUMENT_MAX: Record<"PHQ-9" | "GAD-7", number> = {
 
 /** The severity band a score sits in, so the row's prose and the number can't
  *  disagree. Standard PHQ-9 / GAD-7 cut-points. */
-function severityFor(instrument: "PHQ-9" | "GAD-7", score: number): string {
+export function severityFor(
+  instrument: "PHQ-9" | "GAD-7",
+  score: number
+): string {
   const cuts =
     instrument === "PHQ-9"
       ? [[5, "minimal"], [10, "mild"], [15, "moderate"], [20, "moderately severe"]]

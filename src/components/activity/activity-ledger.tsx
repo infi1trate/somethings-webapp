@@ -331,7 +331,14 @@ function ScenarioSimulator({
     // chrome and the two overlapped at narrow widths (measured — the simulator's
     // lower edge sat inside the toggle's box). Raised to clear it rather than
     // moving the toggle, which is shared chrome on every screen.
-    <div className="fixed bottom-20 right-4 z-40 max-w-[260px]">
+        // ANCHORED CLEAR OF THE DEV BAR (40px). This used to be `bottom-20` to dodge
+    // the floating persona pill, which no longer exists — the pill became a full
+    // width bottom bar (dev-bar.tsx) and the page is padded clear of it, so this
+    // only has to clear the bar itself.
+    //
+    // STILL A SEPARATE PANEL, and that is the remaining step: this switcher's
+    // state is page-local, so folding it into the bar means lifting it. Reported.
+    <div className="fixed bottom-12 right-4 z-40 max-w-[260px]">
       <div // --radius-surface, NOT --radius-inset: the 12px inset token is added in an
         // as-yet-uncommitted pass, and this phase must not depend on work outside
         // it or reverting A3 alone would leave a dangling var(). 16px is right for

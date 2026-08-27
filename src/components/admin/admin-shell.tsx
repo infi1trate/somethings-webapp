@@ -95,7 +95,7 @@ export function AdminShell({
   const avatarSrc = mounted ? staffPhoto : null;
 
   return (
-    <div className="flex h-dvh bg-[var(--surface-s2)] text-foreground">
+    <div className="flex h-[calc(100dvh-var(--dev-bar-h,0px))] bg-[var(--surface-s2)] text-foreground">
       <SettingsSidebar
         activeId={active}
         items={NAV}

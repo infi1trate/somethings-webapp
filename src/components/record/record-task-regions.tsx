@@ -41,6 +41,7 @@ import {
 } from "@/components/record/task-section";
 import { FlagTaskCard } from "@/components/record/flag-task-card";
 import { FlagReviewDialog, type FlagClose } from "@/components/record/flag-review-dialog";
+import { flagContextFor } from "@/lib/record/flag-context";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { alertDef } from "@/lib/record/alerts";
 import {
@@ -271,6 +272,20 @@ export function RecordTaskRegions({
         open={!!reviewingFlag}
         onOpenChange={(o) => !o && setReviewingFlag(null)}
         flag={reviewingFlag}
+        /* CONTEXT AT THE DECISION POINT (Phase 3). Computed HERE because this
+           component already holds the teen and reads the care store — a query
+           inside the modal would duplicate these reads and drift from them. */
+        context={
+          reviewingFlag
+            ? flagContextFor(
+                teen.id,
+                reviewingFlag,
+                teen.careFlags ?? [],
+                now,
+                store
+              )
+            : undefined
+        }
         teenName={teenName}
         now={now}
         returnFocusTo={returnFocusTo}
