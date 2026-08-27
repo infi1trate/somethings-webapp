@@ -25,7 +25,7 @@ import { MessagesSquare } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
-import { AssistantLauncher } from "@/components/record/care-assistant-rail";
+import { CareSummaryLauncher } from "@/components/record/care-summary-panel";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
 import { CareTab } from "@/components/record/care-tab";
@@ -230,7 +230,7 @@ export default function PersonRecordPage({
         // control, one position, both directions.
         tabRowAction={
           activeTab === "care" ? (
-            <AssistantLauncher
+            <CareSummaryLauncher
               open={careRailOpen}
               onToggle={() => setCareRailOpen(!careRailOpen)}
               hasUpdate={!!careSummaryRefreshedAt[subject.id]}
@@ -341,7 +341,20 @@ export default function PersonRecordPage({
             `subject.teen` is the narrowing the resolver gives us; a teen
             subject always carries it. */}
         {activeTab === "care" && subject.teen && (
-          <CareTab teen={subject.teen} />
+          <CareTab
+            teen={subject.teen}
+            /* PROTOTYPE ONLY. The Care summary's loading and error states are
+               otherwise unreachable — there is no async call to fail — so
+               `?summary=loading` / `?summary=error` render them for review and
+               for screenshots. Read through the `use(searchParams)` prop pattern
+               (standing rule 3), never `useSearchParams`. TODO-DATA: delete this
+               when a real generation call exists to be slow or to fail. */
+            summaryState={
+              query.summary === "loading" || query.summary === "error"
+                ? query.summary
+                : undefined
+            }
+          />
         )}
         {activeTab === "mentorship" &&
           (isTeen ? (
