@@ -14,6 +14,7 @@
 // person.
 
 import type { MentorLifecycleStatus, Story } from "@/lib/types";
+import { RISK_CATEGORIES } from "@/lib/record/risk-taxonomy";
 import {
   WEEKDAYS,
   type DaySchedule,
@@ -975,14 +976,17 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
  *
  *  TODO-DATA: the real taxonomy comes from the moderation layer, which does not
  *  exist yet. These five are the ones the brief named. */
-export const CATEGORY_LABEL: Record<string, string> = {
-  GROOMING_BEHAVIOR: "Grooming behaviour",
-  ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS:
-    "Suicidal ideation with plan or means",
-  CREDIBLE_SPECIFIC_THREAT_TO_HARM_ANOTHER: "Threat to harm another person",
-  HATE_SPEECH_RACIAL_SLURS: "Hate speech or slurs",
-  ABUSE_DISCLOSURE: "Abuse disclosure",
-};
+/** DERIVED FROM THE TAXONOMY, not a second hand-written copy.
+ *
+ *  This map used to hold the five categories inline, and it is now the display
+ *  projection of `RISK_CATEGORIES` (lib/record/risk-taxonomy.ts), which carries
+ *  all twenty-one along with their tier and clinical theme. One source of truth:
+ *  a category cannot exist with a label but no theme, or gain a theme and keep an
+ *  old label. Every consumer still reaches it through `categoryLabel` and none of
+ *  them changed. */
+export const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  RISK_CATEGORIES.map((c) => [c.id, c.label])
+);
 
 /** TODO-COPY. What an unmapped category reads as. Deliberately not the raw
  *  value, and deliberately not blank. */

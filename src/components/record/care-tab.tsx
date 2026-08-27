@@ -42,7 +42,10 @@
 // enough data yet, and the timeline shows its designed empty state.
 
 import { useRef, useState } from "react";
-import { CareTimeline } from "@/components/record/care-timeline";
+import {
+  CareTimeline,
+  type CareTimelineHandle,
+} from "@/components/record/care-timeline";
 import { CareSummaryCard } from "@/components/record/care-summary";
 import { RecordButton } from "@/components/record/record-button";
 import {
@@ -53,6 +56,8 @@ import {
 } from "@/components/record/flag-review-dialog";
 import { CareSummaryPanel } from "@/components/record/care-summary-panel";
 import { careReadingFor } from "@/lib/record/care-reading";
+import { carePatternFor } from "@/lib/record/care-pattern";
+import { CarePatternBlock } from "@/components/record/care-pattern-block";
 import {
   CareUpdateByline,
   CareUpdateBodyView,
@@ -152,6 +157,12 @@ export function CareTab({
    *  The panel is the CONVERSATIONAL layer now, so the reading is built from the
    *  engagement window instead and deliberately does not restate the score. */
   const reading = careReadingFor(teen.id, now, store);
+
+  /** THE MIDDLE HORIZON. Null is a designed outcome — most records have no
+   *  pattern and the block renders nothing at all. */
+  const pattern = carePatternFor(teen.id, now, store);
+  /** So the timeline strip can filter and scroll History. A read, not a write. */
+  const timelineRef = useRef<CareTimelineHandle>(null);
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // READ-WIDE. This used to be `canAct ? pendingReviewFor(...) : null`, which
@@ -329,13 +340,28 @@ export function CareTab({
           )}
         </section>
 
+        {/* 4b · CARE PATTERN — the middle horizon, between the presentation card
+            and History. FULL WIDTH, one card, no nested cards.
+            
+            It sits here rather than above the presentation card because the
+            presentation is the page's spine: a reader establishes what is on
+            record, then reads the pattern across it, then walks the entries. And
+            it sits ABOVE History because it is the synthesis History is the
+            evidence for — the strip's marks scroll down into it. */}
+        {pattern && (
+          <CarePatternBlock
+            pattern={pattern}
+            onSelectEvent={(id) => timelineRef.current?.jump(id)}
+          />
+        )}
+
         {/* 5 · HISTORY */}
         <section aria-label="History">
           <h2 className={H2} ref={historyHeading} tabIndex={-1}>
             History
           </h2>
           <div className="mt-3">
-            <CareTimeline events={events} />
+            <CareTimeline events={events} ref={timelineRef} />
           </div>
         </section>
 

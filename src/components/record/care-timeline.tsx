@@ -20,7 +20,7 @@
 // Provenance renders on EVERY row — person, system, or AI. A reader must never
 // have to infer who wrote a rationale.
 
-import { useMemo, useState } from "react";
+import { useImperativeHandle, useMemo, useState } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import {
   CARE_FILTERS,
@@ -81,10 +81,45 @@ function Provenance({ author }: { author: CareEvent["author"] }) {
   );
 }
 
+/** ═══ THE RELATIONAL LINE (Phase 2) ═══
+ *
+ *  What turns a flat log into a chain a supervisor can walk. One muted line under
+ *  an entry saying where this one sits in its own sequence, and a link back to the
+ *  one before it.
+ *
+ *  `previous` is ABSENT on a first occurrence, and the copy changes with it —
+ *  "First flag", no link. A "previous: none" link would be a dead affordance, and
+ *  the first flag in a record is a fact worth stating plainly rather than an
+ *  absence to paper over. */
+export interface RelationalLine {
+  /** TODO-COPY. "3rd flag" / "First flag" / "Changed from F41.1". */
+  lead: string;
+  /** The entry this one follows, when there is one. */
+  previous?: { id: string; at: number };
+}
+
+/** TODO-COPY. "2nd", "3rd", "11th" — the ordinal a flag's place in the sequence
+ *  reads as. Handles the teens, which is where a naive suffix table breaks. */
+function ordinal(n: number): string {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
 function Row({
   event,
   amendedBy,
   amends,
+  relational,
   onJump,
 }: {
   event: CareEvent;
@@ -92,6 +127,8 @@ function Row({
   amendedBy?: CareEvent;
   /** The entry this one corrects, when it corrects one. */
   amends?: CareEvent;
+  /** Flag, escalation and presentation-change entries only. */
+  relational?: RelationalLine;
   onJump: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -173,6 +210,37 @@ function Row({
             <span aria-hidden className="text-[var(--text-muted)]">·</span>
             <Provenance author={event.author} />
           </p>
+
+          {/* ── THE RELATIONAL LINE. Muted, one line, beneath the existing
+              content — no new rows and no new sections. It sits ABOVE the
+              amendment chain because the chain is about this entry's own
+              correction, which is a closer relationship than its place in a
+              sequence. */}
+          {relational && (
+            <p
+              className="mt-1.5 text-[var(--text-muted)]"
+              style={{ font: "var(--type-row-label)" }}
+            >
+              {relational.lead}
+              {relational.previous && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={() => onJump(relational.previous!.id)}
+                    className={cn(
+                      "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                      RING
+                    )}
+                  >
+                    {/* TODO-COPY */}
+                    {`previous ${dateOf(relational.previous.at)}`}
+                    <span aria-hidden> →</span>
+                  </button>
+                </>
+              )}
+            </p>
+          )}
 
           {/* Amendment chain, both directions. */}
           {superseded && (
@@ -275,7 +343,26 @@ function Row({
   );
 }
 
-export function CareTimeline({ events }: { events: CareEvent[] }) {
+/** WHAT THE PATTERN BLOCK CAN ASK OF HISTORY. One method, and it is a READ —
+ *  filter and scroll, never a write.
+ *
+ *  EXPOSED AS A HANDLE RATHER THAN A PROP because `jump` already exists and
+ *  already handles the part that is easy to get wrong: a target row can be
+ *  filtered out of the DOM, so the filter is cleared BEFORE the scroll and the
+ *  scroll waits a frame for the full list to paint. Re-implementing that at the
+ *  call site is how the pattern block would end up with a dead link. */
+export interface CareTimelineHandle {
+  jump: (eventId: string) => void;
+}
+
+export function CareTimeline({
+  events,
+  ref,
+}: {
+  events: CareEvent[];
+  /** React 19 — `ref` is a normal prop; no forwardRef needed. */
+  ref?: React.Ref<CareTimelineHandle>;
+}) {
   const [filter, setFilter] = useState<CareFilterId>("all");
 
   // Newest first, and an index of what supersedes what.
@@ -293,6 +380,57 @@ export function CareTimeline({ events }: { events: CareEvent[] }) {
     [events]
   );
 
+  /** ═══ THE RELATIONAL INDEX (Phase 2) ═══
+   *
+   *  Built once over the WHOLE event set, oldest-first, so an entry's ordinal is
+   *  its place in the record rather than its place in whatever the current filter
+   *  is showing. A "3rd flag" that became the "2nd flag" when the reader clicked a
+   *  chip would be worse than no line at all.
+   *
+   *  FLAGS AND ESCALATIONS SHARE ONE SEQUENCE. They are one clinical series — the
+   *  playbook routes between the tiers as a concern develops — so an escalation
+   *  that followed two risk flags is the third thing in that series, not the
+   *  first of a separate one. */
+  const relational = useMemo(() => {
+    const out = new Map<string, RelationalLine>();
+    const oldestFirst = [...events].sort((a, b) => a.occurredAt - b.occurredAt);
+
+    // ── Flags and escalations, one shared ordinal sequence.
+    let prevFlag: CareEvent | null = null;
+    let flagN = 0;
+    for (const e of oldestFirst) {
+      if (e.type !== "risk_flag" && e.type !== "escalation") continue;
+      flagN += 1;
+      out.set(e.id, {
+        /* TODO-COPY */
+        lead: flagN === 1 ? "First flag" : `${ordinal(flagN)} flag`,
+        ...(prevFlag ? { previous: { id: prevFlag.id, at: prevFlag.occurredAt } } : {}),
+      });
+      prevFlag = e;
+    }
+
+    // ── Presentation changes name the code they REPLACED and when it was
+    //    assigned. `code` is the machine-readable field — the one that exists so
+    //    nobody parses it back out of `result` prose.
+    let prevPres: CareEvent | null = null;
+    for (const e of oldestFirst) {
+      if (
+        e.type !== "presentation_assigned" &&
+        e.type !== "presentation_changed"
+      )
+        continue;
+      if (e.type === "presentation_changed" && prevPres?.code) {
+        out.set(e.id, {
+          /* TODO-COPY */
+          lead: `Changed from ${prevPres.code}`,
+          previous: { id: prevPres.id, at: prevPres.occurredAt },
+        });
+      }
+      prevPres = e;
+    }
+    return out;
+  }, [events]);
+
   const rows = ordered.filter((e) => matchesFilter(e.type, filter));
 
   // Jumping between the two halves of an amendment chain has to survive a
@@ -308,6 +446,9 @@ export function CareTimeline({ events }: { events: CareEvent[] }) {
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   };
+
+  // THE ONLY THING ANOTHER SURFACE MAY DO TO HISTORY.
+  useImperativeHandle(ref, () => ({ jump }));
 
   return (
     <section aria-label="Care timeline" data-record-section="care-timeline">
@@ -343,6 +484,7 @@ export function CareTimeline({ events }: { events: CareEvent[] }) {
                 key={e.id}
                 event={e}
                 amendedBy={amendedBy.get(e.id)}
+                relational={relational.get(e.id)}
                 amends={e.amends ? byId.get(e.amends) : undefined}
                 onJump={jump}
               />
