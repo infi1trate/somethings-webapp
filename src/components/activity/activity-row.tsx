@@ -126,14 +126,74 @@ function sentenceWithTeenChip(row: FeedRow) {
   // No match is possible in principle (an agentless overdue sentence still names
   // the teen) but the fallback is the plain sentence rather than a crash.
   if (idx < 0) return row.sentence;
+
+  const before = row.sentence.slice(0, idx);
+  const after = row.sentence.slice(idx + row.teenName.length);
+
+  /** ═══ THE CHIP IS GLUED TO THE WORD BEFORE IT (A13 §8) ═══
+   *
+   *  "A chip must never be the first element on a wrapped line." A chip that can
+   *  wrap on its own opens a line with an avatar, which reads as a bullet rather
+   *  than as part of a sentence.
+   *
+   *  A non-breaking space in place of the ordinary one binds the chip to the
+   *  preceding word, so the pair moves to the next line together and the chip can
+   *  never lead. `trimEnd` first, or the nbsp would sit beside a real space and
+   *  double the gap. */
+  const glued = before.endsWith(" ") ? `${before.trimEnd()}\u00A0` : before;
+
   return (
     <>
-      {row.sentence.slice(0, idx)}
-      <span className="inline-flex translate-y-[2px] items-center gap-1 align-baseline">
-        <RecordAvatar name={row.teenName} size={20} />
+      {glued}
+      {/* `align-middle` and NO TRANSLATE. The previous version was a 20px avatar
+          nudged down 2px inside a 20px line box, which necessarily grew the box and
+          pushed the lines apart — the "disturbs line-height" §8 reports. A 16px
+          avatar centred on the text's middle fits inside the box and changes
+          nothing about it.
+          
+          `whitespace-nowrap` keeps the avatar and the name together; they are one
+          token and breaking between them would leave a lone initial at a line end. */}
+      <span className="inline-flex items-center gap-1 whitespace-nowrap align-middle">
+        <RecordAvatar name={row.teenName} size={16} />
         <span>{row.teenName}</span>
       </span>
-      {row.sentence.slice(idx + row.teenName.length)}
+      {bindTrailingClause(after)}
+    </>
+  );
+}
+
+/** ═══ THE EM-DASH TAIL DOES NOT GET A LINE OF ITS OWN (A13 §8) ═══
+ *
+ *  §8's example: "review — F41.1." orphaning. Measured before this — the last line
+ *  of two wrapped billing rows held 49px and 55px of a 270px column, 18% and 20%.
+ *
+ *  `text-wrap: pretty` does not catch it: it avoids a single-word orphan, and
+ *  "— F41.1." is two tokens with a break opportunity in front of each.
+ *
+ *  So the tail is bound to the word before it — "review — F41.1." becomes one
+ *  unbreakable unit, which either fits or moves down whole. PURELY PRESENTATIONAL,
+ *  and done here rather than in `sentences.ts`: the rendered characters are
+ *  identical, and A13 is explicit that an event sentence is not this phase's to
+ *  edit. The builder still owns the string; this only decides where it may break. */
+function bindTrailingClause(text: string) {
+  const at = text.indexOf(" — ");
+  if (at < 0) return text;
+  const head = text.slice(0, at);
+  const tail = text.slice(at + 1); // keep the dash and everything after it
+  // The word the tail attaches to, so the unit is "review — F41.1." rather than a
+  // dash clause floating on its own.
+  const lastSpace = head.lastIndexOf(" ");
+  const keep = lastSpace < 0 ? "" : head.slice(0, lastSpace);
+  const lastWord = lastSpace < 0 ? head : head.slice(lastSpace + 1);
+  return (
+    <>
+      {keep}
+      {keep ? " " : ""}
+      <span className="whitespace-nowrap">
+        {lastWord}
+        {"\u00A0"}
+        {tail}
+      </span>
     </>
   );
 }
@@ -386,17 +446,36 @@ export function ActivityRow({
           </>
         )}
 
-        {/* THE LEADING ELEMENT. An avatar when someone else acted; the type glyph
-            when the reader did (A11's avatar economy — see `showActorAvatar`). */}
-        {showActorAvatar && <ActorAvatar row={row} />}
+        {/* ═══ THE AVATAR GUTTER IS RESERVED UNCONDITIONALLY (A13 §6, §9) ═══
+            
+            A11 dropped the avatar on first-person rows, which was right about the
+            information and wrong about the column: the glyph and the sentence then
+            started at two different x positions depending on whether the row had an
+            avatar, and the feed grew two alternating left edges. In detailed mode
+            the same thing split line 1 from line 2 on avatar-less rows (§9).
+            
+            So the slot is always here and always 24px wide; on a first-person row
+            it is simply empty. A11's intent was to stop SPENDING the avatar on
+            redundant information, not to let the column go ragged — every row's
+            glyph now shares one x, and so does every row's sentence.
+            
+            `aria-hidden` on the empty case so a screen reader is not handed a
+            meaningless node between the row's start and its glyph. */}
+        <span
+          aria-hidden={!showActorAvatar}
+          className={cn("flex size-6 shrink-0 items-center justify-center", detailed && "mt-0.5")}
+        >
+          {showActorAvatar && <ActorAvatar row={row} />}
+        </span>
 
         {/* SUPPRESSED WHOLESALE when the feed is already one domain (A10 item 6) —
             the sr-only label goes with it, because "Billing." repeated down a
             Billing tab is the same absence of information read aloud.
             
             KEPT REGARDLESS WHEN IT LEADS THE ROW: with no actor avatar the glyph
-            is the row's left anchor, and suppressing it would start the row with
-            nothing. */}
+            is the row's first visible mark. The reserved gutter (above) holds the
+            x position either way, so this is about the row not opening with blank
+            space rather than about alignment. */}
         {(showGlyph || glyphLeads) && (
           <>
             <span
@@ -436,7 +515,10 @@ export function ActivityRow({
             </p>
 
             {/* LINE 2 — the sentence, with the teen as an inline chip. */}
-            <p className="mt-0.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
+            {/* `text-pretty` so the tail cannot orphan — §8's "review — F41.1."
+                landing alone on its own line. It is a hint, not a guarantee, and
+                the nbsp glue above is what actually holds the chip in place. */}
+            <p className="mt-0.5 text-pretty text-[14px] leading-[20px] text-[var(--text-primary)]">
               {sentenceWithTeenChip(row)}
             </p>
 

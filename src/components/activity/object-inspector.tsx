@@ -46,7 +46,9 @@ export function ObjectInspector({
       /* TODO-COPY */
       aria-label="Context"
       className={cn(
-        "flex flex-col overflow-hidden rounded-[var(--radius-elevated)]",
+        // `hidden xl:flex` HERE rather than on a wrapper div: this element is the
+        // grid item, so it is what stretches to the row's height (A13 §4).
+        "hidden overflow-hidden rounded-[var(--radius-elevated)] xl:flex xl:flex-col",
         "border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5"
       )}
     >

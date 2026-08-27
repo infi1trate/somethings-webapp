@@ -49,6 +49,28 @@ import { cn } from "@/lib/utils";
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
+/** ═══ THE TASKS PAGE'S LAYOUT CONTRACT, ADOPTED VERBATIM (A13) ═══
+ *
+ *  Activity had invented its own: `max-w-[880px] px-6 py-8` with a
+ *  `[480px_minmax(0,1fr)]` grid. Tasks uses `max-w-[1400px] px-6 py-6 lg:px-8`
+ *  with `gap-5` and a 40/60 split. Two pages in one console, two page geometries.
+ *
+ *  COPIED, NOT APPROXIMATED. The strings below are the same strings
+ *  `tasks-page.tsx` uses, so a change there is a grep away from being applied
+ *  here rather than a coincidence that quietly stops holding.
+ *
+ *  THE 480px FIGURE IS DELETED. A12 invented it without reference to Tasks, where
+ *  the DETAIL column is the wider of the two — 60fr against the list's 40fr. The
+ *  detail side holds the thing you are reading about; the list holds one sentence
+ *  per row and does not need to be the bigger half.
+ *
+ *  `COLUMNS` IS USED THREE TIMES — the toolbar row, the content grid, and nothing
+ *  else. The toolbar shares it so the density toggle can right-align to the LIST
+ *  column's edge (§5) by simply being the last thing in the first cell, rather
+ *  than by a hand-computed offset that would drift the moment the ratio changed. */
+const PAGE_WRAPPER = "mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-8";
+const COLUMNS = "grid gap-5 xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]";
+
 /** ═══ UNREAD BADGE: BUILT, SHIPPED OFF ═══
  *
  *  Flip to true in one line when real notification events exist.
@@ -139,12 +161,23 @@ function Toolbar({
 }) {
   const count = activeFilterCount(filters);
   return (
-    // THE RIGHT SIDE NOW CARRIES THE DENSITY TOGGLE (A11) and nothing else. It
-    // was deliberately empty before — a density toggle was excluded, and spec §11
-    // argued a ledger row has no body to reveal. A11 supersedes that: the built
-    // row withholds real context, so there is something for detailed mode to
-    // show. Bulk select stays excluded.
-    <div className="mt-3 flex flex-wrap items-center gap-2">
+    // ═══ THE TOOLBAR IS A GRID ON THE PAGE'S OWN COLUMNS (A13 §5) ═══
+    //
+    // It used to be one flex row across the full width, which put the density
+    // toggle out at the page's right gutter — floating above the PANE, a column it
+    // has nothing to do with. The toggle controls the LIST, so it belongs on the
+    // list's right edge.
+    //
+    // Achieved by giving the toolbar the same `COLUMNS` definition as the content
+    // grid and putting everything in the first cell: `ml-auto` on the toggle then
+    // lands it exactly on the list column's right edge, whatever the ratio is,
+    // with no hand-computed offset to drift. The second cell is deliberately
+    // empty — there is nothing in this toolbar that acts on the pane.
+    //
+    // The row itself still SPANS the full content width (§2), because the grid
+    // does; it is the contents that are confined to the first column.
+    <div className={cn(COLUMNS, "mt-3")}>
+      <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         onClick={() => onUnreadOnly(!unreadOnly)}
@@ -270,6 +303,7 @@ function Toolbar({
             </button>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -746,7 +780,7 @@ export function ActivityLedger({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[880px] px-6 py-8 lg:px-8">
+    <div className={PAGE_WRAPPER}>
       <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
         {/* TODO-COPY */}
         Activity
@@ -779,21 +813,19 @@ export function ActivityLedger({
         filterTriggerRef={filterTrigger}
       />
 
-      {/* ═══ TWO COLUMNS (A12): THE LIST, THEN THE INSPECTOR ═══
+      {/* ═══ TWO COLUMNS IN ONE GRID (A13 §3) ═══
           
-          A3's 880px single-column constraint no longer applies — A12 retires it.
-          The list is a FIXED 480px and the pane takes the rest, rather than the
-          two sharing a fraction: a ledger row is a sentence, and a column that
-          grows with the window makes the reading line longer than it should be
-          while the pane, which holds short labelled values, gets no benefit.
+          Not two floating boxes. Both are grid items in the same row, so they
+          share a top edge and — because grid items stretch by default — a bottom
+          edge, without either being told a height. The list's left edge is the
+          page's left gutter and the pane's right edge is the page's right gutter,
+          because the grid spans the wrapper's whole content box.
           
-          THE PANE ONLY EXISTS AT `xl` AND UP. Below that the list is already the
-          full width of a narrow window, and a 480px list beside anything is not
-          possible — so the selection still happens (the row highlights) and the
-          pane is simply not rendered rather than being crammed in. A12 does not
-          specify a narrow-window behaviour; this is the conservative reading, and
-          it is called out rather than assumed. */}
-      <div className="grid gap-4 xl:grid-cols-[480px_minmax(0,1fr)]">
+          THE PANE STILL ONLY EXISTS AT `xl` AND UP. Below that the grid collapses
+          to one column and the list takes the full width; selection still happens
+          and the row still takes its selected treatment, there is just nowhere for
+          the pane to go. Gap row 239. */}
+      <div className={cn(COLUMNS, "mt-4")}>
       {/* ═══ ONE ELEVATED CONTAINER (A10 items 1 and 3) ═══
           
           The feed used to sit directly on the page background with no figure/
@@ -823,7 +855,10 @@ export function ActivityLedger({
         aria-labelledby={`activity-tab-${viewId}`}
         tabIndex={-1}
         className={cn(
-          "mt-4 flex flex-col overflow-hidden",
+          // NO `mt-4` HERE ANY MORE. It lived on the list alone, which pushed the
+          // list 16px below the pane and broke §3's shared top edge — invisible
+          // until both columns were real. The spacing belongs to the grid.
+          "flex flex-col overflow-hidden",
           "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
           "min-h-[clamp(360px,calc(100dvh-17rem),820px)]",
           "px-1.5 py-1.5"
@@ -929,13 +964,18 @@ export function ActivityLedger({
         )}
       </div>
 
-        {/* THE INSPECTOR. Hidden below `xl` — see the note on the grid above. */}
-        <div className="hidden xl:block">
-          <ObjectInspector
-            detail={objectDetail}
-            hasSelection={selectedRow !== null}
-          />
-        </div>
+        {/* THE INSPECTOR IS THE SECOND GRID ITEM ITSELF (A13 §4).
+            
+            It used to be wrapped in a `hidden xl:block` div. That div was the grid
+            item and stretched to the row's height, but the `<aside>` inside it had
+            no height of its own — so the pane rendered as a small box at the top of
+            a tall empty column, which is exactly what §4 reports. Making the aside
+            the grid item means it stretches, and its own `flex flex-col` then
+            centres the empty state in the full column. */}
+        <ObjectInspector
+          detail={objectDetail}
+          hasSelection={selectedRow !== null}
+        />
       </div>
 
       {/* POLITE LIVE REGION for the clear announcement. Always present so the
