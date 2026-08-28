@@ -32,20 +32,27 @@ for (const view of views) {
 
       // ═══ THE FOCUS SWEEP GETS A PRISTINE DOCUMENT (gap row 279) ═══
       //
-      // It used to run straight after IN_PAGE on the same document, and the
-      // numbers it produced were not reproducible: D6 @landscape reported 19
-      // obscured elements in a full run and 2 when the same check was run alone
-      // against the same view. A check whose result depends on what ran before
-      // it is not a measurement.
+      // The sweep focuses up to 60 elements in sequence and every focus() can
+      // scroll, so without this each element was measured against a document
+      // already mutated by every element before it, on top of whatever IN_PAGE
+      // left behind. Reloading makes each result depend on the view alone.
       //
-      // The sweep focuses up to 60 elements in sequence, and every focus()
-      // scrolls, so it accumulates state by design — on top of whatever IN_PAGE
-      // left behind. Reloading first makes each result depend on the view alone.
+      // WHAT THIS DID NOT FIX, because it was never broken: the sweep was
+      // already reproducible. The reload was added on the suspicion that it was
+      // not — D6 @landscape reported 19 hits in a full run against 2 from an
+      // ad-hoc direct call — and that suspicion was wrong. The ad-hoc call
+      // skipped IN_PAGE and the reload, so it ran a different sequence; it was
+      // never the same check twice. Measured across two full passes the totals
+      // agree within 1% (focusObscured 654 → 647, nav[bottom-nav] 271 → 264,
+      // landscape 299 → 293). Kept because depending on one page state rather
+      // than an accumulated one is still the better property, and verified the
+      // only way that means anything: one view twice, identical summaries.
       //
-      // SAFE ONLY BECAUSE SEEDING IS NOW ONCE-PER-CONTEXT (gap row 278): the
-      // reload rehydrates from localStorage, so a DRIVEN view keeps the state
-      // its flow produced instead of being reset to the seed. Under the old
-      // seeder this same reload would have silently reverted A4r.
+      // SAFE ONLY BECAUSE SEEDING IS ONCE-PER-CONTEXT (gap row 278): the reload
+      // rehydrates from localStorage, so a DRIVEN view keeps the state its flow
+      // produced instead of being reset to the seed. Note the flip side — a
+      // reloaded page carries app-evolved state, not the seed, which is why
+      // per-view counts move even though the total does not.
       await page.reload({ waitUntil: "networkidle" });
       await page.waitForTimeout(600);
       const focus = await focusNotObscured(page);

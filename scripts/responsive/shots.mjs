@@ -38,8 +38,30 @@ for (const view of views) {
     const requested = view.url.split("?")[0];
     const drifted = !landed.startsWith(requested);
     try {
+      // ═══ TWO SHOTS, BECAUSE ONE OF THEM LIES (gap row 280) ═══
+      //
+      // `fullPage: true` paints a canvas as tall as the document and puts every
+      // FIXED element at its viewport-relative offset inside it — so the top
+      // bar, the floating nav pill and the dev bar all land in the MIDDLE of the
+      // captured image, over whatever content happens to be there.
+      //
+      // MEASURED: `D3/xs.png` shows the four-item nav pill sitting on top of the
+      // activity list with eight more rows continuing below it, and the dev bar
+      // below that. Nothing is wrong with the page; the capture mode invented
+      // the overlap. Since these screenshots are the human-readable half of the
+      // baseline, that is not a footnote — anyone reviewing them would file
+      // layout bugs that do not exist, and would MISS the real overlap questions
+      // (SC 2.4.11, chrome vs chrome) because the evidence for those is exactly
+      // what the mode destroys.
+      //
+      // So: `<vp>.png` is the VIEWPORT — what a person at that size actually
+      // sees, fixed chrome in its real place, and the shot to review for
+      // overlap. `<vp>-full.png` is the WHOLE DOCUMENT, for reflow and
+      // truncation down the page. Neither alone is the baseline.
+      const dir = `docs/responsive/screens/${view.id}`;
+      await page.screenshot({ path: `${dir}/${vp.label}.png` });
       await page.screenshot({
-        path: `docs/responsive/screens/${view.id}/${vp.label}.png`,
+        path: `${dir}/${vp.label}-full.png`,
         fullPage: true,
       });
       report.captured.push({ id: view.id, vp: vp.label, landed, drifted, errors: errors.length });

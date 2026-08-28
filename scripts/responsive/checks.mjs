@@ -132,6 +132,8 @@ export const IN_PAGE = () => {
       // they were positioned deliberately, often to be cropped.
       if (cs.position === "absolute" || cs.position === "fixed") continue;
       if (cs.display === "none") continue;
+      // Same reason as the SVG skip above: an SVG child is not an in-flow box.
+      if (child.namespaceURI === "http://www.w3.org/2000/svg") continue;
       const cb = child.getBoundingClientRect();
       const over =
         axis === "x" ? cb.right - box.right : cb.bottom - box.bottom;
@@ -159,9 +161,24 @@ export const IN_PAGE = () => {
    *  lost content; the defect this exists to catch lost 300px of table. */
   const RC6_MIN = 8;
 
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
   for (const el of document.querySelectorAll("body *")) {
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) continue;
+
+    // ═══ SVG IS NOT CSS FLOW (gap row 282) ═══
+    //
+    // An `<svg>` maps its children through `viewBox`, so a shape extending past
+    // the element's box is the coordinate system working, not content being
+    // lost. Measuring SVG children as in-flow boxes is wrong by construction,
+    // and it was the single largest remaining RC-6 signature: 48 hits reported
+    // as `svg.[object SVGAnimatedString]` — a label that was itself a tell,
+    // since `className` on an SVG element returns an SVGAnimatedString rather
+    // than a string. Excluded by namespace rather than tag name so that shapes
+    // nested inside an `<svg>` drop out along with the root.
+    if (el.namespaceURI === SVG_NS) continue;
+
     if (truncatedByAncestor(el)) continue;
 
     for (const axis of ["x", "y"]) {
