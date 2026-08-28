@@ -9,7 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -142,12 +144,28 @@ export function OnboardingLayout({
       {/* Mobile: a tap-to-open preview. Lifted above the revision dock when the
           profile is in changes-requested state so the two don't overlap. */}
       <div
-        className={cn(
-          "fixed inset-x-0 z-20 flex justify-center p-4 lg:hidden",
-          // Lifted clear of the floating revision dock (collapsed ≈ 4.25rem tall)
-          // when in changes-requested state.
-          status === "rejected" ? "bottom-24" : "bottom-0"
-        )}
+        // ═══ SAFE AREA (RC-5, SC 2.4.11) ═══
+        //
+        // `bottom-0 p-4` put the pill's own padding against the physical bezel
+        // on a notched device, so the tap target sat partly inside the home-
+        // indicator strip. `change-requests-dock.tsx:63` is the reference for
+        // this in the codebase; this is the second thing to respect it.
+        //
+        // The inset is added to whichever offset applies, so the lift clear of
+        // the revision dock still works.
+        // THE MAGIC NUMBER IS NAMED NOW. `6rem` was a literal here describing a
+        // component in another file; it is `--dock-reserve` in
+        // settings-tokens.css, beside `--dev-bar-h`, with the arithmetic written
+        // down. The branch stays because the dock genuinely is not there in
+        // other states, and reserving for absent chrome is the mistake the token
+        // note warns about.
+        style={{
+          bottom:
+            status === "rejected"
+              ? "calc(var(--dock-reserve) + env(safe-area-inset-bottom, 0px))"
+              : "env(safe-area-inset-bottom, 0px)",
+        }}
+        className={cn("fixed inset-x-0 z-20 flex justify-center p-4 lg:hidden")}
       >
         <Dialog>
           <DialogTrigger asChild>
@@ -156,11 +174,31 @@ export function OnboardingLayout({
               Preview profile
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-fit max-w-[calc(100vw-2rem)] border-0 bg-transparent p-0 shadow-none [&>button]:right-2 [&>button]:top-2 [&>button]:text-white">
-            <DialogTitle className="sr-only">Profile preview</DialogTitle>
-            <div className="[mask-image:linear-gradient(to_bottom,#000_0%,#000_46%,transparent_86%)] [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_46%,transparent_86%)]">
+          {/* ═══ THE SHEET VARIANT, AND NO MASK ═══
+              
+              THE MASK IS GONE FROM THIS PATH. The desktop column above fades its
+              lower 14% to transparent (`#000 46% → transparent 86%`), which is a
+              deliberate reveal effect where the preview is decoration beside a
+              form. Inside a dialog the preview IS the content, and the same mask
+              was erasing the bottom half of it — the reader tapped "Preview
+              profile" and got a profile that dissolved before it finished. The
+              desktop path keeps its mask; this one never should have had it.
+              
+              `w-fit` IS GONE TOO: it was correct for a rigidly 360px frame and
+              wrong for a fluid one, which needs a definite width to fill. The
+              sheet gives it the viewport's, and the frame's own `max-w-[360px]`
+              keeps it from stretching past the device size on a tablet.
+              
+              The title is no longer `sr-only` — a sheet rising from the bottom
+              edge has no surrounding context, so it says what it is. */}
+          <DialogContent variant="sheet">
+            <DialogHeader>
+              {/* TODO-COPY */}
+              <DialogTitle>What teens see</DialogTitle>
+            </DialogHeader>
+            <DialogBody className="flex flex-col items-center">
               {preview}
-            </div>
+            </DialogBody>
           </DialogContent>
         </Dialog>
       </div>

@@ -1,42 +1,24 @@
 "use client";
 
-import {
-  Bell,
-  HelpCircle,
-  Home,
-  ListChecks,
-  MessageCircle,
-  Settings,
-  Users,
-  UsersRound,
-  type LucideIcon,
-} from "lucide-react";
+// The nav icons moved to `nav-items.ts` with the item literals; what remains
+// here is the rail's own bottom utility cluster.
+import { HelpCircle, Settings } from "lucide-react";
 import Link from "next/link";
 import { AccountPopover } from "@/components/settings/account-popover";
+import {
+  railItems,
+  type SidebarItemDef,
+} from "@/components/settings/nav-items";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-export interface SidebarItemDef {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-// Mentor app nav (base, shared by Mentor + Lead Mentor). Home, Chat,
-// Activity, Tasks, Teens. Training removed and Upcoming renamed Tasks per the
-// role-nav pass; Lead Mentor appends a Mentors roster (see mentor-shell).
-export const SIDEBAR_ITEMS: SidebarItemDef[] = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "chat", label: "Chat", icon: MessageCircle },
-  { id: "activity", label: "Activity", icon: Bell },
-  { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "mentees", label: "Mentees", icon: Users },
-  // Team = the staff directory (leads + supervisors, plus a lead's own
-  // mentors). It absorbed the old separate "Mentors" roster.
-  { id: "team", label: "Team", icon: UsersRound },
-];
+// THE TYPE AND THE ITEM SETS MOVED to `nav-items.ts` (Phase 2A) — there were
+// three definitions of this navigation and the item set now varies by persona AND
+// by breakpoint, so it needed one home. Re-exported here because several modules
+// already import it from this path.
+export type { SidebarItemDef };
 
 // Bottom utility cluster (settings-04): Settings gear (all personas →
 // /app/settings) + Help. The old announcements icon is gone; the theme toggle
@@ -59,6 +41,10 @@ interface SettingsSidebarProps {
    *  roles; only the item set and this label change (e.g. supervisor passes
    *  "Supervisor sections"). */
   navLabel?: string;
+  /** id → href, or null when the item has nowhere to go. When it returns an
+   *  href the item renders as a `<Link>`; otherwise it falls back to `onSelect`.
+   *  See the note at the render site. */
+  hrefFor?: (id: string) => string | null;
   className?: string;
 }
 
@@ -69,11 +55,12 @@ interface SettingsSidebarProps {
 export function SettingsSidebar({
   activeId,
   onSelect,
-  items = SIDEBAR_ITEMS,
+  items = railItems("mentor"),
   avatarInitial = "S",
   avatarSrc = null,
   badges,
   navLabel = "Mentor navigation",
+  hrefFor,
   className,
 }: SettingsSidebarProps) {
   return (
@@ -94,14 +81,28 @@ export function SettingsSidebar({
         {items.map((item) => {
           const active = item.id === activeId;
           const badge = badges?.[item.id] ?? 0;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect?.(item.id)}
-              aria-current={active ? "page" : undefined}
-              className={cn("group flex flex-col items-center gap-1.5 rounded-2xl", RING)}
-            >
+          // ═══ RC-1, SECOND HALF: A LINK WHERE THERE IS A DESTINATION ═══
+          //
+          // These were `<button onClick={router.push}>`, which silently drops
+          // middle-click, cmd-click and long-press-to-open — three things every
+          // user of a list-of-people app does. `hrefFor` returns the destination
+          // and this renders a real anchor.
+          //
+          // THE BUTTON PATH SURVIVES for two cases: an item with no destination
+          // (AdminShell's `home` and `chats` have no HREFS entry), and any caller
+          // still passing `onSelect` instead. Neither should be a link — an
+          // anchor to nowhere is worse than an inert button, because it looks
+          // like it will work.
+          //
+          // The className is IDENTICAL on both branches. The visual treatment
+          // does not change; only the element does.
+          const cls = cn(
+            "group flex flex-col items-center gap-1.5 rounded-2xl",
+            RING
+          );
+          const href = hrefFor?.(item.id) ?? null;
+          const inner = (
+            <>
               <span
                 className={cn(
                   "relative flex size-[var(--sidebar-tile)] items-center justify-center rounded-2xl transition-colors",
@@ -138,6 +139,26 @@ export function SettingsSidebar({
               >
                 {item.label}
               </span>
+            </>
+          );
+          return href ? (
+            <Link
+              key={item.id}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={cls}
+            >
+              {inner}
+            </Link>
+          ) : (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelect?.(item.id)}
+              aria-current={active ? "page" : undefined}
+              className={cls}
+            >
+              {inner}
             </button>
           );
         })}

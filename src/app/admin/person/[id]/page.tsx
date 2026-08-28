@@ -19,13 +19,13 @@
 // deliberately NOT viewer-gated: every tier that can open this record reads it.
 // Who may ACT inside it is a separate question the tab answers itself.
 
-import { use, useEffect } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessagesSquare } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
-import { AssistantLauncher } from "@/components/record/care-assistant-rail";
+import { CareSummaryLauncher } from "@/components/record/care-summary-panel";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
 import { CareTab } from "@/components/record/care-tab";
@@ -50,6 +50,16 @@ import { defaultMenteeStatus } from "@/lib/record/people-demo";
 import { GuardianDetailsSection } from "@/components/record/guardian-details";
 import { guardianFor } from "@/lib/record/guardian";
 import { resolveMode } from "@/lib/record/permission-map";
+import { RecordTaskRegions } from "@/components/record/record-task-regions";
+import {
+  alertsForTeen,
+  alertRoleForStore,
+  badgeCounts,
+  severityOf,
+} from "@/lib/record/record-alerts";
+import { originFor } from "@/lib/record/origins";
+import { chatHrefFor } from "@/lib/record/chat";
+import { subjectDisplayName } from "@/lib/record/subject";
 
 /** TODO-COPY — a teen's platform standing, sentence case. */
 const TEEN_STATUS_LABEL: Record<"active" | "paused" | "deactivated", string> = {
@@ -87,6 +97,10 @@ export default function PersonRecordPage({
   // Resolved BEFORE the early return below — hooks can't sit after a
   // conditional exit. An empty id resolves to {} harmlessly.
   const profile = useResolvedProfile(subject?.id ?? "");
+  /** FIXED AT MOUNT. `Date.now()` in render scope is impure — react-hooks/purity
+   *  rejects it, and rightly: a re-render would silently move every date and
+   *  every elapsed-time figure on the page. Same pattern as the Care tab. */
+  const [now] = useState(() => Date.now());
   const isLead = mounted && persona === "lead-mentor";
 
   // A mentor persona has no business on STAFF record surfaces — but their own
@@ -163,24 +177,71 @@ export default function PersonRecordPage({
 
   const roleLabel = ROLE_LABEL[subject.role];
 
+  // ── ALERTS, ONCE, for both the regions and the badges ─────────────────────
+  // Derived here rather than inside each consumer so a badge and a section can
+  // never disagree about what is open on this record. Teen subjects only: no
+  // other subject has care flags, a presentation review or a mentorship to say
+  // hello in.
+  const alertRole = alertRoleForStore(persona);
+  const instances = subject.teen ? alertsForTeen(subject.teen, now, {}) : [];
+  const counts = badgeCounts(instances, alertRole);
+  // WORST OPEN ITEM sets the tone, not the count — two routine reviews stay
+  // muted, one open escalation goes critical.
+  const worst = instances
+    .map((i) => severityOf(i))
+    .reduce<"routine" | "warning" | "critical">(
+      (acc, sev) =>
+        sev === "critical" || acc === "critical"
+          ? "critical"
+          : sev === "warning" || acc === "warning"
+            ? "warning"
+            : "routine",
+      "routine"
+    );
+
+  // ── THE BACK LINK ─────────────────────────────────────────────────────────
+  // Contextual when the origin was stamped on the inbound link, and falling back
+  // to the subject's list type otherwise. See origins.ts for why a param rather
+  // than router history (the App Router exposes no stack, so a history-derived
+  // link could not be LABELLED) or document.referrer (empty on client-side
+  // navigation, which is every navigation here).
+  const back =
+    originFor(query.from, (id) => {
+      const s = resolveSubject(id);
+      return s && s.kind === "fixture" ? subjectDisplayName(s) : null;
+    }) ?? {
+      href: isTeen ? "/app/mentees" : "/app/team",
+      // "Team" — the destination is the staff directory; "Mentors" was left over
+      // from the roster it replaced.
+      label: isTeen ? "Mentees" : "Team",
+    };
+
   return (
     <Shell active={isTeen ? "mentees" : "team"}>
       <UserRecordShell
         // PAGE-LEVEL CHROME, on the tab row. The assistant belongs to the page
-        // rather than to a section, so its collapsed trigger sits with the tabs
-        // instead of in the content column — where it collided with section
-        // CTAs sitting at a different y. Only on Care, only while the rail is
-        // shut.
+        // rather than to a section, so its trigger sits with the tabs instead of
+        // in the content column — where it collided with section CTAs sitting at
+        // a different y.
+        //
+        // NOW PRESENT IN BOTH STATES. It used to render only while the rail was
+        // SHUT (`&& !careRailOpen`), which is what forced the panel to carry its
+        // own close icon: with the pill gone there was nothing left to press. One
+        // control, one position, both directions.
         tabRowAction={
-          activeTab === "care" && !careRailOpen ? (
-            <AssistantLauncher
-              onOpen={() => setCareRailOpen(true)}
+          activeTab === "care" ? (
+            <CareSummaryLauncher
+              open={careRailOpen}
+              onToggle={() => setCareRailOpen(!careRailOpen)}
               hasUpdate={!!careSummaryRefreshedAt[subject.id]}
             />
           ) : undefined
         }
-        avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
-        name={subject.goesBy ?? subject.name}
+        avatar={{
+          src: null,
+          initial: subjectDisplayName(subject).charAt(0).toUpperCase(),
+        }}
+        name={subjectDisplayName(subject)}
         role={subject.role}
         // ONE status statement: the role badge carries its tint and the state
         // dot. No separate Active pill, no avatar dot.
@@ -204,21 +265,52 @@ export default function PersonRecordPage({
               : roleLabel
         }
         meta={meta}
-        backLink={{
-          href: isTeen ? "/app/mentees" : "/app/team",
-          // "Team" — the destination is the staff directory; "Mentors" was left
-          // over from the roster it replaced.
-          label: isTeen ? "Mentees" : "Team",
-        }}
+        backLink={back}
         primaryAction={
-          <PillButton
-            onClick={() => toast("Messaging isn't part of this prototype yet.")}
-          >
-            <MessagesSquare className="size-4" aria-hidden />
-            Message
-          </PillButton>
+          // ON A MENTEE RECORD THE VERB IS "OPEN CHAT", not "Message".
+          //
+          // A supervisor's job on a teen's record is to READ the discussion and
+          // decide — they are not here to compose. "Message" promised a composer
+          // that does not exist and, worse, described the wrong job. It also now
+          // matches the flag cards' secondary button exactly, deliberately: one
+          // verb for one destination, whether a reader reaches it from the header
+          // or from a card.
+          //
+          // MENTOR AND STAFF RECORDS ARE UNCHANGED this run — staff genuinely do
+          // message each other. `backLink`/`primaryAction` are passed from THIS
+          // CALL SITE ONLY (audited: /app/profile and /admin/mentor pass neither),
+          // so nothing else in the app shifts.
+          isTeen ? (
+            <PillButton onClick={() => router.push(chatHrefFor(subject.id))}>
+              <MessagesSquare className="size-4" aria-hidden />
+              {/* TODO-COPY */}
+              Open chat
+            </PillButton>
+          ) : (
+            <PillButton
+              onClick={() => toast("Messaging isn't part of this prototype yet.")}
+            >
+              <MessagesSquare className="size-4" aria-hidden />
+              Message
+            </PillButton>
+          )
         }
-        tabs={tabs.map((t) => ({ id: t.id, label: t.label }))}
+        tabs={tabs.map((t) => ({
+          id: t.id,
+          label: t.label,
+          // THE OVERLAP IS DELIBERATE — see badgeCounts. Overview counts every
+          // open action item on the person INCLUDING the Care-homed review,
+          // because Overview is the profile-level index; Care counts only its
+          // own. A reader never sums the two.
+          badge:
+            t.id === "overview"
+              ? counts.overview
+              : t.id === "care"
+                ? counts.care
+                : undefined,
+          badgeTone:
+            t.id === "overview" || t.id === "care" ? worst : undefined,
+        }))}
         activeTab={activeTab ?? "overview"}
         onTabChange={(t) =>
           router.push(`/admin/person/${subject.id}?tab=${t}`, { scroll: false })
@@ -226,17 +318,46 @@ export default function PersonRecordPage({
         sectionsLabel="Record sections"
       >
         {activeTab === "overview" && (
-          <PersonOverview
-            name={subject.goesBy ?? subject.name}
-            roleLabel={roleLabel}
-            statusBadge={status ? <MentorStatusBadge status={status} /> : null}
-          />
+          <div className="space-y-5">
+            {/* ATTENTION REGIONS FIRST — see the ordering note in
+                record-task-regions. Renders NOTHING when both are empty, so a
+                quiet record shows no attention chrome at all. */}
+            {subject.teen && (
+              <RecordTaskRegions
+                teen={subject.teen}
+                now={now}
+                onNavigate={(tab) =>
+                  router.push(`/admin/person/${subject.id}?tab=${tab}`, {
+                    scroll: false,
+                  })
+                }
+              />
+            )}
+            <PersonOverview
+              name={subjectDisplayName(subject)}
+              roleLabel={roleLabel}
+              statusBadge={status ? <MentorStatusBadge status={status} /> : null}
+            />
+          </div>
         )}
         {/* CARE — teen subjects only (registry-gated), read by every tier.
             `subject.teen` is the narrowing the resolver gives us; a teen
             subject always carries it. */}
         {activeTab === "care" && subject.teen && (
-          <CareTab teen={subject.teen} />
+          <CareTab
+            teen={subject.teen}
+            /* PROTOTYPE ONLY. The Care summary's loading and error states are
+               otherwise unreachable — there is no async call to fail — so
+               `?summary=loading` / `?summary=error` render them for review and
+               for screenshots. Read through the `use(searchParams)` prop pattern
+               (standing rule 3), never `useSearchParams`. TODO-DATA: delete this
+               when a real generation call exists to be slow or to fail. */
+            summaryState={
+              query.summary === "loading" || query.summary === "error"
+                ? query.summary
+                : undefined
+            }
+          />
         )}
         {activeTab === "mentorship" &&
           (isTeen ? (
@@ -311,6 +432,16 @@ function PersonAccount({
   // Same tier that owns standing owns the consent record.
   const canEditAccount = resolveMode("accountOrg", persona) === "edit";
 
+  // THE ONE PLACE A TEEN SURNAME RENDERS IN THE WHOLE APP (decided 2026-08-27;
+  // design-system-gaps.md row 254). Standing rule 6 is written absolute — "never
+  // render a teen surname" — and this row is a deliberate, recorded AMENDMENT to
+  // it, not an oversight: this is staff-only chrome, on the record OF that legal
+  // name, behind a click on one named person, and it is the field staff verify
+  // against consent paperwork. Everything else about a teen — every list, header,
+  // avatar, toast, dialog and composed sentence — is first name only.
+  //
+  // DO NOT COPY THIS READ. `subject.name` anywhere else on a teen is the bug this
+  // row is the exception to; use `subjectDisplayName(subject)`.
   const rows: [string, string | undefined, "phone" | "email" | null][] = [
     ["Full name", subject.name, null],
     ["Goes by", subject.goesBy, null],
@@ -356,7 +487,11 @@ function PersonAccount({
                 )}
               </span>
               {kind && (
-                <ContactActions kind={kind} value={value} name={subject.name} />
+                <ContactActions
+                  kind={kind}
+                  value={value}
+                  name={subjectDisplayName(subject)}
+                />
               )}
             </span>
           </div>
@@ -368,7 +503,7 @@ function PersonAccount({
           is about someone else and reads as context for the person above it. */}
       {subject.role === "teen" && (
         <GuardianDetailsSection
-          teenName={subject.goesBy ?? subject.name}
+          teenName={subjectDisplayName(subject)}
           guardian={guardian}
           onChange={(patch) => setGuardian(subject.id, patch)}
           canEdit={canEditAccount}

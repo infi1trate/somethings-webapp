@@ -12,6 +12,7 @@
 // no edits here or at any call site.
 
 import { useRouter } from "next/navigation";
+import { touchTarget } from "@/lib/touch-target";
 import { MessageSquare } from "lucide-react";
 import { canChatWith, chatHrefFor } from "@/lib/record/chat";
 import type { PersonRole } from "@/lib/record/people-demo";
@@ -44,10 +45,11 @@ export function ChatAction({
       onClick={() => router.push(chatHrefFor(personId))}
       aria-label={`Chat with ${name}`}
       className={
-        // The ::after extends the touch target to 44px without changing the
-        // compact visual — carried over from the control this replaced.
-        "relative inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium " +
-        "text-[var(--text-secondary)] transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] " +
+        // 36px visual, extended to 44px by the shared helper. This used to spell
+        // the pseudo-element out inline; it is the same classes, defined once.
+        `${touchTarget(36)} ` +
+        "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium " +
+        "text-[var(--text-secondary)] transition-colors " +
         "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] " +
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
       }

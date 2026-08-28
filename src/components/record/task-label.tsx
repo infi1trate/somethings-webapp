@@ -116,7 +116,14 @@ export function TaskBand({
       // A neutral #dfddd8 hairline against a warm tint reads as a seam of a
       // different colour, and against sand it measured as no line at all. Mixed
       // from the band's ink so it deepens with the band.
-      className="flex min-h-14 items-center justify-between gap-x-4 gap-y-2 border-b px-[var(--surface-pad-x)] py-2"
+      // `flex-wrap` ADDED. Without it the `gap-y-2` here was dead code — a
+      // single-line flex row has no second line to space — and the actions
+      // cluster below is `shrink-0`, so the only thing that could give at a
+      // narrow width was the LABEL side: the chip and its qualifier compressed
+      // and truncated while the buttons kept their full width. Wrapping moves
+      // the actions to their own line instead, which is the correct thing to
+      // give up first, and the `gap-y-2` becomes real.
+      className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-[var(--surface-pad-x)] py-2"
       style={{
         backgroundColor: taskBandFill(severity),
         borderBottomColor: `color-mix(in oklab, ${taskBandInk(severity)} 22%, transparent)`,

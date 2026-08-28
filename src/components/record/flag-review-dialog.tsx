@@ -40,6 +40,7 @@ import { CategoryChip } from "@/components/record/task-card";
 import { DecisionNote, noteReady } from "@/components/record/decision-footer";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { chatHrefFor } from "@/lib/record/chat";
+import type { FlagContext } from "@/lib/record/flag-context";
 import {
   categoryLabel,
   CRISIS_TYPE,
@@ -96,6 +97,7 @@ export function FlagReviewDialog({
   open,
   onOpenChange,
   flag,
+  context,
   teenName,
   now,
   onClose,
@@ -105,6 +107,16 @@ export function FlagReviewDialog({
   onOpenChange: (open: boolean) => void;
   flag: CareFlagRecord | null;
   teenName: string;
+  /** ═══ CONTEXT AT THE DECISION POINT (Phase 3) ═══
+   *
+   *  READ-ONLY, and prepared by the caller rather than queried here — the caller
+   *  already holds the teen and the care store, so a query inside this modal would
+   *  duplicate its reads and drift from them. Absent renders no section at all:
+   *  a "no prior flags" empty state on a first flag is noise at a decision point.
+   *
+   *  IT INFORMS THE DECISION; IT IS NOT A SECOND PLACE TO ACT. Nothing in it is
+   *  interactive except the link to full History. */
+  context?: FlagContext;
   /** Fixed at the page's mount — see the note in FlagTask. */
   now: number;
   onClose: (d: FlagClose) => void;
@@ -125,6 +137,7 @@ export function FlagReviewDialog({
         {flag && (
           <FlagReviewBody
             flag={flag}
+            context={context}
             teenName={teenName}
             now={now}
             onClose={onClose}
@@ -138,12 +151,14 @@ export function FlagReviewDialog({
 
 function FlagReviewBody({
   flag,
+  context,
   teenName,
   now,
   onClose,
   onOpenChange,
 }: {
   flag: CareFlagRecord;
+  context?: FlagContext;
   teenName: string;
   now: number;
   onClose: (d: FlagClose) => void;
@@ -214,6 +229,82 @@ function FlagReviewBody({
             {/* TODO-COPY */}
             {`Open the discussion with ${teenName}`}
           </Link>
+
+          {/* ═══ CONTEXT. Prior flags and the score that was in force. ═══
+              
+              INSIDE STEP 1 rather than as a step of its own: this is part of
+              understanding the concern, not a separate task, and a third numbered
+              step would imply an action the reader has to take.
+              
+              NO NESTED CARD — a hairline and vertical rhythm, per the house rule.
+              Nothing here is a chip or a tint: the band is a word. */}
+          {context &&
+            (context.priorFlags.length > 0 || context.assessmentAtRaise) && (
+              <div className="mt-3.5 border-t border-[color:var(--border-subtle)] pt-3">
+                {context.assessmentAtRaise && (
+                  <p
+                    className="text-[var(--text-secondary)]"
+                    style={{ font: "var(--type-row-label)" }}
+                  >
+                    {/* TODO-COPY. A FACT ABOUT A DATE, stated and not
+                        interpreted — the score in force when this was raised,
+                        which is not necessarily the latest on the record. The max
+                        comes from INSTRUMENT_MAX, never a literal. */}
+                    {`At the time this was raised: ${context.assessmentAtRaise.instrument} ${context.assessmentAtRaise.score} / ${context.assessmentAtRaise.max} · ${context.assessmentAtRaise.band} · ${clinicalDate(context.assessmentAtRaise.at)}`}
+                  </p>
+                )}
+
+                {context.priorFlags.length > 0 && (
+                  <div className={context.assessmentAtRaise ? "mt-2.5" : ""}>
+                    <p
+                      className="text-[var(--text-muted)]"
+                      style={{ font: "var(--type-row-label)" }}
+                    >
+                      {/* TODO-COPY. Honest about the trim when there are more. */}
+                      {context.priorTotal > context.priorFlags.length
+                        ? `Earlier flags — most recent ${context.priorFlags.length} of ${context.priorTotal}`
+                        : context.priorFlags.length === 1
+                          ? "One earlier flag"
+                          : `${context.priorFlags.length} earlier flags`}
+                    </p>
+                    <ul className="mt-1.5 space-y-1">
+                      {context.priorFlags.map((f) => (
+                        <li
+                          key={f.id}
+                          className="text-[var(--text-secondary)]"
+                          style={{ font: "var(--type-row-label)" }}
+                        >
+                          {`${clinicalDate(f.at)} · ${f.categories} · ${f.resolution}`}
+                        </li>
+                      ))}
+                    </ul>
+                    {/* THE ONLY LINK OUT. Full History, where the chain is
+                        walkable — the relational lines do the rest. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // CLOSES, NEVER RESOLVES. `onClose` is the resolution
+                        // path and carries an outcome; leaving to read history is
+                        // a dismissal, so it goes through onOpenChange.
+                        onOpenChange(false);
+                        requestAnimationFrame(() => {
+                          document
+                            .querySelector('[data-record-section="care-timeline"]')
+                            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        });
+                      }}
+                      className={cn(
+                        "mt-2 rounded-sm text-[12px] font-semibold text-[var(--text-primary)] underline underline-offset-2",
+                        RING
+                      )}
+                    >
+                      {/* TODO-COPY */}
+                      See full history
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
         </Step>
 
         {/* ── 2 · ACTION ─────────────────────────────────────────────────── */}

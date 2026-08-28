@@ -349,7 +349,7 @@ function StoryThumbs({ slides }: { slides: StorySlide[] }) {
           key={s.id}
           src={s.photo}
           alt={`Story image ${i + 1} of ${slides.length}`}
-          className="h-[64px] w-[36px] shrink-0 rounded-[5px] border border-[color:var(--border-subtle)] object-cover"
+          className="h-[64px] w-[36px] max-w-full shrink-0 rounded-[5px] border border-[color:var(--border-subtle)] object-cover"
         />
       ))}
     </span>

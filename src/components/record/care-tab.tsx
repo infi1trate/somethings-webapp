@@ -42,7 +42,10 @@
 // enough data yet, and the timeline shows its designed empty state.
 
 import { useRef, useState } from "react";
-import { CareTimeline } from "@/components/record/care-timeline";
+import {
+  CareTimeline,
+  type CareTimelineHandle,
+} from "@/components/record/care-timeline";
 import { CareSummaryCard } from "@/components/record/care-summary";
 import { RecordButton } from "@/components/record/record-button";
 import {
@@ -50,10 +53,11 @@ import {
   careTasksFor,
 } from "@/components/record/care-task-region";
 import {
-  FlagReviewDialog,
-  type FlagClose,
 } from "@/components/record/flag-review-dialog";
-import { CareAssistantRail } from "@/components/record/care-assistant-rail";
+import { CareSummaryPanel } from "@/components/record/care-summary-panel";
+import { careReadingFor } from "@/lib/record/care-reading";
+import { carePatternFor } from "@/lib/record/care-pattern";
+import { CarePatternBlock } from "@/components/record/care-pattern-block";
 import {
   CareUpdateByline,
   CareUpdateBodyView,
@@ -62,7 +66,6 @@ import { CareUpdateCompose } from "@/components/record/care-update-compose";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
   cadenceFor,
-  careAiSummaryFor,
   careTimelineFor,
   scoreSeriesFor,
   latestCareUpdateFor,
@@ -75,15 +78,10 @@ import {
 } from "@/lib/record/care-demo";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
 import {
-  CRISIS_TYPE,
-  FLAG_OUTCOME,
-  REFERRAL_TYPE,
-  type CareFlagRecord,
   type DemoTeen,
 } from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { daysInMentorship } from "@/lib/record/relationships";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -92,7 +90,15 @@ const H2 =
 const CARD =
   "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-4";
 
-export function CareTab({ teen }: { teen: DemoTeen }) {
+export function CareTab({
+  teen,
+  /** Prototype-only override so the panel's loading and error states are
+   *  reachable — see the note at the call site. */
+  summaryState,
+}: {
+  teen: DemoTeen;
+  summaryState?: "loading" | "error";
+}) {
   // Fixed at mount so a re-render can't shift every date underneath the reader
   // mid-session.
   const [now] = useState(() => Date.now());
@@ -108,7 +114,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
   const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
-  const closeCareFlag = useOnboardingStore((s) => s.closeCareFlag);
   // The match/unmatch log, so the Mentor metric names who they are matched with
   // NOW rather than whoever the fixture row still points at.
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
@@ -123,8 +128,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   // recommendation rather than committing — the provider-note gate still stands
   // between it and the record.
   const [proposed, setProposed] = useState<PresentationRef | null>(null);
-  /** The flag whose review modal is open. Null = closed. */
-  const [reviewingFlag, setReviewingFlag] = useState<CareFlagRecord | null>(null);
   /** WHERE FOCUS GOES AFTER A CLOSE. The dialog's usual trick — hand focus back
    *  to the trigger — cannot work here: closing a task UNMOUNTS the card the
    *  trigger lived in, so focus fell to <body> and a keyboard user was dropped
@@ -149,7 +152,17 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
   const series = scoreSeriesFor(teen.id, now, store);
-  const summary = careAiSummaryFor(teen.id, now, store);
+  /** THE READING. One call, one place — replaces `careAiSummaryFor`, which
+   *  consumed assessments only and produced a paragraph about survey movement.
+   *  The panel is the CONVERSATIONAL layer now, so the reading is built from the
+   *  engagement window instead and deliberately does not restate the score. */
+  const reading = careReadingFor(teen.id, now, store);
+
+  /** THE MIDDLE HORIZON. Null is a designed outcome — most records have no
+   *  pattern and the block renders nothing at all. */
+  const pattern = carePatternFor(teen.id, now, store);
+  /** So the timeline strip can filter and scroll History. A read, not a write. */
+  const timelineRef = useRef<CareTimelineHandle>(null);
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // READ-WIDE. This used to be `canAct ? pendingReviewFor(...) : null`, which
@@ -216,7 +229,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
     toast(amends ? "Amendment appended." : "Care update saved.");
   };
 
-  const tasks = careTasksFor(teen.id, review, store);
+  const tasks = careTasksFor(review);
 
   return (
     // THE RAIL IS COLLAPSIBLE, and that is the whole reason it can come back:
@@ -248,22 +261,13 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           series={series}
         />
 
-        {/* 2 · TASK REGION. Zero or more open tasks, severity descending;
-            renders NOTHING when none are open — absence is the reward state,
-            and there is no "all caught up" card. Ordering lives in
-            careTasksFor, with the data, not in this JSX. */}
+        {/* 2 · TASK REGION — the presentation review, and only that.
+            Escalations and risk flags moved to Overview (record-level work, not
+            presentation work); their HISTORY stays in the table below. Renders
+            NOTHING when no review is due — absence is the reward state, and
+            there is no "all caught up" card. */}
         <CareTaskRegion
           tasks={tasks}
-          teenName={teen.goesBy ?? teen.name}
-          now={now}
-          onReviewFlag={
-            canAct
-              ? (flag, trigger) => {
-                  returnFocusTo.current = trigger;
-                  setReviewingFlag(flag);
-                }
-              : undefined
-          }
           reviewProps={{
             currentCode: presentation?.code ?? null,
             actor: staffName,
@@ -284,13 +288,12 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }}
         />
 
-        {/* 3 · AI SUMMARY HAS LEFT THE MAIN COLUMN FOR GOOD. It is now the
-            assistant rail's opening state — a summary about this teen, inside a
-            tool about this teen, under a line that says so. That also resolves
-            what it used to be ambiguous about: floating in this column it read
-            as unattributed commentary on the record, and a reader could
-            reasonably ask "summary of what?". `care-ai-summary.tsx` is deleted;
-            `careAiSummaryFor` still derives the text and the rail renders it. */}
+        {/* 3 · THE AI READING LIVES IN THE CARE SUMMARY PANEL, not this column.
+            Floating here it read as unattributed commentary and a reader could
+            reasonably ask "summary of what?"; in a named panel under a stated
+            window it answers that itself. `care-ai-summary.tsx` is deleted, and
+            `careAiSummaryFor` was replaced by `careReadingFor` — the panel is the
+            conversational layer now rather than a second telling of the scores. */}
 
         {/* 4 · THE CURRENT CARE UPDATE, IN FULL. Older ones live in History —
             this carries the current clinical read, not an archive. */}
@@ -337,13 +340,28 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           )}
         </section>
 
+        {/* 4b · CARE PATTERN — the middle horizon, between the presentation card
+            and History. FULL WIDTH, one card, no nested cards.
+            
+            It sits here rather than above the presentation card because the
+            presentation is the page's spine: a reader establishes what is on
+            record, then reads the pattern across it, then walks the entries. And
+            it sits ABOVE History because it is the synthesis History is the
+            evidence for — the strip's marks scroll down into it. */}
+        {pattern && (
+          <CarePatternBlock
+            pattern={pattern}
+            onSelectEvent={(id) => timelineRef.current?.jump(id)}
+          />
+        )}
+
         {/* 5 · HISTORY */}
         <section aria-label="History">
           <h2 className={H2} ref={historyHeading} tabIndex={-1}>
             History
           </h2>
           <div className="mt-3">
-            <CareTimeline events={events} />
+            <CareTimeline events={events} ref={timelineRef} />
           </div>
         </section>
 
@@ -360,39 +378,31 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
       </div>
 
 
-      {/* ── THE ASSISTANT RAIL. Every tier reads it; only the summary refresh
+      {/* ── THE CARE SUMMARY PANEL. Every tier reads it; only the refresh
           is supervisor-gated, and the rail carries no other affordance that
           could leak — it cannot approve, write, amend or close anything, and it
           never authors a record entry. ──────────────────────────────────── */}
       {careRailOpen ? (
-        <CareAssistantRail
-          teenId={teen.id}
-          teenName={teen.goesBy ?? teen.name}
-          summary={summary}
-          summaryRefreshedAt={summaryRefreshed[teen.id] ?? null}
+        /* THE PANEL TAKES A READING AND NOTHING ELSE. The old rail was handed ten
+           `facts` so a responder could answer questions from them; there is no
+           responder now, and the reading is computed in one place
+           (`careReadingFor`) rather than assembled at this call site. */
+        <CareSummaryPanel
+          reading={reading}
+          state={summaryState ?? "loaded"}
+          updatedAt={summaryRefreshed[teen.id] ?? null}
           onCollapse={() => setCareRailOpen(false)}
-          onRefreshSummary={
+          onRefresh={
             canAct
               ? () => {
                   refreshCareSummary(teen.id, Date.now());
-                  // Honest about what a refresh does today: TODO-DATA, the text
-                  // is derived from the timeline, so this re-stamps rather than
-                  // rewrites.
+                  // HONEST ABOUT WHAT A REFRESH DOES. There is no generation
+                  // step to re-run — the reading is derived — so this re-stamps
+                  // the "Updated" line and says so. TODO-DATA.
                   toast("Summary re-checked. Regeneration isn’t wired yet.");
                 }
               : undefined
           }
-          facts={{
-            teenName: teen.goesBy ?? teen.name,
-            presentation,
-            cadence,
-            scores: series?.scores ?? [],
-            instrument: series?.instrument ?? null,
-            mentorLastSentDaysAgo: teen.mentorLastSentDaysAgo,
-            menteeLastSentDaysAgo: teen.menteeLastSentDaysAgo,
-            daysInMentorship: daysInMentorship(teen),
-            openFlagCount: tasks.filter((t) => t.kind === "flag").length,
-          }}
         />
       ) : null}
 
@@ -408,46 +418,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             amending={amending}
             onSave={saveUpdate}
             returnFocusTo={returnFocusTo}
-          />
-          <FlagReviewDialog
-            open={!!reviewingFlag}
-            onOpenChange={(o) => !o && setReviewingFlag(null)}
-            flag={reviewingFlag}
-            teenName={teen.goesBy ?? teen.name}
-            now={now}
-            returnFocusTo={returnFocusTo}
-            onClose={(d: FlagClose) => {
-              const flag = reviewingFlag;
-              if (!flag) return;
-              const at = Date.now();
-              closeCareFlag({
-                flagId: d.flagId,
-                teenId: teen.id,
-                closedAt: at,
-                // Elapsed-to-resolution computed AT CLOSE, so History cannot
-                // drift as `now` moves.
-                openDays: flag.daysAgo,
-                outcome: d.outcome,
-                outcomeLabel:
-                  FLAG_OUTCOME.find((o) => o.id === d.outcome)?.label ??
-                  d.outcome,
-                note: d.note,
-                actor: staffName,
-                actorRole: staffActorFor(persona),
-                kind: flag.kind,
-                crisisLabel: d.crisis
-                  ? CRISIS_TYPE.find((c) => c.id === d.crisis!.type)?.label
-                  : undefined,
-                referralLabel: d.referral
-                  ? REFERRAL_TYPE.find((r) => r.id === d.referral!.type)?.label
-                  : undefined,
-              });
-              setReviewingFlag(null);
-              // After the card unmounts — see historyHeading.
-              requestAnimationFrame(() => historyHeading.current?.focus());
-              // TODO-COPY
-              toast("Closed. The resolution is on the record.");
-            }}
           />
           <Dsm5SearchDialog
             open={searching}

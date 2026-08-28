@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { SectionCard } from "@/components/settings/section-card";
 import { FirstMessagesEditor } from "@/components/profile-editor/matching-extensions";
 import { FirstChatPreview } from "@/components/profile-editor/first-chat-preview";
+import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { mentorSectionsForTab } from "@/lib/onboarding/profile-sections";
 import type { MentorDraft } from "@/lib/types";
@@ -105,16 +106,23 @@ export function FirstMomentsEditor() {
           ))}
         </div>
 
-        {/* Live chat preview — passive output, never an editing surface. */}
-        <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
+        {/* Live chat preview — passive output, never an editing surface.
+            RC-2: was `hidden lg:…`. */}
+        <PreviewDisclosure
+          /* TODO-COPY */
+          triggerLabel="Preview the first chat"
+          title="The first chat teens see"
+          caption={
+            <p className="text-xs text-[var(--text-muted)]">
+              Live preview · the first chat teens see
+            </p>
+          }
+        >
           {/* showStory={false}: the story is staff-curated and the mentor
               doesn't see it, so it can't leak back in through a preview of
               their own chat. */}
           <FirstChatPreview draft={draft} showStory={false} />
-          <p className="text-xs text-[var(--text-muted)]">
-            Live preview · the first chat teens see
-          </p>
-        </div>
+        </PreviewDisclosure>
       </div>
     </div>
   );

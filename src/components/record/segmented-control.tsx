@@ -20,6 +20,7 @@
 //             tablist would promise panels a screen reader can't find.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 
 export interface SegmentedOption<T extends string> {
@@ -43,9 +44,11 @@ const useIsoLayoutEffect =
 // Radius: both are fully rounded, which satisfies "container = thumb + inset" by
 // construction — for a pill, radius is half the height: 32/2 + 2 = 36/2 = 18px.
 // `hit` extends each segment's touch target to 44px without moving the visual.
+// FROM THE SHARED HELPER now, not spelled out here — 28px and 32px segments, and
+// the helper carries the arithmetic that reaches 44 from each.
 const SIZES = {
-  sm: { seg: "h-7", text: "text-[11px]", pad: "px-3", hit: "after:-inset-y-2" },
-  md: { seg: "h-8", text: "text-[14px]", pad: "px-4", hit: "after:-inset-y-1.5" },
+  sm: { seg: "h-7", text: "text-[11px]", pad: "px-3", hit: touchTarget(28) },
+  md: { seg: "h-8", text: "text-[14px]", pad: "px-4", hit: touchTarget(32) },
 } as const;
 
 export function SegmentedControl<T extends string>({

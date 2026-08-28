@@ -14,8 +14,12 @@
 import { use } from "react";
 import { notFound, useParams } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
-import { SIDEBAR_ITEMS } from "@/components/settings/sidebar";
-import { resolveSubject, LIVE_ID } from "@/lib/record/subject";
+import { NAV } from "@/components/settings/nav-items";
+import {
+  resolveSubject,
+  subjectDisplayName,
+  LIVE_ID,
+} from "@/lib/record/subject";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 
 export default function AppSectionPage({
@@ -29,9 +33,16 @@ export default function AppSectionPage({
   const params = useParams<{ section: string }>();
   const draft = useOnboardingStore((s) => s.draft);
 
-  const item = SIDEBAR_ITEMS.find(
-    (i) => i.id === params.section && i.id !== "home"
-  );
+  // ═══ `home` IS NO LONGER EXCLUDED (Phase 2A) ═══
+  //
+  // It was excluded because `/app` IS the mentor's home, so `/app/home` would
+  // have been a second URL for one place. Staff are a different case: `/app`
+  // hardcodes `MentorShell`, so sending a supervisor there hands them a mentor's
+  // home in a mentor's chrome. `nav-items.ts` routes staff Home to `/app/home`
+  // instead, and this placeholder is what serves it — the honest "not built for
+  // your role yet" view that decision 1 asked for. Mentors are never linked
+  // here, so the duplicate-URL concern does not arise in practice.
+  const item = Object.values(NAV).find((i) => i.id === params.section);
   if (!item) notFound();
 
   const withId = typeof query.with === "string" ? query.with : null;
@@ -40,7 +51,7 @@ export default function AppSectionPage({
   // from the draft — same fallback the directories use.
   const withName =
     subject?.kind === "fixture"
-      ? (subject.goesBy ?? subject.name)
+      ? subjectDisplayName(subject)
       : withId === LIVE_ID
         ? [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
           "this mentor"

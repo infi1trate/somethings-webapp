@@ -15,6 +15,8 @@
 //
 // Consumers branch on `kind` and render what the subject actually has.
 
+import { withOrigin } from "@/lib/record/origins";
+import { teenDisplayName } from "@/lib/record/teen-name";
 import {
   DEMO_PEOPLE,
   DEMO_TEENS,
@@ -40,7 +42,13 @@ export interface FixtureSubject {
   kind: "fixture";
   id: string;
   role: PersonRole;
+  /** The person's FULL name. For a teen this is the LEGAL name — read it only
+   *  through `subjectDisplayName`, never directly (standing rule 6). The single
+   *  sanctioned direct read is the Account section's "Full name" row. */
   name: string;
+  /** Teens only — the authoritative first name, carried up from the fixture so
+   *  the subject can satisfy rule 6 without a second lookup. */
+  firstName?: string;
   goesBy?: string;
   phone: string;
   email?: string;
@@ -82,6 +90,7 @@ export function resolveSubject(id: string): Subject | null {
       id: teen.id,
       role: "teen",
       name: teen.name,
+      firstName: teen.firstName,
       goesBy: teen.goesBy,
       phone: teen.phone,
       email: teen.email,
@@ -94,12 +103,29 @@ export function resolveSubject(id: string): Subject | null {
   return null;
 }
 
-/** Where a person's record lives. One place that knows the URL shape. */
-export function recordHrefFor(id: string): string {
-  return id === LIVE_ID ? "/admin/mentor" : `/admin/person/${id}`;
+/** Where a person's record lives. One place that knows the URL shape.
+ *
+ *  `from` STAMPS THE ORIGIN so the record's back link can name where the reader
+ *  came from instead of guessing from the subject's role (see origins.ts for why
+ *  a param and not history). OPTIONAL and additive: every call site that omits it
+ *  produces exactly the URL it produced before, and the record falls back to its
+ *  old subject-derived back link. Each stamped call site is an independent
+ *  improvement rather than part of a migration. */
+export function recordHrefFor(id: string, from?: string): string {
+  const base = id === LIVE_ID ? "/admin/mentor" : `/admin/person/${id}`;
+  return withOrigin(base, from);
 }
 
-/** Display name, preferring the teen-facing "goes by" when set. */
+/** WHAT TO CALL THIS PERSON ON SCREEN. Role-aware, because the two roles have
+ *  different rules and the old one-liner (`goesBy ?? name`) applied the staff
+ *  rule to everybody.
+ *
+ *  TEENS AND STAFF NOW RESOLVE THE SAME WAY — the full name. Standing rule 6
+ *  ("first name only, always") was retired on 2026-08-28; gap row 284. Teens are
+ *  still delegated to the one chokepoint (`teenDisplayName`) so this function and
+ *  the tables cannot disagree, which is also what made the reversal a one-line
+ *  change rather than a sweep. */
 export function subjectDisplayName(s: FixtureSubject): string {
+  if (s.role === "teen") return teenDisplayName(s);
   return s.goesBy ?? s.name;
 }

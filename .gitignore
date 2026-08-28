@@ -51,3 +51,10 @@ local_*.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Responsive verification output (scripts/responsive/*) — REGENERABLE, and the
+# screenshot matrix is 67 views x 9 viewports of PNGs. Run `npm run
+# responsive:verify` to rebuild. The JSON baselines are NOT ignored: the whole
+# point of Phase 8 is that A11Y-BASELINE.json is the number the sweep has to
+# move, so it belongs in review.
+/docs/responsive/screens/

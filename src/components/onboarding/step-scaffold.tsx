@@ -1,6 +1,7 @@
 "use client";
 
 import { type FieldValues, type UseFormReturn } from "react-hook-form";
+import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
@@ -80,7 +81,28 @@ export function StepScaffold<T extends FieldValues>({
         >
           <div className="flex-1 space-y-5">{children}</div>
 
-          <div className="mt-10 flex items-center gap-3">
+          {/* ═══ THE CTA NO LONGER SITS UNDER THE PREVIEW PILL ═══
+              
+              RC-5's reference case. `onboarding-layout.tsx` pins a preview pill
+              at the bottom below `lg`, and this row ended the form with a bare
+              `mt-10` and no bottom reservation — so the primary CTA of every
+              wizard step was partly or wholly under it. SC 2.4.11 (Focus Not
+              Obscured) fails the moment a keyboard user tabs to Continue.
+              
+              The reservation is the pill's own height (a 44px control in `p-4`,
+              so ~76px) plus the safe-area inset, and it applies only below `lg`
+              because that is exactly where the pill renders. `scroll-margin-bottom`
+              is the other half: it makes the browser's own scroll-into-view keep
+              that space clear when focus lands here, which padding alone does
+              not do. */}
+          <div
+            className={cn(
+              "mt-10 flex items-center gap-3",
+              "[margin-bottom:calc(76px+env(safe-area-inset-bottom,0px))]",
+              "[scroll-margin-bottom:calc(92px+env(safe-area-inset-bottom,0px))]",
+              "lg:[margin-bottom:0] lg:[scroll-margin-bottom:0]"
+            )}
+          >
             {canGoBack && (
               <Button
                 type="button"

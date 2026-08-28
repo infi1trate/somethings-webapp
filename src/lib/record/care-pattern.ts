@@ -1,0 +1,455 @@
+// THE CARE PATTERN — the middle horizon.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// TWO HORIZONS, KEPT APART. The Care summary rail reads ~21 days of CONVERSATION
+// (tone, engagement). This reads the WHOLE MENTORSHIP as EVENTS — flags,
+// assessments, presentation changes — and looks for co-occurrence between them.
+// They must not converge: if this module ever starts describing how the teen
+// sounds, or the summary starts counting flags, one of them is redundant.
+//
+// ═══ THE CLINICAL MANDATE ═══
+//
+// This surface is not a design idea; the Risk Flagging Escalation Playbook asks
+// for it in as many words:
+//   · "the same flag appearing 3+ times in a month is a clinical pattern"
+//   · "Connect to a pattern if one is developing"
+//   · "a stable mild score is different from a mild score that is incrementally
+//      worsening"
+//   · "If score elevation pairs with other general tier flags in the same period"
+// Repetition counted, themes grouped, scores tracked across the same span. That
+// is this file.
+//
+// ═══ GUARDRAILS, ENFORCED HERE RATHER THAN IN COPY REVIEW ═══
+//
+// CO-OCCURRENCE, NEVER CAUSATION. Every sentence this module builds joins facts
+// with "across the same stretch", "in the same period", "over that span". There
+// is no code path that emits "because", "driven by", "due to", "as a result of",
+// or "led to". A test asserts it.
+//
+// NO PREDICTION. Nothing here reads the future. There is no trend extrapolation,
+// no "continuing", no "likely". Every sentence is about a span that has ended.
+//
+// NO TIERING OF THE TEEN. The taxonomy carries a tier per FLAG and this module
+// never aggregates it into a property of the person — no max tier, no count of
+// imminent flags presented as a rating, no "high-concern" anything. Periods get
+// described; people do not get graded. The tier is not read in this file at all.
+//
+// NEVER THE PRIMARY CARRIER OF AN ACTIVE CONCERN. Open flags reach a supervisor
+// through the Overview attention pipeline, which has an owner and a clock. This
+// describes history. It does not know or care whether a flag is currently open,
+// and it deliberately does not sort or emphasise by that.
+// ═══════════════════════════════════════════════════════════════════════════
+
+import {
+  careTimelineFor,
+  type CareEvent,
+  type CareStoreSlice,
+} from "@/lib/record/care-demo";
+import { SPARKLINE_MIN_POINTS } from "@/components/record/score-sparkline";
+import { THEME_LABEL, recurringThemes } from "@/lib/record/risk-taxonomy";
+import { DEMO_TEENS } from "@/lib/record/people-demo";
+
+const DAY = 86_400_000;
+
+/** ═══ THE SUPPRESSION THRESHOLD ═══
+ *
+ *  All four must hold or the block does not render AT ALL — no empty state, no
+ *  placeholder. A three-week-old mentorship has no pattern and generating one is
+ *  fabrication.
+ *
+ *  SPAN ≥ 90 DAYS. Two reasons. It keeps this horizon away from the Care
+ *  summary's 21 days, so the two surfaces cannot start saying the same thing at
+ *  different lengths. And 90 days is a real clinical rhythm in this product
+ *  already — the review cadence is 30 and 90 days — rather than a number chosen
+ *  to make the block appear more often.
+ *
+ *  ≥ 6 EVENTS. Clustering needs at least two groups of two-plus to be a cluster
+ *  rather than a coincidence. Below six there is nothing for the eye or the
+ *  sentence to group.
+ *
+ *  ≥ 2 DISTINCT CLASSES. The block's claim is CO-OCCURRENCE. Six events of one
+ *  class is a list, and a timeline strip with one mark shape is a row of dots.
+ *
+ *  ≥ 3 ASSESSMENTS — and this reuses `SPARKLINE_MIN_POINTS` rather than declaring
+ *  its own floor. The sparkline's note already argues the case: a two-point
+ *  segment is a line, not a trend. Importing the constant means the strip and the
+ *  sparkline cannot disagree about what counts as a trajectory. */
+export const PATTERN_MIN_SPAN_DAYS = 90;
+export const PATTERN_MIN_EVENTS = 6;
+export const PATTERN_MIN_CLASSES = 2;
+export const PATTERN_MIN_ASSESSMENTS = SPARKLINE_MIN_POINTS;
+
+/** The playbook's own repetition threshold: "the same flag appearing 3+ times in
+ *  a month is a clinical pattern". Used to describe CLUSTERING, never to rate. */
+export const CLUSTER_WINDOW_DAYS = 30;
+export const CLUSTER_MIN_FLAGS = 3;
+
+/** The three classes the strip draws. Distinguishable by SHAPE and POSITION, not
+ *  hue — see the component. */
+export type PatternMarkClass = "assessment" | "flag" | "presentation";
+
+export interface PatternMark {
+  /** The underlying CareEvent id — what History scrolls to and filters by. On a
+   *  coalesced mark this is the FIRST event of the day, so activating it lands the
+   *  reader at the top of the group rather than in the middle of it. */
+  eventId: string;
+  cls: PatternMarkClass;
+  at: number;
+  /** Assessments only — the summed score, for vertical position. */
+  score?: number;
+  /** TODO-COPY. The accessible name: type and date, never content. */
+  label: string;
+  /** ═══ SAME-DAY FLAGS COALESCE (caught in browser verification) ═══
+   *
+   *  A conversation that generates three flags generates three marks at the SAME
+   *  x — stacked exactly on top of each other, visually one mark, with three
+   *  identical accessible labels ("Flag · August 18, 2026"). That is the same
+   *  defect the Tasks worklist hit with coalesced group children, and it fails
+   *  the brief's own requirement that each mark carry a label naming its type and
+   *  date: three marks cannot be told apart by a label they share.
+   *
+   *  So flags on one day become ONE mark carrying the count. > 1 renders the count
+   *  and says so in the label. */
+  count: number;
+}
+
+export interface CarePattern {
+  spanDays: number;
+  startAt: number;
+  endAt: number;
+  generatedAt: number;
+  /** One to three sentences. */
+  reading: string[];
+  marks: PatternMark[];
+  /** The instrument the assessment dots are on — one only, so the vertical axis
+   *  means one thing. */
+  instrument: string | null;
+  /** Inclusive score bounds actually used for positioning. */
+  scoreMin: number;
+  scoreMax: number;
+  /** Month boundaries inside the span, for the muted labels. */
+  months: { at: number; label: string }[];
+}
+
+// ── Classification ──────────────────────────────────────────────────────────
+
+function classOf(e: CareEvent): PatternMarkClass | null {
+  if (e.type === "assessment") return "assessment";
+  if (e.type === "risk_flag" || e.type === "escalation") return "flag";
+  if (
+    e.type === "presentation_assigned" ||
+    e.type === "presentation_changed" ||
+    e.type === "presentation_reviewed"
+  )
+    return "presentation";
+  // care_update, pause, return, survey_assigned are real events but not part of
+  // the co-occurrence claim — they would add marks without adding meaning.
+  return null;
+}
+
+const scoreOf = (e: CareEvent): number =>
+  (e.items ?? []).reduce((a, i) => a + i.points, 0);
+
+/** TODO-COPY. "Jun", for the muted month row. */
+const monthLabel = (at: number) =>
+  new Date(at).toLocaleDateString("en-US", { month: "short" });
+
+/** Month starts inside the span, so the strip's labels land on real boundaries
+ *  rather than at even pixel intervals. */
+function monthsBetween(startAt: number, endAt: number) {
+  const out: { at: number; label: string }[] = [];
+  const d = new Date(startAt);
+  let cur = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+  // First boundary at or after the span's start.
+  if (cur < startAt) {
+    const n = new Date(startAt);
+    cur = new Date(n.getFullYear(), n.getMonth() + 1, 1).getTime();
+  }
+  while (cur <= endAt) {
+    out.push({ at: cur, label: monthLabel(cur) });
+    const n = new Date(cur);
+    cur = new Date(n.getFullYear(), n.getMonth() + 1, 1).getTime();
+  }
+  return out;
+}
+
+// ── The sentences ───────────────────────────────────────────────────────────
+//
+// SENTENCE-FIRST IS MANDATORY, and it is a clinical requirement rather than a
+// stylistic one: "3 flags in 4 months" is a label on a child, and the identical
+// fact inside an interpretive sentence is information a supervisor can weigh.
+// Every builder below returns a full sentence or nothing.
+
+/** TODO-COPY. Elapsed span in the unit that reads naturally. */
+function spanPhrase(days: number): string {
+  if (days < 60) return `${days} days`;
+  const months = Math.round(days / 30);
+  return `${months} months`;
+}
+
+/** Flags, counted and grouped by recurring clinical theme.
+ *
+ *  THE GROUPING IS THE POINT. A bare count is the thing the brief forbids; the
+ *  theme is what makes it a reading. Falls back to the count alone when no theme
+ *  recurs — an honest "three, all different" rather than a manufactured pattern. */
+function flagSentence(
+  flags: CareEvent[],
+  categoriesPerFlag: string[][],
+  spanDays: number
+): string | null {
+  if (flags.length === 0) return null;
+  const n = flags.length;
+  const themes = recurringThemes(categoriesPerFlag);
+  const span = spanPhrase(spanDays);
+
+  if (n === 1) {
+    return `One flag was raised across ${span} of mentorship.`;
+  }
+  if (themes.length === 0) {
+    return `${cap(count(n))} flags were raised across ${span}, each about something different.`;
+  }
+  const top = themes[0];
+  const themeName = THEME_LABEL[top.theme];
+  const rest = n - top.count;
+  // "three flags across four months, two of them involving self-harm"
+  const tail =
+    rest === 0
+      ? `all ${count(top.count)} involving ${themeName}`
+      : `${count(top.count)} of them involving ${themeName}`;
+  return `${cap(count(n))} flags were raised across ${span}, ${tail}.`;
+}
+
+/** Temporal clustering — the playbook's "3+ in a month" and the looser
+ *  "close together" case.
+ *
+ *  DESCRIBES WHEN, NOT WHY. It reports that marks fell close together and names
+ *  the month; it never offers a reason, and it never says the clustering means
+ *  anything. */
+function clusterSentence(flags: CareEvent[]): string | null {
+  if (flags.length < 2) return null;
+  const times = flags.map((f) => f.occurredAt).sort((a, b) => a - b);
+
+  // Densest window of CLUSTER_WINDOW_DAYS.
+  let best = { count: 0, at: times[0] };
+  for (let i = 0; i < times.length; i++) {
+    const end = times[i] + CLUSTER_WINDOW_DAYS * DAY;
+    const c = times.filter((t) => t >= times[i] && t <= end).length;
+    if (c > best.count) best = { count: c, at: times[i] };
+  }
+
+  if (best.count >= CLUSTER_MIN_FLAGS) {
+    const when = new Date(best.at).toLocaleDateString("en-US", {
+      month: "long",
+    });
+    return `${cap(count(best.count))} of them fell within a month of each other, starting in ${when}.`;
+  }
+  if (best.count === 2) {
+    const gap = Math.round(
+      (times[times.length - 1] - times[0]) / DAY / Math.max(1, times.length - 1)
+    );
+    // Only worth a sentence when they are genuinely close; otherwise silence.
+    if (gap <= CLUSTER_WINDOW_DAYS) {
+      return `Two fell within ${gap === 0 ? "the same day" : `${gap} days`} of each other.`;
+    }
+  }
+  return null;
+}
+
+/** Assessment trajectory across the SAME span.
+ *
+ *  "ACROSS THE SAME STRETCH" IS THE WHOLE CONSTRUCTION. The sentence states two
+ *  facts and their shared period and stops. It does not join them with a causal
+ *  connective, and there is no branch here that could. */
+function trajectorySentence(
+  points: { at: number; score: number }[],
+  instrument: string,
+  hasFlags: boolean
+): string | null {
+  if (points.length < PATTERN_MIN_ASSESSMENTS) return null;
+  const first = points[0].score;
+  const last = points[points.length - 1].score;
+  const delta = last - first;
+  const n = points.length;
+
+  // TODO-COPY. Direction only, and the numbers are the instrument's own — this
+  // is not a restatement of the presentation card's band, which is a different
+  // fact (see the vocabulary note: named metrics use their own format).
+  const move =
+    delta === 0
+      ? `held level`
+      : delta > 0
+        ? `rose from ${first} to ${last}`
+        : `came down from ${first} to ${last}`;
+
+  const lead = hasFlags
+    ? `Across the same stretch, ${n} ${instrument} results ${move}.`
+    : `${cap(count(n))} ${instrument} results across the span ${move}.`;
+  return lead;
+}
+
+/** Presentation changes — an event class in its own right, and the one a reader
+ *  most often wants dated. */
+function presentationSentence(pres: CareEvent[]): string | null {
+  const changes = pres.filter((e) => e.type === "presentation_changed");
+  if (changes.length === 0) return null;
+  const when = new Date(
+    changes[changes.length - 1].occurredAt
+  ).toLocaleDateString("en-US", { month: "long" });
+  return changes.length === 1
+    ? `The presentation on record changed once, in ${when}.`
+    : `The presentation on record changed ${count(changes.length)} times, most recently in ${when}.`;
+}
+
+/** TODO-COPY. Small numbers as words — "three flags", not "3 flags". A numeral
+ *  at the head of a clinical sentence reads as a metric; the word reads as prose,
+ *  which is the sentence-first rule applied to the digit itself. */
+function count(n: number): string {
+  const words = [
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve",
+  ];
+  return words[n] ?? String(n);
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ── The pattern ─────────────────────────────────────────────────────────────
+
+/** Null means SUPPRESSED — the block renders nothing at all. */
+export function carePatternFor(
+  teenId: string,
+  now: number,
+  store: CareStoreSlice = {}
+): CarePattern | null {
+  const teen = DEMO_TEENS.find((t) => t.id === teenId);
+  if (!teen) return null;
+
+  const all = careTimelineFor(teenId, now, store);
+  const marked = all
+    .map((e) => ({ e, cls: classOf(e) }))
+    .filter((x): x is { e: CareEvent; cls: PatternMarkClass } => x.cls !== null)
+    .sort((a, b) => a.e.occurredAt - b.e.occurredAt);
+
+  if (marked.length === 0) return null;
+
+  const startAt = marked[0].e.occurredAt;
+  const endAt = now;
+  const spanDays = Math.round((endAt - startAt) / DAY);
+  const classes = new Set(marked.map((m) => m.cls));
+  const assessments = marked.filter((m) => m.cls === "assessment").map((m) => m.e);
+  const flags = marked.filter((m) => m.cls === "flag").map((m) => m.e);
+  const pres = marked.filter((m) => m.cls === "presentation").map((m) => m.e);
+
+  // ── THE THRESHOLD. All four, or nothing.
+  if (
+    spanDays < PATTERN_MIN_SPAN_DAYS ||
+    marked.length < PATTERN_MIN_EVENTS ||
+    classes.size < PATTERN_MIN_CLASSES ||
+    assessments.length < PATTERN_MIN_ASSESSMENTS
+  ) {
+    return null;
+  }
+
+  // ONE INSTRUMENT for the dots' vertical axis — PHQ-9 caps at 27 and GAD-7 at
+  // 21, so a mixed axis would put two scales on one baseline. The locked
+  // instrument is the most recent one, matching `scoreSeriesFor`.
+  const instrument = assessments[assessments.length - 1].description;
+  const points = assessments
+    .filter((e) => e.description === instrument)
+    .map((e) => ({ at: e.occurredAt, score: scoreOf(e) }));
+  const scores = points.map((p) => p.score);
+  const scoreMin = scores.length ? Math.min(...scores) : 0;
+  const scoreMax = scores.length ? Math.max(...scores) : 1;
+
+  /** Flag categories, per flag, for the theme grouping. Flags in the timeline
+   *  carry their categories on the source record rather than on the event, so
+   *  they are read back from the teen's flag list by date. */
+  const categoriesPerFlag = flags.map((f) => {
+    const rec = (teen.careFlags ?? []).find(
+      (c) => Math.abs(now - c.daysAgo * DAY - f.occurredAt) < DAY
+    );
+    return rec?.categories ?? [];
+  });
+
+  const reading = [
+    flagSentence(flags, categoriesPerFlag, spanDays),
+    clusterSentence(flags),
+    trajectorySentence(points, instrument, flags.length > 0),
+    presentationSentence(pres),
+  ].filter((x): x is string => x !== null);
+
+  // THREE SENTENCES MAXIMUM. Four builders can fire; the reading keeps the three
+  // that carry the most — counts and grouping first, then clustering, then
+  // trajectory — because a fourth turns a reading into a paragraph.
+  const trimmed = reading.slice(0, 3);
+  if (trimmed.length === 0) return null;
+
+  const dateLabel = (at: number) =>
+    new Date(at).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  const dayKey = (at: number) => {
+    const d = new Date(at);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+
+  // FLAGS COALESCE BY DAY; the other two classes do not, because two assessments
+  // or two presentation changes on one day do not happen and stacking them would
+  // be solving a problem that has no instances.
+  const flagsByDay = new Map<string, CareEvent[]>();
+  for (const f of flags) {
+    const k = dayKey(f.occurredAt);
+    const b = flagsByDay.get(k);
+    if (b) b.push(f);
+    else flagsByDay.set(k, [f]);
+  }
+
+  const marks: PatternMark[] = [];
+  for (const { e, cls } of marked) {
+    if (cls === "flag") {
+      const group = flagsByDay.get(dayKey(e.occurredAt));
+      // Only the first flag of the day emits a mark.
+      if (!group || group[0].id !== e.id) continue;
+      const n = group.length;
+      marks.push({
+        eventId: e.id,
+        cls,
+        at: e.occurredAt,
+        count: n,
+        // TODO-COPY. The count is IN the label, so a coalesced mark is
+        // distinguishable by name and not only by size.
+        label:
+          n === 1
+            ? `Flag · ${dateLabel(e.occurredAt)}`
+            : `${n} flags · ${dateLabel(e.occurredAt)}`,
+      });
+      continue;
+    }
+    marks.push({
+      eventId: e.id,
+      cls,
+      at: e.occurredAt,
+      count: 1,
+      ...(cls === "assessment" && e.description === instrument
+        ? { score: scoreOf(e) }
+        : {}),
+      // TODO-COPY. Type and date. NEVER the description, which can carry content.
+      label: `${cls === "assessment" ? "Assessment" : "Presentation change"} · ${dateLabel(e.occurredAt)}`,
+    });
+  }
+
+  return {
+    spanDays,
+    startAt,
+    endAt,
+    // TODO-DATA. No generation step exists; the span's end is the stamp.
+    generatedAt: now,
+    reading: trimmed,
+    marks,
+    instrument,
+    scoreMin,
+    scoreMax,
+    months: monthsBetween(startAt, endAt),
+  };
+}

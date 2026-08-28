@@ -60,7 +60,15 @@ import {
   type RelationshipSlice,
 } from "@/lib/record/relationships";
 import { recordHrefFor } from "@/lib/record/subject";
+import { teenDisplayName } from "@/lib/record/teen-name";
+import { recordOrigin } from "@/lib/record/origins";
 import { isSupervisorTier } from "@/lib/record/permission-map";
+import {
+  cadenceFor,
+  pendingReviewFor,
+  presentationFor,
+  type CareStoreSlice,
+} from "@/lib/record/care-demo";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -81,6 +89,9 @@ export function MenteeTable({
   capacity?: number;
 }) {
   const [now] = useState(() => Date.now());
+  const careReviews = useOnboardingStore((s) => s.careReviews);
+  const careUpdates = useOnboardingStore((s) => s.careUpdates);
+  const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
   const persona = useOnboardingStore((s) => s.persona);
   const draft = useOnboardingStore((s) => s.draft);
   const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
@@ -95,10 +106,28 @@ export function MenteeTable({
 
   const [pastOpen, setPastOpen] = useState(false);
   const [unmatching, setUnmatching] = useState<RelationshipRow | null>(null);
+  /** THE NAME THE UNMATCH CONFIRM SPEAKS. First name only (standing rule 6),
+   *  resolved once so the title and the sentence beneath it cannot say different
+   *  names.
+   *
+   *  SET ALONGSIDE `unmatching`, NEVER DERIVED FROM IT, and deliberately not
+   *  cleared on close: the dialog stays mounted while it animates out, and
+   *  `unmatching` is already null by then — so a derived name empties the
+   *  sentence mid-fade. Reading it inline used to render the word "undefined"
+   *  there for the same reason. */
+  const [unmatchName, setUnmatchName] = useState("");
   const [picking, setPicking] = useState(false);
   const returnFocusTo = useRef<HTMLElement | null>(null);
 
   const statusOf = (t: DemoTeen) => menteeStatus[t.id] ?? defaultMenteeStatus(t);
+
+  /** The store overlay the care derivations read, so an approval made in-session
+   *  moves this column too. */
+  const careSlice: CareStoreSlice = {
+    decisions: Object.values(careReviews),
+    updates: Object.values(careUpdates),
+    closures: Object.values(careFlagClosures),
+  };
 
   // CURRENT matches only — replayed over the event log, so an unmatch actually
   // removes the pairing instead of hiding a row.
@@ -112,13 +141,52 @@ export function MenteeTable({
   const inCard = live.filter((t) => statusOf(t) !== "deactivated");
   const deactivated = live.filter((t) => statusOf(t) === "deactivated");
 
+  // ── THE PRESENTATION COLUMN — SUPERVISOR TIER AND ABOVE ONLY ─────────────
+  //
+  // AWAITING CONFIRMATION (flagged in the report). The reasoning is data
+  // minimisation, not permission theatre: a mentor can already read a code on an
+  // individual teen's Care tab, and that is fine — it is one teen, behind a
+  // deliberate click, in clinical context. A COLUMN of codes across a whole
+  // caseload is a materially different exposure. It is scannable, it is
+  // screenshot-able, it invites comparison between named minors, and it turns a
+  // clinical fact into a list attribute. Same data, different risk.
+  //
+  // If the product decides mentors should see it, this is the one line to change
+  // — and `care` simply stops being computed for them, so nothing leaks through a
+  // prop that is still populated.
+  const showCare = isSupervisorTier(persona);
+
+  const careFor = (t: DemoTeen): RelationshipRow["care"] | undefined => {
+    if (!showCare) return undefined;
+    const presentation = presentationFor(t.id, now, careSlice);
+    const cadence = cadenceFor(t.id, now, careSlice);
+    const due = cadence.nextReviewDue;
+    // `nextReviewDue` is already null on a closed record and before the first
+    // survey, so neither can produce a spurious "overdue".
+    const overdueDays =
+      due != null && now > due ? Math.floor((now - due) / 86_400_000) : 0;
+    // DUE MEANS A REVIEW IS ACTUALLY PENDING, not merely scheduled. Reading it
+    // off `nextReviewDue != null` would chip every teen with a cadence at all —
+    // including one whose review is two months out — and a column where every row
+    // says "Review due" says nothing. `pendingReviewFor` is the same source the
+    // Overview roll-up uses, so the list and the record cannot disagree.
+    const pending = pendingReviewFor(t.id, now, careSlice) !== null;
+    return {
+      code: presentation?.code ?? null,
+      reviewDue: overdueDays > 0 ? "overdue" : pending ? "due" : "none",
+      overdueDays,
+    };
+  };
+
   const rows: RelationshipRow[] = inCard.map((t) => ({
     id: t.id,
     name: t.name,
+    firstName: t.firstName,
     goesBy: t.goesBy,
     sinceDays: daysInMentorship(t),
     exception: exceptionFor(statusOf(t)),
     paused: statusOf(t) === "paused",
+    care: careFor(t),
   }));
 
   const activeCount = rows.filter((r) => !r.paused).length;
@@ -222,11 +290,16 @@ export function MenteeTable({
         title="Mentees"
         caption={caption}
         rows={rows}
+        showCare={showCare}
         /* PHASE 3 — A NAMED PLATFORM METRIC, deliberately NOT the elapsed-time
            standard the rest of these surfaces use. "122 days", never "4 months":
            a named metric keeps its own unit so it stays comparable across records
            and against wherever else the platform reports it. The clock does NOT
            pause (no pause history exists — see formatDaysInMentorship). */
+        // ORIGIN: a teen opened from here came from THIS MENTOR'S record, so the
+        // teen's back link reads "Back to <mentor>" rather than guessing
+        // "Mentees" — a list this reader may never have been on.
+        origin={recordOrigin(mentorId)}
         sinceLabel="Days in mentorship"
         sinceFormat="metric"
         addLabel={canAct ? "Add mentee" : undefined}
@@ -235,6 +308,7 @@ export function MenteeTable({
           canAct
             ? (row, trigger) => {
                 returnFocusTo.current = trigger;
+                setUnmatchName(teenDisplayName(row));
                 setUnmatching(row);
               }
             : undefined
@@ -298,12 +372,10 @@ export function MenteeTable({
         onOpenChange={(o) => !o && setUnmatching(null)}
         returnFocusTo={returnFocusTo}
         /* TODO-COPY */
-        title={`Unmatch ${unmatching?.goesBy ?? unmatching?.name} from ${mentorName}?`}
+        title={`Unmatch ${unmatchName} from ${mentorName}?`}
         description={
           /* TODO-COPY */
-          `This ends the pairing and frees a slot. ${
-            unmatching?.goesBy ?? unmatching?.name
-          }'s account isn't changed.`
+          `This ends the pairing and frees a slot. ${unmatchName}'s account isn't changed.`
         }
         confirmLabel="Unmatch"
         onConfirm={() => {
@@ -355,7 +427,7 @@ function PastMenteeRow({
   together: string;
   tail: string | { rematchedTo: string; mentorId: string };
 }) {
-  const display = teen.goesBy ?? teen.name;
+  const display = teenDisplayName(teen);
   return (
     <div className="group relative flex min-h-11 items-center gap-3 py-1.5">
       {/* BEHIND the content, covering the row. */}
@@ -435,10 +507,10 @@ function AddMenteePicker({
           {pool.map((t) => (
             <li key={t.id}>
               <PersonRow
-                name={t.goesBy ?? t.name}
+                name={teenDisplayName(t)}
                 secondary={t.group}
                 onPress={() => {
-                  toast(`${t.goesBy ?? t.name} would be matched with ${mentorName}.`);
+                  toast(`${teenDisplayName(t)} would be matched with ${mentorName}.`);
                   onOpenChange(false);
                 }}
               />

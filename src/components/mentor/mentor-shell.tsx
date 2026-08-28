@@ -13,24 +13,16 @@
 // Panel padding: §2 specs ~47×35, but hosted pages currently carry their own
 // 24–40px insets — the panel adds none to avoid double-padding (gaps.md #21).
 
-import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/app-shell/app-shell";
 import {
-  SettingsSidebar,
-  SIDEBAR_ITEMS,
-  type SidebarItemDef,
-} from "@/components/settings/sidebar";
+  barItems,
+  hrefFor as navHrefFor,
+  railItems,
+} from "@/components/settings/nav-items";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { useMounted } from "@/lib/use-mounted";
-
-// Lead Mentor rail = the base MINUS Teens. Leads supervise mentors, not teens
-// (teens reach them through the mentor who holds the match), so a Teens
-// destination would be a list they don't own. The mentors they DO lead live in
-// Team, which absorbed the old separate "Mentors" roster.
-const LEAD_ITEMS: SidebarItemDef[] = SIDEBAR_ITEMS.filter(
-  (i) => i.id !== "mentees"
-);
 
 export function MentorShell({
   active,
@@ -39,7 +31,6 @@ export function MentorShell({
   active: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const mounted = useMounted();
   const firstName = useOnboardingStore((s) => s.draft.firstName);
   const activity = useOnboardingStore((s) => s.activity);
@@ -67,7 +58,11 @@ export function MentorShell({
   // Mount-gated so SSR / first paint use the default set (persona is
   // client-only, localStorage-backed) — then the Lead swap applies.
   const isLead = mounted && roleForPersona(persona) === "lead";
-  const items = isLead ? LEAD_ITEMS : SIDEBAR_ITEMS;
+  // Mount-gated: `persona` is client-only (localStorage-backed), so SSR and the
+  // first paint use the mentor set and the lead swap applies after hydration.
+  // `nav-items.ts` owns which items each persona gets — including why a lead has
+  // no Mentees destination.
+  const p = mounted ? persona : "mentor";
   // Role migration: the Lead Mentor owns mentor reviews — badge the TEAM item
   // (the queues moved there with the Mentors roster it absorbed) with what's
   // waiting: a submitted profile + an open, non-flagged changeset.
@@ -81,21 +76,27 @@ export function MentorShell({
   };
 
   return (
-    <div className="flex h-dvh bg-[var(--surface-s2)]">
-      <SettingsSidebar
-        activeId={active}
-        items={items}
-        avatarInitial={avatarInitial}
-        avatarSrc={avatarSrc}
-        badges={Object.keys(badges).length > 0 ? badges : undefined}
-        onSelect={(id) => router.push(id === "home" ? "/app" : `/app/${id}`)}
-        className="shrink-0 overflow-y-auto"
-      />
-      <main className="min-w-0 flex-1 py-4 pr-4">
-        <div className="h-full overflow-y-auto rounded-[var(--radius-panel)] bg-[var(--surface-s1)] shadow-[var(--shadow-panel)]">
-          {children}
-        </div>
-      </main>
-    </div>
+    // DELEGATED TO `AppShell` (Phase 2). This used to be the flex/rail/panel
+    // markup inline, duplicated almost exactly in `AdminShell` — which is how a
+    // nav pattern drifts, and RC-1 has to be fixed once rather than twice. What
+    // stays here is the only genuinely mentor-specific part: the item set, the
+    // badge counts, and the id → href mapping.
+    <AppShell
+      activeId={active}
+      railItems={railItems(p)}
+      barItems={barItems(p)}
+      navLabel="Mentor navigation"
+      badges={Object.keys(badges).length > 0 ? badges : undefined}
+      avatarInitial={avatarInitial}
+      avatarSrc={avatarSrc}
+      // ONE MAP, in `nav-items.ts`, shared with the supervisor console.
+      hrefFor={(id) => navHrefFor(p, id)}
+      // Activity left the bar for the top-bar bell, so the bell carries its
+      // count and needs its destination.
+      activityHref={navHrefFor(p, "activity")}
+      activityUnread={unread}
+    >
+      {children}
+    </AppShell>
   );
 }

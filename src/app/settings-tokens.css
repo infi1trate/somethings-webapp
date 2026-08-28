@@ -86,6 +86,45 @@
   --band-amber-fg: #694217; /* hsl(32,64%,25%) — 7.24:1 on amber */
   --band-clay-bg: #f6d3c6; /* hsl(16,72%,87%) — escalation; earthy, not pink */
   --band-clay-fg: #75301f; /* hsl(12,58%,29%) — 6.84:1 on clay */
+
+  /* TASK DOMAIN TINTS — the four summary cards' icon wells (Tasks spec §3.3).
+     INTERIM; see design-system-gaps.md row 212.
+
+     The spec names rose / amber / indigo / sage. Bloom has no DOMAIN-tint tokens
+     at all — its tints are severity-shaped (`states/*Highlight`) or hue ramps
+     with no semantic slot — so these are drawn from the closest ramps by hand:
+     blush, apricot, periwinkle, forest.
+
+     A WELL IS NOT AN ALARM. The alarm budget (§3.3) reserves FILLED SATURATED red
+     for the Respond strip and the interrupt banner only. These are pale wells
+     with a deep ink of the same hue, which is a tint — the escalation well is
+     rose, not red, and nothing about it competes with the strip.
+
+     Wells are deliberately NOT compared for contrast against the page: a well is
+     a decorative container. The INK inside it carries the glyph and is measured
+     against its own well, reported in the T2 summary. */
+  --task-tint-escalation-bg: #ffd9df; /* blush/100 */
+  --task-tint-escalation-fg: #8f0a19; /* blush, darkened past 950 for AA on the well */
+  --task-tint-risk-bg: #ffe8ca; /* apricot/100 */
+  --task-tint-risk-fg: #6b3d03; /* apricot/800-ish */
+  --task-tint-billing-bg: #dfdfff; /* periwinkle/50 */
+  --task-tint-billing-fg: #2933fb; /* periwinkle/600 */
+  --task-tint-monitoring-bg: #e8f5e3; /* forest/50 */
+  --task-tint-monitoring-fg: #2e4325; /* forest/800 */
+
+  /* THE RESPOND STRIP'S FILL — the one filled saturated treatment on the Tasks
+     page (§3.2 / §3.3 alarm budget).
+
+     DEFINED IN `:root` ONLY, AND DELIBERATELY NOT OVERRIDDEN IN `.dark`.
+     An alarm does not theme. `--alert-critical-accent` inverts to a bright tangelo
+     in dark mode, where white text on it measures 2.78:1 — a real AA failure,
+     caught by measurement rather than by eye. Pinning the fill means the strip is
+     the same object in both modes, its contrast is measured once (white on it is
+     5.24:1), and a supervisor recognises it instantly regardless of appearance
+     setting. See design-system-gaps.md row 214. */
+  --task-respond-bg: #c9351d;
+  --task-respond-fg: #ffffff;
+
   --surface-pad-x: 24px;
   --surface-pad-y: 20px;
   /* CONTOUR RAISED 8% → 16%. At 8% the composited edge measured 1.167:1
@@ -163,6 +202,43 @@
      legible. Namespaced/additive — --radius-surface etc. are unchanged, so
      the settings surfaces stay flat. See design-system-gaps.md #80/#84/#88/#90. */
   --radius-elevated: 20px;
+  /* --radius-inset: a RECESSED AREA INSIDE a card — the flag card's moment
+     summary, the survey evidence block. 12px sits two steps inside
+     --radius-elevated (20px) so an inset reads as carved out of the card rather
+     than stacked on it.
+
+     ADDED because the value was already in use and hardcoded: the survey
+     evidence block carried a literal `rounded-[12px]`, and the audit found no
+     12px token in the record family to point it at (--radius-nav-item is 12px
+     but belongs to the nav). Two surfaces meaning "inset" had no shared name, so
+     the second one to change would have drifted. */
+  --radius-inset: 12px;
+
+  /* THE DEV BAR'S HEIGHT. The prototype harness is a fixed full-width strip along
+     the bottom (components/dev/dev-bar.tsx) and it must NOT overlay the product,
+     so the two app shells subtract it from their viewport height rather than
+     running to 100dvh and hiding their last 40px underneath it.
+     FALLS BACK TO 0 by every consumer using var(--dev-bar-h, 0px), so removing
+     the harness needs no shell edits. */
+  --dev-bar-h: 40px;
+
+  /* THE REVISION DOCK'S RESERVED HEIGHT. `onboarding/change-requests-dock.tsx`
+     is fixed to the bottom of the viewport whenever a profile is in
+     changes-requested state, and the mobile "Preview profile" pill has to clear
+     it. That clearance was the literal `bottom-24` in `onboarding-layout.tsx`,
+     hand-tuned against a comment reading "collapsed ≈ 4.25rem tall" — a number
+     in one file describing a component in another, with nothing connecting them.
+
+     NOT `--nav-reserve`, and the difference matters. That variable reserves room
+     for the bottom TAB BAR, and the onboarding flow mounts no tab bar at all
+     (verified: neither AppShell nor the bar is in the tree on /onboarding). Using
+     it here would reserve 56px for chrome that does not exist and still not
+     describe the dock. Same mechanism, different piece of chrome, own name.
+
+     6rem = the dock's collapsed height plus its 0.75rem floor and a gap. It is
+     still a constant rather than a measurement — the dock expands UPWARD from a
+     pinned bar, so its collapsed height is the only figure the pill needs. */
+  --dock-reserve: 6rem;
   --shadow-card: 0 1px 2px rgb(31 30 29 / 0.04), 0 10px 28px -14px rgb(31 30 29 / 0.14);
   --shadow-card-hover: 0 2px 5px rgb(31 30 29 / 0.06), 0 16px 40px -16px rgb(31 30 29 / 0.2);
   --shadow-alert: 0 1px 2px rgb(201 53 29 / 0.05), 0 12px 32px -14px rgb(201 53 29 / 0.22);
@@ -340,6 +416,19 @@
   --band-amber-fg: #efce95; /* 5.73:1 on amber */
   --band-clay-bg: #673928; /* 1.39:1 */
   --band-clay-fg: #f2ac92; /* 5.06:1 on clay */
+
+  /* TASK DOMAIN TINTS, DARK. Hand-derived rather than taken from a ramp step —
+     Bloom's hue ramps terminate in SATURATED colour at 900/950, not in near-black,
+     so there is no step that reads as a dark well. Same approach the band triad
+     above already had to take. Row 212. */
+  --task-tint-escalation-bg: #4a1f26;
+  --task-tint-escalation-fg: #ffb8c2; /* blush/300 */
+  --task-tint-risk-bg: #4a3418;
+  --task-tint-risk-fg: #ffd49c; /* apricot/200 */
+  --task-tint-billing-bg: #26284f;
+  --task-tint-billing-fg: #a8aaff; /* periwinkle/200 */
+  --task-tint-monitoring-bg: #25382a;
+  --task-tint-monitoring-fg: #b0daa2; /* forest/200 */
 
   --state-dirty: #fcd34d; /* unsaved indicator, lifted for dark */
   --state-error: #ff6f2f; /* tangelo/400 — also feeds --dot-critical */

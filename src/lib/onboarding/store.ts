@@ -23,6 +23,16 @@ import {
 // Type-only: the shape of a staff edit to another person's profile. people-demo
 // holds no store import, so this stays one-directional.
 import type { PersonProfile } from "@/lib/record/people-demo";
+// activity/read-state is a pure logic module with no store import — same
+// one-directional discipline as care-demo below.
+import {
+  clearRow as clearOverlayRow,
+  markRead as markOverlayRead,
+  restoreRow as restoreOverlayRow,
+  type ActivityScope,
+  type ReadOverlay,
+} from "@/lib/activity/read-state";
+import type { ActivityDensity } from "@/lib/activity/views";
 // care-demo is a pure data module with no store import — one-directional.
 import type {
   CareFlagClosure,
@@ -161,6 +171,51 @@ interface OnboardingState {
    *  every teen, and re-collapsing on each navigation would be the product
    *  forgetting something it was told. */
   careRailOpen: boolean;
+  /** THE ACTIVITY LEDGER'S READ/CLEAR OVERLAY (v35). Keyed
+   *  `viewerId::scope::eventId` — see lib/activity/read-state.ts for why scope is
+   *  part of the key and not a filter over it (standing rule 10).
+   *
+   *  NEVER stored on an event row (rule 9). The events are fixtures in
+   *  lib/activity/seed.ts and are not persisted at all; only this overlay is,
+   *  because only this is the viewer's own state. */
+  activityRead: ReadOverlay;
+  /** WHICH SEED SCENARIO THE LEDGER IS SHOWING (v36). Prototype chrome, but
+   *  persisted deliberately: the read/clear overlay is keyed by event id, so a
+   *  reload that reset the scenario would leave the overlay pointing at events
+   *  that were no longer on screen — and the A2 persistence would never actually
+   *  be exercised, because every reload would re-seed from scratch. */
+  activityScenarioId: string;
+  setActivityScenarioId: (id: string) => void;
+  /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
+   *
+   *  The shift-start digest's gate: it renders on the first session after a gap of
+   *  more than 8 hours (Tasks spec §7). PERSISTED, necessarily — the whole
+   *  question is "has it been a shift since you were last here", which component
+   *  state cannot answer across a reload. 0 means never opened, which counts as a
+   *  gap and shows the digest. */
+  tasksLastVisitAt: number;
+  /** ACTIVITY FEED DENSITY (v38). Per user, persisted — A11 asks for the choice to
+   *  survive, and a reading-density preference that resets every session is worse
+   *  than no toggle at all. */
+  activityDensity: ActivityDensity;
+  setTasksLastVisitAt: (at: number) => void;
+  setActivityDensity: (density: ActivityDensity) => void;
+  seedActivityRead: (overlay: ReadOverlay) => void;
+  markActivityRowsRead: (
+    viewerId: string,
+    scope: ActivityScope,
+    eventIds: string[]
+  ) => void;
+  clearActivityRow: (
+    viewerId: string,
+    scope: ActivityScope,
+    eventId: string
+  ) => void;
+  restoreActivityRow: (
+    viewerId: string,
+    scope: ActivityScope,
+    eventId: string
+  ) => void;
   /** Care updates a supervisor has written, keyed by update id. APPEND-ONLY:
    *  no setter edits or removes one. "Editing" an update appends an amendment
    *  whose `amends` names the original, and both keep rendering. */
@@ -365,6 +420,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       careReviews: {},
       careFlagClosures: {},
       careRailOpen: true,
+      activityRead: {},
+      activityScenarioId: "typical-shift",
+      tasksLastVisitAt: 0,
+      activityDensity: "dense",
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -744,6 +803,43 @@ export const useOnboardingStore = create<OnboardingState>()(
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
       setCareRailOpen: (open) => set({ careRailOpen: open }),
+
+      // ── ACTIVITY LEDGER OVERLAY (v35) ───────────────────────────────────
+      // Each action delegates to lib/activity/read-state.ts. The store holds the
+      // map and nothing else: it does not know the key format, and there is NO
+      // action that removes an entry — standing rule 11, clearing is never
+      // deleting, and the module deliberately exports no delete.
+      setTasksLastVisitAt: (at) => set({ tasksLastVisitAt: at }),
+      setActivityDensity: (density) => set({ activityDensity: density }),
+      setActivityScenarioId: (id) =>
+        // Switching scenario drops the overlay so the new scenario seeds from its
+        // own fixture decision about what starts unread. NOT a delete of anything
+        // meaningful (rule 11 is about a viewer clearing a ROW) — this is the
+        // prototype simulator swapping one fixture ledger for another.
+        set({ activityScenarioId: id, activityRead: {} }),
+      seedActivityRead: (overlay) => set({ activityRead: overlay }),
+      markActivityRowsRead: (viewerId, scope, eventIds) =>
+        set((s) => ({
+          activityRead: markOverlayRead(
+            s.activityRead,
+            viewerId,
+            scope,
+            eventIds
+          ),
+        })),
+      clearActivityRow: (viewerId, scope, eventId) =>
+        set((s) => ({
+          activityRead: clearOverlayRow(s.activityRead, viewerId, scope, eventId),
+        })),
+      restoreActivityRow: (viewerId, scope, eventId) =>
+        set((s) => ({
+          activityRead: restoreOverlayRow(
+            s.activityRead,
+            viewerId,
+            scope,
+            eventId
+          ),
+        })),
       closeCareFlag: (closure) =>
         set((state) => ({
           careFlagClosures: {
@@ -836,6 +932,10 @@ export const useOnboardingStore = create<OnboardingState>()(
           careReviews: {}, // dev "start over" restores the pending reviews
           careFlagClosures: {}, // …and reopens the closed flags
           careRailOpen: true,
+          activityRead: {}, // dev "start over" returns every row to its seed state
+          activityScenarioId: "typical-shift",
+          tasksLastVisitAt: 0, // …and brings the shift-start digest back
+          activityDensity: "dense",
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -908,11 +1008,27 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v33: careFlagClosures (escalation / risk-flag closures, keyed by flag
       //      id) — sparse and additive; backfill {} so an older persisted state
       //      reads as "no flag has been closed". Append-only.
+      // v38: activityDensity ("dense" | "detailed") — the Activity feed's reading
+      //      density. A SCALAR WITH A CLOSED VALUE SET, so the migration backfills
+      //      "dense" and the merge self-heals anything outside the union rather
+      //      than trusting a persisted string to still be one of two words.
+      // v37: tasksLastVisitAt (when the supervisor last opened the Tasks
+      //      worklist) — a SCALAR, backfilled 0. Zero reads as "never opened",
+      //      which counts as a >8h gap and shows the shift-start digest, so an
+      //      older persisted state meets the digest once rather than never.
+      // v36: activityScenarioId (which seed scenario the Activity ledger shows)
+      //      — a SCALAR, so the backfill is a default rather than {}. Defaults to
+      //      the typical shift: the scenario the surface is meant to be judged on.
+      // v35: activityRead (the Activity ledger's per-viewer read/clear overlay,
+      //      keyed viewerId::scope::eventId) — a MAP, backfilled {}. An empty
+      //      overlay means every event reads as unread, which is correct for a
+      //      viewer who has never opened the feed. SCOPE IS IN THE KEY; see
+      //      lib/activity/read-state.ts and standing rule 10.
       // v34: careRailOpen (Care assistant rail expanded?) — a SCALAR, not a
       //      map, so the backfill is a default rather than {}. Defaults OPEN:
       //      the rail is the tab's opening state, and a reader who has never
       //      touched it should see what it offers.
-      version: 34,
+      version: 38,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1294,6 +1410,31 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st.careReviews !== "object" || st.careReviews === null) {
             st.careReviews = {};
           }
+          // v37: a scalar — 0 means never opened (see the version log above).
+          const st37 = persisted as { tasksLastVisitAt?: unknown };
+          if (typeof st37.tasksLastVisitAt !== "number") {
+            st37.tasksLastVisitAt = 0;
+          }
+        }
+        if (version < 38) {
+          // v38: closed union — anything unrecognised becomes the default.
+          const st38 = persisted as { activityDensity?: unknown };
+          if (st38.activityDensity !== "detailed") {
+            st38.activityDensity = "dense";
+          }
+          // v36: a scalar preference — backfill the default, not {}.
+          const st36 = persisted as { activityScenarioId?: unknown };
+          if (typeof st36.activityScenarioId !== "string") {
+            st36.activityScenarioId = "typical-shift";
+          }
+          // v35: a MAP — {} is the right backfill (see the version log above).
+          const st35 = persisted as { activityRead?: unknown };
+          if (
+            typeof st35.activityRead !== "object" ||
+            st35.activityRead === null
+          ) {
+            st35.activityRead = {};
+          }
           // v34: a scalar preference — backfill the default, not {}.
           const st34 = persisted as { careRailOpen?: unknown };
           if (typeof st34.careRailOpen !== "boolean") {
@@ -1486,6 +1627,31 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.careRailOpen = true;
         }
         if (
+          typeof (merged as { activityRead?: unknown }).activityRead !==
+            "object" ||
+          merged.activityRead === null
+        ) {
+          merged.activityRead = {};
+        }
+        if (
+          typeof (merged as { activityScenarioId?: unknown })
+            .activityScenarioId !== "string"
+        ) {
+          merged.activityScenarioId = "typical-shift";
+        }
+        if (
+          typeof (merged as { tasksLastVisitAt?: unknown }).tasksLastVisitAt !==
+          "number"
+        ) {
+          merged.tasksLastVisitAt = 0;
+        }
+        if (
+          merged.activityDensity !== "dense" &&
+          merged.activityDensity !== "detailed"
+        ) {
+          merged.activityDensity = "dense";
+        }
+        if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
           merged.personSchedules === null
@@ -1566,6 +1732,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         careReviews: state.careReviews,
         careFlagClosures: state.careFlagClosures,
         careRailOpen: state.careRailOpen,
+        activityRead: state.activityRead,
+        activityScenarioId: state.activityScenarioId,
+        tasksLastVisitAt: state.tasksLastVisitAt,
+        activityDensity: state.activityDensity,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,

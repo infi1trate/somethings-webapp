@@ -14,6 +14,7 @@
 // person.
 
 import type { MentorLifecycleStatus, Story } from "@/lib/types";
+import { RISK_CATEGORIES } from "@/lib/record/risk-taxonomy";
 import {
   WEEKDAYS,
   type DaySchedule,
@@ -87,7 +88,36 @@ export interface PastMatch {
 
 export interface DemoTeen {
   id: string;
+  /** THE LEGAL NAME, AND NOW THE THING RENDERED. Standing rule 6 — "teens are
+   *  FIRST NAME ONLY, everywhere, always" — was RETIRED by product-owner
+   *  decision on 2026-08-28, so every list, header, avatar, toast, dialog and
+   *  composed sentence shows this field, reached through `teenDisplayName(teen)`
+   *  (lib/record/teen-name.ts).
+   *
+   *  STILL READ THROUGH THE CHOKEPOINT, not directly. The rule is gone; the
+   *  single decision point is not, and it is what made retiring the rule a
+   *  one-function change across 47 call sites. See design-system-gaps.md row 254
+   *  (the enforcement, and its one carve-out — the Account "Full name" row,
+   *  which is now simply consistent with everywhere else) and row 284 (the
+   *  reversal).
+   *
+   *  It has always also been the search key: staff type "Ortiz" and find Caleb. */
   name: string;
+  /** THE AUTHORITATIVE FIRST NAME. No longer the display name (rule 6 retired,
+   *  2026-08-28) but still the right field for anywhere a first name alone is
+   *  wanted — a greeting, a composed sentence.
+   *
+   *  Stored rather than derived because deriving it means splitting `name` on
+   *  whitespace, and that guesses wrong on any compound first name ("Mary Anne").
+   *  `firstNameOf` is that split, and it is why this field exists. */
+  firstName: string;
+  /** Teen-facing nickname when it differs from `firstName` — "Pat" for Patricia.
+   *
+   *  IT NO LONGER RENDERS IN A LIST OR HEADER. `teenDisplayName` returns the full
+   *  legal name, so the three teens carrying a nickname show it only on the
+   *  record's "Goes by" row. Flagged in gap row 284 as the one deliberate loss in
+   *  the rule-6 reversal — if preferred names should win again, `teen-name.ts`
+   *  has the one line to change. */
   goesBy?: string;
   phone: string;
   /** Teens are reached by phone in this demo — no email on file, so the
@@ -144,6 +174,17 @@ export interface DemoTeen {
   careFlags?: CareFlagRecord[];
   /** Video calls in the last 30 days — a care signal, not an absence metric. */
   videoCount30d?: number;
+  /** ACTIVITIES THE TEEN FINISHED. An Attention-signal source: worth noticing,
+   *  never something anyone has to act on.
+   *
+   *  Stored rather than derived because no activity layer exists — zero hits
+   *  across the repo for a completed activity of any kind. TODO-DATA: the real
+   *  source is the activity service; the shape here is a fixture.
+   *
+   *  The OTHER Attention signal, "say hi to a new teen", is NOT stored: it is
+   *  derived from the no-contact recency state (see mentees-demo), because that
+   *  state is real data the messaging stamps already describe. */
+  completedActivities?: { id: string; name: string; daysAgo: number }[];
   /** Mentors this teen was matched with before their current one. */
   pastMentors?: PastMatch[];
 }
@@ -480,26 +521,26 @@ export const DEMO_TEENS: DemoTeen[] = [
   // Most are quiet-and-fine; the exceptions (t3 waiting, t8 quiet, t9 escalated)
   // are deliberately few — defaults whisper, exceptions speak.
   {
-    id: "t1", name: "Nick Casparro", pronouns: "he/him", phone: "+17078892558",
+    id: "t1", name: "Nick Casparro", firstName: "Nick", pronouns: "he/him", phone: "+17078892558",
     group: "North Carolina", active: true, joinedDaysAgo: 1, mentorId: "m1",
     matchedDaysAgo: 1, mentorLastSentDaysAgo: 0, menteeLastSentDaysAgo: 1,
     videoCount30d: 0,
   },
   {
-    id: "t2", name: "Patricia Johnson", goesBy: "Pat", pronouns: "she/her", phone: "+19089101254",
+    id: "t2", name: "Patricia Johnson", firstName: "Patricia", goesBy: "Pat", pronouns: "she/her", phone: "+19089101254",
     group: "New Jersey", active: true, joinedDaysAgo: 4, mentorId: "m2",
     matchedDaysAgo: 2, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 1,
   },
   {
     // Teen wrote 6d ago and the mentor hasn't replied → waiting-on-mentor.
-    id: "t3", name: "Amy Hashing", pronouns: "she/her", phone: "+19089101035",
+    id: "t3", name: "Amy Hashing", firstName: "Amy", pronouns: "she/her", phone: "+19089101035",
     group: "North Carolina", active: true, menteeState: "paused", joinedDaysAgo: 12, mentorId: "m1",
     matchedDaysAgo: 7, mentorLastSentDaysAgo: 7, menteeLastSentDaysAgo: 6,
     videoCount30d: 0,
   },
   {
-    id: "t4", name: "John Kneeland", pronouns: "he/him", phone: "+12158805908",
+    id: "t4", name: "John Kneeland", firstName: "John", pronouns: "he/him", phone: "+12158805908",
     group: "Illinois", active: false, joinedDaysAgo: 40, mentorId: "m3",
     matchedDaysAgo: 31, mentorLastSentDaysAgo: 12, menteeLastSentDaysAgo: 20,
     videoCount30d: 0,
@@ -511,13 +552,16 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t5", name: "Marcus Lee", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
+    id: "t5", name: "Marcus Lee", firstName: "Marcus", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
     group: "Illinois", active: true, joinedDaysAgo: 2, mentorId: "m3",
-    matchedDaysAgo: 2, mentorLastSentDaysAgo: 0, menteeLastSentDaysAgo: 0,
+    // NO STAMPS ON PURPOSE — matched two days ago, neither side has sent
+    // anything. `0` would mean "sent today", the opposite of the fact, which is
+    // why the no-contact state had to exist before this fixture could.
+    matchedDaysAgo: 2,
     videoCount30d: 0,
   },
   {
-    id: "t6", name: "Sofia Ramos", pronouns: "she/her", phone: "+19735550267",
+    id: "t6", name: "Sofia Ramos", firstName: "Sofia", pronouns: "she/her", phone: "+19735550267",
     group: "New Jersey", active: true, menteeState: "paused", joinedDaysAgo: 25, mentorId: "m2",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
@@ -532,6 +576,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         daysAgo: 14,
         source: "person",
         conversationWith: "t6",
+        conversationId: "conv-t6-a",
         outcome: "no_action",
         resolvedDaysAgo: 12,
         resolvedBy: "Brandy Forrestor",
@@ -542,20 +587,20 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t7", name: "Ethan Park", pronouns: "he/him", phone: "+17078893390",
+    id: "t7", name: "Ethan Park", firstName: "Ethan", pronouns: "he/him", phone: "+17078893390",
     group: "North Carolina", active: true, joinedDaysAgo: 6, mentorId: "m4",
     matchedDaysAgo: 3, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 1,
   },
   {
     // Mentor replied, teen has been quiet 9 days → teen-quiet.
-    id: "t8", name: "Zoe Bennett", pronouns: "she/her", phone: "+19089104412",
+    id: "t8", name: "Zoe Bennett", firstName: "Zoe", pronouns: "she/her", phone: "+19089104412",
     group: "North Carolina", active: true, joinedDaysAgo: 55, mentorId: "m1",
     matchedDaysAgo: 34, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 9,
     videoCount30d: 1,
   },
   {
-    id: "t9", name: "Liam Foster", pronouns: "he/him", phone: "+19735550318",
+    id: "t9", name: "Liam Foster", firstName: "Liam", pronouns: "he/him", phone: "+19735550318",
     group: "New Jersey", active: true, joinedDaysAgo: 18, mentorId: "m4",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 1,
     videoCount30d: 3,
@@ -563,19 +608,19 @@ export const DEMO_TEENS: DemoTeen[] = [
     escalation: { reason: "Asked about changing schools mid-year", daysAgo: 3 },
   },
   {
-    id: "t10", name: "Ava Mitchell", pronouns: "she/her", phone: "+13125550344",
+    id: "t10", name: "Ava Mitchell", firstName: "Ava", pronouns: "she/her", phone: "+13125550344",
     group: "Illinois", active: true, joinedDaysAgo: 3, mentorId: "m5",
-    matchedDaysAgo: 2, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
+    matchedDaysAgo: 2,
     videoCount30d: 0,
   },
   {
-    id: "t11", name: "Noah Diaz", pronouns: "he/him", phone: "+17078895501",
+    id: "t11", name: "Noah Diaz", firstName: "Noah", pronouns: "he/him", phone: "+17078895501",
     group: "North Carolina", active: true, menteeState: "paused", joinedDaysAgo: 9, mentorId: "m2",
     matchedDaysAgo: 3, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 3,
     videoCount30d: 1,
   },
   {
-    id: "t12", name: "Mia Chen", pronouns: "she/her", phone: "+19089108833",
+    id: "t12", name: "Mia Chen", firstName: "Mia", pronouns: "she/her", phone: "+19089108833",
     group: "New Jersey", active: true, joinedDaysAgo: 70, mentorId: "m6",
     matchedDaysAgo: 40, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 4,
@@ -584,7 +629,7 @@ export const DEMO_TEENS: DemoTeen[] = [
 
   // ── The live mentor's mentees ──────────────────────────────────────────
   {
-    id: "t13", name: "Jordan Tate", goesBy: "Jordy", pronouns: "they/them", phone: "+19089102201",
+    id: "t13", name: "Jordan Tate", firstName: "Jordan", goesBy: "Jordy", pronouns: "they/them", phone: "+19089102201",
     group: "North Carolina", active: true, joinedDaysAgo: 122, mentorId: "live",
     matchedDaysAgo: 118, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
@@ -601,6 +646,14 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS"],
         conversationWith: "t13",
+        conversationId: "conv-t13-a",
+        // TODO-DATA. EVENTS, NOT CONTENT — this describes the shape of the
+        // exchange and the timing. If a summary here ever reads like a quote it
+        // is wrong, and the review modal is not a place to fix that.
+        momentSummary: {
+          provenance: "ai",
+          text: "Across four exchanges over four days the teen described losing sleep and skipping meals, each message more urgent than the last. Their mentor escalated within an hour of the final one.",
+        },
         // CRISIS-ELEVATED. The label band gains the word "Crisis" and nothing
         // else — no extra chrome, per the brief.
         crisis: { type: "suicidal_ideation" },
@@ -608,13 +661,13 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t14", name: "Sam Karim", pronouns: "he/him", phone: "+13125550788",
+    id: "t14", name: "Sam Karim", firstName: "Sam", pronouns: "he/him", phone: "+13125550788",
     group: "Illinois", active: true, menteeState: "paused", joinedDaysAgo: 15, mentorId: "live",
     matchedDaysAgo: 7, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 3, // video-comfort: low chat volume may be video, not absence
   },
   {
-    id: "t15", name: "Riley Moss", pronouns: "she/her", phone: "+17078894102",
+    id: "t15", name: "Riley Moss", firstName: "Riley", pronouns: "she/her", phone: "+17078894102",
     group: "North Carolina", active: true, joinedDaysAgo: 44, mentorId: "live",
     // Teen wrote 5d ago, mentor hasn't replied → derived waiting-on-mentor.
     matchedDaysAgo: 40, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 5,
@@ -626,7 +679,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   // threshold with real rows rather than a contrived duplicate. Long tenures on
   // purpose — the days-in-mentorship column is only interesting across a spread.
   {
-    id: "t17", name: "Naomi Reed", pronouns: "she/her", phone: "+19089107000",
+    id: "t17", name: "Naomi Reed", firstName: "Naomi", pronouns: "she/her", phone: "+19089107000",
     group: "North Carolina", active: true, joinedDaysAgo: 210, mentorId: "live",
     matchedDaysAgo: 196, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 0,
@@ -642,6 +695,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ABUSE_DISCLOSURE"],
         conversationWith: "t17",
+        conversationId: "conv-t17-a",
         outcome: "supported",
         referral: { type: "family_services" },
         resolvedDaysAgo: 38,
@@ -667,6 +721,15 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ABUSE_DISCLOSURE"],
         conversationWith: "t17",
+        // A DIFFERENT conversation from cf-t17-2 below — same teen, same
+        // `conversationWith`, separate exchanges. This is the pair that proves
+        // grouping keys on the THREAD and not the person: these two must stay
+        // two cards.
+        conversationId: "conv-t17-c",
+        momentSummary: {
+          provenance: "ai",
+          text: "The teen mentioned losing access to their phone and asked to move a scheduled call. Two earlier exchanges this month referred to tension at home.",
+        },
       },
       {
         id: "cf-t17-2",
@@ -682,32 +745,41 @@ export const DEMO_TEENS: DemoTeen[] = [
         // reports it; the chip never shows the raw value.
         categories: ["CATEGORY_4"],
         conversationWith: "t17",
+        conversationId: "conv-t17-b",
       },
     ],
   },
   {
-    id: "t18", name: "Caleb Ortiz", pronouns: "he/him", phone: "+19089107001",
+    id: "t18", name: "Caleb Ortiz", firstName: "Caleb", pronouns: "he/him", phone: "+19089107001",
     group: "North Carolina", active: true, joinedDaysAgo: 188, mentorId: "live",
     matchedDaysAgo: 171, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 2,
     videoCount30d: 1,
+    completedActivities: [
+      { id: "act-t18-1", name: "Hot Takes", daysAgo: 2 },
+      { id: "act-t18-2", name: "Two Truths", daysAgo: 11 },
+    ],
   },
   {
-    id: "t19", name: "Simone Ba", pronouns: "she/her", phone: "+19089107002",
+    id: "t19", name: "Simone Ba", firstName: "Simone", pronouns: "she/her", phone: "+19089107002",
     group: "North Carolina", active: true, joinedDaysAgo: 176, mentorId: "live",
     matchedDaysAgo: 160, mentorLastSentDaysAgo: 4, menteeLastSentDaysAgo: 3,
     videoCount30d: 2,
   },
   {
-    id: "t20", name: "Theo Lindqvist", pronouns: "he/him", phone: "+19089107003",
+    id: "t20", name: "Theo Lindqvist", firstName: "Theo", pronouns: "he/him", phone: "+19089107003",
     group: "North Carolina", active: false, joinedDaysAgo: 165, mentorId: "live",
     matchedDaysAgo: 149, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 4,
     videoCount30d: 0,
   },
   {
-    id: "t21", name: "Imani Clarke", pronouns: "she/her", phone: "+19089107004",
+    id: "t21", name: "Imani Clarke", firstName: "Imani", pronouns: "she/her", phone: "+19089107004",
     group: "North Carolina", active: true, joinedDaysAgo: 151, mentorId: "live",
     matchedDaysAgo: 140, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 1,
     videoCount30d: 1,
+    // BOTH SECTIONS AT ONCE — four grouped flags above, an activity below. The
+    // whole point of the lighter Attention treatment is that it does not compete
+    // with Action required, which can only be judged on a record carrying both.
+    completedActivities: [{ id: "act-t21-1", name: "Hot Takes", daysAgo: 5 }],
     careFlags: [
       {
         id: "cf-t21-1",
@@ -722,11 +794,68 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "system",
         categories: ["HATE_SPEECH_RACIAL_SLURS", "GROOMING_BEHAVIOR"],
         conversationWith: "t21",
+        conversationId: "conv-t21-a",
+        momentSummary: {
+          provenance: "system",
+          text: "Three messages in one evening exchange matched two classifier categories. No earlier match exists on this conversation.",
+        },
+      },
+      // ── THE GROUPING CASE ────────────────────────────────────────────────
+      // ONE moderation sweep of ONE evening's exchange, producing four separate
+      // category hits. This is the realistic origin of the failure mode the
+      // grouping is designed against: a classifier does not raise one tidy flag
+      // per conversation, it raises one per match, and four cards for one chat
+      // is already unreadable at 26 teens.
+      //
+      // All four share `conv-t21-a` and the same `daysAgo`, because they came out
+      // of the same sweep. They are NOT duplicates of each other — each names a
+      // different category, which is exactly why the group has to expand rather
+      // than collapse to a single label.
+      {
+        id: "cf-t21-2",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Language matching the threat classifier appeared in the same exchange",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
+        daysAgo: 9,
+        source: "system",
+        categories: ["CREDIBLE_SPECIFIC_THREAT_TO_HARM_ANOTHER"],
+        conversationWith: "t21",
+        conversationId: "conv-t21-a",
+      },
+      {
+        id: "cf-t21-3",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "A second grooming-pattern match in the same exchange",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
+        daysAgo: 9,
+        source: "system",
+        categories: ["GROOMING_BEHAVIOR"],
+        conversationWith: "t21",
+        conversationId: "conv-t21-a",
+      },
+      {
+        // UNMAPPED, inside a group — so the expanded list exercises the
+        // "Uncategorised" chip too, not just the collapsed count.
+        id: "cf-t21-4",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "An uncategorised classifier match in the same exchange",
+        raisedBy: "Moderation",
+        raisedByRole: "Automated review",
+        daysAgo: 9,
+        source: "system",
+        categories: ["CATEGORY_4"],
+        conversationWith: "t21",
+        conversationId: "conv-t21-a",
       },
     ],
   },
   {
-    id: "t22", name: "Ravi Menon", pronouns: "he/him", phone: "+19089107005",
+    id: "t22", name: "Ravi Menon", firstName: "Ravi", pronouns: "he/him", phone: "+19089107005",
     group: "North Carolina", active: false, joinedDaysAgo: 143, mentorId: "live",
     matchedDaysAgo: 128, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 2,
@@ -742,6 +871,7 @@ export const DEMO_TEENS: DemoTeen[] = [
         source: "person",
         categories: ["ABUSE_DISCLOSURE"],
         conversationWith: "t22",
+        conversationId: "conv-t22-a",
         outcome: "supported",
         resolvedDaysAgo: 94,
         resolvedBy: "Omar Haddad",
@@ -752,31 +882,32 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t23", name: "Elena Duarte", pronouns: "she/her", phone: "+19089107006",
+    id: "t23", name: "Elena Duarte", firstName: "Elena", pronouns: "she/her", phone: "+19089107006",
     group: "North Carolina", active: true, joinedDaysAgo: 134, mentorId: "live",
     matchedDaysAgo: 119, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 3,
     videoCount30d: 0,
+    completedActivities: [{ id: "act-t23-1", name: "Icebreakers", daysAgo: 4 }],
   },
   {
-    id: "t24", name: "Jonah Whitfield", pronouns: "he/him", phone: "+19089107007",
+    id: "t24", name: "Jonah Whitfield", firstName: "Jonah", pronouns: "he/him", phone: "+19089107007",
     group: "North Carolina", active: true, joinedDaysAgo: 121, mentorId: "live",
     matchedDaysAgo: 108, mentorLastSentDaysAgo: 4, menteeLastSentDaysAgo: 4,
     videoCount30d: 1,
   },
   {
-    id: "t25", name: "Yuki Tanaka", pronouns: "they/them", phone: "+19089107008",
+    id: "t25", name: "Yuki Tanaka", firstName: "Yuki", pronouns: "they/them", phone: "+19089107008",
     group: "North Carolina", active: false, joinedDaysAgo: 112, mentorId: "live",
     matchedDaysAgo: 97, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
   },
   {
-    id: "t26", name: "Marisol Vega", pronouns: "she/her", phone: "+19089107009",
+    id: "t26", name: "Marisol Vega", firstName: "Marisol", pronouns: "she/her", phone: "+19089107009",
     group: "North Carolina", active: false, joinedDaysAgo: 103, mentorId: "live",
     matchedDaysAgo: 90, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
   },
   {
-    id: "t16", name: "Alex Petrov", pronouns: "he/him", phone: "+19735550655",
+    id: "t16", name: "Alex Petrov", firstName: "Alex", pronouns: "he/him", phone: "+19735550655",
     group: "New Jersey", active: false, joinedDaysAgo: 92, mentorId: "live",
     // Mentor replied, but the teen has been quiet 9 days → teen-quiet.
     matchedDaysAgo: 65, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 9,
@@ -874,14 +1005,17 @@ export function teensForMentor(mentorId: string): DemoTeen[] {
  *
  *  TODO-DATA: the real taxonomy comes from the moderation layer, which does not
  *  exist yet. These five are the ones the brief named. */
-export const CATEGORY_LABEL: Record<string, string> = {
-  GROOMING_BEHAVIOR: "Grooming behaviour",
-  ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS:
-    "Suicidal ideation with plan or means",
-  CREDIBLE_SPECIFIC_THREAT_TO_HARM_ANOTHER: "Threat to harm another person",
-  HATE_SPEECH_RACIAL_SLURS: "Hate speech or slurs",
-  ABUSE_DISCLOSURE: "Abuse disclosure",
-};
+/** DERIVED FROM THE TAXONOMY, not a second hand-written copy.
+ *
+ *  This map used to hold the five categories inline, and it is now the display
+ *  projection of `RISK_CATEGORIES` (lib/record/risk-taxonomy.ts), which carries
+ *  all twenty-one along with their tier and clinical theme. One source of truth:
+ *  a category cannot exist with a label but no theme, or gain a theme and keep an
+ *  old label. Every consumer still reaches it through `categoryLabel` and none of
+ *  them changed. */
+export const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  RISK_CATEGORIES.map((c) => [c.id, c.label])
+);
 
 /** TODO-COPY. What an unmapped category reads as. Deliberately not the raw
  *  value, and deliberately not blank. */
@@ -970,6 +1104,35 @@ export interface CareFlagRecord {
    *  link goes to the CONVERSATION SURFACE — message text is never rendered on
    *  the record or in the review modal. */
   conversationWith?: string;
+  /** THE CONVERSATION THIS FLAG CAME OUT OF — a THREAD id, and emphatically NOT
+   *  a person id.
+   *
+   *  `conversationWith` above is the PERSON (the teen), which on a teen's own
+   *  record is the same value on every flag they have. Grouping on it therefore
+   *  groups by teen, which collapses unrelated concerns raised months apart into
+   *  one card and hides them behind a single count. That is the exact failure the
+   *  grouping is meant to prevent, inverted.
+   *
+   *  So the key is its own field. Flags that arose from ONE exchange share one
+   *  `conversationId`; flags from separate exchanges do not, even on the same
+   *  teen with the same `conversationWith`. Absent = ungrouped, rendered as its
+   *  own card.
+   *
+   *  TODO-DATA: the real id comes from the messaging layer, which does not exist
+   *  yet. `conv-<teen>-<letter>` is a fixture shape, not a contract. */
+  conversationId?: string;
+  /** A SYSTEM- OR AI-WRITTEN SUMMARY OF THE FLAGGED MOMENT — a description of
+   *  what happened, never the words that were said. Vocabulary law: events, not
+   *  content. If a fixture here ever reads like a quote, it is wrong.
+   *
+   *  `provenance` separates the two very different things this can be: a
+   *  deterministic classifier reporting what it matched ("system"), and a model
+   *  writing prose about an exchange ("ai"). They earn different trust and the
+   *  card labels them differently, so they are never merged into one flag.
+   *
+   *  Absent on most flags, deliberately — a card with no summary is the common
+   *  case and has to look finished without one. */
+  momentSummary?: { text: string; provenance: "system" | "ai" };
   /** CRISIS ELEVATION. Set by a supervisor during review; adds the word
    *  "Crisis" to the label band and nothing else. */
   crisis?: { type: CrisisType; note?: string };

@@ -22,9 +22,9 @@
 // mentor who holds the match.
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { NameCell, SortHead } from "@/components/admin/roster";
+import { NameCell, initials } from "@/components/admin/roster";
+import { DataView } from "@/components/ui/data-view";
 import { ChatAction } from "@/components/admin/chat-action";
 import {
   AvailabilityMenu,
@@ -43,7 +43,7 @@ import { getDemoOverview } from "@/lib/record/mentees-demo";
 import { recordHrefFor } from "@/lib/record/subject";
 // Bloom Role Label ramp (Figma 3466:10231) — replaced a flat outlined pill
 // that gave every role the same visual rank.
-import { RoleLabel } from "@/components/record/role-label";
+import { ROLE_LABEL, RoleLabel } from "@/components/record/role-label";
 import { currentMenteesOf } from "@/lib/record/relationships";
 import { useLiveMentorRow, type StaffRow } from "@/lib/record/use-live-mentor";
 import {
@@ -72,7 +72,6 @@ const CHIP_OFF =
 type SortDir = "asc" | "desc";
 
 export function TeamDirectory({ scope }: { scope: TeamScope }) {
-  const router = useRouter();
   const caseloads = useOnboardingStore((s) => s.caseloads);
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
@@ -187,7 +186,6 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
       setSortDir("asc");
     }
   };
-  const sortProps = { sortKey, sortDir, onSort: toggleSort };
 
   return (
     <div className="px-6 py-6 lg:px-10">
@@ -238,91 +236,162 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
         </span>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead>
-            <tr className="border-b border-[var(--surface-s2)] text-left text-[var(--text-secondary)]">
-              <SortHead label="Name" k="name" {...sortProps} />
-              <SortHead label="Role" k="role" {...sortProps} />
-              <SortHead label="Group" k="group" {...sortProps} />
-              <SortHead label="Mentees" k="load" {...sortProps} />
-              <SortHead label="Status" k="status" {...sortProps} />
-              <SortHead label="Availability" k="availability" {...sortProps} />
-              <th className="px-5 py-3 font-medium">Chat</th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.map((r) => {
-              const isMentor = roleOf(r) === "mentor";
-              return (
-                <tr
-                  key={r.id}
-                  onClick={() => router.push(recordHrefFor(r.id))}
-                  className={cn(
-                    "cursor-pointer border-b border-[var(--surface-s2)] transition-colors last:border-0 hover:bg-[var(--tint-faint)]",
-                    r.highlight && "bg-[var(--alert-warm-bg,transparent)]"
-                  )}
-                >
-                  <td className="px-5 py-3">
-                    <NameCell
-                      name={r.name}
-                      goesBy={r.goesBy}
-                      recordHref={recordHrefFor(r.id)}
-                    />
-                  </td>
-                  <td className="px-5 py-3">
-                    <RoleLabel role={roleOf(r)} />
-                  </td>
-                  <td className="px-5 py-3 text-[var(--text-secondary)]">
-                    {r.group}
-                  </td>
-                  <td className="px-5 py-3 text-[var(--text-primary)] tabular-nums">
-                    {loadOf(r)}
-                  </td>
-                  {/* stopPropagation so opening a menu doesn't also navigate. */}
-                  <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                    <MentorStatusMenu
-                      status={statusOf(r)}
-                      name={r.name}
-                      onChange={(s) => setMentorStatus(r.id, s)}
-                    />
-                  </td>
-                  <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                    {isMentor ? (
-                      <AvailabilityMenu
-                        value={availabilityOf(r)}
-                        accepting={acceptingOf(r)}
-                        atCap={menteeCountOf(r) >= capOf(r)}
-                        name={r.name}
-                        onChange={(a) => setMentorAccepting(r.id, a)}
-                      />
-                    ) : (
-                      <span className="text-[var(--text-muted)]">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                    <ChatAction
-                      personId={r.id}
-                      name={r.name}
-                      subjectRole={roleOf(r)}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-            {view.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-5 py-8 text-center text-[var(--text-secondary)]"
-                >
-                  No one matches these filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* ═══ DATAVIEW (Phase 5, RC-3) ═══
+          
+          THE TASK: find a colleague, and see who needs review. That is a
+          LOOKUP, not an analysis — the reader arrives with a person or a
+          question in mind, and the columns exist to identify and route, not to
+          be compared across rows. So a card list loses nothing essential on a
+          phone, and the wrapper below is gone: it was
+          `overflow-x-auto rounded-2xl` around a `min-w-[760px]` table, which at
+          390px meant a 760px table in a 342px box — reachable by drag, with no
+          affordance saying so, and 55% of it off-screen at any moment.
+          
+          AVAILABILITY IS THE ONE DEMOTED COLUMN (`slot: "detail"`). It is
+          mentor-only, and accepting/at-capacity is a CASELOAD question — the
+          roster is the surface built for that, and it keeps the control. Nothing
+          is deleted: the column is still in the table above the threshold, and
+          the person's own record is one tap from every card.
+          
+          STATUS KEEPS ITS LIVE MENU on the card, in the trailing cluster. It is
+          the column the "who needs review" half of the task is asking about, and
+          its trigger doubles as the status chip — so demoting it would have cost
+          both the answer and the action. */}
+      <DataView
+        className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]"
+        caption="Team directory"
+        rows={view}
+        rowKey={(r) => r.id}
+        rowHref={(r) => recordHrefFor(r.id)}
+        rowLabel={(r) => `${r.name} — open record`}
+        leading={(r) => (
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
+            {initials(r.name)}
+          </span>
+        )}
+        // ═══ WIDTHS AND THRESHOLD ═══
+        //
+        // This table was `min-w-[760px]` with AUTO layout, so content sized the
+        // columns. DataView is `table-fixed` (the colgroup has to be
+        // authoritative for the paused-group alignment the record tables need),
+        // and under fixed layout a column with no width shares the remainder
+        // equally — so seven width-less columns became seven 156px columns and
+        // every name was an ellipsis. Six are pinned here and Name absorbs the
+        // rest: 282px at a 1092px container.
+        //
+        // THRESHOLD 60rem, NOT 45rem: the pinned columns already sum to 810px,
+        // so a 720px box cannot show this table without squeezing Name to
+        // nothing. Cards until 960px is the honest line for a seven-column
+        // directory carrying two mutation menus.
+        minTableWidth={960}
+        threshold="60rem"
+        sort={{ key: sortKey, dir: sortDir, onSort: toggleSort }}
+        empty="No one matches these filters."
+        columns={[
+          {
+            id: "name",
+            header: "Name",
+            sortKey: "name",
+            slot: "primary",
+            cell: (r) => (
+              <NameCell
+                name={r.name}
+                goesBy={r.goesBy}
+                recordHref={recordHrefFor(r.id)}
+              />
+            ),
+            // On a card the avatar is already the row's `leading` and the whole
+            // row is the link, so the name is text, not a second link inside a
+            // link — the nesting `PastMenteeRow` documents.
+            card: (r) => r.name,
+          },
+          {
+            id: "role",
+            width: 120,
+            header: "Role",
+            sortKey: "role",
+            slot: "secondary",
+            cell: (r) => <RoleLabel role={roleOf(r)} />,
+            // PLAIN TEXT ON A CARD, not the pill. The card's meta line is one
+            // truncating row of middot-joined facts; a pill inside it fights the
+            // line's baseline, cannot truncate, and at 320px was the thing
+            // bleeding out from behind the crushed name. The pill is a TABLE
+            // affordance — it earns its shape by sitting in a column of peers.
+            card: (r) => ROLE_LABEL[roleOf(r)],
+          },
+          {
+            id: "group",
+            width: 160,
+            header: "Group",
+            sortKey: "group",
+            slot: "secondary",
+            className: "text-[var(--text-secondary)]",
+            cell: (r) => r.group,
+          },
+          {
+            id: "load",
+            width: 120,
+            header: "Mentees",
+            sortKey: "load",
+            slot: "secondary",
+            className: "text-[var(--text-primary)] tabular-nums",
+            cell: (r) => loadOf(r),
+            // THE CARD NEEDS THE NOUN THE COLUMN HEADER USED TO SUPPLY — but
+            // only for a mentor. `loadOf` already returns "4 mentors" for a lead
+            // and "8 supervised" for a supervisor; appending a blanket "mentees"
+            // produced "8 supervised mentees", which is a different and wrong
+            // fact. Only the mentor form ("3 of 5") is nounless.
+            card: (r) =>
+              roleOf(r) === "mentor" ? `${loadOf(r)} mentees` : loadOf(r),
+          },
+          {
+            id: "status",
+            width: 150,
+            header: "Status",
+            sortKey: "status",
+            slot: "trailing",
+            cell: (r) => (
+              <MentorStatusMenu
+                status={statusOf(r)}
+                name={r.name}
+                onChange={(st) => setMentorStatus(r.id, st)}
+              />
+            ),
+          },
+          {
+            id: "availability",
+            width: 160,
+            header: "Availability",
+            sortKey: "availability",
+            slot: "detail",
+            cell: (r) =>
+              roleOf(r) === "mentor" ? (
+                <AvailabilityMenu
+                  value={availabilityOf(r)}
+                  accepting={acceptingOf(r)}
+                  atCap={menteeCountOf(r) >= capOf(r)}
+                  name={r.name}
+                  onChange={(a) => setMentorAccepting(r.id, a)}
+                />
+              ) : (
+                <span className="text-[var(--text-muted)]">—</span>
+              ),
+          },
+          {
+            id: "chat",
+            width: 100,
+            header: "Chat",
+            slot: "trailing",
+            cell: (r) => (
+              <ChatAction
+                personId={r.id}
+                name={r.name}
+                subjectRole={roleOf(r)}
+              />
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

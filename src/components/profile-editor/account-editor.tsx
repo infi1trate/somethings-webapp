@@ -35,6 +35,8 @@ import {
 import { SEX_OPTIONS } from "@/lib/options";
 import { PhotoRowCore } from "@/components/account/photo-row";
 import type { SettingsRole } from "@/components/settings/tabs-config";
+import { touchTarget } from "@/lib/touch-target";
+import { cn } from "@/lib/utils";
 
 const EMPTY = "—";
 
@@ -629,7 +631,15 @@ export function AccountEditor({
           The Somethings team manages these details.{" "}
           <a
             href="mailto:support@somethings.com"
-            className="rounded-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            // MEASURED 89×14 at 320px — the only sub-44px target left on the
+            // Account tab. It is an inline link inside a sentence, so it cannot
+            // be given a height without breaking the paragraph's line box; the
+            // `::after` extension is exactly the tool for that. Vertical-only,
+            // so it cannot swallow taps meant for the words either side of it.
+            className={cn(
+              touchTarget(24),
+              "rounded-sm font-medium text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            )}
           >
             Contact support
           </a>{" "}

@@ -30,6 +30,7 @@ import {
   type Schedule,
   type Weekday,
 } from "@/lib/schedule";
+import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 
 export function ActiveHoursEditor({ editable = true }: { editable?: boolean }) {
@@ -66,7 +67,22 @@ function TimeSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="h-10 w-[124px]" aria-label={label}>
+      {/* ═══ 40px VISUAL, 44px TARGET (Phase 6, product-owner decision) ═══
+
+          The compact height is DELIBERATE and stays — `ui/select.tsx` defaults
+          these to `h-12`, and this surface overrides to `h-10` because the
+          Schedule tab stacks fourteen of them and 4px per row is 56px of page.
+          Asked before changing; the answer was keep the visual, extend the
+          target.
+
+          `touchTarget(40)` is a transparent `::after` at ±2px. VERTICAL ONLY,
+          which is what makes it safe for the start/end pair: the two triggers
+          sit side by side, and a horizontal extension would let a tap aimed at
+          the end time land on the start time. */}
+      <SelectTrigger
+        className={cn(touchTarget(40), "h-10 w-[124px] max-w-full")}
+        aria-label={label}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="max-h-64">
@@ -136,7 +152,11 @@ export function ActiveHoursForm({
           onValueChange={(v) => setDraft((d) => ({ ...d, timezone: v }))}
           disabled={!editable || draft.autoDetect}
         >
-          <SelectTrigger id="tz" className="h-10 w-[280px] max-w-full">
+          {/* Same decision as the time pickers above. */}
+          <SelectTrigger
+            id="tz"
+            className={cn(touchTarget(40), "h-10 w-[280px] max-w-full")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

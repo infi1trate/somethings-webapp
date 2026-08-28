@@ -31,6 +31,32 @@ const PAD = 2;
 
 export const SPARKLINE_MIN_POINTS = 3;
 
+/** ═══ THE SHARED SCALE. One plotting rule for every score visual on this page.
+ *
+ *  Extracted so the Care pattern block's timeline strip can position its
+ *  assessment dots with the SAME maths rather than introducing a second charting
+ *  approach — which is what the pattern brief asks for, and what stops two
+ *  visuals on one record from disagreeing about which way "up" means.
+ *
+ *  INVERTED, and that is the load-bearing part: a HIGHER score is a WORSE score on
+ *  both instruments, so a mark that sits higher when things worsen is the
+ *  direction every clinician reads without thinking. Getting this backwards in one
+ *  of two places would be worse than having no chart.
+ *
+ *  NOT NORMALISED TO ZERO — spans the series' own min and max, because the
+ *  question is "which way and how sharply", not "how close to the ceiling". A flat
+ *  series lands through the middle rather than collapsing onto an edge. */
+export function plotScoreY(
+  score: number,
+  min: number,
+  max: number,
+  height: number,
+  pad: number
+): number {
+  const span = max - min || 1;
+  return pad + ((max - score) * (height - pad * 2)) / span;
+}
+
 export function ScoreSparkline({
   scores,
   label,
@@ -47,13 +73,12 @@ export function ScoreSparkline({
   const series = scores.slice(-6);
   const min = Math.min(...series);
   const max = Math.max(...series);
-  const span = max - min || 1;
 
   const pts = series.map((v, i) => {
     const x = PAD + (i * (W - PAD * 2)) / (series.length - 1);
     // Inverted: a HIGHER score is a worse score on both instruments, and a line
     // that climbs when things worsen is the direction every clinician expects.
-    const y = PAD + ((max - v) * (H - PAD * 2)) / span;
+    const y = plotScoreY(v, min, max, H, PAD);
     return [x, y] as const;
   });
   const last = pts[pts.length - 1];

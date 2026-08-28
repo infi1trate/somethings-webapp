@@ -33,6 +33,8 @@ import type { MentorLifecycleStatus } from "@/lib/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { staffActorFor } from "@/lib/record/permission-map";
 import { Plus, X } from "lucide-react";
+import { touchTarget } from "@/lib/touch-target";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -193,7 +195,12 @@ export function OrganizationCard({
           value={
             mode === "edit" ? (
               <Select value={mentorRole} onValueChange={setMentorRole}>
-                <SelectTrigger className="h-9 w-[200px]" aria-label="Role">
+                {/* 36px visual, 44px target — compact height deliberate
+                    (see active-hours.tsx); asked and confirmed. */}
+                <SelectTrigger
+                  className={cn(touchTarget(36), "h-9 w-[200px] max-w-full")}
+                  aria-label="Role"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

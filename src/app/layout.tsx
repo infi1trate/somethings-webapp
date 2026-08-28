@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { DevRoleToggle } from "@/components/dev/role-toggle";
+import { DevBar, DEV_BAR_H } from "@/components/dev/dev-bar";
 
 // Real Somethings brand type, self-hosted from src/app/fonts.
 // TWK Lausanne = body / UI. Avantt Bold = display (headings, buttons, wordmark).
@@ -61,13 +61,22 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col">
+      {/* THE BAR'S HEIGHT AS BOTTOM PADDING, so the strip does NOT overlay the
+          product. Three floating dev docks used to sit on top of the UI at
+          different corners, each dodging the last; one bar with the page padded
+          clear of it means no product pixel is ever underneath dev chrome.
+          The value comes from the component so the two cannot drift. */}
+      <body
+        className="flex min-h-full flex-col"
+        style={{ paddingBottom: DEV_BAR_H }}
+      >
         {children}
         <Toaster />
         {/* Dev/demo scaffolding — intentionally rendered in ALL environments
-            (incl. the Vercel demo) so reviewers can flip between the mentor and
-            supervisor sides. No auth behind it; fine for this mock-data prototype. */}
-        <DevRoleToggle />
+            (incl. the Vercel demo) so reviewers can flip between roles and
+            scenarios. No auth behind it; the gate is that a real deployment
+            ships no mock data. See the note in dev-bar.tsx. */}
+        <DevBar />
       </body>
     </html>
   );

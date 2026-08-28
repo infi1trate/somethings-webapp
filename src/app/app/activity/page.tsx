@@ -1,11 +1,23 @@
 "use client";
 
-// Activity feed (PUR §4.4) — static route, wins over /app/[section]. Today it
-// carries only the profile-update-review entries; other activity types land
-// here later. Entries are marked read on arrival (the sidebar badge counts
-// unread), and each row deep-links to the settings tab that hosts the field.
+// Activity — static route, wins over /app/[section]. TWO SURFACES, ONE ROUTE.
+//
+// ONE ROUTE BY INSTRUCTION: the recon found an Activity item already present in
+// BOTH sidebars (mentor and supervisor), so a second route would have meant two
+// pages behind one nav item. Instead this page branches on the viewing persona:
+//
+//   · SUPERVISOR TIER → the Activity LEDGER (components/activity), a cross-teen
+//     operational feed with saved views, day grouping and a per-viewer read
+//     overlay.
+//   · MENTOR / LEAD    → the EXISTING profile-update feed, byte-for-byte
+//     unchanged below. Standing rule 7: add alongside, do not modify. Its
+//     page-level read receipt, its row copy and its deep links are untouched.
+//
+// The mentor feed (PUR §4.4) carries the profile-update-review entries. Entries
+// are marked read on arrival (the sidebar badge counts unread), and each row
+// deep-links to the settings tab that hosts the field.
 
-import { useEffect } from "react";
+import { use, useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react";
 import { MentorShell } from "@/components/mentor/mentor-shell";
@@ -14,6 +26,9 @@ import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { gatedFieldMeta, relTime } from "@/lib/onboarding/profile-update";
 import { accountFieldLabel } from "@/lib/record/account-fields";
 import { useMounted } from "@/lib/use-mounted";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { ActivityLedger } from "@/components/activity/activity-ledger";
+import { isSupervisorTier } from "@/lib/record/permission-map";
 import type { ActivityItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -53,22 +68,50 @@ function entryHref(item: ActivityItem): string {
   return surface ? `/app/profile?tab=${surface}` : "/app/profile";
 }
 
-export default function ActivityPage() {
+export default function ActivityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // use(searchParams) PROP PATTERN — never useSearchParams, and no page-root
+  // Suspense (standing rule 3).
+  const query = use(searchParams);
+  // A8's object-scoped deep link: /app/activity?objectId=<teenId>&domain=billing.
+  // The Teens list's billing code points here, because the append-only ledger IS
+  // the code's history.
+  const objectId = typeof query.objectId === "string" ? query.objectId : null;
+  const domain = typeof query.domain === "string" ? query.domain : null;
   const mounted = useMounted();
+  const persona = useOnboardingStore((s) => s.persona);
   const activity = useOnboardingStore((s) => s.activity);
   const markActivityRead = useOnboardingStore((s) => s.markActivityRead);
 
+  // SUPERVISOR TIER GETS THE LEDGER. Gated behind `mounted` like every other
+  // store read on this page: persona lives in persisted state, so branching on it
+  // before hydration would render the mentor feed for one frame and then swap —
+  // a mismatch that produces no console error at all.
+  const supervisor = mounted && isSupervisorTier(persona);
+
   // Arriving here clears the sidebar badge (§4.4) — read receipts are
-  // page-level, not per-row.
+  // page-level, not per-row. MENTOR FEED ONLY: the ledger has its own per-row,
+  // per-scope overlay (standing rules 9 and 10) and must not be blanket-marked.
   useEffect(() => {
-    if (mounted) markActivityRead();
-  }, [mounted, markActivityRead]);
+    if (mounted && !supervisor) markActivityRead();
+  }, [mounted, supervisor, markActivityRead]);
 
   const items = mounted
     ? activity
         .filter(isMentorVisibleActivity)
         .sort((a, b) => b.createdAt - a.createdAt)
     : [];
+
+  if (supervisor) {
+    return (
+      <AdminShell active="activity">
+        <ActivityLedger initialTeenId={objectId} initialDomain={domain} />
+      </AdminShell>
+    );
+  }
 
   return (
     <MentorShell active="activity">

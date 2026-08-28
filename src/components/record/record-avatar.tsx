@@ -50,6 +50,11 @@ export function avatarInitial(name: string) {
 /** The size scale. 20 and 24 are the inline sizes this pass needed; 30 is
  *  PersonRow's, kept exactly so no row shifts by a pixel. */
 const SIZE = {
+  /** 16 is the INLINE size, added for the Activity feed's in-sentence chips: at
+   *  14px/20px body text a 20px avatar is taller than the line box and pushes the
+   *  line apart, while 16px sits inside it. Additive — no existing consumer asks
+   *  for it. */
+  16: { box: "size-4", text: "text-[9px]" },
   20: { box: "size-5", text: "text-[10px]" },
   24: { box: "size-6", text: "text-[11px]" },
   30: { box: "size-[30px]", text: "text-[13px]" },

@@ -500,9 +500,34 @@ function buildItems(
   }));
 }
 
+/** THE INSTRUMENT'S MAXIMUM — the denominator a bare score is meaningless
+ *  without. "9" says nothing; "9 / 21" says most of the way to mild.
+ *
+ *  PHQ-9 is nine items scored 0–3 = 27. GAD-7 is seven items scored 0–3 = 21.
+ *  Both are the real instruments' totals, not invented.
+ *
+ *  WHO-5 IS DELIBERATELY ABSENT. It is named in one comment at the top of this
+ *  file and is not implemented anywhere: the instrument type is the literal union
+ *  `"PHQ-9" | "GAD-7"`, no fixture uses it, and its scoring is a raw 0–25 that is
+ *  conventionally multiplied by 4 to a percentage — a different shape from the
+ *  other two, so it cannot be added here as one more number without deciding
+ *  which of the two scales the card shows. Adding a wrong denominator to a
+ *  minor's record is worse than not offering the instrument.
+ *
+ *  KEYED BY THE INSTRUMENT TYPE, so a new instrument cannot be added to the
+ *  union without the compiler demanding its maximum here. That is the point of a
+ *  Record over a function with a default. */
+export const INSTRUMENT_MAX: Record<"PHQ-9" | "GAD-7", number> = {
+  "PHQ-9": 27,
+  "GAD-7": 21,
+};
+
 /** The severity band a score sits in, so the row's prose and the number can't
  *  disagree. Standard PHQ-9 / GAD-7 cut-points. */
-function severityFor(instrument: "PHQ-9" | "GAD-7", score: number): string {
+export function severityFor(
+  instrument: "PHQ-9" | "GAD-7",
+  score: number
+): string {
   const cuts =
     instrument === "PHQ-9"
       ? [[5, "minimal"], [10, "mild"], [15, "moderate"], [20, "moderately severe"]]
@@ -1763,6 +1788,17 @@ export function latestCareUpdateFor(
 export interface CareAiSummary {
   text: string;
   generatedAt: number;
+  /** MOMENT DEEP LINKS — discussions the snapshot refers to.
+   *
+   *  THE LINK IS THE POINTER, NEVER THE CONTENT. `label` describes WHEN or WHAT
+   *  the exchange was ("the check-in on Aug 18"), never a word of what was said.
+   *  A reader who wants the words follows the link to the conversation surface,
+   *  which is the only place message text ever renders.
+   *
+   *  Rendered as inline links with a small chat icon, beneath the narrative. Kept
+   *  as structured data rather than markup inside `text` so the same summary can
+   *  be rendered by a future feed with no parser. */
+  moments?: { label: string; conversationWith: string }[];
 }
 
 /** TODO-COPY.
@@ -1796,12 +1832,22 @@ export function careAiSummaryFor(
       generatedAt,
       // Same trim as t13's rationale — no contact data feeds this function.
       text: "Both intake instruments scored in the mild-to-moderate range, with the sleep items the highest across them, and the sleep items are the ones that have not moved since.",
+      // TODO-DATA. Two moments, so the deep-link pattern is visible rather than
+      // theoretical. Labels name WHEN, never WHAT — see the field comment.
+      moments: [
+        { label: "the check-in after the second survey", conversationWith: "t15" },
+        { label: "the exchange the week the sleep items rose", conversationWith: "t15" },
+      ],
     };
   }
   if (teenId === "t13") {
     return {
       generatedAt,
       text: "Scores across three assessments have moved from the mild band into the moderate band, with the mood items accounting for most of the change and the anxiety items flat. Contact has stayed weekly through the period with no gap longer than nine days.",
+      moments: [
+        { label: "the discussion that led to the escalation", conversationWith: "t13" },
+        { label: "the check-in two weeks before it", conversationWith: "t13" },
+      ],
     };
   }
   // DERIVED, not asserted. This used to return "scores have held in the same

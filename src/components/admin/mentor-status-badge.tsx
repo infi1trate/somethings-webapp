@@ -8,6 +8,7 @@
 // pairing is >= 4.5:1.
 
 import { Check, ChevronDown } from "lucide-react";
+import { touchTarget } from "@/lib/touch-target";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,7 +84,22 @@ export function MentorStatusMenu({
         <button
           type="button"
           aria-label={`${name} — status ${STATUS_BADGE[status].label}. Change status`}
-          className="group/st inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+          // ═══ 24px BADGE, EXTENDED TO A 44px TOUCH TARGET ═══
+          //
+          // The trigger had no minimum height at all: the badge is `py-1` around
+          // a 16px line, so ~24px. That clears SC 2.5.8's 24×24 floor by nothing
+          // and fails HIG/Material outright — on a control that MUTATES A
+          // PERSON'S LIFECYCLE STATUS. Fitts's Law says target size should scale
+          // with the cost of a mis-tap; a 24px target on a destructive-adjacent
+          // action inverts that.
+          //
+          // `min-h-6` makes the 24 explicit rather than emergent from padding, so
+          // the helper's arithmetic (24 + 2×10 = 44) is true and stays true if the
+          // badge's padding is ever changed.
+          className={cn(
+            touchTarget(24),
+            "group/st inline-flex min-h-6 items-center gap-1 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+          )}
         >
           <MentorStatusBadge status={status} />
           <ChevronDown
@@ -182,7 +198,15 @@ export function AvailabilityMenu({
         <button
           type="button"
           aria-label={`${name} — availability ${AVAILABILITY_LABELS[value]}. Change availability`}
-          className="group/av inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+          // SC 2.5.8 — the sibling of the status trigger above, which got this
+          // treatment in Phase 0 and left this one behind. `min-h-6` makes the
+          // 24px explicit rather than emergent from the cell's padding, and the
+          // helper's transparent `::after` carries it to 44px without changing
+          // the pill's ink.
+          className={cn(
+            touchTarget(24),
+            "group/av inline-flex min-h-6 items-center gap-1 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+          )}
         >
           <AvailabilityCell value={value} />
           <ChevronDown

@@ -14,6 +14,7 @@ import { PersonRow } from "@/components/record/person-row";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { mentorsForTeen, DEMO_TEENS } from "@/lib/record/people-demo";
 import { recordHrefFor } from "@/lib/record/subject";
+import { recordOrigin } from "@/lib/record/origins";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 
 const H =
@@ -44,7 +45,7 @@ export function TeenMentors({ teenId }: { teenId: string }) {
             <PersonRow
               name={liveName}
               secondary="Mentor"
-              href={recordHrefFor("live")}
+              href={recordHrefFor("live", recordOrigin(teenId))}
             />
           ) : current.length > 0 ? (
             current.map(({ mentor }) => (
@@ -57,7 +58,7 @@ export function TeenMentors({ teenId }: { teenId: string }) {
                     status={mentorStatuses[mentor.id] ?? mentor.status}
                   />
                 }
-                href={recordHrefFor(mentor.id)}
+                href={recordHrefFor(mentor.id, recordOrigin(teenId))}
               />
             ))
           ) : (
@@ -77,7 +78,7 @@ export function TeenMentors({ teenId }: { teenId: string }) {
                 key={mentor.id}
                 name={mentor.name}
                 secondary={range}
-                href={recordHrefFor(mentor.id)}
+                href={recordHrefFor(mentor.id, recordOrigin(teenId))}
               />
             ))}
           </div>
