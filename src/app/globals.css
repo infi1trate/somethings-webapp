@@ -219,7 +219,22 @@
   --primary-foreground: #ffffff;
   --secondary: #f1ece3;
   --secondary-foreground: var(--text-primary);
-  --muted-foreground: #797774;
+  /* ═══ ALIASED ON PURPOSE, AGAINST THE RULE ABOVE (gap row 276) ═══
+     The block comment above says these are NOT aliased because the semantic
+     equivalents differ and aliasing would silently restyle light mode. That
+     reasoning held for the rest of them; it does not survive here, because the
+     value it was preserving FAILS AA. #797774 on --surface-card is 4.464:1
+     against a 4.5 floor — short by 0.04 — and `.dark` below already aliases
+     this same token to --text-muted, so the fix had been applied to dark mode
+     and not to light. 91 `text-muted-foreground` call sites inherited the raw
+     hex in the mode almost everyone uses, and it was the single largest a11y
+     defect in the codebase: 878 of 977 axe violations, spread evenly across
+     every viewport, which is what a token defect looks like.
+     --text-muted #6e6b67 measures 5.30:1 on --surface-card and 4.82:1 on
+     --surface-s1. It is a slightly darker, slightly less warm grey; the light
+     restyle the original comment warned about is real but sub-perceptual next
+     to failing the criterion. */
+  --muted-foreground: var(--text-muted);
   --accent: #f1ece4;
   --accent-foreground: var(--text-primary);
   --border: #e7e0d5;
