@@ -29,7 +29,8 @@ export interface ActivityFilters {
   /** Surfaces cleared rows at reduced emphasis, and turns each row's Clear
    *  action into Restore. */
   showCleared: boolean;
-  /** Caseload-scoped, first names only (standing rule 6). */
+  /** Caseload-scoped. First names only because the activity fixture has no
+   *  surnames (gap row 284) — standing rule 6 itself was retired 2026-08-28. */
   teenId: string | null;
   /** A5 — network scope only. Declared here so the filter shape is final and A5
    *  adds a control rather than reshaping every consumer. */

@@ -120,7 +120,9 @@ function ActorAvatar({ row }: { row: FeedRow }) {
  *  NETWORK SCOPE: an initial and nothing else. `RecordAvatar` renders initials
  *  only — there is no photo path through it at all — so A5's degradation is
  *  satisfied by construction rather than by a branch here. The name is a FIRST
- *  NAME because the query can only ever supply one (standing rule 6). */
+ *  NAME because the query can only ever supply one — the activity fixture holds
+ *  no surnames (gap row 284), not because of standing rule 6, which was retired
+ *  on 2026-08-28. */
 function sentenceWithTeenChip(row: FeedRow) {
   const idx = row.sentence.indexOf(row.teenName);
   // No match is possible in principle (an agentless overdue sentence still names

@@ -42,12 +42,15 @@ export interface FixtureSubject {
   kind: "fixture";
   id: string;
   role: PersonRole;
-  /** The person's FULL name. For a teen this is the LEGAL name — read it only
-   *  through `subjectDisplayName`, never directly (standing rule 6). The single
-   *  sanctioned direct read is the Account section's "Full name" row. */
+  /** The person's FULL name, and for everyone now the thing rendered (rule 6
+   *  retired 2026-08-28, gap row 284). Still read through `subjectDisplayName`
+   *  rather than directly — not to suppress anything any more, but so that how a
+   *  person is named stays one decision in one place. */
   name: string;
-  /** Teens only — the authoritative first name, carried up from the fixture so
-   *  the subject can satisfy rule 6 without a second lookup. */
+  /** Teens only — the authoritative first name, carried up from the fixture. It
+   *  existed so the subject could satisfy rule 6 without a second lookup; with
+   *  the rule retired (gap row 284) it is no longer on the display path, and is
+   *  kept for anywhere a first name alone is wanted. */
   firstName?: string;
   goesBy?: string;
   phone: string;

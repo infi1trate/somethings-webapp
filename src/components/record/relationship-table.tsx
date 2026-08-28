@@ -279,11 +279,16 @@ export function RelationshipTable({
 
   /** WHAT EACH ROW IS CALLED ON SCREEN — the one place this table decides.
    *
-   *  THE VARIANT IS THE RULE. "mentees" rows are teens, and standing rule 6 makes
-   *  them first name only, always; "mentors" rows are staff, whose full names are
-   *  how colleagues address and find them. This used to be `r.goesBy ?? r.name`
-   *  in three places, which applied the staff rule to teens and leaked surnames
-   *  into the list, the sort and the search (design-system-gaps.md row 254).
+   *  THE VARIANT NO LONGER CHANGES THE ANSWER. It did under standing rule 6,
+   *  which made "mentees" rows first-name-only while "mentors" rows kept full
+   *  names; the rule was retired on 2026-08-28 (row 284) and both now resolve to
+   *  the full name. The branch is kept because teens still go through
+   *  `teenDisplayName` — one chokepoint, so a future divergence is one edit — and
+   *  because the two sides genuinely could diverge again.
+   *
+   *  THE HISTORY IS THE REASON THE CHOKEPOINT EXISTS: this was `r.goesBy ?? r.name`
+   *  in three places, which is what made the rule unenforceable in either
+   *  direction (row 254).
    *
    *  SORT AND SEARCH READ IT TOO, not just the cell: a list sorted by a string
    *  the reader cannot see is a list in an arbitrary order. */

@@ -34,9 +34,12 @@
 // with a flourish. Operational vocabulary is correct on this surface — escalation,
 // risk flag, billing code are the words the work uses.
 //
-// TEENS ARE FIRST NAME ONLY (standing rule 6). Every teen string here arrives from
-// `teenFirstName`, which can only return a first name because the fixtures contain
-// no surnames at all.
+// TEENS ARE FIRST NAME ONLY HERE, AND IT IS A DATA FACT, NOT A RULE. Every teen
+// string arrives from `teenFirstName`, which can only return a first name because
+// this module's fixtures contain no surnames at all — for staff either. Standing
+// rule 6 used to be the stated reason and was retired on 2026-08-28; the second
+// sentence of the note it replaces was always the load-bearing one. Gap row 284
+// records that giving the ledger full names is a data decision.
 
 import { SYSTEM_ACTOR_ID, type ActivityEventType } from "@/lib/activity/events";
 

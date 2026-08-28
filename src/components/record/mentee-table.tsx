@@ -106,9 +106,10 @@ export function MenteeTable({
 
   const [pastOpen, setPastOpen] = useState(false);
   const [unmatching, setUnmatching] = useState<RelationshipRow | null>(null);
-  /** THE NAME THE UNMATCH CONFIRM SPEAKS. First name only (standing rule 6),
-   *  resolved once so the title and the sentence beneath it cannot say different
-   *  names.
+  /** THE NAME THE UNMATCH CONFIRM SPEAKS. The full name since rule 6 was retired
+   *  (gap row 284), resolved ONCE so the title and the sentence beneath it cannot
+   *  say different names — which is the part of this that was never about the
+   *  rule.
    *
    *  SET ALONGSIDE `unmatching`, NEVER DERIVED FROM IT, and deliberately not
    *  cleared on close: the dialog stays mounted while it animates out, and

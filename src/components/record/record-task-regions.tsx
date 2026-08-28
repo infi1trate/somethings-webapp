@@ -110,9 +110,18 @@ export function RecordTaskRegions({
 
   const canAct = canActOnCare(persona);
   const role = alertRoleForStore(persona);
-  // FIRST NAME ONLY (standing rule 6). This one is load-bearing beyond a list
-  // cell: it is spoken back inside composed sentences — "Caleb finished 3
-  // activities" — where a surname reads as a case file rather than a person.
+  // FULL NAME, since standing rule 6 was retired on 2026-08-28 (gap row 284).
+  //
+  // WORTH KNOWING WHAT THAT CHANGED HERE, because this is not a list cell: the
+  // name is spoken back inside composed sentences, so "Caleb finished 3
+  // activities" now reads "Caleb Ortiz finished 3 activities". The note this
+  // replaces argued a surname in prose "reads as a case file rather than a
+  // person", and that judgement may well still be right — but the instruction was
+  // that mentees display their last name everywhere, prose included, so the
+  // chokepoint decides it and this file does not diverge on its own.
+  //
+  // If prose should ever differ from lists, `firstNameOf` in `teen-name.ts` is
+  // still exported for exactly that and is no longer on the display path.
   const teenName = teenDisplayName(teen);
   const staffName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||

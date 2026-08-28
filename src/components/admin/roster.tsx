@@ -208,9 +208,10 @@ export function Roster({
         }))
       : teensForMentor(r.id).map((t) => ({
           id: t.id,
-          // FIRST NAME ONLY (standing rule 6). The modal renders this raw and
-          // derives two-letter initials from it, so a full name here put the
-          // surname on screen twice.
+          // FULL NAME since rule 6 was retired (gap row 284). The modal renders
+          // this raw and derives two-letter initials from it — which is now the
+          // intended pairing rather than a hazard, and the same thing staff rows
+          // have always done.
           name: teenDisplayName(t),
           secondary: `joined ${relJoined(t.joinedDaysAgo)}`,
         }));
@@ -667,9 +668,11 @@ function MentorRowView({
  *  it the code link would be swallowed by the row's own click. */
 function BillingCodeCell({ teen, now }: { teen: DemoTeen; now: number }) {
   const state: BillingCodeState = billingCodeStateFor(teen.id, now);
-  // FIRST NAME ONLY in the description (standing rule 6). Through the shared
-  // helper now — this hand-rolled split was the only site that got the rule
-  // right, and it got it right by accident of being written separately.
+  // Through the shared helper, which now yields the full name (rule 6 retired,
+  // gap row 284). Worth remembering why it routes here at all: this was a
+  // hand-rolled split, the only site that satisfied the old rule, and it did so
+  // by accident of being written separately. Accidental compliance is why the
+  // chokepoint exists — and why reversing the rule was one edit.
   const first = teenDisplayName(teen);
   const description = billingCodeDescription(state, first);
 
@@ -750,10 +753,21 @@ function TeenRowView({ teen, now }: { teen: DemoTeen; now: number }) {
       className="cursor-pointer border-b border-[var(--surface-s2)] transition-colors last:border-0 hover:bg-[var(--tint-faint)]"
     >
       <td className="px-5 py-3">
-        {/* NO `goesBy` SUBTITLE FOR A TEEN. The cell shows the display name
-            already, so "goes by" would either repeat it or contrast it with a
-            legal name this row must not show (standing rule 6). */}
-        <NameCell name={teenDisplayName(teen)} recordHref={href} />
+        {/* THE `goesBy` SUBTITLE IS BACK FOR TEENS (gap row 284). It was omitted
+            because the cell already showed the nickname as the display name, so a
+            "goes by" line would have repeated it or contrasted it against a legal
+            name rule 6 forbade showing. Now the cell shows the full legal name, so
+            the subtitle contrasts rather than repeats — "Patricia Vance" over
+            'goes by "Pat"' — which is exactly what the mentor rows do.
+            It also recovers the one thing the rule-6 reversal cost: `goesBy` stopped
+            winning in `teenDisplayName`, and without this the nickname rendered
+            nowhere outside the record. No new copy — `NameCell` already had the
+            subtitle and the wording. */}
+        <NameCell
+          name={teenDisplayName(teen)}
+          goesBy={teen.goesBy}
+          recordHref={href}
+        />
       </td>
       <BillingCodeCell teen={teen} now={now} />
       <td className="px-5 py-3 text-[var(--text-secondary)]">{mentorName(teen.mentorId)}</td>
