@@ -25,7 +25,6 @@ import { MessagesSquare } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
-import { CareSummaryLauncher } from "@/components/record/care-summary-panel";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
 import { CareTab } from "@/components/record/care-tab";
@@ -87,11 +86,6 @@ export default function PersonRecordPage({
   const mentorStatuses = useOnboardingStore((s) => s.mentorStatuses);
   const menteeStatus = useOnboardingStore((s) => s.menteeStatus);
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
-  const careRailOpen = useOnboardingStore((s) => s.careRailOpen);
-  const setCareRailOpen = useOnboardingStore((s) => s.setCareRailOpen);
-  const careSummaryRefreshedAt = useOnboardingStore(
-    (s) => s.careSummaryRefreshedAt
-  );
 
   const subject = resolveSubject(id);
   // Resolved BEFORE the early return below — hooks can't sit after a
@@ -219,24 +213,13 @@ export default function PersonRecordPage({
   return (
     <Shell active={isTeen ? "mentees" : "team"}>
       <UserRecordShell
-        // PAGE-LEVEL CHROME, on the tab row. The assistant belongs to the page
-        // rather than to a section, so its trigger sits with the tabs instead of
-        // in the content column — where it collided with section CTAs sitting at
-        // a different y.
+        // THE CARE SUMMARY TRIGGER WAS HERE AND IS DELETED (Phase 2).
         //
-        // NOW PRESENT IN BOTH STATES. It used to render only while the rail was
-        // SHUT (`&& !careRailOpen`), which is what forced the panel to carry its
-        // own close icon: with the pill gone there was nothing left to press. One
-        // control, one position, both directions.
-        tabRowAction={
-          activeTab === "care" ? (
-            <CareSummaryLauncher
-              open={careRailOpen}
-              onToggle={() => setCareRailOpen(!careRailOpen)}
-              hasUpdate={!!careSummaryRefreshedAt[subject.id]}
-            />
-          ) : undefined
-        }
+        // It toggled a 320px rail. The summary is a full-width document in the
+        // main column now, so there is nothing to toggle: a control that only
+        // ever scrolled you to content already on the page is worse than no
+        // control. `tabRowAction` itself is kept — it is the shell's slot, and
+        // the next page-level control will want it.
         avatar={{
           src: null,
           initial: subjectDisplayName(subject).charAt(0).toUpperCase(),
@@ -344,20 +327,7 @@ export default function PersonRecordPage({
             `subject.teen` is the narrowing the resolver gives us; a teen
             subject always carries it. */}
         {activeTab === "care" && subject.teen && (
-          <CareTab
-            teen={subject.teen}
-            /* PROTOTYPE ONLY. The Care summary's loading and error states are
-               otherwise unreachable — there is no async call to fail — so
-               `?summary=loading` / `?summary=error` render them for review and
-               for screenshots. Read through the `use(searchParams)` prop pattern
-               (standing rule 3), never `useSearchParams`. TODO-DATA: delete this
-               when a real generation call exists to be slow or to fail. */
-            summaryState={
-              query.summary === "loading" || query.summary === "error"
-                ? query.summary
-                : undefined
-            }
-          />
+          <CareTab teen={subject.teen} />
         )}
         {activeTab === "mentorship" &&
           (isTeen ? (

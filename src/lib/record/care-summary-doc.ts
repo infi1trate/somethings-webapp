@@ -516,3 +516,111 @@ export function careSummaryFor(
     currentCode,
   };
 }
+
+// ─── COMMITTING A SUMMARY TO THE RECORD ─────────────────────────────────────
+//
+// ═══ WHY A SNAPSHOT AND NOT A RE-DERIVATION ═══
+//
+// `careSummaryFor` reads the record as it stands NOW. That is right for a draft
+// and wrong for a record entry: flags get resolved, codes change, a later
+// assessment lands. Re-deriving a committed summary would silently rewrite what
+// a supervisor saw when they made the decision, and the decision would end up
+// justified by evidence that did not exist at the time.
+//
+// So a commit freezes the FINDINGS — not the prose, not the layout — at the
+// moment the cycle's review is approved. Same discipline as the changeRequests
+// baseline (standing rule 1): captured at the moment of the act, never
+// recomputed. The labels are deliberately NOT stored: they resolve from the
+// taxonomy at read time, so a copy fix never edits a record entry — except the
+// theme labels, which have no ids to resolve from; see the field.
+//
+// ═══ WHAT IS DELIBERATELY ABSENT ═══
+//
+// No message text, no transcript excerpts, no per-theme prose (no verbatim
+// content). No numeric composite of the flags (no sentiment score). Counts per
+// tier, never a tier for the teen (no person-level tiering). And no sentence
+// about what any of it caused or predicts.
+
+/** A committed summary, frozen at the moment its cycle's review was approved. */
+export interface CareSummaryCommit {
+  /** Doubles as the `CareEvent.id` of the History row this becomes. */
+  id: string;
+  teenId: string;
+  committedAt: number;
+  /** The window the evidence covered. Named on the row so a frozen summary can
+   *  never be mistaken for a current read. Same vocabulary as `SummaryWindow`
+   *  on purpose — two names for one span is how they drift apart. */
+  windowFromAt: number;
+  windowToAt: number;
+  /** Carried, not re-derived: whether this was the record's FIRST cycle is a
+   *  fact about the moment, and a later code update would erase it. */
+  firstCycle: boolean;
+  /** The CALL, not a score. */
+  concordance: ConcordanceResult;
+  /** Code in force when the summary was committed. */
+  code: string | null;
+  /** The themes the document named, each with its conversation-day count.
+   *
+   *  LABELS, NOT TAXONOMY IDS — because there are none. Element 2 is fixture
+   *  data (this codebase has no theme extraction, reported at the Phase 0 gate),
+   *  so the labels ARE the data and there is no id behind them to store instead.
+   *  If extraction ever lands this becomes theme ids resolved at read time, and
+   *  entries written before then keep their labels — which is why the type is
+   *  `ThemeCount` and not `RiskTheme`.
+   *
+   *  A COUNT WITHOUT ITS DENOMINATOR IS NOT EVIDENCE: `conversationDays` travels
+   *  with them, so "Sleep disturbance 7" can never be read against the wrong
+   *  base. Null when element 2 refused. */
+  themes: ThemeCount[];
+  conversationDays: number | null;
+  /** COUNTS PER TIER, never a tier for the person. */
+  markerCounts: Record<RiskTier | "unassigned", number>;
+  contactDays: number;
+  /** The `CareEvent.id` of the care update documenting the same cycle.
+   *
+   *  SET AT COMMIT TIME, in the same handler that writes the update — the two
+   *  are written together, so there is never a moment where this points at
+   *  nothing. It is not settable afterwards, which is the point: nothing in the
+   *  store edits a committed entry, so a cross-reference cannot be added later
+   *  to a record it was not part of. */
+  documents?: string;
+}
+
+/** Freezes `doc` into a record entry. Pure — the caller supplies the id and the
+ *  clock, so this is as testable as `concordanceFor`. */
+export function commitFor(
+  doc: CareSummaryDoc,
+  id: string,
+  committedAt: number,
+  /** The care update written in the same act. See the field. */
+  documents?: string
+): CareSummaryCommit {
+  const markerCounts: Record<RiskTier | "unassigned", number> = {
+    imminent: 0,
+    clinicalReview: 0,
+    generalMonitoring: 0,
+    unassigned: 0,
+  };
+  for (const flag of doc.flags) markerCounts[flag.tier] += 1;
+
+  return {
+    id,
+    teenId: doc.teenId,
+    committedAt,
+    windowFromAt: doc.window.fromAt,
+    windowToAt: doc.window.toAt,
+    firstCycle: doc.window.firstCycle,
+    concordance: doc.concordance.result,
+    code: doc.currentCode,
+    // COPIED, not aliased. `doc.themes.themes` is a fixture array shared across
+    // every read of that teen; storing the reference would put a live object
+    // inside a frozen record, and a mutation anywhere would silently edit
+    // history. An empty array is the honest record of a cycle whose theme
+    // element refused.
+    themes: doc.themes?.themes.map((t) => ({ ...t })) ?? [],
+    conversationDays: doc.themes?.conversationDays ?? null,
+    markerCounts,
+    contactDays: doc.contactDays,
+    documents,
+  };
+}

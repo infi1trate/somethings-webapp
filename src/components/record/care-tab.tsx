@@ -54,10 +54,11 @@ import {
 } from "@/components/record/care-task-region";
 import {
 } from "@/components/record/flag-review-dialog";
-import { CareSummaryPanel } from "@/components/record/care-summary-panel";
 import { careReadingFor } from "@/lib/record/care-reading";
 import { carePatternFor } from "@/lib/record/care-pattern";
 import { CarePatternBlock } from "@/components/record/care-pattern-block";
+import { CareSummaryDocCard } from "@/components/record/care-summary-doc";
+import { careSummaryFor, commitFor } from "@/lib/record/care-summary-doc";
 import {
   CareUpdateByline,
   CareUpdateBodyView,
@@ -88,7 +89,6 @@ import {
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const H2 =
@@ -129,15 +129,12 @@ function outcomeFor(
     : "presentation_changed";
 }
 
-export function CareTab({
-  teen,
-  /** Prototype-only override so the panel's loading and error states are
-   *  reachable — see the note at the call site. */
-  summaryState,
-}: {
-  teen: DemoTeen;
-  summaryState?: "loading" | "error";
-}) {
+export function CareTab({ teen }: { teen: DemoTeen }) {
+  // NO `summaryState` PROP ANY MORE. It existed to make the old panel's loading
+  // and error states reachable for review, and those states are gone with it:
+  // the evidence document is DERIVED from the record, synchronously, so there is
+  // no call to be slow or to fail. If generation ever becomes a real async step
+  // it needs its own states — and a real pending shape, not a prop override.
   // Fixed at mount so a re-render can't shift every date underneath the reader
   // mid-session. STILL SSR-UNSAFE ON ITS OWN — see the `mounted` gate before the
   // return, which is what makes this legal (gap row 291).
@@ -150,11 +147,10 @@ export function CareTab({
   // Back, now that the AI summary has landed in the assistant rail.
   const summaryRefreshed = useOnboardingStore((s) => s.careSummaryRefreshedAt);
   const refreshCareSummary = useOnboardingStore((s) => s.refreshCareSummary);
-  const careRailOpen = useOnboardingStore((s) => s.careRailOpen);
-  const setCareRailOpen = useOnboardingStore((s) => s.setCareRailOpen);
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
   const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
+  const careSummaryCommits = useOnboardingStore((s) => s.careSummaryCommits);
   // The match/unmatch log, so the Mentor metric names who they are matched with
   // NOW rather than whoever the fixture row still points at.
   const relationshipEvents = useOnboardingStore((s) => s.relationshipEvents);
@@ -200,6 +196,11 @@ export function CareTab({
     decisions: Object.values(careReviews),
     updates: Object.values(careUpdates),
     closures: Object.values(careFlagClosures),
+    // ONLY HERE. The other two slice constructions (record-task-regions,
+    // mentee-table) feed `presentationFor`/`cadenceFor`/`pendingReviewFor`,
+    // none of which read summary events — History is rendered on this tab
+    // alone, so passing them elsewhere would add a read nothing consumes.
+    summaries: careSummaryCommits[teen.id] ?? [],
   };
   const events = careTimelineFor(teen.id, now, store);
   const presentation = presentationFor(teen.id, now, store);
@@ -216,6 +217,7 @@ export function CareTab({
   const pattern = carePatternFor(teen.id, now, store);
   /** So the timeline strip can filter and scroll History. A read, not a write. */
   const timelineRef = useRef<CareTimelineHandle>(null);
+
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
   // READ-WIDE. This used to be `canAct ? pendingReviewFor(...) : null`, which
@@ -233,6 +235,30 @@ export function CareTab({
   // The cadence review task itself is untouched: still raised by the system,
   // still rendered, still requires an action.
   const review = pendingReviewFor(teen.id, now, store);
+  /** THE EVIDENCE DOCUMENT for this cycle. Window = last code update → now, so
+   *  it is cadence-agnostic — see `care-summary-doc.ts`. */
+  const summaryDocBase = careSummaryFor(teen.id, now, store);
+  /** THE GENERATED LINE MUST NAME THE LAST REFRESH, not this render. `now` is
+   *  fixed at mount, so without this a summary refreshed ten minutes ago would
+   *  claim it was generated at page load — a timestamp that reads as fresher
+   *  than the document is. */
+  const summaryDoc = summaryDocBase
+    ? {
+        ...summaryDocBase,
+        generatedAt: summaryRefreshed[teen.id] ?? summaryDocBase.generatedAt,
+      }
+    : null;
+  /** FROZEN once the cycle's review is committed: a decision exists for the
+   *  window, so the document is a record entry and no longer a draft. `review`
+   *  being null with a decision in the window is exactly that state. */
+  const summaryFrozen = review === null;
+  /** Engagement demoted to one muted context line — informs without competing
+   *  with the clinical structure. Null when there is nothing to say. */
+  const engagementLine =
+    reading && reading.exchanges > 0
+      ? // TODO-COPY
+        `${reading.daysEngaged} conversation days · ${reading.exchanges} exchanges`
+      : null;
 
   const staffName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
@@ -291,18 +317,38 @@ export function CareTab({
     });
 
     if (commit) {
-      approveCareReview({
-        reviewId: commit.decisionId,
-        teenId: teen.id,
-        decidedAt: at,
-        careUpdateId: updateId,
-        outcome: outcomeFor(presentation?.code ?? null, commit.code),
-        code: commit.code,
-        statement: commit.statement,
-        actor: staffName,
-        actorRole: staffActorFor(persona),
-        previousCode: presentation?.code ?? undefined,
-      });
+      // ═══ THE DECISION AND ITS EVIDENCE, IN ONE WRITE ═══
+      //
+      // The summary is frozen HERE, at the moment of approval, from the document
+      // that was on screen while the decision was made — not re-derived later.
+      // See `commitFor`. `documents` points at the care update written just
+      // above, so History carries the pair as two cross-referenced rows.
+      //
+      // `summaryDoc` can be null (no window, nothing to state), and then no
+      // summary is committed. A record showing an approved review with no
+      // summary beside it is the truth about that decision.
+      approveCareReview(
+        {
+          reviewId: commit.decisionId,
+          teenId: teen.id,
+          decidedAt: at,
+          careUpdateId: updateId,
+          outcome: outcomeFor(presentation?.code ?? null, commit.code),
+          code: commit.code,
+          statement: commit.statement,
+          actor: staffName,
+          actorRole: staffActorFor(persona),
+          previousCode: presentation?.code ?? undefined,
+        },
+        summaryDoc
+          ? commitFor(
+              summaryDoc,
+              `ce-cs-${commit.decisionId}`,
+              at,
+              `ce-cu-${updateId}`
+            )
+          : undefined
+      );
     }
 
     setAmending(null);
@@ -361,12 +407,19 @@ export function CareTab({
     // reader decides when 320px is worth spending. Collapsed leaves a slim
     // launcher on the right edge rather than nothing, so the tool is findable.
     <div
-      className={cn(
-        "grid items-start gap-6",
-        // Closed: ONE column. The trigger left this grid for the tab row, so
-        // there is no second track to reserve.
-        careRailOpen ? "lg:grid-cols-[minmax(0,1fr)_320px]" : "grid-cols-1"
-      )}
+      // ═══ ONE COLUMN, PERMANENTLY (Phase 2) ═══
+      //
+      // This was a two-track grid whose second track held the 320px Care summary
+      // rail. Both the rail and its tab-row trigger are deleted: the summary is a
+      // full-width document in the main column now, directly above the review
+      // card, because evidence belongs adjacent to the decision it informs.
+      //
+      // THE TRADEOFF, STATED SO NOBODY RE-ADDS THE RAIL BY ACCIDENT: the
+      // persistent collapsible affordance is gone and the page is longer.
+      // Accepted for width — element 5's labelled fragments cannot be read at
+      // 320px — and because reclaiming the column fixes History, which had been
+      // rendering a seven-column table in two thirds of the page.
+      className="grid grid-cols-1 items-start gap-6"
     >
       <div className="min-w-0 space-y-7">
         {/* 1 · CARE SUMMARY — the spine. Leads even with a review pending. */}
@@ -384,6 +437,37 @@ export function CareTab({
           }
           series={series}
         />
+
+        {/* ── CARE SUMMARY · the per-cycle evidence document ──────────────
+            DIRECTLY ABOVE THE REVIEW CARD, which is the whole placement
+            argument: this is the evidence a supervisor codes from, and evidence
+            belongs adjacent to the decision it informs. With no review due it
+            sits above Care update instead — same reason, one step further from
+            the decision.
+
+            FROZEN when the cycle's review has been committed. A frozen summary
+            names its window in the header so a reader cannot mistake the
+            previous cycle's evidence for a current read. */}
+        {summaryDoc && (
+          <CareSummaryDocCard
+            doc={summaryDoc}
+            canAct={canAct}
+            frozen={summaryFrozen}
+            engagement={engagementLine}
+            onRefresh={
+              canAct
+                ? () => {
+                    refreshCareSummary(teen.id, Date.now());
+                    // HONEST ABOUT WHAT A REFRESH DOES. There is no generation
+                    // step to re-run — the document is derived — so this
+                    // re-stamps the generated line and says so. TODO-DATA.
+                    toast("Summary re-checked. Regeneration isn’t wired yet.");
+                  }
+                : undefined
+            }
+            onJumpToEvent={(id) => timelineRef.current?.jump(id)}
+          />
+        )}
 
         {/* 2 · TASK REGION — the presentation review, and only that.
             Escalations and risk flags moved to Overview (record-level work, not
@@ -528,29 +612,8 @@ export function CareTab({
           is supervisor-gated, and the rail carries no other affordance that
           could leak — it cannot approve, write, amend or close anything, and it
           never authors a record entry. ──────────────────────────────────── */}
-      {careRailOpen ? (
-        /* THE PANEL TAKES A READING AND NOTHING ELSE. The old rail was handed ten
-           `facts` so a responder could answer questions from them; there is no
-           responder now, and the reading is computed in one place
-           (`careReadingFor`) rather than assembled at this call site. */
-        <CareSummaryPanel
-          reading={reading}
-          state={summaryState ?? "loaded"}
-          updatedAt={summaryRefreshed[teen.id] ?? null}
-          onCollapse={() => setCareRailOpen(false)}
-          onRefresh={
-            canAct
-              ? () => {
-                  refreshCareSummary(teen.id, Date.now());
-                  // HONEST ABOUT WHAT A REFRESH DOES. There is no generation
-                  // step to re-run — the reading is derived — so this re-stamps
-                  // the "Updated" line and says so. TODO-DATA.
-                  toast("Summary re-checked. Regeneration isn’t wired yet.");
-                }
-              : undefined
-          }
-        />
-      ) : null}
+      {/* THE CARE SUMMARY RAIL WAS HERE. It is now a full-width card in the
+          main column above — see the grid note at the top of this return. */}
 
       {/* Both dialogs mount only for the tier that can use them. */}
       {canAct && (

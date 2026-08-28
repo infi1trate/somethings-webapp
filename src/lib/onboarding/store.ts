@@ -39,6 +39,7 @@ import type {
   CareReviewDecision,
   CareUpdateRecord,
 } from "@/lib/record/care-demo";
+import type { CareSummaryCommit } from "@/lib/record/care-summary-doc";
 import type { RelationshipEvent } from "@/lib/record/relationships";
 import { guardianFor } from "@/lib/record/guardian";
 import type { AccountLock, GuardianDetails } from "@/lib/record/guardian";
@@ -166,11 +167,19 @@ interface OnboardingState {
    *  region because the record now holds its resolution — not because anything
    *  was deleted. */
   careFlagClosures: Record<string, CareFlagClosure>;
-  /** v34 — is the Care tab's assistant rail expanded? A PER-USER PREFERENCE, not
-   *  per-record: a reader who wants the history table at full width wants it on
-   *  every teen, and re-collapsing on each navigation would be the product
-   *  forgetting something it was told. */
-  careRailOpen: boolean;
+  /** APPEND-ONLY log of committed care summaries, keyed by teen id (v40).
+   *
+   *  AN ARRAY PER TEEN, not one entry per teen: every cycle commits its own
+   *  summary, and a map keyed by teen would overwrite the previous cycle's
+   *  evidence — which is precisely the thing a clinical record must not lose. A
+   *  reader comparing this quarter to the last one is reading two entries.
+   *
+   *  NO SETTER EDITS OR REMOVES ONE. The entries are FROZEN SNAPSHOTS taken at
+   *  the moment a review was approved (see `commitFor`), never re-derived from
+   *  the current record, because re-derivation would rewrite the evidence a past
+   *  decision was made on. `careRailOpen` used to live here; the rail it
+   *  controlled is gone, and so is it. */
+  careSummaryCommits: Record<string, CareSummaryCommit[]>;
   /** v39 — IS THE DEV BAR HIDDEN? A presentation preference, not demo data.
    *
    *  DELIBERATELY NOT CLEARED BY `reset()`, for the same reason `persona` is not:
@@ -361,10 +370,14 @@ interface OnboardingState {
   setMenteeStatus: (teenId: string, status: MenteeStatus) => void;
   /** Record a supervisor's decision on a pending review. NO update/delete
    *  counterpart exists, on purpose (see careReviews). */
-  approveCareReview: (decision: CareReviewDecision) => void;
+  approveCareReview: (
+    decision: CareReviewDecision,
+    /** The cycle's evidence, frozen. Omitted when no summary could be stated —
+     *  see the note at the implementation. */
+    summary?: CareSummaryCommit
+  ) => void;
   /** Appends a flag closure. No counterpart reopens one — see the field. */
   closeCareFlag: (closure: CareFlagClosure) => void;
-  setCareRailOpen: (open: boolean) => void;
   setDevBarHidden: (hidden: boolean) => void;
   /** Append a care update. No update/delete counterpart, on purpose. */
   addCareUpdate: (update: CareUpdateRecord) => void;
@@ -427,7 +440,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       menteeStatus: {},
       careReviews: {},
       careFlagClosures: {},
-      careRailOpen: true,
+      careSummaryCommits: {},
       devBarHidden: false,
       activityRead: {},
       activityScenarioId: "typical-shift",
@@ -811,7 +824,6 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
-      setCareRailOpen: (open) => set({ careRailOpen: open }),
       setDevBarHidden: (hidden) => set({ devBarHidden: hidden }),
 
       // ── ACTIVITY LEDGER OVERLAY (v35) ───────────────────────────────────
@@ -857,9 +869,27 @@ export const useOnboardingStore = create<OnboardingState>()(
             [closure.flagId]: closure,
           },
         })),
-      approveCareReview: (decision) =>
+      // ONE `set`, TWO WRITES, ON PURPOSE. The decision and the evidence it was
+      // made on land together or not at all. Split into two actions, an
+      // interruption between them — a thrown render, a closed tab — would leave a
+      // record holding a billing-code decision with no evidence behind it, and
+      // nothing downstream could tell that apart from a decision made on nothing.
+      //
+      // `summary` is optional because a decision can legitimately be made with no
+      // summary available: under three contact days the document refuses, and
+      // forcing a commit there would fabricate an entry.
+      approveCareReview: (decision, summary) =>
         set((state) => ({
           careReviews: { ...state.careReviews, [decision.reviewId]: decision },
+          careSummaryCommits: summary
+            ? {
+                ...state.careSummaryCommits,
+                [summary.teenId]: [
+                  ...(state.careSummaryCommits[summary.teenId] ?? []),
+                  summary,
+                ],
+              }
+            : state.careSummaryCommits,
         })),
       addCareUpdate: (update) =>
         set((state) => ({
@@ -941,7 +971,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           menteeStatus: {},
           careReviews: {}, // dev "start over" restores the pending reviews
           careFlagClosures: {}, // …and reopens the closed flags
-          careRailOpen: true,
+          careSummaryCommits: {}, // …and un-commits the frozen summaries
           activityRead: {}, // dev "start over" returns every row to its seed state
           activityScenarioId: "typical-shift",
           tasksLastVisitAt: 0, // …and brings the shift-start digest back
@@ -1034,15 +1064,22 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      overlay means every event reads as unread, which is correct for a
       //      viewer who has never opened the feed. SCOPE IS IN THE KEY; see
       //      lib/activity/read-state.ts and standing rule 10.
-      // v34: careRailOpen (Care assistant rail expanded?) — a SCALAR, not a
-      //      map, so the backfill is a default rather than {}. Defaults OPEN:
-      //      the rail is the tab's opening state, and a reader who has never
-      //      touched it should see what it offers.
+      // v34: careRailOpen (Care assistant rail expanded?) — REMOVED at v40 with
+      //      the rail itself. The v34 migration below still backfills it, which
+      //      is deliberate: a migration is a record of what a stored payload
+      //      looked like, and editing history to match today's shape is how a
+      //      chain of migrations stops being replayable. The field is simply
+      //      dropped at v40.
       // v39: devBarHidden (is the prototype harness put away?) — a SCALAR with a
-      //      default, like careRailOpen, so the backfill is `false` and every
-      //      existing session keeps the bar it already had. NOT in `reset()`:
-      //      see the note on the field.
-      version: 39,
+      //      default, so the backfill is `false` and every existing session keeps
+      //      the bar it already had. NOT in `reset()`: see the note on the field.
+      // v40: careSummaryCommits (committed per-cycle care summaries) — a MAP of
+      //      ARRAYS, backfilled {}. An empty log is correct for every existing
+      //      session: no summary has ever been committed, and BACKFILLING ONE
+      //      WOULD BE FABRICATING EVIDENCE for decisions already in the record.
+      //      Old records therefore show approved reviews with no summary beside
+      //      them, which is the truth about them.
+      version: 40,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1430,6 +1467,17 @@ export const useOnboardingStore = create<OnboardingState>()(
             st37.tasksLastVisitAt = 0;
           }
         }
+        if (version < 40) {
+          // v40: a MAP OF ARRAYS — {} is the backfill, and see the version log
+          // for why an empty log is the only honest one.
+          const st40 = persisted as { careSummaryCommits?: unknown };
+          if (
+            typeof st40.careSummaryCommits !== "object" ||
+            st40.careSummaryCommits === null
+          ) {
+            st40.careSummaryCommits = {};
+          }
+        }
         if (version < 38) {
           // v38: closed union — anything unrecognised becomes the default.
           const st38 = persisted as { activityDensity?: unknown };
@@ -1449,11 +1497,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           ) {
             st35.activityRead = {};
           }
-          // v34: a scalar preference — backfill the default, not {}.
-          const st34 = persisted as { careRailOpen?: unknown };
-          if (typeof st34.careRailOpen !== "boolean") {
-            st34.careRailOpen = true;
-          }
+          // v34's careRailOpen backfill USED TO SIT HERE and is deleted, not
+          // kept for the record: there is no longer a field for it to fill, so
+          // it would write a key nothing reads onto every migrated payload. A
+          // key already present in a stored payload is dropped on the next
+          // write, since `partialize` is a whitelist and no longer lists it.
           // v33: same backfill, same reasoning as careReviews above.
           const st33 = persisted as { careFlagClosures?: unknown };
           if (
@@ -1636,9 +1684,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.careFlagClosures = {};
         }
         if (
-          typeof (merged as { careRailOpen?: unknown }).careRailOpen !== "boolean"
+          typeof (merged as { careSummaryCommits?: unknown })
+            .careSummaryCommits !== "object" ||
+          merged.careSummaryCommits === null
         ) {
-          merged.careRailOpen = true;
+          merged.careSummaryCommits = {};
         }
         if (
           typeof (merged as { activityRead?: unknown }).activityRead !==
@@ -1752,7 +1802,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         menteeStatus: state.menteeStatus,
         careReviews: state.careReviews,
         careFlagClosures: state.careFlagClosures,
-        careRailOpen: state.careRailOpen,
+        careSummaryCommits: state.careSummaryCommits,
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
         tasksLastVisitAt: state.tasksLastVisitAt,

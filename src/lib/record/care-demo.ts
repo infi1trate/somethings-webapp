@@ -42,6 +42,11 @@ export type CareEventType =
   | "presentation_reviewed"
   | "presentation_changed"
   | "care_update"
+  /** A CARE SUMMARY COMMITTED TO THE RECORD — the per-cycle evidence document,
+   *  frozen at the moment its review was approved. Distinct from `care_update`
+   *  and never merged with it: the update is the supervisor's own prose, this is
+   *  the evidence they read. Phase 7 cross-references the two. */
+  | "care_summary"
   | "escalation"
   | "risk_flag"
   | "pause"
@@ -112,17 +117,29 @@ export interface CareEvent {
   assessment?: CareUpdateAssessment;
 }
 
+import type { CareSummaryCommit, ConcordanceResult } from "@/lib/record/care-summary-doc";
+import { TIER_LABEL, type RiskTier } from "@/lib/record/risk-taxonomy";
+
 const DAY = 86_400_000;
 /** Fixtures are relative to a fixed reference so they never drift; the caller
  *  passes `now` and these resolve against it. */
 const ago = (now: number, days: number) => now - days * DAY;
 
-/** Which filter chip a class belongs under. Chips group classes so the bar stays
- *  five items while the union grows. */
+/** Which filter chip a class belongs under. Chips GROUP classes — the union of
+ *  event types is larger than this bar and always will be.
+ *
+ *  SUMMARIES GET THEIR OWN CHIP rather than folding under "Care updates", which
+ *  was the cheaper option. A committed summary and a care update are different
+ *  artefacts by different authors: one is derived evidence, the other is a
+ *  supervisor's written assessment. "Show me the summaries on this record" is a
+ *  question a reader actually asks, and under a shared chip it has no answer.
+ *  The bar is `flex-wrap`, so the sixth chip wraps at narrow widths rather than
+ *  overflowing. TODO-COPY on the label. */
 export const CARE_FILTERS = [
   { id: "all", label: "All" },
   { id: "assessments", label: "Assessments" },
   { id: "presentation", label: "Presentation" },
+  { id: "summary", label: "Summaries" },
   { id: "care", label: "Care updates" },
   { id: "flags", label: "Flags" },
 ] as const;
@@ -135,6 +152,7 @@ const FILTER_OF: Record<CareEventType, Exclude<CareFilterId, "all">> = {
   presentation_reviewed: "presentation",
   presentation_changed: "presentation",
   care_update: "care",
+  care_summary: "summary",
   escalation: "flags",
   risk_flag: "flags",
   pause: "care",
@@ -157,6 +175,9 @@ export const TYPE_LABEL: Record<CareEventType, string> = {
   presentation_reviewed: "Presentation reviewed",
   presentation_changed: "Presentation changed",
   care_update: "Care update",
+  /* TODO-COPY — "Care summary", not "AI summary": the row is a record entry
+     whose provenance is stated inside the document, not in its title. */
+  care_summary: "Care summary",
   escalation: "Escalation",
   risk_flag: "Flag",
   pause: "Paused",
@@ -175,6 +196,10 @@ export const TYPE_TONE: Record<CareEventType, "neutral" | "warm" | "warning" | "
   presentation_reviewed: "neutral",
   presentation_changed: "warm",
   care_update: "neutral",
+  // Neutral even when the summary DIVERGED. The divergence is a finding inside
+  // the document, and tinting the History row would restate it as a property of
+  // the record — the same reason there are no whole-card tints.
+  care_summary: "neutral",
   escalation: "critical",
   risk_flag: "warning",
   pause: "warning",
@@ -1186,6 +1211,9 @@ export interface CareStoreSlice {
   /** Closed flags, so `flagEventsFor` can report resolution and `openFlagsFor`
    *  can drop them from the task region. */
   closures?: CareFlagClosure[];
+  /** Committed care summaries. Frozen snapshots, so this is the ONLY source for
+   *  a past cycle's evidence — nothing here re-derives one. */
+  summaries?: CareSummaryCommit[];
 }
 
 /** The full append-only timeline for a teen: the hand-written clinical fixtures,
@@ -1212,6 +1240,9 @@ export function careTimelineFor(
     ...(store.closures ?? [])
       .filter((c) => c.teenId === teenId)
       .map(closureToEvent),
+    ...(store.summaries ?? [])
+      .filter((c) => c.teenId === teenId)
+      .map(summaryCommitToEvent),
   ];
 }
 
@@ -2015,3 +2046,87 @@ export function careAiSummaryFor(
   // was an unsourced claim about data this function never sees.
   return { generatedAt, text: `${movement}.` };
 }
+
+// ── COMMITTED CARE SUMMARIES AS HISTORY ─────────────────────────────────────
+//
+// A committed summary is a record entry, so it renders in History like every
+// other entry — same table, same disclosure, no special surface. What it must
+// NOT do is restate its findings as the record's own claims: the row names the
+// call the document made and the counts behind it, and the document itself
+// remains the place those are argued.
+
+const COMMIT_TIER_LABEL: Record<RiskTier | "unassigned", string> = {
+  imminent: TIER_LABEL.imminent,
+  clinicalReview: TIER_LABEL.clinicalReview,
+  generalMonitoring: TIER_LABEL.generalMonitoring,
+  // TODO-COPY. `TIER_LABEL` has no entry: "unassigned" is the absence of a
+  // tier rather than one of them, and the taxonomy is right not to name it.
+  unassigned: "Untiered",
+};
+
+/** TODO-COPY. The CALL, not a verdict on the teen. */
+const COMMIT_RESULT_LABEL: Record<ConcordanceResult, string> = {
+  diverges: "Content diverges from code",
+  concordant: "Concordant",
+  insufficientData: "Insufficient data",
+};
+
+function summaryCommitToEvent(c: CareSummaryCommit): CareEvent {
+  const markers = (Object.entries(c.markerCounts) as [
+    RiskTier | "unassigned",
+    number,
+  ][])
+    .filter(([, n]) => n > 0)
+    .map(([tier, n]) => `${n} ${COMMIT_TIER_LABEL[tier].toLowerCase()}`);
+
+  return {
+    id: c.id,
+    occurredAt: c.committedAt,
+    type: "care_summary",
+    // TODO-COPY. "Committed", not "generated": the generation is not the event,
+    // the entering-into-the-record is.
+    description: c.firstCycle
+      ? "Care summary committed — first cycle"
+      : "Care summary committed",
+    // The outcome column carries the call and nothing softer. A row reading
+    // "Summary committed" would tell a reader scanning History nothing about
+    // why they might want to open it.
+    result: COMMIT_RESULT_LABEL[c.concordance],
+    // NOT ATTRIBUTED TO A PERSON. Nobody wrote this; it was derived, and putting
+    // the approving supervisor's name in the author column would credit them
+    // with authorship of evidence they only read. The system author kind is what
+    // the provenance line inside the document says too.
+    author: { kind: "system" },
+    code: c.code ?? undefined,
+    visibility: "all_staff",
+    // ── THE DISCLOSURE, AS FROZEN FACTS ──
+    // Every line is a value recorded at commit time. No trajectory sentence, no
+    // themes prose, no restatement of the divergence argument: those live in the
+    // document, which is where they can carry their provenance labels. TODO-COPY.
+    providerNote: [
+      `Window\n${fmtDay(c.windowFromAt)} – ${fmtDay(c.windowToAt)}`,
+      `Contact days\n${c.contactDays}`,
+      // "7/9" — the count and its denominator together, which is the only form
+      // a theme count can be read in. `conversationDays` is null only when the
+      // theme element refused, and then `themes` is empty and this line is gone.
+      c.themes.length
+        ? `Themes\n${c.themes
+            .map((t) => `${t.label} ${t.days}/${c.conversationDays}`)
+            .join(" · ")}`
+        : null,
+      markers.length ? `Flags in window\n${markers.join(" · ")}` : null,
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n\n"),
+    documentedBy: c.documents,
+  };
+}
+
+/** Local day formatter — the timeline's own date rendering governs the primary
+ *  column; this is disclosure text, which is prose and needs a readable date. */
+const fmtDay = (at: number) =>
+  new Date(at).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
