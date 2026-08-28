@@ -9,14 +9,27 @@
 // 13px secondary. A human's clinical account outranks decision support on this
 // page, and that ordering has to be visible without reading a word.
 //
-// THE THREE PROMPTS ARE NO LONGER ENFORCED STRUCTURE (Prompt C Phase 1). They
-// were the read structure as well as the compose template; they are now
-// placeholder guidance in the composer only. A supervisor who writes one
-// paragraph gets one paragraph, not three labelled sections with two of them
-// empty. Legacy updates that DO carry the sectioned shape still render with
-// their labels, so nothing already written loses its structure.
+// THE STRUCTURE IS BACK, AND IT IS ENFORCED. An earlier pass made the three
+// Figma prompts optional and rendered a supervisor's prose free-form, because two
+// of three labels over empty text implied a structure nobody chose. The care
+// update is now a structured CLINICAL FORM whose three fields are all required,
+// so the read view labels all three — the labels describe fields that are
+// guaranteed to have content, which is what the earlier version could not assume.
+//
+// THE ASSESSMENT IS A CHIP, NOT A SENTENCE. It is a structured value chosen from
+// three, and a bare word under a heading reads as a truncated paragraph.
+//
+// NEUTRAL TONE ON THAT CHIP, DELIBERATELY. Colour-coding by direction would put a
+// red "Escalated" on the record, and a red chip grades the teen's period rather
+// than reporting it. The word already carries the meaning; the colour would only
+// add a judgement. Defaults whisper.
 
-import { CARE_UPDATE_SECTIONS, type CareUpdateRecord } from "@/lib/record/care-demo";
+import {
+  ASSESSMENT_LABEL,
+  CARE_UPDATE_ASSESSMENT_LABEL,
+  CARE_UPDATE_SECTIONS,
+  type CareUpdateRecord,
+} from "@/lib/record/care-demo";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { RecordAvatar } from "@/components/record/record-avatar";
 
@@ -25,16 +38,6 @@ const LABEL_STYLE = {
   letterSpacing: "var(--type-field-label-tracking)",
 } as const;
 
-/** Does this update use the legacy three-section shape? An update written after
- *  the free-form change puts everything in `standing` and leaves the other two
- *  empty — rendering a lone "Where things stand" label over it would imply a
- *  structure the author never chose. */
-function isSectioned(update: CareUpdateRecord): boolean {
-  return (
-    CARE_UPDATE_SECTIONS.filter((s) => update.body[s.id]?.trim()).length > 1
-  );
-}
-
 export function CareUpdateBodyView({
   update,
   compact = false,
@@ -42,25 +45,18 @@ export function CareUpdateBodyView({
   update: CareUpdateRecord;
   compact?: boolean;
 }) {
+  // Empty fields are not possible on a new update — the form requires all three —
+  // but a fixture or a legacy record could still carry a blank, and a label over
+  // nothing is worse than a missing label.
   const filled = CARE_UPDATE_SECTIONS.filter((s) => update.body[s.id]?.trim());
 
-  // FREE-FORM: one block of prose, no labels invented over it.
-  if (!isSectioned(update)) {
-    const body = filled.map((s) => update.body[s.id].trim()).join("\n\n");
-    return (
-      <p
-        className={
-          compact
-            ? "max-w-prose whitespace-pre-line text-[13px] leading-[19px] text-[var(--text-primary)]"
-            : "max-w-prose whitespace-pre-line text-[15px] leading-[1.5] text-[var(--text-primary)]"
-        }
-      >
-        {body}
-      </p>
-    );
-  }
+  /** TIGHTENED FROM 15px/1.5 TO 14px/1.55. Two prose fields plus a chip is more
+   *  on the page than one narrative was, and the extra line-height keeps a dense
+   *  clinical paragraph readable at the smaller size. */
+  const prose = compact
+    ? "mt-1 max-w-prose whitespace-pre-line text-[13px] leading-[19px] text-[var(--text-primary)]"
+    : "mt-1 max-w-prose whitespace-pre-line text-[14px] leading-[1.55] text-[var(--text-primary)]";
 
-  // LEGACY SECTIONED: keep the labels the author wrote against.
   return (
     <div className={compact ? "space-y-2.5" : "space-y-4"}>
       {filled.map((s) => (
@@ -68,18 +64,35 @@ export function CareUpdateBodyView({
           <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
             {s.label}
           </p>
-          <p
-            className={
-              compact
-                ? "mt-1 max-w-prose whitespace-pre-line text-[13px] leading-[19px] text-[var(--text-primary)]"
-                : "mt-1 max-w-prose whitespace-pre-line text-[15px] leading-[1.5] text-[var(--text-primary)]"
-            }
-          >
-            {update.body[s.id].trim()}
-          </p>
+          <p className={prose}>{update.body[s.id].trim()}</p>
         </div>
       ))}
+
+      {update.body.assessment && (
+        <div>
+          <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+            {CARE_UPDATE_ASSESSMENT_LABEL}
+          </p>
+          <AssessmentChip value={update.body.assessment} />
+        </div>
+      )}
     </div>
+  );
+}
+
+/** The structured value, as a chip. `--status-neutral-*` is the design system's
+ *  own paired couple (5.70:1 light, 5.27:1 dark) — the fill's own foreground
+ *  rather than a generic text token, which is the mistake that produced the
+ *  contrast defects in gap rows 276, 286 and 294. */
+export function AssessmentChip({
+  value,
+}: {
+  value: NonNullable<CareUpdateRecord["body"]["assessment"]>;
+}) {
+  return (
+    <span className="mt-1.5 inline-flex items-center rounded-full bg-[var(--status-neutral-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--status-neutral-fg)]">
+      {ASSESSMENT_LABEL[value]}
+    </span>
   );
 }
 

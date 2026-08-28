@@ -1,13 +1,19 @@
 "use client";
 
-// DECISION FOOTER — ONE component across both commit paths: the presentation
-// review's provider note, and the flag review modal's close note.
+// DECISION FOOTER — the required, permanent note on a decision.
 //
-// UNIFIED VERB GRAMMAR. Presentation review is Approve / Change; escalation and
-// risk flag are Review / Close. Different verbs, identical grammar: a primary
-// action in the band, and a decision that cannot commit without a required,
-// permanent note. That sameness is the whole reason this is one component —
-// a supervisor learns the rule once.
+// ONE CONSUMER NOW: the flag review modal's close note. It was two — the
+// presentation review's provider note was the other — and that note is retired:
+// every presentation event is documented by a care update instead, so the review
+// card stopped consuming this. The component is deliberately UNCHANGED by that
+// removal, because changing it would have shifted the flag review, which was out
+// of scope. A second consumer disappearing is not a reason to rewrite the thing
+// the remaining one depends on.
+//
+// THE GRAMMAR IT ESTABLISHED OUTLIVED IT. A primary action in the band plus a
+// decision that cannot commit without a required, permanent note — the care
+// update form now follows the same rule with three fields instead of one, so a
+// supervisor still learns it once.
 //
 // ERROR RECOVERY OVER ERROR PREVENTION — a deliberate reversal, and worth
 // recording because the previous version argued the opposite.

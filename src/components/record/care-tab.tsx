@@ -62,9 +62,13 @@ import {
   CareUpdateByline,
   CareUpdateBodyView,
 } from "@/components/record/care-update-view";
-import { CareUpdateCompose } from "@/components/record/care-update-compose";
+import {
+  CareUpdateCompose,
+  type DiagnosticPrefill,
+} from "@/components/record/care-update-compose";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
+  STAGE_LABEL,
   cadenceFor,
   careTimelineFor,
   scoreSeriesFor,
@@ -74,7 +78,8 @@ import {
   type CareStoreSlice,
   type CareUpdateBody,
   type CareUpdateRecord,
-  type PresentationRef,
+  type CareReviewDecision,
+  type CareUpdatePrefill,
 } from "@/lib/record/care-demo";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
 import {
@@ -90,6 +95,39 @@ const H2 =
   "font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]";
 const CARD =
   "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-4";
+
+/** WHAT AN OPEN CARE UPDATE FORM IS ABOUT TO COMMIT.
+ *
+ *  Held by `CareTab` between the DSM-5 confirm (or the review's Approve) and the
+ *  form's commit. Nothing is written to the record while this is set — abandoning
+ *  the form at any step leaves the presentation exactly as it was, which is the
+ *  whole reason the change is carried in component state rather than staged in
+ *  the store. */
+interface PendingCommit {
+  /** The store key for the decision this will append. A cadence review commits
+   *  under the review's own id; an ad-hoc change gets a fresh one per change, so
+   *  two changes in a session append two entries rather than overwriting. */
+  decisionId: string;
+  code: string;
+  statement: string;
+  /** TODO-COPY — completes "Documenting: …" in the form's header. */
+  what: string;
+  /** False when the code is unchanged: a cadence review can be approved without
+   *  changing anything, and the commit button must not claim otherwise. */
+  applies: boolean;
+}
+
+/** The decision class for a commit, from what is on record versus what is going
+ *  on. Moved here from the review card, which no longer builds decisions. */
+function outcomeFor(
+  currentCode: string | null,
+  nextCode: string
+): CareReviewDecision["outcome"] {
+  if (currentCode === null) return "presentation_assigned";
+  return currentCode === nextCode
+    ? "presentation_reviewed"
+    : "presentation_changed";
+}
 
 export function CareTab({
   teen,
@@ -127,10 +165,22 @@ export function CareTab({
   const [composing, setComposing] = useState(false);
   const [amending, setAmending] = useState<CareUpdateRecord | null>(null);
   const [searching, setSearching] = useState(false);
-  // A code chosen in the DSM-5 dialog from RESTING mode. It POPULATES a
-  // recommendation rather than committing — the provider-note gate still stands
-  // between it and the record.
-  const [proposed, setProposed] = useState<PresentationRef | null>(null);
+  /** ═══ WHAT THE OPEN CARE UPDATE FORM IS DOCUMENTING ═══
+   *
+   *  THIS REPLACED THE PENDING-APPROVAL CONCEPT. A code chosen in the DSM-5
+   *  dialog used to populate a synthesised `PresentationReview` so the pick
+   *  travelled the approve-with-note path — which meant a supervisor's own change
+   *  sat in a review queue waiting for the supervisor to approve it. That queue is
+   *  gone. A confirmed pick now goes straight to the care update form, and
+   *  committing the form applies the change.
+   *
+   *  Null for a standalone update, which changes no presentation. */
+  const [committing, setCommitting] = useState<PendingCommit | null>(null);
+  /** The diagnostic statement's pre-filled draft, when there is one. Only a
+   *  cadence review has a rationale to draw from — an ad-hoc change has no
+   *  rationale object, so this stays null on that path and the field opens
+   *  empty. */
+  const [prefill, setPrefill] = useState<DiagnosticPrefill | null>(null);
   /** WHERE FOCUS GOES AFTER A CLOSE. The dialog's usual trick — hand focus back
    *  to the trigger — cannot work here: closing a task UNMOUNTS the card the
    *  trigger lived in, so focus fell to <body> and a keyboard user was dropped
@@ -172,30 +222,17 @@ export function CareTab({
   // enforced act-narrow by BREAKING read-wide: a lead mentor reading a record
   // could not see that a review was outstanding on it. The review is fetched for
   // every tier now, and the gate moved to the card — which renders its evidence
-  // for everyone and its provider note and actions only for a viewer who is
-  // handed the callbacks.
-  const fixtureReview = pendingReviewFor(teen.id, now, store);
-  // A code picked from resting mode becomes a review with the SAME shape, so it
-  // travels the same approve-with-note path rather than a shortcut around it.
-  const review =
-    fixtureReview ??
-    (canAct && proposed
-      ? {
-          id: `pr-${teen.id}-manual`,
-          stage: cadence.stage,
-          recommended: proposed,
-          rationale: {
-            // A supervisor's own choice has no model behind it, and saying so is
-            // the whole point of the provenance label — "templated from intake
-            // mapping" here would credit a mapping that had no part in it.
-            source: "supervisor" as const,
-            // TODO-COPY
-            text: "Selected directly by a supervisor from the DSM-5 list. The provider note below is the rationale of record.",
-          },
-          survey: cadence.lastAssessment,
-          aggregate: null,
-        }
-      : null);
+  // for everyone and its actions only for a viewer handed the callbacks.
+  //
+  // THE SYSTEM-RAISED REVIEW, AND ONLY THAT. An ad-hoc pick used to be
+  // synthesised into a `PresentationReview` here (`pr-…-manual`) so it travelled
+  // the approve-with-note path — which put a supervisor's own change into a queue
+  // for that same supervisor to approve. THAT is the pending state this feature
+  // removes, and removing it is why the synthesis is gone rather than disabled.
+  //
+  // The cadence review task itself is untouched: still raised by the system,
+  // still rendered, still requires an action.
+  const review = pendingReviewFor(teen.id, now, store);
 
   const staffName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
@@ -216,20 +253,84 @@ export function CareTab({
       ? () => toast("Assigning the first survey isn’t built yet.")
       : undefined;
 
-  const saveUpdate = (body: CareUpdateBody, amends?: string) => {
-    const at = Date.now();
+  /** ═══ THE ONE COMMIT PATH ═══
+   *
+   *  A standalone update, a cadence review and an ad-hoc presentation change all
+   *  land here. The difference is only whether `committing` is set.
+   *
+   *  IMMEDIATE, NOT PENDING. When it is set, the presentation change is applied
+   *  in the same action that appends the update — there is no interim state, no
+   *  `in_review`, and nothing for anyone to approve afterwards.
+   *
+   *  TWO ENTRIES, CROSS-REFERENCED. The update names the presentation event it
+   *  documents and the decision names the update documenting it, so History can
+   *  render each from the other without merging them into one row. Both ids are
+   *  derived from the same two keys, so the pair cannot half-link. */
+  const saveUpdate = (
+    body: CareUpdateBody,
+    meta: {
+      at: number;
+      amends?: string;
+      diagnosticPrefill?: CareUpdatePrefill;
+    }
+  ) => {
+    const at = meta.at;
+    const updateId = `cu-${teen.id}-${at}`;
+    const commit = committing;
+
     addCareUpdate({
-      id: `cu-${teen.id}-${at}`,
+      id: updateId,
       teenId: teen.id,
       createdAt: at,
       author: staffName,
       authorRole: staffActorFor(persona),
       body,
-      amends,
+      amends: meta.amends,
+      documents: commit ? `ce-dec-${commit.decisionId}` : undefined,
+      diagnosticPrefill: meta.diagnosticPrefill,
     });
+
+    if (commit) {
+      approveCareReview({
+        reviewId: commit.decisionId,
+        teenId: teen.id,
+        decidedAt: at,
+        careUpdateId: updateId,
+        outcome: outcomeFor(presentation?.code ?? null, commit.code),
+        code: commit.code,
+        statement: commit.statement,
+        actor: staffName,
+        actorRole: staffActorFor(persona),
+        previousCode: presentation?.code ?? undefined,
+      });
+    }
+
     setAmending(null);
+    setCommitting(null);
+    setPrefill(null);
     // TODO-COPY
-    toast(amends ? "Amendment appended." : "Care update saved.");
+    toast(
+      meta.amends
+        ? "Amendment appended."
+        : commit?.applies
+          ? "Presentation changed. Both entries are on the record."
+          : commit
+            ? "Review recorded. Both entries are on the record."
+            : "Care update saved."
+    );
+  };
+
+  /** Open the form to document a presentation event. Shared by both entry
+   *  points — the ad-hoc DSM-5 confirm and the review's Approve — so neither can
+   *  drift into its own commit path. */
+  const documentPresentation = (
+    commit: PendingCommit,
+    draftStatement: DiagnosticPrefill | null
+  ) => {
+    setCommitting(commit);
+    setPrefill(draftStatement);
+    setAmending(null);
+    openDialog(setComposing);
   };
 
   const tasks = careTasksFor(review);
@@ -292,22 +393,44 @@ export function CareTab({
         <CareTaskRegion
           tasks={tasks}
           reviewProps={{
-            currentCode: presentation?.code ?? null,
             actor: staffName,
             actorRole: staffActorFor(persona),
-            // ABSENT below supervisor tier — not disabled. Passing undefined
-            // is how the card renders no provider note and no action row.
+            // ABSENT below supervisor tier — not disabled. Passing undefined is
+            // how the card renders no action row at all.
             onChangeRequest: canAct
               ? () => openDialog(setSearching)
               : undefined,
-            onApprove: canAct
-              ? (d) => {
-                  approveCareReview({ ...d, teenId: teen.id });
-                  setProposed(null);
-                  // TODO-COPY
-                  toast("Approved. The decision is on the record.");
-                }
-              : undefined,
+            // APPROVE OPENS THE FORM. It commits nothing on its own — the
+            // recommendation is applied when the care update commits.
+            //
+            // THE ONLY PLACE A PRE-FILL COMES FROM. The review carries a
+            // rationale with a machine-readable provenance
+            // (`templated | ai | supervisor`), so the draft and its label are
+            // both derived from it rather than invented. An ad-hoc change has no
+            // rationale object, which is why that path passes null and opens the
+            // field empty.
+            onApproveRequest:
+              canAct && review
+                ? () =>
+                    documentPresentation(
+                      {
+                        decisionId: review.id,
+                        code: review.recommended.code,
+                        statement: review.recommended.statement,
+                        // TODO-COPY
+                        what:
+                          presentation?.code === review.recommended.code
+                            ? `${STAGE_LABEL[review.stage].toLowerCase()} review`
+                            : `presentation change to ${review.recommended.code}`,
+                        applies:
+                          presentation?.code !== review.recommended.code,
+                      },
+                      {
+                        source: review.rationale.source,
+                        text: review.rationale.text,
+                      }
+                    )
+                : undefined,
           }}
         />
 
@@ -436,9 +559,18 @@ export function CareTab({
             open={composing}
             onOpenChange={(o) => {
               setComposing(o);
-              if (!o) setAmending(null);
+              // ABANDONING CHANGES NOTHING. Clearing the staged commit here is
+              // what makes that true for every exit — Escape, the overlay, the
+              // close button — rather than only for a Cancel button.
+              if (!o) {
+                setAmending(null);
+                setCommitting(null);
+                setPrefill(null);
+              }
             }}
             amending={amending}
+            documenting={committing}
+            prefill={prefill}
             onSave={saveUpdate}
             returnFocusTo={returnFocusTo}
           />
@@ -448,11 +580,29 @@ export function CareTab({
             current={presentation}
             returnFocusTo={returnFocusTo}
             onSelect={(entry: Dsm5Entry) => {
-              // Populates the recommendation. Does NOT commit — the review slot
-              // and its provider note still stand in the way.
-              setProposed({ statement: entry.statement, code: entry.code });
-              // TODO-COPY
-              toast("Moved into the review. Add a note to approve it.");
+              // FIRES ONLY FROM THE MODAL'S CONFIRM STEP (before → after), never
+              // from a search row — that contract is the dialog's, and it is why
+              // there is no second confirmation here.
+              //
+              // Still commits NOTHING. It hands the confirmed pick to the care
+              // update form; the change is applied when that form commits, and
+              // abandoning the form leaves the presentation untouched.
+              //
+              // NO PRE-FILL on this path: an ad-hoc change has no rationale
+              // object to draw a draft from, so the diagnostic field opens empty
+              // and the callout above it guards a blank field.
+              setSearching(false);
+              documentPresentation(
+                {
+                  decisionId: `adhoc-${teen.id}-${Date.now()}`,
+                  code: entry.code,
+                  statement: entry.statement,
+                  // TODO-COPY
+                  what: `presentation change to ${entry.code}`,
+                  applies: true,
+                },
+                null
+              );
             }}
           />
         </>
