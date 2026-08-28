@@ -13,6 +13,7 @@ import {
   Palette,
   Shield,
   Video,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import type { SettingsRole } from "@/components/settings/tabs-config";
@@ -84,11 +85,40 @@ export const SETTINGS_SECTIONS: SettingsSectionDef[] = [
     status: "coming-soon",
     roles: ALL,
   },
+  /** ═══ CONDITIONAL, AND THE ONLY ONE ═══
+   *
+   *  Present ONLY while the dev bar is hidden. It exists to undo that, so a
+   *  permanent "Dev" section would be a settings row that does nothing on the
+   *  99% of visits where the bar is already on screen — and a second, quieter
+   *  way to reach a control that is already one click away.
+   *
+   *  Filtered by `settingsSectionsForRole`, not by the page: the registry is the
+   *  single place order and visibility live (see the module note), and a page
+   *  that special-cased one section would be the beginning of the end of that. */
+  {
+    id: "dev",
+    label: "Dev", // TODO-COPY
+    description:
+      // TODO-COPY
+      "The prototype harness — role switching, scenarios, and starting over.",
+    icon: Wrench,
+    status: "live",
+    roles: ALL,
+  },
 ];
 
-/** Sections visible to a role (all, in S1 — no section is role-hidden yet). */
+/** Sections visible to a role, and in the state the app is in.
+ *
+ *  `devBarHidden` is the only non-role condition, and it is passed in rather
+ *  than read from the store here so this module stays a pure registry — it is
+ *  imported by things that must not subscribe to state. */
 export function settingsSectionsForRole(
-  role: SettingsRole
+  role: SettingsRole,
+  opts?: { devBarHidden?: boolean }
 ): SettingsSectionDef[] {
-  return SETTINGS_SECTIONS.filter((s) => s.roles.includes(role));
+  return SETTINGS_SECTIONS.filter((s) => {
+    if (!s.roles.includes(role)) return false;
+    if (s.id === "dev") return opts?.devBarHidden === true;
+    return true;
+  });
 }
