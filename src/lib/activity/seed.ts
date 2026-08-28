@@ -28,9 +28,17 @@
 // two runs produce byte-identical ledgers and a screenshot taken today matches one
 // taken next week.
 //
-// TEEN NAMES ARE FIRST NAMES ONLY — standing rule 6, and here it is enforced at
-// the fixture level rather than trusted to the renderer: there is no surname in
-// this file to leak. Staff carry full first names.
+// EVERY NAME IN THIS FILE IS A FIRST NAME — teens AND staff. It was written that
+// way for standing rule 6 ("teens are first name only"), enforced at the fixture
+// level rather than trusted to the renderer: there is no surname here to leak.
+//
+// RULE 6 WAS RETIRED ON 2026-08-28 (gap row 284) AND THIS FILE DID NOT FOLLOW,
+// because it cannot without new data. The reversal works by rendering
+// `DemoTeen.name`, and this is a SEPARATE fixture universe whose people
+// (`teen-maya`, `mentor-brandon`, `sup-lydia`) have no surnames at all. Giving
+// the ledger surnames means authoring them for teens and staff alike — a data
+// decision, not a rendering one, and staff here would otherwise be the only
+// people in the app shown less fully than teens. Flagged, not invented.
 
 import {
   SYSTEM_ACTOR_ID,

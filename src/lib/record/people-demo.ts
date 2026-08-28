@@ -88,30 +88,36 @@ export interface PastMatch {
 
 export interface DemoTeen {
   id: string;
-  /** THE LEGAL NAME, AND ALMOST NEVER THE THING RENDERED. Standing rule 6 —
-   *  "teens are FIRST NAME ONLY, everywhere, always" — means every list, header,
-   *  avatar, toast, dialog and composed sentence reads `teenDisplayName(teen)`
-   *  (lib/record/teen-name.ts), never this field.
+  /** THE LEGAL NAME, AND NOW THE THING RENDERED. Standing rule 6 — "teens are
+   *  FIRST NAME ONLY, everywhere, always" — was RETIRED by product-owner
+   *  decision on 2026-08-28, so every list, header, avatar, toast, dialog and
+   *  composed sentence shows this field, reached through `teenDisplayName(teen)`
+   *  (lib/record/teen-name.ts).
    *
-   *  THE ONE SANCTIONED EXCEPTION, decided 2026-08-27: the "Full name" row in the
-   *  Account section of a teen's own record, which is staff-only chrome behind a
-   *  deliberate click and is the record OF the legal name. It is the only place
-   *  in the app a teen surname renders. See design-system-gaps.md row 254 — that
-   *  carve-out AMENDS rule 6, which was written absolute.
+   *  STILL READ THROUGH THE CHOKEPOINT, not directly. The rule is gone; the
+   *  single decision point is not, and it is what made retiring the rule a
+   *  one-function change across 47 call sites. See design-system-gaps.md row 254
+   *  (the enforcement, and its one carve-out — the Account "Full name" row,
+   *  which is now simply consistent with everywhere else) and row 284 (the
+   *  reversal).
    *
-   *  It is also still the search key: staff type "Ortiz" and find Caleb. Matching
-   *  on a string is not rendering it. */
+   *  It has always also been the search key: staff type "Ortiz" and find Caleb. */
   name: string;
-  /** THE AUTHORITATIVE FIRST NAME — what this teen is actually called on screen.
+  /** THE AUTHORITATIVE FIRST NAME. No longer the display name (rule 6 retired,
+   *  2026-08-28) but still the right field for anywhere a first name alone is
+   *  wanted — a greeting, a composed sentence.
    *
    *  Stored rather than derived because deriving it means splitting `name` on
    *  whitespace, and that guesses wrong on any compound first name ("Mary Anne").
-   *  `teenDisplayName` still falls back to the split, so a row that omits this
-   *  degrades to a slightly wrong first name and never to a leaked surname. */
+   *  `firstNameOf` is that split, and it is why this field exists. */
   firstName: string;
   /** Teen-facing nickname when it differs from `firstName` — "Pat" for Patricia.
-   *  A NICKNAME, NOT SURNAME SUPPRESSION: it used to be load-bearing for rule 6
-   *  via the `goesBy ?? name` idiom, which is exactly how the surnames leaked. */
+   *
+   *  IT NO LONGER RENDERS IN A LIST OR HEADER. `teenDisplayName` returns the full
+   *  legal name, so the three teens carrying a nickname show it only on the
+   *  record's "Goes by" row. Flagged in gap row 284 as the one deliberate loss in
+   *  the rule-6 reversal — if preferred names should win again, `teen-name.ts`
+   *  has the one line to change. */
   goesBy?: string;
   phone: string;
   /** Teens are reached by phone in this demo — no email on file, so the

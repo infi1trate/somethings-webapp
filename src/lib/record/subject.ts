@@ -120,10 +120,11 @@ export function recordHrefFor(id: string, from?: string): string {
  *  different rules and the old one-liner (`goesBy ?? name`) applied the staff
  *  rule to everybody.
  *
- *  TEENS: first name only, always (standing rule 6) — delegated to the one
- *  chokepoint so this function and the tables cannot disagree.
- *  STAFF: the full name. Mentors, leads and supervisors are adults whose
- *  surnames are how colleagues address and find them; rule 6 is about minors. */
+ *  TEENS AND STAFF NOW RESOLVE THE SAME WAY — the full name. Standing rule 6
+ *  ("first name only, always") was retired on 2026-08-28; gap row 284. Teens are
+ *  still delegated to the one chokepoint (`teenDisplayName`) so this function and
+ *  the tables cannot disagree, which is also what made the reversal a one-line
+ *  change rather than a sweep. */
 export function subjectDisplayName(s: FixtureSubject): string {
   if (s.role === "teen") return teenDisplayName(s);
   return s.goesBy ?? s.name;

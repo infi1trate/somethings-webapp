@@ -820,9 +820,11 @@ function StatusPill({ active }: { active: boolean }) {
 /** Two-letter staff initials. Exported for `team-directory.tsx`'s card-mode
  *  avatar, which needs the same letterform the table's NameCell uses.
  *
- *  STAFF ONLY. Teens get ONE letter from `teenAvatarInitial` — two letters on a
- *  teen reconstruct the surname's first letter, which is the fact standing rule 6
- *  suppresses. (Three near-identical copies of this exist: here,
+ *  TEENS NOW MATCH. `teenAvatarInitial` used to return ONE letter, because two
+ *  letters on a teen reconstruct the surname's first letter — the fact standing
+ *  rule 6 suppressed. That rule was retired on 2026-08-28 (gap row 284), so both
+ *  paths give two letters and the duplication below is now FOUR copies of one
+ *  behaviour. (Three near-identical copies of this exist: here,
  *  `care-network.tsx:41` and `caseload-modal.tsx:30`. Not consolidated in this
  *  phase; noted in design-system-gaps row 268.) */
 export function initials(name: string) {

@@ -1,30 +1,41 @@
-// STANDING RULE 6 LIVES HERE. "Teens are FIRST NAME ONLY, everywhere, always.
-// Never render a teen surname."
+// ═══ STANDING RULE 6 IS RETIRED (product-owner decision, 2026-08-28) ═══
 //
-// This module exists because the rule had NO enforcement point. The display
-// idiom across every record surface was `teen.goesBy ?? teen.name`, and that is
-// not surname suppression — `goesBy` is a NICKNAME, set on three of twenty-six
+// The rule read: "Teens are FIRST NAME ONLY, everywhere, always. Never render a
+// teen surname." It was restated verbatim in every phase brief and enforced from
+// this module. It no longer applies: mentees display their full name, the same
+// as staff. See design-system-gaps.md row 284.
+//
+// WHY THIS MODULE STILL EXISTS. It was built as a CHOKEPOINT rather than a
+// sweep — "a sweep fixes today's call sites; the next one written from the old
+// idiom re-breaks the rule silently" — and that property is what made the
+// reversal a one-function change across 47 call sites in 17 files. The
+// chokepoint is worth keeping for exactly the same reason it was worth building:
+// how a teen is named on screen is one decision in one place, whichever way the
+// decision goes.
+//
+// WHAT THE RULE USED TO PREVENT, kept as the record of what changed. The display
+// idiom across every record surface was `teen.goesBy ?? teen.name`, which is not
+// surname suppression — `goesBy` is a NICKNAME, set on three of twenty-six
 // fixture teens, and the fallback `name` is a FULL name. So `/app/mentees` listed
 // "Caleb Ortiz", "Elena Duarte", "Jonah Whitfield"; the rows that looked
-// compliant ("Pat", "Marc", "Jordy") were compliant by accident. See
-// design-system-gaps.md row 254.
-//
-// THE FIX IS A CHOKEPOINT, NOT A SWEEP. A sweep fixes today's call sites; the
-// next one written from the old idiom re-breaks the rule silently. Everything
-// that renders a teen's name goes through `teenDisplayName` instead, so there is
-// one function to read, one to test, and one to change.
+// compliant ("Pat", "Marc", "Jordy") were compliant by accident. Rule 6 replaced
+// that with first-name-only; this reversal returns the full name deliberately
+// rather than by accident. Gap row 254 recorded the enforcement; row 284 records
+// the reversal.
 //
 // DELIBERATELY STRUCTURAL TYPING (not `DemoTeen`): the same name has to be
 // resolved from the fixture row, from a `FixtureSubject`, and from the thin row
 // shapes the tables build. One helper for all of them beats three that drift.
 //
-// NOT FOR STAFF. Mentors, leads and supervisors keep their full names — rule 6
-// is about minors. `subjectDisplayName` is the role-aware entry point when the
-// person could be either.
+// STAFF WERE NEVER AFFECTED. Mentors, leads and supervisors always kept their
+// full names; `subjectDisplayName` is the role-aware entry point when the person
+// could be either. Teens and staff now resolve to the same shape, which is the
+// point of the reversal.
 
-/** The naming facts a teen carries. `firstName` is authoritative; `name` is the
- *  legal name and is NEVER the thing rendered (see the one sanctioned exception
- *  in `people-demo.ts`'s DemoTeen doc). */
+/** The naming facts a teen carries. `name` is the full legal name and is now
+ *  WHAT RENDERS (rule 6 retired, 2026-08-28). `firstName` is still authoritative
+ *  for anywhere a first name alone is wanted, and is still what
+ *  `firstNameOf` guards. */
 export interface TeenNameParts {
   name: string;
   /** Teen-facing nickname when they go by something other than their first
@@ -49,21 +60,39 @@ export function firstNameOf(name: string): string {
   return first || name;
 }
 
-/** WHAT A TEEN IS CALLED ON SCREEN. The only sanctioned way to render one.
+/** WHAT A TEEN IS CALLED ON SCREEN — the full legal name, since rule 6 was
+ *  retired on 2026-08-28.
  *
- *  `goesBy` wins because a teen who goes by "Pat" is called Pat by everyone,
- *  including the mentor reading the row. Otherwise the recorded first name, and
- *  only then the stripped token. */
+ *  `goesBy` NO LONGER WINS, and that is a real consequence worth stating rather
+ *  than burying: three fixture teens have a nickname ("Pat" for Patricia, "Jordy"
+ *  for Jordan) and it now renders nowhere in a list, header or sentence. The
+ *  instruction was that every mentee display their last name, and `goesBy ?? name`
+ *  would have left those three showing a nickname with no surname. The nickname is
+ *  still on the record — `/admin/person/[id]` renders a "Goes by" row — so the
+ *  fact is not lost, only demoted. If preferred names should win again, this is
+ *  the one line to change: `teen.goesBy ?? teen.name`. */
 export function teenDisplayName(teen: TeenNameParts): string {
-  return teen.goesBy ?? teen.firstName ?? firstNameOf(teen.name);
+  return teen.name;
 }
 
-/** The avatar letterform for a teen: ONE letter, from the displayed name.
+/** The avatar letterform for a teen: TWO letters, matching staff.
  *
- *  Never `initials(name)`. Two-letter initials on a teen ("CO") reconstruct the
- *  surname's first letter, which is the same fact the rule is suppressing, and it
- *  would disagree with the record header — which has always shown a single
- *  letter. Staff avatars are untouched and keep both initials. */
+ *  It was ONE letter for a single reason — two-letter initials ("CO")
+ *  reconstruct the surname's first letter, which was exactly the fact rule 6
+ *  suppressed. With the rule retired that reason is gone, and a teen avatar
+ *  showing "CO" beside a header reading "Caleb Ortiz" is consistent where a lone
+ *  "C" would now look like a bug.
+ *
+ *  DUPLICATED LOGIC, FLAGGED: `roster.tsx:828` exports an identical `initials`.
+ *  Not imported here because a `lib/` module should not depend on a component
+ *  file; the two should converge into `lib/` when something else touches either.
+ *  Gap row 284. */
 export function teenAvatarInitial(teen: TeenNameParts): string {
-  return teenDisplayName(teen).charAt(0).toUpperCase();
+  return teenDisplayName(teen)
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }
