@@ -81,6 +81,7 @@ import {
   type DemoTeen,
 } from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
+import { useMounted } from "@/lib/use-mounted";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -100,8 +101,10 @@ export function CareTab({
   summaryState?: "loading" | "error";
 }) {
   // Fixed at mount so a re-render can't shift every date underneath the reader
-  // mid-session.
+  // mid-session. STILL SSR-UNSAFE ON ITS OWN — see the `mounted` gate before the
+  // return, which is what makes this legal (gap row 291).
   const [now] = useState(() => Date.now());
+  const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const draft = useOnboardingStore((s) => s.draft);
   const careReviews = useOnboardingStore((s) => s.careReviews);
@@ -230,6 +233,26 @@ export function CareTab({
   };
 
   const tasks = careTasksFor(review);
+
+  // ═══ NOTHING TIME-DERIVED UNTIL MOUNT (standing rule 3, gap row 291) ═══
+  //
+  // `now` comes from `useState(() => Date.now())`, whose initialiser runs on the
+  // SERVER as well as the client, with a different answer each time. Nineteen
+  // things on this tab are derived from it, so the server HTML and the first
+  // client render disagreed and React reported a hydration mismatch — "this
+  // won't be patched up" — on every one of the nine viewports. It was the only
+  // view of 68 with a console error.
+  //
+  // The gate is the fix rather than a change to `now` itself: on the server and
+  // on the first client render `mounted` is false, both produce this shell, so
+  // hydration matches by construction. The real tree renders immediately after,
+  // with the client's own clock. Placed AFTER every hook — an early return above
+  // one would skip it.
+  //
+  // The alternative was seeding `now` from a module constant so both sides agree,
+  // which hydrates cleanly and then shows dates relative to a stale instant until
+  // the effect corrects them. A quiet shell for one frame beats a wrong date.
+  if (!mounted) return <div className="min-h-[60vh]" />;
 
   return (
     // THE RAIL IS COLLAPSIBLE, and that is the whole reason it can come back:

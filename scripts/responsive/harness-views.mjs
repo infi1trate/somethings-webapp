@@ -52,7 +52,19 @@ const WIZARD_STEPS = [
 
 const HUB_STEPS = [
   ["C1", "/hub"],
-  ["C2", "/hub/profile"],
+  // ═══ C2 REMOVED — `/hub/profile` IS NOT A ROUTE ═══
+  //
+  // Second row of this kind after D5, and the same shape of error: it asked for
+  // a URL the product deliberately does not serve. `hub/[step]/page.tsx` says so
+  // in its first line — "Placeholder module for the FOUR NON-PROFILE hub steps
+  // (Story, Training, Scheduling, Away)" — and line 35 does
+  // `if (mounted && !isValid) router.replace("/hub")`. The hub's Profile step
+  // routes BY STATE, to the wizard or to `/app/profile`, so it never lands on a
+  // `/hub/profile` page. C3-C6 share the route and never drifted, which is what
+  // made this look like a C2-specific bug rather than a bad row.
+  //
+  // The states it was meant to cover are already covered: the wizard is cluster
+  // B and `/app/profile` is E1. Matrix goes 68 rows to 67.
   ["C3", "/hub/story"],
   ["C4", "/hub/training"],
   ["C5", "/hub/scheduling"],

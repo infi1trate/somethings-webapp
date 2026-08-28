@@ -89,7 +89,7 @@ All `OL` + `S3`. Persona `new-mentor`, lifecycle `invited`→`pending`. Goal: co
 | ID | Route | Persona | Lifecycle | Shell | Substrate | Primary goal | 320–430 | 768+ | Status |
 |---|---|---|---|---|---|---|---|---|---|
 | C1 | `/hub` | mentor | `published` | — | S7 | See the 5 remaining steps, pick one | ? | ? | untouched |
-| C2 | `/hub/profile` | mentor | `published` | — | S3, S7 | Finish profile | F-05 | ? | untouched |
+| ~~C2~~ | ~~`/hub/profile`~~ | — | — | — | **NOT A ROUTE — removed** | — | — | — | `hub/[step]/page.tsx` is the "placeholder module for the four NON-PROFILE hub steps" and redirects anything else to `/hub`. The hub's Profile step routes by state — to the wizard or to `/app/profile` — so `/hub/profile` is never served. Those states are already covered by cluster B and E1. Matrix 68 → 67. |
 | C3 | `/hub/story` | mentor | `published` | — | S3, S7 | Finish story | F-05 | ? | untouched |
 | C4 | `/hub/training` | mentor | `published` | — | S3, S7 | Finish training | F-05 | ? | untouched |
 | C5 | `/hub/scheduling` | mentor | `published` | — | S3, S7 | Set availability | F-05 | ? | untouched |
