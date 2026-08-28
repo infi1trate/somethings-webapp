@@ -179,6 +179,18 @@ export const IN_PAGE = () => {
     // nested inside an `<svg>` drop out along with the root.
     if (el.namespaceURI === SVG_NS) continue;
 
+    // ═══ AN INTENTIONAL CLIPPING VIEWPORT IS NOT A REFLOW BUG (gap row 297) ═══
+    //
+    // A phone preview is a window onto taller content, and the stage inside it
+    // is SCALED — a transformed child's rect legitimately exceeds its parent. A
+    // rect comparison reads both as lost content: 132 of 164 RC-6 hits came from
+    // inside one such frame, reporting 20-580px "lost" from a device screen
+    // doing its job.
+    //
+    // Opt-in by attribute, so the component declares its own intent rather than
+    // this file carrying a list of class names to recognise.
+    if (el.closest("[data-clip-viewport]")) continue;
+
     if (truncatedByAncestor(el)) continue;
 
     for (const axis of ["x", "y"]) {

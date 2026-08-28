@@ -142,6 +142,23 @@ export function MentorProfilePreview({
       // `tabindex` takes no role that obliges one. If this should announce itself,
       // it needs a product decision about the words.
       tabIndex={focused ? -1 : 0}
+      // ═══ THIS ELEMENT CLIPS ON PURPOSE — IT IS A DEVICE SCREEN (gap row 297) ═══
+      //
+      // Declared for the RC-6 reflow check, which otherwise counts every child
+      // that extends past this box as lost content: 132 of its 164 hits came from
+      // inside this preview. Two reasons it is wrong to count them, and both are
+      // properties of what a phone frame IS rather than of this code:
+      //   · A device screen shows a window onto taller content. In focused mode
+      //     that window is `overflow-hidden` deliberately, because the preview
+      //     zooms to one region; otherwise it scrolls, so nothing is unreachable.
+      //   · THE STAGE INSIDE IS SCALED. `applyFocus()` sets a transform on
+      //     `stageRef`, and a transformed child's rect legitimately exceeds its
+      //     parent — a rect comparison reads that as 20-580px of lost content.
+      //
+      // An attribute rather than a class blocklist in the checker: the component
+      // declares its own intent, so a future frame gets the same treatment
+      // without anybody editing `checks.mjs`.
+      data-clip-viewport=""
       className={cn(
         "relative h-full bg-white text-[#1f1e1d]",
         focused
