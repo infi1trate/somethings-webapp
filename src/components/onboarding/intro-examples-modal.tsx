@@ -138,7 +138,11 @@ export function IntroExamplesModal() {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="rounded-sm text-xs font-medium text-foreground/70 underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          // SC 2.5.8 — 132x16 to 28px via padding. Note this is a
+          // `DialogTrigger asChild`, so it must stay a single element that
+          // forwards props: classes are fine, a wrapper would break Radix's
+          // contract (see the note in lib/touch-target.ts).
+          className="rounded-sm py-1.5 text-xs font-medium text-foreground/70 underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           Listen to a few examples
         </button>
