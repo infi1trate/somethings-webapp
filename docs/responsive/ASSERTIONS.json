@@ -1,0 +1,3674 @@
+{
+  "base": "http://localhost:3000",
+  "results": [
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "xs",
+      "hScroll": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 79,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Elena",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Elena: F41.1, Generalized anxiety disord",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Elena",
+            "obscuredBy": "path",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ethan",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Ethan",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marc",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marc",
+            "obscuredBy": "svg",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marisol",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marisol",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi: F32.1, Major depressive disorder, ",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "s",
+      "hScroll": {
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 79,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Ethan",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Ethan",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Imani",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Imani: F33.0, Major depressive disorder,",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Imani",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marisol",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marisol",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Mia",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Mia",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "m",
+      "hScroll": {
+        "scrollWidth": 430,
+        "clientWidth": 430,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 79,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Imani",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Imani: F33.0, Major depressive disorder,",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "John",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with John",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jonah",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jonah: F32.1, Major depressive disorder,",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Jonah",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Nick",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Nick",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Noah",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Noah",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "md",
+      "hScroll": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 79,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Jonah",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jonah: F32.1, Major depressive disorder,",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jordy",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jordy: F41.1, Generalized anxiety disord",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Jordy",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Liam",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Liam",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Pat",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Pat",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi: F32.1, Major depressive disorder, ",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "lg",
+      "hScroll": {
+        "scrollWidth": 1024,
+        "clientWidth": 1024,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 92,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Jonah",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jonah: F32.1, Major depressive disorder,",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Jonah",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Nick",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "xl",
+      "hScroll": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 92,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 76,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 76,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Marc",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marc",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "zoom400",
+      "hScroll": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 79,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Elena",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Elena: F41.1, Generalized anxiety disord",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Elena",
+            "obscuredBy": "path",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ethan",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Ethan",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marc",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marc",
+            "obscuredBy": "svg",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marisol",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marisol",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi: F32.1, Major depressive disorder, ",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "text200",
+      "hScroll": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [],
+        "warn": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 224,
+            "h": 40
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 111,
+            "h": 40
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 127,
+            "h": 40
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 116,
+            "h": 40
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 116,
+            "h": 40
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 122,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 84,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 96,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 79,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 108,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 99,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 75,
+            "h": 34
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 416,
+            "h": 33
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": []
+      }
+    },
+    {
+      "id": "D6",
+      "cluster": "D",
+      "vp": "landscape",
+      "hScroll": {
+        "scrollWidth": 844,
+        "clientWidth": 844,
+        "overflows": false
+      },
+      "targets": {
+        "fail": [
+          {
+            "el": "input.w-28 bg-transparent text-foreground outline-none placeholder",
+            "label": "Search by name",
+            "w": 112,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Name",
+            "w": 55,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Mentor",
+            "w": 64,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Group",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Status",
+            "w": 58,
+            "h": 20
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Joined",
+            "w": 61,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Alex",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Alex: F41.1, Generalized anxiety disorde",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Amy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ava",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Caleb",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Caleb: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Elena",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Elena: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ethan",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Imani",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Imani: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "John",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jonah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jonah: F32.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Jordy",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Jordy: F41.1, Generalized anxiety disord",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Liam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marc",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Marisol",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Mia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Naomi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Naomi: F33.1, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Nick",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Noah",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Pat",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Ravi",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Ravi: F32.1, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Riley",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Riley: F33.0, Major depressive disorder,",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sam",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Simone",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Simone: F33.0, Major depressive disorder",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Sofia",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Theo",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.rounded-sm tabular-nums text-[var(--text-primary)] underline",
+            "label": "Theo: F32.0, Major depressive disorder, ",
+            "w": 42,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Yuki",
+            "w": 48,
+            "h": 20
+          },
+          {
+            "el": "a.block truncate rounded-sm font-medium underline-offset-2 hov",
+            "label": "Zoe",
+            "w": 48,
+            "h": 20
+          }
+        ],
+        "warn": [
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "All",
+            "w": 50,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "New",
+            "w": 63,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 7 days",
+            "w": 105,
+            "h": 34
+          },
+          {
+            "el": "button.rounded-full border px-4 py-1.5 text-sm font-medium transiti",
+            "label": "First 30 days",
+            "w": 114,
+            "h": 34
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by billing code state",
+            "w": 160,
+            "h": 32
+          },
+          {
+            "el": "select.rounded-full border border-[var(--border-subtle)] bg-[var(--",
+            "label": "Filter by status",
+            "w": 120,
+            "h": 32
+          },
+          {
+            "el": "button.inline-flex items-center gap-1 rounded-sm hover:text-[var(--",
+            "label": "Billing code",
+            "w": 86,
+            "h": 40
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Mentor",
+            "w": 59,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Lead mentor",
+            "w": 88,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors bg-",
+            "label": "Supervisor",
+            "w": 79,
+            "h": 26
+          },
+          {
+            "el": "button.rounded-full px-2.5 py-1 font-semibold transition-colors tex",
+            "label": "Admin",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "el": "select.min-w-[13rem] rounded-md border border-[color:var(--border-c",
+            "label": "— none —New — day 1Intake completeSteady",
+            "w": 224,
+            "h": 25
+          },
+          {
+            "el": "button.ml-auto flex size-7 shrink-0 items-center justify-center rou",
+            "label": "Reset as a new mentor and restart onboar",
+            "w": 28,
+            "h": 28
+          }
+        ]
+      },
+      "rc6": [],
+      "vhUsage": [],
+      "focus": {
+        "checked": 60,
+        "capped": true,
+        "hits": [
+          {
+            "focused": "Name",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Billing code",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Mentor",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Group",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Status",
+            "obscuredBy": "a",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Joined",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Alex",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Alex: F41.1, Generalized anxiety disorde",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Alex",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ava",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Caleb",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Caleb: F41.1, Generalized anxiety disord",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Caleb",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Elena",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Elena: F41.1, Generalized anxiety disord",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Elena",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Imani",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Imani: F33.0, Major depressive disorder,",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "John",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with John",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jonah",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Jonah: F32.1, Major depressive disorder,",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Jonah",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Liam",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marc",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marc",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Marisol",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Marisol",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Naomi",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Naomi: F33.1, Major depressive disorder,",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Nick",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Nick",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Noah",
+            "obscuredBy": "button",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Chat with Noah",
+            "obscuredBy": "div",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          },
+          {
+            "focused": "Ravi: F32.1, Major depressive disorder, ",
+            "obscuredBy": "nav[bottom-nav]",
+            "reason": "entirely covered"
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "hScroll320": 0,
+    "targetsFail": 346,
+    "targetsWarn": 150,
+    "rc6": 0,
+    "focusObscured": 94,
+    "vhUsage": 0,
+    "sourceVhFiles": 0
+  }
+}

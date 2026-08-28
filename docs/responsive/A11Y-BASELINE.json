@@ -1,0 +1,46 @@
+{
+  "base": "http://localhost:3000",
+  "generated": "unstamped",
+  "byView": {
+    "A4r": 29
+  },
+  "byViewport": {
+    "xs": 2,
+    "s": 2,
+    "m": 2,
+    "md": 2,
+    "lg": 7,
+    "xl": 7,
+    "zoom400": 2,
+    "text200": 3,
+    "landscape": 2
+  },
+  "byRule": {
+    "color-contrast": {
+      "impact": "serious",
+      "count": 26,
+      "views": [
+        "A4r@xs",
+        "A4r@s",
+        "A4r@m",
+        "A4r@md",
+        "A4r@lg",
+        "A4r@xl",
+        "A4r@zoom400",
+        "A4r@text200",
+        "A4r@landscape"
+      ]
+    },
+    "scrollable-region-focusable": {
+      "impact": "serious",
+      "count": 3,
+      "views": [
+        "A4r@lg",
+        "A4r@xl",
+        "A4r@text200"
+      ]
+    }
+  },
+  "total": 29,
+  "errors": []
+}

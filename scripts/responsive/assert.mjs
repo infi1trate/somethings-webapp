@@ -29,6 +29,25 @@ for (const view of views) {
     }
     try {
       const r = await page.evaluate(IN_PAGE);
+
+      // ═══ THE FOCUS SWEEP GETS A PRISTINE DOCUMENT (gap row 279) ═══
+      //
+      // It used to run straight after IN_PAGE on the same document, and the
+      // numbers it produced were not reproducible: D6 @landscape reported 19
+      // obscured elements in a full run and 2 when the same check was run alone
+      // against the same view. A check whose result depends on what ran before
+      // it is not a measurement.
+      //
+      // The sweep focuses up to 60 elements in sequence, and every focus()
+      // scrolls, so it accumulates state by design — on top of whatever IN_PAGE
+      // left behind. Reloading first makes each result depend on the view alone.
+      //
+      // SAFE ONLY BECAUSE SEEDING IS NOW ONCE-PER-CONTEXT (gap row 278): the
+      // reload rehydrates from localStorage, so a DRIVEN view keeps the state
+      // its flow produced instead of being reset to the seed. Under the old
+      // seeder this same reload would have silently reverted A4r.
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForTimeout(600);
       const focus = await focusNotObscured(page);
       // SC 1.4.10 is a 320px criterion; wider viewports overflowing is still a
       // bug but it is not THIS one, so it is counted separately.

@@ -11,6 +11,10 @@ import { chromium } from "playwright";
 export const BASE = process.env.RESPONSIVE_BASE ?? "http://localhost:3000";
 export const STORE_KEY = "somethings.mentor-onboarding";
 
+/** Marks a context as already seeded. Not the app's key, so the app never sees
+ *  it and `persist` never touches it. */
+export const SEEDED_FLAG = "somethings.harness-seeded";
+
 /** ═══ THE VIEWPORTS ═══
  *
  *  Six from the phase brief, plus the two special cases it names.
@@ -64,11 +68,18 @@ export function buildStoreSeed(seed, version) {
   if (seed.profileUpdate) {
     // A PENDING changeset only. `changeRequests` is deliberately NOT seeded
     // anywhere — see the note in views.mjs about standing rule 1.
+    // RELATIVE, NOT A FIXED EPOCH. It was `1756000000000` (Aug 2025), which
+    // rendered as "SUBMITTED 369D AGO" and gains a day every day — a screenshot
+    // that reads as a year-stale changeset is misleading evidence about a queue
+    // nobody would leave that long. Three days ago holds the RENDERED string
+    // steady ("3d ago") while the epoch moves, so it is both accurate and more
+    // stable for screenshot comparison than the constant was.
+    const submitted = Date.now() - 3 * 86400000;
     state.profileUpdate = {
       id: "pu-harness",
       status: "pending",
-      submittedAt: 1756000000000,
-      updatedAt: 1756000000000,
+      submittedAt: submitted,
+      updatedAt: submitted,
       fields: [
         {
           fieldId: "bio",
@@ -117,14 +128,33 @@ export async function openView(browser, view, vp, version) {
 
   const payload = JSON.stringify(buildStoreSeed(view.seed ?? {}, version));
   await context.addInitScript(
-    ({ key, payload }) => {
+    ({ key, payload, once }) => {
       try {
+        // ═══ SEED ONCE PER CONTEXT, NOT ONCE PER NAVIGATION (gap row 278) ═══
+        //
+        // An init script runs before the scripts of EVERY document in the
+        // context — so without this guard it re-wrote the seed on each
+        // navigation and each redirect hop, silently reverting anything the app
+        // had written since.
+        //
+        // MEASURED FAILURE: `driveReject` completed, asserted the app had
+        // written `changeRequests`, and returned ok — then its own final
+        // `page.goto` re-ran this script, wiped the snapshot back to the seed,
+        // and the screenshot showed "In review" instead of the rejected state.
+        // A green result and a wrong picture: the exact combination the flow
+        // guard exists to prevent, arriving from the seeder instead.
+        //
+        // For a seeded view this changes nothing — the payload is identical on
+        // every hop, so writing it once is writing it the same. For a DRIVEN
+        // view it is the difference between evidence and fiction.
+        if (localStorage.getItem(once)) return;
         localStorage.setItem(key, payload);
+        localStorage.setItem(once, "1");
       } catch {
         /* private mode / blocked storage — the view still renders defaults */
       }
     },
-    { key: STORE_KEY, payload }
+    { key: STORE_KEY, payload, once: SEEDED_FLAG }
   );
 
   if (vp.rootFontPx) {

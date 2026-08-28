@@ -119,11 +119,16 @@ export const VIEWS = [
     url: "/onboarding/submitted",
     // The rejected half of A4. Real flow, not a seed — see the module note.
     flow: "reject",
-    // THE FLOW'S PREREQUISITES, not the end state: a LEAD (the only persona
-    // `/admin/profile-update` does not redirect) plus a pending changeset to send
-    // back. `driveReject` becomes the mentor afterwards, because the rejected
-    // state belongs to the mentor's view of it.
-    seed: { persona: "lead-mentor", status: "in_review", profileUpdate: true },
+    // THE FLOW'S PREREQUISITES, not the end state: a LEAD, because
+    // `/admin/review` renders a blank shell for anyone else, plus a submission
+    // waiting on review. `driveReject` becomes the mentor afterwards, because
+    // the rejected state belongs to the mentor's view of it.
+    //
+    // NO `profileUpdate` HERE. It was seeded while the driver pointed at
+    // `/admin/profile-update`, a different feature reviewing post-publish edits
+    // (see flows.mjs). Seeding it now would put an unrelated pending changeset
+    // behind the screenshot.
+    seed: { persona: "lead-mentor", status: "in_review" },
     note: "rejected lifecycle via the real admin send-back",
   },
 

@@ -100,30 +100,73 @@ export const IN_PAGE = () => {
   //     hand-rolled truncation is caught too.
   //   · `sr-only` — clips to 1px by design to hide visually while staying in the
   //     accessibility tree.
-  const isDeliberateTruncation = (el) => {
-    const cs = getComputedStyle(el);
-    if (cs.textOverflow === "ellipsis") return true;
-    if (cs.webkitLineClamp && cs.webkitLineClamp !== "none") return true;
-    // sr-only: 1px box with clip / clip-path
-    const r = el.getBoundingClientRect();
-    if (r.width <= 1 && r.height <= 1) return true;
+  // ═══ THE DISCRIMINATOR: DOES THE OVERFLOW COME FROM IN-FLOW CONTENT? ═══
+  //
+  // The first version compared `scrollWidth` to `clientWidth` and reported 1737
+  // hits across 612 view×viewport combos. Almost none were real, and the three
+  // dominant causes were all things this codebase does on purpose:
+  //
+  //   216x  `button.relative after:absolute after:inset-x-0 …` — the Phase 0
+  //         TOUCH-TARGET UTILITY. Its transparent `::after` deliberately extends
+  //         past the button, which inflates scrollHeight. The checker was
+  //         reporting the accessibility fix as an accessibility bug.
+  //   203x  `div.pointer-events-none absolute inset-0 overflow-hidden` — an
+  //         oversized image cropped to its frame (the phone preview, Ken Burns).
+  //         Clipping IS the design.
+  //   384x  bare `span` — text inside a TRUNCATING ANCESTOR. The old check
+  //         looked for `text-overflow: ellipsis` on the element itself, so a span
+  //         inside a `truncate` parent looked like lost content.
+  //
+  // What the RC-6 bug actually looks like is a STATIC, IN-FLOW child wider than
+  // its box — a `min-w-[640px]` table inside an `overflow-hidden` card. So that
+  // is what gets measured: the furthest edge of the element's in-flow children.
+  // A pseudo-element cannot be an in-flow child, and neither can an absolutely
+  // positioned image, so both drop out by construction rather than by a
+  // blocklist that would need maintaining.
+  const inFlowOverflow = (el, axis) => {
+    const box = el.getBoundingClientRect();
+    let worst = 0;
+    for (const child of el.children) {
+      const cs = getComputedStyle(child);
+      // Out-of-flow children cannot be "clipped content" in the RC-6 sense —
+      // they were positioned deliberately, often to be cropped.
+      if (cs.position === "absolute" || cs.position === "fixed") continue;
+      if (cs.display === "none") continue;
+      const cb = child.getBoundingClientRect();
+      const over =
+        axis === "x" ? cb.right - box.right : cb.bottom - box.bottom;
+      if (over > worst) worst = over;
+    }
+    return worst;
+  };
+
+  /** Truncation is inherited in practice: `truncate` on a parent means the child
+   *  text is meant to be cut. Walk up rather than checking one element. */
+  const truncatedByAncestor = (el) => {
+    let n = el;
+    for (let i = 0; n && i < 6; i++, n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.textOverflow === "ellipsis") return true;
+      if (cs.webkitLineClamp && cs.webkitLineClamp !== "none") return true;
+    }
     return false;
   };
 
   const scrollable = (v) => v === "auto" || v === "scroll" || v === "overlay";
   const clipping = (v) => v === "hidden" || v === "clip";
 
+  /** 8px of slack. Sub-pixel layout and a 1-2px shadow or focus ring are not
+   *  lost content; the defect this exists to catch lost 300px of table. */
+  const RC6_MIN = 8;
+
   for (const el of document.querySelectorAll("body *")) {
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) continue;
+    if (truncatedByAncestor(el)) continue;
 
     for (const axis of ["x", "y"]) {
-      const over =
-        axis === "x"
-          ? el.scrollWidth - el.clientWidth
-          : el.scrollHeight - el.clientHeight;
-      if (over <= 2) continue; // sub-pixel noise
-      if (isDeliberateTruncation(el)) continue;
+      const over = inFlowOverflow(el, axis);
+      if (over <= RC6_MIN) continue;
 
       // Walk from the element outward. The FIRST ancestor (including the element
       // itself) that scrolls on this axis rescues the content; the first that
@@ -209,6 +252,12 @@ export async function focusNotObscured(page, maxTabs = 60) {
     const related = (hit, el) =>
       hit === el || el.contains(hit) || hit.contains(el);
 
+    /** Next's dev-tools overlay is a fixed element that genuinely covers things,
+     *  and it does not exist in production. Counting it would put ~59 phantom
+     *  SC 2.4.11 failures into a baseline the sweep is measured against. */
+    const isDevChrome = (n) =>
+      !!n && (n.tagName === "NEXTJS-PORTAL" || !!n.closest?.("nextjs-portal"));
+
     const hits = [];
     let checked = 0;
     for (const el of focusables.slice(0, max)) {
@@ -245,6 +294,7 @@ export async function focusNotObscured(page, maxTabs = 60) {
           sampled++;
           const hit = document.elementFromPoint(x, y);
           if (!hit) continue;
+          if (isDevChrome(hit)) continue;
           if (!related(hit, el)) {
             covered++;
             by ??=
