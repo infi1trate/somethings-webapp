@@ -534,7 +534,22 @@ export function ActivityRow({
             )}
           </div>
         ) : (
-          <span className="min-w-0 flex-1 truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
+          // ═══ TWO LINES ON A PHONE, ONE ON A DESKTOP (gap row 289) ═══
+          //
+          // MEASURED on `/app/activity`: this box is 112px of a 320px viewport
+          // while the sentence needs 282px, so 18 of 46 characters survived —
+          // "You closed a risk f…", which loses both who and what. 390px gave 30
+          // of 46; the full sentence only fits from about 768.
+          //
+          // `line-clamp-2` below `sm` rather than a restructure. Moving the
+          // timestamp onto its own line would give the text the full width, but
+          // the dense row carries its action cluster ABSOLUTELY POSITIONED at the
+          // right edge with the time fading under it on hover, and a second flow
+          // line would run beneath that cluster. Two clamped lines lift 320 to
+          // ~36 of 46 characters and 390 to all of them, for one class and no
+          // structural risk. `truncate` returns at `sm`, so the dense desktop row
+          // is byte-identical to what it was.
+          <span className="min-w-0 flex-1 line-clamp-2 sm:truncate sm:line-clamp-none text-[14px] leading-[20px] text-[var(--text-primary)]">
             {/* WEIGHT ON THE NAME AND VERB ONLY. The lead is a prefix of the full
                 sentence by construction (see FeedRow.lead), so the remainder is a
                 slice and the two halves cannot double up or drop a character. */}
