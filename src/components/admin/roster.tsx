@@ -373,14 +373,24 @@ export function Roster({
           </select>
         )}
 
-        <span className={cn(CONTROL, "ml-auto inline-flex items-center gap-2")}>
+        <span className={cn(CONTROL, "ml-auto inline-flex items-center gap-2 py-0")}>
           <Search className="size-4" aria-hidden />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search"
             aria-label="Search by name"
-            className="w-28 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
+            // SC 2.5.8 — `self-stretch` makes the input fill the pill instead of sitting
+            // as a 20px strip inside it. Its own box goes 20px -> ~32px, clearing the
+            // 24px floor, and most of the pill becomes typeable where before only the
+            // middle band responded.
+            //
+            // NOT `touchTarget()` here: a `::after` overlay is unreliable on a
+            // replaced element like <input>, and an overlay above a text field would
+            // be the wrong shape of fix anyway. The remaining dead zone is the `px-4`
+            // padding and the icon — making the wrapper a <label> would claim those
+            // too; noted in design-system-gaps row 285.
+            className="w-28 self-stretch py-1.5 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
           />
         </span>
       </div>
@@ -511,7 +521,20 @@ export function SortHead({
       <button
         type="button"
         onClick={() => onSort(k)}
-        className="inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+        // SC 2.5.8 — the label is 20px tall, under the 24px floor, and this table
+        // is the highest-traffic one in the app: cluster D carried 428 of the 584
+        // target-size failures in the Phase 8 baseline. Visual unchanged;
+        // `touchTarget` extends the hit area with a `::after` that paints nothing.
+        //
+        // FOURTH COPY OF THIS CONTROL. Byte-identical strings live at
+        // `data-view.tsx:145` and twice in `relationship-table.tsx` (912, 954),
+        // and all four needed the same edit — the first attempt patched three and
+        // /app/mentees still measured 20px, because this one renders it. Noted in
+        // design-system-gaps row 285; not consolidated in this unit.
+        className={cn(
+          "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+          touchTarget(20)
+        )}
       >
         {label}
         {on ? (
@@ -688,7 +711,11 @@ function BillingCodeCell({ teen, now }: { teen: DemoTeen; now: number }) {
           aria-label={description}
           title={description}
           className={cn(
+            // SC 2.5.8 — the code renders at 42x20, one per row. Not inline in a
+            // sentence (it is a `block` link in its own cell), so the inline
+            // exception does not apply and the target is genuinely under the floor.
             "rounded-sm tabular-nums text-[var(--text-primary)] underline decoration-transparent underline-offset-2",
+            touchTarget(20),
             "transition-colors hover:decoration-[color:var(--text-primary)]",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
           )}
@@ -772,11 +799,28 @@ export function NameCell({
           claims the space the avatar no longer takes. */}
       <span className="min-w-0 flex-1">
         {recordHref ? (
+          // ═══ SC 2.5.8, AND THE ONLY WAY INTO A RECORD ═══
+          //
+          // MEASURED on `/app/mentees` at 1280: this link is 131x20 inside a 61px
+          // row, there is NO row-level overlay link, and `elementFromPoint` at 75%
+          // of the row width returns a plain `<td>`. So a 61px row was openable
+          // only through a 20px strip of text — 37 failures on one view, and a
+          // usability problem before it is a criterion problem.
+          //
+          // `truncate` MOVED TO AN INNER SPAN, deliberately. It sets
+          // `overflow: hidden`, which clips the element's own `::after` — so
+          // `touchTarget` on a truncating element silently does nothing, which is
+          // the same class of trap as the template-literal class in
+          // lib/touch-target.ts. The link keeps `block` (full column width) and
+          // the span inside it does the ellipsis.
           <Link
             href={recordHref}
-            className="block truncate rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            className={cn(
+              "block rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+              touchTarget(20)
+            )}
           >
-            {name}
+            <span className="block truncate">{name}</span>
           </Link>
         ) : (
           <span className="block truncate font-medium">{name}</span>

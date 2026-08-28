@@ -77,12 +77,29 @@ export function OnboardingLayout({
         {progress && (
           <div className="border-b px-5 pb-3 sm:px-8">
             <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{progress.section}</span>
-              <span>
+              <span id="ob-progress-section">{progress.section}</span>
+              <span id="ob-progress-step">
                 Step {progress.index + 1} of {progress.total}
               </span>
             </div>
-            <Progress value={pct} className="h-1.5" />
+            {/* ═══ THE PROGRESS BAR HAD NO ACCESSIBLE NAME (SC 4.1.2) ═══
+
+                Radix's Progress.Root supplies role="progressbar" and
+                aria-valuenow but not a name, so axe reported
+                `aria-progressbar-name` on all eight wizard steps at every
+                viewport — 72 of the 977 violations in the Phase 8 baseline, from
+                one omission.
+
+                NAMED FROM THE VISIBLE COPY, deliberately: `aria-labelledby`
+                points at the two spans directly above, so the bar announces as
+                "Your profile Step 4 of 8" and adds no new string to the product.
+                An `aria-label` would have been one line shorter and would have
+                invented copy for screen-reader users that no sighted user sees. */}
+            <Progress
+              value={pct}
+              aria-labelledby="ob-progress-section ob-progress-step"
+              className="h-1.5"
+            />
           </div>
         )}
       </header>

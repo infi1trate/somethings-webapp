@@ -224,14 +224,24 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
               {f}
             </button>
           ))}
-        <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-1.5 text-sm text-[var(--text-secondary)]">
+        <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-0 text-sm text-[var(--text-secondary)]">
           <Search className="size-4" aria-hidden />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search"
             aria-label="Search by name"
-            className="w-28 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
+            // SC 2.5.8 — `self-stretch` makes the input fill the pill instead of sitting
+            // as a 20px strip inside it. Its own box goes 20px -> ~32px, clearing the
+            // 24px floor, and most of the pill becomes typeable where before only the
+            // middle band responded.
+            //
+            // NOT `touchTarget()` here: a `::after` overlay is unreliable on a
+            // replaced element like <input>, and an overlay above a text field would
+            // be the wrong shape of fix anyway. The remaining dead zone is the `px-4`
+            // padding and the icon — making the wrapper a <label> would claim those
+            // too; noted in design-system-gaps row 285.
+            className="w-28 self-stretch py-1.5 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
           />
         </span>
       </div>
