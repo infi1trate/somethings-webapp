@@ -130,6 +130,7 @@ function Row({
   relational,
   documents,
   documentedBy,
+  summarizedBy,
   onJump,
 }: {
   event: CareEvent;
@@ -152,14 +153,31 @@ function Row({
    *  standalone rather than looking like a link that failed to resolve. */
   documents?: CareEvent;
   documentedBy?: CareEvent;
+  /** ═══ THE THIRD RELATION: EVIDENCE ↔ ASSESSMENT ═══
+   *
+   *  Set on a care_update row: the committed care summary frozen in the same act.
+   *  The reciprocal of the summary row's own `documentedBy`, and DERIVED here
+   *  rather than stored — the summary carries the edge, so the update needs no
+   *  field of its own. That matters because a care update is append-only: a
+   *  reference written onto it afterwards would be an edit to an entry someone
+   *  already signed.
+   *
+   *  A SECONDARY LINE, NOT A DISCLOSURE TAKEOVER. Unlike `documentedBy` on a
+   *  presentation row, neither of these two entries is empty without the other:
+   *  the summary has its frozen findings, the update has its prose. Each keeps
+   *  its own disclosure and points at the other. */
+  summarizedBy?: CareEvent;
   onJump: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const superseded = !!amendedBy;
   // A presentation row is expandable when it has an update to show, even though
   // it no longer carries a note of its own.
+  // A SUMMARY ROW CARRIES ITS OWN FINDINGS, so `documentedBy` must not stand in
+  // for a note here the way it does on a presentation row.
+  const borrowsDisclosure = !!documentedBy && event.type !== "care_summary";
   const expandable =
-    !!event.items?.length || !!event.providerNote || !!documentedBy;
+    !!event.items?.length || !!event.providerNote || borrowsDisclosure;
 
   return (
     <li
@@ -294,6 +312,39 @@ function Row({
             </p>
           )}
 
+          {/* EVIDENCE ↔ ASSESSMENT, from whichever side the reader is on. One
+              line, one link, on the same secondary line as everything else that
+              ties two entries together — a reader scanning History can see the
+              pair exists without opening either. */}
+          {(summarizedBy ?? (event.type === "care_summary" ? documentedBy : undefined)) && (
+            <p
+              className="mt-1.5 text-[var(--text-muted)]"
+              style={{ font: "var(--type-row-label)" }}
+            >
+              {/* TODO-COPY. "Read alongside", not "supports" or "justifies":
+                  which way the evidence pointed is a finding inside the
+                  document, and this line must not restate it as a conclusion. */}
+              {"Read alongside the "}
+              <button
+                type="button"
+                onClick={() =>
+                  onJump(
+                    (summarizedBy ?? documentedBy)!.id
+                  )
+                }
+                className={cn(
+                  "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                {`${dateOf((summarizedBy ?? documentedBy)!.occurredAt)} ${
+                  summarizedBy ? "care summary" : "care update"
+                }`}
+                <span aria-hidden> →</span>
+              </button>
+            </p>
+          )}
+
           {event.diagnosticPrefill && (
             <p
               className="mt-1.5 text-[var(--text-muted)]"
@@ -394,7 +445,7 @@ function Row({
                     ))}
                   </tbody>
                 </table>
-              ) : documentedBy ? (
+              ) : borrowsDisclosure && documentedBy ? (
                 /* THE PRESENTATION ENTRY CARRIES ITS CARE UPDATE. It no longer
                    has a note of its own — the update IS the documentation — so
                    opening a presentation change shows the reasoning that was
@@ -476,6 +527,18 @@ export function CareTimeline({
     () => new Map(events.map((e) => [e.id, e])),
     [events]
   );
+  /** care_update id → the committed summary that names it. INVERTED FROM THE
+   *  SUMMARY'S EDGE, so nothing is stored twice and the two can never disagree
+   *  about whether they are a pair. Built over the whole event set, like
+   *  `amendedBy`, so a filter chip cannot hide one half and break the other's
+   *  link. */
+  const summarizedBy = useMemo(() => {
+    const m = new Map<string, CareEvent>();
+    for (const e of events) {
+      if (e.type === "care_summary" && e.documentedBy) m.set(e.documentedBy, e);
+    }
+    return m;
+  }, [events]);
 
   /** ═══ THE RELATIONAL INDEX (Phase 2) ═══
    *
@@ -586,6 +649,9 @@ export function CareTimeline({
                 documents={e.documents ? byId.get(e.documents) : undefined}
                 documentedBy={
                   e.documentedBy ? byId.get(e.documentedBy) : undefined
+                }
+                summarizedBy={
+                  e.type === "care_update" ? summarizedBy.get(e.id) : undefined
                 }
                 onJump={jump}
               />

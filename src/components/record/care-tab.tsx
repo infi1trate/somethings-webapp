@@ -144,7 +144,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const draft = useOnboardingStore((s) => s.draft);
   const careReviews = useOnboardingStore((s) => s.careReviews);
   const careUpdates = useOnboardingStore((s) => s.careUpdates);
-  // Back, now that the AI summary has landed in the assistant rail.
+  // The refresh stamp. Drives the document's Generated line — see below.
   const summaryRefreshed = useOnboardingStore((s) => s.careSummaryRefreshedAt);
   const refreshCareSummary = useOnboardingStore((s) => s.refreshCareSummary);
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
@@ -410,7 +410,7 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
       // ═══ ONE COLUMN, PERMANENTLY (Phase 2) ═══
       //
       // This was a two-track grid whose second track held the 320px Care summary
-      // rail. Both the rail and its tab-row trigger are deleted: the summary is a
+      // rail (design-system-gaps row 304). Both the rail and its tab-row trigger are deleted: the summary is a
       // full-width document in the main column now, directly above the review
       // card, because evidence belongs adjacent to the decision it informs.
       //
@@ -509,6 +509,23 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
                         applies:
                           presentation?.code !== review.recommended.code,
                       },
+                      // ═══ THE PRE-FILL SOURCE IS THE RECORDED RATIONALE, AND
+                      //     DELIBERATELY NOT THE CARE SUMMARY ═══
+                      //
+                      // Pre-filling the diagnostic statement from the evidence
+                      // document is the obvious next feature and it is not built
+                      // on purpose. The summary is what a supervisor READS in
+                      // order to form a judgement; the diagnostic statement is
+                      // that judgement. Seeding the second from the first turns
+                      // a clinical determination into an edit of generated text,
+                      // and the record would then show a signed statement whose
+                      // origin nobody can reconstruct.
+                      //
+                      // `review.rationale` is a different thing: a rationale
+                      // recorded WITH the recommendation, whose provenance the
+                      // field states out loud ("Pre-filled from the recorded
+                      // rationale"). Reported, not built — design-system-gaps
+                      // row 303.
                       {
                         source: review.rationale.source,
                         text: review.rationale.text,
@@ -518,12 +535,14 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }}
         />
 
-        {/* 3 · THE AI READING LIVES IN THE CARE SUMMARY PANEL, not this column.
-            Floating here it read as unattributed commentary and a reader could
-            reasonably ask "summary of what?"; in a named panel under a stated
-            window it answers that itself. `care-ai-summary.tsx` is deleted, and
-            `careAiSummaryFor` was replaced by `careReadingFor` — the panel is the
-            conversational layer now rather than a second telling of the scores. */}
+        {/* 3 · THE ENGAGEMENT READING IS NOT A SECTION HERE. It floated in this
+            column once, where it read as unattributed commentary — a reader
+            could reasonably ask "summary of what?". `care-ai-summary.tsx` is
+            deleted and `careAiSummaryFor` was replaced by `careReadingFor`.
+            What survives of it is ONE MUTED CONTEXT LINE in the evidence
+            document's header: engagement informs a clinical read without
+            competing with it, and a paragraph of it above the record's own
+            findings inverted that. */}
 
         {/* 4 · THE CURRENT CARE UPDATE, IN FULL. Older ones live in History —
             this carries the current clinical read, not an archive. */}
@@ -608,12 +627,14 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
       </div>
 
 
-      {/* ── THE CARE SUMMARY PANEL. Every tier reads it; only the refresh
-          is supervisor-gated, and the rail carries no other affordance that
-          could leak — it cannot approve, write, amend or close anything, and it
-          never authors a record entry. ──────────────────────────────────── */}
-      {/* THE CARE SUMMARY RAIL WAS HERE. It is now a full-width card in the
-          main column above — see the grid note at the top of this return. */}
+      {/* THE CARE SUMMARY RAIL WAS HERE. It is now a full-width card in the main
+          column above — see the grid note at the top of this return.
+
+          THE TIER RULE CAME WITH IT: every tier reads the document, and only
+          element 5 and the refresh are supervisor-gated. Read-wide, act-narrow —
+          the gated pieces are ABSENT below the tier, never disabled. Nothing in
+          the card approves, writes, amends or closes anything, and it never
+          authors a record entry; only `approveCareReview` commits one. */}
 
       {/* Both dialogs mount only for the tier that can use them. */}
       {canAct && (
