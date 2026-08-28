@@ -24,7 +24,6 @@ export default async function Gate({
 }) {
   const q = await searchParams;
   const failed = q.error === "1";
-  const next = typeof q.next === "string" ? q.next : "/";
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-[#fff2ea] to-[#faf6ef] px-6 py-16">
@@ -48,8 +47,6 @@ export default async function Gate({
           method="post"
           className="mt-7 rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] p-4"
         >
-          <input type="hidden" name="next" value={next} />
-
           <label
             htmlFor="gate-password"
             className="block text-[var(--text-muted)] [font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)]"

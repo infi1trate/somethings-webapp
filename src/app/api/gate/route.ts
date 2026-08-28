@@ -14,31 +14,26 @@ import { GATE_COOKIE, gateToken } from "@/middleware";
 
 const PASSWORD = process.env.SITE_PASSWORD ?? "spreadjoy";
 
-/** Where the user asked to go, reduced to something safe to redirect to.
+/** THE ONLY DESTINATION. Unlocking always lands on the landing page — it is what
+ *  establishes a coherent demo state, so entering the app anywhere else means
+ *  entering it half-configured. See the note in `middleware.ts`.
  *
- *  ONLY A PATH ON THIS ORIGIN. `//evil.example` and `https://evil.example` are
- *  both valid values of a `next` query param and both would make this an open
- *  redirect, which is the standard way a login form becomes a phishing tool. */
-function safeNext(raw: string | null): string {
-  if (!raw) return "/";
-  if (!raw.startsWith("/")) return "/";
-  if (raw.startsWith("//")) return "/";
-  return raw;
-}
+ *  A `next` parameter used to be accepted here and sanitised against
+ *  `//evil.example` and absolute URLs. Not accepting one at all is the stronger
+ *  version of that check. */
+const LANDING = "/";
 
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const submitted = String(form.get("password") ?? "");
-  const next = safeNext(String(form.get("next") ?? "") || null);
 
   if (submitted !== PASSWORD) {
     const back = new URL("/gate", req.url);
     back.searchParams.set("error", "1");
-    if (next !== "/") back.searchParams.set("next", next);
     return NextResponse.redirect(back, 303);
   }
 
-  const res = NextResponse.redirect(new URL(next, req.url), 303);
+  const res = NextResponse.redirect(new URL(LANDING, req.url), 303);
   res.cookies.set(GATE_COOKIE, await gateToken(PASSWORD), {
     httpOnly: true,
     sameSite: "lax",

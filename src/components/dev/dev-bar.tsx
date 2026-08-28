@@ -177,7 +177,19 @@ export function DevBar() {
   // being put away. Accepted rather than fixed with a blocking inline script:
   // this is prototype chrome, and a render-blocking script on every page load
   // is a real cost paid for a cosmetic one.
-  if (mounted && devBarHidden) {
+  // ═══ AND NOT BEFORE THE GATE ═══
+  //
+  // The bar mounts from the root layout, so it rendered on `/gate` too — showing
+  // the role switcher, scenario picker and reset to someone who has not entered
+  // the password yet. Confirmed by `curl /gate | grep "Prototype harness"`.
+  //
+  // PATH-BASED, not cookie-based, and that is not a shortcut: the gate cookie is
+  // `httpOnly`, so a client component cannot read it, and `/gate` is the only
+  // route the middleware lets through unauthenticated. The path IS the signal.
+  //
+  // Shares the hidden branch so the `--dev-bar-h` reservation collapses here too
+  // — the gate page would otherwise reserve 40px for a bar it never shows.
+  if (pathname === "/gate" || (mounted && devBarHidden)) {
     return <style>{":root { --dev-bar-h: 0px; }"}</style>;
   }
 

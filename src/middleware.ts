@@ -60,14 +60,26 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // ═══ NO RETURN PATH — UNLOCKING ALWAYS LANDS ON THE FRONT DOOR ═══
+  //
+  // An earlier version carried the requested path through as `next` and returned
+  // there after unlocking. That is the conventional behaviour for a login, and it
+  // is wrong for this prototype: the landing page is not a welcome screen, it is
+  // the thing that ESTABLISHES a coherent demo state. Each of its three starting
+  // points resets the store and sets a persona.
+  //
+  // Arriving straight at a deep link skips that. Someone who followed a
+  // bookmarked `/app/mentees` would land on a staff route carrying whatever the
+  // store happened to hold — or, on a first visit, no persona at all — and read a
+  // half-configured app as the product. Landing on `/` costs one click and
+  // guarantees the app is entered from a known state.
+  //
+  // IT ALSO REMOVES THE OPEN-REDIRECT SURFACE ENTIRELY. With no `next` parameter
+  // there is no attacker-supplied destination to sanitise, which is a better
+  // outcome than sanitising one correctly.
   const url = req.nextUrl.clone();
   url.pathname = "/gate";
   url.search = "";
-  // Where to return to after unlocking. Only ever a path on this origin — see
-  // the sanitising in the gate route; an absolute URL here would make this an
-  // open redirect that a phishing link could aim anywhere.
-  const back = req.nextUrl.pathname + req.nextUrl.search;
-  if (back && back !== "/") url.searchParams.set("next", back);
   return NextResponse.redirect(url);
 }
 
