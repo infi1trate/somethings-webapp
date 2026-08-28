@@ -54,7 +54,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { RotateCcw } from "lucide-react";
+import { EyeOff, RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import type { Persona } from "@/lib/types";
@@ -118,6 +118,8 @@ export function DevBar() {
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const setPersona = useOnboardingStore((s) => s.setPersona);
+  const devBarHidden = useOnboardingStore((s) => s.devBarHidden);
+  const setDevBarHidden = useOnboardingStore((s) => s.setDevBarHidden);
   const router = useRouter();
   const pathname = usePathname();
   const [confirmReset, setConfirmReset] = useState(false);
@@ -157,6 +159,27 @@ export function DevBar() {
     if (onRecord) return;
     window.location.assign(p.dest === "__mentor__" ? mentorDest() : p.dest);
   };
+
+  // ═══ PUT AWAY — AND THE 40px RESERVATION GOES WITH IT ═══
+  //
+  // `--dev-bar-h` is not decoration: `dialog.tsx`, `bottom-nav.tsx` and
+  // `onboarding-layout.tsx` all subtract it so their fixed chrome sits above
+  // this bar. Returning `null` alone would leave every one of them reserving
+  // 40px for a bar that is not there — a gap along the bottom of the app with no
+  // visible cause, which is worse than the bar.
+  //
+  // So the hidden state still renders one thing: a `:root` override collapsing
+  // the token. Every consumer reads `var(--dev-bar-h, 0px)`, so they all
+  // recompute at once and none of them needs to know this component exists.
+  //
+  // GATED ON `mounted`. The flag is persisted, and zustand rehydrates after
+  // mount, so the server cannot know it — the bar renders for one frame before
+  // being put away. Accepted rather than fixed with a blocking inline script:
+  // this is prototype chrome, and a render-blocking script on every page load
+  // is a real cost paid for a cosmetic one.
+  if (mounted && devBarHidden) {
+    return <style>{":root { --dev-bar-h: 0px; }"}</style>;
+  }
 
   return (
     <>
@@ -272,6 +295,25 @@ export function DevBar() {
           </p>
         )}
 
+        {/* ── HIDE. Not destructive and reversible, so no confirm — but it does
+            remove the only affordance that brings it back, which is why the
+            label says where that is rather than just "Hide". */}
+        <button
+          type="button"
+          onClick={() => setDevBarHidden(true)}
+          /* TODO-COPY */
+          aria-label="Hide the dev bar — bring it back from Settings › Dev"
+          title="Hide — bring it back from Settings › Dev"
+          className={cn(
+            "ml-auto flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          <EyeOff className="size-3.5" aria-hidden />
+          {/* TODO-COPY */}
+          Hide
+        </button>
+
         {/* ── RESET. Destructive, so it confirms and it is last. */}
         <button
           type="button"
@@ -279,7 +321,7 @@ export function DevBar() {
           /* TODO-COPY */
           aria-label="Reset as a new mentor and restart onboarding"
           className={cn(
-            "ml-auto flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            "flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
             RING
           )}
         >

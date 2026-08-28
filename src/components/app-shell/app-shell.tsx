@@ -124,7 +124,7 @@ export function AppShell({
           A flex item defaults to `min-height: auto`, which refuses to shrink
           below its content height. Without `min-h-0` this column and the
           `<main>` inside it grew to fit their content, overflowed the root's
-          `h-[calc(100dvh-…)]`, and made the DOCUMENT the scroll container — so
+          the root's fixed height, and made the DOCUMENT the scroll container — so
           the rail scrolled out of the viewport with the page, and the panel's
           own `overflow-y-auto` never engaged because `h-full` measured against
           an already-overgrown parent.

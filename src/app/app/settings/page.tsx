@@ -17,6 +17,7 @@ import { useMounted } from "@/lib/use-mounted";
 import { roleForPersona } from "@/components/settings/tabs-config";
 import { settingsSectionsForRole } from "@/components/settings/settings-sections";
 import { AppearanceSection } from "@/components/settings/appearance-section";
+import { DevSection } from "@/components/settings/dev-section";
 import { SecuritySection } from "@/components/settings/security-section";
 import { NotificationsSection } from "@/components/settings/notifications-section";
 import {
@@ -57,7 +58,15 @@ export default function SettingsPage({
   const role = mounted ? roleForPersona(persona) : "mentor";
   const navScrollRef = useRef<HTMLElement | null>(null);
   const navEdges = useEdgeOverflow(navScrollRef);
-  const sections = settingsSectionsForRole(role);
+  // The Dev section appears ONLY while the dev bar is hidden — it exists to
+  // bring it back. Pre-mount this reads its default (`false`), so the section is
+  // absent on the server and appears after rehydration: the same shape as the
+  // role gate above, and it cannot flip a section the reader was already on
+  // because the only way to reach it is for the flag to already be true.
+  const devBarHidden = useOnboardingStore((st) => st.devBarHidden);
+  const sections = settingsSectionsForRole(role, {
+    devBarHidden: mounted && devBarHidden,
+  });
   const active = sections.find((s) => s.id === rawSection) ?? sections[0];
 
   // Sections that render their own hairline card groups (heading above them).
@@ -180,6 +189,8 @@ export default function SettingsPage({
                 <div className="mt-4">
                   {active.id === "appearance" ? (
                     <AppearanceSection />
+                  ) : active.id === "dev" ? (
+                    <DevSection />
                   ) : active.status === "coming-soon" ? (
                     <ComingSoonSection />
                   ) : (

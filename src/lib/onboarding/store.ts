@@ -171,6 +171,13 @@ interface OnboardingState {
    *  every teen, and re-collapsing on each navigation would be the product
    *  forgetting something it was told. */
   careRailOpen: boolean;
+  /** v39 — IS THE DEV BAR HIDDEN? A presentation preference, not demo data.
+   *
+   *  DELIBERATELY NOT CLEARED BY `reset()`, for the same reason `persona` is not:
+   *  it is a lens on the prototype rather than a fact about it, and a starting
+   *  point from the landing page bringing the bar back after someone had put it
+   *  away would be the app overruling them. Settings is where it comes back. */
+  devBarHidden: boolean;
   /** THE ACTIVITY LEDGER'S READ/CLEAR OVERLAY (v35). Keyed
    *  `viewerId::scope::eventId` — see lib/activity/read-state.ts for why scope is
    *  part of the key and not a filter over it (standing rule 10).
@@ -358,6 +365,7 @@ interface OnboardingState {
   /** Appends a flag closure. No counterpart reopens one — see the field. */
   closeCareFlag: (closure: CareFlagClosure) => void;
   setCareRailOpen: (open: boolean) => void;
+  setDevBarHidden: (hidden: boolean) => void;
   /** Append a care update. No update/delete counterpart, on purpose. */
   addCareUpdate: (update: CareUpdateRecord) => void;
   refreshCareSummary: (teenId: string, at: number) => void;
@@ -420,6 +428,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       careReviews: {},
       careFlagClosures: {},
       careRailOpen: true,
+      devBarHidden: false,
       activityRead: {},
       activityScenarioId: "typical-shift",
       tasksLastVisitAt: 0,
@@ -803,6 +812,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           menteeStatus: { ...state.menteeStatus, [teenId]: status },
         })),
       setCareRailOpen: (open) => set({ careRailOpen: open }),
+      setDevBarHidden: (hidden) => set({ devBarHidden: hidden }),
 
       // ── ACTIVITY LEDGER OVERLAY (v35) ───────────────────────────────────
       // Each action delegates to lib/activity/read-state.ts. The store holds the
@@ -1028,7 +1038,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      map, so the backfill is a default rather than {}. Defaults OPEN:
       //      the rail is the tab's opening state, and a reader who has never
       //      touched it should see what it offers.
-      version: 38,
+      // v39: devBarHidden (is the prototype harness put away?) — a SCALAR with a
+      //      default, like careRailOpen, so the backfill is `false` and every
+      //      existing session keeps the bar it already had. NOT in `reset()`:
+      //      see the note on the field.
+      version: 39,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1720,6 +1734,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         profileUpdate: state.profileUpdate,
         activity: state.activity,
         persona: state.persona,
+        // Beside `persona` on purpose: both are dev lenses that outlive a
+        // `reset()`, and both have to survive a NAVIGATION to mean anything.
+        // `partialize` is an explicit whitelist — a new field that is not listed
+        // here reads back as `undefined` on the next page load, which is exactly
+        // how the first version of the hide button appeared to work and then
+        // forgot itself the moment you left the page.
+        devBarHidden: state.devBarHidden,
         staffPhoto: state.staffPhoto,
         internalNotes: state.internalNotes,
         profileHidden: state.profileHidden,
