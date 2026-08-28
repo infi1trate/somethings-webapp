@@ -78,7 +78,37 @@ export function LockBadge({
 export type RecordRowState = "read" | "edit" | "saving" | "error" | "saved";
 
 /** Shared three-zone grid: 168px label · flexible value · trailing. */
-const ROW_GRID = "grid grid-cols-[168px_minmax(0,1fr)_auto] gap-x-6";
+// ═══ THE ROW GRID — STACKS BELOW `sm` (Phase 6) ═══
+//
+// WAS `grid-cols-[168px_minmax(0,1fr)_auto] gap-x-6`, at every width. The
+// arithmetic is what makes that untenable on a phone: 168px of label plus TWO
+// 24px gaps is 216px spent before the value column gets anything at all. In the
+// Account tab's card at a 320px viewport the row is ~240px wide, so the value —
+// the thing the reader came for — was left with single digits of width, behind a
+// label three times its size.
+//
+// STACKED SHAPE, and it is two rows rather than three. The trailing zone (chevron,
+// chip, "Saved.") stays BESIDE the value, because it is about the value: a
+// chevron on its own line reads as a separate control, and the press target
+// covers the whole row anyway. So:
+//
+//   narrow    [ label............................ ]   ← spans both columns
+//             [ value.......................  ⌄ ]
+//   sm and up [ label 168px ][ value 1fr ][ auto ]     ← unchanged
+//
+// `sm` (640px) RATHER THAN A CONTAINER QUERY, deliberately, and this is the one
+// place in the responsive work where the viewport is the better instrument. These
+// rows render in the settings cards, the record's Account tab and the self
+// profile — all of which are page-width content whose width tracks the viewport
+// closely below `lg`. A container query would need a wrapper element around every
+// row to query against, which restructures the DOM of the most-used primitive in
+// the app for no gain in accuracy. (DataView's threshold IS a container query
+// because its boxes genuinely differ at one viewport — see `ui/data-view.tsx`.)
+//
+// AT AND ABOVE `sm` THE OUTPUT IS BYTE-IDENTICAL to before: the same three
+// columns, the same 24px gaps, the label back in column one.
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 sm:grid-cols-[168px_minmax(0,1fr)_auto]";
 
 export interface RecordRowProps {
   label: string;
@@ -147,7 +177,9 @@ export function RecordRow({
     const zones = (
       <>
         <span
-          className="self-start pt-[3px] text-[var(--text-muted)]"
+          // `col-span-2` while stacked so the label owns its own line; back to a
+          // single column at `sm`, where it is the grid's first track.
+          className="col-span-2 self-start pt-[3px] text-[var(--text-muted)] sm:col-span-1"
           style={{
             font: "var(--type-field-label)",
             letterSpacing: "var(--type-field-label-tracking)",

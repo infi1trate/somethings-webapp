@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 // CaseloadControls (caseload prompt) — the ONE caseload adjuster, shared by
 // the lead's mentee modal and the record's Mentorship tab so the two surfaces
 // genuinely match. Deliberately SUBTLE: adjusting capacity is a secondary
@@ -13,6 +15,7 @@
 //     Capacity can't drop below the mentor's current mentees.
 
 import { ChevronDown, Minus, Plus } from "lucide-react";
+import { touchTarget } from "@/lib/touch-target";
 import { SegmentedControl } from "@/components/record/segmented-control";
 import {
   Popover,
@@ -24,7 +27,10 @@ import { cn } from "@/lib/utils";
 
 const MAX_TOTAL = 20;
 
+// 28×28 visual, extended to a 44px touch target by the shared helper. This is
+// the control that sets a mentor's capacity, and it had no extension at all.
 const STEP_BTN =
+  `${touchTarget(28)} ` +
   "flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 /** Resolve a mentor's caseload: the stored override, else automatic at the
@@ -130,6 +136,8 @@ export function CaseloadControls({
   defaultTotal: number;
   className?: string;
 }) {
+  /** Stable id linking the disabled decrease button to its visible reason. */
+  const floorReasonId = useId();
   const caseload = useCaseload(mentorId, defaultTotal);
   const setCaseload = useOnboardingStore((s) => s.setCaseload);
 
@@ -155,16 +163,25 @@ export function CaseloadControls({
         onChange={setMode}
       />
       {caseload.mode === "custom" ? (
-        <span className="flex items-center gap-2">
+        // `flex-wrap` so the visible disabled reason below can take its own line
+        // on a narrow container instead of squeezing the stepper.
+        <span className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => step(-1)}
             disabled={caseload.total <= min}
             aria-label="Decrease caseload"
-            title={
-              caseload.total <= min
-                ? "Caseload can't drop below current mentees"
-                : "Decrease caseload"
+            // ═══ THE REASON LEFT `title=` ═══
+            //
+            // It used to say "Caseload can't drop below current mentees" in a
+            // native tooltip. There is no hover on touch, so the whole
+            // explanation was unreachable on a phone: a dead button and no
+            // reason, which is Nielsen #9 (help users recognise and recover).
+            //
+            // It is visible text now, and this points at it so a screen reader
+            // reads the reason WITH the button rather than only on the way past.
+            aria-describedby={
+              caseload.total <= min ? floorReasonId : undefined
             }
             className={STEP_BTN}
           >
@@ -191,6 +208,19 @@ export function CaseloadControls({
           >
             mentee slots
           </span>
+          {/* THE VISIBLE REASON. Rendered only at the floor — a permanently
+              present explanation for a state you are not in is noise, and the
+              button is only dead when this is true. */}
+          {caseload.total <= min && (
+            <span
+              id={floorReasonId}
+              className="text-[var(--text-muted)]"
+              style={{ font: "var(--type-helper)" }}
+            >
+              {/* TODO-COPY */}
+              · Can&apos;t drop below current mentees
+            </span>
+          )}
         </span>
       ) : (
         <span

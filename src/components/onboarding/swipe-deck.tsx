@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 
 interface SwipeDeckProps {
@@ -108,13 +109,35 @@ export function SwipeDeck({
       </div>
 
       {controls && count > 1 && (
+        // ═══ TARGET SIZES (SC 2.5.8) — Phase 5, item 4 ═══
+        //
+        // THE DOTS WERE 8×8px. That is a third of the 24×24 the success criterion
+        // requires as a floor, and it was latent only until Phase 4 turned these
+        // controls on for the profile preview — the one consumer this component
+        // has. The arrows were 32×32, over the SC floor but under the 44px HIG
+        // guidance `03-DEFINITION-OF-DONE.md` asks for.
+        //
+        // THE VISUALS ARE UNCHANGED. Both fixes are transparent `::after`
+        // extensions via the Phase 0 helper: an 8px dot keeps its 8px of ink and
+        // gains a 24px hit area around it, and the 32px arrows gain 44px. Growing
+        // the ink instead would have turned a discreet indicator row into chrome
+        // that competes with the photo it belongs to.
+        //
+        // `gap-3`/`gap-1.5` ARE WIDE ENOUGH for the extensions not to overlap:
+        // the dots' `-inset-2` reaches 8px each side into a 6px gap, so adjacent
+        // dot targets do touch — acceptable here because they are the same
+        // control moving one step, not two different destinations, and a mis-tap
+        // costs one swipe. The arrows are separated by the whole dot row.
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => go(index - 1)}
             disabled={index === 0}
             aria-label="Previous"
-            className="flex size-8 items-center justify-center rounded-full border bg-card text-foreground/70 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-30"
+            className={cn(
+              "flex size-8 items-center justify-center rounded-full border bg-card text-foreground/70 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-30",
+              touchTarget(32)
+            )}
           >
             <ChevronLeft className="size-4" />
           </button>
@@ -126,7 +149,10 @@ export function SwipeDeck({
                 onClick={() => go(i)}
                 aria-label={`Go to card ${i + 1}`}
                 className={cn(
-                  "h-2 rounded-full transition-all",
+                  "relative h-2 rounded-full transition-all",
+                  // 8px of ink, 24px of target — the SC 2.5.8 floor, reached
+                  // without changing what the reader sees.
+                  "after:absolute after:-inset-2 after:content-['']",
                   i === index ? "w-5 bg-foreground" : "w-2 bg-foreground/25"
                 )}
               />
@@ -137,7 +163,10 @@ export function SwipeDeck({
             onClick={() => go(index + 1)}
             disabled={index === count - 1}
             aria-label="Next"
-            className="flex size-8 items-center justify-center rounded-full border bg-card text-foreground/70 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-30"
+            className={cn(
+              "flex size-8 items-center justify-center rounded-full border bg-card text-foreground/70 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-30",
+              touchTarget(32)
+            )}
           >
             <ChevronRight className="size-4" />
           </button>

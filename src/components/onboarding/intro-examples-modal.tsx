@@ -146,7 +146,10 @@ export function IntroExamplesModal() {
 
       <DialogContent
         showCloseButton={false}
-        className="max-h-[88vh] gap-6 rounded-3xl p-6 shadow-[0_8px_24px_rgba(0,0,0,0.15)] sm:max-w-[480px]"
+        /* LOCAL max-h REMOVED — the primitive carries the bound now (max-h-[90dvh]),
+           and this was `88vh`, which on mobile Safari is taller than the visible
+           viewport whenever the URL bar is showing. One behaviour, one place. */
+        className="gap-6 rounded-3xl p-6 shadow-[0_8px_24px_rgba(0,0,0,0.15)] sm:max-w-[480px]"
       >
         <DialogHeader className="flex-row items-start justify-between gap-4">
           <div className="flex flex-col gap-1">

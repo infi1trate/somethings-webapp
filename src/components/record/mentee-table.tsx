@@ -60,6 +60,7 @@ import {
   type RelationshipSlice,
 } from "@/lib/record/relationships";
 import { recordHrefFor } from "@/lib/record/subject";
+import { teenDisplayName } from "@/lib/record/teen-name";
 import { recordOrigin } from "@/lib/record/origins";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import {
@@ -105,6 +106,16 @@ export function MenteeTable({
 
   const [pastOpen, setPastOpen] = useState(false);
   const [unmatching, setUnmatching] = useState<RelationshipRow | null>(null);
+  /** THE NAME THE UNMATCH CONFIRM SPEAKS. First name only (standing rule 6),
+   *  resolved once so the title and the sentence beneath it cannot say different
+   *  names.
+   *
+   *  SET ALONGSIDE `unmatching`, NEVER DERIVED FROM IT, and deliberately not
+   *  cleared on close: the dialog stays mounted while it animates out, and
+   *  `unmatching` is already null by then — so a derived name empties the
+   *  sentence mid-fade. Reading it inline used to render the word "undefined"
+   *  there for the same reason. */
+  const [unmatchName, setUnmatchName] = useState("");
   const [picking, setPicking] = useState(false);
   const returnFocusTo = useRef<HTMLElement | null>(null);
 
@@ -170,6 +181,7 @@ export function MenteeTable({
   const rows: RelationshipRow[] = inCard.map((t) => ({
     id: t.id,
     name: t.name,
+    firstName: t.firstName,
     goesBy: t.goesBy,
     sinceDays: daysInMentorship(t),
     exception: exceptionFor(statusOf(t)),
@@ -296,6 +308,7 @@ export function MenteeTable({
           canAct
             ? (row, trigger) => {
                 returnFocusTo.current = trigger;
+                setUnmatchName(teenDisplayName(row));
                 setUnmatching(row);
               }
             : undefined
@@ -359,12 +372,10 @@ export function MenteeTable({
         onOpenChange={(o) => !o && setUnmatching(null)}
         returnFocusTo={returnFocusTo}
         /* TODO-COPY */
-        title={`Unmatch ${unmatching?.goesBy ?? unmatching?.name} from ${mentorName}?`}
+        title={`Unmatch ${unmatchName} from ${mentorName}?`}
         description={
           /* TODO-COPY */
-          `This ends the pairing and frees a slot. ${
-            unmatching?.goesBy ?? unmatching?.name
-          }'s account isn't changed.`
+          `This ends the pairing and frees a slot. ${unmatchName}'s account isn't changed.`
         }
         confirmLabel="Unmatch"
         onConfirm={() => {
@@ -416,7 +427,7 @@ function PastMenteeRow({
   together: string;
   tail: string | { rematchedTo: string; mentorId: string };
 }) {
-  const display = teen.goesBy ?? teen.name;
+  const display = teenDisplayName(teen);
   return (
     <div className="group relative flex min-h-11 items-center gap-3 py-1.5">
       {/* BEHIND the content, covering the row. */}
@@ -496,10 +507,10 @@ function AddMenteePicker({
           {pool.map((t) => (
             <li key={t.id}>
               <PersonRow
-                name={t.goesBy ?? t.name}
+                name={teenDisplayName(t)}
                 secondary={t.group}
                 onPress={() => {
-                  toast(`${t.goesBy ?? t.name} would be matched with ${mentorName}.`);
+                  toast(`${teenDisplayName(t)} would be matched with ${mentorName}.`);
                   onOpenChange(false);
                 }}
               />

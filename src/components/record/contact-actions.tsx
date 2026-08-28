@@ -54,7 +54,8 @@ export function ContactActions({
       <a
         href={isPhone ? `tel:${value}` : `mailto:${value}`}
         aria-label={`${isPhone ? "Call" : "Email"} ${name}`}
-        title={isPhone ? "Call" : "Email"}
+        // No `title=`: it was a SUBSET of the aria-label above ("Call" vs
+        // "Call Maria"), so it carried strictly less, and only to a mouse.
         className={BTN}
       >
         {isPhone ? (
@@ -67,7 +68,7 @@ export function ContactActions({
         type="button"
         onClick={() => copyToClipboard(value, isPhone ? "Number" : "Email")}
         aria-label={`Copy ${name}'s ${noun}`}
-        title={`Copy ${noun}`}
+        // Same — a subset of the aria-label.
         className={BTN}
       >
         <Copy className="size-4" aria-hidden />

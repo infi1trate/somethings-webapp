@@ -8,6 +8,7 @@
 
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
 import { useAppearance, type ThemeChoice } from "@/lib/use-appearance";
+import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 
 const OPTIONS: { value: ThemeChoice; label: string; icon: LucideIcon }[] = [
@@ -35,6 +36,14 @@ export function AppearanceSection() {
               aria-pressed={active}
               onClick={() => setTheme(o.value)}
               className={cn(
+                // 36px of visual, 44px of target. FIXED AT THE CALL SITE, not in
+                // a primitive: these three are a segmented pill group whose
+                // 36px height is the group's own visual language (they sit
+                // inside a `p-1` track, so growing the ink would grow the track
+                // and change the control's proportions). The `::after` leaves
+                // the track alone. Vertical-only extension, so the three
+                // targets cannot overlap each other horizontally.
+                touchTarget(36),
                 "inline-flex min-h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
                 active
                   ? "bg-foreground text-background"

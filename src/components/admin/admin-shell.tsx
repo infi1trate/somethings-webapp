@@ -8,72 +8,30 @@
 // up Users. Content sits in the same floating surface-s1 panel as the mentor
 // shell (radius 24, soft shadow, 16px gutter top/right/bottom).
 
-import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/app-shell/app-shell";
 import {
-  Home,
-  MessageCircle,
-  Bell,
-  ListChecks,
-  Users,
-  UsersRound,
-} from "lucide-react";
-import {
-  SettingsSidebar,
-  type SidebarItemDef,
-} from "@/components/settings/sidebar";
+  barItems,
+  hrefFor as navHrefFor,
+  railItems,
+} from "@/components/settings/nav-items";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 
 // Supervisor nav. Users split into Teens + Mentors (each a role-filtered
 // roster); AVA/Risk/Onboarding dropped; Upcoming renamed Tasks, Todos renamed
-// Activity. Mentees, Team, Activity and Tasks are wired via HREFS; Home and Chats
-// are parity placeholders and navigate nowhere — see the note on HREFS below for
-// why that is deliberate rather than the allowlist gap that made Activity inert.
-const NAV: SidebarItemDef[] = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "chats", label: "Chats", icon: MessageCircle },
-  { id: "activity", label: "Activity", icon: Bell },
-  { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "mentees", label: "Mentees", icon: Users },
-  // Mentors merged into Team — one staff directory instead of a roster plus
-  // a peer list describing the same people.
-  { id: "team", label: "Team", icon: UsersRound },
-];
-
-// AN ALLOWLIST, NOT A PATTERN — and that is the bug this comment exists to stop
-// recurring. The mentor shell routes generically (`/app/${id}` for every item), so
-// a nav item there works the moment its route exists. THIS shell only navigates
-// for ids present below, and an id that is missing hits `if (href)` and silently
-// does nothing: the item highlights, the page does not change, and there is no
-// error anywhere.
+// ═══ THE NAV MOVED OUT (Phase 2A) ═══
 //
-// That is precisely what happened to Activity. The item had been in the supervisor
-// NAV since the Tasks-era nav pass, the route was built, and clicking it did
-// nothing — while the same click worked for a mentor. "Sometimes it doesn't open"
-// is what a silent allowlist miss looks like from the outside.
+// This file held its own `NAV` array and an `HREFS` ALLOWLIST. Both are gone:
+// `nav-items.ts` is the single source, and the allowlist's premise no longer
+// holds. It existed because sending a supervisor to the unbuilt-section
+// placeholder was judged worse than an inert icon — a fair call for a 92px rail,
+// and the wrong call for a four-item tab bar where Home and Chats would have been
+// half the bar doing nothing. Every item now has a real URL; the unbuilt ones
+// land on the placeholder, which says so plainly.
 //
-// ANY NEW SUPERVISOR ROUTE MUST BE ADDED HERE. The remaining unlisted ids (home,
-// chats, tasks) are unlisted because they have no real destination yet — their
-// routes fall through to the /app/[section] unbuilt-section placeholder, and
-// sending a supervisor to a placeholder is worse than the current inertness. They
-// get wired when they get pages.
-const HREFS: Record<string, string> = {
-  // The supervisor's Mentees list is the shared /app/mentees route (already
-  // supervisor-aware: it renders the full roster for this persona). The old
-  // /admin/users?segment=teens surface is retired.
-  mentees: "/app/mentees",
-  // Team is the shared staff directory (it replaced the Mentors roster) and
-  // lives on the app route for every persona — the supervisor just sees it
-  // inside this console's chrome.
-  team: "/app/team",
-  // The Activity ledger. One route, persona-branched inside the page: supervisors
-  // get the ledger, mentors and leads keep the profile-update feed.
-  activity: "/app/activity",
-  // The Tasks worklist. Same arrangement — supervisors get the worklist, everyone
-  // else keeps the unbuilt-section placeholder. Added here rather than left to the
-  // allowlist gap that made the Activity item silently inert.
-  tasks: "/app/tasks",
-};
+// The old comment warned "ANY NEW SUPERVISOR ROUTE MUST BE ADDED HERE" after a
+// missing entry made Activity silently inert. That failure mode is now
+// structurally impossible: there is no list to forget to update.
 
 export function AdminShell({
   active,
@@ -82,11 +40,15 @@ export function AdminShell({
   active: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const mounted = useMounted();
   // §5 Phase 10: the Supervisor's own photo (Account › Photo row asset) — the
   // single sidebar avatar. It opens the account popover (settings-04); it no
   // longer navigates.
+  // Mount-gated like the mentor shell's: `persona` is client-only, so SSR uses
+  // the supervisor set (this console is only ever rendered for staff, so that is
+  // the correct default rather than a guess).
+  const storePersona = useOnboardingStore((s) => s.persona);
+  const persona = mounted ? storePersona : "supervisor";
   const staffPhoto = useOnboardingStore((s) => s.staffPhoto);
   const firstName = useOnboardingStore((s) => s.draft.firstName);
   const avatarInitial = mounted
@@ -95,26 +57,30 @@ export function AdminShell({
   const avatarSrc = mounted ? staffPhoto : null;
 
   return (
-    <div className="flex h-[calc(100dvh-var(--dev-bar-h,0px))] bg-[var(--surface-s2)] text-foreground">
-      <SettingsSidebar
-        activeId={active}
-        items={NAV}
-        navLabel="Supervisor sections"
-        avatarInitial={avatarInitial}
-        avatarSrc={avatarSrc}
-        badges={{ activity: 4 }}
-        onSelect={(id) => {
-          const href = HREFS[id];
-          if (href) router.push(href);
-        }}
-        className="shrink-0 overflow-y-auto"
-      />
-      {/* Floating content card — identical to the mentor shell's panel. */}
-      <main className="min-w-0 flex-1 py-4 pr-4">
-        <div className="h-full overflow-y-auto rounded-[var(--radius-panel)] bg-[var(--surface-s1)] shadow-[var(--shadow-panel)]">
-          {children}
-        </div>
-      </main>
-    </div>
+    // DELEGATED TO `AppShell` (Phase 3, on the Phase 2 pattern). This was the
+    // flex/rail/panel markup inline, duplicated almost exactly in
+    // `MentorShell` — which is how a nav pattern drifts, and RC-1 has to be
+    // fixed once rather than twice. The shared-sidebar principle this file
+    // established (identical styling across roles; only the item set and the
+    // navLabel change) is now structural rather than a convention two files
+    // happen to follow.
+    //
+    // WHAT STAYS HERE is the genuinely supervisor-specific part: the item set,
+    // the badge count, and the id → href allowlist.
+    <AppShell
+      activeId={active}
+      railItems={railItems(persona)}
+      barItems={barItems(persona)}
+      navLabel="Supervisor sections"
+      avatarInitial={avatarInitial}
+      avatarSrc={avatarSrc}
+      badges={{ activity: 4 }}
+      hrefFor={(id) => navHrefFor(persona, id)}
+      activityHref={navHrefFor(persona, "activity")}
+      activityUnread={4}
+      className="text-foreground"
+    >
+      {children}
+    </AppShell>
   );
 }

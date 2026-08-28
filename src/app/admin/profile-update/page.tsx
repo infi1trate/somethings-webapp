@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
+import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
+import { touchTarget } from "@/lib/touch-target";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -61,16 +63,16 @@ export default function AdminProfileUpdatePage({
   const publishedSnapshot = useOnboardingStore((s) => s.publishedSnapshot);
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const sendBackProfileUpdate = useOnboardingStore(
-    (s) => s.sendBackProfileUpdate
+    (s) => s.sendBackProfileUpdate,
   );
   const approveProfileUpdate = useOnboardingStore(
-    (s) => s.approveProfileUpdate
+    (s) => s.approveProfileUpdate,
   );
 
   // Per-card note composer (console pattern): `open` reveals the field,
   // `notes` holds the text; a card is flagged once it has text.
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
-    focusField ? { [focusField]: true } : {}
+    focusField ? { [focusField]: true } : {},
   );
   const scrolledRef = useRef(false);
   useEffect(() => {
@@ -83,7 +85,7 @@ export default function AdminProfileUpdatePage({
   const [notes, setNotes] = useState<Record<string, string>>({});
   // Preview toggle — defaults to Proposed: that's what's being judged (§5.2).
   const [previewSide, setPreviewSide] = useState<"live" | "proposed">(
-    "proposed"
+    "proposed",
   );
   const [confirming, setConfirming] = useState(false);
 
@@ -94,7 +96,7 @@ export default function AdminProfileUpdatePage({
   useEffect(() => {
     if (!mounted || isLead) return;
     router.replace(
-      isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile"
+      isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile",
     );
   }, [mounted, isLead, persona, router]);
 
@@ -120,7 +122,7 @@ export default function AdminProfileUpdatePage({
     if (!hasNotes) return;
     sendBackProfileUpdate(notes);
     toast(
-      `Sent back with ${noteCount} note${noteCount === 1 ? "" : "s"} for ${firstName}.`
+      `Sent back with ${noteCount} note${noteCount === 1 ? "" : "s"} for ${firstName}.`,
     );
     router.push(returnHref);
   };
@@ -159,7 +161,8 @@ export default function AdminProfileUpdatePage({
             {/* LEFT — the delta */}
             <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                Profile update · submitted {relTime(update.submittedAt).toLowerCase()}
+                Profile update · submitted{" "}
+                {relTime(update.submittedAt).toLowerCase()}
               </p>
               <h1 className="mt-1 font-display text-2xl font-bold tracking-tight">
                 Review {mentorName}&apos;s changes
@@ -188,7 +191,7 @@ export default function AdminProfileUpdatePage({
                         isFlagged
                           ? "border-orange-300 ring-1 ring-orange-200"
                           : "border-[var(--border-subtle)]",
-                        waiting && !isFlagged && "opacity-70"
+                        waiting && !isFlagged && "opacity-70",
                       )}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -298,8 +301,22 @@ export default function AdminProfileUpdatePage({
             </div>
 
             {/* RIGHT — preview with Live|Proposed toggle (default Proposed).
-                Segmented control is an interim treatment (gaps.md #46). */}
-            <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
+                Segmented control is an interim treatment (gaps.md #46).
+                
+                RC-2: was `hidden lg:…`, so below 1024px a supervisor reviewing a
+                CHANGESET could not see either side of it. Like `/admin/review`,
+                the artifact is the point of the page — and here it is worse in
+                one way: the whole value is the Live-vs-Proposed comparison, so
+                losing the preview loses the comparison, not just an illustration.
+                The toggle travels WITH the preview into the sheet, because a
+                comparison control with nothing to compare is noise.
+                
+                Tablet layout proposed, not built — gaps row 264. */}
+            <PreviewDisclosure
+              /* TODO-COPY */
+              triggerLabel="Compare live and proposed"
+              title="Live and proposed, compared"
+            >
               <div
                 role="group"
                 aria-label="Preview version"
@@ -312,10 +329,13 @@ export default function AdminProfileUpdatePage({
                     aria-pressed={previewSide === side}
                     onClick={() => setPreviewSide(side)}
                     className={cn(
+                      // 36px visual, 44px target — the Phase 0 helper rather
+                      // than a fourth hand-rolled ::after.
                       "min-h-9 rounded-full px-4 text-sm font-medium capitalize transition-colors",
+                      touchTarget(36),
                       previewSide === side
                         ? "bg-foreground text-background"
-                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
                     )}
                   >
                     {side}
@@ -336,7 +356,7 @@ export default function AdminProfileUpdatePage({
                   ? "What teens see right now"
                   : "What teens will see after approval"}
               </p>
-            </div>
+            </PreviewDisclosure>
           </div>
         )}
       </div>

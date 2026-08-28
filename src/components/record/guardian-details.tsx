@@ -43,6 +43,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/record/confirm-dialog";
+import { touchTarget } from "@/lib/touch-target";
+import { cn } from "@/lib/utils";
 import {
   CONSENT_LABEL,
   CONSENT_OPTIONS,
@@ -157,8 +159,11 @@ export function GuardianDetailsSection({
                   value={guardian.consent}
                   onValueChange={(v) => setPendingConsent(v as ConsentStatus)}
                 >
+                  {/* 36px visual, 44px target — the compact height is
+                      deliberate (see active-hours.tsx); asked and confirmed.
+                      `touchTarget(36)` extends ±4px, vertical only. */}
                   <SelectTrigger
-                    className="h-9 w-[220px]"
+                    className={cn(touchTarget(36), "h-9 w-[220px] max-w-full")}
                     aria-label="Parent consent"
                   >
                     <SelectValue />

@@ -11,11 +11,22 @@
 // staff page still renders its own (elevated) chrome until the migration
 // follow-up, so this shell is built to match it as a drop-in.
 
+import { useEffect, useRef } from "react";
+import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import Link from "next/link";
 import { ROLE_BADGE_TONE, ROLE_LABEL } from "@/components/record/role-label";
 import type { PersonRole } from "@/lib/record/people-demo";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// THE TAB STRIP'S OVERFLOW AFFORDANCE now lives in
+// `components/ui/scroll-affordance.tsx` — Phase 5 needed the identical thing for
+// tables, and a second copy is how two affordances that mean the same thing end
+// up looking different. The reasoning that produced it (why a fade and not a
+// scrollbar; why no ARIA) is recorded there in full, including the measured
+// 15px-scrollbar bug the nav's own comment below describes.
+//
+// design-system-gaps rows 257, 266.
 
 export interface Viewer {
   role: "mentor" | "lead_mentor" | "supervisor" | "admin";
@@ -103,7 +114,7 @@ function RoleBadge({
       aria-label={ariaLabel}
       className={cn(
         "inline-flex shrink-0 items-center rounded-full px-3 py-1",
-        ROLE_BADGE_TONE[role]
+        ROLE_BADGE_TONE[role],
       )}
       style={{ font: "var(--type-label-sm)" }}
     >
@@ -173,6 +184,32 @@ export function UserRecordShell({
   tabRowAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const navRef = useRef<HTMLElement | null>(null);
+  const edges = useEdgeOverflow(navRef);
+
+  // ═══ THE ACTIVE TAB IS ALWAYS BROUGHT INTO VIEW ═══
+  //
+  // Without this, the strip scrolling is worse than the strip clipping. A record
+  // is deep-linked by tab (`?tab=account`), and at 390px roughly two of six tabs
+  // fit — so arriving on Account showed Overview and Mentorship, with the tab
+  // the reader is actually ON scrolled out of sight and no indication of where
+  // they were. That is the same defect as hiding the current page behind a
+  // "More" menu.
+  //
+  // `scrollLeft` IS SET DIRECTLY RATHER THAN VIA scrollIntoView, deliberately:
+  // scrollIntoView walks up every scrollable ancestor, so on mount it also
+  // scrolls the record panel — the reader lands mid-page with the identity
+  // header pushed off the top. Writing scrollLeft moves this element only, and
+  // the browser clamps it, so no bounds arithmetic is needed.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const current = el.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!current) return;
+    el.scrollLeft =
+      current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2;
+  }, [activeTab, tabs]);
+
   return (
     <div className="px-6 py-6 lg:px-10">
       {backLink && (
@@ -278,37 +315,56 @@ export function UserRecordShell({
           moved from the nav to this wrapper so it spans the full width rather
           than stopping where the tabs stop. */}
       <div className="mt-6 flex items-end gap-3 border-b border-[color:var(--border-contour)]">
-      <nav
-        aria-label={sectionsLabel}
-        className="flex min-w-0 flex-1 gap-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onTabChange(t.id)}
-            aria-current={activeTab === t.id ? "page" : undefined}
-            className={cn(
-              "relative min-h-11 shrink-0 rounded-md px-3 py-2 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
-              activeTab === t.id
-                ? "font-semibold text-[var(--text-primary)]"
-                : "font-normal text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]"
-            )}
+        {/* THE SCROLL PORT. The fades are siblings of the nav inside this
+            wrapper, never children of it — a child of an `overflow-x-auto`
+            element scrolls with the content and adds to its scrollWidth, so a
+            fade placed inside would drift away from the edge it marks and make
+            the strip wider at the same time. */}
+        <div className="relative min-w-0 flex-1">
+          <nav
+            ref={navRef}
+            aria-label={sectionsLabel}
+            className="flex w-full gap-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {t.label}
-            {!!t.badge && t.badge > 0 && <TabBadge tab={t} />}
-            {activeTab === t.id && (
-              <span
-                aria-hidden
-                // bottom-0, not -bottom-px: see the nav's note. The 2px bar
-                // still reads as sitting on the hairline because the nav's
-                // border-b renders directly beneath it.
-                className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-[var(--text-primary)]"
-              />
-            )}
-          </button>
-        ))}
-      </nav>
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onTabChange(t.id)}
+                aria-current={activeTab === t.id ? "page" : undefined}
+                className={cn(
+                  "relative min-h-11 shrink-0 rounded-md px-3 py-2 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+                  activeTab === t.id
+                    ? "font-semibold text-[var(--text-primary)]"
+                    : "font-normal text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                )}
+              >
+                {t.label}
+                {!!t.badge && t.badge > 0 && <TabBadge tab={t} />}
+                {activeTab === t.id && (
+                  <span
+                    aria-hidden
+                    // bottom-0, not -bottom-px: see the nav's note. The 2px bar
+                    // still reads as sitting on the hairline because the nav's
+                    // border-b renders directly beneath it.
+                    className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-[var(--text-primary)]"
+                  />
+                )}
+              </button>
+            ))}
+          </nav>
+          {/* THE EDGE FADES — see `ui/scroll-affordance.tsx`.
+
+              `bottom-0.5` STOPS THEM SHORT OF THE HAIRLINE: the tab row's
+              `border-b` and the active tab's 2px indicator both live in the
+              bottom 2px, and fading them out mid-line looked like a rendering
+              fault rather than an affordance. */}
+          <EdgeFades
+            edges={edges}
+            surface="var(--surface-s1)"
+            className="bottom-0.5"
+          />
+        </div>
         {tabRowAction && (
           // Separated from the tabs by the gap and by shape — it is a pill, not
           // a tab, and it must not read as one. `shrink-0` so a long tab set
@@ -320,13 +376,11 @@ export function UserRecordShell({
       <div
         className={cn(
           "mt-6 grid items-start gap-8",
-          rail && "lg:grid-cols-[minmax(0,900px)_300px]"
+          rail && "lg:grid-cols-[minmax(0,900px)_300px]",
         )}
       >
         <div className="min-w-0">{children}</div>
-        {rail && (
-          <aside className="min-w-0 lg:sticky lg:top-6">{rail}</aside>
-        )}
+        {rail && <aside className="min-w-0 lg:sticky lg:top-6">{rail}</aside>}
       </div>
     </div>
   );

@@ -216,7 +216,8 @@ export function CarePatternBlock({
                 onClick={() => onSelectEvent(m.eventId)}
                 /* TODO-COPY. Type and date — never the description. */
                 aria-label={m.label}
-                title={m.label}
+                // No `title=`: it duplicated the aria-label exactly, so it
+                // added nothing for a screen reader and nothing on touch.
                 style={{ left: `${left}%`, top }}
                 className={cn(
                   // 24px hit target, centred on the data point, so the visual

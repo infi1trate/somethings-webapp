@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { useMounted } from "@/lib/use-mounted";
 
 const SELF_TABS: UserRecordTab[] = [
@@ -77,6 +78,26 @@ export default function MentorSelfRecord({
   const [accountDirty, setAccountDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<string | null>(null);
 
+  // ═══ THE GUARD NOW COVERS EVERY WAY OUT, NOT JUST A TAB CHANGE ═══
+  //
+  // `pendingTab` handles the in-page tab switch and always did. `pendingExit`
+  // handles the three paths that previously dropped edits in silence: a nav
+  // link (the Phase 2 bottom bar, the rail, the More sheet), browser Back and
+  // swipe-back, and reload/close. See `use-unsaved-changes-guard.ts` for why
+  // each needs a different mechanism.
+  //
+  // `null` in `pendingExit` means BACK — there is no href to resume, so
+  // confirming pops history rather than pushing a destination.
+  const [pendingExit, setPendingExit] = useState<
+    { href: string | null } | null
+  >(null);
+
+  const dirtyOnAccount = tab === "account" && accountDirty;
+  useUnsavedChangesGuard({
+    when: dirtyOnAccount,
+    onBlocked: (href) => setPendingExit({ href }),
+  });
+
   const applyTab = (id: string) => {
     setTab(id);
     router.replace(`/app/profile?tab=${id}`, { scroll: false });
@@ -93,6 +114,20 @@ export default function MentorSelfRecord({
     setAccountDirty(false);
     setPendingTab(null);
     if (next) applyTab(next);
+  };
+  /** Confirming an EXIT (not a tab change). Clearing `accountDirty` first tears
+   *  the guard's listeners down, so the navigation below is not re-intercepted
+   *  by the very hook that paused it. */
+  const leaveThePage = () => {
+    const target = pendingExit?.href ?? null;
+    setAccountDirty(false);
+    setPendingExit(null);
+    // Deferred a tick so the guard's cleanup (which returns its history
+    // sentinel) runs before we navigate, rather than racing it.
+    setTimeout(() => {
+      if (target) router.push(target);
+      else router.back();
+    }, 0);
   };
 
   // Only the mentor's OWN record is wired this pass; other personas have no
@@ -210,28 +245,43 @@ export default function MentorSelfRecord({
         )}
       </UserRecordShell>
 
-      {/* Unsaved-changes guard (§6) — inline prompt, not a browser alert. */}
+      {/* Unsaved-changes guard (§6) — inline prompt, not a browser alert.
+          ONE dialog for both kinds of departure: a tab change (`pendingTab`) and
+          leaving the page entirely (`pendingExit`). The copy differs because the
+          consequence differs — switching tabs keeps you on the page. */}
       <Dialog
-        open={pendingTab !== null}
-        onOpenChange={(open) => !open && setPendingTab(null)}
+        open={pendingTab !== null || pendingExit !== null}
+        onOpenChange={(open) => {
+          if (open) return;
+          setPendingTab(null);
+          setPendingExit(null);
+        }}
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
+            {/* TODO-COPY */}
             <DialogTitle>Leave without saving?</DialogTitle>
             <DialogDescription>
-              You have unsaved changes on your Account. They&apos;ll be lost if
-              you switch tabs now.
+              {pendingExit
+                ? "You have unsaved changes on your Account. They\u2019ll be lost if you leave this page now."
+                : "You have unsaved changes on your Account. They\u2019ll be lost if you switch tabs now."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="ghost"
               className="min-h-11"
-              onClick={() => setPendingTab(null)}
+              onClick={() => {
+                setPendingTab(null);
+                setPendingExit(null);
+              }}
             >
               Stay
             </Button>
-            <Button className="min-h-11" onClick={leaveWithoutSaving}>
+            <Button
+              className="min-h-11"
+              onClick={pendingExit ? leaveThePage : leaveWithoutSaving}
+            >
               Leave without saving
             </Button>
           </DialogFooter>

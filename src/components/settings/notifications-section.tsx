@@ -18,6 +18,7 @@ import {
   type NotificationCategory,
 } from "@/components/settings/notifications-config";
 import { toast } from "sonner";
+import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 
 const GROUP =
@@ -45,6 +46,20 @@ function ToggleSwitch({
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
+        // ═══ TARGET SIZE (Phase 6) ═══
+        //
+        // MEASURED at 320px: 44×24. The width is already 44 (`w-11`); the HEIGHT
+        // is 24 and nothing extended it. A switch is a MUTATION control — a
+        // mis-tap changes a notification preference for this persona silently,
+        // with no undo — so it is exactly the kind of target that should not be
+        // 20px short.
+        //
+        // NOTE THIS IS A SECOND SWITCH IMPLEMENTATION. `ui/switch.tsx` is the
+        // shared one (a Radix Switch, `h-6 w-10`, used only by
+        // `record/active-hours.tsx`); this local `ToggleSwitch` is what every
+        // notification row actually renders. Both had the same 24px height and
+        // both are fixed; consolidating them is design-system-gaps row 273.
+        touchTarget(24),
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
         checked ? "bg-brand" : "bg-black/[0.15]",
         disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer",

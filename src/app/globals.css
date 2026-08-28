@@ -7,6 +7,132 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   BREAKPOINTS — named from CONTENT THRESHOLDS, not devices.
+   ═══════════════════════════════════════════════════════════════════════════
+
+   BLOOM DOES NOT CARRY BREAKPOINT VALUES. Checked before proposing these
+   (`Figma/bloom-design-system_1.md`). What Bloom has:
+     · `Type Tokens` — two modes, Mobile and Web. Display and Headline scale up
+       on Web; Body, Label and Label-Alt are IDENTICAL across the two.
+     · `Button Mapping` — three modes, but "Desktop mode is defined; mobile and
+       tablet modes are placeholders (currently 0) — WIP."
+   So Bloom's TYPE system is binary and its SPACING system anticipates a tablet
+   it has not defined. No pixel value exists anywhere in it. The numbers below
+   are therefore ours, and the tablet tier has no Bloom type ramp to inherit —
+   it takes the Mobile ramp, because Bloom only scales Display and Headline and
+   a tablet is not a place to start using Display sizes.
+
+   ═══ WHY ONLY `md` IS RETUNED ═══
+
+   `sm:` is used 111 times and `lg:` 106 times in this codebase. Redefining
+   either silently changes the meaning of 217 existing utilities, which is a
+   refactor disguised as a token change. They keep Tailwind's defaults.
+
+   `md:` is used ZERO times (verified: the only two literal matches are the
+   token name `--radius-md` and an object key in segmented-control.tsx). It can
+   be retuned with no blast radius at all, so it becomes the deliberate tablet
+   tier this app has never had.
+
+   ═══ WHAT TABLET IS IN THIS PRODUCT ═══
+
+   One content column, a persistent 92px rail, and no side panels. It is not a
+   small desktop: the record's aside and the phone preview both stay away until
+   `aside` below. It is the phone's information architecture at a width where a
+   table can be a table.
+
+   ═══ THE VALUES, EACH AGAINST WHERE THIS APP ACTUALLY BREAKS ═══ */
+@theme {
+  /* 960px — THE RAIL TIER. Below it the 92px rail becomes a bottom tab bar and
+     tables become card lists; above it the rail returns.
+
+     Derived from the widest table plus the rail it has to sit beside:
+       760px  team-directory.tsx:242 `min-w-[760px]`, the widest in the app
+     +  92px  the rail (sidebar.tsx:82)
+     +  64px  page padding, 2 × 32 at `lg:px-8`
+     +  16px  the shell's own `pr-4`
+     = 932px  the point at which the widest table stops needing horizontal scroll
+     960px is that, rounded up to a clean 60rem with headroom.
+
+     NOTE Tailwind's default `md` is 768px, which is BELOW this figure — a rail
+     restored at 768 would immediately reintroduce the horizontal scroll it was
+     hidden to avoid. That is the concrete reason this token is retuned rather
+     than adopted. */
+  --breakpoint-md: 60rem;
+
+  /* 1152px — THE SIDE-PANEL TIER. Where a 300px aside can appear without
+     squeezing the content column below a comfortable measure.
+
+     `user-record-shell.tsx:323` is `lg:grid-cols-[minmax(0,900px)_300px]`, so
+     the aside appears at 1024 today. At 1024 the content column gets
+       1024 − 92 rail − 64 padding − 16 pr − 300 aside − 24 gap = 528px
+     and `minmax(0,900px)` lets it shrink silently rather than dropping the
+     aside. At 1152 the same arithmetic gives 656px — roughly 66 characters at
+     15px, which is the measure `03-DEFINITION-OF-DONE.md` asks for.
+
+     For the record: the content column only reaches its stated 900px maximum at
+     about 1380px. That is a fact about the ceiling, not a threshold — the aside
+     is affordable well before the content is maximal. */
+  --breakpoint-aside: 72rem;
+}
+
+/* ═══ THE BOTTOM-NAV RESERVATION — design-system-gaps row 253 ═══
+   
+   How much room the content panel keeps clear for the bottom tab bar, and the
+   distance the browser keeps clear when it scrolls something into view
+   (SC 2.4.11 Focus Not Obscured).
+   
+   DEFINED HERE, IN CSS, AND NOT AS AN INLINE STYLE. Two earlier attempts set it
+   inline on the panel and cancelled it with an `md:` class — that cannot work,
+   because an inline custom property beats a class-defined one at every
+   breakpoint, so above `md` the panel kept reserving room for a bar that is not
+   rendered (measured: 56px of dead space at 1280). A media query on the
+   PROPERTY is the only version where the reset actually lands.
+   
+   104px is `BAR_RESERVE` in `components/app-shell/bottom-nav.tsx`: the Figma
+   pill is 72px tall and FLOATS inside 16px of padding above and below, so the
+   reserved space is 72 + 2×16 rather than the bar's own height. It was 56px when
+   the bar was full-bleed and flush; Phase 2A's floating pill is taller AND has
+   real space under it, and both have to be cleared or a focused control lands
+   behind the pill instead of merely under the old bar's edge.
+
+   The two are kept side by side deliberately: the bar renders at the constant,
+   the panel reserves at this variable, and they are reviewed together because a
+   mismatch is invisible until a focused control disappears.
+   
+   60rem IS HARDCODED IN THE MEDIA QUERY BECAUSE IT HAS TO BE. `var()` is not
+   permitted in a media-query condition, so this cannot read `--breakpoint-md`
+   and the two values must be kept in step by hand. `md` is defined 20 lines
+   above for exactly that reason — if it moves, this moves with it. */
+:root {
+  --nav-reserve: calc(104px + env(safe-area-inset-bottom, 0px));
+}
+/* ═══ THE TOP-BAR RESERVATION — the mirror of --nav-reserve ═══
+
+   The mobile top bar is `position: fixed` (product-owner decision), so the
+   content panel has to keep this much clear at the TOP or its first row starts
+   underneath the wordmark.
+
+   96px = the frame's 16px top padding + its 64px chrome + 16px bottom padding.
+   The safe-area inset is ADDED, not substituted: a notched device needs the
+   physical inset as well as the designed padding.
+
+   Same reason this is a property with a media-query reset rather than an inline
+   style: an inline custom property beats the `md:` class meant to cancel it, so
+   above the rail tier the panel would reserve space for a bar that is not
+   rendered. That was measured once already at the bottom edge (row 253) and the
+   fix is the same shape. */
+:root {
+  --topbar-reserve: calc(96px + env(safe-area-inset-top, 0px));
+}
+
+@media (min-width: 60rem) {
+  :root {
+    --nav-reserve: 0px;
+    --topbar-reserve: 0px;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

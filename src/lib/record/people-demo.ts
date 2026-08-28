@@ -88,7 +88,30 @@ export interface PastMatch {
 
 export interface DemoTeen {
   id: string;
+  /** THE LEGAL NAME, AND ALMOST NEVER THE THING RENDERED. Standing rule 6 —
+   *  "teens are FIRST NAME ONLY, everywhere, always" — means every list, header,
+   *  avatar, toast, dialog and composed sentence reads `teenDisplayName(teen)`
+   *  (lib/record/teen-name.ts), never this field.
+   *
+   *  THE ONE SANCTIONED EXCEPTION, decided 2026-08-27: the "Full name" row in the
+   *  Account section of a teen's own record, which is staff-only chrome behind a
+   *  deliberate click and is the record OF the legal name. It is the only place
+   *  in the app a teen surname renders. See design-system-gaps.md row 254 — that
+   *  carve-out AMENDS rule 6, which was written absolute.
+   *
+   *  It is also still the search key: staff type "Ortiz" and find Caleb. Matching
+   *  on a string is not rendering it. */
   name: string;
+  /** THE AUTHORITATIVE FIRST NAME — what this teen is actually called on screen.
+   *
+   *  Stored rather than derived because deriving it means splitting `name` on
+   *  whitespace, and that guesses wrong on any compound first name ("Mary Anne").
+   *  `teenDisplayName` still falls back to the split, so a row that omits this
+   *  degrades to a slightly wrong first name and never to a leaked surname. */
+  firstName: string;
+  /** Teen-facing nickname when it differs from `firstName` — "Pat" for Patricia.
+   *  A NICKNAME, NOT SURNAME SUPPRESSION: it used to be load-bearing for rule 6
+   *  via the `goesBy ?? name` idiom, which is exactly how the surnames leaked. */
   goesBy?: string;
   phone: string;
   /** Teens are reached by phone in this demo — no email on file, so the
@@ -492,26 +515,26 @@ export const DEMO_TEENS: DemoTeen[] = [
   // Most are quiet-and-fine; the exceptions (t3 waiting, t8 quiet, t9 escalated)
   // are deliberately few — defaults whisper, exceptions speak.
   {
-    id: "t1", name: "Nick Casparro", pronouns: "he/him", phone: "+17078892558",
+    id: "t1", name: "Nick Casparro", firstName: "Nick", pronouns: "he/him", phone: "+17078892558",
     group: "North Carolina", active: true, joinedDaysAgo: 1, mentorId: "m1",
     matchedDaysAgo: 1, mentorLastSentDaysAgo: 0, menteeLastSentDaysAgo: 1,
     videoCount30d: 0,
   },
   {
-    id: "t2", name: "Patricia Johnson", goesBy: "Pat", pronouns: "she/her", phone: "+19089101254",
+    id: "t2", name: "Patricia Johnson", firstName: "Patricia", goesBy: "Pat", pronouns: "she/her", phone: "+19089101254",
     group: "New Jersey", active: true, joinedDaysAgo: 4, mentorId: "m2",
     matchedDaysAgo: 2, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 1,
   },
   {
     // Teen wrote 6d ago and the mentor hasn't replied → waiting-on-mentor.
-    id: "t3", name: "Amy Hashing", pronouns: "she/her", phone: "+19089101035",
+    id: "t3", name: "Amy Hashing", firstName: "Amy", pronouns: "she/her", phone: "+19089101035",
     group: "North Carolina", active: true, menteeState: "paused", joinedDaysAgo: 12, mentorId: "m1",
     matchedDaysAgo: 7, mentorLastSentDaysAgo: 7, menteeLastSentDaysAgo: 6,
     videoCount30d: 0,
   },
   {
-    id: "t4", name: "John Kneeland", pronouns: "he/him", phone: "+12158805908",
+    id: "t4", name: "John Kneeland", firstName: "John", pronouns: "he/him", phone: "+12158805908",
     group: "Illinois", active: false, joinedDaysAgo: 40, mentorId: "m3",
     matchedDaysAgo: 31, mentorLastSentDaysAgo: 12, menteeLastSentDaysAgo: 20,
     videoCount30d: 0,
@@ -523,7 +546,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t5", name: "Marcus Lee", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
+    id: "t5", name: "Marcus Lee", firstName: "Marcus", goesBy: "Marc", pronouns: "he/him", phone: "+13125550210",
     group: "Illinois", active: true, joinedDaysAgo: 2, mentorId: "m3",
     // NO STAMPS ON PURPOSE — matched two days ago, neither side has sent
     // anything. `0` would mean "sent today", the opposite of the fact, which is
@@ -532,7 +555,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     videoCount30d: 0,
   },
   {
-    id: "t6", name: "Sofia Ramos", pronouns: "she/her", phone: "+19735550267",
+    id: "t6", name: "Sofia Ramos", firstName: "Sofia", pronouns: "she/her", phone: "+19735550267",
     group: "New Jersey", active: true, menteeState: "paused", joinedDaysAgo: 25, mentorId: "m2",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
@@ -558,20 +581,20 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t7", name: "Ethan Park", pronouns: "he/him", phone: "+17078893390",
+    id: "t7", name: "Ethan Park", firstName: "Ethan", pronouns: "he/him", phone: "+17078893390",
     group: "North Carolina", active: true, joinedDaysAgo: 6, mentorId: "m4",
     matchedDaysAgo: 3, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 1,
   },
   {
     // Mentor replied, teen has been quiet 9 days → teen-quiet.
-    id: "t8", name: "Zoe Bennett", pronouns: "she/her", phone: "+19089104412",
+    id: "t8", name: "Zoe Bennett", firstName: "Zoe", pronouns: "she/her", phone: "+19089104412",
     group: "North Carolina", active: true, joinedDaysAgo: 55, mentorId: "m1",
     matchedDaysAgo: 34, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 9,
     videoCount30d: 1,
   },
   {
-    id: "t9", name: "Liam Foster", pronouns: "he/him", phone: "+19735550318",
+    id: "t9", name: "Liam Foster", firstName: "Liam", pronouns: "he/him", phone: "+19735550318",
     group: "New Jersey", active: true, joinedDaysAgo: 18, mentorId: "m4",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 1,
     videoCount30d: 3,
@@ -579,19 +602,19 @@ export const DEMO_TEENS: DemoTeen[] = [
     escalation: { reason: "Asked about changing schools mid-year", daysAgo: 3 },
   },
   {
-    id: "t10", name: "Ava Mitchell", pronouns: "she/her", phone: "+13125550344",
+    id: "t10", name: "Ava Mitchell", firstName: "Ava", pronouns: "she/her", phone: "+13125550344",
     group: "Illinois", active: true, joinedDaysAgo: 3, mentorId: "m5",
     matchedDaysAgo: 2,
     videoCount30d: 0,
   },
   {
-    id: "t11", name: "Noah Diaz", pronouns: "he/him", phone: "+17078895501",
+    id: "t11", name: "Noah Diaz", firstName: "Noah", pronouns: "he/him", phone: "+17078895501",
     group: "North Carolina", active: true, menteeState: "paused", joinedDaysAgo: 9, mentorId: "m2",
     matchedDaysAgo: 3, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 3,
     videoCount30d: 1,
   },
   {
-    id: "t12", name: "Mia Chen", pronouns: "she/her", phone: "+19089108833",
+    id: "t12", name: "Mia Chen", firstName: "Mia", pronouns: "she/her", phone: "+19089108833",
     group: "New Jersey", active: true, joinedDaysAgo: 70, mentorId: "m6",
     matchedDaysAgo: 40, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 4,
@@ -600,7 +623,7 @@ export const DEMO_TEENS: DemoTeen[] = [
 
   // ── The live mentor's mentees ──────────────────────────────────────────
   {
-    id: "t13", name: "Jordan Tate", goesBy: "Jordy", pronouns: "they/them", phone: "+19089102201",
+    id: "t13", name: "Jordan Tate", firstName: "Jordan", goesBy: "Jordy", pronouns: "they/them", phone: "+19089102201",
     group: "North Carolina", active: true, joinedDaysAgo: 122, mentorId: "live",
     matchedDaysAgo: 118, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
@@ -632,13 +655,13 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t14", name: "Sam Karim", pronouns: "he/him", phone: "+13125550788",
+    id: "t14", name: "Sam Karim", firstName: "Sam", pronouns: "he/him", phone: "+13125550788",
     group: "Illinois", active: true, menteeState: "paused", joinedDaysAgo: 15, mentorId: "live",
     matchedDaysAgo: 7, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 0,
     videoCount30d: 3, // video-comfort: low chat volume may be video, not absence
   },
   {
-    id: "t15", name: "Riley Moss", pronouns: "she/her", phone: "+17078894102",
+    id: "t15", name: "Riley Moss", firstName: "Riley", pronouns: "she/her", phone: "+17078894102",
     group: "North Carolina", active: true, joinedDaysAgo: 44, mentorId: "live",
     // Teen wrote 5d ago, mentor hasn't replied → derived waiting-on-mentor.
     matchedDaysAgo: 40, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 5,
@@ -650,7 +673,7 @@ export const DEMO_TEENS: DemoTeen[] = [
   // threshold with real rows rather than a contrived duplicate. Long tenures on
   // purpose — the days-in-mentorship column is only interesting across a spread.
   {
-    id: "t17", name: "Naomi Reed", pronouns: "she/her", phone: "+19089107000",
+    id: "t17", name: "Naomi Reed", firstName: "Naomi", pronouns: "she/her", phone: "+19089107000",
     group: "North Carolina", active: true, joinedDaysAgo: 210, mentorId: "live",
     matchedDaysAgo: 196, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 1,
     videoCount30d: 0,
@@ -721,7 +744,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t18", name: "Caleb Ortiz", pronouns: "he/him", phone: "+19089107001",
+    id: "t18", name: "Caleb Ortiz", firstName: "Caleb", pronouns: "he/him", phone: "+19089107001",
     group: "North Carolina", active: true, joinedDaysAgo: 188, mentorId: "live",
     matchedDaysAgo: 171, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 2,
     videoCount30d: 1,
@@ -731,19 +754,19 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t19", name: "Simone Ba", pronouns: "she/her", phone: "+19089107002",
+    id: "t19", name: "Simone Ba", firstName: "Simone", pronouns: "she/her", phone: "+19089107002",
     group: "North Carolina", active: true, joinedDaysAgo: 176, mentorId: "live",
     matchedDaysAgo: 160, mentorLastSentDaysAgo: 4, menteeLastSentDaysAgo: 3,
     videoCount30d: 2,
   },
   {
-    id: "t20", name: "Theo Lindqvist", pronouns: "he/him", phone: "+19089107003",
+    id: "t20", name: "Theo Lindqvist", firstName: "Theo", pronouns: "he/him", phone: "+19089107003",
     group: "North Carolina", active: false, joinedDaysAgo: 165, mentorId: "live",
     matchedDaysAgo: 149, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 4,
     videoCount30d: 0,
   },
   {
-    id: "t21", name: "Imani Clarke", pronouns: "she/her", phone: "+19089107004",
+    id: "t21", name: "Imani Clarke", firstName: "Imani", pronouns: "she/her", phone: "+19089107004",
     group: "North Carolina", active: true, joinedDaysAgo: 151, mentorId: "live",
     matchedDaysAgo: 140, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 1,
     videoCount30d: 1,
@@ -826,7 +849,7 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t22", name: "Ravi Menon", pronouns: "he/him", phone: "+19089107005",
+    id: "t22", name: "Ravi Menon", firstName: "Ravi", pronouns: "he/him", phone: "+19089107005",
     group: "North Carolina", active: false, joinedDaysAgo: 143, mentorId: "live",
     matchedDaysAgo: 128, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 2,
     videoCount30d: 2,
@@ -853,32 +876,32 @@ export const DEMO_TEENS: DemoTeen[] = [
     ],
   },
   {
-    id: "t23", name: "Elena Duarte", pronouns: "she/her", phone: "+19089107006",
+    id: "t23", name: "Elena Duarte", firstName: "Elena", pronouns: "she/her", phone: "+19089107006",
     group: "North Carolina", active: true, joinedDaysAgo: 134, mentorId: "live",
     matchedDaysAgo: 119, mentorLastSentDaysAgo: 3, menteeLastSentDaysAgo: 3,
     videoCount30d: 0,
     completedActivities: [{ id: "act-t23-1", name: "Icebreakers", daysAgo: 4 }],
   },
   {
-    id: "t24", name: "Jonah Whitfield", pronouns: "he/him", phone: "+19089107007",
+    id: "t24", name: "Jonah Whitfield", firstName: "Jonah", pronouns: "he/him", phone: "+19089107007",
     group: "North Carolina", active: true, joinedDaysAgo: 121, mentorId: "live",
     matchedDaysAgo: 108, mentorLastSentDaysAgo: 4, menteeLastSentDaysAgo: 4,
     videoCount30d: 1,
   },
   {
-    id: "t25", name: "Yuki Tanaka", pronouns: "they/them", phone: "+19089107008",
+    id: "t25", name: "Yuki Tanaka", firstName: "Yuki", pronouns: "they/them", phone: "+19089107008",
     group: "North Carolina", active: false, joinedDaysAgo: 112, mentorId: "live",
     matchedDaysAgo: 97, mentorLastSentDaysAgo: 5, menteeLastSentDaysAgo: 1,
     videoCount30d: 2,
   },
   {
-    id: "t26", name: "Marisol Vega", pronouns: "she/her", phone: "+19089107009",
+    id: "t26", name: "Marisol Vega", firstName: "Marisol", pronouns: "she/her", phone: "+19089107009",
     group: "North Carolina", active: false, joinedDaysAgo: 103, mentorId: "live",
     matchedDaysAgo: 90, mentorLastSentDaysAgo: 6, menteeLastSentDaysAgo: 2,
     videoCount30d: 0,
   },
   {
-    id: "t16", name: "Alex Petrov", pronouns: "he/him", phone: "+19735550655",
+    id: "t16", name: "Alex Petrov", firstName: "Alex", pronouns: "he/him", phone: "+19735550655",
     group: "New Jersey", active: false, joinedDaysAgo: 92, mentorId: "live",
     // Mentor replied, but the teen has been quiet 9 days → teen-quiet.
     matchedDaysAgo: 65, mentorLastSentDaysAgo: 2, menteeLastSentDaysAgo: 9,

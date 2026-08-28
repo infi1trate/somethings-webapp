@@ -303,7 +303,22 @@ export function CareSummaryPanel({
       // 20px — matching the page's cards, which are --radius-elevated. The brief
       // asked for 16px; the cards measure 20px and matching them is the
       // requirement that actually matters. Reported.
-      className="sticky top-6 flex max-h-[calc(100dvh-3rem)] min-w-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      //
+      // ═══ THE HEIGHT SUBTRACTS THE BOTTOM CHROME (SC 2.4.11) ═══
+      //
+      // This was `calc(100dvh-3rem)`, inherited from the deleted
+      // `care-assistant-rail.tsx` when this panel replaced it. That arithmetic
+      // predates the bottom tab bar and assumes the whole viewport is available.
+      // It is not: below `md` the last 56px plus the safe-area inset belong to
+      // the tab bar, so a panel stuck at `top-6` and 796px tall on an 844px
+      // viewport ran to y=820 — its footer, which carries the refresh control
+      // and the "Updated" stamp, sat underneath the nav.
+      //
+      // `--nav-reserve` is the one place that figure is defined (globals.css,
+      // gaps row 253) and it is already `0px` at `md` and above, so desktop
+      // geometry is byte-for-byte unchanged and there is no second breakpoint to
+      // keep in step.
+      className="sticky top-6 flex max-h-[calc(100dvh-3rem-var(--nav-reserve))] min-w-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
       {/* ── HEADER: icon + title + refresh. No close icon — one control, one
           place, in the tab row. ─────────────────────────────────────────── */}

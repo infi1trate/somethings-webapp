@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
+import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -75,14 +76,16 @@ export default function AdminReviewPage({
   const setChangeRequests = useOnboardingStore((s) => s.setChangeRequests);
   const setRejection = useOnboardingStore((s) => s.setRejection);
   const capturePublishedSnapshot = useOnboardingStore(
-    (s) => s.capturePublishedSnapshot
+    (s) => s.capturePublishedSnapshot,
   );
 
   // A deep-link with ?focus=<step> opens review mode with that field flagged —
   // the record's "request a change here" entry point.
-  const [mode, setMode] = useState<"idle" | "review">(focusStep ? "review" : "idle");
+  const [mode, setMode] = useState<"idle" | "review">(
+    focusStep ? "review" : "idle",
+  );
   const [flagged, setFlagged] = useState<Record<string, boolean>>(() =>
-    focusStep ? { [focusStep]: true } : {}
+    focusStep ? { [focusStep]: true } : {},
   );
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -96,23 +99,31 @@ export default function AdminReviewPage({
   const isLead = persona === "lead-mentor";
   useEffect(() => {
     if (!mounted || isLead) return;
-    router.replace(isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile");
+    router.replace(
+      isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile",
+    );
   }, [mounted, isLead, persona, router]);
 
   const firstName = mounted ? draft.firstName || "this mentor" : "this mentor";
   const mentorName =
-    [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "Jordan Rivera";
+    [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
+    "Jordan Rivera";
 
   const hasNote = (step: string) => !!notes[step]?.trim();
   const isFlagged = (step: string) => !!flagged[step];
   // A flagged row with no note yet — blocks submission (so a flagged row is
   // never silently dropped from the payload).
   const isIncomplete = (step: string) => isFlagged(step) && !hasNote(step);
-  const flaggedCount = MENTOR_MANAGED_SECTIONS.filter((s) => isFlagged(s.step)).length;
-  const hasIncomplete = MENTOR_MANAGED_SECTIONS.some((s) => isIncomplete(s.step));
+  const flaggedCount = MENTOR_MANAGED_SECTIONS.filter((s) =>
+    isFlagged(s.step),
+  ).length;
+  const hasIncomplete = MENTOR_MANAGED_SECTIONS.some((s) =>
+    isIncomplete(s.step),
+  );
   const canSubmit = flaggedCount > 0 && !hasIncomplete;
   const dirty =
-    !!generalComment.trim() || MENTOR_MANAGED_SECTIONS.some((s) => hasNote(s.step));
+    !!generalComment.trim() ||
+    MENTOR_MANAGED_SECTIONS.some((s) => hasNote(s.step));
 
   const toggleFlag = (step: string, next: boolean) => {
     setFlagged((f) => ({ ...f, [step]: next }));
@@ -159,7 +170,9 @@ export default function AdminReviewPage({
   const submitReject = async () => {
     // Guard (button is also disabled): needs ≥1 flagged row, each with a note.
     if (!canSubmit) {
-      const firstEmpty = MENTOR_MANAGED_SECTIONS.find((s) => isIncomplete(s.step));
+      const firstEmpty = MENTOR_MANAGED_SECTIONS.find((s) =>
+        isIncomplete(s.step),
+      );
       if (firstEmpty) {
         setTouched((t) => ({ ...t, [firstEmpty.step]: true }));
         document.getElementById(`note-${firstEmpty.step}`)?.focus();
@@ -170,7 +183,7 @@ export default function AdminReviewPage({
     // Persist per-section feedback as ChangeRequest[] (dock/revision UI), each
     // with a baseline snapshot of its field for the mentor's edit-detection.
     const feedback = MENTOR_MANAGED_SECTIONS.filter(
-      (s) => isFlagged(s.step) && hasNote(s.step)
+      (s) => isFlagged(s.step) && hasNote(s.step),
     ).map((s) => ({ section: s, note: notes[s.step].trim() }));
     const requests: ChangeRequest[] = feedback.map(({ section, note }) => ({
       id: section.step,
@@ -179,7 +192,7 @@ export default function AdminReviewPage({
       sectionLabel: section.label,
       note,
       baselineValue: snapshotValue(
-        (draft as unknown as Record<string, unknown>)[section.fieldKey]
+        (draft as unknown as Record<string, unknown>)[section.fieldKey],
       ),
       confirmedUnchanged: false,
     }));
@@ -189,7 +202,7 @@ export default function AdminReviewPage({
     setRejection(generalComment.trim() || null); // general (not section-bound)
     setStatus("rejected");
     toast.success(
-      `Sent ${requests.length} change${requests.length === 1 ? "" : "s"} to ${mentorName}`
+      `Sent ${requests.length} change${requests.length === 1 ? "" : "s"} to ${mentorName}`,
     );
     router.push(returnHref);
   };
@@ -236,14 +249,15 @@ export default function AdminReviewPage({
           <div className="mt-6 space-y-3">
             {MENTOR_MANAGED_SECTIONS.map((section) => {
               const on = isFlagged(section.step);
-              const showError = isIncomplete(section.step) && touched[section.step];
+              const showError =
+                isIncomplete(section.step) && touched[section.step];
               return (
                 <div
                   key={section.step}
                   data-review-section={section.step}
                   className={cn(
                     "relative overflow-hidden rounded-2xl border bg-card p-4 transition-colors",
-                    on && "bg-brand/5"
+                    on && "bg-brand/5",
                   )}
                 >
                   {/* Accent left bar — decorative reinforcement, not the only
@@ -401,17 +415,43 @@ export default function AdminReviewPage({
           </div>
         </div>
 
-        {/* RIGHT — passive phone preview (output only) */}
-        <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
+        {/* RIGHT — passive phone preview (output only)
+            
+            ═══ THE MOST IMPORTANT OF THE SIX (RC-2) ═══
+            
+            This was `hidden lg:…`. On this page the preview is not context, it
+            is THE ARTIFACT UNDER REVIEW — so below 1024px a supervisor was being
+            asked to approve or reject a profile they could not see, with the
+            decision buttons fully available. That is the worst shape this bug
+            takes anywhere in the product.
+            
+            The sheet makes it reachable at every width, which closes the
+            accessibility failure. It is NOT the final answer for tablet: a
+            reviewer needs the artifact and the decision controls visible
+            together, and a modal sheet is mutually exclusive with them by
+            construction. The tablet layout is proposed in the Phase 4 report and
+            deliberately NOT built here — see gaps row 264. */}
+        <PreviewDisclosure
+          /* TODO-COPY */
+          triggerLabel="View the profile under review"
+          title="The profile under review"
+          caption={
+            <p className="text-xs text-muted-foreground">
+              Read-only · what teens see
+            </p>
+          }
+        >
           {mounted ? (
             <PhoneFrame>
               <MentorProfilePreview draft={draft} />
             </PhoneFrame>
           ) : (
-            <div className="h-[740px] w-[368px] max-w-full animate-pulse rounded-[46px] bg-muted/40" />
+            // The skeleton follows the frame's ratio rather than a fixed height,
+            // so it does not jump when the real frame swaps in at a width the
+            // frame now adapts to.
+            <div className="aspect-[360/754] w-full max-w-[360px] animate-pulse rounded-[46px] bg-muted/40" />
           )}
-          <p className="text-xs text-muted-foreground">Read-only · what teens see</p>
-        </div>
+        </PreviewDisclosure>
       </div>
 
       {/* Cancel confirm — only when notes would be lost. */}

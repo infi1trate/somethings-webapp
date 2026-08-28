@@ -48,6 +48,7 @@ import {
   type CaseloadPerson,
 } from "@/components/record/caseload-modal";
 import { ChatAction } from "@/components/admin/chat-action";
+import { teenDisplayName } from "@/lib/record/teen-name";
 import {
   AvailabilityMenu,
   MentorStatusMenu,
@@ -60,6 +61,7 @@ import {
   statusRank,
 } from "@/lib/record/mentor-status";
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
+import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 import { recordHrefFor } from "@/lib/record/subject";
 import {
@@ -146,10 +148,11 @@ export function Roster({
 
   const heading = isMentors ? "Mentors" : "Mentees";
   const q = search.trim().toLowerCase();
-  const matchName = (name: string, goesBy?: string) =>
+  const matchName = (name: string, goesBy?: string, firstName?: string) =>
     !q ||
     name.toLowerCase().includes(q) ||
-    (goesBy?.toLowerCase().includes(q) ?? false);
+    (goesBy?.toLowerCase().includes(q) ?? false) ||
+    (firstName?.toLowerCase().includes(q) ?? false);
   const matchStatus = (active: boolean) =>
     statusFilter === "any" ||
     (statusFilter === "active" ? active : !active);
@@ -205,7 +208,10 @@ export function Roster({
         }))
       : teensForMentor(r.id).map((t) => ({
           id: t.id,
-          name: t.name,
+          // FIRST NAME ONLY (standing rule 6). The modal renders this raw and
+          // derives two-letter initials from it, so a full name here put the
+          // surname on screen twice.
+          name: teenDisplayName(t),
           secondary: `joined ${relJoined(t.joinedDaysAgo)}`,
         }));
 
@@ -251,7 +257,11 @@ export function Roster({
     const base: DemoTeen[] = isLead ? leadUmbrellaTeens() : DEMO_TEENS;
     let rows = base.filter(
       (t) =>
-        matchName(t.name, t.goesBy) &&
+        // SEARCH STILL MATCHES THE LEGAL NAME — staff type "Ortiz" and find
+        // Caleb. Matching a string is not rendering it, and this is the roster
+        // that exists to find a specific person. What comes BACK is first-name
+        // only; `firstName` joins the haystack so typing what you can see works.
+        matchName(t.name, t.goesBy, t.firstName) &&
         matchStatus(t.active) &&
         inTenureBucket(t.joinedDaysAgo, tenure) &&
         matchesBillingFilter(billingCodeStateFor(t.id, rosterNow), codeFilter)
@@ -264,7 +274,9 @@ export function Roster({
         case "joined": return t.joinedDaysAgo;
         case "code":
           return billingCodeSortValue(billingCodeStateFor(t.id, rosterNow));
-        default: return t.name;
+        // BY THE VISIBLE NAME. Sorting teens by their legal name ordered the
+        // list on a string the reader cannot see.
+        default: return teenDisplayName(t);
       }
     };
     rows = [...rows].sort((a, b) => cmp(val(a), val(b)));
@@ -568,7 +580,13 @@ function MentorRowView({
               caseload.onOpen();
             }}
             aria-label={`${row.name} — mentees, ${caseload.count} of ${caseload.total}`}
-            className="group/cl -mx-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[var(--text-primary)] tabular-nums transition-colors hover:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            // SC 2.5.8 — 32px of visual, 44px of target. The caseload cell is a
+            // MUTATION control (it opens the caseload adjuster), so a mis-tap
+            // here is not a navigation the reader can undo with Back.
+            className={cn(
+              touchTarget(32),
+              "group/cl -mx-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[var(--text-primary)] tabular-nums transition-colors hover:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            )}
           >
             {caseload.count} of {caseload.total}
             <UsersRound
@@ -626,8 +644,10 @@ function MentorRowView({
  *  it the code link would be swallowed by the row's own click. */
 function BillingCodeCell({ teen, now }: { teen: DemoTeen; now: number }) {
   const state: BillingCodeState = billingCodeStateFor(teen.id, now);
-  // FIRST NAME ONLY in the description (standing rule 6).
-  const first = teen.goesBy ?? teen.name.split(" ")[0];
+  // FIRST NAME ONLY in the description (standing rule 6). Through the shared
+  // helper now — this hand-rolled split was the only site that got the rule
+  // right, and it got it right by accident of being written separately.
+  const first = teenDisplayName(teen);
   const description = billingCodeDescription(state, first);
 
   // The em-dash states. A MUTED EM DASH WITH AN ACCESSIBLE LABEL, never a blank
@@ -703,7 +723,10 @@ function TeenRowView({ teen, now }: { teen: DemoTeen; now: number }) {
       className="cursor-pointer border-b border-[var(--surface-s2)] transition-colors last:border-0 hover:bg-[var(--tint-faint)]"
     >
       <td className="px-5 py-3">
-        <NameCell name={teen.name} goesBy={teen.goesBy} recordHref={href} />
+        {/* NO `goesBy` SUBTITLE FOR A TEEN. The cell shows the display name
+            already, so "goes by" would either repeat it or contrast it with a
+            legal name this row must not show (standing rule 6). */}
+        <NameCell name={teenDisplayName(teen)} recordHref={href} />
       </td>
       <BillingCodeCell teen={teen} now={now} />
       <td className="px-5 py-3 text-[var(--text-secondary)]">{mentorName(teen.mentorId)}</td>
@@ -711,7 +734,13 @@ function TeenRowView({ teen, now }: { teen: DemoTeen; now: number }) {
       <td className="px-5 py-3"><StatusPill active={teen.active} /></td>
       <td className="px-5 py-3 text-[var(--text-secondary)] tabular-nums">{relJoined(teen.joinedDaysAgo)}</td>
       <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-        <ChatAction personId={teen.id} name={teen.name} subjectRole="teen" />
+        {/* The name reaches an aria-label — "Chat with Caleb". A surname
+            announced only to a screen reader is still a surname rendered. */}
+        <ChatAction
+          personId={teen.id}
+          name={teenDisplayName(teen)}
+          subjectRole="teen"
+        />
       </td>
     </tr>
   );
@@ -728,22 +757,32 @@ export function NameCell({
 }) {
   return (
     <span className="flex items-center gap-3">
-      <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
+      {/* `shrink-0` — WITHOUT IT THIS IS AN ELLIPSE. `size-8` sets width and
+          height, but a flex item's width is a starting point, not a floor: in a
+          compressed row the avatar was the only thing that could give, so it
+          squashed horizontally while keeping its 32px height and its
+          `rounded-full`. A circle that is not a circle reads as a rendering
+          fault. Height is unaffected, so this changes nothing at desktop. */}
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
         {initials(name)}
       </span>
-      <span className="min-w-0">
+      {/* `min-w-0` was already here and did nothing on its own — it permits the
+          box to shrink, but `truncate` on the CHILDREN is what makes a long name
+          end in an ellipsis instead of forcing the column wider. `flex-1` so it
+          claims the space the avatar no longer takes. */}
+      <span className="min-w-0 flex-1">
         {recordHref ? (
           <Link
             href={recordHref}
-            className="block rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            className="block truncate rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
           >
             {name}
           </Link>
         ) : (
-          <span className="block font-medium">{name}</span>
+          <span className="block truncate font-medium">{name}</span>
         )}
         {goesBy && (
-          <span className="block text-xs text-[var(--text-secondary)]">
+          <span className="block truncate text-xs text-[var(--text-secondary)]">
             goes by &ldquo;{goesBy}&rdquo;
           </span>
         )}
@@ -778,7 +817,15 @@ function StatusPill({ active }: { active: boolean }) {
   );
 }
 
-function initials(name: string) {
+/** Two-letter staff initials. Exported for `team-directory.tsx`'s card-mode
+ *  avatar, which needs the same letterform the table's NameCell uses.
+ *
+ *  STAFF ONLY. Teens get ONE letter from `teenAvatarInitial` — two letters on a
+ *  teen reconstruct the surname's first letter, which is the fact standing rule 6
+ *  suppresses. (Three near-identical copies of this exist: here,
+ *  `care-network.tsx:41` and `caseload-modal.tsx:30`. Not consolidated in this
+ *  phase; noted in design-system-gaps row 268.) */
+export function initials(name: string) {
   return name
     .split(" ")
     .map((p) => p[0])

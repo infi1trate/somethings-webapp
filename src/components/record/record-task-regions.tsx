@@ -51,6 +51,7 @@ import {
   type AlertInstance,
 } from "@/lib/record/record-alerts";
 import { CRISIS_TYPE, FLAG_OUTCOME, type CareFlagRecord, type DemoTeen } from "@/lib/record/people-demo";
+import { teenDisplayName } from "@/lib/record/teen-name";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import type { CareStoreSlice } from "@/lib/record/care-demo";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -109,7 +110,10 @@ export function RecordTaskRegions({
 
   const canAct = canActOnCare(persona);
   const role = alertRoleForStore(persona);
-  const teenName = teen.goesBy ?? teen.name;
+  // FIRST NAME ONLY (standing rule 6). This one is load-bearing beyond a list
+  // cell: it is spoken back inside composed sentences — "Caleb finished 3
+  // activities" — where a surname reads as a case file rather than a person.
+  const teenName = teenDisplayName(teen);
   const staffName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
     staffActorFor(persona);

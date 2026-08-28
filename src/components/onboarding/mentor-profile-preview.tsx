@@ -667,7 +667,27 @@ function InterestPhotoDeck({ entries }: { entries: InterestEntry[] }) {
       count={withPhoto.length}
       index={i}
       onIndexChange={setIndex}
-      controls={false}
+      // ═══ SC 2.1.1 — `controls={false}` REMOVED (Phase 4) ═══
+      //
+      // This deck was pointer-drag-only. `SwipeDeck` has exactly one keyboard
+      // path — the prev/next/dot buttons its `controls` block renders — so
+      // suppressing them left NO focusable element and no way to reach photos 2+
+      // by keyboard at all. It also failed SC 2.5.7 Dragging Movements, which
+      // wants a single-POINTER alternative, not just a keyboard one; the same
+      // controls satisfy both.
+      //
+      // FIXED HERE RATHER THAN DEFERRED TO PHASE 15, because `SwipeDeck` has
+      // exactly one consumer in the codebase — this preview — so there is no
+      // live teen-facing surface whose design this could disturb. Deferring a
+      // live AA failure that costs one prop to fix would be the wrong trade.
+      //
+      // FIDELITY IS NOT HARMED: dots-and-arrows under a photo card is the
+      // standard mobile pattern, so the previewed card reads more like a real
+      // one with them than without. The residual issue is inherited, not new —
+      // `swipe-deck.tsx`'s arrows are 32px and its dots 8px, both under the 44px
+      // floor. Noted in design-system-gaps row 263 rather than resized here, because that
+      // control belongs to the deck and every consumer of it.
+      controls
       className="mx-auto aspect-[3/4] w-[72%] max-w-[230px]"
       renderCard={(idx) => {
         const e = withPhoto[idx];

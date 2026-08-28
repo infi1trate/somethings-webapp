@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
+import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
 import {
   MentorProfilePreview,
   type PreviewFocus,
@@ -297,15 +298,23 @@ export function MatchingProfileEditor({
           </section>
         </div>
 
-        {/* Preview column — the teen-facing match card. */}
-        <div className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:items-center lg:gap-3">
+        {/* Preview column — the teen-facing match card.
+            RC-2: was `hidden lg:…`, which deleted the mentor's own match card
+            below 1024px while they were editing it. */}
+        <PreviewDisclosure
+          /* TODO-COPY */
+          triggerLabel="Preview your match card"
+          title="What teens see on your match card"
+          caption={
+            <p className="text-xs text-[var(--text-muted)]">
+              Your edits, as teens would see them — live once approved
+            </p>
+          }
+        >
           <PhonePreviewShell label="Live preview — what teens see on your match card">
             <MentorProfilePreview draft={draft} focus={focus} />
           </PhonePreviewShell>
-          <p className="text-xs text-[var(--text-muted)]">
-            Your edits, as teens would see them — live once approved
-          </p>
-        </div>
+        </PreviewDisclosure>
       </div>
     </div>
   );

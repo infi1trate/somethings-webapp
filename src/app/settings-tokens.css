@@ -221,6 +221,24 @@
      FALLS BACK TO 0 by every consumer using var(--dev-bar-h, 0px), so removing
      the harness needs no shell edits. */
   --dev-bar-h: 40px;
+
+  /* THE REVISION DOCK'S RESERVED HEIGHT. `onboarding/change-requests-dock.tsx`
+     is fixed to the bottom of the viewport whenever a profile is in
+     changes-requested state, and the mobile "Preview profile" pill has to clear
+     it. That clearance was the literal `bottom-24` in `onboarding-layout.tsx`,
+     hand-tuned against a comment reading "collapsed ≈ 4.25rem tall" — a number
+     in one file describing a component in another, with nothing connecting them.
+
+     NOT `--nav-reserve`, and the difference matters. That variable reserves room
+     for the bottom TAB BAR, and the onboarding flow mounts no tab bar at all
+     (verified: neither AppShell nor the bar is in the tree on /onboarding). Using
+     it here would reserve 56px for chrome that does not exist and still not
+     describe the dock. Same mechanism, different piece of chrome, own name.
+
+     6rem = the dock's collapsed height plus its 0.75rem floor and a gap. It is
+     still a constant rather than a measurement — the dock expands UPWARD from a
+     pinned bar, so its collapsed height is the only figure the pill needs. */
+  --dock-reserve: 6rem;
   --shadow-card: 0 1px 2px rgb(31 30 29 / 0.04), 0 10px 28px -14px rgb(31 30 29 / 0.14);
   --shadow-card-hover: 0 2px 5px rgb(31 30 29 / 0.06), 0 16px 40px -16px rgb(31 30 29 / 0.2);
   --shadow-alert: 0 1px 2px rgb(201 53 29 / 0.05), 0 12px 32px -14px rgb(201 53 29 / 0.22);

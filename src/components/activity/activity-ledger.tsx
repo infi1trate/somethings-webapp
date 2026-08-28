@@ -289,7 +289,7 @@ function Toolbar({
               role="radio"
               aria-checked={on}
               aria-label={label}
-              title={label}
+              // No `title=`: exact duplicate of the aria-label.
               onClick={() => onDensity(value)}
               className={cn(
                 "inline-flex size-8 items-center justify-center rounded-full transition-colors",

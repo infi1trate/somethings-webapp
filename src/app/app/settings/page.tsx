@@ -8,9 +8,10 @@
 // the active section on the right; ?section= via the use(searchParams) prop
 // pattern (invariant 5). Rail degrades to a top scroller on narrow (gaps #101).
 
-import { use, useEffect } from "react";
+import { use, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MentorShell } from "@/components/mentor/mentor-shell";
+import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { roleForPersona } from "@/components/settings/tabs-config";
@@ -54,6 +55,8 @@ export default function SettingsPage({
   // Role gates the section set (identical across roles today). Pre-mount
   // defaults to mentor; the list is the same, so there's no hydration flip.
   const role = mounted ? roleForPersona(persona) : "mentor";
+  const navScrollRef = useRef<HTMLElement | null>(null);
+  const navEdges = useEdgeOverflow(navScrollRef);
   const sections = settingsSectionsForRole(role);
   const active = sections.find((s) => s.id === rawSection) ?? sections[0];
 
@@ -85,32 +88,53 @@ export default function SettingsPage({
         </h1>
 
         <div className="mt-6 flex flex-col gap-6 sm:flex-row">
-          {/* Section rail — top scroller on narrow, left column at sm+. */}
-          <nav
-            aria-label="Settings sections"
-            className="-mx-1 flex gap-1 overflow-x-auto px-1 sm:mx-0 sm:w-52 sm:shrink-0 sm:flex-col sm:overflow-visible sm:px-0"
-          >
-            {sections.map((s) => {
-              const isActive = s.id === active.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => go(s.id)}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "flex min-h-11 shrink-0 items-center gap-2.5 rounded-[10px] px-3 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
-                    isActive
-                      ? "bg-[var(--surface-card)] font-medium text-[var(--text-primary)]"
-                      : "font-normal text-[var(--text-secondary)] hover:bg-[var(--surface-card)]/60 hover:text-[var(--text-primary)]"
-                  )}
-                >
-                  <s.icon className="size-4 shrink-0" aria-hidden />
-                  {s.label}
-                </button>
-              );
-            })}
-          </nav>
+          {/* Section rail — top scroller on narrow, left column at sm+.
+              
+              ═══ THE PATTERN IS KEPT; THE INDICATOR IS ADDED (Phase 6) ═══
+              
+              The scroller/sidebar switch is right and stays. What it lacked is
+              the affordance: below `sm` this is a horizontally scrolling row of
+              six chips whose native scrollbar appears only on hover on macOS and
+              never on touch — so on a phone there was nothing on screen saying
+              four more sections existed past the edge. Same standard the record
+              tab strip was held to in Phase 3 (Nielsen #6).
+              
+              THE WRAPPER AND THE FADES ARE `sm:hidden`-scoped: above `sm` this is
+              a vertical column that cannot overflow horizontally, and a fade
+              there would be a permanent grey smudge marking nothing. */}
+          <div className="relative min-w-0 sm:contents">
+            <nav
+              ref={navScrollRef}
+              aria-label="Settings sections"
+              className="-mx-1 flex gap-1 overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:w-52 sm:shrink-0 sm:flex-col sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
+            >
+              {sections.map((s) => {
+                const isActive = s.id === active.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => go(s.id)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-11 shrink-0 items-center gap-2.5 rounded-[10px] px-3 text-[14px] leading-[20px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+                      isActive
+                        ? "bg-[var(--surface-card)] font-medium text-[var(--text-primary)]"
+                        : "font-normal text-[var(--text-secondary)] hover:bg-[var(--surface-card)]/60 hover:text-[var(--text-primary)]",
+                    )}
+                  >
+                    <s.icon className="size-4 shrink-0" aria-hidden />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <EdgeFades
+              edges={navEdges}
+              surface="var(--surface-s1)"
+              className="sm:hidden"
+            />
+          </div>
 
           {/* Active section */}
           <div className="min-w-0 flex-1">

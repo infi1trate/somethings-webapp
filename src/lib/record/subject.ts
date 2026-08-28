@@ -16,6 +16,7 @@
 // Consumers branch on `kind` and render what the subject actually has.
 
 import { withOrigin } from "@/lib/record/origins";
+import { teenDisplayName } from "@/lib/record/teen-name";
 import {
   DEMO_PEOPLE,
   DEMO_TEENS,
@@ -41,7 +42,13 @@ export interface FixtureSubject {
   kind: "fixture";
   id: string;
   role: PersonRole;
+  /** The person's FULL name. For a teen this is the LEGAL name — read it only
+   *  through `subjectDisplayName`, never directly (standing rule 6). The single
+   *  sanctioned direct read is the Account section's "Full name" row. */
   name: string;
+  /** Teens only — the authoritative first name, carried up from the fixture so
+   *  the subject can satisfy rule 6 without a second lookup. */
+  firstName?: string;
   goesBy?: string;
   phone: string;
   email?: string;
@@ -83,6 +90,7 @@ export function resolveSubject(id: string): Subject | null {
       id: teen.id,
       role: "teen",
       name: teen.name,
+      firstName: teen.firstName,
       goesBy: teen.goesBy,
       phone: teen.phone,
       email: teen.email,
@@ -108,7 +116,15 @@ export function recordHrefFor(id: string, from?: string): string {
   return withOrigin(base, from);
 }
 
-/** Display name, preferring the teen-facing "goes by" when set. */
+/** WHAT TO CALL THIS PERSON ON SCREEN. Role-aware, because the two roles have
+ *  different rules and the old one-liner (`goesBy ?? name`) applied the staff
+ *  rule to everybody.
+ *
+ *  TEENS: first name only, always (standing rule 6) — delegated to the one
+ *  chokepoint so this function and the tables cannot disagree.
+ *  STAFF: the full name. Mentors, leads and supervisors are adults whose
+ *  surnames are how colleagues address and find them; rule 6 is about minors. */
 export function subjectDisplayName(s: FixtureSubject): string {
+  if (s.role === "teen") return teenDisplayName(s);
   return s.goesBy ?? s.name;
 }

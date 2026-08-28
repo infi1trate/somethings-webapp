@@ -49,11 +49,13 @@ import {
 import { avatarTintFor } from "@/components/record/person-row";
 import { MentorStatusBadge } from "@/components/admin/mentor-status-badge";
 import { recordHrefFor } from "@/lib/record/subject";
+import { teenDisplayName } from "@/lib/record/teen-name";
 import { TonalChip } from "@/components/record/tonal-chip";
 import { chatHrefFor } from "@/lib/record/chat";
 import { relJoined } from "@/lib/record/people-demo";
 import { formatDaysInMentorship } from "@/lib/record/relationships";
 import type { MentorLifecycleStatus } from "@/lib/types";
+import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import { cn } from "@/lib/utils";
 
 const H2 =
@@ -79,7 +81,14 @@ export type RelationshipVariant = "mentees" | "mentors";
  *  both variants are guaranteed to read their data the same way. */
 export interface RelationshipRow {
   id: string;
+  /** The person's FULL name — and on the MENTEES variant that is a teen's LEGAL
+   *  name, which this table never renders and never searches. It stays on the row
+   *  because the MENTORS variant displays it (see `displayOf`), and because the
+   *  row is the join key back to the person. */
   name: string;
+  /** mentees variant only — the teen's authoritative first name (standing rule
+   *  6). Absent on the mentors variant, where the full name is the display. */
+  firstName?: string;
   goesBy?: string;
   /** Days since the RELATIONSHIP began. Null renders the honest empty state
    *  rather than borrowing the person's platform join date. */
@@ -146,7 +155,9 @@ function CareCell({
           </span>
         )}
         {care && care.reviewDue !== "none" && (
-          <TonalChip tone={care.reviewDue === "overdue" ? "warning" : "neutral"}>
+          <TonalChip
+            tone={care.reviewDue === "overdue" ? "warning" : "neutral"}
+          >
             {/* TODO-COPY. Elapsed time, per the house rule — everything that is
                 not a named platform metric reads as elapsed.
 
@@ -174,7 +185,7 @@ function CareCell({
  *  Deactivated has no chip here any more: a deactivated mentee is not in this
  *  card at all (the pairing is over — see Past mentees). */
 export function exceptionFor(
-  status: "active" | "paused" | "deactivated"
+  status: "active" | "paused" | "deactivated",
 ): RelationshipRow["exception"] {
   if (status === "paused") return { label: "Paused", tone: "warning" };
   return null;
@@ -193,7 +204,7 @@ function ExceptionChip({
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5",
         chip.tone === "warning"
           ? "bg-[var(--status-attention-bg)] text-[var(--status-attention-fg)]"
-          : "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]"
+          : "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
       )}
       style={{ font: "var(--type-label-sm)" }}
     >
@@ -251,11 +262,11 @@ export function RelationshipTable({
   onStatusSelect?: (
     row: RelationshipRow,
     next: MentorLifecycleStatus,
-    trigger: HTMLElement | null
+    trigger: HTMLElement | null,
   ) => void;
   onEndRelationship?: (
     row: RelationshipRow,
-    trigger: HTMLElement | null
+    trigger: HTMLElement | null,
   ) => void;
   endLabel: string;
   emptyLabel: string;
@@ -264,6 +275,19 @@ export function RelationshipTable({
   const [asc, setAsc] = useState(true);
   const [query, setQuery] = useState("");
   const [pausedOpenManual, setPausedOpenManual] = useState(false);
+
+  /** WHAT EACH ROW IS CALLED ON SCREEN — the one place this table decides.
+   *
+   *  THE VARIANT IS THE RULE. "mentees" rows are teens, and standing rule 6 makes
+   *  them first name only, always; "mentors" rows are staff, whose full names are
+   *  how colleagues address and find them. This used to be `r.goesBy ?? r.name`
+   *  in three places, which applied the staff rule to teens and leaked surnames
+   *  into the list, the sort and the search (design-system-gaps.md row 254).
+   *
+   *  SORT AND SEARCH READ IT TOO, not just the cell: a list sorted by a string
+   *  the reader cannot see is a list in an arbitrary order. */
+  const displayOf = (r: RelationshipRow) =>
+    variant === "mentees" ? teenDisplayName(r) : (r.goesBy ?? r.name);
 
   const showStatus = variant === "mentors";
   const showChat = variant === "mentees";
@@ -301,21 +325,22 @@ export function RelationshipTable({
     }
     if (sort === "status" && statusRank)
       return (
-        dir * (statusRank(a.status ?? "active") - statusRank(b.status ?? "active"))
+        dir *
+        (statusRank(a.status ?? "active") - statusRank(b.status ?? "active"))
       );
-    return dir * (a.goesBy ?? a.name).localeCompare(b.goesBy ?? b.name);
+    return dir * displayOf(a).localeCompare(displayOf(b));
   };
 
   const q = query.trim().toLowerCase();
   const matches = (r: RelationshipRow) =>
-    !q || (r.goesBy ?? r.name).toLowerCase().includes(q);
+    !q || displayOf(r).toLowerCase().includes(q);
 
   // Sort runs across BOTH groups before the split, so ordering is consistent
   // whichever group a row lands in.
   const all = useMemo(
     () => [...rows].sort(compare),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, sort, asc, statusRank]
+    [rows, sort, asc, statusRank],
   );
   const activeRows = all.filter((r) => !r.paused).filter(matches);
   const pausedAll = all.filter((r) => r.paused);
@@ -327,6 +352,14 @@ export function RelationshipTable({
   const pausedOpen = pausedOpenManual || (searching && pausedRows.length > 0);
   const showSearch = rows.length >= SEARCH_THRESHOLD;
   const scrolls = pausedRows.length > PAUSED_VISIBLE_ROWS;
+
+  // THE OVERFLOW AFFORDANCE for each of the two scrollers. Both tables can
+  // overflow horizontally at the same widths (identical `min-w-[640px]` inside
+  // one card), but each tracks its own scrollLeft, so each gets its own edges.
+  const activeScrollRef = useRef<HTMLDivElement | null>(null);
+  const pausedScrollRef = useRef<HTMLDivElement | null>(null);
+  const activeEdges = useEdgeOverflow(activeScrollRef);
+  const pausedEdges = useEdgeOverflow(pausedScrollRef);
 
   const renderSince = (days: number | null) =>
     days === null ? (
@@ -356,6 +389,7 @@ export function RelationshipTable({
     <Row
       key={r.id}
       row={r}
+      display={displayOf(r)}
       showStatus={showStatus}
       showChat={showChat}
       showCode={showCode}
@@ -402,7 +436,7 @@ export function RelationshipTable({
               className={cn(
                 "inline-flex h-8 items-center justify-center gap-2 rounded-full border border-[color:var(--button-border-default)] px-4",
                 "font-display text-[12px] font-bold leading-[16px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-                RING
+                RING,
               )}
             >
               <Plus className="size-3.5" aria-hidden />
@@ -420,17 +454,66 @@ export function RelationshipTable({
             wrapper reserves the SAME gutter without ever showing a thumb (the
             content is shorter than the box), so both tables get identical inner
             widths and the columns line up. */}
-        <div className={cn(scrolls && "overflow-y-scroll")}>
-        <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
-          {cols}
-          <thead>
-            <tr className="border-b border-[color:var(--surface-s2)]">
-              <SortHead label="Name" k="name" sort={sort} asc={asc} onSort={setSortKey} />
-              {showStatus && (
-                <SortHead label="Status" k="status" sort={sort} asc={asc} onSort={setSortKey} />
-              )}
-              {showCode && (
-                /* TWO SORTS IN ONE HEADER CELL, because the cell holds two facts.
+        {/* ═══ HORIZONTAL REACHABILITY (RC-6) ═══
+            
+            THE CLIPPING THIS FIXES. The card wrapper above is `overflow-hidden`
+            — legitimately, it is what rounds the corners — and this div declared
+            only `overflow-y`. So with `scrolls` false the div was
+            `overflow: visible` on both axes, the 640px table overflowed it, and
+            the `overflow-hidden` card CLIPPED the excess. Measured at a 340px
+            container: scrollWidth 640, clientWidth 340, **300px unreachable** —
+            not by wheel, drag or touch. (`scrollLeft` still moved
+            programmatically, and the browser still scrolls a focused cell into
+            view, so a keyboard user could reach it by accident. A pointer user
+            had nothing at all, and nothing on screen said a third of the table
+            was missing.)
+            
+            BOTH AXES ARE NOW DECLARED, and that is deliberate rather than
+            tidiness. Per the CSS overflow spec, when one axis is `visible` and
+            the other is not, the `visible` one computes to `auto` — the rule that
+            put a 15px vertical scrollbar inside the record's 44px tab strip
+            (`user-record-shell.tsx`). Declaring `overflow-x` alone here would
+            silently make the Y axis scrollable and reintroduce exactly that
+            class of bug, so the Y axis is pinned explicitly in both branches.
+            
+            GUTTER PARITY IS PRESERVED UNCHANGED — see the note above. `scrolls`
+            still switches the Y axis to `scroll` so this table reserves the same
+            ~15px the paused group's scrollbar takes, and the two keep identical
+            inner widths. The only addition is the X axis. */}
+        {/* `relative` HOST for the fades. They must be SIBLINGS of the scroller,
+            never children of it — a child of an `overflow-x-auto` element scrolls
+            with the content and adds to its scrollWidth, so a fade inside would
+            drift off the edge it marks and widen the region at the same time. */}
+        <div className="relative">
+          <div
+            ref={activeScrollRef}
+            className={cn(
+              "overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              scrolls ? "overflow-y-scroll" : "overflow-y-hidden",
+            )}
+          >
+            <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
+              {cols}
+              <thead>
+                <tr className="border-b border-[color:var(--surface-s2)]">
+                  <SortHead
+                    label="Name"
+                    k="name"
+                    sort={sort}
+                    asc={asc}
+                    onSort={setSortKey}
+                  />
+                  {showStatus && (
+                    <SortHead
+                      label="Status"
+                      k="status"
+                      sort={sort}
+                      asc={asc}
+                      onSort={setSortKey}
+                    />
+                  )}
+                  {showCode && (
+                    /* TWO SORTS IN ONE HEADER CELL, because the cell holds two facts.
                    The alternative was making one control cycle code → review →
                    code, which is undiscoverable: nothing on screen would tell a
                    reader the third click does something different. Two labelled
@@ -439,61 +522,69 @@ export function RelationshipTable({
                    TODO-COPY. "Presentation", not "Billing code" — the code IS the
                    billing code, but on a teen's row the clinical framing is the
                    honest one; the finance framing reads as what the teen is for. */
-                <th
-                  scope="col"
-                  className={TH}
-                  aria-sort={
-                    sort === "code" || sort === "review"
-                      ? asc
-                        ? "ascending"
-                        : "descending"
-                      : "none"
-                  }
-                >
-                  <span className="flex items-center gap-2">
-                    <SortButton
-                      label="Presentation"
-                      k="code"
-                      sort={sort}
-                      asc={asc}
-                      onSort={setSortKey}
-                    />
-                    <span aria-hidden className="opacity-40">
-                      ·
-                    </span>
-                    <SortButton
-                      /* TODO-COPY */
-                      label="Review"
-                      k="review"
-                      sort={sort}
-                      asc={asc}
-                      onSort={setSortKey}
-                    />
-                  </span>
-                </th>
-              )}
-              <SortHead label={sinceLabel} k="since" sort={sort} asc={asc} onSort={setSortKey} />
-              {/* The chat column carries no header — the link names itself. */}
-              {showChat && <th className={TH} />}
-              {/* Overflow column: unheaded, its trigger is labelled per row. */}
-              <th className={TH} />
-            </tr>
-          </thead>
-          <tbody>
-            {activeRows.length === 0 && pausedRows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={colCount}
-                  className="px-5 py-6 text-[14px] leading-[20px] text-[var(--text-secondary)]"
-                >
-                  {/* TODO-COPY */}
-                  {searching ? "No one matches that name." : emptyLabel}
-                </td>
-              </tr>
-            )}
-            {activeRows.map(rowFor)}
-          </tbody>
-        </table>
+                    <th
+                      scope="col"
+                      className={TH}
+                      aria-sort={
+                        sort === "code" || sort === "review"
+                          ? asc
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
+                    >
+                      <span className="flex items-center gap-2">
+                        <SortButton
+                          label="Presentation"
+                          k="code"
+                          sort={sort}
+                          asc={asc}
+                          onSort={setSortKey}
+                        />
+                        <span aria-hidden className="opacity-40">
+                          ·
+                        </span>
+                        <SortButton
+                          /* TODO-COPY */
+                          label="Review"
+                          k="review"
+                          sort={sort}
+                          asc={asc}
+                          onSort={setSortKey}
+                        />
+                      </span>
+                    </th>
+                  )}
+                  <SortHead
+                    label={sinceLabel}
+                    k="since"
+                    sort={sort}
+                    asc={asc}
+                    onSort={setSortKey}
+                  />
+                  {/* The chat column carries no header — the link names itself. */}
+                  {showChat && <th className={TH} />}
+                  {/* Overflow column: unheaded, its trigger is labelled per row. */}
+                  <th className={TH} />
+                </tr>
+              </thead>
+              <tbody>
+                {activeRows.length === 0 && pausedRows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={colCount}
+                      className="px-5 py-6 text-[14px] leading-[20px] text-[var(--text-secondary)]"
+                    >
+                      {/* TODO-COPY */}
+                      {searching ? "No one matches that name." : emptyLabel}
+                    </td>
+                  </tr>
+                )}
+                {activeRows.map(rowFor)}
+              </tbody>
+            </table>
+          </div>
+          <EdgeFades edges={activeEdges} surface="var(--surface-card)" />
         </div>
 
         {/* PAUSED GROUP — still matched, so still in this card, just set apart.
@@ -508,13 +599,13 @@ export function RelationshipTable({
               aria-controls="paused-group"
               className={cn(
                 "flex min-h-11 w-full items-center gap-2 bg-[var(--surface-s1)] px-5 py-2 text-left",
-                RING
+                RING,
               )}
             >
               <ChevronDown
                 className={cn(
                   "size-4 shrink-0 text-[var(--text-muted)] transition-transform",
-                  pausedOpen && "rotate-180"
+                  pausedOpen && "rotate-180",
                 )}
                 aria-hidden
               />
@@ -542,15 +633,29 @@ export function RelationshipTable({
               )}
             </button>
             {pausedOpen && (
-              <div
-                id="paused-group"
-                className={cn(scrolls && "overflow-y-auto")}
-                style={scrolls ? { maxHeight: PAUSED_VISIBLE_ROWS * ROW_PX } : undefined}
-              >
-                <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
-                  {cols}
-                  <tbody>{pausedRows.map(rowFor)}</tbody>
-                </table>
+              <div className="relative">
+                <div
+                  id="paused-group"
+                  ref={pausedScrollRef}
+                  // Same reasoning as the active wrapper above: X declared so the
+                  // table is reachable, Y pinned so the spec's visible→auto
+                  // promotion cannot invent a scrollbar.
+                  className={cn(
+                    "overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                    scrolls ? "overflow-y-auto" : "overflow-y-hidden",
+                  )}
+                  style={
+                    scrolls
+                      ? { maxHeight: PAUSED_VISIBLE_ROWS * ROW_PX }
+                      : undefined
+                  }
+                >
+                  <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
+                    {cols}
+                    <tbody>{pausedRows.map(rowFor)}</tbody>
+                  </table>
+                </div>
+                <EdgeFades edges={pausedEdges} surface="var(--surface-card)" />
               </div>
             )}
           </div>
@@ -570,6 +675,7 @@ export function RelationshipTable({
 
 function Row({
   row: r,
+  display,
   showStatus,
   showChat,
   showCode,
@@ -580,6 +686,10 @@ function Row({
   endLabel,
 }: {
   row: RelationshipRow;
+  /** RESOLVED BY THE TABLE, never re-derived here — the row has no idea which
+   *  variant it is in, and a second derivation is a second chance to leak a
+   *  teen surname. */
+  display: string;
   showStatus: boolean;
   showChat: boolean;
   showCode: boolean;
@@ -588,22 +698,24 @@ function Row({
   onStatusSelect?: (
     row: RelationshipRow,
     next: MentorLifecycleStatus,
-    trigger: HTMLElement | null
+    trigger: HTMLElement | null,
   ) => void;
   onEndRelationship?: (
     row: RelationshipRow,
-    trigger: HTMLElement | null
+    trigger: HTMLElement | null,
   ) => void;
   endLabel: string;
 }) {
   const router = useRouter();
-  const display = r.goesBy ?? r.name;
   // Each row owns its own ⋯ ref and hands the element up with the callback, so a
   // confirm can put focus back where the reader left it. A shared map passed
   // down as a prop would mean the child mutating the parent's prop.
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
-    <tr onClick={() => router.push(recordHrefFor(r.id, origin))} className={ROW}>
+    <tr
+      onClick={() => router.push(recordHrefFor(r.id, origin))}
+      className={ROW}
+    >
       <td className={TD}>
         <span className="flex items-center gap-3">
           <span
@@ -645,7 +757,12 @@ function Row({
 
       {showCode && <CareCell care={r.care} name={display} />}
 
-      <td className={cn(TD, "text-[14px] leading-[20px] text-[var(--text-secondary)]")}>
+      <td
+        className={cn(
+          TD,
+          "text-[14px] leading-[20px] text-[var(--text-secondary)]",
+        )}
+      >
         {renderSince(r.sinceDays)}
       </td>
 
@@ -657,7 +774,7 @@ function Row({
             className={cn(
               "inline-flex min-h-11 items-center gap-2 rounded-sm text-[14px] font-medium text-[var(--text-primary)]",
               "transition-colors hover:text-[var(--text-secondary)]",
-              RING
+              RING,
             )}
           >
             <MessageSquare className="size-4" aria-hidden />
@@ -676,7 +793,7 @@ function Row({
               className={cn(
                 "inline-flex size-8 items-center justify-center rounded-full text-[var(--text-muted)]",
                 "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
+                RING,
               )}
             >
               <MoreHorizontal className="size-4" aria-hidden />
@@ -687,15 +804,15 @@ function Row({
             className="min-w-44"
             onCloseAutoFocus={preventFocusRestore}
           >
-            <DropdownMenuItem onSelect={() => router.push(recordHrefFor(r.id, origin))}>
+            <DropdownMenuItem
+              onSelect={() => router.push(recordHrefFor(r.id, origin))}
+            >
               {/* TODO-COPY */}
               View record
             </DropdownMenuItem>
             {onEndRelationship && (
               <DropdownMenuItem
-                onSelect={() =>
-                  onEndRelationship(r, triggerRef.current)
-                }
+                onSelect={() => onEndRelationship(r, triggerRef.current)}
               >
                 {endLabel}
               </DropdownMenuItem>
@@ -729,7 +846,7 @@ function StatusTrigger({
           aria-label={`${name} — status ${status}. Change status`}
           className={cn(
             "group/st inline-flex items-center gap-1 rounded-full outline-none",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
           )}
         >
           <MentorStatusBadge status={status} />
@@ -791,7 +908,7 @@ function SortButton({
       className={cn(
         "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)]",
         on && "text-[var(--text-primary)]",
-        RING
+        RING,
       )}
     >
       {label}
@@ -830,7 +947,7 @@ function SortHead({
         onClick={() => onSort(k)}
         className={cn(
           "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)]",
-          RING
+          RING,
         )}
       >
         {label}

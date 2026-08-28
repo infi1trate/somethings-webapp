@@ -20,6 +20,7 @@ import { DoodleScatter, Moodie, type MoodieName } from "@/components/doodles";
 import { StatusBadge } from "@/components/onboarding/status-badge";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
+import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
 import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
@@ -110,14 +111,23 @@ function StatusShell({
           {children}
         </div>
 
-        {/* Their profile, for reassurance/context. Desktop-only so mobile stays
-            a clean, single-column status screen. */}
-        <div className="hidden lg:sticky lg:top-12 lg:flex lg:flex-col lg:items-center lg:gap-3">
+        {/* Their profile, for reassurance/context.
+            RC-2: was `hidden lg:…` with the reason "so mobile stays a clean,
+            single-column status screen". That reasoning is sound and is now
+            served better — the phone keeps its single column, and the profile is
+            one tap away instead of gone. This is the surface where the mentor
+            most wants to see what they just submitted. */}
+        <PreviewDisclosure
+          stickyTop="lg:top-12"
+          /* TODO-COPY */
+          triggerLabel="See your profile"
+          title="Your profile, as submitted"
+          caption={<p className="text-xs text-muted-foreground">{caption}</p>}
+        >
           <PhoneFrame>
             <MentorProfilePreview draft={draft} />
           </PhoneFrame>
-          <p className="text-xs text-muted-foreground">{caption}</p>
-        </div>
+        </PreviewDisclosure>
       </main>
     </div>
   );

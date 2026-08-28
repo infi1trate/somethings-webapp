@@ -24,6 +24,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ComingSoonChip } from "@/components/settings/section-placeholders";
 import {
   SignOutConfirmDialog,
@@ -54,14 +62,17 @@ function AvatarFace({
     <img
       src={src}
       alt=""
-      className={cn("rounded-full object-cover shadow-[var(--shadow-tile)]", className)}
+      className={cn(
+        "rounded-full object-cover shadow-[var(--shadow-tile)]",
+        className,
+      )}
     />
   ) : (
     <span
       className={cn(
         "flex items-center justify-center rounded-full bg-[var(--surface-card)] font-display font-bold text-[var(--text-primary)] shadow-[var(--shadow-tile)]",
         textClass,
-        className
+        className,
       )}
     >
       {initial}
@@ -72,9 +83,27 @@ function AvatarFace({
 export function AccountPopover({
   avatarSrc,
   avatarInitial,
+  presentation = "popover",
+  triggerClassName,
 }: {
   avatarSrc: string | null;
   avatarInitial: string;
+  /** ═══ ONE COMPONENT, TWO PRESENTATIONS (Phase 2A) ═══
+   *
+   *  `popover` — the rail's avatar at and above the tablet breakpoint, anchored
+   *  to the right of the trigger. Unchanged.
+   *
+   *  `sheet` — the mobile top bar's avatar. Same contents, same state, same
+   *  persona logic, rendered bottom-anchored on the Phase 4 `Dialog`
+   *  sheet variant. A SECOND MENU COMPONENT WAS THE ALTERNATIVE and it would
+   *  have drifted from this one inside a release: this file already encodes that
+   *  staff have no profile route, that the theme toggle shares
+   *  `useAppearance` state with settings-01, and that sign-out goes through
+   *  `SignOutConfirmDialog`. Three behaviours to keep in sync, twice. */
+  presentation?: "popover" | "sheet";
+  /** Trigger sizing, so the top bar can ask for the Figma frame's 64px while
+   *  the rail keeps `--sidebar-avatar`. */
+  triggerClassName?: string;
 }) {
   const router = useRouter();
   const mounted = useMounted();
@@ -113,129 +142,303 @@ export function AccountPopover({
 
   const rowClass = cn(
     "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[14px] leading-[20px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-    RING
+    RING,
   );
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            aria-label="Account"
-            className={cn(
-              "group relative shrink-0 rounded-full transition-shadow hover:ring-2 hover:ring-[var(--focus-ring)] hover:ring-offset-2 hover:ring-offset-[var(--surface-s2)] data-[state=open]:ring-2 data-[state=open]:ring-[var(--focus-ring)] data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-[var(--surface-s2)]",
-              RING
-            )}
-          >
-            <AvatarFace
-              src={avatarSrc}
-              initial={avatarInitial}
-              className="size-[var(--sidebar-avatar)]"
-            />
-            {/* Plain hover tooltip — NOT the menu (that's the click target). */}
-            <span
-              role="presentation"
-              className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-[var(--text-inverse)] opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-data-[state=open]:opacity-0"
-            >
-              Account
-            </span>
-          </button>
-        </PopoverTrigger>
-
-        <PopoverContent
-          side="right"
-          align="start"
-          sideOffset={12}
-          className="w-64 gap-0 p-2"
-        >
-          {/* Identity */}
-          <div className="flex items-center gap-3 px-1.5 pb-2.5 pt-1">
+      {presentation === "sheet" ? (
+        // BOTTOM SHEET. Focus trap, Esc, focus-return-to-trigger, safe area and
+        // the height bound all come from `Dialog`'s sheet variant (Phase 4) —
+        // hand-rolling them is how one of those four gets forgotten.
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
             <button
               type="button"
-              onClick={() => nav("/app/profile?tab=account&open=photo")}
-              aria-label="Edit photo"
-              className={cn("group/av relative shrink-0 rounded-full", RING)}
+              aria-label="Account"
+              className={cn(
+                "group relative shrink-0 rounded-full transition-shadow hover:ring-2 hover:ring-[var(--focus-ring)] hover:ring-offset-2 hover:ring-offset-[var(--surface-s2)] data-[state=open]:ring-2 data-[state=open]:ring-[var(--focus-ring)] data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-[var(--surface-s2)]",
+                RING,
+              )}
             >
               <AvatarFace
                 src={avatarSrc}
                 initial={avatarInitial}
-                className="size-12"
-                textClass="text-base"
+                className={cn("size-[var(--sidebar-avatar)]", triggerClassName)}
               />
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover/av:opacity-100 group-focus-visible/av:opacity-100 [@media(hover:none)]:opacity-100">
-                <Pencil className="size-4 text-white" aria-hidden />
-              </span>
+              {/* NO HOVER TOOLTIP IN THE SHEET PRESENTATION. The rail's
+                  version is positioned `left-full ml-2` — it flies to the
+                  RIGHT of the trigger, which is inward from the rail and
+                  straight off the screen from a right-aligned top bar. It took
+                  the document into 42px of horizontal scroll at 768 (SC
+                  1.4.10) for an affordance touch never triggers. The popover
+                  branch below keeps it; this one has nothing to explain. */}
             </button>
-            <div className="min-w-0">
-              <div className="truncate text-[15px] font-medium leading-[20px] text-[var(--text-primary)]">
-                {name}
+          </DialogTrigger>
+          <DialogContent variant="sheet">
+            <DialogHeader>
+              {/* A sheet rising from the bottom edge has no surrounding context,
+                  so it names itself. The popover does not need this: it is
+                  visually tethered to the avatar it came from. */}
+              <DialogTitle>{name}</DialogTitle>
+            </DialogHeader>
+            <DialogBody className="gap-0">
+              {/* Identity */}
+              <div className="flex items-center gap-3 px-1.5 pb-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => nav("/app/profile?tab=account&open=photo")}
+                  aria-label="Edit photo"
+                  className={cn(
+                    "group/av relative shrink-0 rounded-full",
+                    RING,
+                  )}
+                >
+                  <AvatarFace
+                    src={avatarSrc}
+                    initial={avatarInitial}
+                    className="size-12"
+                    textClass="text-base"
+                  />
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover/av:opacity-100 group-focus-visible/av:opacity-100 [@media(hover:none)]:opacity-100">
+                    <Pencil className="size-4 text-white" aria-hidden />
+                  </span>
+                </button>
+                <div className="min-w-0">
+                  <div className="truncate text-[15px] font-medium leading-[20px] text-[var(--text-primary)]">
+                    {name}
+                  </div>
+                  <span className="mt-0.5 inline-flex items-center rounded-full bg-[var(--tint-press)] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
+                    {roleLabel}
+                  </span>
+                </div>
               </div>
-              <span className="mt-0.5 inline-flex items-center rounded-full bg-[var(--tint-press)] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
-                {roleLabel}
-              </span>
-            </div>
-          </div>
 
-          <div className="h-px bg-[var(--border-subtle)]" />
+              <div className="h-px bg-[var(--border-subtle)]" />
 
-          {/* CTAs */}
-          <div className="py-1">
-            {isMentor ? (
-              <button type="button" onClick={() => nav("/app/profile")} className={rowClass}>
-                <span className="flex-1">Profile</span>
-                <ChevronRight className="size-4 text-[var(--text-muted)]" aria-hidden />
+              {/* CTAs */}
+              <div className="py-1">
+                {isMentor ? (
+                  <button
+                    type="button"
+                    onClick={() => nav("/app/profile")}
+                    className={rowClass}
+                  >
+                    <span className="flex-1">Profile</span>
+                    <ChevronRight
+                      className="size-4 text-[var(--text-muted)]"
+                      aria-hidden
+                    />
+                  </button>
+                ) : (
+                  // Staff have no teen-facing profile route yet.
+                  <div className="flex w-full items-center gap-3 px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-muted)]">
+                    <span className="flex-1">Profile</span>
+                    <ComingSoonChip />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => nav("/app/settings")}
+                  className={rowClass}
+                >
+                  <span className="flex-1">Settings</span>
+                  <ChevronRight
+                    className="size-4 text-[var(--text-muted)]"
+                    aria-hidden
+                  />
+                </button>
+              </div>
+
+              <div className="h-px bg-[var(--border-subtle)]" />
+
+              {/* Footer: theme quick toggle + sign out */}
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                  aria-label={
+                    isDark ? "Switch to light mode" : "Switch to dark mode"
+                  }
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                    RING,
+                  )}
+                >
+                  {isDark ? (
+                    <Sun className="size-4" aria-hidden />
+                  ) : (
+                    <Moon className="size-4" aria-hidden />
+                  )}
+                  {isDark ? "Light mode" : "Dark mode"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    setConfirmSignOut(true);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                    RING,
+                  )}
+                >
+                  <LogOut className="size-4" aria-hidden />
+                  Sign out
+                </button>
+              </div>
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="Account"
+              className={cn(
+                "group relative shrink-0 rounded-full transition-shadow hover:ring-2 hover:ring-[var(--focus-ring)] hover:ring-offset-2 hover:ring-offset-[var(--surface-s2)] data-[state=open]:ring-2 data-[state=open]:ring-[var(--focus-ring)] data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-[var(--surface-s2)]",
+                RING,
+              )}
+            >
+              <AvatarFace
+                src={avatarSrc}
+                initial={avatarInitial}
+                className="size-[var(--sidebar-avatar)]"
+              />
+              {/* Plain hover tooltip — NOT the menu (that's the click target).
+                
+                POPOVER PRESENTATION ONLY, and this was a measured overflow.
+                `left-full ml-2` puts the tooltip to the RIGHT of the trigger,
+                which is correct in the rail (it flies inward, into the page). In
+                the mobile top bar the avatar is flush against the right edge, so
+                the same rule pushed a 58px tooltip past the viewport and took the
+                DOCUMENT into 42px of horizontal scroll at 768 — SC 1.4.10, caused
+                by a hover affordance that touch never triggers in the first
+                place. The rail needs it because its avatar is icon-only with no
+                label; the sheet is reached by tap, so there is nothing to
+                explain and nothing to fly off-screen. */}
+              {presentation === "popover" && (
+                <span
+                  role="presentation"
+                  className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-[var(--text-inverse)] opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-data-[state=open]:opacity-0"
+                >
+                  Account
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+
+          <PopoverContent
+            side="right"
+            align="start"
+            sideOffset={12}
+            className="w-64 gap-0 p-2"
+          >
+            {/* Identity */}
+            <div className="flex items-center gap-3 px-1.5 pb-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => nav("/app/profile?tab=account&open=photo")}
+                aria-label="Edit photo"
+                className={cn("group/av relative shrink-0 rounded-full", RING)}
+              >
+                <AvatarFace
+                  src={avatarSrc}
+                  initial={avatarInitial}
+                  className="size-12"
+                  textClass="text-base"
+                />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover/av:opacity-100 group-focus-visible/av:opacity-100 [@media(hover:none)]:opacity-100">
+                  <Pencil className="size-4 text-white" aria-hidden />
+                </span>
               </button>
-            ) : (
-              // Staff have no teen-facing profile route yet.
-              <div className="flex w-full items-center gap-3 px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-muted)]">
-                <span className="flex-1">Profile</span>
-                <ComingSoonChip />
+              <div className="min-w-0">
+                <div className="truncate text-[15px] font-medium leading-[20px] text-[var(--text-primary)]">
+                  {name}
+                </div>
+                <span className="mt-0.5 inline-flex items-center rounded-full bg-[var(--tint-press)] px-2 py-0.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
+                  {roleLabel}
+                </span>
               </div>
-            )}
-            <button type="button" onClick={() => nav("/app/settings")} className={rowClass}>
-              <span className="flex-1">Settings</span>
-              <ChevronRight className="size-4 text-[var(--text-muted)]" aria-hidden />
-            </button>
-          </div>
+            </div>
 
-          <div className="h-px bg-[var(--border-subtle)]" />
+            <div className="h-px bg-[var(--border-subtle)]" />
 
-          {/* Footer: theme quick toggle + sign out */}
-          <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              {isDark ? (
-                <Sun className="size-4" aria-hidden />
+            {/* CTAs */}
+            <div className="py-1">
+              {isMentor ? (
+                <button
+                  type="button"
+                  onClick={() => nav("/app/profile")}
+                  className={rowClass}
+                >
+                  <span className="flex-1">Profile</span>
+                  <ChevronRight
+                    className="size-4 text-[var(--text-muted)]"
+                    aria-hidden
+                  />
+                </button>
               ) : (
-                <Moon className="size-4" aria-hidden />
+                // Staff have no teen-facing profile route yet.
+                <div className="flex w-full items-center gap-3 px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-muted)]">
+                  <span className="flex-1">Profile</span>
+                  <ComingSoonChip />
+                </div>
               )}
-              {isDark ? "Light mode" : "Dark mode"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                setConfirmSignOut(true);
-              }}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <LogOut className="size-4" aria-hidden />
-              Sign out
-            </button>
-          </div>
-        </PopoverContent>
-      </Popover>
+              <button
+                type="button"
+                onClick={() => nav("/app/settings")}
+                className={rowClass}
+              >
+                <span className="flex-1">Settings</span>
+                <ChevronRight
+                  className="size-4 text-[var(--text-muted)]"
+                  aria-hidden
+                />
+              </button>
+            </div>
+
+            <div className="h-px bg-[var(--border-subtle)]" />
+
+            {/* Footer: theme quick toggle + sign out */}
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                aria-label={
+                  isDark ? "Switch to light mode" : "Switch to dark mode"
+                }
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING,
+                )}
+              >
+                {isDark ? (
+                  <Sun className="size-4" aria-hidden />
+                ) : (
+                  <Moon className="size-4" aria-hidden />
+                )}
+                {isDark ? "Light mode" : "Dark mode"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setConfirmSignOut(true);
+                }}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING,
+                )}
+              >
+                <LogOut className="size-4" aria-hidden />
+                Sign out
+              </button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
 
       <SignOutConfirmDialog
         open={confirmSignOut}

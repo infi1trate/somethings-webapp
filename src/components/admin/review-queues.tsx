@@ -45,8 +45,11 @@ const HEAD =
   "flex items-center justify-between border-b border-[var(--surface-s2)] px-5 py-3";
 const COUNT =
   "flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-medium text-secondary-foreground";
+// `shrink-0` — same defect as `roster.tsx`'s NameCell avatar: `size-11` is a
+// starting width, not a floor, so in a compressed row this squashed to an ellipse
+// while keeping its 44px height. Height is unaffected, so desktop is unchanged.
 const AVATAR =
-  "flex size-11 items-center justify-center overflow-hidden rounded-full bg-secondary font-display text-sm font-bold text-secondary-foreground";
+  "flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary font-display text-sm font-bold text-secondary-foreground";
 
 export function ReviewQueues({
   /** Outer spacing. Lives on the root, not a wrapper — the component renders
@@ -83,9 +86,12 @@ export function ReviewQueues({
           </div>
           <div className="flex items-center gap-4 px-5 py-4">
             <span className={AVATAR}>{initials(liveName)}</span>
-            <div className="min-w-0">
-              <p className="font-semibold leading-tight">{liveName}</p>
-              <p className="text-sm text-[var(--text-secondary)]">
+            {/* `truncate` on BOTH lines, and `flex-1` so this claims the row.
+                `min-w-0` alone permitted shrinking without ever ellipsising, so
+                a long name pushed the Review button off the card instead. */}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold leading-tight">{liveName}</p>
+              <p className="truncate text-sm text-[var(--text-secondary)]">
                 Mentor · submitted for review
               </p>
             </div>
@@ -104,9 +110,10 @@ export function ReviewQueues({
           </div>
           <div className="flex items-center gap-4 px-5 py-4">
             <span className={AVATAR}>{initials(liveName)}</span>
-            <div className="min-w-0">
-              <p className="font-semibold leading-tight">{liveName}</p>
-              <p className="text-sm text-[var(--text-secondary)]">
+            {/* Same fix as the Needs-review card above. */}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold leading-tight">{liveName}</p>
+              <p className="truncate text-sm text-[var(--text-secondary)]">
                 {changesetSummary(pendingUpdate)} ·{" "}
                 {relTime(pendingUpdate.updatedAt)}
               </p>

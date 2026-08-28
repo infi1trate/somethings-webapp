@@ -27,7 +27,11 @@ import {
   defaultMenteeStatus,
   roleOf,
 } from "@/lib/record/people-demo";
-import { recordHrefFor, type FixtureSubject } from "@/lib/record/subject";
+import {
+  recordHrefFor,
+  subjectDisplayName,
+  type FixtureSubject,
+} from "@/lib/record/subject";
 import { resolveMode, staffActorFor } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import type { MentorLifecycleStatus } from "@/lib/types";
@@ -128,7 +132,7 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
             canEdit ? (
               <MentorStatusMenu
                 status={standing}
-                name={subject.goesBy ?? subject.name}
+                name={subjectDisplayName(subject)}
                 options={isTeen ? TEEN_STATES : undefined}
                 onChange={(next) => {
                   // The one transition that ends pairings gets the same confirm
@@ -153,7 +157,7 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
             between both. */}
         {canEdit && (
           <DeactivateAction
-            name={subject.goesBy ?? subject.name}
+            name={subjectDisplayName(subject)}
             deactivated={deactivated}
             noun={isTeen ? "mentee" : "account"}
             onConfirm={(reactivate) =>
@@ -175,7 +179,7 @@ export function PersonOrganization({ subject }: { subject: FixtureSubject }) {
         open={pendingDeactivate}
         onOpenChange={setPendingDeactivate}
         returnFocusTo={returnFocusTo}
-        title={`Deactivate ${subject.goesBy ?? subject.name}?`}
+        title={`Deactivate ${subjectDisplayName(subject)}?`}
         description={
           isTeen
             ? "They stop being an active user, and their pairing moves to Past mentees. Nothing is deleted, and you can set them active again."

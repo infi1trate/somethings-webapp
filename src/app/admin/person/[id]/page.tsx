@@ -237,8 +237,11 @@ export default function PersonRecordPage({
             />
           ) : undefined
         }
-        avatar={{ src: null, initial: subject.name.charAt(0).toUpperCase() }}
-        name={subject.goesBy ?? subject.name}
+        avatar={{
+          src: null,
+          initial: subjectDisplayName(subject).charAt(0).toUpperCase(),
+        }}
+        name={subjectDisplayName(subject)}
         role={subject.role}
         // ONE status statement: the role badge carries its tint and the state
         // dot. No separate Active pill, no avatar dot.
@@ -331,7 +334,7 @@ export default function PersonRecordPage({
               />
             )}
             <PersonOverview
-              name={subject.goesBy ?? subject.name}
+              name={subjectDisplayName(subject)}
               roleLabel={roleLabel}
               statusBadge={status ? <MentorStatusBadge status={status} /> : null}
             />
@@ -429,6 +432,16 @@ function PersonAccount({
   // Same tier that owns standing owns the consent record.
   const canEditAccount = resolveMode("accountOrg", persona) === "edit";
 
+  // THE ONE PLACE A TEEN SURNAME RENDERS IN THE WHOLE APP (decided 2026-08-27;
+  // design-system-gaps.md row 254). Standing rule 6 is written absolute — "never
+  // render a teen surname" — and this row is a deliberate, recorded AMENDMENT to
+  // it, not an oversight: this is staff-only chrome, on the record OF that legal
+  // name, behind a click on one named person, and it is the field staff verify
+  // against consent paperwork. Everything else about a teen — every list, header,
+  // avatar, toast, dialog and composed sentence — is first name only.
+  //
+  // DO NOT COPY THIS READ. `subject.name` anywhere else on a teen is the bug this
+  // row is the exception to; use `subjectDisplayName(subject)`.
   const rows: [string, string | undefined, "phone" | "email" | null][] = [
     ["Full name", subject.name, null],
     ["Goes by", subject.goesBy, null],
@@ -474,7 +487,11 @@ function PersonAccount({
                 )}
               </span>
               {kind && (
-                <ContactActions kind={kind} value={value} name={subject.name} />
+                <ContactActions
+                  kind={kind}
+                  value={value}
+                  name={subjectDisplayName(subject)}
+                />
               )}
             </span>
           </div>
@@ -486,7 +503,7 @@ function PersonAccount({
           is about someone else and reads as context for the person above it. */}
       {subject.role === "teen" && (
         <GuardianDetailsSection
-          teenName={subject.goesBy ?? subject.name}
+          teenName={subjectDisplayName(subject)}
           guardian={guardian}
           onChange={(patch) => setGuardian(subject.id, patch)}
           canEdit={canEditAccount}

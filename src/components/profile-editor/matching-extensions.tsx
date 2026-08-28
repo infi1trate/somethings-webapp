@@ -45,7 +45,9 @@ const REMOVE_BTN =
 // plus a labelled Remove need ~164px, and at 132 they overflowed the tile. The
 // bigger image is the better half of the trade anyway — a staff reader opens
 // this editor to judge what a teen will see.
-const TILE_W = "w-[168px]";
+// `max-w-full` so a tile in the wrapping list cannot exceed its column. 168px
+// already fits a 320px viewport; this is the floor for a narrower container.
+const TILE_W = "w-[168px] max-w-full";
 
 function arrayMove<T>(list: T[], from: number, to: number): T[] {
   const next = [...list];
@@ -144,10 +146,33 @@ export function FirstMessagesEditor({
               }}
               className="flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 py-2.5"
             >
+              {/* ═══ THE GRAB HANDLE IS HIDDEN ON TOUCH (Phase 5, item 4) ═══
+                  
+                  HTML5 `draggable` + `onDragStart` NEVER FIRE on a touch screen —
+                  they are mouse-only DOM events, so on a phone this handle
+                  advertised an interaction that could not happen. A cursor that
+                  says "grab me" and then does nothing is worse than no affordance
+                  at all (Nielsen #1: the system's state must be visible, and it
+                  was lying).
+                  
+                  REMOVED RATHER THAN REPLACED WITH A TOUCH DRAG, because the
+                  keyboard alternative below (↑/↓/delete, `:157–182`) is already
+                  built, already satisfies SC 2.5.7 Dragging Movements, and works
+                  identically under touch — those are real buttons. There is
+                  nothing to add; there was only something to stop implying.
+                  
+                  `(pointer: coarse)` rather than a viewport width: a tablet with
+                  a mouse should keep the handle, and a narrow desktop window
+                  should too. The question is the input device, not the size.
+                  
+                  THE `title=` GOES WITH IT. A native tooltip never appears on
+                  touch and is unreachable by keyboard, so it could not have
+                  carried this information anyway — and with the handle gone on
+                  touch, the only readers who see it are the ones whose cursor
+                  already tells them. */}
               <span
                 aria-hidden
-                className="mt-1 cursor-grab text-[var(--text-muted)]"
-                title="Drag to reorder"
+                className="mt-1 cursor-grab text-[var(--text-muted)] [@media(pointer:coarse)]:hidden"
               >
                 <GripVertical className="size-4" />
               </span>

@@ -16,6 +16,7 @@
 // mentoring is going, never grade the person.
 
 import type { DemoTeen } from "@/lib/record/people-demo";
+import { teenDisplayName } from "@/lib/record/teen-name";
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -189,7 +190,9 @@ export function teenAsMentee(t: DemoTeen, now: number): DemoMentee {
     days === undefined ? null : now - days * DAY;
   return {
     id: t.id,
-    name: t.goesBy ?? t.name,
+    // FIRST NAME ONLY (standing rule 6) — this name reaches the mentor's
+    // Overview roll-ups and the caseload popover, both of which render it raw.
+    name: teenDisplayName(t),
     matchedAt: now - (t.matchedDaysAgo ?? t.joinedDaysAgo) * DAY,
     mentorLastSentAt: at(t.mentorLastSentDaysAgo),
     menteeLastSentAt: at(t.menteeLastSentDaysAgo),

@@ -1288,10 +1288,12 @@ export default function MentorRecordPage({
                   />
                 )}
                 {/* Preview "tool" (elevated pass): a glass panel that FRAMES the
-                    device without ever cropping it. The 360px frame is scaled
-                    with CSS `zoom` (not transform) so it also reserves its
-                    scaled layout box — no overflow clip is needed, so the device
-                    and its drop shadow are never masked on any side. */}
+                    device without ever cropping it. The frame renders at its own
+                    size — 266px, see the note below — rather than being a 360px
+                    frame scaled down, so it reserves exactly the layout box it
+                    paints and the device and its drop shadow are never masked on
+                    any side. (This comment described CSS `zoom`, which Phase 4
+                    removed; the no-clipping property it valued is unchanged.) */}
                 <div className="w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-card)] backdrop-blur-[var(--glass-blur)]">
                   {/* Visibility readout — the subtle "is this profile being seen
                       by potential matches" signal (lifecycle-derived). Text
@@ -1327,10 +1329,24 @@ export default function MentorRecordPage({
                       </span>
                     </span>
                   </div>
-                  {/* zoom scales layout + paint together, so the shadow is never
-                      clipped and the untransformed width can't widen the rail. */}
+                  {/* ═══ `zoom: 0.74` REMOVED (RC-2, Phase 4) ═══
+                      
+                      The old comment defended zoom on the grounds that it scales
+                      layout and paint together, so the shadow is never clipped
+                      and the untransformed width cannot widen the rail. Both
+                      true, and both now achieved by a frame that is genuinely
+                      that size instead of a 360px frame drawn smaller.
+                      
+                      WHY ZOOM HAD TO GO ANYWAY: it multiplies the reader's own
+                      text size. Someone at 200% got 148% inside this rail, and
+                      no amount of browser zoom could recover it — SC 1.4.4 is
+                      not satisfiable from inside a page that does this.
+                      
+                      266px ≈ 360 × 0.74, so the rendered size is unchanged. It
+                      is a `max-w` rather than a `w`, so the frame also shrinks
+                      with the rail instead of overflowing it. */}
                   <div className="flex justify-center">
-                    <div className="relative w-[360px]" style={{ zoom: 0.74 }}>
+                    <div className="relative w-full max-w-[266px]">
                       <PhonePreviewShell label="Live preview — what teens see on the match card">
                         <MentorProfilePreview draft={previewDraft} />
                       </PhonePreviewShell>
