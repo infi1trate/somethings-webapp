@@ -23,8 +23,12 @@ export function StepTips({ dos = [], donts = [], note }: StepTipsProps) {
           <span>{t}</span>
         </div>
       ))}
+      {/* NO `/80` — OPACITY DILUTES A TOKEN PAST ITS AUDIT (gap row 286).
+          `--muted-foreground` is 5.30:1 on card; at 80% it composites to
+          #8b8985, which is 3.49:1 for 12px text. The token was darkened
+          specifically to clear AA and an opacity modifier quietly gave it back. */}
       {note && (
-        <p className="pt-0.5 text-xs text-muted-foreground/80">{note}</p>
+        <p className="pt-0.5 text-xs text-muted-foreground">{note}</p>
       )}
     </div>
   );

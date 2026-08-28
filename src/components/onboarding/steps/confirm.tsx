@@ -327,8 +327,15 @@ function Field({
               {value}
             </p>
           )}
+          {/* No `/80` on the hint — see the note in `step-tips.tsx`; gap row 286.
+              This comment sits OUTSIDE the `&&` expression on purpose: a
+              parenthesised JSX expression takes exactly one element, so a
+              brace-comment sibling inside it is a syntax error, not a style
+              choice. And a JSX comment cannot contain the close-comment
+              digraph — writing it inline ends the comment early (TS1381).
+              Both mistakes were made here before this note existed. */}
           {hint && !editing && (
-            <p className="mt-0.5 text-xs text-muted-foreground/80">{hint}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
         <button
