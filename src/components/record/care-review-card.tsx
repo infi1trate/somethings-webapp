@@ -3,7 +3,7 @@
 // PRESENTATION REVIEW CARD (Prompt B Phase 2) — ONE surface, sectioned by
 // hairlines and vertical rhythm. Replaces the old action slot, which was a
 // tinted box containing FIVE nested white panels: recommendation, rationale,
-// survey, provider note, and a card per survey inside the aggregate disclosure.
+// survey, and a card per survey inside the aggregate disclosure.
 // Containers inside containers, and the nesting was doing the sectioning that
 // typography and a hairline do here.
 //
@@ -14,7 +14,7 @@
 //
 // SECTION ORDER: band ("Review due · 90-day review" + Approve top right) →
 // recommendation + code → AI rationale (30/90-day only) → survey evidence,
-// collapsed to one line → provider note. Hairlines between, no nested cards.
+// collapsed to one line. Hairlines between, no nested cards.
 //
 // SHORT ENOUGH THAT THE NOTE AND THE BUTTON SHARE A SCREEN. That was the point
 // of moving Approve into the band: with the button at the top and the note as
@@ -43,10 +43,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TaskCard } from "@/components/record/task-card";
-import {
-  DecisionNote,
-  noteReady as isNoteReady,
-} from "@/components/record/decision-footer";
+// `decision-footer` is deliberately NOT imported any more. It still exists and
+// the flag review modal still uses `DecisionNote` + `noteReady`; this card simply
+// stopped being a consumer when the provider note was retired. Leaving the
+// component alone is what keeps that out-of-scope surface from shifting.
 import { clinicalDate } from "@/components/record/care-presentation";
 import { bandLabel, ScoreChip } from "@/components/record/score-chip";
 import { INSTRUMENT_MAX } from "@/lib/record/care-demo";
@@ -54,7 +54,6 @@ import {
   RATIONALE_SOURCE_LABEL,
   STAGE_LABEL,
   type AssessmentItem,
-  type CareReviewDecision,
   type PresentationReview,
 } from "@/lib/record/care-demo";
 import { cn } from "@/lib/utils";
@@ -134,15 +133,14 @@ function ItemTable({ items }: { items: AssessmentItem[] }) {
 
 export function PresentationReviewCard({
   review,
-  currentCode,
   actor,
   actorRole,
   onChangeRequest,
-  onApprove,
+  onApproveRequest,
 }: {
   review: PresentationReview;
-  /** The code on record, so approving can name what it replaced. */
-  currentCode: string | null;
+  /** `currentCode` was here so approving could name what it replaced. The owner
+   *  needs it for that now, not this card. */
   /** The deciding supervisor's name + tier — the appended entry's author. */
   actor: string;
   actorRole: string;
@@ -153,53 +151,31 @@ export function PresentationReviewCard({
    *  BOTH ARE OPTIONAL, and that is the whole tier gate. Read-wide, act-narrow:
    *  mentors and lead mentors READ this card — the recommendation, the
    *  provenance-labelled rationale and the survey evidence — and simply are not
-   *  handed the callbacks, so the provider note and the action row do not render
-   *  at all. There is no disabled Approve: a greyed-out button advertises a
-   *  decision they cannot take part in. */
+   *  handed the callbacks, so the action row does not render at all. There is no
+   *  disabled Approve: a greyed-out button advertises a decision they cannot take
+   *  part in. */
   onChangeRequest?: () => void;
-  onApprove?: (d: Omit<CareReviewDecision, "teenId">) => void;
+  /** ═══ APPROVE IS A REQUEST NOW, NOT A COMMIT ═══
+   *
+   *  It used to build a `CareReviewDecision` here and hand it up, because the
+   *  card owned the provider note that justified it. The note is retired: every
+   *  presentation event is documented by a care update, so Approve OPENS THAT
+   *  FORM and the owner constructs the decision when it commits — the owner is
+   *  the only place that knows the resulting care update's id, which the decision
+   *  has to reference.
+   *
+   *  Still the tier gate: read-wide, act-narrow. Mentors and lead mentors read
+   *  the recommendation, the provenance-labelled rationale and the survey
+   *  evidence, and simply are not handed the callbacks, so the action row does
+   *  not render at all. There is no disabled Approve. */
+  onApproveRequest?: () => void;
 }) {
-  const [note, setNote] = useState("");
-  // DELIBERATE FRICTION. The PRD requires rationale on every recommendation and
-  // change, so Approve cannot fire without the supervisor's own reasoning. The
-  // requirement is stated in helper text BEFORE the reach for the button, never
-  // as an error after — a validation message that only appears post-click
-  // teaches the rule by punishing it.
-  const noteReady = isNoteReady(note);
-  // APPROVE IS ALWAYS ENABLED. Pressing it with an empty note surfaces the error
-  // AT THE FIELD and moves focus there — see decision-footer's note on choosing
-  // error recovery over error prevention.
-  const [noteError, setNoteError] = useState(false);
   /** Lifted out of the old Disclosure component: the header must not own the
    *  body's open state, or it re-renders around it. */
   const [open, setOpen] = useState(false);
-  const noteRef = useRef<HTMLTextAreaElement | null>(null);
   const overflowTrigger = useRef<HTMLButtonElement | null>(null);
-
-  /** `decidedAt` is stamped INSIDE the event handler, not here: a timestamp
-   *  computed in render scope is impure — the purity lint is right — and a
-   *  re-render would move the moment a decision claims to have happened. */
-  const approve = (decidedAt: number) => {
-    if (!noteReady) {
-      setNoteError(true);
-      noteRef.current?.focus();
-      return;
-    }
-    setNoteError(false);
-    onApprove?.({
-      reviewId: review.id,
-      decidedAt,
-      note: note.trim(),
-      outcome,
-      code: review.recommended.code,
-      statement: review.recommended.statement,
-      actor,
-      actorRole,
-      previousCode: currentCode ?? undefined,
-    });
-  };
   // One flag for the whole acting half of the card.
-  const canAct = !!onApprove;
+  const canAct = !!onApproveRequest;
 
   /** ONE shape for both variants: the aggregate's weighted score reads in the
    *  same position as a single survey's, which is what makes the two variants
@@ -228,12 +204,9 @@ export function PresentationReviewCard({
     evidence?.score ||
     0;
 
-  const outcome: CareReviewDecision["outcome"] =
-    currentCode === null
-      ? "presentation_assigned"
-      : currentCode === review.recommended.code
-        ? "presentation_reviewed"
-        : "presentation_changed";
+  // `outcome` used to be computed here, for the decision this card built. The
+  // owner derives it now — see `outcomeFor` in `care-tab.tsx` — because the
+  // decision is assembled where the care update's id is known.
 
   return (
     <TaskCard
@@ -247,7 +220,7 @@ export function PresentationReviewCard({
         canAct && (
           <>
             <PillButton
-              onClick={() => approve(Date.now())}
+              onClick={() => onApproveRequest?.()}
               className="h-9 px-5 text-[14px]"
             >
               {/* TODO-COPY */}
@@ -464,27 +437,12 @@ export function PresentationReviewCard({
         )}
       </div>
 
-      {/* 4 · PROVIDER NOTE. The shared gate — same grammar as the flag review
-          modal's close note. ABSENT below supervisor tier: a note field with no
-          button to enable is furniture. */}
-      {canAct && (
-        <div className={SECTION}>
-          <DecisionNote
-            id={`note-${review.id}`}
-            inputRef={noteRef}
-            error={noteError}
-            /* TODO-COPY */
-            label="Provider note"
-            value={note}
-            onChange={(v) => {
-              setNote(v);
-              if (noteError && v.trim()) setNoteError(false);
-            }}
-            /* TODO-COPY */
-            placeholder="What you looked at, and why you are approving this."
-          />
-        </div>
-      )}
+      {/* THE PROVIDER NOTE USED TO BE SECTION 4 AND IS GONE.
+          The card is deliberately short now: recommendation, rationale with its
+          provenance, survey evidence. Approve opens the care update form, and the
+          required-field gating that lived here moved to that form's own fields.
+          `DecisionNote` and `noteReady` are NOT deleted — the flag review modal
+          still uses both, and that surface is out of scope. */}
     </TaskCard>
   );
 }

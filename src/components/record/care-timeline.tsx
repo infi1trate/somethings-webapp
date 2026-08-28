@@ -30,6 +30,7 @@ import {
   type CareEvent,
   type CareFilterId,
 } from "@/lib/record/care-demo";
+import { AssessmentChip } from "@/components/record/care-update-view";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -60,6 +61,13 @@ const dateOf = (ts: number) =>
 
 /** Provenance line. Always rendered — the whole point is that a reader never has
  *  to guess. AI carries an icon so it reads differently at a glance. */
+/** Just the name, for a sentence that already has its own framing. `Provenance`
+ *  renders the same union as a labelled line; this is for inline prose. A care
+ *  update is always person-authored, so the fallback is defensive only. */
+function personName(author: CareEvent["author"]): string {
+  return author.kind === "person" ? author.name : "a supervisor"; // TODO-COPY
+}
+
 function Provenance({ author }: { author: CareEvent["author"] }) {
   if (author.kind === "ai") {
     return (
@@ -120,6 +128,8 @@ function Row({
   amendedBy,
   amends,
   relational,
+  documents,
+  documentedBy,
   onJump,
 }: {
   event: CareEvent;
@@ -129,11 +139,27 @@ function Row({
   amends?: CareEvent;
   /** Flag, escalation and presentation-change entries only. */
   relational?: RelationalLine;
+  /** ═══ THE TWO HALVES OF ONE DOCUMENTED EVENT ═══
+   *
+   *  `documents` — set on a care_update row: the presentation event it documents.
+   *  `documentedBy` — set on a presentation_* row: the care update documenting it.
+   *
+   *  TWO ENTRIES, CROSS-REFERENCED, NEVER MERGED. A merged row would claim one
+   *  thing happened where two did, and an append-only record cannot later take
+   *  that apart. Each row reads on its own and points at its counterpart.
+   *
+   *  A standalone care update has neither, which is how it stays visibly
+   *  standalone rather than looking like a link that failed to resolve. */
+  documents?: CareEvent;
+  documentedBy?: CareEvent;
   onJump: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const superseded = !!amendedBy;
-  const expandable = !!event.items?.length || !!event.providerNote;
+  // A presentation row is expandable when it has an update to show, even though
+  // it no longer carries a note of its own.
+  const expandable =
+    !!event.items?.length || !!event.providerNote || !!documentedBy;
 
   return (
     <li
@@ -242,6 +268,47 @@ function Row({
             </p>
           )}
 
+          {/* WHAT THIS UPDATE DOCUMENTS, and whether an AI draft was revised.
+              Both are secondary lines rather than disclosure content: a reader
+              scanning History needs to know an entry is tied to a presentation
+              change, and whether a diagnostic justification was actually read,
+              WITHOUT opening anything. */}
+          {documents && (
+            <p
+              className="mt-1.5 text-[var(--text-muted)]"
+              style={{ font: "var(--type-row-label)" }}
+            >
+              {/* TODO-COPY */}
+              {"Documents the "}
+              <button
+                type="button"
+                onClick={() => onJump(documents.id)}
+                className={cn(
+                  "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                {`${dateOf(documents.occurredAt)} ${documents.type === "presentation_changed" ? "presentation change" : "presentation review"}`}
+                <span aria-hidden> →</span>
+              </button>
+            </p>
+          )}
+
+          {event.diagnosticPrefill && (
+            <p
+              className="mt-1.5 text-[var(--text-muted)]"
+              style={{ font: "var(--type-row-label)" }}
+            >
+              {/* TODO-COPY — the fact, not a judgement of it. "Reviewed as
+                  drafted" is not a criticism: a draft that was already right
+                  should not have to be edited to look diligent. What matters is
+                  that the reader can tell which happened. */}
+              {event.diagnosticPrefill.edited
+                ? `Diagnostic statement edited by ${personName(event.author)}`
+                : "Diagnostic statement reviewed as drafted"}
+            </p>
+          )}
+
           {/* Amendment chain, both directions. */}
           {superseded && (
             <p className="mt-1.5" style={{ font: "var(--type-row-label)" }}>
@@ -327,9 +394,39 @@ function Row({
                     ))}
                   </tbody>
                 </table>
+              ) : documentedBy ? (
+                /* THE PRESENTATION ENTRY CARRIES ITS CARE UPDATE. It no longer
+                   has a note of its own — the update IS the documentation — so
+                   opening a presentation change shows the reasoning that was
+                   committed with it, in the same words, rather than a second
+                   copy of the prose or a bare link. */
+                <div className="space-y-2">
+                  <p
+                    className="whitespace-pre-line text-[var(--text-secondary)]"
+                    style={{ font: "var(--type-row-label)" }}
+                  >
+                    {documentedBy.providerNote}
+                  </p>
+                  {documentedBy.assessment && (
+                    <AssessmentChip value={documentedBy.assessment} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onJump(documentedBy.id)}
+                    className={cn(
+                      "rounded-sm py-1 text-left underline underline-offset-2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]",
+                      RING
+                    )}
+                    style={{ font: "var(--type-row-label)" }}
+                  >
+                    {/* TODO-COPY */}
+                    {`Open the ${dateOf(documentedBy.occurredAt)} care update`}
+                    <span aria-hidden> →</span>
+                  </button>
+                </div>
               ) : (
                 <p
-                  className="text-[var(--text-secondary)]"
+                  className="whitespace-pre-line text-[var(--text-secondary)]"
                   style={{ font: "var(--type-row-label)" }}
                 >
                   {event.providerNote}
@@ -486,6 +583,10 @@ export function CareTimeline({
                 amendedBy={amendedBy.get(e.id)}
                 relational={relational.get(e.id)}
                 amends={e.amends ? byId.get(e.amends) : undefined}
+                documents={e.documents ? byId.get(e.documents) : undefined}
+                documentedBy={
+                  e.documentedBy ? byId.get(e.documentedBy) : undefined
+                }
                 onJump={jump}
               />
             ))}

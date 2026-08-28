@@ -101,7 +101,10 @@ function CheckRow({
   );
 }
 
-/** TEEN TYPEAHEAD — caseload-scoped, FIRST NAMES ONLY (standing rule 6).
+/** TEEN TYPEAHEAD — caseload-scoped, and first names only for a DATA reason
+ *  rather than a policy one. Standing rule 6 was retired on 2026-08-28 (gap row
+ *  284), but the activity fixture stores no surnames for anyone, teens or staff,
+ *  so there is nothing fuller to offer here. Fix the fixture and this follows.
  *
  *  Scoped to the caseload rather than the whole roster on purpose: this filter
  *  exists to narrow your own list, and offering every teen in the org as a

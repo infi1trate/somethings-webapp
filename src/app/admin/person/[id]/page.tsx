@@ -433,11 +433,14 @@ function PersonAccount({
   const canEditAccount = resolveMode("accountOrg", persona) === "edit";
 
   // THE ONE PLACE A TEEN SURNAME RENDERS IN THE WHOLE APP (decided 2026-08-27;
-  // design-system-gaps.md row 254). Standing rule 6 is written absolute — "never
-  // render a teen surname" — and this row is a deliberate, recorded AMENDMENT to
-  // it, not an oversight: this is staff-only chrome, on the record OF that legal
-  // name, behind a click on one named person, and it is the field staff verify
-  // against consent paperwork. Everything else about a teen — every list, header,
+  // design-system-gaps.md row 254). This row USED TO BE the single sanctioned
+  // exception to standing rule 6 ("never render a teen surname") — staff-only
+  // chrome, on the record OF that legal name, behind a click on one named person,
+  // and the field staff verify against consent paperwork. Rule 6 was retired on
+  // 2026-08-28 (row 284), so the exception is now simply consistent with
+  // everywhere else and the row needs no special justification. Kept as written
+  // because the reasons it was allowed are still the reasons it belongs here.
+  // Everything else about a teen — every list, header,
   // avatar, toast, dialog and composed sentence — is first name only.
   //
   // DO NOT COPY THIS READ. `subject.name` anywhere else on a teen is the bug this

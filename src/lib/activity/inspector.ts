@@ -41,8 +41,10 @@ export interface DetailField {
 
 export interface ObjectDetail {
   kind: "teen" | "mentor" | "conversation";
-  /** The heading. A TEEN'S FIRST NAME ONLY — standing rule 6, and it can only
-   *  ever be a first name because `teenFirstName` is the only source. */
+  /** The heading. A teen's first name only, and it can only ever BE a first name
+   *  because `teenFirstName` is the only source — the activity fixture stores no
+   *  surnames (gap row 284). Standing rule 6, which used to be the reason, was
+   *  retired 2026-08-28; this is now a property of the data, not a policy. */
   title: string;
   /** TODO-COPY. What kind of thing this is, under the title. */
   subtitle: string;
@@ -228,8 +230,10 @@ function conversationDetail(
   const fields: DetailField[] = [
     {
       label: "Participants",
-      // First name and mentor — the two people in the thread. A teen's first name
-      // only, always (standing rule 6).
+      // First name and mentor — the two people in the thread. Reads `firstName`
+      // directly rather than the chokepoint, which is safe here for the same
+      // reason it is unavoidable: this module's fixtures carry no surnames at all
+      // (gap row 284). Rule 6 was retired 2026-08-28.
       value: [teen?.firstName, mentorName].filter(Boolean).join(" and ") || "Unknown",
     },
     { label: "Risk flags", value: flags === 1 ? "1" : String(flags) },

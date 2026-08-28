@@ -57,6 +57,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import { cn } from "@/lib/utils";
+import { touchTarget } from "@/lib/touch-target";
 
 /** Where a column appears in card mode. See the module note. */
 export type CardSlot = "primary" | "secondary" | "trailing" | "detail";
@@ -136,7 +137,14 @@ function SortHeader({
     <button
       type="button"
       onClick={() => sort.onSort(colKey)}
-      className="inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+      // SC 2.5.8: the label renders at 20px, which is under the 24px floor. The
+      // visual is deliberately unchanged — `touchTarget` extends the hit area
+      // with a `::after` and paints nothing. See lib/touch-target.ts for why the
+      // pseudo-element has to sit on the button itself.
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
+        touchTarget(20)
+      )}
     >
       {label}
       {on ? (

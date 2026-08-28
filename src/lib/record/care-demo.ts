@@ -87,8 +87,29 @@ export interface CareEvent {
   visibility: CareVisibility;
   /** assessment rows only — the question-by-question breakdown. */
   items?: AssessmentItem[];
-  /** presentation rows only — the provider's note. */
+  /** THE TIMELINE'S EXPANDED DETAIL TEXT — not one feature's field.
+   *
+   *  Named for the presentation review's note, which it originally carried, and
+   *  the name outlived that: it now carries the detail text for presentation
+   *  rows, decisions, flag resolutions, closures AND care updates. The review
+   *  card's "Provider note" INPUT is retired; this is the timeline's own
+   *  disclosure text and every event class above depends on it. Renaming it
+   *  would touch renderers that are out of scope. See design-system-gaps row 298. */
   providerNote?: string;
+  /** care_update rows — the `CareEvent.id` of the presentation event this
+   *  documents. The mirror of `documentedBy` below; two cross-referenced entries,
+   *  never one merged row. */
+  documents?: string;
+  /** presentation_* rows — the `CareEvent.id` of the care update documenting it. */
+  documentedBy?: string;
+  /** care_update rows — whether a pre-filled diagnostic statement was revised
+   *  before signing. Surfaced on the history row. */
+  diagnosticPrefill?: CareUpdatePrefill;
+  /** care_update rows — the structured assessment, carried on the event so the
+   *  timeline can render its chip without reaching for the record. The prose
+   *  travels in `providerNote`; this does not, because it is a value and not a
+   *  paragraph. */
+  assessment?: CareUpdateAssessment;
 }
 
 const DAY = 86_400_000;
@@ -551,9 +572,10 @@ interface ProfileUpdate {
   daysAgo: number;
   author: string;
   role: string;
-  standing: string;
-  direction: string;
-  watching: string;
+  /** TODO-DATA — fixture clinical prose, matching the structured form's fields. */
+  clinical: string;
+  diagnostic: string;
+  assessment: CareUpdateAssessment;
   /** Index into this profile's own `updates`, for an amendment chain. */
   amendsIndex?: number;
 }
@@ -645,12 +667,11 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         daysAgo: 8,
         author: "Dr. Amara Patel",
         role: "Supervisor",
-        standing:
-          "Scores have come down across three surveys, with the sleep and energy items moving first. Contact with the mentor has been steady and mostly teen-initiated.",
-        direction:
-          "Hold the current presentation and the quarterly cadence. Nothing here argues for a change of code.",
-        watching:
-          "Whether the improvement holds through the school term, and whether the appetite items — the ones that haven't moved — start to follow.",
+        clinical:
+          "Scores have come down across three surveys, with the sleep and energy items moving first. Contact with the mentor has been steady and mostly teen-initiated. The appetite items have not moved.",
+        diagnostic:
+          "The presentation on record continues to fit: low mood with sleep and appetite disturbance, now reduced in intensity but still present on every survey in the period. Improvement in severity does not remove the criteria the code describes, so the code stands.",
+        assessment: "improved",
       },
     ],
   },
@@ -674,12 +695,11 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         daysAgo: 16,
         author: "Omar Haddad",
         role: "Supervisor",
-        standing:
-          "The most recent survey moved back up into the moderate band after two quieter quarters. The mood items account for the change.",
-        direction:
-          "Re-reading the presentation this cycle. A recurrent framing may fit better than the single-episode one on record.",
-        watching:
-          "Whether this is the start of a pattern or a single hard month. One survey is a reading, not a trend.",
+        clinical:
+          "The most recent survey moved back up into the moderate band after two quieter quarters. The mood items account for the change; the somatic items held.",
+        diagnostic:
+          "A return of mood symptoms after two quarters at a lower severity is the pattern a recurrent framing describes, and the single-episode code on record does not account for the earlier remission. One reading is not yet a trend, so this states the evidence rather than concluding on it.",
+        assessment: "escalated",
       },
     ],
   },
@@ -700,12 +720,11 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         daysAgo: 10,
         author: "Brandy Forrestor",
         role: "Supervisor",
-        standing:
-          "Four surveys, each lower than the last, from the moderate band down into the mild one. The restlessness items dropped first and the worry items followed.",
-        direction:
-          "Keep the presentation and stretch nothing. The current cadence is doing its job.",
-        watching:
-          "The gap between surveys — contact has thinned slightly this quarter, and a longer gap would make the next reading harder to place.",
+        clinical:
+          "Four surveys, each lower than the last, from the moderate band down into the mild one. The restlessness items dropped first and the worry items followed. Contact has thinned slightly this quarter.",
+        diagnostic:
+          "Excessive worry with restlessness remains reported on every survey in the period, at reducing intensity. The criteria for the code on record are still met at the mild end; nothing in the readings points to a different presentation.",
+        assessment: "improved",
       },
     ],
   },
@@ -732,23 +751,22 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         daysAgo: 96,
         author: "Dr. Amara Patel",
         role: "Supervisor",
-        standing:
-          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction.",
-        direction:
-          "Staying with the recurrent presentation. The pattern of movement is what the code is meant to describe.",
-        watching: "The interval between the peaks, which has been shortening.",
+        clinical:
+          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The interval between the peaks has been shortening.",
+        diagnostic:
+          "Movement between bands across five readings, with return to a lower severity in between, is the recurrent course the code on record describes rather than a single episode. The shortening interval supports that reading rather than contradicting it.",
+        assessment: "maintained",
       },
       {
         daysAgo: 14,
         author: "Dr. Amara Patel",
         role: "Supervisor",
         amendsIndex: 0,
-        standing:
-          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The most recent reading is the lowest of the last three.",
-        direction:
-          "Staying with the recurrent presentation, and proposing the milder severity on this cycle's review.",
-        watching:
-          "The interval between the peaks, which has been shortening — though the last one broke that pattern.",
+        clinical:
+          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The most recent reading is the lowest of the last three, and the last interval broke the shortening pattern.",
+        diagnostic:
+          "The recurrent course still fits, and the current severity now sits at the milder end of it: the most recent reading is the lowest of the last three, with the somatic items no longer reported. Amended to record the severity change; the earlier statement did not have this reading.",
+        assessment: "improved",
       },
     ],
   },
@@ -784,12 +802,11 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         daysAgo: 50,
         author: "Omar Haddad",
         role: "Supervisor",
-        standing:
+        clinical:
           "Three surveys, each lower than the last. The mentorship ran its course and closed while the record was in its better stretch.",
-        direction:
-          "Closing out the cycle. No change of presentation on the way out.",
-        watching:
-          "Nothing further here — this record is closed. Anything new would start from a fresh intake.",
+        diagnostic:
+          "The code on record was supported throughout by consistently reported low mood and reduced interest, both at their lowest at the final reading. No evidence in the period supported a different presentation, and none was made on closure.",
+        assessment: "improved",
       },
     ],
   },
@@ -930,7 +947,11 @@ export function fixtureCareUpdatesFor(
       createdAt: ago(now, u.daysAgo),
       author: u.author,
       authorRole: u.role,
-      body: { standing: u.standing, direction: u.direction, watching: u.watching },
+      body: {
+        clinical: u.clinical,
+        diagnostic: u.diagnostic,
+        assessment: u.assessment,
+      },
       amends:
         u.amendsIndex === undefined
           ? undefined
@@ -988,8 +1009,17 @@ export interface CareReviewDecision {
   reviewId: string;
   teenId: string;
   decidedAt: number;
-  /** Guaranteed non-whitespace: Approve is gated on it before it can be saved. */
-  note: string;
+  /** THE CARE UPDATE THAT DOCUMENTS THIS DECISION — a `CareUpdateRecord.id`.
+   *
+   *  This REPLACED a `note: string` field. That note was the provider note, and
+   *  the provider note was the second note object the care update now subsumes:
+   *  every presentation event commits through the care update form, so the
+   *  reasoning lives there and this points at it. Two cross-referenced entries,
+   *  never one merged row and never two unrelated ones.
+   *
+   *  Optional only because a decision could in principle be written by a future
+   *  surface that has no update; nothing in the app does that today. */
+  careUpdateId?: string;
   outcome: "presentation_assigned" | "presentation_reviewed" | "presentation_changed";
   code: string;
   statement: string;
@@ -1023,10 +1053,13 @@ function decisionToEvent(d: CareReviewDecision): CareEvent {
           : d.code,
     code: d.code,
     // The supervisor who approved is the author — never the model that drafted
-    // the recommendation. Their provider note travels with the entry.
+    // the recommendation.
     author: { kind: "person", name: d.actor, role: d.actorRole },
     visibility: "all_staff",
-    providerNote: d.note,
+    // NO `providerNote` HERE ANY MORE. The reasoning is in the care update this
+    // points at, and the timeline renders that update inside this entry's
+    // disclosure rather than keeping a second copy of the prose.
+    documentedBy: d.careUpdateId ? `ce-cu-${d.careUpdateId}` : undefined,
   };
 }
 
@@ -1691,24 +1724,109 @@ export function pendingReviewFor(
 // timeline's existing amendment treatment picks the pair up for free because the
 // appended event carries `amends`.
 //
-// THE PROSE SCAFFOLDING IS THE FIGMA'S, VERBATIM. "Where things stand / Direction
-// of care / What I am watching" is good clinical writing structure — it makes a
-// supervisor say where they are, where they are going, and what would change
-// their mind. Kept as the compose template rather than replaced with a free
-// textarea, and kept as the READ structure too so an update is skimmable.
+// THE PROSE SCAFFOLDING THIS ONCE CARRIED IS RETIRED. Three Figma prompts drove
+// both the compose template and the read structure; the care update is now a
+// structured clinical form instead, because it also has to be the documentation
+// artifact for a presentation event. The retired prompts are recorded in
+// design-system-gaps.md row 298 rather than quoted here — the grep for them has
+// to come back empty.
 
-/** TODO-COPY — the section prompts, verbatim from the Figma. */
+/** THE CARE UPDATE IS NOW A STRUCTURED CLINICAL FORM.
+ *
+ *  It replaced three Figma prose prompts (recorded in design-system-gaps.md row
+ *  298, not quoted here so the grep for them stays empty). They were good
+ *  clinical writing structure but were not the documentation artifact a
+ *  presentation event needs. The care update is
+ *  now the SINGLE documentation artifact for every presentation event — there is
+ *  no second note object — so its fields have to carry the clinical reasoning and
+ *  the diagnostic justification, not a narrative.
+ *
+ *  TWO PROSE SECTIONS plus one structured value. The prose sections are a list so
+ *  the form, the main-column view and the timeline iterate the same source and
+ *  cannot disagree about order or labels. The assessment is NOT in the list: it is
+ *  a three-state single-select, rendered as a chip rather than a paragraph, and a
+ *  renderer that treated it as prose would print a bare word under a heading. */
 export const CARE_UPDATE_SECTIONS = [
-  { id: "standing", label: "Where things stand" },
-  { id: "direction", label: "Direction of care" },
-  { id: "watching", label: "What I am watching" },
+  {
+    id: "clinical",
+    label: "Clinical summary", // TODO-COPY
+    helper:
+      // TODO-COPY
+      "Description of current clinical presentation, including any new/recent symptom progression or regression.",
+  },
+  {
+    id: "diagnostic",
+    label: "Diagnostic support statement", // TODO-COPY
+    helper:
+      // TODO-COPY
+      "Symptom evidence supporting the diagnosis (or, if changed, evidence supporting the updated diagnosis).",
+  },
 ] as const;
 
 export type CareUpdateSectionId = (typeof CARE_UPDATE_SECTIONS)[number]["id"];
-export type CareUpdateBody = Record<CareUpdateSectionId, string>;
+
+/** THE THIRD FIELD'S LABEL, kept beside the other two so a renderer laying out
+ *  "the three fields in order" has one source for all three. */
+export const CARE_UPDATE_ASSESSMENT_LABEL = "Assessment of symptoms"; // TODO-COPY
+
+/** THE THREE-STATE ASSESSMENT.
+ *
+ *  ═══ A REPORTED VOCABULARY COLLISION, IMPLEMENTED AS SPECIFIED ═══
+ *
+ *  "Escalated" collides with "Escalation", the SAFETY EVENT TYPE on this same
+ *  page (`CareEventType` carries `escalation` and `risk_flag`, and the record has
+ *  escalation workflows). A reader scanning a history sees the same word meaning
+ *  two unrelated things: a symptom trend, and a safety event.
+ *
+ *  The collision was reported with "Worsened" recommended as a no-cost fix, and
+ *  the product owner chose to keep "Escalated". Recorded here rather than
+ *  silently accepted, because the ambiguity is now a property of the vocabulary
+ *  and the next person to read a history row deserves to know it was deliberate.
+ *  design-system-gaps.md row 298. */
+export type CareUpdateAssessment = "escalated" | "maintained" | "improved";
+
+export const CARE_UPDATE_ASSESSMENTS = [
+  { value: "escalated", label: "Escalated" }, // TODO-COPY
+  { value: "maintained", label: "Maintained" }, // TODO-COPY
+  { value: "improved", label: "Improved" }, // TODO-COPY
+] as const satisfies ReadonlyArray<{
+  value: CareUpdateAssessment;
+  label: string;
+}>;
+
+export const ASSESSMENT_LABEL: Record<CareUpdateAssessment, string> =
+  Object.fromEntries(
+    CARE_UPDATE_ASSESSMENTS.map((a) => [a.value, a.label])
+  ) as Record<CareUpdateAssessment, string>;
+
+export interface CareUpdateBody {
+  clinical: string;
+  diagnostic: string;
+  /** `null` until chosen. The form requires it; null is "not answered yet", NOT
+   *  a fourth state, and nothing renders a null assessment. */
+  assessment: CareUpdateAssessment | null;
+}
 
 export function emptyCareUpdateBody(): CareUpdateBody {
-  return { standing: "", direction: "", watching: "" };
+  return { clinical: "", diagnostic: "", assessment: null };
+}
+
+/** WAS THE AI'S DRAFT ACTUALLY REVISED? — the highest-consequence fact on this
+ *  page, and the reason this is stored rather than inferred.
+ *
+ *  A diagnostic justification drafted by a model and then signed by a supervisor
+ *  is indistinguishable, once saved, from one they wrote — unless whether they
+ *  changed a word is recorded at the moment of saving. It cannot be recovered
+ *  afterwards. So the pre-filled text is captured alongside the saved text and
+ *  the comparison is stored, not recomputed.
+ *
+ *  `source` mirrors `PresentationReview.rationale.source`, so the provenance
+ *  label on the field and on the history row is DERIVED from the same value that
+ *  labelled the rationale — never a second string that could drift from it. */
+export interface CareUpdatePrefill {
+  source: "templated" | "ai" | "supervisor";
+  /** True when the supervisor changed the pre-filled text before saving. */
+  edited: boolean;
 }
 
 export interface CareUpdateRecord {
@@ -1720,27 +1838,49 @@ export interface CareUpdateRecord {
   body: CareUpdateBody;
   /** Id of the care update this one corrects. Both keep rendering. */
   amends?: string;
+  /** THE PRESENTATION EVENT THIS UPDATE DOCUMENTS — a `CareEvent.id`.
+   *
+   *  Set when the update was committed through a presentation event (a cadence
+   *  review or an ad-hoc change); absent on a standalone update. Deliberately a
+   *  SEPARATE field from `amends`: that one means "corrects", this one means
+   *  "documents", and collapsing them would make an amendment chain and a
+   *  documentation link indistinguishable. */
+  documents?: string;
+  /** Present only when the diagnostic field arrived pre-filled. */
+  diagnosticPrefill?: CareUpdatePrefill;
 }
 
 /** One care update as a timeline entry. The prose travels in `providerNote` so
  *  the timeline's existing disclosure renders it without a special case. */
 function careUpdateToEvent(u: CareUpdateRecord): CareEvent {
   const filled = CARE_UPDATE_SECTIONS.filter((s) => u.body[s.id].trim());
+  /** The row's outcome column names the FIELDS present, never their content —
+   *  it is a row label, not a summary of clinical prose. The assessment is
+   *  included because it is a structured value a reader can scan for. */
+  const parts = [
+    ...filled.map((s) => s.label),
+    ...(u.body.assessment ? [ASSESSMENT_LABEL[u.body.assessment]] : []),
+  ];
   return {
     id: `ce-cu-${u.id}`,
     occurredAt: u.createdAt,
     type: "care_update",
-    // TODO-COPY. Names the SHAPE of what was written, never its content — the
-    // description column is a row label, not a summary of clinical prose.
+    // TODO-COPY. Names the SHAPE of what was written, never its content.
     description: u.amends ? "Care update amended" : "Care update written",
-    result: filled.map((s) => s.label).join(" · ") || "No sections filled",
+    result: parts.join(" · ") || "No fields filled", // TODO-COPY
     author: { kind: "person", name: u.author, role: u.authorRole },
     // Points at the amended update's EVENT id, so the chain renders both ways.
     amends: u.amends ? `ce-cu-${u.amends}` : undefined,
     visibility: "all_staff",
-    providerNote: CARE_UPDATE_SECTIONS.filter((s) => u.body[s.id].trim())
+    // The prose travels here so the timeline's existing disclosure renders it
+    // with no special case. The assessment does NOT: it is a structured value and
+    // the timeline renders it as a chip from `body`, not as a line of text.
+    providerNote: filled
       .map((s) => `${s.label}\n${u.body[s.id].trim()}`)
       .join("\n\n"),
+    documents: u.documents,
+    diagnosticPrefill: u.diagnosticPrefill,
+    assessment: u.body.assessment ?? undefined,
   };
 }
 

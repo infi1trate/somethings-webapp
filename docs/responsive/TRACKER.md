@@ -79,10 +79,17 @@ All `OL` + `S3`. Persona `new-mentor`, lifecycle `invited`→`pending`. Goal: co
 
 ## C · Activation hub (6)
 
+> **`published` HERE MEANS THE STATUS, NOT THE SNAPSHOT.** `hub/page.tsx:31` redirects to `/app` when
+> `publishedSnapshot !== null`, so a seed that sets the snapshot sends every one of these rows away —
+> C1 and C2 drifted for exactly that reason in the first baseline. The hub's audience is a mentor whose
+> profile is approved but who has not published yet, so the harness seeds `status: "published"` with no
+> snapshot (`ACTIVATING` in `harness-views.mjs`). Only C1 and C2 carry the guard, which is why C3–C6
+> rendered correctly and the wrong seed went unnoticed.
+
 | ID | Route | Persona | Lifecycle | Shell | Substrate | Primary goal | 320–430 | 768+ | Status |
 |---|---|---|---|---|---|---|---|---|---|
 | C1 | `/hub` | mentor | `published` | — | S7 | See the 5 remaining steps, pick one | ? | ? | untouched |
-| C2 | `/hub/profile` | mentor | `published` | — | S3, S7 | Finish profile | F-05 | ? | untouched |
+| ~~C2~~ | ~~`/hub/profile`~~ | — | — | — | **NOT A ROUTE — removed** | — | — | — | `hub/[step]/page.tsx` is the "placeholder module for the four NON-PROFILE hub steps" and redirects anything else to `/hub`. The hub's Profile step routes by state — to the wizard or to `/app/profile` — so `/hub/profile` is never served. Those states are already covered by cluster B and E1. Matrix 68 → 67. |
 | C3 | `/hub/story` | mentor | `published` | — | S3, S7 | Finish story | F-05 | ? | untouched |
 | C4 | `/hub/training` | mentor | `published` | — | S3, S7 | Finish training | F-05 | ? | untouched |
 | C5 | `/hub/scheduling` | mentor | `published` | — | S3, S7 | Set availability | F-05 | ? | untouched |
@@ -96,7 +103,7 @@ All `OL` + `S3`. Persona `new-mentor`, lifecycle `invited`→`pending`. Goal: co
 | D2 | `/app/activity` | mentor | MS | S1, S7 | Read the profile-update feed | F-01 | F-01 | F-01 | ? | untouched |
 | D3 | `/app/activity` | supervisor | AS | S1 | Read the ledger | F-01 | F-01 | F-01 | ? | untouched |
 | D4 | `/app/mentees` | mentor | MS | S1, S5 | Own mentee list | F-01, F-03 | F-01, F-03 | F-03 | ? | untouched |
-| D5 | `/app/mentees` | lead-mentor | MS | S1, S5 | Team's mentees | F-01, F-03 | F-01, F-03 | F-03 | ? | untouched |
+| ~~D5~~ | ~~`/app/mentees` as lead~~ | — | — | — | **NOT A VIEW — removed** | — | — | — | — | `app/app/mentees/page.tsx:35` redirects a lead to `/app/team`, and that is the documented decision (a lead supervises mentors, not teens — see `mentor-shell.tsx`), not a bug. The row asked for a route the product deliberately does not serve and then reported the redirect as drift. D8 already covers `/app/team` as a lead, which is the view this row was actually reaching. Matrix goes 69 → 68. |
 | D6 | `/app/mentees` | supervisor | AS | S1, S5 | Full roster | F-01, F-03 | F-01, F-03 | F-03 | ? | untouched |
 | D7 | `/app/team` | mentor | MS | S1, S5 | Staff directory | F-01, F-03 | F-01, F-03 | F-03 | ? | untouched |
 | D8 | `/app/team` | lead-mentor | MS | S1, S5 | + mentors led | F-01, F-03 | F-01, F-03 | F-03 | ? | untouched |

@@ -57,6 +57,7 @@ import { formatDaysInMentorship } from "@/lib/record/relationships";
 import type { MentorLifecycleStatus } from "@/lib/types";
 import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import { cn } from "@/lib/utils";
+import { touchTarget } from "@/lib/touch-target";
 
 const H2 =
   "font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]";
@@ -278,11 +279,16 @@ export function RelationshipTable({
 
   /** WHAT EACH ROW IS CALLED ON SCREEN — the one place this table decides.
    *
-   *  THE VARIANT IS THE RULE. "mentees" rows are teens, and standing rule 6 makes
-   *  them first name only, always; "mentors" rows are staff, whose full names are
-   *  how colleagues address and find them. This used to be `r.goesBy ?? r.name`
-   *  in three places, which applied the staff rule to teens and leaked surnames
-   *  into the list, the sort and the search (design-system-gaps.md row 254).
+   *  THE VARIANT NO LONGER CHANGES THE ANSWER. It did under standing rule 6,
+   *  which made "mentees" rows first-name-only while "mentors" rows kept full
+   *  names; the rule was retired on 2026-08-28 (row 284) and both now resolve to
+   *  the full name. The branch is kept because teens still go through
+   *  `teenDisplayName` — one chokepoint, so a future divergence is one edit — and
+   *  because the two sides genuinely could diverge again.
+   *
+   *  THE HISTORY IS THE REASON THE CHOKEPOINT EXISTS: this was `r.goesBy ?? r.name`
+   *  in three places, which is what made the rule unenforceable in either
+   *  direction (row 254).
    *
    *  SORT AND SEARCH READ IT TOO, not just the cell: a list sorted by a string
    *  the reader cannot see is a list in an arbitrary order. */
@@ -424,7 +430,17 @@ export function RelationshipTable({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search"
                 aria-label={`Search ${title.toLowerCase()} by name`}
-                className="w-28 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
+                // SC 2.5.8 — `self-stretch` makes the input fill the pill instead of sitting
+            // as a 20px strip inside it. Its own box goes 20px -> ~32px, clearing the
+            // 24px floor, and most of the pill becomes typeable where before only the
+            // middle band responded.
+            //
+            // NOT `touchTarget()` here: a `::after` overlay is unreliable on a
+            // replaced element like <input>, and an overlay above a text field would
+            // be the wrong shape of fix anyway. The remaining dead zone is the `px-4`
+            // padding and the icon — making the wrapper a <label> would claim those
+            // too; noted in design-system-gaps row 285.
+            className="w-28 self-stretch py-1.5 bg-transparent text-foreground outline-none placeholder:text-[var(--text-secondary)]"
               />
             </span>
           )}
@@ -905,9 +921,12 @@ function SortButton({
     <button
       type="button"
       onClick={() => onSort(k)}
+      // SC 2.5.8 — the label is 20px tall; `touchTarget` extends the hit area to
+      // 44px without changing the visual. Same treatment as `data-view.tsx`.
       className={cn(
         "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)]",
         on && "text-[var(--text-primary)]",
+        touchTarget(20),
         RING,
       )}
     >
@@ -945,8 +964,10 @@ function SortHead({
       <button
         type="button"
         onClick={() => onSort(k)}
+        // SC 2.5.8, as above.
         className={cn(
           "inline-flex items-center gap-1 rounded-sm hover:text-[var(--text-primary)]",
+          touchTarget(20),
           RING,
         )}
       >

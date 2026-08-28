@@ -268,7 +268,15 @@ export default function ComponentsAuditPage() {
           note="§5 six-item nav (Figma five + Training). Click to move active; hover/focus live. Active = white tile + shadow + bold label."
         >
           <div className="flex items-start gap-8">
-            <div className="h-[640px] overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border-subtle)]">
+            {/* A DEMO FRAME THAT CLIPS ON PURPOSE (gap row 297) — it shows the
+                app shell at a fixed 640px so the showcase page stays scannable.
+                Declared so the RC-6 reflow check does not report the rail being
+                cut off by the frame as lost content; it was 3 of the remaining
+                hits, all on this page. */}
+            <div
+              data-clip-viewport=""
+              className="h-[640px] overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border-subtle)]"
+            >
               <SettingsSidebar activeId={navActive} onSelect={setNavActive} avatarInitial="B" />
             </div>
             <div className="text-[14px] leading-[20px] text-[var(--text-secondary)]">

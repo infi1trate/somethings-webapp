@@ -190,8 +190,10 @@ export function teenAsMentee(t: DemoTeen, now: number): DemoMentee {
     days === undefined ? null : now - days * DAY;
   return {
     id: t.id,
-    // FIRST NAME ONLY (standing rule 6) — this name reaches the mentor's
-    // Overview roll-ups and the caseload popover, both of which render it raw.
+    // FULL NAME since rule 6 was retired (gap row 284). Still routed through
+    // `teenDisplayName` rather than reading `t.name`: this reaches the mentor's
+    // Overview roll-ups and the caseload popover, both of which render it raw, so
+    // it must agree with every other surface — which is what the chokepoint buys.
     name: teenDisplayName(t),
     matchedAt: now - (t.matchedDaysAgo ?? t.joinedDaysAgo) * DAY,
     mentorLastSentAt: at(t.mentorLastSentDaysAgo),

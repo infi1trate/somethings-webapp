@@ -476,8 +476,23 @@ export function TasksPage() {
                 <Link
                   key={domain}
                   href={closedTodayHref(domain)}
+                  // ═══ REAL PADDING, NOT `touchTarget()` (gap row 290) ═══
+                  //
+                  // SC 2.5.8: these render 18px tall (72x18, 33x18, 46x18). The
+                  // usual fix here is `touchTarget`, and it is WRONG for this
+                  // cluster. MEASURED at 320: the row wraps, so "1 escalation" and
+                  // "1 flag" sit on line 1 and "1 billing" drops to line 2 with
+                  // only 4px between them. A 13px `::after` bleed would have
+                  // overlapped the two lines by ~22px, and a tap in the overlap
+                  // belongs to both targets — the exact failure lib/touch-target.ts
+                  // warns about, and worse than the small target it replaces.
+                  //
+                  // Padding participates in layout; a pseudo-element does not.
+                  // `py-1.5` grows the box to 30px, clearing the 24px floor, and
+                  // the wrap gap grows with it so adjacent lines touch but never
+                  // overlap. At 1280 all three sit on one line anyway.
                   className={cn(
-                    "rounded-sm text-[13px] leading-[18px] text-[var(--text-secondary)]",
+                    "rounded-sm py-1.5 text-[13px] leading-[18px] text-[var(--text-secondary)]",
                     "underline decoration-transparent underline-offset-2 transition-colors",
                     "hover:text-[var(--text-primary)] hover:decoration-[color:var(--text-primary)]",
                     RING

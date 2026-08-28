@@ -164,8 +164,11 @@ function RiskFlagBody({
           <QuoteBlock>{payload.flaggedExcerpt}</QuoteBlock>
           <Link
             href={chatHrefFor(teenId)}
+            // SC 2.5.8 — 126x20; `py-1.5` gives 32px. Padding rather than
+            // `touchTarget()`, per gap row 290: this sits at the end of a block
+            // with `mt-2.5` above it, so a bleed upward would reach its sibling.
             className={cn(
-              "mt-2.5 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)]",
+              "mt-2.5 inline-flex items-center gap-1.5 rounded-sm py-1.5 text-[13px] font-semibold text-[var(--text-primary)]",
               "underline decoration-[color:var(--border-contour)] underline-offset-2 hover:decoration-[color:var(--text-primary)]",
               RING
             )}

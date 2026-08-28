@@ -122,6 +122,43 @@ export function MentorProfilePreview({
   return (
     <div
       ref={viewportRef}
+      // ═══ A SCROLLABLE REGION MUST BE REACHABLE BY KEYBOARD (gap row 292) ═══
+      //
+      // MEASURED on A3 at 1280: 1252px of content in a 736px box, `tabIndex: -1`,
+      // and no focusable descendant — the preview is a non-interactive rendering
+      // of the teen-facing profile by design, so there is nothing to Tab to and a
+      // keyboard user could not scroll it at all. 26 `scrollable-region-focusable`
+      // violations across A3, A4, A4r, E1, G1, G2 and H8, concentrated at lg, xl
+      // and text200 where the content overflows furthest.
+      //
+      // CONDITIONAL, because the region is only scrollable when it is not focused
+      // — in `focused` mode it is `overflow-hidden` and a focus stop there would
+      // be a Tab stop that does nothing.
+      //
+      // NO `aria-label`, and that is deliberate rather than an oversight: there is
+      // no existing visible text near this element to point `aria-labelledby` at
+      // (checked six ancestors deep), and inventing a string would be new copy.
+      // The rule requires FOCUSABILITY, not a name, and a plain div with
+      // `tabindex` takes no role that obliges one. If this should announce itself,
+      // it needs a product decision about the words.
+      tabIndex={focused ? -1 : 0}
+      // ═══ THIS ELEMENT CLIPS ON PURPOSE — IT IS A DEVICE SCREEN (gap row 297) ═══
+      //
+      // Declared for the RC-6 reflow check, which otherwise counts every child
+      // that extends past this box as lost content: 132 of its 164 hits came from
+      // inside this preview. Two reasons it is wrong to count them, and both are
+      // properties of what a phone frame IS rather than of this code:
+      //   · A device screen shows a window onto taller content. In focused mode
+      //     that window is `overflow-hidden` deliberately, because the preview
+      //     zooms to one region; otherwise it scrolls, so nothing is unreachable.
+      //   · THE STAGE INSIDE IS SCALED. `applyFocus()` sets a transform on
+      //     `stageRef`, and a transformed child's rect legitimately exceeds its
+      //     parent — a rect comparison reads that as 20-580px of lost content.
+      //
+      // An attribute rather than a class blocklist in the checker: the component
+      // declares its own intent, so a future frame gets the same treatment
+      // without anybody editing `checks.mjs`.
+      data-clip-viewport=""
       className={cn(
         "relative h-full bg-white text-[#1f1e1d]",
         focused

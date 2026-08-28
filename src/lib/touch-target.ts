@@ -51,6 +51,13 @@ const TOUCH_BASE = "relative after:absolute after:inset-x-0 after:content-['']";
  *  call site: 28 + (2 × 8) = 44. A key that is not here is a control whose height
  *  nobody has measured — add it with its sum rather than rounding to a neighbour. */
 export const TOUCH_EXTEND = {
+  /** 20 + 2×12 = 44. THE TABLE SORT HEADER, measured on `/app/mentees` at 1280:
+   *  a 20px button inside a 45px `<th>` with 12px above and 13px below, and the
+   *  first body row starting exactly at the cell's bottom edge. So the 12px bleed
+   *  lands inside the header cell with a pixel to spare and cannot reach the
+   *  row's overlay link — which matters, because a header target that grew into
+   *  the first row would make its top 12px sort instead of open. */
+  20: "after:-inset-y-3",
   /** 24 + 2×10 = 44 */
   24: "after:-inset-y-2.5",
   /** 28 + 2×8 = 44 */

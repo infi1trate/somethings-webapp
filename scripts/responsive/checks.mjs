@@ -179,6 +179,18 @@ export const IN_PAGE = () => {
     // nested inside an `<svg>` drop out along with the root.
     if (el.namespaceURI === SVG_NS) continue;
 
+    // ═══ AN INTENTIONAL CLIPPING VIEWPORT IS NOT A REFLOW BUG (gap row 297) ═══
+    //
+    // A phone preview is a window onto taller content, and the stage inside it
+    // is SCALED — a transformed child's rect legitimately exceeds its parent. A
+    // rect comparison reads both as lost content: 132 of 164 RC-6 hits came from
+    // inside one such frame, reporting 20-580px "lost" from a device screen
+    // doing its job.
+    //
+    // Opt-in by attribute, so the component declares its own intent rather than
+    // this file carrying a list of class names to recognise.
+    if (el.closest("[data-clip-viewport]")) continue;
+
     if (truncatedByAncestor(el)) continue;
 
     for (const axis of ["x", "y"]) {
@@ -256,8 +268,31 @@ export const IN_PAGE = () => {
  *  one — it means fixed chrome pushed it out of reach entirely. */
 export async function focusNotObscured(page, maxTabs = 60) {
   return page.evaluate(async (max) => {
+    // ═══ WITH A MODAL OPEN, ONLY THE MODAL IS REACHABLE (gap row 293) ═══
+    //
+    // The check focuses elements PROGRAMMATICALLY, and `el.focus()` does not
+    // respect a JS focus trap. Radix keeps a modal's background out of the tab
+    // order with a trap plus `aria-hidden`, not the `inert` attribute, so
+    // `.focus()` still lands there — and the overlay then legitimately covers
+    // what was focused.
+    //
+    // MEASURED: 163 of 213 hits were dialog-related and 154 of those came from
+    // two views, C1 and C2, where `/hub` opens a modal on load. The checker was
+    // focusing the hub's own buttons behind the scrim and reporting each one as
+    // an SC 2.4.11 failure. A keyboard user cannot reach any of them, so none is
+    // a failure — the fifth over-reporting class in these checkers, after the
+    // three in RC-6 and the sticky-ancestor rect comparison.
+    //
+    // The scope is narrowed rather than the hits filtered afterwards: while a
+    // modal is open the reachable set IS the dialog's contents, so that is what
+    // gets tested.
+    const openDialog = document.querySelector(
+      '[role="dialog"][data-state="open"],[data-slot="dialog-content"]'
+    );
+    const scope = openDialog ?? document;
+
     const focusables = [
-      ...document.querySelectorAll(
+      ...scope.querySelectorAll(
         'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
       ),
     ].filter((e) => {

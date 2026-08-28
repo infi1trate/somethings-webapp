@@ -88,7 +88,11 @@ function GroupsEditor({
             type="button"
             aria-label={`Remove ${g}`}
             onClick={() => onChange(value.filter((x) => x !== g))}
-            className="rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
+            // SC 2.5.8 — `p-0.5` around a 14px icon gave an 18x18 target. `p-1.5`
+            // makes it 26px. PADDING, not `touchTarget()`: this cluster is
+            // `flex flex-wrap` with `gap-1.5`, so a vertical `::after` bleed would
+            // overlap the chip row above or below (gap row 290).
+            className="rounded-full p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-press)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--focus-ring)]"
           >
             <X className="size-3.5" aria-hidden />
           </button>

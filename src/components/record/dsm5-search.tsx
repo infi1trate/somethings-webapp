@@ -152,9 +152,12 @@ function Dsm5SearchBody({
               {/* TODO-COPY */}
               <DialogTitle>Confirm the presentation change</DialogTitle>
               <DialogDescription>
-                {/* TODO-COPY */}
-                Confirming moves this into the review, where it still needs your
-                provider note before it reaches the record.
+                {/* TODO-COPY — this described the retired pending flow ("moves
+                    this into the review, where it still needs your provider
+                    note"). Confirming now opens the care update that documents
+                    the change, and the change is applied when that saves. */}
+                Confirming opens the care update that documents this change.
+                Nothing changes on the record until you save it.
               </DialogDescription>
             </DialogHeader>
 

@@ -279,8 +279,11 @@ export function MediaIntroField({ value, onChange }: Props) {
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
+        // SC 2.5.8 — 80x16; `py-1.5` takes it to 28px without moving the
+        // underline off the text. Padding rather than `touchTarget()` so the
+        // control reflows its own space instead of bleeding over a neighbour.
         className={cn(
-          "text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          "py-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
         )}
       >
         or upload a file
