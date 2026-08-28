@@ -119,7 +119,23 @@ export function AppShell({
           taking the remaining height. Above `md` the wrapper is inert — the top
           bar is `md:hidden` and the wrapper is just the flex child the panel
           always was. */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* ═══ `min-h-0` IS LOAD-BEARING, NOT TIDINESS (gap row 283) ═══
+
+          A flex item defaults to `min-height: auto`, which refuses to shrink
+          below its content height. Without `min-h-0` this column and the
+          `<main>` inside it grew to fit their content, overflowed the root's
+          `h-[calc(100dvh-…)]`, and made the DOCUMENT the scroll container — so
+          the rail scrolled out of the viewport with the page, and the panel's
+          own `overflow-y-auto` never engaged because `h-full` measured against
+          an already-overgrown parent.
+
+          `min-w-0` was here for the horizontal axis and the vertical twin was
+          missing, which is why this survived: routes whose content fits the
+          viewport (`/app/team`, `/app/settings`) behaved correctly, and only
+          taller ones (`/app/mentees` 1822px, a record 2539px against a 900px
+          viewport) exposed it. Reported from a screenshot of the rail scrolled
+          half out of view. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TopBar
         activityHref={activityHref}
         unread={activityUnread}
@@ -130,7 +146,7 @@ export function AppShell({
       {/* THE CONTENT PANEL. Below `md` it loses the rail's left inset and the
           right gutter — a 16px gutter on a 390px viewport is 4% of the width
           spent on nothing — and gains bottom room for the tab bar. */}
-      <main className="min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
+      <main className="min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
         <div
           // ═══ THE FOCUS-OBSTRUCTION GUARD (SC 2.4.11, RC-5) ═══
           //
@@ -157,7 +173,16 @@ export function AppShell({
           // not rendered. Measured at 1280 before the fix. The variable and its
           // media-query reset live in CSS; this only consumes it.
           className={cn(
-            "h-full overflow-y-auto bg-[var(--surface-s1)]",
+            // `relative` CONTAINS ABSOLUTE DESCENDANTS (gap row 283). An
+            // absolutely-positioned element whose nearest positioned ancestor is
+            // missing resolves against the initial containing block, escaping
+            // this scroller and extending the DOCUMENT instead. Measured on
+            // `/app/activity` at 1440x900 after the `min-h-0` fix: 53px of
+            // residual document scroll, traced to a 1x1 `sr-only` paragraph
+            // sitting at document y=953 — `documentElement.scrollHeight` was
+            // 953 exactly. One invisible screen-reader label was still dragging
+            // the rail out of the viewport.
+            "relative h-full overflow-y-auto bg-[var(--surface-s1)]",
             "[padding-bottom:var(--nav-reserve)]",
             "[scroll-padding-bottom:calc(var(--nav-reserve)+1rem)]",
             // THE TOP BAR IS FIXED, so the panel reserves its height the same
