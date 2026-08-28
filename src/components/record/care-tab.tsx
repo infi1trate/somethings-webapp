@@ -248,16 +248,17 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
         generatedAt: summaryRefreshed[teen.id] ?? summaryDocBase.generatedAt,
       }
     : null;
-  /** FROZEN once the cycle's review is committed: a decision exists for the
-   *  window, so the document is a record entry and no longer a draft. `review`
-   *  being null with a decision in the window is exactly that state. */
-  const summaryFrozen = review === null;
   /** Engagement demoted to one muted context line — informs without competing
-   *  with the clinical structure. Null when there is nothing to say. */
+   *  with the clinical structure. Null when there is nothing to say.
+   *
+   *  SCOPE IS IN THE STRING, and the day count is gone. `careReadingFor` is
+   *  unwindowed, so it describes the mentorship rather than this cycle; its day
+   *  count also duplicated the theme element's denominator with a DIFFERENT
+   *  number under the same words. See the prop's note in `care-summary-doc.tsx`. */
   const engagementLine =
     reading && reading.exchanges > 0
       ? // TODO-COPY
-        `${reading.daysEngaged} conversation days · ${reading.exchanges} exchanges`
+        `${reading.exchanges} exchanges across the mentorship`
       : null;
 
   const staffName =
@@ -445,14 +446,15 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             sits above Care update instead — same reason, one step further from
             the decision.
 
-            FROZEN when the cycle's review has been committed. A frozen summary
-            names its window in the header so a reader cannot mistake the
-            previous cycle's evidence for a current read. */}
+            ALWAYS THE LIVE CYCLE — there is no frozen variant of this card, and
+            the reason is structural rather than a decision: committing a review
+            is itself a code update, so it opens the next window in the same act.
+            A committed cycle is a History entry. See the note in
+            `care-summary-doc.tsx` and design-system-gaps row 305. */}
         {summaryDoc && (
           <CareSummaryDocCard
             doc={summaryDoc}
             canAct={canAct}
-            frozen={summaryFrozen}
             engagement={engagementLine}
             onRefresh={
               canAct

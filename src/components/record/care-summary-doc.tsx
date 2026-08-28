@@ -95,17 +95,25 @@ export function CareSummaryDocCard({
   doc,
   /** Supervisor tier. Gates element 5 and the refresh control, nothing else. */
   canAct,
-  /** A frozen summary belongs to a committed cycle: no regeneration, and the
-   *  header says which window it covers so it cannot be read as current. */
-  frozen,
   engagement,
   onRefresh,
   onJumpToEvent,
 }: {
   doc: CareSummaryDoc;
   canAct: boolean;
-  frozen: boolean;
-  /** TODO-COPY — "9 sessions · 17 exchanges · 5h average reply", demoted to a
+  /** ONE MUTED LINE, AND IT MUST NAME ITS OWN SCOPE.
+   *
+   *  `careReadingFor` is UNWINDOWED — it describes the whole mentorship, not
+   *  this cycle — so a bare number here sits under a header stating the cycle
+   *  window and silently claims to describe it. It also carried a day count,
+   *  which put TWO DIFFERENT "conversation days" figures on one card: 14 from
+   *  the relationship and 9 from the theme window. A reader hitting that has to
+   *  decide which one the document means, and there is no way to tell.
+   *
+   *  So: exchanges only, scope stated. The theme element keeps the only
+   *  conversation-day count on the card, with its window named.
+   *
+   *  TODO-COPY — "9 sessions · 17 exchanges · 5h average reply", demoted to a
    *  muted context line so it informs without competing with the structure. */
   engagement: string | null;
   onRefresh?: () => void;
@@ -116,6 +124,12 @@ export function CareSummaryDocCard({
   return (
     <section
       aria-label="Care summary" // TODO-COPY
+      // Same hook every other region on this record carries (care-timeline,
+      // care-update, …). It is what the responsive harness and the variant
+      // capture target: a crop resolved by class or nth-child re-points itself
+      // silently the first time the layout changes, and then evidences the
+      // wrong element while still looking like a screenshot of this one.
+      data-record-section="care-summary-doc"
       className="rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)]"
     >
       {/* ── HEADER + PROVENANCE ────────────────────────────────────────────
@@ -137,18 +151,27 @@ export function CareSummaryDocCard({
                   previous cycle's summary cannot be mistaken for a current read. */}
               {doc.window.firstCycle
                 ? `From intake, ${clinicalDate(doc.window.fromAt)} – ${clinicalDate(doc.window.toAt)}`
-                : `From sessions ${clinicalDate(doc.window.fromAt)} – ${clinicalDate(doc.window.toAt)}`}
+                : // TODO-COPY. NOT "From sessions" — this product has no
+                  // sessions, and the theme element two elements down says so
+                  // out loud. The window is the interval since the last code
+                  // update; naming that is both accurate and more useful than
+                  // naming a unit of contact.
+                  `Since the last presentation update, ${clinicalDate(doc.window.fromAt)} – ${clinicalDate(doc.window.toAt)}`}
               {" · "}
               {`Generated ${clinicalDate(doc.generatedAt)}`}
-              {frozen && (
-                <>
-                  {" · "}
-                  {/* TODO-COPY */}
-                  <span className="text-[var(--text-muted)]">
-                    previous cycle
-                  </span>
-                </>
-              )}
+              {/* ═══ THERE IS NO "PREVIOUS CYCLE" STATE HERE, AND CANNOT BE ═══
+                  A "· previous cycle" label used to sit here, for a frozen
+                  summary. It is removed because the two ideas are mutually
+                  exclusive by construction: the window is the interval SINCE THE
+                  LAST CODE UPDATE, and `presentation_reviewed` is a code event —
+                  so approving a review opens a new window in the same act that
+                  commits the old one. A frozen document can never be the one
+                  this card derives.
+                  Driving the flow proved it: after an approval the header read
+                  "Aug 28 – Aug 28 · previous cycle" — a zero-length window
+                  labelled as a past one. THIS CARD IS ALWAYS THE LIVE CYCLE.
+                  The committed cycle is a History entry carrying its own frozen
+                  window and findings. design-system-gaps row 305. */}
             </p>
             {engagement && (
               <p className="mt-1 text-[12.5px] leading-[17px] text-[var(--text-muted)]">
@@ -157,9 +180,9 @@ export function CareSummaryDocCard({
             )}
           </div>
 
-          {/* REFRESH IS THE ONLY AFFORDANCE IN THIS CARD, and only while the
-              cycle's review is open. A frozen summary is a record entry. */}
-          {!frozen && canAct && onRefresh && (
+          {/* REFRESH IS THE ONLY AFFORDANCE IN THIS CARD. No frozen check: see
+              the note above — the card never renders a committed cycle. */}
+          {canAct && onRefresh && (
             <button
               type="button"
               onClick={onRefresh}
@@ -177,8 +200,13 @@ export function CareSummaryDocCard({
           )}
         </div>
 
-        <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] leading-[16px] text-[var(--text-muted)]">
-          <Sparkles className="size-3.5 shrink-0" aria-hidden />
+        {/* NOT `flex-wrap`, and NOT `items-center`. Wrapping let the icon break
+            onto a line of its own above the sentence at 320px, where it read as
+            an orphaned glyph rather than as a marker on the provenance line.
+            `items-start` with a nudge aligns it to the first line of text
+            instead, and the text wraps beside it as one block. */}
+        <p className="mt-3 flex items-start gap-x-1.5 text-[12px] leading-[16px] text-[var(--text-muted)]">
+          <Sparkles className="mt-[2px] size-3.5 shrink-0" aria-hidden />
           {/* TODO-COPY — the four facts guardrail 6 names: that it is
               AI-generated, the window (above), the sources, and that it is
               context for a coding decision rather than a determination. */}
@@ -207,7 +235,11 @@ export function CareSummaryDocCard({
       </Element>
 
       {/* ── 2 · SESSION CONTENT FREQUENCY ─── extraction, so chips ──────── */}
-      <Element label="Session content frequency">
+      {/* TODO-COPY. "Conversation content", NOT "Session content": the
+          footnote under this element names conversation days as the
+          denominator, and a heading that says "session" above it asks the
+          reader to reconcile two units for the same thing. */}
+      <Element label="Conversation content frequency">
         {doc.themes && doc.themes.themes.length > 0 ? (
           <>
             <ul className="flex flex-wrap gap-1.5">
@@ -215,7 +247,13 @@ export function CareSummaryDocCard({
                 <li key={t.label}>
                   <span className={CHIP_NEUTRAL}>
                     {t.label}
-                    <span className="ml-1.5 tabular-nums opacity-80">
+                    {/* NO `opacity-80`. It dropped this to 3.71:1 on the chip
+                        (axe, both widths) — and dimming it was backwards to
+                        begin with: "7/9" is the checkable part of the finding,
+                        the thing a supervisor reads the element FOR. The label
+                        names the theme; the count is the evidence. `tabular-nums`
+                        stays so a column of fractions aligns. */}
+                    <span className="ml-1.5 tabular-nums">
                       {t.days}/{doc.themes!.conversationDays}
                     </span>
                   </span>
@@ -232,9 +270,15 @@ export function CareSummaryDocCard({
           </>
         ) : (
           <Refusal>
-            {/* TODO-COPY */}
+            {/* TODO-COPY. NEITHER BRANCH MAY ASSERT A CONTACT FIGURE. The first
+                used to read "Fewer than N conversation days in this window",
+                which is false wherever the mocked extraction simply has no row —
+                see the note on `trajectoryFor`. Both branches now describe the
+                same true thing from different directions: nothing was extracted
+                for this window, or nothing has ever been extracted for this
+                record. */}
             {thin
-              ? `Fewer than ${SUMMARY_MIN_CONTACT_DAYS} conversation days in this window — theme frequency is not generated.`
+              ? "No conversation content is available for this window — theme frequency is not generated."
               : "No theme extraction available for this record."}
           </Refusal>
         )}
@@ -268,25 +312,36 @@ export function CareSummaryDocCard({
         ) : (
           <ul className="space-y-2">
             {doc.flags.map((f) => (
+              /* ═══ ONE FLAG, ONE BLOCK ═══
+                 At 320px a single wrapping row split each flag across two lines
+                 at a different point — "Imminent risk · Aug 25" then "Open ·
+                 Open in History", but the next flag broke after "Open" — and a
+                 reader scanning the list could not tell which fragment belonged
+                 to which flag. So the row STACKS below `sm`: identity and date
+                 on the first line, status and link beneath, the same way every
+                 time. It stays one line from `sm` up, where it fits. */
               <li
                 key={f.eventId}
-                className="flex flex-wrap items-center gap-x-2.5 gap-y-1"
+                className="flex flex-col gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2.5"
               >
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px]",
-                    TIER_CHIP[f.tier]
-                  )}
-                >
-                  {f.tierLabel}
+                <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px]",
+                      TIER_CHIP[f.tier]
+                    )}
+                  >
+                    {f.tierLabel}
+                  </span>
+                  <span className="text-[13.5px] leading-[19px] text-[var(--text-primary)]">
+                    {clinicalDate(f.at)}
+                  </span>
                 </span>
-                <span className="text-[13.5px] leading-[19px] text-[var(--text-primary)]">
-                  {clinicalDate(f.at)}
-                </span>
-                <span className="text-[13.5px] leading-[19px] text-[var(--text-muted)]">
-                  {/* TODO-COPY */}
-                  {f.resolved ? "Resolved" : "Open"}
-                </span>
+                <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <span className="text-[13.5px] leading-[19px] text-[var(--text-muted)]">
+                    {/* TODO-COPY */}
+                    {f.resolved ? "Resolved" : "Open"}
+                  </span>
                 {onJumpToEvent && (
                   <button
                     type="button"
@@ -301,6 +356,7 @@ export function CareSummaryDocCard({
                     <span aria-hidden> →</span>
                   </button>
                 )}
+                </span>
               </li>
             ))}
           </ul>
@@ -346,8 +402,16 @@ export function CareSummaryDocCard({
               {/* TODO-COPY — an explicit refusal, never a hedged sentence that
                   reads like a finding. */}
               {doc.concordance.result === "insufficientData"
-                ? `Fewer than ${SUMMARY_MIN_CONTACT_DAYS} conversation days, or only one comparable reading — no concordance call is attempted.`
-                : "Score movement and session content point the same way this cycle."}
+                ? // TODO-COPY. NAMES THE ACTUAL MISSING INPUT. The single
+                  // combined sentence this replaces asserted "fewer than
+                  // N conversation days" about records with months of contact —
+                  // see the note on `ConcordanceCall.reason`.
+                  doc.concordance.reason === "readings"
+                  ? "Only one comparable reading in this window — no concordance call is attempted."
+                  : "No conversation content is available for this window — no concordance call is attempted."
+                : // TODO-COPY. "Conversation content", not "session content":
+                  // same reason as the window line above.
+                  "Score movement and conversation content point the same way this cycle."}
             </p>
           )}
         </Element>

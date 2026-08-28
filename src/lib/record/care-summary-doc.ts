@@ -112,6 +112,20 @@ export interface ConcordanceCall {
   result: ConcordanceResult;
   /** Present only on `diverges`. */
   statement?: ConcordanceStatement;
+  /** ═══ WHICH REFUSAL, AND WHY IT HAS TO BE NAMED ═══
+   *
+   *  Present only on `insufficientData`. The card used to render ONE sentence
+   *  for both refusals — "fewer than three conversation days, or only one
+   *  comparable reading" — and that disjunction is FALSE on a large part of the
+   *  roster: a teen with seven months of mentorship and five assessments got a
+   *  document telling their supervisor there were fewer than three conversation
+   *  days, because `contactDays` comes from the mocked theme extraction and is 0
+   *  wherever that mock has no row. A clinical document may refuse; it may not
+   *  make a false statement about the record while refusing.
+   *
+   *  `contact` — no conversation content is available for this window.
+   *  `readings` — fewer than two comparable assessments in it. */
+  reason?: "contact" | "readings";
 }
 
 export interface ConcordanceInput {
@@ -142,7 +156,7 @@ export interface ConcordanceInput {
  *     win. REPORTED as a spec ambiguity rather than resolved silently. */
 export function concordanceFor(input: ConcordanceInput): ConcordanceCall {
   if (input.contactDays < SUMMARY_MIN_CONTACT_DAYS) {
-    return { result: "insufficientData" };
+    return { result: "insufficientData", reason: "contact" };
   }
   if (
     input.instrument === null ||
@@ -150,7 +164,7 @@ export function concordanceFor(input: ConcordanceInput): ConcordanceCall {
     input.currentScore === null
   ) {
     // No two comparable readings: movement is undefined, so no call is possible.
-    return { result: "insufficientData" };
+    return { result: "insufficientData", reason: "readings" };
   }
 
   const bands = BAND_ORDER[input.instrument];
@@ -391,16 +405,30 @@ function trajectoryFor(
   const from = severityFor(first.instrument, first.score);
   const to = severityFor(last.instrument, last.score);
   const thin = contactDays < SUMMARY_MIN_CONTACT_DAYS;
+  /** ═══ WHAT "THIN" ACTUALLY MEANS, AND WHAT IT DOES NOT ═══
+   *
+   *  `contactDays` comes from the theme extraction, which is mocked and has no
+   *  row for most of the roster — so `thin` means NO CONVERSATION CONTENT WAS
+   *  EXTRACTED, not that little contact occurred. These sentences used to say
+   *  "there was too little contact in the window", which is false on any record
+   *  with real tenure and no extraction: a teen with four months of mentorship
+   *  and 26 exchanges got a document asserting the opposite to their supervisor.
+   *
+   *  The clause is still needed — element 1 must say it spoke from scores alone —
+   *  so it names the missing INPUT instead of inventing a fact about contact.
+   *  TODO-COPY. */
+  const scoresOnly =
+    "Stated from assessments only — no conversation content is available for this window."; // TODO-COPY
 
   // TODO-COPY. Describes the window; never forecasts, never attributes a cause.
   if (from === to) {
     return thin
-      ? `${last.instrument} has held in the ${to} band across ${assessments.length} readings this cycle. Stated from assessments only — there was too little contact in the window to describe content.`
+      ? `${last.instrument} has held in the ${to} band across ${assessments.length} readings this cycle. ${scoresOnly}`
       : `${last.instrument} has held in the ${to} band across ${assessments.length} readings, with the most recent at ${last.score}.`;
   }
   const dir = last.score > first.score ? "risen" : "come down";
   return thin
-    ? `${last.instrument} has ${dir} from the ${from} band to the ${to} band across ${assessments.length} readings. Stated from assessments only — there was too little contact in the window to describe content.`
+    ? `${last.instrument} has ${dir} from the ${from} band to the ${to} band across ${assessments.length} readings. ${scoresOnly}`
     : `${last.instrument} has ${dir} from the ${from} band to the ${to} band across ${assessments.length} readings, reaching ${last.score} most recently.`;
 }
 

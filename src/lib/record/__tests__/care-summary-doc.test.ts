@@ -66,6 +66,39 @@ describe("insufficient data — a refusal, checked first", () => {
     ).toBe("insufficientData");
   });
 
+  it("NAMES WHICH INPUT IS MISSING, because the card states it", () => {
+    // The two refusals used to share one sentence naming both causes with an
+    // "or". That sentence is false on any record with long tenure and no theme
+    // extraction — it told a supervisor there had been fewer than three
+    // conversation days when there had been months of them.
+    expect(
+      concordanceFor({ ...base, contactDays: SUMMARY_MIN_CONTACT_DAYS - 1 }).reason
+    ).toBe("contact");
+    expect(concordanceFor({ ...base, priorScore: null }).reason).toBe("readings");
+    expect(concordanceFor({ ...base, instrument: null }).reason).toBe("readings");
+  });
+
+  it("checks contact BEFORE readings, so the stated reason is the first failure", () => {
+    // Both fail here. The contact floor is the more fundamental refusal — with
+    // no conversation content there is nothing to compare a score against — and
+    // the card must not claim the reading count was the obstacle.
+    expect(
+      concordanceFor({
+        ...base,
+        contactDays: 0,
+        priorScore: null,
+      }).reason
+    ).toBe("contact");
+  });
+
+  it("carries no reason when it did make a call", () => {
+    expect(concordanceFor(base).reason).toBeUndefined();
+    expect(
+      concordanceFor({ ...base, categoriesPerFlag: withMarkers(SUMMARY_MARKER_THRESHOLD) })
+        .reason
+    ).toBeUndefined();
+  });
+
   it("refuses when no instrument is present", () => {
     expect(
       concordanceFor({ ...base, instrument: null }).result
