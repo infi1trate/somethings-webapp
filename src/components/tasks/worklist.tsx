@@ -236,7 +236,14 @@ function Row({
         <span className="block truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
           {item.teenDisplayName}
         </span>
-        <span className="block truncate text-[12px] leading-[16px] text-[var(--text-muted)]">
+        {/* `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit on
+            `--surface-s2` (#e5e0d2), the shell canvas, and muted ink measures
+            4.01:1 there — under the 4.5 floor for 12px text. This is the exact
+            surface flagged when `--muted-foreground` was aliased in gap row 276:
+            the alias cleared card (5.30) and s1 (4.82) and could not clear s2.
+            `--text-secondary` (#58534b) is 5.78:1 on s2 and is the design
+            system's own next step, so nothing is invented. */}
+        <span className="block truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
           {/* TODO-COPY */}
           to {item.mentorName}
         </span>
@@ -249,7 +256,9 @@ function Row({
             time instead, because inside a group the age is identical on every
             row — see childTimeLabel. */}
         <span
-          className="shrink-0 text-[12px] tabular-nums text-[var(--text-muted)]"
+          // `--text-secondary` for the same reason as the line above — s2 is too
+          // dark for muted ink at 12px. Gap row 294.
+          className="shrink-0 text-[12px] tabular-nums text-[var(--text-secondary)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           {/* TODO-COPY */}
