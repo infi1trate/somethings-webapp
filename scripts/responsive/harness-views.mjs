@@ -92,6 +92,22 @@ const RECORD = [
  *  gates on `publishedSnapshot !== null` specifically, not on `status`. */
 const PUBLISHED = { persona: "mentor", status: "published", published: true };
 
+/** THE ACTIVATION HUB'S ACTUAL AUDIENCE — approved but not yet published.
+ *
+ *  Cluster C used `PUBLISHED` and two of its rows drifted for that reason:
+ *  `hub/page.tsx:31` does `if (mounted && everPublished) router.replace("/app")`,
+ *  where `everPublished` is `publishedSnapshot !== null` — exactly what the
+ *  `published: true` seed sets. The seed guaranteed the redirect it was then
+ *  reported as suffering. "Published mentors belong in the mentor app (Settings),
+ *  not the setup hub" is the route's own comment; the hub is the surface BEFORE
+ *  that snapshot exists.
+ *
+ *  So: `status: "published"` (the profile is approved) with NO snapshot. That
+ *  distinction is load-bearing across this codebase — `/app/profile` and the
+ *  wizard gate on `publishedSnapshot`, never on `status`. Only C1 and C2 carried
+ *  the guard, which is why C3-C6 rendered fine and the wrong seed went unnoticed. */
+const ACTIVATING = { persona: "mentor", status: "published" };
+
 export const VIEWS = [
   // ── A · Pre-app ─────────────────────────────────────────────────────────
   { id: "A1", cluster: "A", url: "/", seed: {} },
@@ -141,7 +157,7 @@ export const VIEWS = [
   })),
 
   // ── C · Activation hub ──────────────────────────────────────────────────
-  ...HUB_STEPS.map(([id, url]) => ({ id, cluster: "C", url, seed: PUBLISHED })),
+  ...HUB_STEPS.map(([id, url]) => ({ id, cluster: "C", url, seed: ACTIVATING })),
 
   // ── D · Mentor app routes ───────────────────────────────────────────────
   { id: "D1", cluster: "D", url: "/app", seed: PUBLISHED },
@@ -153,12 +169,17 @@ export const VIEWS = [
     seed: { persona: "supervisor" },
   },
   { id: "D4", cluster: "D", url: "/app/mentees", seed: PUBLISHED },
-  {
-    id: "D5",
-    cluster: "D",
-    url: "/app/mentees",
-    seed: { persona: "lead-mentor" },
-  },
+  // ═══ D5 REMOVED — IT WAS NOT A VIEW ═══
+  //
+  // It asked for `/app/mentees` as a LEAD, and `app/app/mentees/page.tsx:35`
+  // does `if (isLead) router.replace("/app/team")`. That is not a bug being
+  // worked around: a lead supervises mentors, not teens, and `mentor-shell.tsx`
+  // records the decision that leads have no Mentees destination at all. The row
+  // asked the harness to screenshot a route the product deliberately does not
+  // serve, and then reported the redirect as drift.
+  //
+  // `/app/team` as a lead is already covered by D8, which is the view D5 was
+  // actually reaching. Removing it takes the matrix from 69 rows to 68.
   {
     id: "D6",
     cluster: "D",
