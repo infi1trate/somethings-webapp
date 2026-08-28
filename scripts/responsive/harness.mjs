@@ -170,3 +170,11 @@ export async function openView(browser, view, vp, version) {
 export async function landedOn(page) {
   return page.evaluate(() => location.pathname + location.search);
 }
+
+/** A view whose state can only be reached by driving a real flow. The runners
+ *  SKIP these rather than capturing them in the pre-flow state, because a
+ *  screenshot of the wrong state is worse than a missing one — it looks like
+ *  evidence. Currently just the `rejected` lifecycle: standing rule 1 says the
+ *  changeRequests baseline snapshot is captured at the MOMENT OF ADMIN
+ *  REJECTION, so it is driven, not seeded, and the driver is not built yet. */
+export const needsFlow = (v) => Boolean(v.flow);

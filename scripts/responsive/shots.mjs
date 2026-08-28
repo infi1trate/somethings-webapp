@@ -7,7 +7,8 @@
 // project is about: what happens below the fold when a 3-column grid stacks.
 import { mkdir, writeFile } from "node:fs/promises";
 import { VIEWS, REDIRECTS } from "./harness-views.mjs";
-import { VIEWPORTS, launch, openView, landedOn, readStoreVersion, BASE } from "./harness.mjs";
+import { VIEWPORTS, launch, needsFlow, openView, landedOn, readStoreVersion, BASE } from "./harness.mjs";
+import { FLOWS } from "./flows.mjs";
 
 const only = process.env.ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
 const views = only?.length ? VIEWS.filter((v) => only.includes(v.id) || only.includes(v.cluster)) : VIEWS;
@@ -17,9 +18,22 @@ const browser = await launch();
 const report = { base: BASE, storeVersion: version, captured: [], unreachable: [], redirects: [] };
 
 for (const view of views) {
+  // Flow views are driven per-viewport inside the loop below.
   await mkdir(`docs/responsive/screens/${view.id}`, { recursive: true });
   for (const vp of VIEWPORTS) {
     const { context, page, errors } = await openView(browser, view, vp, version);
+    // DRIVEN STATES. `driveReject` navigates to the target itself once the
+    // send-back has happened, so this replaces the plain load rather than
+    // following it. A failed flow records the row unreached — never captured in
+    // the pre-flow state, which would look like evidence.
+    if (needsFlow(view)) {
+      const flowed = await FLOWS[view.flow](page, view.url, BASE);
+      if (!flowed.ok) {
+        report.unreachable.push({ id: view.id, vp: vp.label, reason: flowed.reason });
+        await context.close();
+        continue;
+      }
+    }
     const landed = await landedOn(page);
     const requested = view.url.split("?")[0];
     const drifted = !landed.startsWith(requested);

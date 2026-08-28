@@ -6,7 +6,8 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { VIEWS } from "./harness-views.mjs";
-import { VIEWPORTS, launch, openView, readStoreVersion, BASE } from "./harness.mjs";
+import { VIEWPORTS, launch, needsFlow, openView, readStoreVersion, BASE } from "./harness.mjs";
+import { FLOWS } from "./flows.mjs";
 
 const only = process.env.ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
 const views = only?.length ? VIEWS.filter((v) => only.includes(v.id) || only.includes(v.cluster)) : VIEWS;
@@ -16,8 +17,17 @@ const browser = await launch();
 const out = { base: BASE, generated: null, byView: {}, byViewport: {}, byRule: {}, total: 0, errors: [] };
 
 for (const view of views) {
+  // Flow views are driven per-viewport inside the loop below.
   for (const vp of VIEWPORTS) {
     const { context, page } = await openView(browser, view, vp, version);
+    if (needsFlow(view)) {
+      const flowed = await FLOWS[view.flow](page, view.url, BASE);
+      if (!flowed.ok) {
+        out.errors.push({ id: view.id, vp: vp.label, reason: flowed.reason });
+        await context.close();
+        continue;
+      }
+    }
     try {
       // WCAG 2.2 AA is the standard `03-DEFINITION-OF-DONE.md` sets, so the tags
       // are pinned to it rather than running every experimental rule — a

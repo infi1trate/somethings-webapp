@@ -2,7 +2,8 @@
 // Output: docs/responsive/ASSERTIONS.json
 import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { VIEWS } from "./harness-views.mjs";
-import { VIEWPORTS, launch, openView, readStoreVersion, BASE } from "./harness.mjs";
+import { VIEWPORTS, launch, needsFlow, openView, readStoreVersion, BASE } from "./harness.mjs";
+import { FLOWS } from "./flows.mjs";
 import { IN_PAGE, focusNotObscured } from "./checks.mjs";
 
 const only = process.env.ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
@@ -15,8 +16,17 @@ const out = { base: BASE, results: [], summary: {
 } };
 
 for (const view of views) {
+  // Flow views are driven per-viewport inside the loop below.
   for (const vp of VIEWPORTS) {
     const { context, page } = await openView(browser, view, vp, version);
+    if (needsFlow(view)) {
+      const flowed = await FLOWS[view.flow](page, view.url, BASE);
+      if (!flowed.ok) {
+        out.results.push({ id: view.id, vp: vp.label, skipped: flowed.reason });
+        await context.close();
+        continue;
+      }
+    }
     try {
       const r = await page.evaluate(IN_PAGE);
       const focus = await focusNotObscured(page);
