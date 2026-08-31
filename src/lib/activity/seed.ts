@@ -433,7 +433,7 @@ function heavyDay(): ActivityEvent[] {
         // Spread over four days so the day dividers are exercised and A6's
         // "never coalesce across a day divider" has something to hold.
         occurredAt: ago(Math.floor(i / 14), (i % 14) * 1.3 + 1),
-        payload: { code: "F41.1", index: i },
+        payload: payloadFor(type, teen.id, i),
       })
     );
   }
@@ -476,13 +476,19 @@ function networkWide(): ActivityEvent[] {
         occurredAt: ago(Math.floor(i / 10), (i % 10) * 2 + 1),
         // PAYLOAD IS RICH ON PURPOSE. A5's degrading query must omit this whole
         // key in network scope; a thin payload would let a broken query pass.
-        payload: {
-          code: "F33.1",
-          categories: ["ABUSE_DISCLOSURE"],
+        //
+        // ═══ THE CANARY MOVED OFF SCREEN, AND STAYED A CANARY ═══
+        // It used to be `reason: "clinical detail that must never reach network
+        // scope"`, and `reason` is rendered — so the string was ON SCREEN, in a
+        // demo, reading "Abuse disclosure · clinical detail that must never
+        // reach network scope". The instinct to make it recognisable was right;
+        // putting it in a rendered field was not.
+        // `canary` is rendered by nothing, so a leak is still unmistakable in a
+        // payload dump or an assertion, and the row reads like a record.
+        payload: payloadFor(type, teen.id, i, {
           riskTier: "high",
-          reason: "clinical detail that must never reach network scope",
-          index: i,
-        },
+          canary: "NETWORK_SCOPE_MUST_OMIT_THIS_PAYLOAD",
+        }),
       })
     );
   }
@@ -533,18 +539,121 @@ function longHistory(): ActivityEvent[] {
   ];
   for (let i = 0; i < 54; i++) {
     const type = types[i % types.length];
+    const teen = teens[i % teens.length];
     out.push(
       make({
         type,
         actorId: type === "SURVEY_COMPLETED" ? SYSTEM_ACTOR_ID : L,
-        teenId: teens[i % teens.length].id,
+        teenId: teen.id,
         // Spread across 48 days, so ~18 days sit beyond the 30-day window.
         occurredAt: ago(Math.floor((i * 48) / 54), (i % 6) * 2 + 1),
-        payload: { code: "F41.1", index: i },
+        payload: payloadFor(type, teen.id, i),
       })
     );
   }
   return out;
+}
+
+/** ═══ A PAYLOAD PER EVENT, NOT ONE LITERAL PER LOOP ═══
+ *
+ *  Three bulk loops used to write `payload: { code: "F41.1", index: i }` for
+ *  every event they generated, whatever its type. So a whole scenario rendered
+ *  the same billing code on every row — reported as line 3 "inheriting from the
+ *  selected pane object", which it was not: the query reads each event's own
+ *  payload faithfully, and the payloads were genuinely identical. Worth naming,
+ *  because the reported cause would have sent someone to the wrong file.
+ *
+ *  THE PAYLOAD NOW FOLLOWS THE TYPE, and varies by teen so two rows about two
+ *  mentees differ — which is what the test asserts. Deterministic (indexed, not
+ *  random), because a fixture that changes between runs cannot be diffed.
+ *
+ *  `extra` is for a scenario that needs to add something the type does not carry
+ *  by default — the network fixture's degradation bait, for instance. */
+function payloadFor(
+  type: ActivityEventType,
+  teenId: string,
+  i: number,
+  extra: Record<string, unknown> = {}
+): Record<string, unknown> {
+  // Deterministic per-teen pick, so Caleb's code is Caleb's code on every row.
+  const pick = <T,>(list: readonly T[]) =>
+    list[
+      (teenId.split("").reduce((a, c) => a + c.charCodeAt(0), 0) + i) %
+        list.length
+    ];
+  const base = { index: i, ...extra };
+
+  switch (type) {
+    case "BILLING_REVIEW_COMPLETE":
+      return {
+        ...base,
+        code: pick(["F41.1", "F33.0", "F33.1", "F90.0", "H0038"] as const),
+        previousCode: pick(["F41.9", "F32.9", "F41.1"] as const),
+        status: "Active",
+      };
+    case "BILLING_REVIEW_OPENED":
+    case "BILLING_REVIEW_OVERDUE":
+      return {
+        ...base,
+        code: pick(["F41.1", "F33.0", "F33.1", "F90.0"] as const),
+      };
+    case "SURVEY_COMPLETED":
+      return {
+        ...base,
+        instrument: pick(["GAD-7", "PHQ-9", "WHO-5"] as const),
+        score: 4 + ((i * 3) % 14),
+      };
+    case "RISK_FLAG_CLOSED":
+      return {
+        ...base,
+        decision: pick(["Closed", "Escalated", "Monitoring"] as const),
+        categories: [
+          pick([
+            "HATE_SPEECH_RACIAL_SLURS",
+            "PASSIVE_SUICIDAL_IDEATION",
+            "SELF_HARM_LANGUAGE",
+            "BULLYING",
+          ] as const),
+        ],
+      };
+    case "RISK_FLAG_RAISED":
+    case "RISK_FLAG_OVERDUE":
+      return {
+        ...base,
+        categories: [
+          pick([
+            "HATE_SPEECH_RACIAL_SLURS",
+            "SELF_HARM_LANGUAGE",
+            "BULLYING",
+          ] as const),
+        ],
+      };
+    case "ESCALATION_CLOSED":
+      return {
+        ...base,
+        outcome: pick([
+          "referred",
+          "guardian contacted",
+          "no further action",
+          "safety plan agreed",
+        ] as const),
+      };
+    case "ESCALATION_OVERDUE":
+      return { ...base, hoursLate: 2 + ((i * 5) % 40) };
+    case "TEEN_PAUSED":
+      return {
+        ...base,
+        // TODO-COPY. Ordinary reasons a mentorship pauses — the point of line 3
+        // here is that it is mundane and specific.
+        reason: pick(["exams", "family travel", "at their request", "illness"] as const),
+      };
+    case "TEEN_DEACTIVATED":
+      return { ...base, reason: pick(["aged out", "moved away"] as const) };
+    default:
+      // Types with no line 3 get no line-3 fields. A payload that carries data
+      // nothing renders is how the old bug looked from the outside.
+      return base;
+  }
 }
 
 // ── The registry ────────────────────────────────────────────────────────────

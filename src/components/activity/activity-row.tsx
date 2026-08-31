@@ -130,7 +130,27 @@ function sentenceWithTeenChip(row: FeedRow) {
   if (idx < 0) return row.sentence;
 
   const before = row.sentence.slice(0, idx);
-  const after = row.sentence.slice(idx + row.teenName.length);
+  const rawAfter = row.sentence.slice(idx + row.teenName.length);
+
+  /** ═══ THE POSSESSIVE JOINS THE CHIP, AND THIS WAS TWO BUGS IN ONE ═══
+   *
+   *  Reported as two: "a literal space in the composed string — rows read
+   *  'Maya 's conversation'", and separately "possessive orphaning — 's
+   *  conversation.' stranded on its own line". They are the same defect, and
+   *  there is no literal space: measured, the text node after the chip begins
+   *  `"'s conversation."` with no leading space, and its first character rendered
+   *  204px to the LEFT of the chip's right edge — i.e. on the next line. A line
+   *  break between a name and its possessive reads exactly like a space.
+   *
+   *  The old code glued the chip to the word BEFORE it, which stopped a chip
+   *  leading a wrapped line, and left the suffix free to break away behind it.
+   *
+   *  SO THE FIRST TOKEN AFTER THE NAME MOVES INSIDE THE NOWRAP UNIT — avatar,
+   *  name and "'s" become one thing that either fits or moves down whole. Taking
+   *  the whole first token rather than matching `'s` handles the punctuation
+   *  cases too ("Maya's." at a sentence end) without a second rule. */
+  const firstToken = /^\S+/.exec(rawAfter)?.[0] ?? "";
+  const after = rawAfter.slice(firstToken.length);
 
   /** ═══ THE CHIP IS GLUED TO THE WORD BEFORE IT (A13 §8) ═══
    *
@@ -155,9 +175,24 @@ function sentenceWithTeenChip(row: FeedRow) {
           
           `whitespace-nowrap` keeps the avatar and the name together; they are one
           token and breaking between them would leave a lone initial at a line end. */}
-      <span className="inline-flex items-center gap-1 whitespace-nowrap align-middle">
-        <RecordAvatar name={row.teenName} size={16} />
-        <span>{row.teenName}</span>
+      <span className="inline-flex items-baseline gap-1 whitespace-nowrap align-baseline">
+        {/* ═══ CAP HEIGHT, BASELINE-ALIGNED (item 7) ═══
+            `align-middle` on the container centred the 16px avatar on the text's
+            x-height midpoint, which sits it visibly high against cap height on a
+            20px line box. `items-baseline` on the container plus a translate on
+            the avatar itself drops it onto the text baseline, and because the
+            avatar is 16px inside a 20px line box the box does not grow — verified
+            by measuring the line height with and without the chip. */}
+        <span
+          aria-hidden
+          className="inline-block translate-y-[3px] self-baseline"
+        >
+          <RecordAvatar name={row.teenName} size={16} />
+        </span>
+        <span>
+          {row.teenName}
+          {firstToken}
+        </span>
       </span>
       {bindTrailingClause(after)}
     </>
@@ -498,6 +533,28 @@ export function ActivityRow({
           <div className="min-w-0 flex-1">
             {/* LINE 1 — who, in what role, and when. The timestamp moves up here
                 so line 2 is the sentence and nothing else. */}
+            {/* ── LINE 1 · METADATA, AND IT IS THE SMALLEST OF THE THREE ─────
+                ═══ THREE STEPS, NOT ONE (item 8) ═══
+                All three lines were within a hair of each other — 12/14/12px, all
+                secondary-ish — so nothing said which line was the content. Line 2
+                is the event; 1 and 3 support it. The steps now read
+                12px secondary → 14px primary → 11.5px tertiary, all existing
+                tokens, no new sizes.
+
+                ═══ EVERY ROW HAS THREE SLOTS (item 9) ═══
+                Person rows rendered actor · role · time; system rows rendered
+                "Somethings  4:28 PM" with the role slot missing, so line 1 did not
+                align card to card. Two ways to fix it and the choice is not
+                arbitrary: dropping the role everywhere would delete real
+                information a supervisor uses to read a decision, so system rows
+                gain the slot instead and it says "System".
+
+                ═══ AND NOT ON FIRST-PERSON ROWS (item 5) ═══
+                A "You" row also printed "Supervisor", which tells the reader their
+                own job title. The slot collapses there — the same wasted-slot
+                argument A11 made about spending an avatar on the reader — so a
+                "You" row is name + time and the column edge still holds, because
+                the time is the third slot either way. */}
             <p className="flex flex-wrap items-baseline gap-x-2 text-[12px] leading-[16px] text-[var(--text-secondary)]">
               <span
                 className={cn(
@@ -507,7 +564,14 @@ export function ActivityRow({
               >
                 {row.actorIsSelf ? "You" : row.actorName}
               </span>
-              {row.actorRole && <span>{row.actorRole}</span>}
+              {!row.actorIsSelf && (
+                <span>
+                  {/* TODO-COPY. "System" rather than "Automatic": the actor name
+                      beside it is already "Somethings", and this slot names the
+                      KIND of actor, which is what makes the column comparable. */}
+                  {row.actorRole || "System"}
+                </span>
+              )}
               <time
                 dateTime={row.occurredAt}
                 className="tabular-nums text-[var(--text-muted)]"
@@ -528,7 +592,18 @@ export function ActivityRow({
                 on a degraded row because the query gives it no `context` at all
                 (rule 12), and absent on a group because its members disagree. */}
             {row.context && row.context.length > 0 && (
-              <p className="mt-1 truncate text-[12px] leading-[16px] text-[var(--text-muted)]">
+              /* ═══ TRUNCATION WITH AN AFFORDANCE (item 10) ═══
+                 `truncate` already clipped this, but at the container with no
+                 ellipsis visible in the mid-word case and nothing for a reader
+                 who wanted the rest. `title` gives a pointer user the full
+                 string; `text-overflow` leaves the whole string in the DOM, so a
+                 screen reader reads it complete and the row's accessible name is
+                 unaffected. TERTIARY INK AND 11.5px — a step below line 1, which
+                 is what makes the three-step hierarchy legible. */
+              <p
+                title={row.context.join(" · ")}
+                className="mt-1 truncate text-[11.5px] leading-[16px] text-[var(--text-muted)]"
+              >
                 {row.context.join(" · ")}
               </p>
             )}

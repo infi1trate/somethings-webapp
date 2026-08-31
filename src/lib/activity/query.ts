@@ -248,46 +248,109 @@ function sentenceFields(input: Parameters<typeof rowSentenceParts>[0]): {
  *  ONLY CALLED ON FULL-DETAIL ROWS. That is the enforcement, not a check inside. */
 function contextFieldsOf(event: ActivityEvent): { context?: string[] } {
   const p = event.payload;
-  const out: string[] = [];
   const str = (v: unknown) => (typeof v === "string" ? v : undefined);
   const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+  const cats = (Array.isArray(p.categories) ? p.categories : []).filter(
+    (c): c is string => typeof c === "string"
+  );
 
-  // TODO-COPY on every label below.
-  const code = str(p.code);
-  // Not on a COMPLETE row: the sentence already ends with the code there, and
-  // saying it twice on one row reads as two different codes at a glance.
-  if (code && event.eventType !== "BILLING_REVIEW_COMPLETE") {
-    out.push(`Code under review ${code}`);
+  // TODO-COPY on every template below.
+  //
+  // ═══ ONE TEMPLATE PER EVENT TYPE, AND NO FALLTHROUGH ═══
+  //
+  // This used to be a sequence of `if (field) out.push(...)` over the whole
+  // payload, so any event carrying a `code` got "Code under review F41.1" —
+  // survey rows, escalation rows and mentorship-pause rows included, where a
+  // billing code is irrelevant and reads as though a review were pending. The
+  // payload is a bag; what belongs on line 3 is a property of the EVENT TYPE.
+  //
+  // A `switch` with no default is the point: a new event type gets no line 3
+  // until someone decides what its line 3 says, and TypeScript will not let the
+  // union grow silently past it.
+  //
+  // ABSENCE IS A RESULT, NOT A FAILURE. Several types return nothing on purpose
+  // — a presentation review's line 2 already says everything line 3 could — and
+  // `{}` rather than `{ context: [] }` keeps an absent line and an empty one the
+  // same thing downstream.
+  switch (event.eventType) {
+    // ── Billing: the code and where it landed.
+    case "BILLING_REVIEW_COMPLETE": {
+      const code = str(p.code);
+      if (!code) return {};
+      // "F41.1 · Active" — the status is what makes the code readable; a code
+      // alone does not say whether it took effect.
+      return { context: [code, str(p.status) ?? "Active"] };
+    }
+    case "BILLING_REVIEW_OPENED":
+    case "BILLING_REVIEW_OVERDUE": {
+      const code = str(p.code);
+      // HERE the "under review" framing is true, which is the whole reason it
+      // was wrong everywhere else.
+      return code ? { context: [`Code under review ${code}`] } : {};
+    }
+
+    // ── Risk flags: the decision, then what it was about.
+    case "RISK_FLAG_CLOSED": {
+      const out = [str(p.decision) ?? "Closed"];
+      // Underscored wire values are never rendered raw.
+      if (cats.length > 0) out.push(cats.map(humaniseCategory).join(", "));
+      return { context: out };
+    }
+    case "RISK_FLAG_RAISED":
+    case "RISK_FLAG_OVERDUE":
+      return cats.length > 0
+        ? { context: [cats.map(humaniseCategory).join(", ")] }
+        : {};
+
+    // ── Escalations: the outcome, and only on the closed one. An open or
+    //    overdue escalation has no outcome yet, and inventing "Pending" would be
+    //    filler.
+    case "ESCALATION_CLOSED": {
+      const outcome = str(p.outcome);
+      return outcome ? { context: [`Outcome: ${outcome}`] } : {};
+    }
+    case "ESCALATION_RAISED":
+      return {};
+    case "ESCALATION_OVERDUE": {
+      const late = num(p.hoursLate);
+      // The one case where lateness IS the context.
+      return late !== undefined
+        ? { context: [`${late}h past its deadline`] }
+        : {};
+    }
+
+    // ── Surveys: instrument and score, which is the whole result.
+    case "SURVEY_COMPLETED": {
+      const instrument = str(p.instrument);
+      if (!instrument) return {};
+      const score = num(p.score);
+      return {
+        context: score !== undefined ? [instrument, String(score)] : [instrument],
+      };
+    }
+
+    // ── Lifecycle: the reason, when one was given.
+    case "TEEN_PAUSED": {
+      const reason = str(p.reason);
+      return reason && reason !== "withheld"
+        ? { context: ["Paused", reason] }
+        : {};
+    }
+    case "TEEN_DEACTIVATED": {
+      const reason = str(p.reason);
+      return reason && reason !== "withheld"
+        ? { context: ["Deactivated", reason] }
+        : {};
+    }
+    case "TEEN_MATCHED":
+      // Line 2 names both people. There is nothing left for line 3 to add.
+      return {};
+
+    // ── NO LINE 3, BY THE BRIEF. The sentence on line 2 already carries the
+    //    code and the outcome for a presentation review.
+    case "PRESENTATION_REVIEW_COMPLETE":
+      return {};
   }
-  const previous = str(p.previousCode);
-  if (previous) out.push(`Was ${previous}`);
-
-  if (event.objectType === "conversation") {
-    // The conversation itself, named rather than id-dumped.
-    out.push("In a monitored conversation");
-  }
-
-  const outcome = str(p.outcome);
-  if (outcome) out.push(`Outcome ${outcome}`);
-  const late = num(p.hoursLate);
-  if (late !== undefined) out.push(`${late}h past its deadline`);
-
-  const instrument = str(p.instrument);
-  const score = num(p.score);
-  if (instrument) out.push(score !== undefined ? `${instrument} ${score}` : instrument);
-
-  const categories = Array.isArray(p.categories)
-    ? p.categories.filter((c): c is string => typeof c === "string")
-    : [];
-  if (categories.length > 0) {
-    // Underscored wire values are never rendered raw.
-    out.push(categories.map(humaniseCategory).join(", "));
-  }
-
-  const reason = str(p.reason);
-  if (reason && reason !== "withheld") out.push(reason);
-
-  return out.length > 0 ? { context: out } : {};
 }
 
 /** `HATE_SPEECH_RACIAL_SLURS` → `Hate speech racial slurs`. Sentence case, per the

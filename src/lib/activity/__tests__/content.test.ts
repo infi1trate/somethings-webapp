@@ -338,16 +338,34 @@ describe("the detailed row's context line respects rule 12", () => {
     }
   });
 
-  it("a completed review does not state its code twice", () => {
-    // The sentence already ends with it; a context line repeating it reads as two
-    // different codes at a glance.
+  it("a completed review states its code and where it landed", () => {
+    // ═══ THIS ASSERTION WAS REVERSED, AND THE OLD REASONING WAS NOT WRONG ═══
+    //
+    // It used to require the OPPOSITE: the code must not appear on line 3,
+    // because "the sentence already ends with it; a context line repeating it
+    // reads as two different codes at a glance." That is a real concern and the
+    // row does now carry "F41.1" twice — once at the end of line 2, once at the
+    // start of line 3.
+    //
+    // Reversed because phase B1 specifies line 3 per event type explicitly, and
+    // for this type it is "code + status — F41.1 · Active". The STATUS is the new
+    // information and it needs the code beside it to be readable; "Active" alone
+    // on line 3 would not say what is active.
+    //
+    // REPORTED rather than resolved silently: if the duplication is worse than
+    // the ambiguity, the fix is to drop the code from the END OF LINE 2 rather
+    // than from line 3, because line 3 is where the status lives. That is a
+    // sentence change, and `sentences.ts` is not this phase's to edit.
+    // design-system-gaps row 321.
     for (const s of ACTIVITY_SCENARIOS) {
       for (const r of rowsOf(s.id, "billing", true)) {
         if (r.eventType !== "BILLING_REVIEW_COMPLETE") continue;
         const code = typeof r.payload?.code === "string" ? r.payload.code : null;
         if (!code) continue;
+        const context = (r.context ?? []).join(" · ");
         expect(r.sentence).toContain(code);
-        expect((r.context ?? []).join(" ")).not.toContain(code);
+        // Line 3 leads with the code and names a status after it.
+        expect(context).toMatch(new RegExp(`^${code.replace(".", "\\.")} · \\w`));
       }
     }
   });
