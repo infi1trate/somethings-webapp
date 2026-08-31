@@ -157,6 +157,22 @@ export async function openView(browser, view, vp, version) {
     { key: STORE_KEY, payload, once: SEEDED_FLAG }
   );
 
+  // ═══ PIN THE DEVICE MOCK'S CLOCK ═══
+  //
+  // The phone preview's status bar shows the REAL time now, on a minute tick. A
+  // screenshot matrix whose whole value is diffing one run against the next
+  // cannot have a pixel that changes every minute — every re-run would differ
+  // from the last for a reason that has nothing to do with the code. The
+  // fixtures' relative dates already drift, but only daily.
+  //
+  // A FIXED STRING, not a fixed timestamp: it substitutes for the formatted
+  // output, so a frozen run cannot depend on the machine's locale or timezone
+  // either. Kept at Apple's "9:41" so an old screenshot and a new one compare
+  // directly. See `src/lib/use-clock.ts`.
+  await context.addInitScript(() => {
+    window.__SOMETHINGS_FIXED_CLOCK__ = "9:41";
+  });
+
   if (vp.rootFontPx) {
     await context.addInitScript((px) => {
       document.addEventListener("DOMContentLoaded", () => {

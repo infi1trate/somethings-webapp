@@ -14,6 +14,7 @@ import {
 } from "react";
 import { Play, Pause, Disc3, Wifi } from "lucide-react";
 import { SpotifySong } from "@/components/onboarding/spotify-song";
+import { useClock } from "@/lib/use-clock";
 import { cn } from "@/lib/utils";
 import { iconFor } from "@/lib/interest-icons";
 import { SwipeDeck } from "@/components/onboarding/swipe-deck";
@@ -583,11 +584,39 @@ function CutoutSpray({ cutout }: { cutout: string }) {
 }
 
 // Faux iOS status bar — sits on the purple hero, flanking the Dynamic Island.
+//
+// THE CLOCK IS REAL. Everything else in this strip is drawn: the signal bars,
+// the wifi glyph and the battery are decoration, and a mentor reading a preview
+// of their own card has no use for a made-up cellular strength. The TIME is
+// different — it is the one thing here a viewer can check against the device in
+// their hand, and "9:41" is instantly recognisable as an Apple marketing
+// screenshot, which made the whole frame read as a stock image rather than as
+// their profile.
+//
+// `9:41` REMAINS THE SERVER-RENDER FALLBACK. The server cannot know the client's
+// clock or timezone, so producing the real time there is a guaranteed hydration
+// mismatch (standing rule 3).
+//
+// AS IT HAPPENS IT NEVER PAINTS TODAY — measured, not assumed: every surface
+// that mounts this preview is already gated behind `useMounted`, so none of them
+// server-render it, and `curl` on all six returns HTML with no clock in it at
+// all. The fallback is the hook's contract rather than a state this app reaches:
+// it is what keeps `useClock` safe for a caller that DOES render on the server,
+// and dropping it would make the hook unsafe by default to save one argument.
 function StatusBar() {
+  const time = useClock("9:41");
   return (
     <div className="absolute inset-x-0 top-0 z-[15] flex items-center justify-between px-6 pt-3.5 text-white">
+      {/* A SPAN, NOT `<time>`. A `<time>` was the first instinct and is wrong
+          twice: its `datetime` attribute requires a canonical zero-padded
+          24-hour value ("09:41"), which a locale-formatted label is not — so the
+          markup would have been invalid — and the value is not a timestamp ABOUT
+          this content anyway. It is the viewer's own wall clock, drawn as part of
+          a device mock. Decorative chrome that happens to be truthful.
+          `tabular-nums` was already here and now earns its place: without it the
+          strip would shift a fraction of a pixel as the digits change. */}
       <span className="text-[13px] font-semibold tracking-tight tabular-nums">
-        9:41
+        {time}
       </span>
       <div className="flex items-center gap-1.5">
         {/* cellular */}
