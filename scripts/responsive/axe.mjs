@@ -54,9 +54,39 @@ for (const view of views) {
 }
 
 await browser.close();
-out.generated = process.env.RESPONSIVE_STAMP ?? "unstamped";
+
+/** ═══ THE BASELINE STAMPS ITSELF, AND A PARTIAL RUN MAY NOT WRITE IT ═══
+ *
+ *  Both guards exist because both failures happened, in one session (gap row 344).
+ *
+ *  (a) A PARTIAL RUN WROTE THE BASELINE. `ONLY=G,D10,D11,H8,A2` swept 8 views and
+ *      overwrote a 68-view artifact with its own total of 9 — a 96% "improvement"
+ *      that was nothing but a smaller denominator. It was caught by reading the
+ *      diff before staging, which is not a control. A filtered run now writes to
+ *      a scratch path instead, so the baseline can only ever be a full sweep.
+ *
+ *  (b) THE FILE CARRIED NO EVIDENCE OF ITS OWN AGE. `generated` read "unstamped"
+ *      unless `RESPONSIVE_STAMP` was set, so a baseline 30 commits stale looked
+ *      exactly like a fresh one, and its staleness had to be discovered through
+ *      `git log` on the file. It now stamps an ISO date by default — a comparison
+ *      against a baseline is only evidence if you can see how old it is. */
+out.generated = process.env.RESPONSIVE_STAMP ?? new Date().toISOString();
+out.viewCount = views.length;
+out.viewportCount = VIEWPORTS.length;
+out.partial = Boolean(only?.length);
+if (out.partial) out.only = only;
+
+const target = out.partial
+  ? "docs/responsive/A11Y-PARTIAL.json"
+  : "docs/responsive/A11Y-BASELINE.json";
 await mkdir("docs/responsive", { recursive: true });
-await writeFile("docs/responsive/A11Y-BASELINE.json", JSON.stringify(out, null, 2));
+await writeFile(target, JSON.stringify(out, null, 2));
+if (out.partial) {
+  console.log(
+    `\nPARTIAL RUN (ONLY=${only.join(",")}) — wrote ${target}, NOT the baseline.` +
+      "\nThe baseline is only ever a full sweep; run without ONLY to refresh it."
+  );
+}
 
 const rules = Object.entries(out.byRule).sort((a, b) => b[1].count - a[1].count);
 console.log(`\naxe: ${out.total} violations across ${views.length} views x ${VIEWPORTS.length} viewports`);

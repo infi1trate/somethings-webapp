@@ -58,3 +58,7 @@ next-env.d.ts
 # point of Phase 8 is that A11Y-BASELINE.json is the number the sweep has to
 # move, so it belongs in review.
 /docs/responsive/screens/
+
+# Partial a11y sweeps — scratch output. The BASELINE is the tracked artifact
+# and is only ever a full sweep; see the guard in scripts/responsive/axe.mjs.
+docs/responsive/A11Y-PARTIAL.json
