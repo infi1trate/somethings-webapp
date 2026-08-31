@@ -191,21 +191,79 @@
      synthetic 500 — blocked on font cuts, not on tokens (gaps.md #87).
      Numeric values use Tailwind's `tabular-nums` — both fonts carry real
      tnum tables (measured: proportional digit deltas collapse to 0). */
-  --type-display: 700 26px/30px var(--font-avantt); /* person name; 1.15 lh */
-  --type-display-tracking: -0.3px;
-  --type-card-title: 700 16px/21px var(--font-avantt); /* card headers; 1.3 lh */
-  --type-row-value: 400 15px/22.5px var(--font-lausanne); /* the body voice */
-  --type-row-label: 400 13px/18px var(--font-lausanne); /* + text-secondary */
-  --type-helper: 400 12.5px/18px var(--font-lausanne); /* + text-muted */
+  /* ═══ THE BLOOM TYPE RAMP (Phase 7) ═══
+     Aligned to `bloom-design-system_1.md`'s six roles, Web mode. Every size and
+     line height below is a stop on that ramp; the old values that were not are
+     named in the comment beside each so the move is auditable.
+
+     WEB MODE, not Mobile: this is a desktop-first staff console. Bloom's Body,
+     Label and Label-Alt are identical across the two modes anyway, so the choice
+     only affects Display, Headline and Title.
+
+     ═══ TRACKING IS BLOOM'S PERCENTAGE, RESOLVED AT EACH SIZE ═══
+     The ramp specifies −2% for Display, −1% for Headline and 0 everywhere else.
+     The old tokens carried hand-picked pixel values (−0.3px, −0.4px, −0.16px,
+     +0.3px, +0.2px) that corresponded to no rule. Percentages resolved: −1% of
+     32px is −0.32px, of 24px is −0.24px.
+
+     ═══ WHAT THIS RAMP CANNOT EXPRESS HERE — SEE ROW 330 ═══
+     Only two font cuts are loaded (Lausanne 400, Avantt Bold 700), so three of
+     Bloom's six roles are unbuildable: Label/Medium and Label/Small want Lausanne
+     700, Title/Large-Regular wants Avantt Regular, and the whole Label-Alt role
+     wants Geist Mono. Requesting an unloaded weight does not fail — the browser
+     SYNTHESISES it — which is why `500` sat in two tokens below looking like a
+     design decision. Those are now 400, the weight that actually renders. */
+
+  /* Headline/Small — 32/40, −1%. Was 700 30px/34px with −0.4px tracking, which
+     is not a stop on the ramp. Used for the record identity header. */
+  --type-record-name: 700 32px/40px var(--font-avantt);
+  --type-record-name-tracking: -0.32px;
+
+  /* Title/Large-Bold — 24/32, tracking 0. Was 700 26px/30px, −0.3px: an
+     off-ramp size AND the tracking rule says 0 at this role. One use, the
+     Settings page heading, which is a page title rather than a display. */
+  --type-display: 700 24px/32px var(--font-avantt);
+  --type-display-tracking: 0px;
+
+  --type-title-lg: 700 24px/32px var(--font-avantt); /* Title/Large-Bold ✓ */
+  --type-title-sm: 700 16px/24px var(--font-avantt); /* Title/Small ✓ */
+
+  /* Title/Small — 16/24. Was 16px/21px: the size was on the ramp and the line
+     height was not. */
+  --type-card-title: 700 16px/24px var(--font-avantt);
+
+  /* Body/Medium — 14/20. Was 400 15px/22.5px, and 15px is not a Bloom size at
+     all. DOWN rather than up to Body/Large (16/24): these are row VALUES —
+     dense record data, not prose — and Bloom's Body/Medium is the workhorse for
+     exactly that. `--type-body` was already 14/20 and unused, which is the same
+     stop someone had already minted. */
+  --type-row-value: 400 14px/20px var(--font-lausanne);
+
+  /* Body/Small — 12/16. Was 400 13px/18px; 13px is not a Bloom size. */
+  --type-row-label: 400 12px/16px var(--font-lausanne);
+
+  /* Body/Small — 12/16. Was 400 12.5px/18px; neither value was on the ramp.
+     Helper and row-label now resolve to the same stop, which is correct: Bloom
+     has ONE small body size, and the difference between them was never size, it
+     was the ink token each is paired with (secondary vs muted). */
+  --type-helper: 400 12px/16px var(--font-lausanne);
+
   --type-meta: var(--type-row-label); /* header meta line; + text-secondary */
-  --type-title-lg: 700 24px/32px var(--font-avantt); /* page headings */
-  --type-title-sm: 700 16px/24px var(--font-avantt); /* section-card titles */
-  --type-button: 700 16px/1.1 var(--font-avantt);
-  --type-button-tracking: -0.16px;
-  --type-body: 400 14px/20px var(--font-lausanne); /* descriptions, status */
-  --type-tab: 400 16px/20px var(--font-lausanne); /* active = weight 700 */
-  --type-label-sm: 500 12px/16px var(--font-lausanne); /* sidebar labels */
-  --type-label-sm-tracking: 0.3px; /* uppercase in preview eyebrows */
+
+  /* Label/Large-Bold — 16/20, tracking 0. Was 700 16px/1.1 with −0.16px: a
+     unitless line height and an off-rule tracking. */
+  --type-button: 700 16px/20px var(--font-avantt);
+  --type-button-tracking: 0px;
+
+  --type-body: 400 14px/20px var(--font-lausanne); /* Body/Medium ✓ */
+  --type-tab: 400 16px/20px var(--font-lausanne); /* Label/Large-Regular ✓ */
+
+  /* Label/Small is Lausanne 700 12/16 on the ramp, and 700 is NOT LOADED. Was
+     `500`, which is also not loaded — so the browser was synthesising a weight
+     either way. 400 is the weight that actually renders; the tracking drops to
+     Bloom's 0. Row 330 records what shipping Lausanne 700 would unlock. */
+  --type-label-sm: 400 12px/16px var(--font-lausanne);
+  --type-label-sm-tracking: 0px;
 
   /* ── Radii ──────────────────────────────────────────────────────────── */
   --radius-panel: 24px;
@@ -382,10 +440,13 @@
   --chart-engagement: #2f6fed;
 
   /* Elevated type roles. */
-  --type-record-name: 700 30px/34px var(--font-avantt); /* header-card name */
-  --type-record-name-tracking: -0.4px;
-  --type-field-label: 500 12px/16px var(--font-lausanne); /* form-card labels */
-  --type-field-label-tracking: 0.2px;
+  /* `--type-record-name` moved up into the ramp block above — it is a Headline
+     stop, and defining it twice in one file is how two values diverge. */
+
+  /* Label/Small — same story as `--type-label-sm`: Bloom says Lausanne 700 and
+     700 is not loaded, so 400 is the weight that renders. Tracking to 0. */
+  --type-field-label: 400 12px/16px var(--font-lausanne);
+  --type-field-label-tracking: 0px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

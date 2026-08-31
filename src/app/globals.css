@@ -317,11 +317,19 @@
   html {
     @apply font-sans;
   }
-  /* Headings use the Avantt display face (only ships Bold). */
+  /* ═══ HEADINGS TAKE THE FACE, NOT THE TRACKING (Phase 7) ═══
+     Avantt (only ships Bold) stays as the heading face. `tracking-tight` was
+     here too and is removed: it is −0.025em on EVERY h1/h2/h3, which resolves to
+     −0.4px at 16px, and Bloom's ramp specifies tracking per ROLE — −2% for
+     Display, −1% for Headline, and 0 for Title, Body and Label.
+     A tag-level default made that rule unimplementable: a Title-level h2 carrying
+     the card-title token was measured at −0.4px when the ramp says 0, and every
+     explicit `--type-*-tracking` was fighting an inherited value rather than
+     setting one. Tracking now belongs to the stop, which is where Bloom puts it. */
   h1,
   h2,
   h3 {
-    @apply font-display tracking-tight;
+    @apply font-display;
   }
 }
 
