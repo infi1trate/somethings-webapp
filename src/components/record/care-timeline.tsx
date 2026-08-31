@@ -23,6 +23,7 @@
 import { useImperativeHandle, useMemo, useState } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import {
+  severityFor,
   CARE_FILTERS,
   TYPE_LABEL,
   TYPE_TONE,
@@ -43,6 +44,61 @@ const CHIP_OFF =
 
 /** Pill tone → the semantic families. No raw values, and deliberately not the
  *  PRD's purple: the token system already separates these four weights. */
+/** ═══ SEVERITY BANDS, SEMANTIC TINT (B4) ═══
+ *
+ *  mild → sage, moderate → amber, moderately severe → rose, severe → rose.
+ *  `minimal` joins sage: it is the settled end of the same scale, and giving it
+ *  a fourth colour would imply a distinction the instruments do not draw.
+ *
+ *  MODERATELY SEVERE AND SEVERE SHARE ROSE, by the brief. They are one step
+ *  apart on a five-step ladder and the LABEL is what separates them — which is
+ *  the rule for every tint in this system, since the pale fills are within
+ *  1.25:1 of each other and are distinguished by hue rather than lightness. So
+ *  the label is never dropped to save space; the lozenge shrinks instead.
+ *  Ratios are the tokens' own, measured in settings-tokens.css: sage 6.10:1,
+ *  amber 7.24:1, rose 5.93:1. Row 312. */
+const BAND_CHIP: Record<string, string> = {
+  minimal: "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
+  mild: "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
+  moderate: "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]",
+  "moderately severe": "bg-[var(--band-rose-bg)] text-[var(--band-rose-fg)]",
+  severe: "bg-[var(--band-rose-bg)] text-[var(--band-rose-fg)]",
+};
+
+/** ═══ THE SCORE LOZENGE'S DATA ═══
+ *
+ *  Read from the event's OWN fields, never from a selected object or a shared
+ *  seed value: `description` is the instrument and `result` is "11 — moderate".
+ *
+ *  THE BAND IS RE-DERIVED with `severityFor` rather than parsed out of `result`.
+ *  Parsing prose is how a header ends up disagreeing with its own history — the
+ *  same reasoning that put `code` on `CareEvent` as a separate machine-readable
+ *  field instead of parsing it back out of `result`. If the two ever disagree,
+ *  the instrument's own thresholds win.
+ *
+ *  Returns null for every non-assessment row, and for an assessment whose result
+ *  carries no parseable number — absence renders no lozenge, which is correct and
+ *  better than a lozenge reading "NaN". */
+function scoreFor(event: CareEvent): {
+  value: number;
+  band: string;
+  bandLabel: string;
+} | null {
+  if (event.type !== "assessment") return null;
+  const n = Number(String(event.result).match(/\d+/)?.[0]);
+  if (!Number.isFinite(n)) return null;
+  const instrument = event.description;
+  if (instrument !== "PHQ-9" && instrument !== "GAD-7") return null;
+  const band = severityFor(instrument, n);
+  return {
+    value: n,
+    band,
+    // TODO-COPY — sentence case, so the lozenge reads as a label rather than a
+    // shout: "Moderately severe", not "MODERATELY SEVERE".
+    bandLabel: band.charAt(0).toUpperCase() + band.slice(1),
+  };
+}
+
 const TONE_STYLE: Record<string, string> = {
   neutral:
     "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
@@ -68,7 +124,7 @@ function personName(author: CareEvent["author"]): string {
   return author.kind === "person" ? author.name : "a supervisor"; // TODO-COPY
 }
 
-function Provenance({ author }: { author: CareEvent["author"] }) {
+function Attribution({ author }: { author: CareEvent["author"] }) {
   if (author.kind === "ai") {
     return (
       <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
@@ -176,8 +232,52 @@ function Row({
   // A SUMMARY ROW CARRIES ITS OWN FINDINGS, so `documentedBy` must not stand in
   // for a note here the way it does on a presentation row.
   const borrowsDisclosure = !!documentedBy && event.type !== "care_summary";
+  const score = scoreFor(event);
+
+  /** ═══ WHAT LINE 2 HOLDS WHEN THERE IS NO AMENDMENT ═══
+   *
+   *  The row's status followed by its author, per the brief's flag example
+   *  ("title; status + attribution"). Two rules make it collapse to nothing
+   *  rather than to filler:
+   *
+   *  · THE STATUS IS DROPPED FOR ASSESSMENTS, because the lozenge on line 1 is
+   *    that status — "GAD-7 [11 | Moderate]" then "11 — moderate" underneath is
+   *    the same fact twice.
+   *  · A SYSTEM AUTHOR IS DROPPED. "Recorded automatically" is provenance
+   *    detail, not scan-level information, and it appeared on a large share of
+   *    rows — so it read as furniture while pushing real attributions down.
+   *    It renders in the expanded state instead. */
+  const statusText = score ? null : String(event.result || "").trim() || null;
+  const named = event.author.kind === "person";
+  const line2 =
+    statusText || named ? (
+      <>
+        {statusText && <span>{statusText}</span>}
+        {statusText && named && (
+          <span aria-hidden className="text-[var(--text-muted)]">
+            ·
+          </span>
+        )}
+        {named && <Attribution author={event.author} />}
+      </>
+    ) : null;
+
+  /** EXPANDABLE NOW INCLUDES THE DEMOTED LINES. A row whose only extra content
+   *  is its relational position or a system attribution still has to be
+   *  openable, or demoting those lines would delete them. */
+  const demoted =
+    !!relational ||
+    !!documents ||
+    !!summarizedBy ||
+    (event.type === "care_summary" && !!documentedBy) ||
+    !!event.diagnosticPrefill ||
+    (!!amends && superseded) ||
+    !named;
   const expandable =
-    !!event.items?.length || !!event.providerNote || borrowsDisclosure;
+    !!event.items?.length ||
+    !!event.providerNote ||
+    borrowsDisclosure ||
+    demoted;
 
   return (
     <li
@@ -193,7 +293,28 @@ function Row({
         superseded && "bg-[var(--surface-s1)]"
       )}
     >
-      <div className="flex items-start gap-3">
+      {/* ═══ DATE GUTTER + ROW ═══
+          A fixed 96px column of right-aligned dates, then the row. The gutter is
+          what makes the list scan as a timeline: the dates form a single edge a
+          reader's eye can run down, which they cannot do when the date is the
+          first inline token of a wrapping line.
+          NOT GROUPED BY MONTH. Dividers that fire on almost every row are chrome
+          (the same finding as the Activity feed's day dividers); the gutter
+          carries the same information continuously and costs no vertical space. */}
+      <div className="flex items-start gap-3 sm:gap-4">
+        {/* NOT `aria-hidden`. The gutter is the row's date at `sm` and up, and
+            the inline copy below is `sm:hidden` — so exactly ONE of the two is
+            rendered at any width, and `display:none` keeps the other out of the
+            accessibility tree. Hiding this one as decorative would have taken
+            the date out of the row's accessible name at every width above
+            640px, which is where most readers are. */}
+        <span
+          className="hidden w-[96px] shrink-0 pt-0.5 text-right tabular-nums text-[var(--text-muted)] sm:block"
+          style={{ font: "var(--type-row-label)" }}
+        >
+          {dateOf(event.occurredAt)}
+        </span>
+
         {expandable ? (
           <button
             type="button"
@@ -217,16 +338,69 @@ function Row({
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {/* ── LINE 1 · title, score lozenge, type chip ───────────────────
+              NO `flex-wrap`. With wrapping, a long escalation title pushed the
+              type chip onto a second line and the row became three lines deep —
+              measured at 88 and 95px against a 70px two-line row, which is how
+              this was caught. The two-line cap is the point of the anatomy, so
+              the TITLE truncates instead and the chip holds its place. */}
+          <div className="flex items-center gap-x-2">
+            {/* THE GUTTER IS HIDDEN BELOW `sm`, so the date returns inline there
+                — a 96px column plus a chevron plus a title does not fit at
+                320px. Exactly one of the two renders at any width, so the
+                accessible name carries the date once and never twice. */}
             <span
-              className="shrink-0 text-[var(--text-secondary)] tabular-nums"
+              className="shrink-0 tabular-nums text-[var(--text-muted)] sm:hidden"
               style={{ font: "var(--type-row-label)" }}
             >
               {dateOf(event.occurredAt)}
             </span>
+
+            {/* `truncate` is VISUAL ONLY — `text-overflow` leaves the full
+                string in the DOM, so a screen reader still reads the whole
+                title and the row's accessible name is complete. `title` gives a
+                pointer user the same thing on hover. */}
+            <span
+              title={event.description}
+              className={cn(
+                "min-w-0 truncate",
+                superseded
+                  ? "text-[var(--text-secondary)]"
+                  : "text-[var(--text-primary)]"
+              )}
+              style={{ font: "var(--type-row-value)" }}
+            >
+              {event.description}
+            </span>
+
+            {/* THE SCORE LOZENGE — assessments only. One unit, square-cornered,
+                so `GAD-7 [11 | Moderate]` reads as a single value rather than as
+                a number that happens to sit near a word. It replaces the
+                separate result line for this type, which is why assessments get
+                no line 2 unless they are amended. */}
+            {score && (
+              <span
+                className={cn(
+                  "inline-flex shrink-0 items-stretch overflow-hidden rounded-[4px] text-[12px] font-medium leading-[18px]",
+                  BAND_CHIP[score.band]
+                )}
+              >
+                <span className="px-1.5 tabular-nums">{score.value}</span>
+                {/* The divider is a border, not a character: a "|" would be
+                    read aloud by some screen readers and would inherit the text
+                    colour rather than the tint's. */}
+                <span className="border-l border-current/25 px-1.5">
+                  {score.bandLabel}
+                </span>
+              </span>
+            )}
+
+            {/* RIGHT-ALIGNED. `ml-auto` rather than `justify-between` so it
+                still sits beside the title when the row is short instead of
+                being pushed to the far edge of a wide table. */}
             <span
               className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium",
+                "ml-auto shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium",
                 TONE_STYLE[TYPE_TONE[event.type]]
               )}
             >
@@ -234,135 +408,24 @@ function Row({
             </span>
           </div>
 
-          <p
-            className={cn(
-              "mt-1",
-              superseded
-                ? "text-[var(--text-secondary)]"
-                : "text-[var(--text-primary)]"
-            )}
-            style={{ font: "var(--type-row-value)" }}
-          >
-            {event.description}
-          </p>
+          {/* ── LINE 2 · ONE LINE, OR NONE ────────────────────────────────
+              Attribution, or an amendment link, and nothing else. Six secondary
+              lines used to render here — relational position, what an update
+              documents, the evidence pair, whether a draft was edited, and both
+              directions of the amendment chain — and a row could show four of
+              them at once. They are all real, and none of them is what a reader
+              scanning a 30-entry table needs; they are now in the expanded
+              state, which is one keystroke away and is where detail belongs.
 
-          <p
-            className="mt-0.5 flex flex-wrap items-center gap-x-2"
-            style={{ font: "var(--type-row-label)" }}
-          >
-            <span className="text-[var(--text-secondary)]">{event.result}</span>
-            <span aria-hidden className="text-[var(--text-muted)]">·</span>
-            <Provenance author={event.author} />
-          </p>
+              AMENDMENT BEATS ATTRIBUTION when both apply: that an entry has been
+              superseded changes how everything else on the row should be read,
+              and who wrote it does not.
 
-          {/* ── THE RELATIONAL LINE. Muted, one line, beneath the existing
-              content — no new rows and no new sections. It sits ABOVE the
-              amendment chain because the chain is about this entry's own
-              correction, which is a closer relationship than its place in a
-              sequence. */}
-          {relational && (
-            <p
-              className="mt-1.5 text-[var(--text-muted)]"
-              style={{ font: "var(--type-row-label)" }}
-            >
-              {relational.lead}
-              {relational.previous && (
-                <>
-                  {" · "}
-                  <button
-                    type="button"
-                    onClick={() => onJump(relational.previous!.id)}
-                    className={cn(
-                      "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
-                      RING
-                    )}
-                  >
-                    {/* TODO-COPY */}
-                    {`previous ${dateOf(relational.previous.at)}`}
-                    <span aria-hidden> →</span>
-                  </button>
-                </>
-              )}
-            </p>
-          )}
-
-          {/* WHAT THIS UPDATE DOCUMENTS, and whether an AI draft was revised.
-              Both are secondary lines rather than disclosure content: a reader
-              scanning History needs to know an entry is tied to a presentation
-              change, and whether a diagnostic justification was actually read,
-              WITHOUT opening anything. */}
-          {documents && (
-            <p
-              className="mt-1.5 text-[var(--text-muted)]"
-              style={{ font: "var(--type-row-label)" }}
-            >
-              {/* TODO-COPY */}
-              {"Documents the "}
-              <button
-                type="button"
-                onClick={() => onJump(documents.id)}
-                className={cn(
-                  "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
-                  RING
-                )}
-              >
-                {`${dateOf(documents.occurredAt)} ${documents.type === "presentation_changed" ? "presentation change" : "presentation review"}`}
-                <span aria-hidden> →</span>
-              </button>
-            </p>
-          )}
-
-          {/* EVIDENCE ↔ ASSESSMENT, from whichever side the reader is on. One
-              line, one link, on the same secondary line as everything else that
-              ties two entries together — a reader scanning History can see the
-              pair exists without opening either. */}
-          {(summarizedBy ?? (event.type === "care_summary" ? documentedBy : undefined)) && (
-            <p
-              className="mt-1.5 text-[var(--text-muted)]"
-              style={{ font: "var(--type-row-label)" }}
-            >
-              {/* TODO-COPY. "Read alongside", not "supports" or "justifies":
-                  which way the evidence pointed is a finding inside the
-                  document, and this line must not restate it as a conclusion. */}
-              {"Read alongside the "}
-              <button
-                type="button"
-                onClick={() =>
-                  onJump(
-                    (summarizedBy ?? documentedBy)!.id
-                  )
-                }
-                className={cn(
-                  "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
-                  RING
-                )}
-              >
-                {`${dateOf((summarizedBy ?? documentedBy)!.occurredAt)} ${
-                  summarizedBy ? "care summary" : "care update"
-                }`}
-                <span aria-hidden> →</span>
-              </button>
-            </p>
-          )}
-
-          {event.diagnosticPrefill && (
-            <p
-              className="mt-1.5 text-[var(--text-muted)]"
-              style={{ font: "var(--type-row-label)" }}
-            >
-              {/* TODO-COPY — the fact, not a judgement of it. "Reviewed as
-                  drafted" is not a criticism: a draft that was already right
-                  should not have to be edited to look diligent. What matters is
-                  that the reader can tell which happened. */}
-              {event.diagnosticPrefill.edited
-                ? `Diagnostic statement edited by ${personName(event.author)}`
-                : "Diagnostic statement reviewed as drafted"}
-            </p>
-          )}
-
-          {/* Amendment chain, both directions. */}
-          {superseded && (
-            <p className="mt-1.5" style={{ font: "var(--type-row-label)" }}>
+              "RECORDED AUTOMATICALLY" IS GONE FROM SCAN LEVEL. A system-authored
+              row with no amendment now has no line 2 at all — absence is the
+              honest rendering of "nobody to name". */}
+          {superseded ? (
+            <p className="mt-1" style={{ font: "var(--type-row-label)" }}>
               <button
                 type="button"
                 onClick={() => onJump(amendedBy!.id)}
@@ -375,9 +438,8 @@ function Row({
                 Amended on {dateOf(amendedBy!.occurredAt)}
               </button>
             </p>
-          )}
-          {amends && (
-            <p className="mt-1.5" style={{ font: "var(--type-row-label)" }}>
+          ) : amends ? (
+            <p className="mt-1" style={{ font: "var(--type-row-label)" }}>
               <button
                 type="button"
                 onClick={() => onJump(amends.id)}
@@ -386,15 +448,160 @@ function Row({
                   RING
                 )}
               >
-                {/* TODO-COPY — names the date so the pair is findable when the
-                    filter or scroll position hides its partner. */}
+                {/* TODO-COPY — names the date so the pair is findable when a
+                    filter or the scroll position hides its partner. */}
                 {`Amends the ${dateOf(amends.occurredAt)} entry`}
               </button>
             </p>
+          ) : (
+            line2 && (
+              // NO WRAP HERE EITHER. At 1280 the spine is 688px and
+              // "F33.1 — unchanged · Dr. Amara Patel · Supervisor" wrapped,
+              // making a two-line row three lines — and only at that width,
+              // which is why it survived the 1024 pass. Measured at 88px against
+              // a 70px row. The cap applies to both lines or it is not a cap.
+              <p
+                className="mt-1 flex items-center gap-x-2 overflow-hidden text-[var(--text-secondary)] [&>*]:shrink-0 [&>*:last-child]:min-w-0 [&>*:last-child]:truncate"
+                style={{ font: "var(--type-row-label)" }}
+              >
+                {line2}
+              </p>
+            )
           )}
 
           {open && (
             <div className="mt-3 rounded-[var(--radius-surface)] bg-[var(--surface-s1)] p-3">
+              {/* ═══ THE DEMOTED LINES ═══
+                  Everything that used to render collapsed and now does not. All
+                  of it is real and none of it is what a reader scanning a
+                  30-entry table needs; kept together at the top of the expanded
+                  block so opening a row shows its relationships before its
+                  contents.
+                  NOTHING WAS DELETED IN THE DEMOTION — that is the whole point
+                  of the `demoted` flag on expandability: a row whose only extra
+                  content is one of these still opens. */}
+              {(relational ||
+                documents ||
+                summarizedBy ||
+                (event.type === "care_summary" && documentedBy) ||
+                event.diagnosticPrefill ||
+                (amends && superseded) ||
+                event.author.kind !== "person") && (
+                <div
+                  className="mb-3 space-y-1 border-b border-[color:var(--border-subtle)] pb-3 text-[var(--text-muted)]"
+                  style={{ font: "var(--type-row-label)" }}
+                >
+                  {/* Attribution for a non-person author. Demoted from line 2
+                      because "Recorded automatically" appeared on a large share
+                      of rows, read as furniture, and pushed real attributions
+                      down the row. */}
+                  {event.author.kind !== "person" && (
+                    <p>
+                      <Attribution author={event.author} />
+                    </p>
+                  )}
+
+                  {relational && (
+                    <p>
+                      {relational.lead}
+                      {relational.previous && (
+                        <>
+                          {" · "}
+                          <button
+                            type="button"
+                            onClick={() => onJump(relational.previous!.id)}
+                            className={cn(
+                              "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                              RING
+                            )}
+                          >
+                            {/* TODO-COPY */}
+                            {`previous ${dateOf(relational.previous.at)}`}
+                            <span aria-hidden> →</span>
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  )}
+
+                  {documents && (
+                    <p>
+                      {/* TODO-COPY */}
+                      {"Documents the "}
+                      <button
+                        type="button"
+                        onClick={() => onJump(documents.id)}
+                        className={cn(
+                          "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                          RING
+                        )}
+                      >
+                        {`${dateOf(documents.occurredAt)} ${documents.type === "presentation_changed" ? "presentation change" : "presentation review"}`}
+                        <span aria-hidden> →</span>
+                      </button>
+                    </p>
+                  )}
+
+                  {(summarizedBy ??
+                    (event.type === "care_summary" ? documentedBy : undefined)) && (
+                    <p>
+                      {/* TODO-COPY. "Read alongside", not "supports" or
+                          "justifies": which way the evidence pointed is a
+                          finding inside the document, and this line must not
+                          restate it as a conclusion. */}
+                      {"Read alongside the "}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onJump((summarizedBy ?? documentedBy)!.id)
+                        }
+                        className={cn(
+                          "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                          RING
+                        )}
+                      >
+                        {`${dateOf((summarizedBy ?? documentedBy)!.occurredAt)} ${
+                          summarizedBy ? "care summary" : "care update"
+                        }`}
+                        <span aria-hidden> →</span>
+                      </button>
+                    </p>
+                  )}
+
+                  {event.diagnosticPrefill && (
+                    <p>
+                      {/* TODO-COPY — the fact, not a judgement of it. "Reviewed
+                          as drafted" is not a criticism: a draft that was
+                          already right should not have to be edited to look
+                          diligent. What matters is that a reader can tell which
+                          happened. */}
+                      {event.diagnosticPrefill.edited
+                        ? `Diagnostic statement edited by ${personName(event.author)}`
+                        : "Diagnostic statement reviewed as drafted"}
+                    </p>
+                  )}
+
+                  {/* BOTH ENDS OF THE CHAIN, when a row is both an amendment and
+                      itself amended. Line 2 shows the superseding link — being
+                      out of date changes how the row should be read — so the
+                      backward link lands here. */}
+                  {amends && superseded && (
+                    <p>
+                      <button
+                        type="button"
+                        onClick={() => onJump(amends.id)}
+                        className={cn(
+                          "rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
+                          RING
+                        )}
+                      >
+                        {`Amends the ${dateOf(amends.occurredAt)} entry`}
+                      </button>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {event.items?.length ? (
                 <table className="w-full text-left">
                   <thead>
