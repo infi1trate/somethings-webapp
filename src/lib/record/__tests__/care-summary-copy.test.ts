@@ -24,6 +24,8 @@ import { join } from "node:path";
 const FILES = [
   "src/lib/record/care-summary-doc.ts",
   "src/components/record/care-summary-doc.tsx",
+  "src/components/record/care-sparkline.tsx",
+  "src/components/record/provenance.tsx",
   "src/lib/record/care-demo.ts",
 ];
 
@@ -155,11 +157,37 @@ describe("the care summary's copy obeys the record rules", () => {
   });
 
   it("states provenance and refuses the determination", () => {
-    // Guardrail 6, the other direction: these strings MUST be present. A scan
-    // that only forbids can be satisfied by deleting the document.
-    const card = SOURCES.find(([f]) => f.endsWith("care-summary-doc.tsx"))![1];
-    expect(card).toMatch(/not itself a clinical determination/i);
-    const lib = SOURCES.find(([f]) => f.endsWith("care-summary-doc.ts"))![1];
-    expect(lib).toMatch(/mocked — no pipeline/i);
+    // ═══ GUARDRAIL 6, THE OTHER DIRECTION ═══
+    //
+    // A scan that only forbids can be satisfied by deleting the document, so
+    // these strings MUST be present. This assertion caught its own subject
+    // moving: the sentence used to be inline in the card and now lives in the
+    // shared `Provenance` component, so a literal check against the card started
+    // failing while the product was more correct than before.
+    //
+    // REWRITTEN AS THE PROPERTY THAT ACTUALLY MATTERS, which is stronger than
+    // the string check it replaces: the note exists in exactly one place, and
+    // every surface that shows generated text reaches it.
+    const note = copyOf("src/components/record/provenance.tsx");
+    expect(note).toMatch(/not itself a clinical determination/i);
+    expect(note).toMatch(/AI-generated from/i);
+
+    for (const file of [
+      "src/components/record/care-summary-doc.tsx",
+      "src/components/record/care-review-card.tsx",
+    ]) {
+      expect(copyOf(file), `${file} must carry the provenance mark`).toMatch(
+        /<Provenance/
+      );
+    }
+
+    // AND NOWHERE ELSE. A second inline copy of the sentence is how one policy
+    // becomes several — the state this change exists to leave behind.
+    for (const [file, src] of SOURCES) {
+      if (file.endsWith("provenance.tsx")) continue;
+      expect(src, `${file} must not restate the note inline`).not.toMatch(
+        /not itself a clinical determination/i
+      );
+    }
   });
 });

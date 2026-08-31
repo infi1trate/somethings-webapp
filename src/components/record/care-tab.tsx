@@ -56,7 +56,6 @@ import {
 } from "@/components/record/flag-review-dialog";
 import { careReadingFor } from "@/lib/record/care-reading";
 import { carePatternFor } from "@/lib/record/care-pattern";
-import { CarePatternBlock } from "@/components/record/care-pattern-block";
 import { CareSummaryDocCard } from "@/components/record/care-summary-doc";
 import { careSummaryFor, commitFor } from "@/lib/record/care-summary-doc";
 import {
@@ -67,6 +66,13 @@ import {
   CareUpdateCompose,
   type DiagnosticPrefill,
 } from "@/components/record/care-update-compose";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
   STAGE_LABEL,
@@ -88,6 +94,7 @@ import {
 } from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
+import Link from "next/link";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { toast } from "sonner";
 
@@ -129,7 +136,20 @@ function outcomeFor(
     : "presentation_changed";
 }
 
-export function CareTab({ teen }: { teen: DemoTeen }) {
+export function CareTab({
+  teen,
+  /** ═══ THE OVERLAY'S STATE IS THE PAGE'S ═══
+   *  The trigger sits in the shell's tab row, which this component does not
+   *  render, so the two halves share one piece of state rather than each keeping
+   *  their own. Optional so a caller that never shows a trigger still works —
+   *  the rail is then the only way in, which is correct above 1100px. */
+  summaryOverlayOpen = false,
+  onSummaryOverlayChange,
+}: {
+  teen: DemoTeen;
+  summaryOverlayOpen?: boolean;
+  onSummaryOverlayChange?: (open: boolean) => void;
+}) {
   // NO `summaryState` PROP ANY MORE. It existed to make the old panel's loading
   // and error states reachable for review, and those states are gone with it:
   // the evidence document is DERIVED from the record, synchronously, so there is
@@ -217,6 +237,8 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
   const pattern = carePatternFor(teen.id, now, store);
   /** So the timeline strip can filter and scroll History. A read, not a write. */
   const timelineRef = useRef<CareTimelineHandle>(null);
+  const setSummaryOverlayOpen = (open: boolean) =>
+    onSummaryOverlayChange?.(open);
 
   const latestUpdate = latestCareUpdateFor(teen.id, now, store.updates ?? []);
 
@@ -380,6 +402,44 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
     openDialog(setComposing);
   };
 
+  /** ═══ THE SUMMARY, ONE NODE, TWO CONTAINERS ═══
+   *
+   *  Rendered in the rail at `min-[1100px]` and in an overlay panel below it.
+   *  Built once here rather than twice at the two mount points: the props are
+   *  eight lines of wiring, and two copies is how the overlay ends up a version
+   *  behind the rail the first time one of them changes.
+   *
+   *  MOUNTED IN ONE PLACE AT A TIME. `railOpen` gates the rail copy, for the
+   *  same reason `PreviewDisclosure` had to: the preview inside carries
+   *  document-global SVG ids, so two copies duplicate them and the visible one's
+   *  `url(#…)` references resolve into a `display:none` subtree (row 309). */
+  const summaryNode = summaryDoc ? (
+    <CareSummaryDocCard
+      doc={summaryDoc}
+      canAct={canAct}
+      pattern={pattern}
+      engagement={engagementLine}
+      onRefresh={
+        canAct
+          ? () => {
+              refreshCareSummary(teen.id, Date.now());
+              // HONEST ABOUT WHAT A REFRESH DOES. There is no generation step to
+              // re-run — the document is derived — so this re-stamps the
+              // generated line and says so. TODO-DATA.
+              toast("Summary re-checked. Regeneration isn’t wired yet.");
+            }
+          : undefined
+      }
+      onJumpToEvent={(id) => {
+        // FROM THE OVERLAY, JUMPING MUST ALSO CLOSE IT — History is behind the
+        // panel, so scrolling to a row the reader cannot see is worse than not
+        // moving at all.
+        setSummaryOverlayOpen(false);
+        timelineRef.current?.jump(id);
+      }}
+    />
+  ) : null;
+
   const tasks = careTasksFor(review);
 
   // ═══ NOTHING TIME-DERIVED UNTIL MOUNT (standing rule 3, gap row 291) ═══
@@ -415,12 +475,25 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
       // full-width document in the main column now, directly above the review
       // card, because evidence belongs adjacent to the decision it informs.
       //
-      // THE TRADEOFF, STATED SO NOBODY RE-ADDS THE RAIL BY ACCIDENT: the
-      // persistent collapsible affordance is gone and the page is longer.
-      // Accepted for width — element 5's labelled fragments cannot be read at
-      // 320px — and because reclaiming the column fixes History, which had been
-      // rendering a seven-column table in two thirds of the page.
-      className="grid grid-cols-1 items-start gap-6"
+      // ═══ AUTHORED SPINE, DERIVED RAIL ═══
+      //
+      // Left: primary presentation → action required → care update → History.
+      // Everything a person wrote or approved, in the order a reader needs it.
+      // Right: the Care summary, which is derived. NOTHING IN THE RAIL IS EVER AN
+      // AUTHORED RECORD OR HOSTS AN APPROVAL — that boundary is the reason for
+      // the split, not a side effect of it, and it is why the summary is not
+      // merged into the presentation card even though both describe the code.
+      //
+      // THE RAIL CAME BACK, AND THE REASON IT LEFT IS NOW ANSWERED. It was
+      // removed because the summary's widest content could not be read at 320px
+      // in a 320px rail (gap row 304). Below 1100px the rail no longer exists —
+      // the summary opens as a full overlay panel from a trigger in the tab row
+      // — so the narrow case is served by a container that has the whole width,
+      // instead of by a column that never had enough.
+      //
+      // 1100px, not `lg`: at 1024 a 380px rail leaves the spine ~600px, and
+      // History is a seven-column table. `min-[1100px]` is where both fit.
+      className="grid grid-cols-1 items-start gap-6 min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]"
     >
       <div className="min-w-0 space-y-7">
         {/* 1 · CARE SUMMARY — the spine. Leads even with a review pending. */}
@@ -438,38 +511,6 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           }
           series={series}
         />
-
-        {/* ── CARE SUMMARY · the per-cycle evidence document ──────────────
-            DIRECTLY ABOVE THE REVIEW CARD, which is the whole placement
-            argument: this is the evidence a supervisor codes from, and evidence
-            belongs adjacent to the decision it informs. With no review due it
-            sits above Care update instead — same reason, one step further from
-            the decision.
-
-            ALWAYS THE LIVE CYCLE — there is no frozen variant of this card, and
-            the reason is structural rather than a decision: committing a review
-            is itself a code update, so it opens the next window in the same act.
-            A committed cycle is a History entry. See the note in
-            `care-summary-doc.tsx` and design-system-gaps row 305. */}
-        {summaryDoc && (
-          <CareSummaryDocCard
-            doc={summaryDoc}
-            canAct={canAct}
-            engagement={engagementLine}
-            onRefresh={
-              canAct
-                ? () => {
-                    refreshCareSummary(teen.id, Date.now());
-                    // HONEST ABOUT WHAT A REFRESH DOES. There is no generation
-                    // step to re-run — the document is derived — so this
-                    // re-stamps the generated line and says so. TODO-DATA.
-                    toast("Summary re-checked. Regeneration isn’t wired yet.");
-                  }
-                : undefined
-            }
-            onJumpToEvent={(id) => timelineRef.current?.jump(id)}
-          />
-        )}
 
         {/* 2 · TASK REGION — the presentation review, and only that.
             Escalations and risk flags moved to Overview (record-level work, not
@@ -591,21 +632,17 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
           )}
         </section>
 
-        {/* 4b · CARE PATTERN — the middle horizon, between the presentation card
-            and History. FULL WIDTH, one card, no nested cards.
-            
-            It sits here rather than above the presentation card because the
-            presentation is the page's spine: a reader establishes what is on
-            record, then reads the pattern across it, then walks the entries. And
-            it sits ABOVE History because it is the synthesis History is the
-            evidence for — the strip's marks scroll down into it. */}
-        {pattern && (
-          <CarePatternBlock
-            pattern={pattern}
-            onSelectEvent={(id) => timelineRef.current?.jump(id)}
-          />
-        )}
-
+        {/* ═══ THE CARE PATTERN CARD WAS HERE ═══
+            Heading, one to three generated sentences, a timeline strip, a
+            provenance footer. The STRIP moved into the summary's trajectory
+            element as `CareSparkline`; the NARRATIVE is deleted.
+            Why the narrative goes: it and the trajectory sentence were two
+            generated descriptions of the same scores on one page, far enough
+            apart that a reader might not notice they agreed — or notice they
+            didn't. One narrative, one visual.
+            What is not lost: the clustering its prose described ("two fell
+            within 19 days of each other") reads off two triangles 19 days apart
+            on the strip's shared axis. */}
         {/* 5 · HISTORY */}
         <section aria-label="History">
           <h2 className={H2} ref={historyHeading} tabIndex={-1}>
@@ -623,20 +660,63 @@ export function CareTab({ teen }: { teen: DemoTeen }) {
             hide it from the mentors who read this page most often. */}
         <p className="border-t border-[var(--border-subtle)] pt-4 text-[13px] leading-[18px] text-[var(--text-muted)]">
           {/* TODO-COPY — exact wording pending clinical sign-off. */}
-          Dr. Nissan is the final decision-maker on all clinical notes and
-          determinations on this page.
+          {/* ═══ THE NAME LINKS TO TEAM, NOT TO A PROFILE ═══
+              A staff self-profile route does not exist — that work is deferred —
+              so this goes to the Team page, which is where a reader can actually
+              find them today. NOT a dead link and NOT a link to nothing: the
+              eventual destination is a staff profile, recorded as
+              design-system-gaps row 314 so the redirect is replaced rather than
+              rediscovered. */}
+          <Link
+            href="/app/team"
+            className="rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+          >
+            Dr. Nissan
+          </Link>
+          {" is the final decision-maker on all clinical notes and determinations on this page."}
         </p>
       </div>
 
 
-      {/* THE CARE SUMMARY RAIL WAS HERE. It is now a full-width card in the main
-          column above — see the grid note at the top of this return.
+      {/* ── THE DERIVED RAIL ──────────────────────────────────────────────
+          `min-[1100px]` only. Sticky below the tab row so the summary stays
+          beside whichever part of the spine the reader has scrolled to — the
+          evidence is meant to be read WITH the record, not before it.
 
-          THE TIER RULE CAME WITH IT: every tier reads the document, and only
-          element 5 and the refresh are supervisor-gated. Read-wide, act-narrow —
-          the gated pieces are ABSENT below the tier, never disabled. Nothing in
-          the card approves, writes, amends or closes anything, and it never
-          authors a record entry; only `approveCareReview` commits one. */}
+          TIER RULE: every tier reads the document; only Refresh is
+          supervisor-gated, and it is ABSENT below that tier rather than
+          disabled. Nothing in here approves, writes, amends or closes anything,
+          and it never authors a record entry — only `approveCareReview` does.
+          That is the provenance boundary the two columns exist to draw. */}
+      {summaryNode && !summaryOverlayOpen && (
+        <aside
+          /* TODO-COPY */
+          aria-label="Care summary"
+          className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:block"
+        >
+          {summaryNode}
+        </aside>
+      )}
+
+      {/* ── BELOW 1100px: THE SAME NODE, IN AN OVERLAY ────────────────────
+          A right-edge panel rather than a bottom sheet, for the reason the
+          `side` variant exists: the summary is tall — trajectory sentence,
+          sparkline, three chip groups — and a sheet bounded at 90dvh minus its
+          own header and close control either scrolls inside a box already the
+          height of the screen or shrinks the strip past reading.
+          Radix portals it, so it sits outside the grid and occupies no column. */}
+      {summaryNode && (
+        <Dialog open={summaryOverlayOpen} onOpenChange={setSummaryOverlayOpen}>
+          <DialogContent variant="side" className="min-[1100px]:hidden">
+            <DialogHeader>
+              {/* TODO-COPY. A panel over the record has no context around it, so
+                  it names what it is showing. */}
+              <DialogTitle>Care summary</DialogTitle>
+            </DialogHeader>
+            <DialogBody>{summaryNode}</DialogBody>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Both dialogs mount only for the tier that can use them. */}
       {canAct && (

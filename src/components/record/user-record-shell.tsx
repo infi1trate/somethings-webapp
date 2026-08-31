@@ -311,10 +311,15 @@ export function UserRecordShell({
           wheel, drag and keyboard, it just doesn't draw chrome over a
           40px-tall nav. */}
       {/* THE TAB ROW. A flex row holding the scrolling nav and, optionally,
-          page-level chrome pinned right on the same baseline. The bottom rule
-          moved from the nav to this wrapper so it spans the full width rather
-          than stopping where the tabs stop. */}
-      <div className="mt-6 flex items-end gap-3 border-b border-[color:var(--border-contour)]">
+          page-level chrome pinned right on the same baseline.
+          ═══ THE RULE STOPS WHERE THE TABS STOP ═══
+          It used to live on THIS wrapper and span the container. Moved back onto
+          the nav: a hairline running the full width reads as a page divider, and
+          then the active tab's 2px indicator sits on a line that belongs to the
+          page rather than to the tab set. Underlining the set says what the set
+          is. `w-fit` on the nav so the rule ends at the last tab even when there
+          is width to spare; `min-w-0` keeps it scrollable when there is not. */}
+      <div className="mt-6 flex items-end gap-3">
         {/* THE SCROLL PORT. The fades are siblings of the nav inside this
             wrapper, never children of it — a child of an `overflow-x-auto`
             element scrolls with the content and adds to its scrollWidth, so a
@@ -324,7 +329,7 @@ export function UserRecordShell({
           <nav
             ref={navRef}
             aria-label={sectionsLabel}
-            className="flex w-full gap-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex w-fit max-w-full gap-1 overflow-x-auto overflow-y-hidden border-b border-[color:var(--border-contour)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {tabs.map((t) => (
               <button

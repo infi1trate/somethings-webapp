@@ -34,7 +34,7 @@
 // RATIONALE_SOURCE_LABEL.
 
 import { useRef, useState } from "react";
-import { ChevronRight, MoreHorizontal, Sparkles } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   DropdownMenu,
@@ -56,6 +56,7 @@ import {
   type AssessmentItem,
   type PresentationReview,
 } from "@/lib/record/care-demo";
+import { Provenance } from "@/components/record/provenance";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -295,10 +296,24 @@ export function PresentationReviewCard({
             className="flex items-center gap-1.5 text-[var(--text-muted)]"
             style={LABEL_STYLE}
           >
-            {review.rationale.source === "ai" && (
-              <Sparkles className="size-3" aria-hidden />
+            {/* ═══ THE AI CASE NOW CARRIES THE SHARED PROVENANCE MARK ═══
+                The label used to read "AI-generated from survey history and
+                mentorship signal" — a third wording of the same policy, on a
+                third surface, differing from the summary's by which inputs it
+                happened to name. The badge replaces the sentence and the popover
+                carries the full note, so all three surfaces say one thing.
+                THE OTHER TWO SOURCES KEEP THEIR LABELS, and that distinction is
+                the point: "Selected by a supervisor" is a human attribution and
+                must not wear an AI badge. Only the generated case does. */}
+            {review.rationale.source === "ai" ? (
+              <>
+                {/* TODO-COPY. Names the block, where the badge names the origin. */}
+                <span>Rationale</span>
+                <Provenance />
+              </>
+            ) : (
+              RATIONALE_SOURCE_LABEL[review.rationale.source]
             )}
-            {RATIONALE_SOURCE_LABEL[review.rationale.source]}
           </p>
           <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-primary)]">
             {review.rationale.text}

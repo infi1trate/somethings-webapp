@@ -34,13 +34,15 @@
 //
 // DO NOT "CORRECT" THIS to the usual pattern. design-system-gaps.md row 301.
 
-import { RefreshCw, Sparkles } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import {
   SUMMARY_MIN_CONTACT_DAYS,
   type CareSummaryDoc,
-  type ConcordanceResult,
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
+import { CareSparkline } from "@/components/record/care-sparkline";
+import { Provenance } from "@/components/record/provenance";
+import type { CarePattern } from "@/lib/record/care-pattern";
 import type { RiskTier } from "@/lib/record/risk-taxonomy";
 import { cn } from "@/lib/utils";
 
@@ -52,10 +54,38 @@ const LABEL_STYLE = {
   letterSpacing: "var(--type-field-label-tracking)",
 } as const;
 
-/** Neutral by default. The tonal chips below are the exceptions, and each one
- *  earns its tone from an existing measured pair. */
-const CHIP_NEUTRAL =
-  "inline-flex items-center rounded-full bg-[var(--status-neutral-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--status-neutral-fg)]";
+
+/** ═══ THEME CHIPS: ONE TINT, THE SAME FOR EVERY THEME ═══
+ *
+ *  "Low mood 6/8" is DESCRIPTIVE, not evaluative. Tinting themes by anything —
+ *  frequency, apparent severity, the words themselves — would rank a teen's
+ *  conversation topics on a colour scale, which is a judgement the extraction
+ *  cannot support and the record should not imply. Sand is the quiet
+ *  neutral-warm the system already carries for routine, measured 7.38:1.
+ *
+ *  So: all the same, always with the label, and the number does the varying. */
+/** `CHIP_NEUTRAL`, `RESULT_CHIP` and `RESULT_LABEL` lived here and are deleted
+ *  with the concordance element they styled — a dead style constant is an
+ *  invitation to re-add the section without its rationale. The
+ *  `ConcordanceResult` import went with them; the model still exports it, and
+ *  `CareSummaryDoc.concordance` still carries the call. */
+const CHIP_THEME =
+  "inline-flex items-center rounded-full bg-[var(--band-sand-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--band-sand-fg)]";
+
+/** ═══ NEW / RESOLVED CONTENT: ROSE AND SAGE ═══
+ *
+ *  The one place on this card where a tint carries direction, and it is
+ *  defensible because the two sets mean opposite things: content that APPEARED
+ *  this cycle versus content that STOPPED. Rose for new, sage for resolved.
+ *
+ *  THE LABEL CARRIES THE MEANING, NOT THE TINT. Both groups are introduced by a
+ *  visible "New" / "Resolved" label, and every pale bg in this family sits
+ *  within 1.25:1 of every other — they are separated by hue, not lightness — so
+ *  the tint is a second channel and never the only one (1.4.1). */
+const CHIP_NEW =
+  "inline-flex items-center rounded-full bg-[var(--band-rose-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--band-rose-fg)]";
+const CHIP_RESOLVED =
+  "inline-flex items-center rounded-full bg-[var(--band-sage-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--band-sage-fg)]";
 
 /** TIER TONES REUSE THE FLAG VOCABULARY the timeline already established —
  *  clay for escalation-grade, amber for risk-flag-grade, sand for routine. Not a
@@ -72,35 +102,26 @@ const TIER_CHIP: Record<RiskTier | "unassigned", string> = {
     "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
 };
 
-/** DEFAULTS WHISPER, EXCEPTIONS SPEAK. `Diverges` is the one result that asks a
- *  supervisor to look harder, so it takes a tone; the other two stay neutral.
- *  `Insufficient data` is deliberately NOT tonal — it is a refusal, and a
- *  coloured refusal reads like a finding. */
-const RESULT_CHIP: Record<ConcordanceResult, string> = {
-  diverges: "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]",
-  concordant:
-    "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
-  insufficientData:
-    "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
-};
 
-/** TODO-COPY */
-const RESULT_LABEL: Record<ConcordanceResult, string> = {
-  diverges: "Diverges",
-  concordant: "Concordant",
-  insufficientData: "Insufficient data",
-};
 
 export function CareSummaryDocCard({
   doc,
-  /** Supervisor tier. Gates element 5 and the refresh control, nothing else. */
+  /** Supervisor tier. Gates the refresh control — element 5, which it also used
+   *  to gate, is removed. */
   canAct,
+  pattern,
   engagement,
   onRefresh,
   onJumpToEvent,
 }: {
   doc: CareSummaryDoc;
   canAct: boolean;
+  /** ═══ THE PATTERN STRIP'S DATA ═══
+   *  Passed in rather than derived here: `carePatternFor` is one of the Care
+   *  tab's existing store reads and this component is otherwise pure in its
+   *  props. Null is a designed outcome — most records have no pattern — and the
+   *  strip then renders nothing while the trajectory sentence stands alone. */
+  pattern: CarePattern | null;
   /** ONE MUTED LINE, AND IT MUST NAME ITS OWN SCOPE.
    *
    *  `careReadingFor` is UNWINDOWED — it describes the whole mentorship, not
@@ -198,26 +219,31 @@ export function CareSummaryDocCard({
               Refresh
             </button>
           )}
+          {/* ═══ PROVENANCE, AS A MARK RATHER THAN A SENTENCE ═══
+              A 20-word disclaimer used to run full-width under this header. It
+              was accurate and the wrong shape: a reader who has seen it once
+              skims it forever, and at body width it outweighed the findings it
+              qualified. The badge is always visible and cannot be skimmed past;
+              the note is one hover, focus or tap away. See `provenance.tsx`.
+              GUARDRAIL 6 STILL HOLDS — attribution is visible without scrolling.
+              What changed is that the EXPLANATION is now on demand, not that it
+              is optional. */}
+          <Provenance />
         </div>
 
-        {/* NOT `flex-wrap`, and NOT `items-center`. Wrapping let the icon break
-            onto a line of its own above the sentence at 320px, where it read as
-            an orphaned glyph rather than as a marker on the provenance line.
-            `items-start` with a nudge aligns it to the first line of text
-            instead, and the text wraps beside it as one block. */}
-        <p className="mt-3 flex items-start gap-x-1.5 text-[12px] leading-[16px] text-[var(--text-muted)]">
-          <Sparkles className="mt-[2px] size-3.5 shrink-0" aria-hidden />
-          {/* TODO-COPY — the four facts guardrail 6 names: that it is
-              AI-generated, the window (above), the sources, and that it is
-              context for a coding decision rather than a determination. */}
-          <span>
-            AI-generated from {doc.sources.join(", ").toLowerCase()}. Context for
-            a coding decision — not itself a clinical determination.
-          </span>
-        </p>
       </header>
 
-      {/* ── 1 · SYMPTOM TRAJECTORY ─── prose, never chipped ─────────────── */}
+      {/* ── 1 · SYMPTOM TRAJECTORY ─── one sentence, then one strip ─────── */}
+      {/* ═══ THIS ELEMENT ABSORBED THE CARE PATTERN CARD ═══
+          The pattern was its own card further down the page: a heading, one to
+          three generated sentences, this strip, a provenance footer. Two
+          generated narratives about the same scores on one page is one too many,
+          and they sat far enough apart that a reader might not notice they
+          agreed — or notice that they didn't.
+          SO: the sentence is the only narrative and the strip is the only
+          visual. The clustering the pattern's prose described ("two fell within
+          19 days of each other") is legible from two triangles 19 days apart on
+          a shared axis, without a sentence. */}
       <Element label="Symptom trajectory">
         {doc.trajectory ? (
           <p className="max-w-prose text-[14px] leading-[1.55] text-[var(--text-primary)]">
@@ -232,6 +258,28 @@ export function CareSummaryDocCard({
             Not enough comparable readings in this window to state a direction.
           </Refusal>
         )}
+
+        {pattern && (
+          <div className="mt-3">
+            <CareSparkline
+              pattern={pattern}
+              onSelectEvent={onJumpToEvent ?? (() => {})}
+            />
+            {/* THE STRIP CARRIES ITS OWN ATTRIBUTION. It is derived from the
+                same record as everything else here, but it is a separate visual
+                a reader can land on without having read the header — so the
+                badge travels with it rather than being inherited from six
+                inches up the card. */}
+            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+              {/* TODO-COPY. Names the axis and the two mark classes, because a
+                  strip with no legend needs its shapes named somewhere. */}
+              <span>
+                Assessment scores and risk flags across the mentorship
+              </span>
+              <Provenance />
+            </p>
+          </div>
+        )}
       </Element>
 
       {/* ── 2 · SESSION CONTENT FREQUENCY ─── extraction, so chips ──────── */}
@@ -245,7 +293,7 @@ export function CareSummaryDocCard({
             <ul className="flex flex-wrap gap-1.5">
               {doc.themes.themes.map((t) => (
                 <li key={t.label}>
-                  <span className={CHIP_NEUTRAL}>
+                  <span className={CHIP_THEME}>
                     {t.label}
                     {/* NO `opacity-80`. It dropped this to 3.71:1 on the chip
                         (axe, both widths) — and dimming it was backwards to
@@ -260,12 +308,21 @@ export function CareSummaryDocCard({
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
-              {/* TODO-COPY — the denominator is named, because "7/9" is
-                  meaningless if the reader cannot tell what nine is. NOT
-                  "sessions": this product has no sessions. */}
-              Out of {doc.themes.conversationDays} conversation days in the
-              window. Theme extraction is mocked — no pipeline exists.
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-[16px] text-[var(--text-muted)]">
+              {/* THE DENOMINATOR STAYS — "7/9" is meaningless if a reader cannot
+                  tell what nine is, and it is a fact about the window rather
+                  than a disclaimer. NOT "sessions": this product has none.
+                  "Theme extraction is mocked — no pipeline exists" WAS HERE and
+                  is removed. It was an honest note about implementation state
+                  and the wrong thing to put in a clinical reader's line of
+                  sight: it described the codebase, not the record. The badge
+                  beside it says the content is generated, which is the fact that
+                  bears on how the number should be read. TODO-COPY. */}
+              <span>
+                Out of {doc.themes.conversationDays} conversation days in the
+                window
+              </span>
+              <Provenance />
             </p>
           </>
         ) : (
@@ -295,8 +352,16 @@ export function CareSummaryDocCard({
           </Refusal>
         ) : (
           <div className="space-y-2.5">
-            <DeltaRow label="New" items={doc.contentDelta.added} />
-            <DeltaRow label="Resolved" items={doc.contentDelta.resolved} />
+            <DeltaRow
+              label="New"
+              items={doc.contentDelta.added}
+              chip={CHIP_NEW}
+            />
+            <DeltaRow
+              label="Resolved"
+              items={doc.contentDelta.resolved}
+              chip={CHIP_RESOLVED}
+            />
           </div>
         )}
       </Element>
@@ -363,59 +428,23 @@ export function CareSummaryDocCard({
         )}
       </Element>
 
-      {/* ── 5 · SCORE-VS-CONTENT CONCORDANCE ─── supervisor tier only ────
-          ABSENT below supervisor, not disabled. Concordance reasoning is entirely
-          about the coding decision — severity tiers, what a code implies,
-          thresholds — and has no meaning for a mentor supporting the teen.
-          FLAGGED: this gating awaits product confirmation. */}
-      {canAct && (
-        <Element label="Score-vs-content concordance">
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px]",
-              RESULT_CHIP[doc.concordance.result]
-            )}
-          >
-            {RESULT_LABEL[doc.concordance.result]}
-          </span>
-
-          {doc.concordance.statement ? (
-            /* THE THREE-PART STATEMENT — labelled fragments, not a paragraph and
-               not a table. "Score and content diverge" is not acceptable output:
-               each fragment names something a supervisor can check against
-               criteria. A definition list is the honest markup for label/value
-               pairs, and it keeps the labels readable by a screen reader in
-               order. */
-            <dl className="mt-3 grid gap-x-5 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <Fragment
-                label="Current code implies"
-                value={doc.concordance.statement.codeImplies}
-              />
-              <Fragment
-                label="Content meets"
-                value={doc.concordance.statement.contentMeets}
-              />
-              <Fragment label="Gap" value={doc.concordance.statement.gap} />
-            </dl>
-          ) : (
-            <p className="mt-2.5 max-w-prose text-[13.5px] leading-[19px] text-[var(--text-muted)]">
-              {/* TODO-COPY — an explicit refusal, never a hedged sentence that
-                  reads like a finding. */}
-              {doc.concordance.result === "insufficientData"
-                ? // TODO-COPY. NAMES THE ACTUAL MISSING INPUT. The single
-                  // combined sentence this replaces asserted "fewer than
-                  // N conversation days" about records with months of contact —
-                  // see the note on `ConcordanceCall.reason`.
-                  doc.concordance.reason === "readings"
-                  ? "Only one comparable reading in this window — no concordance call is attempted."
-                  : "No conversation content is available for this window — no concordance call is attempted."
-                : // TODO-COPY. "Conversation content", not "session content":
-                  // same reason as the window line above.
-                  "Score movement and conversation content point the same way this cycle."}
-            </p>
-          )}
-        </Element>
-      )}
+      {/* ═══ SCORE-VS-CONTENT CONCORDANCE WAS ELEMENT 5, AND IS REMOVED ═══
+          It was the card's most consequential section: a deterministic rule
+          comparing severity-band movement against the count of qualifying risk
+          markers, and where they diverged it stated the gap in three labelled
+          fragments a supervisor could check against criteria.
+          WHY IT GOES ANYWAY: the "content" half of the comparison came from the
+          theme extraction, which is fixture data — there is no pipeline. So the
+          section presented a rule about two inputs when only one was real, and
+          it refused for 23 of 26 records because `contactDays` is 0 wherever the
+          mock has no row. A refusal that frequent is not a designed empty state,
+          it is a feature waiting for its data.
+          THE MODEL IS INTACT AND UNTOUCHED: `concordanceFor`, its `reason`
+          discriminator, `ConcordanceCall`, `commitFor`'s frozen `concordance`
+          field and all 20 of their tests. Committed summaries already in the
+          record keep their call, and History still renders it. Only the UI is
+          gone, so returning it when the pipeline lands is a render, not a
+          rebuild. design-system-gaps row 313. */}
     </section>
   );
 }
@@ -452,7 +481,18 @@ function Refusal({ children }: { children: React.ReactNode }) {
 
 /** A New/Resolved sub-row. Renders "None this cycle" rather than disappearing —
  *  see the inversion note at the top of the file. */
-function DeltaRow({ label, items }: { label: string; items: string[] }) {
+function DeltaRow({
+  label,
+  items,
+  chip,
+}: {
+  label: string;
+  items: string[];
+  /** The tint for this group — see CHIP_NEW / CHIP_RESOLVED. Passed rather than
+   *  derived from `label`, so a copy change to the label cannot silently swap
+   *  the colours. */
+  chip: string;
+}) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <span
@@ -466,7 +506,7 @@ function DeltaRow({ label, items }: { label: string; items: string[] }) {
         <ul className="flex flex-wrap gap-1.5">
           {items.map((i) => (
             <li key={i}>
-              <span className={CHIP_NEUTRAL}>{i}</span>
+              <span className={chip}>{i}</span>
             </li>
           ))}
         </ul>

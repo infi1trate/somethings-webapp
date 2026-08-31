@@ -21,7 +21,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MessagesSquare } from "lucide-react";
+import { MessagesSquare, Sparkles } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
@@ -95,6 +95,11 @@ export default function PersonRecordPage({
    *  rejects it, and rightly: a re-render would silently move every date and
    *  every elapsed-time figure on the page. Same pattern as the Care tab. */
   const [now] = useState(() => Date.now());
+  /** The Care summary overlay, below 1100px. Owned here because the trigger
+   *  lives in the shell's tab row and the panel lives in `CareTab` — one piece
+   *  of shared state, passed rather than duplicated. */
+  const [summaryOverlayOpen, setSummaryOverlayOpen] = useState(false);
+
   const isLead = mounted && persona === "lead-mentor";
 
   // A mentor persona has no business on STAFF record surfaces — but their own
@@ -213,13 +218,34 @@ export default function PersonRecordPage({
   return (
     <Shell active={isTeen ? "mentees" : "team"}>
       <UserRecordShell
-        // THE CARE SUMMARY TRIGGER WAS HERE AND IS DELETED (Phase 2).
+        // ═══ THE CARE SUMMARY TRIGGER, BACK IN THE TAB ROW ═══
         //
-        // It toggled a 320px rail. The summary is a full-width document in the
-        // main column now, so there is nothing to toggle: a control that only
-        // ever scrolled you to content already on the page is worse than no
-        // control. `tabRowAction` itself is kept — it is the shell's slot, and
-        // the next page-level control will want it.
+        // Below 1100px the Care tab has no rail, so this is the only way to the
+        // summary. It is NOT a toggle for a column that is already visible —
+        // the earlier version of this control was exactly that, which is why it
+        // was deleted — it opens an overlay that does not otherwise exist.
+        //
+        // THE STATE LIVES HERE rather than in `CareTab` because the tab row is
+        // the shell's, and the shell is this page's. `CareTab` owns the overlay
+        // and this owns the trigger, so the one piece of state they share is
+        // passed rather than duplicated.
+        //
+        // ONLY ON THE CARE TAB, and only below 1100px: `min-[1100px]:hidden`
+        // lives on the trigger so the page cannot mount it into a width where
+        // the rail is already showing the same content.
+        tabRowAction={
+          activeTab === "care" && isTeen ? (
+            <button
+              type="button"
+              onClick={() => setSummaryOverlayOpen(true)}
+              className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)] min-[1100px]:hidden"
+            >
+              <Sparkles className="size-3.5 shrink-0" aria-hidden />
+              {/* TODO-COPY */}
+              Care summary
+            </button>
+          ) : undefined
+        }
         avatar={{
           src: null,
           initial: subjectDisplayName(subject).charAt(0).toUpperCase(),
@@ -327,7 +353,11 @@ export default function PersonRecordPage({
             `subject.teen` is the narrowing the resolver gives us; a teen
             subject always carries it. */}
         {activeTab === "care" && subject.teen && (
-          <CareTab teen={subject.teen} />
+          <CareTab
+            teen={subject.teen}
+            summaryOverlayOpen={summaryOverlayOpen}
+            onSummaryOverlayChange={setSummaryOverlayOpen}
+          />
         )}
         {activeTab === "mentorship" &&
           (isTeen ? (

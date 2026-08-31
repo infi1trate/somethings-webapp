@@ -87,6 +87,23 @@
   --band-clay-bg: #f6d3c6; /* hsl(16,72%,87%) — escalation; earthy, not pink */
   --band-clay-fg: #75301f; /* hsl(12,58%,29%) — 6.84:1 on clay */
 
+  /* ═══ SAGE + ROSE — the severity scale's two ends (row 312) ═══
+     Added for the care record's severity bands, new/resolved content chips and
+     the History score lozenge, which need a "settled" and an "acute" reading the
+     sand/amber/clay triad cannot give: sand and amber are both cautionary and
+     clay is deliberately "earthy, not pink".
+     DRAWN FROM BLOOM RAMPS, not invented: sage is forest/50 + forest/700, rose
+     is blush/50 + blush/1000. Ratios measured, and chosen to land in the
+     existing triad's 5.06–7.38 range rather than merely clear 4.5 — a new band
+     that only scraped past would read thinner than its neighbours.
+     SEPARATED BY HUE, NOT LIGHTNESS, like the rest of the family: every pale bg
+     sits within 1.25:1 of every other. That is precisely why the label always
+     travels with the tint. */
+  --band-sage-bg: #e8f5e3; /* forest/50  — 1.13:1 vs the white card */
+  --band-sage-fg: #406333; /* forest/700 — 6.10:1 on sage */
+  --band-rose-bg: #ffeaee; /* blush/50   — 1.15:1 vs the white card */
+  --band-rose-fg: #b70b1f; /* blush/1000 — 5.93:1 on rose */
+
   /* TASK DOMAIN TINTS — the four summary cards' icon wells (Tasks spec §3.3).
      INTERIM; see design-system-gaps.md row 212.
 
@@ -416,6 +433,16 @@
   --band-amber-fg: #efce95; /* 5.73:1 on amber */
   --band-clay-bg: #673928; /* 1.39:1 */
   --band-clay-fg: #f2ac92; /* 5.06:1 on clay */
+
+  /* SAGE + ROSE, DARK. Same approach the triad above had to take: Bloom's ramps
+     terminate in saturated colour, not in a dark well, so the fills are
+     hand-derived to sit clear of the dark card while the ink stays a real ramp
+     step. Rose is pulled toward blue (#60393d) so it cannot be mistaken for
+     clay's warm brown at the same luminance. */
+  --band-sage-bg: #374a30; /* 1.38:1 on the dark card */
+  --band-sage-fg: #b0daa2; /* forest/200 — 6.13:1 on sage */
+  --band-rose-bg: #60393d; /* 1.36:1 */
+  --band-rose-fg: #ffc9d1; /* blush/200  — 6.76:1 on rose */
 
   /* TASK DOMAIN TINTS, DARK. Hand-derived rather than taken from a ramp step —
      Bloom's hue ramps terminate in SATURATED colour at 900/950, not in near-black,
