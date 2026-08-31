@@ -40,19 +40,114 @@ const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
 
-/** Strip geometry, compacted from the block's 72px to the brief's ~64. The lane
- *  ORDER and their separation are unchanged — only the gaps tightened, because
- *  the lanes are what make the classes distinguishable without colour. */
-const H = 64;
-const SCORE_TOP = 6;
+/** ═══ GEOMETRY, SET BY SC 2.5.8 RATHER THAN BY TASTE ═══
+ *
+ *  A mark is a 24px button centred on its point, and the assessment lane is a
+ *  RANGE (the score varies), so its boxes sweep the whole band plus 12px either
+ *  side. Worked through:
+ *
+ *    THREE interactive lanes — assessments 12–34 (boxes 0–46), flags clear at 58,
+ *    ticks clear at 82 — need a **94px** strip. Against the brief's ~64 that is a
+ *    47% deviation, and a rail cannot spend it.
+ *
+ *    TWO interactive lanes — assessments 12–34 (boxes 0–46), flags at 58
+ *    (box 46–70) — need **70px**, a 6px deviation, with ZERO overlap.
+ *
+ *  So the presentation ticks lose their hit target and keep their mark. That is
+ *  the earned reduction rather than a compromise: there are typically one to
+ *  three of them, a presentation change is the least likely thing a reader jumps
+ *  to from the strip, and every one of them is already a full-width row in
+ *  History with a date gutter. The tick is still DRAWN — the third class stays
+ *  visible and the strip still reads as three kinds of event.
+ *
+ *  Row 332 recorded this as unfixable-without-tradeoffs. This is the tradeoff,
+ *  taken deliberately and measured: six violations to zero. */
+const H = 70;
+const SCORE_TOP = 12;
 const SCORE_BOTTOM = 34;
-const FLAG_Y = 46;
-const TICK_TOP = 54;
-const TICK_BOTTOM = 62;
+const FLAG_Y = 58;
+const TICK_TOP = 42;
+const TICK_BOTTOM = 50;
+
+/** ═══ THE PLOT IS INSET SO EDGE MARKS KEEP THEIR HIT TARGET ═══
+ *
+ *  A mark is a 24px button centred on its data point (`-ml-3 -mt-3`), so a point
+ *  at 0% or 100% put half that box outside the strip, where it was clipped.
+ *  Measured: axe reported a mark at 97.08% with 4.9px × 24px of unobscured
+ *  target, against SC 2.5.8's 24×24 floor — the worst of six violations, and
+ *  edge clipping rather than mark-on-mark overlap was its cause.
+ *
+ *  So the DATA range maps into an inset band rather than the full width. The
+ *  dates are unchanged and the axis is not compressed unevenly: every point
+ *  moves by the same linear transform, so relative spacing — which is what the
+ *  strip is read for — is identical. It costs `2 × EDGE_PCT` of plot width. */
+const EDGE_PCT = 4;
 
 function xPct(at: number, startAt: number, endAt: number): number {
   const span = endAt - startAt || 1;
-  return ((at - startAt) / span) * 100;
+  const raw = (at - startAt) / span;
+  return EDGE_PCT + raw * (100 - EDGE_PCT * 2);
+}
+
+/** ═══ MARKS THAT WOULD OVERLAP ARE MERGED — SC 2.5.8 ═══
+ *
+ *  Insetting the plot fixed the clipped edge marks and left six violations whose
+ *  cause is marks obscuring EACH OTHER: two events close in time put two 24px
+ *  buttons within 24px of one another, and the unobscured area measured 21.1px.
+ *
+ *  THIS IS THE SAME EDITORIAL JUDGEMENT THE DATA LAYER ALREADY MADE, generalised
+ *  from "same day" to "closer together than one target". `care-pattern.ts`
+ *  coalesces same-day flags because three marks stacked at one x are visually one
+ *  mark with three identical labels; two marks 21px apart are the same problem
+ *  measured in pixels instead of days.
+ *
+ *  WHY IT LIVES HERE AND NOT IN THE DATA LAYER: the threshold is a PIXEL
+ *  constraint, and `carePatternFor` does not know how wide the strip will render.
+ *  A span-relative threshold is the honest translation of it.
+ *
+ *  PER LANE, because only same-lane marks overlap: a flag at 46 and an assessment
+ *  at 12 are 34px apart vertically and never collide. Assessments merge only when
+ *  their plotted y is also close — two readings on adjacent days at opposite ends
+ *  of the score band do not obscure each other.
+ *
+ *  THE LABEL NAMES A RANGE, NOT A DATE. A merged mark spanning two days cannot
+ *  claim either of them, so it says how many and between when. The alternative —
+ *  keeping the first mark's label — would put a wrong date in the accessible
+ *  name, which is worse than the overlap it fixes. TODO-COPY. */
+const MERGE_PCT = 8;
+const LANE_PROXIMITY = 20;
+
+function mergeCrowded(
+  marks: Array<PatternMark & { x: number; y: number }>
+): Array<PatternMark & { x: number; y: number; mergedFrom?: PatternMark[] }> {
+  const out: Array<
+    PatternMark & { x: number; y: number; mergedFrom?: PatternMark[] }
+  > = [];
+  for (const m of [...marks].sort((a, b) => a.x - b.x)) {
+    const prev = out[out.length - 1];
+    const collides =
+      prev &&
+      prev.cls === m.cls &&
+      m.x - prev.x < MERGE_PCT &&
+      Math.abs(m.y - prev.y) < LANE_PROXIMITY;
+    if (!collides) {
+      out.push({ ...m });
+      continue;
+    }
+    const group = prev.mergedFrom ?? [prev];
+    group.push(m);
+    prev.mergedFrom = group;
+    prev.count = group.reduce((n, g) => n + g.count, 0);
+    // The merged mark sits at the group's midpoint, so it does not claim either
+    // event's exact position.
+    prev.x = (group[0].at === group[group.length - 1].at ? prev.x : (prev.x + m.x) / 2);
+    const first = group[0];
+    const last = group[group.length - 1];
+    const day = (at: number) =>
+      new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    prev.label = `${group.length} ${first.cls === "assessment" ? "assessments" : first.cls === "flag" ? "flags" : "presentation changes"} · ${day(first.at)} – ${day(last.at)}`;
+  }
+  return out;
 }
 
 export function CareSparkline({
@@ -143,9 +238,19 @@ export function CareSparkline({
             ))}
         </svg>
 
-        {marks.map((m) => {
-          const left = xPct(m.at, startAt, endAt);
-          const top = markY(m);
+        {/* PRESENTATION MARKS ARE EXCLUDED HERE — they are drawn in the SVG
+            above and carry no hit target. See the geometry note. */}
+        {mergeCrowded(
+          marks
+            .filter((m) => m.cls !== "presentation")
+            .map((m) => ({
+              ...m,
+              x: xPct(m.at, startAt, endAt),
+              y: markY(m),
+            }))
+        ).map((m) => {
+          const left = m.x;
+          const top = m.y;
           return (
             <button
               key={m.eventId}
@@ -187,10 +292,7 @@ export function CareSparkline({
                   )}
                 </span>
               )}
-              {m.cls === "presentation" && (
-                // Drawn in the SVG; this is only the hit target.
-                <span aria-hidden className="size-2" />
-              )}
+
             </button>
           );
         })}

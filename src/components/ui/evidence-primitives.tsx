@@ -59,7 +59,13 @@ export function SystemBlock({
         <Sparkles className="size-3 shrink-0" aria-hidden />
         {label}
       </p>
-      <p className="mt-1.5 text-[13.5px] leading-[20px] text-[var(--text-secondary)]">
+      {/* ═══ MEASURE, NOT JUST WIDTH ═══
+          Measured on `/app/tasks` at 1440px: the AI rationale ran to 100
+          characters per line against the 45–75 convention (66 ideal). The pane is
+          60% of a wide viewport and the paragraph had nothing holding it back.
+          `max-w-prose` is 65ch, which lands this at roughly 70 — inside the range
+          and short of the point where a reader loses the line return. */}
+      <p className="mt-1.5 max-w-prose text-[13.5px] leading-[20px] text-[var(--text-secondary)]">
         {children}
       </p>
       {link && (

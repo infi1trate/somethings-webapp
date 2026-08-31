@@ -20,7 +20,7 @@
 // Provenance renders on EVERY row — person, system, or AI. A reader must never
 // have to infer who wrote a rationale.
 
-import { useImperativeHandle, useMemo, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import {
   severityFor,
@@ -187,6 +187,7 @@ function Row({
   documents,
   documentedBy,
   summarizedBy,
+  landed,
   onJump,
 }: {
   event: CareEvent;
@@ -223,6 +224,8 @@ function Row({
    *  the summary has its frozen findings, the update has its prose. Each keeps
    *  its own disclosure and points at the other. */
   summarizedBy?: CareEvent;
+  /** True for ~1.6s after another surface jumped to this row. See `jump`. */
+  landed: boolean;
   onJump: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -290,7 +293,11 @@ function Row({
       // of this product says "set aside".
       className={cn(
         "px-[var(--surface-pad-x)] py-3",
-        superseded && "bg-[var(--surface-s1)]"
+        superseded && "bg-[var(--surface-s1)]",
+        // See the note on `jump`. The transition is the only motion on this row,
+        // and it is suppressed for a reader who asked for less.
+        "transition-colors duration-500 motion-reduce:transition-none",
+        landed && "bg-[var(--tint-press)]"
       )}
     >
       {/* ═══ DATE GUTTER + ROW ═══
@@ -805,14 +812,49 @@ export function CareTimeline({
   // presentation event, so the target isn't in the DOM. Clear the filter first,
   // then scroll once the full list has painted — a dead link on a chain the
   // reader is trying to follow is worse than losing their chip selection.
+  /** ═══ THE LANDING IS MARKED, NOT JUST SCROLLED TO ═══
+   *
+   *  A jump from the sparkline used to clear the filter and scroll — and then
+   *  stop. The reader arrived somewhere in a thirteen-row table with no signal
+   *  which row they were sent to, so the two views of one record (the strip's
+   *  synthesis, History's entries) stayed unconnected at the exact moment they
+   *  should have snapped together.
+   *
+   *  A brief tint on the landed row closes that. It is MOTION THAT EXPLAINS A
+   *  RELATIONSHIP rather than decoration: the thing you touched on the strip is
+   *  this row.
+   *
+   *  · TINT, NOT AN OUTLINE OR A RING. `--tint-press` is the surface this product
+   *    already uses for "you are acting on this", so nothing new enters the
+   *    vocabulary.
+   *  · IT FADES OUT AND LEAVES NOTHING. A permanent highlight would be a second,
+   *    competing selection state next to the row's own superseded/recessed tone.
+   *  · `prefers-reduced-motion` GETS THE TINT WITHOUT THE TRANSITION — the signal
+   *    is the point, the fade is not. Handled in CSS, not by skipping the class.
+   *  · SET AFTER the scroll is requested so the two happen together. */
+  const [landedId, setLandedId] = useState<string | null>(null);
+  const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const jump = (id: string) => {
     setFilter("all");
     requestAnimationFrame(() => {
       document
         .getElementById(`care-${id}`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setLandedId(id);
+      if (landedTimer.current) clearTimeout(landedTimer.current);
+      // Long enough to notice after a smooth scroll settles, short enough that it
+      // never reads as state.
+      landedTimer.current = setTimeout(() => setLandedId(null), 1600);
     });
   };
+
+  useEffect(
+    () => () => {
+      if (landedTimer.current) clearTimeout(landedTimer.current);
+    },
+    []
+  );
 
   // THE ONLY THING ANOTHER SURFACE MAY DO TO HISTORY.
   useImperativeHandle(ref, () => ({ jump }));
@@ -860,6 +902,7 @@ export function CareTimeline({
                 summarizedBy={
                   e.type === "care_update" ? summarizedBy.get(e.id) : undefined
                 }
+                landed={landedId === e.id}
                 onJump={jump}
               />
             ))}
