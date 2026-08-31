@@ -293,7 +293,17 @@ function BonusCard({ first }: { first: string }) {
         Monthly Bonus
       </p>
       <div className="mt-2 flex items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold text-[var(--doodle-green)] tabular-nums">
+        {/* ═══ THE DOODLE PALETTE IS FOR ILLUSTRATIONS, NOT FOR TEXT ═══
+            `--doodle-green` (#3dbe6b) as 14px text on the white card measures
+            2.39:1 — axe's only violation left standing on this record, at every
+            viewport. The doodle hues are tuned for hand-drawn artwork on a warm
+            ground, where nothing depends on reading them.
+            `--status-positive-fg` is the token that already exists for "a good
+            number, in words": emerald/700 at 4.53:1, and it follows dark mode,
+            which the raw doodle hex does not. The BAR below keeps the doodle
+            green — a filled track against `--surface-s1` is decoration beside a
+            `progressbar` that states its own value in `aria-valuenow`. */}
+        <span className="text-sm font-semibold text-[var(--status-positive-fg)] tabular-nums">
           Bonus: ${DEMO_BONUS.earned}
         </span>
         <span className="text-[var(--text-muted)] tabular-nums" style={{ font: "var(--type-helper)" }}>

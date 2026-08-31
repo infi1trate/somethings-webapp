@@ -15,7 +15,30 @@
  *
  * Contrast ratios below were measured (WCAG 2.2 relative luminance), not copied.
  */
-:root {
+/** ═══ `.theme-light` — A SUBTREE THAT IS ALWAYS LIGHT (row 310) ═══
+ *
+ *  `.dark` sets the tokens on the ROOT element, and custom properties inherit —
+ *  so re-declaring the light values on any element gives that element and its
+ *  descendants the light palette, whatever the app theme is. Every `:root` block
+ *  that declares a colour token carries this co-selector, in both token files.
+ *
+ *  MEASURED COVERAGE, not assumed: 179 tokens are declared in light and 179 are
+ *  overridden in `.dark`, and the only two the dark side declares alone are
+ *  `--breakpoint-md` and `--breakpoint-aside`, which are lengths. So the lock is
+ *  complete — no colour token can leak the dark value into a locked subtree.
+ *
+ *  WHAT IT IS FOR: the phone mock in `mentor-profile-preview.tsx`. It pinned its
+ *  own surface with `bg-white` but let its children keep theme-following tokens,
+ *  so in dark mode the device screen became a white page carrying dark `bg-card`
+ *  panels and dark ink — "On repeat" at 1.27:1, three section labels at 2.82:1.
+ *  A device screen is a photograph of another product, not a surface of this one;
+ *  it does not follow the reader's theme. Patching the five call sites would have
+ *  left the next child to rediscover the same bug.
+ *
+ *  NOT A THEME SWITCHER. There is no `.theme-dark` counterpart, because `.dark`
+ *  already is one and a second spelling of it would be a fork. */
+:root,
+.theme-light {
   /* ── Color ──────────────────────────────────────────────────────────── */
   --surface-s2: #e5e0d2; /* app background, sidebar rail */
   --surface-s1: #f6f4ef; /* main content panel */

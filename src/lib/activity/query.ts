@@ -295,9 +295,23 @@ function contextFieldsOf(event: ActivityEvent): { context?: string[] } {
     case "BILLING_REVIEW_COMPLETE": {
       const code = str(p.code);
       if (!code) return {};
-      // "F41.1 · Active" — the status is what makes the code readable; a code
-      // alone does not say whether it took effect.
-      return { context: [code, str(p.status) ?? "Active"] };
+      /** ═══ THE STATUS ALONE — THE CODE IS ALREADY ON LINE 2 (row 321) ═══
+       *
+       *  B1's table specifies "code + status — F41.1 · Active" here, and shipping
+       *  it literally put the code TWICE on one row: the sentence ends with an
+       *  em-dash tail carrying it (`rowSentenceParts`), and this line began with
+       *  it. A test had asserted the opposite for a good reason — "reads as two
+       *  different codes at a glance."
+       *
+       *  I first resolved this the other way, planning to drop the tail from the
+       *  sentence. That is wrong: line 3 renders in DETAILED density only, so the
+       *  tail is the ONLY place the code appears in dense mode. Removing it would
+       *  have traded a duplication for a disappearance.
+       *
+       *  So the status stands alone. "Active" is not thin in context — the code
+       *  sits directly above it on the same row, so it reads as "that code is
+       *  active", which is exactly the sentence B1 wanted. */
+      return { context: [str(p.status) ?? "Active"] };
     }
     case "BILLING_REVIEW_OPENED":
     case "BILLING_REVIEW_OVERDUE": {

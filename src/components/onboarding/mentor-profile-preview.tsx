@@ -161,7 +161,11 @@ export function MentorProfilePreview({
       // without anybody editing `checks.mjs`.
       data-clip-viewport=""
       className={cn(
-        "relative h-full bg-white text-[#1f1e1d]",
+        // `theme-light` LOCKS THE WHOLE SCREEN TO THE LIGHT PALETTE. `bg-white`
+        // and this literal ink were already pinning the frame; everything INSIDE
+        // still followed the app theme, so in dark mode the mock was a white page
+        // with dark cards on it. See the token note in `settings-tokens.css`.
+        "theme-light relative h-full bg-white text-[#1f1e1d]",
         focused
           ? "overflow-hidden"
           : "overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -412,7 +416,15 @@ function SkeletonRow({
         {icon}
       </span>
       <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="text-sm font-medium text-foreground/40">{label}</p>
+        {/* ═══ A PLACEHOLDER SLOT'S LABEL IS STILL TEXT (row 310) ═══
+            This was `text-foreground/40`, which composites to #999 on the card —
+            2.85:1, against a 4.5 floor. Faded felt right because the ROW is a
+            placeholder, but "On repeat" and "Hear from Jordan" are the labels
+            naming what the empty slot is for; they are the only words in the row
+            and the reader has to read them. The bar beneath is the placeholder,
+            and it carries the faded treatment on its own.
+            `--text-muted` measures 5.30:1 on `--surface-card`. */}
+        <p className="text-sm font-medium text-[var(--text-muted)]">{label}</p>
         <Bar className="h-2 w-24" />
       </div>
       {waveform && (
@@ -607,6 +619,38 @@ function StatusBar() {
   const time = useClock("9:41");
   return (
     <div className="absolute inset-x-0 top-0 z-[15] flex items-center justify-between px-6 pt-3.5 text-white">
+      {/* ═══ THE SCRIM, AND WHY IT IS NOT A PLAIN GRADIENT ═══
+          White on the hero's #b164ff measures 3.42:1 — below the 4.5 floor, and
+          white is already the best ink available against that purple, so the
+          BACKGROUND is the only thing that can move.
+
+          THE ALPHA IS UNIFORM WHERE THE TEXT IS, then fades. A single
+          `to-transparent` gradient would put the text in an INTERPOLATED alpha,
+          which makes the composite a function of the strip's height — measurable
+          only by sampling pixels, and silently wrong the next time the padding
+          changes. Holding 0.20 flat through 44px (the text band is y≈14–31px)
+          makes the composite exact arithmetic instead: black at 25% over #b164ff
+          gives rgb(133,75,191), and white on that is 5.59:1 — VERIFIED BY
+          DECODING THE SCREENSHOT, not by this arithmetic, because no
+          computed-style checker can see a gradient on a sibling span. See
+          `scripts/responsive/status-bar-pixels.mjs`; 20% was the first value and
+          measured 4.85:1, passing but thin.
+
+          It reads as the vignette a photo header has anyway. `pointer-events-none`
+          because it covers the top of a scrollable screen. */}
+      {/* `-z-10` PUTS IT UNDER THE TEXT, and it is not optional. The clock and
+          the glyph row are STATIC elements, and a positioned sibling paints above
+          static ones whatever the DOM order — so the first version of this scrim
+          painted ON TOP of the time. The pixel check caught it: the ink sampled
+          rgb(204,204,204), which is 255 × 0.8, the white text seen through its
+          own scrim. It read as antialiasing until the ground came back scrimmed
+          too. The status bar sets `z-[15]` on a positioned element, so it opens a
+          stacking context and this stays inside it. */}
+      <span
+        aria-hidden
+        data-status-scrim=""
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-20 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.25)_0px,rgba(0,0,0,0.25)_44px,rgba(0,0,0,0)_80px)]"
+      />
       {/* A SPAN, NOT `<time>`. A `<time>` was the first instinct and is wrong
           twice: its `datetime` attribute requires a canonical zero-padded
           24-hour value ("09:41"), which a locale-formatted label is not — so the

@@ -234,7 +234,10 @@ export function CareTab({
 
   /** THE MIDDLE HORIZON. Null is a designed outcome — most records have no
    *  pattern and the block renders nothing at all. */
-  const pattern = carePatternFor(teen.id, now, store);
+  /** THE STRIP'S GATE, not the narrative's — the Care pattern card that needed
+   *  the stricter one is gone, and the strip only claims "these are the scores".
+   *  Row 315. */
+  const pattern = carePatternFor(teen.id, now, store, "strip");
   /** So the timeline strip can filter and scroll History. A read, not a write. */
   const timelineRef = useRef<CareTimelineHandle>(null);
   const setSummaryOverlayOpen = (open: boolean) =>

@@ -112,7 +112,11 @@ describe("line 3 says what the event type can carry", () => {
       all().find((r) => r.eventType === type && (r.context ?? []).length > 0);
 
     const billing = sample("BILLING_REVIEW_COMPLETE");
-    expect(billing && line3(billing)).toMatch(/^[A-Z]\d+(\.\d+)?\s·\s\w/);
+    // THE STATUS, AND ONLY THE STATUS. The code is on line 2, in both densities;
+    // this line renders in detailed only, so it must not be the code's only home
+    // and must not be its second one. Row 321.
+    expect(billing && line3(billing)).toMatch(/^\w[\w ]*$/);
+    expect(billing && line3(billing)).not.toMatch(/[A-Z]\d+(\.\d+)?/);
 
     const flag = sample("RISK_FLAG_CLOSED");
     // decision · category, and the category is humanised, never the wire value.

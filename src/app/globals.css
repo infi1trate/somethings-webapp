@@ -104,7 +104,8 @@
    permitted in a media-query condition, so this cannot read `--breakpoint-md`
    and the two values must be kept in step by hand. `md` is defined 20 lines
    above for exactly that reason — if it moves, this moves with it. */
-:root {
+:root,
+.theme-light {
   --nav-reserve: calc(104px + env(safe-area-inset-bottom, 0px));
 }
 /* ═══ THE TOP-BAR RESERVATION — the mirror of --nav-reserve ═══
@@ -122,7 +123,8 @@
    above the rail tier the panel would reserve space for a bar that is not
    rendered. That was measured once already at the bottom edge (row 253) and the
    fix is the same shape. */
-:root {
+:root,
+.theme-light {
   --topbar-reserve: calc(96px + env(safe-area-inset-top, 0px));
 }
 
@@ -203,7 +205,8 @@
    `.dark` while the app's --text-primary did not). Because var() resolves at
    use time, these follow Bloom into dark automatically: `.dark` overrides the
    semantic tokens once, and this whole layer comes with it. */
-:root {
+:root,
+.theme-light {
   /* Aliased — the semantic token's LIGHT value is byte-identical to the hex
      that used to live here, so these unify with zero light-mode change. */
   --card: var(--surface-card);

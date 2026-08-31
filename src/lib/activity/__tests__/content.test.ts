@@ -359,7 +359,7 @@ describe("the detailed row's context line respects rule 12", () => {
     }
   });
 
-  it("a completed review states its code and where it landed", () => {
+  it("a completed review states its code once, and its status beside it", () => {
     // ═══ THIS ASSERTION WAS REVERSED, AND THE OLD REASONING WAS NOT WRONG ═══
     //
     // It used to require the OPPOSITE: the code must not appear on line 3,
@@ -384,9 +384,13 @@ describe("the detailed row's context line respects rule 12", () => {
         const code = typeof r.payload?.code === "string" ? r.payload.code : null;
         if (!code) continue;
         const context = (r.context ?? []).join(" · ");
+        // THE CODE IS ON LINE 2, ONCE. The sentence's em-dash tail carries it in
+        // both densities; line 3 renders only in detailed, so the tail is the one
+        // place it can live. Row 321 has the full reasoning.
         expect(r.sentence).toContain(code);
-        // Line 3 leads with the code and names a status after it.
-        expect(context).toMatch(new RegExp(`^${code.replace(".", "\\.")} · \\w`));
+        expect(context).not.toContain(code);
+        // And line 3 is the status, which the code above it qualifies.
+        expect(context).toMatch(/^\w/);
       }
     }
   });

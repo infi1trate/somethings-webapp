@@ -78,6 +78,8 @@ export const PATTERN_MIN_SPAN_DAYS = 90;
 export const PATTERN_MIN_EVENTS = 6;
 export const PATTERN_MIN_CLASSES = 2;
 export const PATTERN_MIN_ASSESSMENTS = SPARKLINE_MIN_POINTS;
+/** Two readings draw a line. See `PatternGate` for why this is not 3. */
+export const STRIP_MIN_ASSESSMENTS = 2;
 
 /** The playbook's own repetition threshold: "the same flag appearing 3+ times in
  *  a month is a clinical pattern". Used to describe CLUSTERING, never to rate. */
@@ -315,10 +317,35 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 // ── The pattern ─────────────────────────────────────────────────────────────
 
 /** Null means SUPPRESSED — the block renders nothing at all. */
+/** ═══ TWO GATES OVER ONE GEOMETRY (row 315) ═══
+ *
+ *  `"pattern"` is the original and the default: span, event count, class count
+ *  and assessment count, all four. Those are the conditions a NARRATIVE needs,
+ *  because the block's claim was co-occurrence — "six events of one class is a
+ *  list", as the threshold's own note puts it.
+ *
+ *  `"strip"` exists because B2 moved the geometry into the care summary as a
+ *  plot, and a plot makes a much weaker claim: these are the scores, on a time
+ *  axis. It needs two comparable readings and a span to draw them against, and
+ *  nothing else.
+ *
+ *  WHY THIS MATTERED: the strip inherited the narrative gate and vanished on
+ *  records that had scores worth plotting. Measured across the five dev
+ *  scenarios, it was absent on `90-day review due` and `review overdue` — both
+ *  t19, two comparable PHQ-9 readings and no flags — which is precisely where two
+ *  dots and a line are the useful thing. A gate written for a paragraph was
+ *  deciding whether a chart appears.
+ *
+ *  ONE BUILDER, TWO GATES, rather than a second function: the geometry — lanes,
+ *  months, score range, coalescing — is identical, and two copies of it would
+ *  drift on the first change to either. */
+export type PatternGate = "pattern" | "strip";
+
 export function carePatternFor(
   teenId: string,
   now: number,
-  store: CareStoreSlice = {}
+  store: CareStoreSlice = {},
+  gate: PatternGate = "pattern"
 ): CarePattern | null {
   const teen = DEMO_TEENS.find((t) => t.id === teenId);
   if (!teen) return null;
@@ -339,14 +366,23 @@ export function carePatternFor(
   const flags = marked.filter((m) => m.cls === "flag").map((m) => m.e);
   const pres = marked.filter((m) => m.cls === "presentation").map((m) => m.e);
 
-  // ── THE THRESHOLD. All four, or nothing.
-  if (
-    spanDays < PATTERN_MIN_SPAN_DAYS ||
-    marked.length < PATTERN_MIN_EVENTS ||
-    classes.size < PATTERN_MIN_CLASSES ||
-    assessments.length < PATTERN_MIN_ASSESSMENTS
-  ) {
-    return null;
+  // ── THE THRESHOLD. See `PatternGate`.
+  if (gate === "pattern") {
+    // All four, or nothing.
+    if (
+      spanDays < PATTERN_MIN_SPAN_DAYS ||
+      marked.length < PATTERN_MIN_EVENTS ||
+      classes.size < PATTERN_MIN_CLASSES ||
+      assessments.length < PATTERN_MIN_ASSESSMENTS
+    ) {
+      return null;
+    }
+  } else {
+    // TWO POINTS AND A SPAN. `STRIP_MIN_ASSESSMENTS` is 2 rather than
+    // `SPARKLINE_MIN_POINTS`' 3 on purpose: three points is the floor for calling
+    // something a TREND in prose, and the strip does not call it anything — the
+    // trajectory sentence above it does, under its own gate.
+    if (spanDays < 1 || assessments.length < STRIP_MIN_ASSESSMENTS) return null;
   }
 
   // ONE INSTRUMENT for the dots' vertical axis — PHQ-9 caps at 27 and GAD-7 at
