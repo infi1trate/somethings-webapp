@@ -170,7 +170,14 @@ describe("the care summary's copy obeys the record rules", () => {
     // every surface that shows generated text reaches it.
     const note = copyOf("src/components/record/provenance.tsx");
     expect(note).toMatch(/not itself a clinical determination/i);
-    expect(note).toMatch(/AI-generated from/i);
+    expect(note).toMatch(/Generated from/i);
+    // ATTRIBUTION IS NOW SPLIT ACROSS TWO STRINGS, and both must survive. The
+    // always-visible "AI" pill became the tag at the top of the popover
+    // (2026-08-31, product owner's call), so the note dropped its own
+    // "AI-generated" prefix to stop saying AI twice in eleven characters. The
+    // word therefore has to still be SOMEWHERE, and this is the assertion that
+    // notices if a later copy pass quietly removes the tag as well.
+    expect(note).toMatch(/label = "AI"/);
 
     for (const file of [
       "src/components/record/care-summary-doc.tsx",

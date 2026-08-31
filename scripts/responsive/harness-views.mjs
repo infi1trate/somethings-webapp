@@ -245,6 +245,18 @@ export const VIEWS = [
     seed: { persona: "lead-mentor", status: "in_review" },
   },
   {
+    // THE SAME CONSOLE IN THE OTHER CHROME. A supervisor reviews inside
+    // `AdminShell` and a lead inside `MentorShell` (see `ReviewShell` in
+    // `admin/review/page.tsx`), which is a different rail, a different top bar
+    // and a different responsive break — so G1 alone stopped covering this route
+    // the moment supervisors were admitted to it on 2026-08-31.
+    id: "G1s",
+    cluster: "G",
+    url: "/admin/review",
+    seed: { persona: "supervisor", status: "in_review" },
+    note: "the review console in the supervisor's own chrome",
+  },
+  {
     id: "G2",
     cluster: "G",
     url: "/admin/profile-update",

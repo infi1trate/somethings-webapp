@@ -145,8 +145,9 @@ export function RespondStrip({
 // THE NEXT-UP STRIP LIVED HERE. Removed with its two helpers
 // (`nextUpSentence`, `BreachedInline`) — see the note at its old mount in
 // `tasks-page.tsx` for why. `nextUp` in `lib/tasks/sort.ts` is untouched and
-// still orders the list, pre-selects the pane, drives auto-advance and opens the
-// shift digest.
+// still orders the list, pre-selects the pane and drives auto-advance. (The
+// shift digest it also fed was removed in full — see the note in
+// `tasks-page.tsx`.)
 
 /** A tonal secondary button for the tasks surface. Re-exported from the record's
  *  own secondary so the two cannot drift — every button on this page except the

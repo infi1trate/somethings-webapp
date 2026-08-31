@@ -37,7 +37,6 @@ import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { TaskPane } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
 import { UNDO_WINDOW_MS, resolveWithUndo, type ResolveHandle } from "@/lib/tasks/resolve";
-import { ShiftDigest, isNewShift } from "@/components/tasks/digest";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { listEntriesFor, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
@@ -123,7 +122,6 @@ export function TasksPage() {
   }, [mounted, scenarioId, now, resolvedIds, detailById]);
 
   const summaries = useMemo(() => domainSummaries(items, now), [items, now]);
-  const head = useMemo(() => nextUp(items, now), [items, now]);
   const escalations = useMemo(() => openEscalations(items, now), [items, now]);
   const counts = useMemo(() => headerCounts(items, now), [items, now]);
   const closed = useMemo(() => closedToday(items, now), [items, now]);
@@ -183,33 +181,18 @@ export function TasksPage() {
    *  reload. Captured ONCE at mount — `isNewShift` is read before the stamp is
    *  written, or opening the page would immediately disqualify it. */
   const setLastVisitAt = useOnboardingStore((st) => st.setTasksLastVisitAt);
-  /** ELIGIBILITY IS DECIDED ONCE, IMPERATIVELY, AND BEFORE THE STAMP IS WRITTEN.
-   *
-   *  Read through `getState()` rather than a selector subscription on purpose: the
-   *  page writes `tasksLastVisitAt` on mount, so a subscribed value would change
-   *  under this component and a derived eligibility would flip to false the instant
-   *  the digest appeared. A lazy initializer reads it once, at the only moment the
-   *  question makes sense.
-   *
-   *  `Date.now()` is legal in a lazy initializer — it runs once, outside render's
-   *  purity contract, which is the same reason `now` above uses one. */
-  const [digestEligible] = useState(() =>
-    isNewShift(useOnboardingStore.getState().tasksLastVisitAt, Date.now())
-  );
-  /** The stamp the digest was judged against — the label needs it after the store
-   *  has moved on. */
-  const [digestSince] = useState(
-    () => useOnboardingStore.getState().tasksLastVisitAt
-  );
-  const [digestDismissed, setDigestDismissed] = useState(false);
-  /** AUTO-RETIRES ON THE FIRST RESOLVE (§7) — the moment the reader stops
-   *  orienting and starts working. Not a timer, not a tab change. */
-  const [firstResolveDone, setFirstResolveDone] = useState(false);
 
+  /** ═══ THE SHIFT DIGEST IS GONE (§7 RETIRED) ═══
+   *
+   *  "Since you were last here —" sat above the tabs and summarised what had
+   *  moved during the gap. Removed at the product owner's request, 2026-08-31.
+   *
+   *  THE VISIT STAMP STAYS WRITTEN. `tasksLastVisitAt` is persisted store state
+   *  (schema v37) and dropping it would cost a migration to delete a number that
+   *  is cheap to keep and is the input any later "what changed" treatment needs.
+   *  It is written and not read, deliberately, rather than removed. */
   useEffect(() => {
     if (!mounted) return;
-    // Stamp the visit AFTER eligibility was read, so this session still sees its
-    // own digest and the next one within 8h does not.
     setLastVisitAt(Date.now());
   }, [mounted, setLastVisitAt]);
 
@@ -241,26 +224,14 @@ export function TasksPage() {
     setSelectedEntryId(null);
   };
 
-  const openItem = (item: TaskItem) => {
-    setPickedDomain(item.domain);
-    setPickedId(item.id);
-    // OPENING AN ITEM CAN JUMP TABS — from the shift digest's CTA, or the
-    // Respond strip — so the entry that owns it may not be in the current entry
-    // list yet. Clearing the entry id lets the derived head apply on the new tab
-    // and the picked id then narrows to the item. (This described the Next-up
-    // CTA, which is gone; the jump paths that remain behave the same way.)
-    setSelectedEntryId(null);
-    setPaneTakeover(true);
-  };
+  /** ═══ `openItem` WENT WITH THE DIGEST ═══
+   *  It set the domain, the picked id and pane takeover in one go, so a CTA
+   *  elsewhere on the page could jump the reader into an item on another tab. The
+   *  digest's CTA was its only caller — the Respond strip navigates by link and
+   *  takes no callback — so it is removed rather than left as an unused seam. Any
+   *  future cross-tab jump wants exactly this shape; it is in git history. */
 
   const nothingOpen = mounted && counts.open === 0;
-
-  const showDigest =
-    mounted &&
-    digestEligible &&
-    !digestDismissed &&
-    !firstResolveDone &&
-    counts.open > 0;
 
   /** §7's FOCUS PAUSE ON THE UNDO TOAST.
    *
@@ -381,7 +352,6 @@ export function TasksPage() {
 
     setDetailById((prev) => ({ ...prev, [item.id]: detail }));
     setResolvedIds((prev) => new Set(prev).add(item.id));
-    setFirstResolveDone(true);
 
     if (tabEmptied) {
       setCompletedDomain(item.domain);
@@ -509,22 +479,6 @@ export function TasksPage() {
         )}
       </div>
 
-      {/* ── SHIFT DIGEST (§7). ABOVE the Respond strip — it is the only element
-             here about the PAST, and reading order is chronological. */}
-      {showDigest && (
-        <div className="mt-4">
-          <ShiftDigest
-            lastVisitAt={digestSince}
-            summaries={summaries}
-            head={head}
-            breachedCount={counts.overdue}
-            onGoToDomain={selectDomain}
-            onStart={openItem}
-            onDismiss={() => setDigestDismissed(true)}
-          />
-        </div>
-      )}
-
       {/* ── RESPOND STRIP (§3.2). Above the tabs, visible from every tab. ── */}
       {escalations.length > 0 && (
         <div className="mt-4">
@@ -540,8 +494,7 @@ export function TasksPage() {
           restated in prose what the surface below it was already doing in its
           order and its selection.
           `nextUp` IS UNTOUCHED and still drives all of that, plus tab-badge
-          urgency and the shift digest's opening line. Only the strip's UI is
-          gone. The Respond strip above is a different thing — escalations, not
+          urgency. Only the strip's UI is gone. The Respond strip above is a different thing — escalations, not
           priority — and stays. */}
       {/* ── TABS / SUMMARY CARDS (§3.3) ─────────────────────────────────── */}
       <div className="mt-4">

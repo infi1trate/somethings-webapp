@@ -21,12 +21,20 @@
 // full note one interaction away for the reader who wants it. The attribution
 // becomes glanceable; the explanation stays available.
 //
-// ═══ THE BADGE IS NOT OPTIONAL ═══
+// ═══ THE MARK IS AN INFO ICON; THE "AI" TAG LIVES IN THE PANEL ═══
 //
-// There is no prop to hide it. A generated block on a clinical record carries
-// visible attribution, full stop — the popover carries the reasoning, never the
-// fact. If a caller wants the fact without the badge, the answer is that the
-// block should not be generated.
+// It used to be an always-visible "✨ AI" pill beside the icon, on the argument
+// that attribution must be unskippable. The product owner's call, 2026-08-31:
+// the tag repeated on five sections of one card and read as clutter, so the icon
+// carries the affordance and the tag sits inside the panel it opens, at the top,
+// where it labels the note rather than the heading.
+//
+// WHAT THIS COSTS, STATED PLAINLY: attribution is now one interaction away
+// rather than visible at rest. That is a real reduction against the earlier
+// reading of guardrail 6 ("attribution visible without scrolling") — the icon is
+// visible, the WORD "AI" is not. The tag is still unconditional once the panel
+// is open, and there is still no prop to suppress it; a generated block cannot
+// render without one. Recorded as design-system-gaps row 335.
 //
 // ═══ 1.4.13 IS THE HARD PART, AND IT IS WHY THIS IS NOT A `title` ═══
 //
@@ -55,10 +63,14 @@ const RING =
  *  about implementation state rather than about provenance and did not survive
  *  the move (see the removal note in `care-summary-doc.tsx`). */
 export const PROVENANCE_NOTE =
-  "AI-generated from assessment history, risk flag log, presentation history, and theme extraction. Context for a coding decision — not itself a clinical determination.";
+  // "Generated", not "AI-generated": the tag directly above this sentence
+  // already says AI, and the panel read "AI / AI-generated from…" — the reader
+  // is told twice in eleven characters. The tag carries the attribution now, so
+  // the sentence carries the sources.
+  "Generated from assessment history, risk flag log, presentation history, and theme extraction. Context for a coding decision — not itself a clinical determination.";
 
 export function Provenance({
-  /** Shown beside the glyph. Defaults to the bare mark. TODO-COPY. */
+  /** The tag shown at the top of the panel. TODO-COPY. */
   label = "AI",
   /** Overrides the note for a block drawing on something narrower. Keep these
    *  rare: divergent wordings are how one policy becomes several. */
@@ -70,9 +82,24 @@ export function Provenance({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  /** ═══ CLICK PINS; IT DOES NOT TOGGLE ═══
+   *
+   *  This was `setOpen(v => !v)`, and for a mouse user that made the icon look
+   *  broken: the pointer arriving fires `mouseenter`, which OPENS the panel, so
+   *  the click that follows a moment later closed the thing the reader was
+   *  clicking to see. It then stayed closed until they moved away and came back.
+   *  Found by driving it rather than by reading it — a real click is a hover and
+   *  then a press, and only the second half was being modelled.
+   *
+   *  So a click PINS: the panel stays after the pointer leaves, which is what
+   *  clicking a disclosure means, and a second click unpins and closes it. Touch
+   *  gets the same thing by the same door (a tap is a click, with no hover before
+   *  it); keyboard keeps focus-to-open, and Enter/Space now pins rather than
+   *  fighting the focus that just opened it. */
+  const pinned = useRef(false);
   /** Hover uses a short close delay so the pointer can cross the gap between
    *  trigger and panel without the panel disappearing under it — the "hoverable"
-   *  half of 1.4.13. Focus and click ignore it entirely. */
+   *  half of 1.4.13. A pinned panel ignores it entirely. */
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrap = useRef<HTMLSpanElement>(null);
   const panelId = useId();
@@ -85,7 +112,11 @@ export function Provenance({
   };
   const scheduleClose = () => {
     cancelClose();
-    closeTimer.current = setTimeout(() => setOpen(false), 140);
+    closeTimer.current = setTimeout(() => {
+      // A PINNED PANEL SURVIVES THE POINTER LEAVING. Escape, an outside click or
+      // a second click on the trigger are the ways out.
+      if (!pinned.current) setOpen(false);
+    }, 140);
   };
 
   useEffect(() => () => cancelClose(), []);
@@ -98,11 +129,15 @@ export function Provenance({
       // `lg` is exactly that case.
       if (e.key === "Escape") {
         e.stopPropagation();
+        pinned.current = false;
         setOpen(false);
       }
     };
     const onDown = (e: MouseEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+      if (!wrap.current?.contains(e.target as Node)) {
+        pinned.current = false;
+        setOpen(false);
+      }
     };
     document.addEventListener("keydown", onKey, true);
     document.addEventListener("mousedown", onDown);
@@ -122,15 +157,6 @@ export function Provenance({
       }}
       onMouseLeave={scheduleClose}
     >
-      {/* THE VISIBLE BADGE. Quiet tint, not a status colour — this is
-          attribution, and a generated block is not a warning. */}
-      <span
-        className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-s2)] px-1.5 py-0.5 text-[11px] font-semibold leading-[14px] text-[var(--text-secondary)]"
-      >
-        <Sparkles className="size-3 shrink-0" aria-hidden />
-        {label}
-      </span>
-
       <button
         type="button"
         aria-expanded={open}
@@ -138,7 +164,10 @@ export function Provenance({
         // The accessible name has to say what the button reveals; "Info" beside
         // an AI badge does not. TODO-COPY.
         aria-label="About this generated text"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          pinned.current = !pinned.current;
+          setOpen(pinned.current);
+        }}
         onFocus={() => {
           cancelClose();
           setOpen(true);
@@ -166,9 +195,19 @@ export function Provenance({
           // ANCHORED RIGHT AND BELOW. `right-0` rather than `left-0` because
           // every call site sits at the right edge of a header row, where a
           // left-anchored panel would run off the card.
-          className="absolute right-0 top-full z-30 mt-1.5 w-[min(19rem,calc(100vw-2rem))] rounded-[var(--radius-control)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-3 text-[12px] leading-[17px] text-[var(--text-secondary)] shadow-[var(--shadow-card)]"
+          className="absolute right-0 top-full z-30 mt-1.5 w-[min(19rem,calc(100vw-2rem))] rounded-[var(--radius-control)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-3 shadow-[var(--shadow-card)]"
         >
-          {note}
+          {/* THE TAG, AS THE PANEL'S OWN LABEL. It comes first because it is the
+              subject of the sentence under it: the note explains what "AI" means
+              here, so reading them in the other order asks the reader to hold an
+              explanation before knowing what it explains. */}
+          <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-[var(--surface-s2)] px-1.5 py-0.5 text-[11px] font-semibold leading-[14px] text-[var(--text-secondary)]">
+            <Sparkles className="size-3 shrink-0" aria-hidden />
+            {label}
+          </span>
+          <span className="block text-[12px] leading-[17px] text-[var(--text-secondary)]">
+            {note}
+          </span>
         </span>
       )}
     </span>

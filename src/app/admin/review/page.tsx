@@ -26,6 +26,7 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Flag } from "lucide-react";
 import { toast } from "sonner";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
@@ -54,6 +55,29 @@ import { MENTOR_MANAGED_SECTIONS } from "@/lib/onboarding/profile-sections";
 import { snapshotValue } from "@/lib/onboarding/change-requests";
 import type { ChangeRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** ═══ EACH REVIEWER IN THEIR OWN CHROME ═══
+ *
+ *  Same route, two rails — copied deliberately from `StaffShell` in
+ *  `admin/mentor/page.tsx`, which solved this exact problem for the record:
+ *  the Lead Mentor manages mentors from inside the mentor app, and the
+ *  Supervisor works in the console. Putting a supervisor in `MentorShell` would
+ *  swap their whole left rail for someone else's the moment they opened a
+ *  review, which reads as having been navigated somewhere they did not ask to
+ *  go — the milder version of the bug this change is fixing. */
+function ReviewShell({
+  lead,
+  children,
+}: {
+  lead: boolean;
+  children: React.ReactNode;
+}) {
+  return lead ? (
+    <MentorShell active="mentors">{children}</MentorShell>
+  ) : (
+    <AdminShell active="mentors">{children}</AdminShell>
+  );
+}
 
 export default function AdminReviewPage({
   searchParams,
@@ -93,16 +117,28 @@ export default function AdminReviewPage({
   const [working, setWorking] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
-  // Lead-owned flow (role migration): approve/send-back belongs to the Lead
-  // Mentor. Mentors go to their own profile; the Supervisor views state on
-  // the record instead (view + edit oversight, no review actions).
-  const isLead = persona === "lead-mentor";
+  /** ═══ WHO MAY REVIEW A NEW MENTOR: THE LEAD *AND* THE SUPERVISOR TIER ═══
+   *
+   *  This used to be lead-only, and it bounced a supervisor to `/admin/mentor`.
+   *  That redirect was the bug the product owner reported on 2026-08-31: from a
+   *  supervisor's seat, "Review" on the Needs-review queue card — and the
+   *  record's own "Review profile" — landed on the mentor's RECORD, a page that
+   *  describes an established mentor, "as if the user already exists". The
+   *  profile under review has not been approved yet; there is nothing there to
+   *  see, and no way to approve it or send it back.
+   *
+   *  A supervisor sits ABOVE a lead mentor in this product's tiering — the same
+   *  `isSupervisorTier` that already grants `canActOnCare`, the heavier
+   *  permission of the two — so denying them the review a lead can do was
+   *  backwards. They get the full console, review actions included.
+   *
+   *  A MENTOR STILL GOES TO THEIR OWN PROFILE. `new-mentor` and `mentor` have no
+   *  business approving a profile, their own least of all. */
+  const canReview = persona === "lead-mentor" || isSupervisorTier(persona);
   useEffect(() => {
-    if (!mounted || isLead) return;
-    router.replace(
-      isSupervisorTier(persona) ? "/admin/mentor" : "/app/profile",
-    );
-  }, [mounted, isLead, persona, router]);
+    if (!mounted || canReview) return;
+    router.replace("/app/profile");
+  }, [mounted, canReview, router]);
 
   const firstName = mounted ? draft.firstName || "this mentor" : "this mentor";
   const mentorName =
@@ -207,19 +243,19 @@ export default function AdminReviewPage({
     router.push(returnHref);
   };
 
-  if (!mounted || !isLead) {
-    // Pre-mount / non-lead viewers (being redirected) — quiet shell.
+  if (!mounted || !canReview) {
+    // Pre-mount / mentor viewers (being redirected) — quiet shell.
     return (
-      <MentorShell active="mentors">
+      <ReviewShell lead={persona === "lead-mentor"}>
         <div className="min-h-dvh" />
-      </MentorShell>
+      </ReviewShell>
     );
   }
 
   const reviewing = mode === "review";
 
   return (
-    <MentorShell active="mentors">
+    <ReviewShell lead={persona === "lead-mentor"}>
       <div className="grid items-start gap-8 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:px-10">
         {/* LEFT — the reviewer's workspace (min-h keeps the sticky bar pinned) */}
         <div className="flex min-h-[calc(100dvh-3rem)] min-w-0 flex-col">
@@ -477,6 +513,6 @@ export default function AdminReviewPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </MentorShell>
+    </ReviewShell>
   );
 }

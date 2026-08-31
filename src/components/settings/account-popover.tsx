@@ -308,20 +308,34 @@ export function AccountPopover({
               />
               {/* Plain hover tooltip — NOT the menu (that's the click target).
                 
-                POPOVER PRESENTATION ONLY, and this was a measured overflow.
-                `left-full ml-2` puts the tooltip to the RIGHT of the trigger,
-                which is correct in the rail (it flies inward, into the page). In
-                the mobile top bar the avatar is flush against the right edge, so
-                the same rule pushed a 58px tooltip past the viewport and took the
-                DOCUMENT into 42px of horizontal scroll at 768 — SC 1.4.10, caused
-                by a hover affordance that touch never triggers in the first
-                place. The rail needs it because its avatar is icon-only with no
-                label; the sheet is reached by tap, so there is nothing to
-                explain and nothing to fly off-screen. */}
+                ═══ IT LABELS *BELOW* THE AVATAR, LIKE EVERY OTHER RAIL ITEM ═══
+
+                It used to fly right (`left-full ml-2`), and that was wrong twice
+                over. The first time cost the mobile top bar 42px of DOCUMENT
+                scroll at 768px, fixed by limiting the tooltip to this
+                presentation. The second is the rail itself: an absolutely
+                positioned box 48px past the rail's right edge counts toward the
+                rail's scrollable overflow, and the rail carries `overflow-y-auto`
+                — so `overflow-x` computes to `auto` (CSS Overflow: a non-visible
+                value on one axis forces the other off `visible`) and the rail got
+                a permanent horizontal scrollbar for an invisible tooltip.
+                Measured: client 92px, scroll 140px, x-scrolls by 48px.
+
+                WHY NOT CLIP IT: `overflow-x: clip` beside a scrolling axis
+                computes to `hidden` — measured, in this browser — so the
+                clip-margin is ignored and the tooltip is cut off instead. And the
+                y-scroller is load-bearing: the rail's content is 764px tall, so a
+                700px window already needs 104px of scroll to reach the last item.
+
+                SO IT MOVES BELOW, which is where the rail was already labelling
+                everything — each nav tile has its caption underneath. It lands in
+                the 32px gap between the avatar and the first item, and centred on
+                a 92px rail a 58px tooltip cannot overflow either axis. The odd one
+                out became consistent, and the scrollbar has no cause left. */}
               {presentation === "popover" && (
                 <span
                   role="presentation"
-                  className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-[var(--text-inverse)] opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-data-[state=open]:opacity-0"
+                  className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium leading-[14px] text-[var(--text-inverse)] opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-data-[state=open]:opacity-0"
                 >
                   Account
                 </span>
