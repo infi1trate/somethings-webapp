@@ -18,10 +18,12 @@
 // change — on the first resolve, because that is the moment the digest has done its
 // job: the reader has stopped orienting and started working.
 //
-// THE CTA TARGETS THE NEXT-UP ITEM and its label is DYNAMIC (§7's "Start with red
-// flags / dynamic when the ladder head differs") — it names the domain the global
-// sort actually points at, so it can never disagree with the Next-up strip
-// directly below it.
+// THE CTA TARGETS THE PRIORITY HEAD and its label is DYNAMIC (§7's "Start with
+// red flags / dynamic when the ladder head differs") — it names the domain the
+// global sort actually points at. It used to be checked against the Next-up strip
+// below it; with that strip gone, the list's own order and the pane's
+// pre-selection are what it must agree with, and it agrees by construction
+// because all three read `nextUp`.
 
 import { AlertTriangle, X } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";

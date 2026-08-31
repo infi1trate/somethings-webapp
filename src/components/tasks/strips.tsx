@@ -1,6 +1,7 @@
 "use client";
 
-// THE TWO PINNED STRIPS — Respond (§3.2) and Next-up (§3.1).
+// THE PINNED STRIP — Respond (§3.2). Next-up (§3.1) was removed; see the note
+// where it stood.
 //
 // ═══ THE ALARM BUDGET LIVES AND DIES HERE ═══
 // The Respond strip is THE ONLY SURFACE IN THE TASKS PAGE using the filled
@@ -9,16 +10,20 @@
 // page, the strip stops meaning anything — that is the entire reason the budget is
 // written as a rule rather than a preference.
 //
-// The Next-up strip is the ONLY DIRECTIVE ELEMENT on the page (§3.1), and its CTA
-// is the page's single primary button. Everything else is tonal secondary. Two
-// primary buttons on a worklist is two answers to "what should I do now", which is
-// the question this strip exists to answer.
+// ═══ THE PAGE NOW HAS NO PRIMARY BUTTON ABOVE THE LIST ═══
+// The Next-up CTA used to be it, and its removal is not a gap to fill. The
+// question it answered — "what should I do now" — is answered by the surface
+// itself: the list is sorted by the priority comparator and the pane opens on its
+// head. A button restating that was a second answer to a question already
+// answered, and the one place two answers can disagree.
+//
+// Everything on this page stays tonal secondary. If a filled primary reappears
+// above the list, it needs a reason that is not "there used to be one."
 
 import Link from "next/link";
-import { AlertTriangle, Check, Phone } from "lucide-react";
-import { PillButton } from "@/components/settings/pill-button";
+import { AlertTriangle, Phone } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
-import { DOMAIN_LABEL, isBreached, type TaskItem } from "@/lib/tasks/types";
+import { type TaskItem } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -137,108 +142,13 @@ export function RespondStrip({
   );
 }
 
-// ── Next-up strip (§3.1) ───────────────────────────────────────────────────
-
-/** TODO-COPY. `Next: Riley's escalation · 12m open`.
- *
- *  The possessive uses the DISPLAY NAME, which is first name + last initial
- *  (locked decision 11) — so this reads "Riley T.'s escalation". Trimming to the
- *  bare first name for the possessive would be a second name format on one
- *  surface, and the display name is the one the rows use. */
-function nextUpSentence(item: TaskItem, now: number): string {
-  const noun =
-    item.taskType === "activeEscalation"
-      ? "escalation"
-      : item.taskType === "escalationDocumentation"
-        ? "escalation write-up"
-        : item.domain === "billing"
-          ? "billing review"
-          : item.domain === "monitoring"
-            ? "flag review"
-            : "flag review";
-  const first = item.teenDisplayName.split(" ")[0];
-  return `${first}'s ${noun} · ${elapsedLabel(item.openedAt, now)} open`;
-}
-
-export function NextUpStrip({
-  item,
-  now,
-  /** True when the Next-up item is already the one selected in the pane. */
-  isCurrent,
-  onOpen,
-}: {
-  item: TaskItem | null;
-  now: number;
-  isCurrent: boolean;
-  onOpen: (item: TaskItem) => void;
-}) {
-  // PRESENT WHENEVER ANY ITEM IS OPEN (§3.1). Null means nothing is open, which
-  // is the whole-page empty state's business, not this strip's.
-  if (!item) return null;
-  const breached = isBreached(item, now);
-
-  return (
-    <section
-      /* TODO-COPY */
-      aria-label="Next up"
-      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-2.5"
-    >
-      <span className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-        {/* TODO-COPY */}
-        Next
-      </span>
-      <span className="min-w-0 flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-        {nextUpSentence(item, now)}
-      </span>
-      {breached && <BreachedInline />}
-      <span className="shrink-0 rounded-full bg-[var(--surface-s2)] px-2 py-0.5 text-[11.5px] leading-[16px] text-[var(--text-secondary)]">
-        {DOMAIN_LABEL[item.domain]}
-      </span>
-
-      {isCurrent ? (
-        // A QUIET CONFIRMATION, NOT A COMPETING BUTTON (§3.1). When the reader is
-        // already on this item, a live primary CTA would be inviting them to do
-        // the thing they are doing.
-        <span className="inline-flex min-h-9 shrink-0 items-center gap-1.5 px-1 text-[13px] font-semibold text-[var(--text-secondary)]">
-          <Check className="size-4 shrink-0" aria-hidden />
-          {/* TODO-COPY */}
-          You&apos;re on it
-        </span>
-      ) : (
-        // THE PAGE'S SINGLE PRIMARY BUTTON. Everything else on this page is tonal
-        // secondary — see the module note.
-        <PillButton
-          onClick={() => onOpen(item)}
-          className="h-9 shrink-0 px-5 text-[14px]"
-        >
-          {/* TODO-COPY */}
-          Open
-        </PillButton>
-      )}
-    </section>
-  );
-}
-
-/** The breach chip, inline in the Next-up strip. Same compact pattern the cards
- *  and rows use (§3.3) — imported there rather than redefined, and re-declared
- *  here only because this instance carries no count. */
-function BreachedInline() {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold leading-[16px]"
-      style={{
-        backgroundColor: "var(--band-clay-bg)",
-        color: "var(--band-clay-fg)",
-      }}
-    >
-      <AlertTriangle className="size-3 shrink-0" aria-hidden />
-      {/* TODO-COPY */}
-      Overdue
-    </span>
-  );
-}
+// THE NEXT-UP STRIP LIVED HERE. Removed with its two helpers
+// (`nextUpSentence`, `BreachedInline`) — see the note at its old mount in
+// `tasks-page.tsx` for why. `nextUp` in `lib/tasks/sort.ts` is untouched and
+// still orders the list, pre-selects the pane, drives auto-advance and opens the
+// shift digest.
 
 /** A tonal secondary button for the tasks surface. Re-exported from the record's
  *  own secondary so the two cannot drift — every button on this page except the
- *  Next-up CTA is one of these. */
+ *  pane's own confirm is one of these. */
 export { RecordButton as TaskSecondaryButton };

@@ -30,8 +30,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
-import { DomainCards } from "@/components/tasks/domain-cards";
-import { NextUpStrip, RespondStrip, elapsedLabel } from "@/components/tasks/strips";
+import { DomainTabs } from "@/components/tasks/domain-tabs";
+import { RespondStrip, elapsedLabel } from "@/components/tasks/strips";
 import { TaskScenarioSwitcher } from "@/components/tasks/scenario-switcher";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { TaskPane } from "@/components/tasks/task-pane";
@@ -244,9 +244,11 @@ export function TasksPage() {
   const openItem = (item: TaskItem) => {
     setPickedDomain(item.domain);
     setPickedId(item.id);
-    // The Next-up CTA jumps across tabs, so the entry that owns the item may not
-    // be in the current entry list yet. Clearing the entry id lets the derived
-    // head apply on the new tab and the picked id then narrows to the item.
+    // OPENING AN ITEM CAN JUMP TABS — from the shift digest's CTA, or the
+    // Respond strip — so the entry that owns it may not be in the current entry
+    // list yet. Clearing the entry id lets the derived head apply on the new tab
+    // and the picked id then narrows to the item. (This described the Next-up
+    // CTA, which is gone; the jump paths that remain behave the same way.)
     setSelectedEntryId(null);
     setPaneTakeover(true);
   };
@@ -530,21 +532,20 @@ export function TasksPage() {
         </div>
       )}
 
-      {/* ── NEXT-UP STRIP (§3.1). Below the header, above the tabs. ─────── */}
-      {head && (
-        <div className="mt-3">
-          <NextUpStrip
-            item={head}
-            now={now}
-            isCurrent={selected?.id === head.id}
-            onOpen={openItem}
-          />
-        </div>
-      )}
-
+      {/* ═══ THE NEXT-UP STRIP WAS HERE, AND ITS FUNCTION SURVIVES ═══
+          It named the highest-priority open item in a sentence and offered one
+          Open button. Deleted as duplication rather than as a bad idea: the list
+          is ALREADY sorted by that same comparator, the pane opens on that same
+          item, and auto-advance moves to the next one on resolve — so the strip
+          restated in prose what the surface below it was already doing in its
+          order and its selection.
+          `nextUp` IS UNTOUCHED and still drives all of that, plus tab-badge
+          urgency and the shift digest's opening line. Only the strip's UI is
+          gone. The Respond strip above is a different thing — escalations, not
+          priority — and stays. */}
       {/* ── TABS / SUMMARY CARDS (§3.3) ─────────────────────────────────── */}
       <div className="mt-4">
-        <DomainCards
+        <DomainTabs
           summaries={summaries}
           active={activeDomain}
           onSelect={selectDomain}

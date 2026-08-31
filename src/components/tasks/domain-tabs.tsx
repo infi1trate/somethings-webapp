@@ -1,7 +1,25 @@
 "use client";
 
-// THE FOUR SUMMARY CARDS — which are also the tabs (locked decision 2: summary
-// cards act as tabs).
+// THE FOUR DOMAIN TABS — one compact row, not four cards.
+//
+// ═══ WHY THE CARDS WENT ═══
+//
+// They were tabs wearing dashboard clothing: a 22px display numeral, a status
+// sentence, an outline-plus-elevation selected state, stacked two-up then
+// four-up. That is a summary board, and a summary board at the top of a worklist
+// is a thing a supervisor reads before they can start working. The row is the
+// same four tabs with the same order, counts and breach treatment, in ~46px of
+// height instead of ~110.
+//
+// WHAT WENT, PRECISELY: the big numeral (the count is still there, at body
+// size), the status sentence ("On track" / "Needs attention" / "All clear" — a
+// sentence restating a chip and a number), and the outline selected state
+// (replaced by a tonal fill, which reads as "you are here" rather than as a
+// selected object).
+//
+// SQUINT TEST, which is the actual acceptance bar: at a glance only two things
+// survive — which tab is selected, and any breach chip. Nothing else in the row
+// competes.
 //
 // FIXED ORDER, NEVER REORDERED, NEVER HIDDEN (locked decision 7). Escalations ·
 // Risk flags · Billing · Monitoring, straight from TASK_DOMAINS. Breach is
@@ -62,7 +80,7 @@ const DOMAIN_VISUAL: Record<
   },
 };
 
-/** THE ONE BREACH CHIP, used on the card, the row and the pane header (§3.3's
+/** THE ONE BREACH CHIP, used on the tab, the row and the pane header (§3.3's
  *  alarm-budget rule: "one compact chip pattern everywhere"). Exported so the
  *  other two surfaces consume it rather than each growing a lookalike.
  *
@@ -99,7 +117,7 @@ function breachLabel(summary: DomainSummary): string {
   return `${summary.breachedCount} past ${past}`;
 }
 
-export function DomainCards({
+export function DomainTabs({
   summaries,
   active,
   onSelect,
@@ -128,7 +146,18 @@ export function DomainCards({
       role="tablist"
       /* TODO-COPY */
       aria-label="Task domains"
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      // ═══ ONE LINE AT EVERY WIDTH, SCROLLING WHEN IT HAS TO ═══
+      //
+      // Wrapping was tried first and produced four rows at 320px: a flex item's
+      // automatic minimum size is its content, so each segment refused to shrink
+      // to its 50% basis and took a line of its own — 200px of tabs above the
+      // list. Adding `min-w-0` would have achieved two-up by TRUNCATING the
+      // labels, and "Monito…" above a worklist is worse than the height it saves.
+      //
+      // So the row scrolls instead: full labels, one 44px line, at any width.
+      // Same pattern as the record's own tab nav. The CONTAINER scrolls, not the
+      // page — verified, document overflow is 0 at 320px.
+      className="flex gap-2 overflow-x-auto"
     >
       {summaries.map((s, i) => {
         const visual = DOMAIN_VISUAL[s.domain];
@@ -150,55 +179,64 @@ export function DomainCards({
             onClick={() => onSelect(s.domain)}
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cn(
-              "flex flex-col items-start gap-2.5 rounded-[var(--radius-elevated)] border p-3.5 text-left transition-colors",
-              // SELECTED gets the outline treatment. Not a fill — a filled card
-              // in a row of four would read as the alarm.
+              // 44px MINIMUM, from the touch-target floor rather than from the
+              // spec's 44–48 range — they agree, and the floor is the reason.
+              "flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-left transition-colors",
+              // ═══ CONTENT-SIZED, NOT STRETCHED ═══
+              // Stretching the four to equal widths was tried and left a long
+              // gap between each label and its count — "Escalations ······ 1" —
+              // which reads as a table of figures, the exact dashboard quality
+              // this row exists to remove. Content-sized pills, left-aligned,
+              // read as navigation. `shrink-0` keeps labels whole and lets the
+              // row scroll instead of truncating.
+              "shrink-0",
+              // SELECTED IS A TONAL FILL. The old outline-plus-card treatment
+              // read as a selected OBJECT; a fill reads as a place you are in,
+              // which is what a tab is.
               selected
-                ? "border-[color:var(--text-primary)] bg-[var(--surface-card)]"
-                : "border-[color:var(--border-contour)] bg-[var(--surface-card)] hover:bg-[var(--tint-hover)]",
-              // ZERO-COUNT CARDS ARE DE-EMPHASIZED, not hidden.
-              empty && !selected && "opacity-60",
+                ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
               RING
             )}
           >
-            <span className="flex w-full items-center justify-between gap-2">
-              <span
-                aria-hidden
-                className="flex size-8 shrink-0 items-center justify-center rounded-[10px]"
-                style={{ backgroundColor: visual.bg, color: visual.fg }}
-              >
-                <Icon className="size-4" />
-              </span>
-              {s.breachedCount > 0 && <BreachChip label={breachLabel(s)} />}
+            {/* The tint well stays — it is the only per-domain identity in the
+                row now that the cards' size and position are gone. Smaller than
+                the cards' 32px because it shares a line with the label. */}
+            <span
+              aria-hidden
+              className="flex size-6 shrink-0 items-center justify-center rounded-[8px]"
+              style={{ backgroundColor: visual.bg, color: visual.fg }}
+            >
+              <Icon className="size-3.5" />
             </span>
 
-            <span className="w-full">
-              <span className="block text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                {DOMAIN_LABEL[s.domain]}
-              </span>
-              <span className="mt-0.5 block font-display text-[22px] font-bold leading-[28px] tabular-nums text-[var(--text-primary)]">
-                {s.openCount}
-              </span>
-              {/* ONE STATUS LINE. Reduced emphasis on the calm cases — a card
-                  that is fine should not be as loud as one that is not. */}
-              <span
-                className={cn(
-                  "mt-0.5 block text-[12px] leading-[16px]",
-                  s.breachedCount > 0
-                    ? "text-[var(--text-secondary)]"
-                    : "text-[var(--text-muted)]"
-                )}
-              >
-                {/* TODO-COPY. "All clear" for an empty domain — NOT a
-                    celebration, and Monitoring in particular must not congratulate
-                    anyone for having no green flags to read (§4). */}
-                {empty
-                  ? "All clear"
-                  : s.breachedCount > 0
-                    ? "Needs attention"
-                    : "On track"}
-              </span>
+            {/* No `truncate` and no `flex-1`: the row scrolls rather than
+                clipping a label, and the segment is content-sized, so there is
+                neither an ellipsis nor slack to distribute. */}
+            <span className="whitespace-nowrap text-[13.5px] leading-[18px]">
+              {DOMAIN_LABEL[s.domain]}
             </span>
+
+            {/* THE COUNT, AT BODY SIZE. Reduced emphasis at zero rather than
+                hidden — the shape of the row is something a reader learns once,
+                and a tab that disappears when empty has to be re-learned. */}
+            <span
+              className={cn(
+                "shrink-0 text-[13.5px] leading-[18px] tabular-nums",
+                empty
+                  ? "text-[var(--text-muted)]"
+                  : selected
+                    ? "font-semibold text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)]"
+              )}
+            >
+              {s.openCount}
+            </span>
+
+            {/* THE STATUS INDICATOR IS NOTHING WHEN ON TRACK. The old row always
+                said something; silence is the correct rendering of "fine", and it
+                is what makes the breach chip mean anything. */}
+            {s.breachedCount > 0 && <BreachChip label={breachLabel(s)} />}
           </button>
         );
       })}

@@ -16,9 +16,10 @@
 // if handed one, so the rule is enforced twice — once by not offering a control,
 // once by the utility refusing.
 //
-// ONE PRIMARY BUTTON PER REGION. The page's single primary is the Next-up CTA
-// (§3.1); "primary within the pane" (§5's words) is the footer's confirm, which is
-// why it uses PillButton and every other control here is a RecordButton.
+// ONE PRIMARY BUTTON PER REGION. With the Next-up strip gone the page has no
+// primary above the list at all, so the footer's confirm — "primary within the
+// pane" in §5's words — is the only filled button on the surface. It uses
+// PillButton; every other control here is a RecordButton.
 
 import { useRef, useState } from "react";
 import Link from "next/link";
@@ -26,7 +27,7 @@ import { AlertTriangle, MessageSquare, Sparkles } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
-import { BreachChip } from "@/components/tasks/domain-cards";
+import { BreachChip } from "@/components/tasks/domain-tabs";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { chatHrefFor } from "@/lib/record/chat";
 import {
