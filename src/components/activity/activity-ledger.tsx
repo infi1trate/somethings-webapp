@@ -16,6 +16,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignJustify, Filter, Rows3, Search } from "lucide-react";
+import {
+  DEFAULT_LOAD_STATE,
+  type LoadState,
+} from "@/lib/dev/load-state";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { queryFeed, unreadRowCount, type FeedRow } from "@/lib/activity/query";
@@ -23,7 +27,6 @@ import { objectDetailFor } from "@/lib/activity/inspector";
 import { ObjectInspector } from "@/components/activity/object-inspector";
 import { seedOverlay } from "@/lib/activity/read-state";
 import {
-  ACTIVITY_SCENARIOS,
   DEFAULT_SCENARIO_ID,
   SIM_NOW,
   scenarioById,
@@ -96,7 +99,9 @@ const SHOW_UNREAD_BADGE = false;
  *  The rows that arrived render; the range that failed shows an inline strip IN
  *  PLACE rather than replacing the whole feed with an error. A reader who can see
  *  three days of history should not lose it because the fourth timed out. */
-type LoadState = "ready" | "loading" | "error" | "partial";
+// The union moved to `lib/dev/load-state.ts` when the axis became a harness
+// control shared with the dev bar — one definition, so the bar's options and the
+// branches below cannot drift apart.
 
 /** THE PAGINATION WINDOW, in days. 30 per the brief.
  *
@@ -309,115 +314,23 @@ function Toolbar({
   );
 }
 
-// ── Scenario simulator ──────────────────────────────────────────────────────
-
-/** PROTOTYPE CHROME, and dressed as it. Dashed border and an explicit label, so
- *  nobody reviewing a screenshot mistakes it for product. Collapsible because it
- *  sits over the feed's bottom-right corner. */
-function ScenarioSimulator({
-  activeId,
-  onSelect,
-  loadState,
-  onLoadState,
-}: {
-  activeId: string;
-  onSelect: (id: string) => void;
-  loadState: LoadState;
-  onLoadState: (s: LoadState) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    // bottom-20, NOT bottom-4: the dev persona toggle is also fixed bottom
-    // chrome and the two overlapped at narrow widths (measured — the simulator's
-    // lower edge sat inside the toggle's box). Raised to clear it rather than
-    // moving the toggle, which is shared chrome on every screen.
-        // ANCHORED CLEAR OF THE DEV BAR (40px). This used to be `bottom-20` to dodge
-    // the floating persona pill, which no longer exists — the pill became a full
-    // width bottom bar (dev-bar.tsx) and the page is padded clear of it, so this
-    // only has to clear the bar itself.
-    //
-    // STILL A SEPARATE PANEL, and that is the remaining step: this switcher's
-    // state is page-local, so folding it into the bar means lifting it. Reported.
-    <div className="fixed bottom-12 right-4 z-40 max-w-[260px]">
-      <div // --radius-surface, NOT --radius-inset: the 12px inset token is added in an
-        // as-yet-uncommitted pass, and this phase must not depend on work outside
-        // it or reverting A3 alone would leave a dangling var(). 16px is right for
-        // a panel anyway.
-        className="rounded-[var(--radius-surface)] border border-dashed border-[color:var(--border-contour)] bg-[var(--surface-card)] p-2">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className={cn(
-            "flex w-full items-center justify-between gap-2 rounded-sm px-1 py-0.5 text-left",
-            "text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
-            RING
-          )}
-        >
-          {/* TODO-COPY */}
-          Prototype scenarios
-          <span aria-hidden>{open ? "–" : "+"}</span>
-        </button>
-        {open && (
-          <ul className="mt-1.5 space-y-0.5">
-            {ACTIVITY_SCENARIOS.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(s.id)}
-                  aria-current={s.id === activeId ? "true" : undefined}
-                  className={cn(
-                    "w-full rounded-md px-2 py-1.5 text-left text-[12.5px] leading-[16px] transition-colors",
-                    s.id === activeId
-                      ? "bg-[var(--surface-s2)] font-semibold text-[var(--text-primary)]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-                    RING
-                  )}
-                >
-                  {s.label}
-                  <span className="block text-[11px] leading-[14px] text-[var(--text-muted)]">
-                    {s.description}
-                  </span>
-                </button>
-              </li>
-            ))}
-            {/* LOAD STATES, in the same panel. Every state in the brief has to be
-                reachable from the simulator, and three of them are not properties
-                of the data — they are properties of a fetch that does not exist
-                here. */}
-            <li className="mt-2 border-t border-dashed border-[color:var(--border-contour)] pt-2">
-              <p className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-                {/* TODO-COPY */}
-                Load state
-              </p>
-              <div className="flex flex-wrap gap-1 px-1">
-                {(["ready", "loading", "error", "partial"] as LoadState[]).map(
-                  (st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => onLoadState(st)}
-                      aria-current={st === loadState ? "true" : undefined}
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[11.5px] transition-colors",
-                        st === loadState
-                          ? "bg-[var(--surface-s2)] font-semibold text-[var(--text-primary)]"
-                          : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-                        RING
-                      )}
-                    >
-                      {st}
-                    </button>
-                  )
-                )}
-              </div>
-            </li>
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
+// ═══ THE SCENARIO SIMULATOR PANEL IS GONE ═══
+//
+// A dashed collapsible panel pinned bottom-right, holding this page's scenario
+// list AND the load-state toggle. Both axes moved into the footer dev bar, which
+// is where every other harness axis already lives (persona, teen scenario, staff
+// scenario). Its own comment named this as the remaining step: "this switcher's
+// state is page-local, so folding it into the bar means lifting it."
+//
+// WHAT THE MOVE FIXED BEYOND TIDINESS:
+//  · The load state was `useState` here, so it reset on every navigation — you
+//    could not set "error", leave and come back to it. It is `devLoadState` in
+//    the store now.
+//  · The panel sat under the fixed bottom nav below `md` and could not be
+//    tapped at all — the same defect row 311 records for the Tasks switcher.
+//    A control in the bar has no such problem.
+//  · Two collapsible scenario panels on two pages meant two patterns for one
+//    job. The bar's grouped select is the one pattern.
 
 // ── Load states ─────────────────────────────────────────────────────────────
 
@@ -526,7 +439,8 @@ export function ActivityLedger({
   const storedDensity = useOnboardingStore((st) => st.activityDensity);
   const setDensity = useOnboardingStore((st) => st.setActivityDensity);
   const scenarioId = useOnboardingStore((s) => s.activityScenarioId);
-  const setScenarioId = useOnboardingStore((s) => s.setActivityScenarioId);
+  // `setActivityScenarioId` is the DEV BAR'S to call now — the select there owns
+  // the axis. This page only reads it.
 
   const [viewId, setViewId] = useState(
     // A billing deep link opens the Billing view — scope `all`, every type, one
@@ -542,7 +456,18 @@ export function ActivityLedger({
   );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterTrigger = useRef<HTMLButtonElement | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("ready");
+  /** FROM THE STORE, not from local state — see the note where the panel used to
+   *  be. `mounted` gates it like every other store read on this page: reading
+   *  before hydration renders the wrong branch for one frame and reports
+   *  nothing (standing rule 3). */
+  const storedLoadState = useOnboardingStore((s) => s.devLoadState);
+  /** THE RETRY BUTTONS ARE PRODUCT, NOT HARNESS. `FeedError` and the partial
+   *  strip both offer "Retry", and in this prototype recovering means returning
+   *  the axis to `ready`. They write to the same store field the dev bar sets —
+   *  one source, so a retry cannot leave the bar showing "error" over a feed
+   *  that has recovered. */
+  const setLoadState = useOnboardingStore((s) => s.setDevLoadState);
+  const loadState: LoadState = mounted ? storedLoadState : DEFAULT_LOAD_STATE;
   /** Days of history loaded. Grows by PAGE_DAYS on "Load older" and on the
    *  infinite-scroll sentinel — both paths call the same function, so they cannot
    *  drift. */
@@ -554,6 +479,16 @@ export function ActivityLedger({
   const loadMoreSentinel = useRef<HTMLDivElement | null>(null);
 
   const scenario = scenarioById(mounted ? scenarioId : DEFAULT_SCENARIO_ID);
+
+  /** THE PAGING RESET, DERIVED RATHER THAN EFFECTED. Comparing the rendered
+   *  scenario against the last one and resetting during render is the pattern
+   *  this codebase already uses for `initialOpen` and the tab param — no
+   *  `useEffect`, no extra paint at the old page length. */
+  const [prevScenarioId, setPrevScenarioId] = useState(scenario.id);
+  if (scenario.id !== prevScenarioId) {
+    setPrevScenarioId(scenario.id);
+    setDaysLoaded(PAGE_DAYS);
+  }
 
   /** Same `mounted` gate as the scenario above, and for the same reason: a store
    *  read before hydration renders the wrong layout for one frame and reports
@@ -1002,17 +937,16 @@ export function ActivityLedger({
         returnFocusTo={filterTrigger}
       />
 
-      <ScenarioSimulator
-        activeId={scenario.id}
-        onSelect={(id) => {
-          setScenarioId(id);
-          // A new ledger starts at the first page and in a good state.
-          setDaysLoaded(PAGE_DAYS);
-          setLoadState("ready");
-        }}
-        loadState={loadState}
-        onLoadState={setLoadState}
-      />
+      {/* ═══ A NEW SCENARIO MUST STILL RESET THE PAGE ═══
+          The panel's `onSelect` did two things besides setting the id: it
+          returned the feed to its first page and to a normal load. With the
+          control now in the dev bar, the reset has to happen HERE — the bar
+          cannot know about `daysLoaded`, and a scenario switch that left the
+          reader 90 days deep in a feed that no longer has 90 days is the kind of
+          bug that looks like the scenario is broken.
+          `setDevLoadState` is called from the bar, so only the paging half is
+          left to us; the store's own `setActivityScenarioId` already clears the
+          read overlay. */}
     </div>
   );
 }

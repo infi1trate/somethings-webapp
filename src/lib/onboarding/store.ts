@@ -39,6 +39,11 @@ import type {
   CareReviewDecision,
   CareUpdateRecord,
 } from "@/lib/record/care-demo";
+import {
+  DEFAULT_LOAD_STATE,
+  LOAD_STATES,
+  type LoadState,
+} from "@/lib/dev/load-state";
 import type { CareSummaryCommit } from "@/lib/record/care-summary-doc";
 import type { RelationshipEvent } from "@/lib/record/relationships";
 import { guardianFor } from "@/lib/record/guardian";
@@ -201,7 +206,14 @@ interface OnboardingState {
    *  that were no longer on screen — and the A2 persistence would never actually
    *  be exercised, because every reload would re-seed from scratch. */
   activityScenarioId: string;
+  /** v41 — THE HARNESS'S LOAD-STATE AXIS. Lifted out of `activity-ledger.tsx`,
+   *  where it was `useState` and therefore reset on every navigation: you could
+   *  not set "error", leave the screen and come back to it. A load state is a
+   *  property of the harness like `persona` and the scenario, not of one feed.
+   *  See `lib/dev/load-state.ts` for why it has one consumer today. */
+  devLoadState: LoadState;
   setActivityScenarioId: (id: string) => void;
+  setDevLoadState: (state: LoadState) => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
    *
    *  The shift-start digest's gate: it renders on the first session after a gap of
@@ -444,6 +456,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       devBarHidden: false,
       activityRead: {},
       activityScenarioId: "typical-shift",
+      devLoadState: DEFAULT_LOAD_STATE,
       tasksLastVisitAt: 0,
       activityDensity: "dense",
       careUpdates: {},
@@ -839,6 +852,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         // meaningful (rule 11 is about a viewer clearing a ROW) — this is the
         // prototype simulator swapping one fixture ledger for another.
         set({ activityScenarioId: id, activityRead: {} }),
+      setDevLoadState: (state) => set({ devLoadState: state }),
       seedActivityRead: (overlay) => set({ activityRead: overlay }),
       markActivityRowsRead: (viewerId, scope, eventIds) =>
         set((s) => ({
@@ -974,6 +988,10 @@ export const useOnboardingStore = create<OnboardingState>()(
           careSummaryCommits: {}, // …and un-commits the frozen summaries
           activityRead: {}, // dev "start over" returns every row to its seed state
           activityScenarioId: "typical-shift",
+          // Reset returns the harness to a normal load, like it returns the
+          // persona lens: a "start over" that left the feed in an error state
+          // would look like the reset had failed.
+          devLoadState: DEFAULT_LOAD_STATE,
           tasksLastVisitAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
           careUpdates: {},
@@ -1079,7 +1097,12 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      WOULD BE FABRICATING EVIDENCE for decisions already in the record.
       //      Old records therefore show approved reviews with no summary beside
       //      them, which is the truth about them.
-      version: 40,
+      // v41: devLoadState (the harness's load-state axis, lifted out of the
+      //      Activity page) — a CLOSED UNION, so the backfill is the default
+      //      rather than {} and anything unrecognised becomes "ready". A session
+      //      opening on "error" because a stored value drifted would look like a
+      //      broken app rather than a set control.
+      version: 41,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1467,6 +1490,13 @@ export const useOnboardingStore = create<OnboardingState>()(
             st37.tasksLastVisitAt = 0;
           }
         }
+        if (version < 41) {
+          // v41: closed union — anything unrecognised becomes the default.
+          const st41 = persisted as { devLoadState?: unknown };
+          if (!LOAD_STATES.includes(st41.devLoadState as LoadState)) {
+            st41.devLoadState = DEFAULT_LOAD_STATE;
+          }
+        }
         if (version < 40) {
           // v40: a MAP OF ARRAYS — {} is the backfill, and see the version log
           // for why an empty log is the only honest one.
@@ -1805,6 +1835,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         careSummaryCommits: state.careSummaryCommits,
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
+        devLoadState: state.devLoadState,
         tasksLastVisitAt: state.tasksLastVisitAt,
         activityDensity: state.activityDensity,
         careUpdates: state.careUpdates,

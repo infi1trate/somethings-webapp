@@ -65,6 +65,23 @@ import {
   scenarioById,
   scenarioHref,
 } from "@/lib/dev/record-scenarios";
+import { ACTIVITY_SCENARIOS } from "@/lib/activity/seed";
+import {
+  LOAD_STATES,
+  LOAD_STATE_LABEL,
+  LOAD_STATE_SCREENS,
+  type LoadState,
+} from "@/lib/dev/load-state";
+
+/** ═══ WHY THE ACTIVITY IDS ARE PREFIXED IN THIS SELECT ═══
+ *
+ *  Two families share one control and they are different kinds of thing: a
+ *  record scenario NAVIGATES — it names a subject and a tab — while an activity
+ *  scenario only sets a store field. `onChange` has to tell them apart, and an id
+ *  that existed in both lists would otherwise navigate when it should have
+ *  switched the feed. Both lists happen to contain "typical-shift" today, which
+ *  is exactly the collision this prevents. */
+const ACTIVITY_PREFIX = "activity:";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -151,6 +168,12 @@ export function DevBar() {
   /** A record route is one where a scenario has something to hold on to. */
   const onRecord = pathname?.startsWith("/admin/person/") ?? false;
   const scenario = scenarioById(scenarioId);
+  const activityScenarioId = useOnboardingStore((s) => s.activityScenarioId);
+  const setActivityScenario = useOnboardingStore(
+    (s) => s.setActivityScenarioId
+  );
+  const loadState = useOnboardingStore((s) => s.devLoadState);
+  const setDevLoadState = useOnboardingStore((s) => s.setDevLoadState);
 
   const pickRole = (p: (typeof PERSONAS)[number]) => {
     setPersona(p.key);
@@ -252,10 +275,37 @@ export function DevBar() {
           {/* TODO-COPY */}
           <span className="text-[var(--text-muted)]">Scenario</span>
           <select
-            value={scenarioId}
+            /* ═══ THE VALUE FOLLOWS THE SCREEN, NOT THE LAST CLICK ═══
+               One select, two independent axes: the record scenario is derived
+               from the URL, the activity scenario is a store field. Showing
+               whichever was chosen most recently meant an activity selection
+               vanished from the control on reload while still being in effect —
+               a dev control that lies about its own state is worse than none.
+               So on Activity it shows the activity axis, and everywhere else the
+               record axis. Selecting a record scenario does NOT clear the
+               activity one, and it should not: they apply to different screens
+               and both remain true. */
+            value={
+              pathname.startsWith("/app/activity")
+                ? `${ACTIVITY_PREFIX}${activityScenarioId}`
+                : scenarioId
+            }
             onChange={(e) => {
-              setScenarioId(e.target.value);
-              const s = scenarioById(e.target.value);
+              const value = e.target.value;
+              setScenarioId(value);
+              // ── ACTIVITY: set the axis, and go to the screen it applies to.
+              if (value.startsWith(ACTIVITY_PREFIX)) {
+                setActivityScenario(value.slice(ACTIVITY_PREFIX.length));
+                // NAVIGATE ONLY IF WE ARE NOT ALREADY THERE. Pushing
+                // `/app/activity` while on it would reset the page's own local
+                // state — view, filters, scroll — which a scenario switch has no
+                // business doing.
+                if (!pathname.startsWith("/app/activity")) {
+                  router.push("/app/activity", { scroll: false });
+                }
+                return;
+              }
+              const s = scenarioById(value);
               // CLIENT-SIDE. No reload; the record re-renders in place.
               if (s) router.push(scenarioHref(s), { scroll: false });
             }}
@@ -281,6 +331,61 @@ export function DevBar() {
                 </option>
               ))}
             </optgroup>
+            {/* ═══ ACTIVITY, THE THIRD SCREEN LEVEL ═══
+                It had its own collapsible panel pinned to the feed's corner —
+                a second pattern for a job this select already did, page-local so
+                it reset on navigation, and under the fixed bottom nav below `md`
+                where it could not be tapped at all.
+                THE IDS ARE PREFIXED because the two families are different
+                kinds of thing: a record scenario NAVIGATES (it names a subject
+                and a tab), an activity scenario only SETS STATE. Without a
+                prefix the branch in `onChange` would have to guess, and an id
+                collision between the two lists would silently navigate instead
+                of switching the feed. */}
+            <optgroup label="Activity">
+              {ACTIVITY_SCENARIOS.map((s) => (
+                <option key={s.id} value={`${ACTIVITY_PREFIX}${s.id}`}>
+                  {s.label}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
+
+        <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-subtle)]" />
+
+        {/* ── AXIS 3 · LOAD STATE ───────────────────────────────────────────
+            Lifted out of the Activity page's panel, where it was `useState` and
+            reset on every navigation.
+
+            THE LABEL NAMES ITS SCOPE, and that is deliberate rather than
+            apologetic: Activity is the only screen that implements these states,
+            so "Load (Activity)" tells a reader why nothing changes on the Tasks
+            page. The alternative — an unqualified "Load" that silently does
+            nothing on four screens out of five — is the version that wastes
+            somebody's afternoon. design-system-gaps row 317. */}
+        <label className="flex shrink-0 items-center gap-1.5">
+          {/* TODO-COPY */}
+          <span className="text-[var(--text-muted)]">
+            Load
+            <span className="text-[var(--text-muted)]">
+              {` (${LOAD_STATE_SCREENS.join(", ")})`}
+            </span>
+          </span>
+          <select
+            value={loadState}
+            onChange={(e) => setDevLoadState(e.target.value as LoadState)}
+            className={cn(
+              "rounded-md border border-[color:var(--border-contour)] bg-[var(--surface-s1)] px-2 py-1",
+              "text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            {LOAD_STATES.map((st) => (
+              <option key={st} value={st}>
+                {LOAD_STATE_LABEL[st]}
+              </option>
+            ))}
           </select>
         </label>
 
