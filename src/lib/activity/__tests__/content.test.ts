@@ -13,6 +13,7 @@ import {
   resolveAlertType,
   type ActivityViewer,
 } from "@/lib/activity/resolve-alert-type";
+import type { ActivityDomain } from "@/lib/activity/events";
 import { ACTIVITY_SCENARIOS, SHIFT_START_HOUR, SIM_NOW, scenarioById } from "@/lib/activity/seed";
 import { viewById } from "@/lib/activity/views";
 import { markRead, type ReadOverlay } from "@/lib/activity/read-state";
@@ -28,7 +29,12 @@ const viewerFor = (id: string): ActivityViewer => {
 };
 
 /** Every row in a view, flattened out of its day buckets. */
-function rowsOf(scenarioId: string, viewId: string, includeActions = false): FeedRow[] {
+function rowsOf(
+  scenarioId: string,
+  viewId: string,
+  includeActions = false,
+  domains: ActivityDomain[] = []
+): FeedRow[] {
   const s = scenario(scenarioId);
   return queryFeed({
     events: s.events,
@@ -36,10 +42,25 @@ function rowsOf(scenarioId: string, viewId: string, includeActions = false): Fee
     view: viewById(viewId),
     overlay: EMPTY_OVERLAY,
     unreadOnly: false,
-    filters: { ...EMPTY_FILTERS, includeActions },
+    filters: { ...EMPTY_FILTERS, includeActions, domains },
     now: SIM_NOW,
   }).flatMap((d) => d.rows);
 }
+
+/** ═══ THE BILLING LEDGER, AFTER THE TAB WAS REMOVED (B2) ═══
+ *
+ *  Three call sites below asked for `viewId: "billing"`. That view is gone —
+ *  billing is a DOMAIN and the rail is a SCOPE axis — and `viewById` falls back
+ *  to the default, so those tests silently started querying My caseload. One of
+ *  them caught it (no degraded rows exist in `mine` scope, which is the whole
+ *  point of that scope) and the others would have kept passing against the wrong
+ *  question.
+ *
+ *  The replacement is B2's own contract: widest scope plus the billing domain
+ *  filter. `includeActions` is not needed — a domain filter now admits the full
+ *  type set by itself, which is the property the tab used to carry. */
+const billingLedger = (scenarioId: string) =>
+  rowsOf(scenarioId, "network", false, ["billing"]);
 
 // ═══ ITEM 2 · THE ACTION LEAK ══════════════════════════════════════════════
 
@@ -121,7 +142,7 @@ describe("billing codes render where detail is granted", () => {
   it("clause (a): the viewer's own past review keeps its code after reassignment", () => {
     // network-wide seeds exactly this — Lydia's own approval for a teen who has
     // since left her caseload. It is the row A5 clause (a) exists for.
-    const rows = rowsOf("network-wide", "billing", true).filter(
+    const rows = billingLedger("network-wide").filter(
       (r) => r.actorId === viewerFor("network-wide").id && r.eventType === "BILLING_REVIEW_COMPLETE"
     );
     expect(rows.length).toBeGreaterThan(0);
@@ -129,7 +150,7 @@ describe("billing codes render where detail is granted", () => {
   });
 
   it("out-of-caseload rows stay code-free (A5)", () => {
-    const degraded = rowsOf("network-wide", "billing", true).filter((r) => r.degraded);
+    const degraded = billingLedger("network-wide").filter((r) => r.degraded);
     expect(degraded.length).toBeGreaterThan(0);
     for (const r of degraded) {
       expect(r.payload).toBeUndefined();
@@ -141,7 +162,7 @@ describe("billing codes render where detail is granted", () => {
 
   it("a code never appears on a review that has not completed", () => {
     for (const s of ACTIVITY_SCENARIOS) {
-      for (const r of rowsOf(s.id, "billing", true)) {
+      for (const r of billingLedger(s.id)) {
         if (r.eventType === "BILLING_REVIEW_COMPLETE") continue;
         expect(r.sentence).not.toMatch(/ — /);
       }
@@ -150,7 +171,7 @@ describe("billing codes render where detail is granted", () => {
 
   it("a coalesced group states no single code for a batch", () => {
     for (const s of ACTIVITY_SCENARIOS) {
-      for (const r of rowsOf(s.id, "billing", true)) {
+      for (const r of billingLedger(s.id)) {
         if (r.count > 1) expect(r.sentence).not.toMatch(/ — /);
       }
     }
@@ -358,7 +379,7 @@ describe("the detailed row's context line respects rule 12", () => {
     // sentence change, and `sentences.ts` is not this phase's to edit.
     // design-system-gaps row 321.
     for (const s of ACTIVITY_SCENARIOS) {
-      for (const r of rowsOf(s.id, "billing", true)) {
+      for (const r of billingLedger(s.id)) {
         if (r.eventType !== "BILLING_REVIEW_COMPLETE") continue;
         const code = typeof r.payload?.code === "string" ? r.payload.code : null;
         if (!code) continue;

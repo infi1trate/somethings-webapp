@@ -69,16 +69,23 @@ export const ACTIVITY_VIEWS: ActivityView[] = [
     types: ["notification"],
     domains: null,
   },
-  {
-    id: "billing",
-    label: "Billing",
-    scope: "all",
-    // Every type, one domain: this is the billing ledger, and a code history is
-    // only complete if it includes the rows that opened and chased a review as
-    // well as the ones that completed it.
-    types: ["activity", "notification", "action", "attention"],
-    domains: ["billing"],
-  },
+  // ═══ THE BILLING VIEW WAS HERE, AND IT WAS A CATEGORY ERROR ═══
+  //
+  // `{ id: "billing", scope: "all", domains: ["billing"] }`. The rail is a SCOPE
+  // axis — whose mentees am I looking at — and billing is a DOMAIN axis. A tab
+  // can only express one combination of the two, so "billing across the team"
+  // was reachable and "billing on my caseload" was not, and the rail read as
+  // though scope and domain were the same kind of choice.
+  //
+  // Billing is now the domain FILTER, which composes with either scope.
+  //
+  // IT ALSO CARRIED A TYPE BREADTH THE FILTER AXIS DOES NOT EXPRESS, and that is
+  // the part worth keeping: it admitted all four alert types, because "a code
+  // history is only complete if it includes the rows that opened and chased a
+  // review as well as the ones that completed it." That property now belongs to
+  // the domain filter itself — see `admittedTypes` in `query.ts`. Without that,
+  // filtering to billing on My caseload would have hidden every opened and
+  // overdue row and quietly returned a shorter ledger than the tab did.
 ];
 
 export const DEFAULT_VIEW_ID = "mine";

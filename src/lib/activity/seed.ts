@@ -537,19 +537,61 @@ function longHistory(): ActivityEvent[] {
     "SURVEY_COMPLETED",
     "TEEN_PAUSED",
   ];
-  for (let i = 0; i < 54; i++) {
-    const type = types[i % types.length];
-    const teen = teens[i % teens.length];
-    out.push(
-      make({
-        type,
-        actorId: type === "SURVEY_COMPLETED" ? SYSTEM_ACTOR_ID : L,
-        teenId: teen.id,
-        // Spread across 48 days, so ~18 days sit beyond the 30-day window.
-        occurredAt: ago(Math.floor((i * 48) / 54), (i % 6) * 2 + 1),
-        payload: payloadFor(type, teen.id, i),
-      })
-    );
+  /** ═══ DAYS THAT ACTUALLY GROUP ═══
+   *
+   *  This loop used to place events at `ago(floor(i * 48 / 54), …)`, which spread
+   *  54 events almost evenly over 48 days: MEASURED, 43 populated days of which
+   *  32 held exactly one event. So a day divider rendered above nearly every
+   *  single row — grouping that never groups, which is chrome rather than
+   *  structure, and it also meant A6's coalescing was only ever visible in the
+   *  heavy-day scenario instead of in a realistic feed.
+   *
+   *  An explicit plan rather than a formula: `[daysAgo, count]`, counts in the
+   *  brief's 3–8 band, with gaps of one to nine days between them so some days
+   *  hold none. Deterministic, so the fixture is still diffable.
+   *
+   *  THE 48-DAY SPAN IS PRESERVED, which is what makes "Load older" mean
+   *  anything — two populated days sit beyond 30, holding 11 events between
+   *  them, so paging reveals real rows rather than an empty stretch. */
+  const DAY_PLAN: Array<[number, number]> = [
+    [0, 5],
+    [2, 3],
+    [3, 7],
+    [6, 4],
+    [7, 3],
+    [11, 6],
+    [14, 4],
+    [18, 8],
+    [23, 3],
+    [29, 5],
+    [36, 3],
+    [45, 3],
+  ];
+
+  let i = 0;
+  for (const [daysAgo, count] of DAY_PLAN) {
+    for (let k = 0; k < count; k++) {
+      const type = types[i % types.length];
+      const teen = teens[i % teens.length];
+      out.push(
+        make({
+          type,
+          actorId: type === "SURVEY_COMPLETED" ? SYSTEM_ACTOR_ID : L,
+          teenId: teen.id,
+          // ═══ THE SPREAD MUST NOT CROSS MIDNIGHT ═══
+          // `ago(d, h)` subtracts h hours from SIM_NOW, which is 01:40Z — so any
+          // offset over ~1.6h lands on the PREVIOUS calendar day. The first
+          // version used `1 + k * 2.5` and split every planned day in two: the
+          // 12-day plan measured as 22 populated days with a max of 5 instead of
+          // 8, which is the same defect this change exists to remove.
+          // 9 minutes apart keeps a day's rows ordered and distinct, and close
+          // enough together that A6's coalescing has something to do.
+          occurredAt: ago(daysAgo, k * 0.15),
+          payload: payloadFor(type, teen.id, i),
+        })
+      );
+      i++;
+    }
   }
   return out;
 }

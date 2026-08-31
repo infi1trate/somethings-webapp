@@ -181,10 +181,28 @@ export interface FeedQuery {
  *  that adds rows rather than removing them, which is why it lives in the
  *  "Additional filters" group in the UI rather than among the domain checkboxes. */
 function admittedTypes(view: ActivityView, f: ActivityFilters): AlertType[] {
-  if (!f.includeActions) return view.types;
+  /** ═══ A DOMAIN FILTER ASKS FOR THAT DOMAIN'S WHOLE LEDGER ═══
+   *
+   *  This property used to belong to the Billing TAB, whose own comment made the
+   *  argument: "a code history is only complete if it includes the rows that
+   *  opened and chased a review as well as the ones that completed it." The tab
+   *  is gone (billing is a domain, not a scope — see `views.ts`), and without
+   *  moving the property, filtering to billing on My caseload would have hidden
+   *  every opened and overdue row and returned a shorter ledger than the tab did.
+   *
+   *  It generalises honestly rather than being a billing special case: narrowing
+   *  to one domain is asking to see that domain, and "show me risk flags" that
+   *  omitted the raised and overdue rows would be the same defect.
+   *
+   *  IT ONLY WIDENS ON AN EXPLICIT NARROWING. With no domain filter the default
+   *  views keep their own type sets, so My caseload still reads as a record
+   *  rather than a queue. */
+  const domainLedger = f.domains.length > 0;
+  if (!f.includeActions && !domainLedger) return view.types;
   const widened = new Set<AlertType>(view.types);
   widened.add("action");
   widened.add("attention");
+  if (domainLedger) widened.add("activity");
   return [...widened];
 }
 

@@ -15,7 +15,7 @@
 // silently wrong read state.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlignJustify, Filter, Rows3, Search } from "lucide-react";
+import { AlignJustify, Filter, Rows3, Search, X } from "lucide-react";
 import {
   DEFAULT_LOAD_STATE,
   type LoadState,
@@ -24,6 +24,7 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { queryFeed, unreadRowCount, type FeedRow } from "@/lib/activity/query";
 import { objectDetailFor } from "@/lib/activity/inspector";
+import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
 import { ObjectInspector } from "@/components/activity/object-inspector";
 import { seedOverlay } from "@/lib/activity/read-state";
 import {
@@ -36,12 +37,14 @@ import {
   viewById,
   type ActivityDensity,
 } from "@/lib/activity/views";
+import type { ActivityDomain } from "@/lib/activity/events";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { RecordButton } from "@/components/record/record-button";
 import { ActivityRow } from "@/components/activity/activity-row";
 import { FilterDialog } from "@/components/activity/filter-dialog";
 import { ViewRail } from "@/components/activity/view-rail";
 import {
+  DOMAIN_FILTERS,
   EMPTY_FILTERS,
   activeFilterCount,
   hasActiveFilters,
@@ -73,6 +76,19 @@ const RING =
  *  than by a hand-computed offset that would drift the moment the ratio changed. */
 const PAGE_WRAPPER = "mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-8";
 const COLUMNS = "grid gap-5 xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]";
+/** ═══ AND ONE COLUMN WHEN THE LIST IS EMPTY (item 7) ═══
+ *
+ *  With no rows there is nothing to select, so the pane has nothing to hold and
+ *  rendered as a second large empty slab beside the first — two empty states
+ *  side by side, one of which was explaining that nothing was selected while the
+ *  other explained that nothing exists.
+ *
+ *  The pane returns the moment rows exist. Applied to the TOOLBAR row as well as
+ *  the content, because the two share this definition on purpose (§5): the
+ *  filter cluster aligns to the first column's edge by being the last thing in
+ *  that cell, and leaving the toolbar on two columns while the content collapsed
+ *  would strand it mid-page. */
+const ONE_COLUMN = "grid gap-5";
 
 /** ═══ UNREAD BADGE: BUILT, SHIPPED OFF ═══
  *
@@ -149,8 +165,10 @@ function Toolbar({
   unreadOnly,
   onUnreadOnly,
   filters,
+  onFilters,
   onOpenFilters,
   onResetFilters,
+  paneVisible,
   filterTriggerRef,
   density,
   onDensity,
@@ -158,8 +176,12 @@ function Toolbar({
   unreadOnly: boolean;
   onUnreadOnly: (v: boolean) => void;
   filters: ActivityFilters;
+  /** Per-chip removal. The popover owns adding; a chip owns taking one away. */
+  onFilters: (f: ActivityFilters) => void;
   onOpenFilters: () => void;
   onResetFilters: () => void;
+  /** False when the list is empty — see ONE_COLUMN. */
+  paneVisible: boolean;
   filterTriggerRef: React.RefObject<HTMLButtonElement | null>;
   density: ActivityDensity;
   onDensity: (d: ActivityDensity) => void;
@@ -181,7 +203,7 @@ function Toolbar({
     //
     // The row itself still SPANS the full content width (§2), because the grid
     // does; it is the contents that are confined to the first column.
-    <div className={cn(COLUMNS, "mt-3")}>
+    <div className={cn(paneVisible ? COLUMNS : ONE_COLUMN, "mt-3")}>
       <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
@@ -231,6 +253,15 @@ function Toolbar({
           </span>
         )}
       </button>
+
+      {/* ═══ APPLIED FILTERS, LEGIBLE WITHOUT OPENING ANYTHING (item 5) ═══
+          The count badge on the trigger said HOW MANY narrowings were in force
+          and never WHICH — so a reader looking at a short list had to open the
+          popover to find out why it was short. Each chip names one filter and
+          removes it; the popover stays the place you ADD them.
+          They sit after the trigger and before Reset, which is the order of the
+          sentence they make: filter · these ones · start over. */}
+      <FilterChips filters={filters} onChange={onFilters} />
 
       {/* RESET APPEARS ONLY WHEN THERE IS SOMETHING TO RESET. A permanently
           visible Reset on an unfiltered list is a control that does nothing. */}
@@ -311,6 +342,93 @@ function Toolbar({
         </div>
       </div>
     </div>
+  );
+}
+
+/** ═══ ONE CHIP PER APPLIED FILTER ═══
+ *
+ *  Every chip is removable and every chip names its own filter, so the row reads
+ *  as the state of the list rather than as a count. Ordered so the axes a reader
+ *  is most likely to be surprised by come first: a domain narrowing changes what
+ *  KINDS of row exist, a person narrowing changes whose, and the two inclusion
+ *  toggles only widen.
+ *
+ *  A CHIP IS NOT A BUTTON WITH AN X GLUED ON — the whole chip is the control, so
+ *  the target is the chip and not a 12px glyph inside it. The label is in the
+ *  accessible name as "Remove …", because "Billing ×" tells a screen-reader user
+ *  what the chip IS and not what activating it does. */
+function FilterChips({
+  filters,
+  onChange,
+}: {
+  filters: ActivityFilters;
+  onChange: (f: ActivityFilters) => void;
+}) {
+  const chips: Array<{ key: string; label: string; next: ActivityFilters }> = [];
+
+  for (const d of filters.domains) {
+    const label = DOMAIN_FILTERS.find((x) => x.id === d)?.label ?? d;
+    chips.push({
+      key: `domain-${d}`,
+      label,
+      next: { ...filters, domains: filters.domains.filter((x) => x !== d) },
+    });
+  }
+  if (filters.teenId) {
+    chips.push({
+      key: "teen",
+      // TODO-COPY
+      label: teenFirstName(filters.teenId),
+      next: { ...filters, teenId: null },
+    });
+  }
+  if (filters.staffId) {
+    chips.push({
+      key: "staff",
+      // TODO-COPY
+      label: staffFirstName(filters.staffId),
+      next: { ...filters, staffId: null },
+    });
+  }
+  if (filters.includeActions) {
+    // TODO-COPY
+    chips.push({
+      key: "actions",
+      label: "Including actions",
+      next: { ...filters, includeActions: false },
+    });
+  }
+  if (filters.showCleared) {
+    // TODO-COPY
+    chips.push({
+      key: "cleared",
+      label: "Including cleared",
+      next: { ...filters, showCleared: false },
+    });
+  }
+
+  if (chips.length === 0) return null;
+
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {chips.map((c) => (
+        <button
+          key={c.key}
+          type="button"
+          onClick={() => onChange(c.next)}
+          /* TODO-COPY */
+          aria-label={`Remove the ${c.label} filter`}
+          className={cn(
+            "inline-flex min-h-9 items-center gap-1 rounded-full bg-[var(--surface-s2)] px-2.5 text-[12.5px] font-medium text-[var(--text-secondary)]",
+            "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          {c.label}
+          <X className="size-3 shrink-0" aria-hidden />
+        </button>
+      ))}
+    </span>
   );
 }
 
@@ -423,9 +541,12 @@ export function ActivityLedger({
    *  arriving on a billing deep link and landing in My caseload would filter a
    *  view that may not contain the teen at all. */
   initialDomain = null,
+  /** `?scope=mine|team`. Resolves the RAIL; the domain resolves the filter. */
+  initialScope = null,
 }: {
   initialTeenId?: string | null;
   initialDomain?: string | null;
+  initialScope?: string | null;
 } = {}) {
   const mounted = useMounted();
   const overlay = useOnboardingStore((s) => s.activityRead);
@@ -442,18 +563,37 @@ export function ActivityLedger({
   // `setActivityScenarioId` is the DEV BAR'S to call now — the select there owns
   // the axis. This page only reads it.
 
-  const [viewId, setViewId] = useState(
-    // A billing deep link opens the Billing view — scope `all`, every type, one
-    // domain — which is the only view guaranteed to contain the row being linked
-    // to regardless of whose caseload the teen is on.
-    initialDomain === "billing" ? "billing" : DEFAULT_VIEW_ID
+  const [viewId, setViewId] = useState(() =>
+    /* ═══ A DEEP LINK RESOLVES TO A SCOPE, AND THE FILTER CARRIES THE DOMAIN ═══
+       This used to send a billing link to the Billing tab, "the only view
+       guaranteed to contain the row being linked to regardless of whose caseload
+       the teen is on". That guarantee came from `scope: "all"`, not from the
+       domain — so with the tab gone the link resolves to the widest SCOPE and
+       the domain travels in the filter instead. Same guarantee, expressed on the
+       axis that owns it.
+       `?scope=` is honoured directly when given, so
+       `/app/activity?scope=team&domain=billing` lands on Team with billing
+       applied, and a link with only a domain still lands somewhere it can be
+       seen. */
+    initialScope === "team"
+      ? "network"
+      : initialScope === "mine"
+        ? "mine"
+        : initialDomain
+          ? "network"
+          : DEFAULT_VIEW_ID
   );
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [filters, setFilters] = useState<ActivityFilters>(() =>
-    initialTeenId
-      ? { ...EMPTY_FILTERS, teenId: initialTeenId }
-      : EMPTY_FILTERS
-  );
+  const [filters, setFilters] = useState<ActivityFilters>(() => {
+    const domains = DOMAIN_FILTERS.some((d) => d.id === initialDomain)
+      ? [initialDomain as ActivityDomain]
+      : [];
+    return {
+      ...EMPTY_FILTERS,
+      ...(initialTeenId ? { teenId: initialTeenId } : {}),
+      domains,
+    };
+  });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterTrigger = useRef<HTMLButtonElement | null>(null);
   /** FROM THE STORE, not from local state — see the note where the panel used to
@@ -580,6 +720,12 @@ export function ActivityLedger({
 
   const hasOlder = windowed.length < days.length;
   const total = windowed.reduce((n, d) => n + d.rows.length, 0);
+  /** THE PANE EXISTS ONLY IF THERE IS SOMETHING TO SELECT. Keyed on the row
+   *  count rather than on `selected`, so the column does not appear and vanish
+   *  as a reader clicks around a populated list. `loading` keeps the pane too:
+   *  the skeleton is a promise that rows are coming, and collapsing the layout
+   *  under it would make every load reflow the page twice. */
+  const paneVisible = total > 0 || loadState === "loading";
 
   /** THE SELECTED ROW, RE-FOUND IN THE CURRENT RESULT SET each render — which is
    *  what makes the selection survive a density change and evaporate when the row
@@ -733,12 +879,33 @@ export function ActivityLedger({
           activeId={viewId}
           onSelect={(id) => {
             setViewId(id);
-            // SWITCHING VIEWS RESETS FILTERS. A view is a different question, and
-            // the filters were answers to the previous one — carrying "only
-            // escalations" from My caseload into Network silently answers a
-            // question nobody asked.
+            /* ═══ THE RESET RULE IS REVERSED, AND THE OLD ONE WAS RIGHT UNTIL
+                   THE RAIL STOPPED BEING THE ONLY AXIS ═══
+
+               It read: "switching views resets filters. A view is a different
+               question, and the filters were answers to the previous one." True
+               while the rail mixed scope and domain — carrying "only
+               escalations" into a Billing tab really did answer a question
+               nobody asked.
+
+               Now the rail is PURELY scope and the filters are purely domain, so
+               they are orthogonal: "billing" and "my caseload" are two
+               independent halves of one question, and clearing one when the
+               other changes destroys the combination the instant you toggle,
+               which is the whole reason the Billing tab was removed.
+
+               SCOPE-SPECIFIC FILTERS STILL CLEAR, because they stop applying:
+               `staffId` narrows to one colleague, which is only meaningful when
+               the scope includes colleagues. Leaving it set on My caseload would
+               be a filter with nothing to filter, silently returning nothing.
+
+               `unreadOnly` also clears. It is not a domain filter — it is a
+               question about THIS view's unread set, and the rail already shows
+               a per-view unread count beside each tab. */
             setUnreadOnly(false);
-            setFilters(EMPTY_FILTERS);
+            setFilters((f) =>
+              viewById(id).scope === "mine" ? { ...f, staffId: null } : f
+            );
           }}
           unreadFor={unreadFor}
         />
@@ -750,6 +917,8 @@ export function ActivityLedger({
         unreadOnly={unreadOnly}
         onUnreadOnly={setUnreadOnly}
         filters={filters}
+        paneVisible={paneVisible}
+        onFilters={setFilters}
         onOpenFilters={() => setFiltersOpen(true)}
         onResetFilters={() => setFilters(EMPTY_FILTERS)}
         filterTriggerRef={filterTrigger}
@@ -767,7 +936,7 @@ export function ActivityLedger({
           to one column and the list takes the full width; selection still happens
           and the row still takes its selected treatment, there is just nowhere for
           the pane to go. Gap row 239. */}
-      <div className={cn(COLUMNS, "mt-4")}>
+      <div className={cn(paneVisible ? COLUMNS : ONE_COLUMN, "mt-4")}>
       {/* ═══ ONE ELEVATED CONTAINER (A10 items 1 and 3) ═══
           
           The feed used to sit directly on the page background with no figure/
@@ -914,10 +1083,17 @@ export function ActivityLedger({
             a tall empty column, which is exactly what §4 reports. Making the aside
             the grid item means it stretches, and its own `flex flex-col` then
             centres the empty state in the full column. */}
-        <ObjectInspector
-          detail={objectDetail}
-          hasSelection={selectedRow !== null}
-        />
+        {/* NOT RENDERED AT ALL WHEN THE LIST IS EMPTY. `hidden` would leave the
+            grid item in place and the collapsed template would still reserve
+            nothing for it — but an aside that exists and displays nothing is
+            also a thing a screen reader walks into. Unmounted, so the empty
+            state is one column and one message. */}
+        {paneVisible && (
+          <ObjectInspector
+            detail={objectDetail}
+            hasSelection={selectedRow !== null}
+          />
+        )}
       </div>
 
       {/* POLITE LIVE REGION for the clear announcement. Always present so the

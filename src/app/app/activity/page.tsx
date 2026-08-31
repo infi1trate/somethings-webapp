@@ -81,6 +81,10 @@ export default function ActivityPage({
   // the code's history.
   const objectId = typeof query.objectId === "string" ? query.objectId : null;
   const domain = typeof query.domain === "string" ? query.domain : null;
+  /** `?scope=mine|team`. B2's deep-link contract: scope picks the rail, domain
+   *  picks the filter. Read through `use(searchParams)` like everything else on
+   *  this page — never `useSearchParams` (standing rule 3). */
+  const scope = typeof query.scope === "string" ? query.scope : null;
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const activity = useOnboardingStore((s) => s.activity);
@@ -108,7 +112,11 @@ export default function ActivityPage({
   if (supervisor) {
     return (
       <AdminShell active="activity">
-        <ActivityLedger initialTeenId={objectId} initialDomain={domain} />
+        <ActivityLedger
+          initialTeenId={objectId}
+          initialDomain={domain}
+          initialScope={scope}
+        />
       </AdminShell>
     );
   }
