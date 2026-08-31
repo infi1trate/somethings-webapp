@@ -326,10 +326,16 @@ function typicalShift(): ActivityEvent[] {
   const L = STAFF.lydia.id;
   return [
     // Today
-    make({ type: "RISK_FLAG_CLOSED", actorId: L, teenId: TEENS.maya.id, conversationId: "conv-maya-a", occurredAt: at(1.85), payload: { categories: ["HATE_SPEECH_RACIAL_SLURS"] } }),
-    make({ type: "BILLING_REVIEW_COMPLETE", actorId: L, teenId: TEENS.caleb.id, occurredAt: at(3), payload: { code: "F41.1" } }),
-    make({ type: "ESCALATION_CLOSED", actorId: L, teenId: TEENS.simone.id, occurredAt: at(4.5), payload: { outcome: "supported" } }),
-    make({ type: "SURVEY_COMPLETED", actorId: SYSTEM_ACTOR_ID, teenId: TEENS.jordan.id, occurredAt: at(6), payload: { instrument: "GAD-7", score: 11 } }),
+    // ═══ THE DEFAULT SCENARIO'S TOP FOUR ROWS CARRY FULL EVIDENCE (B3) ═══
+    // These are hand-written, so `payloadFor` never touched them — and the first
+    // pane capture came back with no review document, no reviewer notes and no
+    // disclosure control, because the fields simply were not there. The default
+    // scenario is the one anybody demos, so it has to exercise the pane rather
+    // than only the generated fixtures doing so.
+    make({ type: "RISK_FLAG_CLOSED", actorId: L, teenId: TEENS.maya.id, conversationId: "conv-maya-a", occurredAt: at(1.85), payload: { categories: ["HATE_SPEECH_RACIAL_SLURS"], decision: "Closed", reviewerNotes: "Read the full thread. The language is heated but aimed at a situation rather than a person, and the mentor had already picked it up in the next message. Closing with a note on the record.", flaggedExcerpt: "i don't know how much longer i can keep doing this" } }),
+    make({ type: "BILLING_REVIEW_COMPLETE", actorId: L, teenId: TEENS.caleb.id, occurredAt: at(3), payload: { code: "F41.1", previousCode: "F41.9", status: "Active", note: "Scores have held in the moderate band across three readings and the presenting content matches the recurrent course. Coding to the milder severity." } }),
+    make({ type: "ESCALATION_CLOSED", actorId: L, teenId: TEENS.simone.id, occurredAt: at(4.5), payload: { outcome: "supported", notes: "Called the guardian within the hour. They were aware and had already contacted the school counsellor. Follow-up scheduled for Monday." } }),
+    make({ type: "SURVEY_COMPLETED", actorId: SYSTEM_ACTOR_ID, teenId: TEENS.jordan.id, occurredAt: at(6), payload: { instrument: "GAD-7", score: 11, priorScore: 14 } }),
     make({ type: "BILLING_REVIEW_OPENED", actorId: SYSTEM_ACTOR_ID, teenId: TEENS.jordan.id, occurredAt: at(6.2), payload: { code: "F41.1" } }),
     // Yesterday
     make({ type: "ESCALATION_RAISED", actorId: STAFF.brandon.id, teenId: TEENS.maya.id, occurredAt: ago(1, 2), payload: { reason: "withheld" } }),
@@ -632,6 +638,13 @@ function payloadFor(
         code: pick(["F41.1", "F33.0", "F33.1", "F90.0", "H0038"] as const),
         previousCode: pick(["F41.9", "F32.9", "F41.1"] as const),
         status: "Active",
+        // The review document the pane previews — the supervisor's own reasoning,
+        // which is what makes the code checkable rather than just recorded.
+        note: pick([
+          "Scores have held in the moderate band across three readings and the presenting content matches the recurrent course. Coding to the milder severity.",
+          "The most recent survey moved a band and the session content supports it. Updating the code to match.",
+          "No change indicated. Re-affirming the code on record at the scheduled review.",
+        ] as const),
       };
     case "BILLING_REVIEW_OPENED":
     case "BILLING_REVIEW_OVERDUE":
@@ -639,12 +652,18 @@ function payloadFor(
         ...base,
         code: pick(["F41.1", "F33.0", "F33.1", "F90.0"] as const),
       };
-    case "SURVEY_COMPLETED":
+    case "SURVEY_COMPLETED": {
+      const score = 4 + ((i * 3) % 14);
       return {
         ...base,
         instrument: pick(["GAD-7", "PHQ-9", "WHO-5"] as const),
-        score: 4 + ((i * 3) % 14),
+        score,
+        // A PRIOR SCORE ON SOME ROWS AND NOT OTHERS, on purpose: the pane's trend
+        // section has to be exercised BOTH ways, and a "trend" from a single
+        // reading is a number with an arrow next to it.
+        ...(i % 3 === 0 ? {} : { priorScore: Math.max(0, score + ((i % 5) - 2)) }),
       };
+    }
     case "RISK_FLAG_CLOSED":
       return {
         ...base,
@@ -657,6 +676,22 @@ function payloadFor(
             "BULLYING",
           ] as const),
         ],
+        // ═══ THE EVIDENCE PANE'S BODY (B3) ═══
+        // Reviewer notes are AUTHORED BY THE PERSON WHO CLOSED THE FLAG, which is
+        // why the pane renders them as plain prose rather than in the
+        // system-attributed inset.
+        reviewerNotes: pick([
+          "Read the full thread. Language is heated but directed at a situation, not a person. Closing with a note to the mentor.",
+          "Discussed with the mentor on shift. Agreed this is within range for this teen and does not need escalation.",
+          "Escalated to the on-call supervisor and confirmed the guardian was already aware.",
+        ] as const),
+        // A TEEN'S OWN WORDS, and the only field in this seed that is one. It
+        // reaches the pane exclusively through `flaggedContentFor`, which logs.
+        flaggedExcerpt: pick([
+          "i don't know how much longer i can keep doing this",
+          "everyone at school acts like i'm invisible and i'm so done",
+          "i said something i shouldn't have and now i feel awful",
+        ] as const),
       };
     case "RISK_FLAG_RAISED":
     case "RISK_FLAG_OVERDUE":
@@ -678,6 +713,11 @@ function payloadFor(
           "guardian contacted",
           "no further action",
           "safety plan agreed",
+        ] as const),
+        notes: pick([
+          "Called the guardian within the hour. They were aware and had already contacted the teen's counsellor.",
+          "On-call supervisor joined the conversation. Teen was safe and willing to talk; a follow-up is scheduled.",
+          "Reviewed with the clinical lead. No immediate risk identified; monitoring continues at the current cadence.",
         ] as const),
       };
     case "ESCALATION_OVERDUE":

@@ -374,7 +374,7 @@ function contextFieldsOf(event: ActivityEvent): { context?: string[] } {
 /** `HATE_SPEECH_RACIAL_SLURS` → `Hate speech racial slurs`. Sentence case, per the
  *  surface's own rule — and never the raw wire value, which is the same discipline
  *  the sentence builder holds to. */
-function humaniseCategory(c: string): string {
+export function humaniseCategory(c: string): string {
   const words = c.toLowerCase().replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

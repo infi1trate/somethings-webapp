@@ -23,9 +23,13 @@ import {
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { queryFeed, unreadRowCount, type FeedRow } from "@/lib/activity/query";
-import { objectDetailFor } from "@/lib/activity/inspector";
+import { DEGRADED_MESSAGE } from "@/lib/activity/inspector";
+import {
+  eventEvidenceFor,
+  flaggedContentFor,
+} from "@/lib/activity/evidence";
+import { EventEvidencePane } from "@/components/activity/event-evidence-pane";
 import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
-import { ObjectInspector } from "@/components/activity/object-inspector";
 import { seedOverlay } from "@/lib/activity/read-state";
 import {
   DEFAULT_SCENARIO_ID,
@@ -543,10 +547,13 @@ export function ActivityLedger({
   initialDomain = null,
   /** `?scope=mine|team`. Resolves the RAIL; the domain resolves the filter. */
   initialScope = null,
+  /** `?event=<eventId>`. Restores the selected row. */
+  initialEventId = null,
 }: {
   initialTeenId?: string | null;
   initialDomain?: string | null;
   initialScope?: string | null;
+  initialEventId?: string | null;
 } = {}) {
   const mounted = useMounted();
   const overlay = useOnboardingStore((s) => s.activityRead);
@@ -640,7 +647,22 @@ export function ActivityLedger({
    *  The row id, not the row — a row object is rebuilt on every query and holding
    *  one would pin a stale sentence, a stale state and a stale count in the pane
    *  after the reader cleared something or switched density. */
-  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  /** ═══ SELECTION IS DEEP-LINKABLE ═══
+   *
+   *  Seeded from `?event=<eventId>` and mirrored back on every change, so a link
+   *  pasted into Slack for a handover restores the scope, the filters, the list
+   *  position and the selected row — the scope and filters come from their own
+   *  params, which is why this only has to carry the row.
+   *
+   *  A LINK TO A ROW OUTSIDE THE OPENER'S CASELOAD IS NOT AN ERROR. The id simply
+   *  does not resolve to a row in their scope, `selectedRow` is null, and the pane
+   *  shows its nothing-selected state. That is the no-pane state B3 asks for
+   *  rather than a failure, and it falls out of the lookup rather than needing a
+   *  branch — a bystander cannot be told "that event exists but is not for you",
+   *  because that sentence is itself a disclosure. */
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(
+    initialEventId
+  );
   const view = viewById(viewId);
 
   const viewer: ActivityViewer = useMemo(
@@ -732,6 +754,26 @@ export function ActivityLedger({
    *  leaves the view (cleared, filtered out, marked read under Unread-only). A
    *  selection pointing at a row nobody can see would leave the pane describing
    *  something absent from the list beside it. */
+  /** ═══ MIRRORED WITH `replaceState`, NOT THE ROUTER ═══
+   *
+   *  Selecting a row is a bookmarkable POSITION, not a navigation. `router.push`
+   *  would put a history entry behind every click, so Back would walk a reader
+   *  through their own reading rather than out of the page; `router.replace`
+   *  re-renders the route. `replaceState` updates the address bar and nothing
+   *  else, which is exactly the scope of the claim.
+   *
+   *  Deliberately NOT wrapped in `useEffect` over `selectedRowId` alone — the URL
+   *  is written where the selection changes, so a hydration pass cannot rewrite a
+   *  URL nobody clicked. */
+  const selectRow = (next: string | null) => {
+    setSelectedRowId(next);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set("event", next);
+    else url.searchParams.delete("event");
+    window.history.replaceState(null, "", url.toString());
+  };
+
   const selectedRow = useMemo(() => {
     if (!selectedRowId) return null;
     for (const day of windowed) {
@@ -746,21 +788,15 @@ export function ActivityLedger({
 
   /** ═══ THE PANE'S CONTENT COMES FROM THE DATA LAYER, GATED THERE ═══
    *
-   *  A12's hard rule. `objectDetailFor` recomputes the viewer's relationship
-   *  through the same function A5's degradation uses and returns null for a
-   *  bystander — so this component has no branch that could decide otherwise, and
-   *  no shape it could half-render. */
-  const objectDetail = useMemo(
-    () =>
-      selectedRow
-        ? objectDetailFor({
-            row: selectedRow,
-            events: scenario.events,
-            viewer,
-            now: SIM_NOW,
-          })
-        : null,
-    [selectedRow, scenario.events, viewer]
+   *  Still A12's hard rule, now against the EVIDENCE model rather than the object
+   *  summary A12 specified (see `evidence.ts` for why that was superseded).
+   *  `eventEvidenceFor` returns null for a degraded row — a degraded row has no
+   *  `payload` at all — for a coalesced group, and for the types that open no
+   *  pane. So this component has no branch that could decide otherwise and no
+   *  shape it could half-render. */
+  const evidence = useMemo(
+    () => (selectedRow ? eventEvidenceFor(selectedRow) : null),
+    [selectedRow]
   );
 
   /** ═══ IS THE FEED ALREADY ONE DOMAIN? (A10 item 6) ═══
@@ -790,7 +826,7 @@ export function ActivityLedger({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (document.querySelector('[role="dialog"]')) return;
-      setSelectedRowId(null);
+      selectRow(null);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -1036,7 +1072,7 @@ export function ActivityLedger({
                       // CLICKING THE SELECTED ROW AGAIN DESELECTS. The pane is a
                       // reading aid, not a mode, and Escape should not be the only
                       // way out of it.
-                      setSelectedRowId((cur) => (cur === r.id ? null : r.id))
+                      selectRow(selectedRowId === r.id ? null : r.id)
                     }
                   />
                 ))}
@@ -1089,9 +1125,23 @@ export function ActivityLedger({
             also a thing a screen reader walks into. Unmounted, so the empty
             state is one column and one message. */}
         {paneVisible && (
-          <ObjectInspector
-            detail={objectDetail}
+          <EventEvidencePane
+            /* KEYED ON THE ROW so the flagged-content disclosure resets when the
+               selection moves. Without the key, one reveal would leave every
+               subsequent flagged message open for free. */
+            key={selectedRow?.id ?? "none"}
+            evidence={evidence}
             hasSelection={selectedRow !== null}
+            degradedMessage={selectedRow?.degraded ? DEGRADED_MESSAGE : null}
+            teenId={selectedRow?.groupObjectId ?? null}
+            /* REVEALING LOGS, and the log needs the viewer — which the pane does
+               not have and should not need. The seam lives in the data layer;
+               this is the only call site. */
+            onRevealFlaggedContent={() =>
+              selectedRow
+                ? flaggedContentFor(selectedRow, viewer.id, SIM_NOW)
+                : null
+            }
           />
         )}
       </div>

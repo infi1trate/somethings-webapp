@@ -45,3 +45,39 @@ export function recordNetworkAccess(event: NetworkAccessEvent): void {
   // improve, and it would be the one artefact of this file anybody actually saw.
   void event;
 }
+
+/** ═══ THE SECOND SEAM: READING A TEEN'S OWN WORDS ═══
+ *
+ *  Same argument as `recordNetworkAccess` above, applied to the other payload in
+ *  this feature that is worth an audit trail — arguably the more sensitive one.
+ *  Revealing flagged message content IS a third-party data access, and having the
+ *  call site in place now means the coverage is already correct the day the log
+ *  exists, rather than someone later trying to find every place a message was
+ *  read.
+ *
+ *  ONE EVENT AT A TIME, not a count: unlike a feed render, this is always a
+ *  deliberate act on one row, so the record names the row. */
+export interface FlaggedContentAccessEvent {
+  /** Who looked. */
+  viewerId: string;
+  /** Which event's content was revealed. */
+  eventId: string;
+  /** Whose. An id, not a name — same reasoning as above. */
+  teenId: string;
+  at: number;
+}
+
+/** THE SEAM. Called from `flaggedContentFor`, which is the only path to the
+ *  content — so there is no way to read it that bypasses this.
+ *
+ *  Returns void and does not throw, for the same reason the network seam does
+ *  not: a logging failure must never be the thing that hides evidence from a
+ *  supervisor who is entitled to it. */
+export function recordFlaggedContentAccess(
+  event: FlaggedContentAccessEvent
+): void {
+  // TODO-DATA: implement against the real audit log. Intentionally a no-op, and
+  // NOT console.log — printing teen ids on every disclosure would be a worse
+  // privacy posture than the thing this exists to improve.
+  void event;
+}

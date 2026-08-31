@@ -23,7 +23,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, MessageSquare, Sparkles } from "lucide-react";
+import { AlertTriangle, MessageSquare } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
@@ -40,13 +40,31 @@ import {
   type TaskItem,
 } from "@/lib/tasks/types";
 import { slaLabelFor } from "@/lib/tasks/sla";
+import {
+  PANE_LABEL,
+  PaneChip,
+  QuoteBlock,
+  SystemBlock,
+} from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-const LABEL =
-  "text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]";
+/** ═══ THE PANE PRIMITIVES MOVED TO `ui/evidence-primitives.tsx` ═══
+ *
+ *  `LABEL`, `SystemBlock`, `QuoteBlock` and `Chip` were defined here and are now
+ *  imported, unchanged, because the Activity evidence pane needs the same section
+ *  rhythm. The alternative was a second `QuoteBlock` that starts identical and
+ *  drifts — and a teen's own message rendered two subtly different ways on two
+ *  staff surfaces is the drift that matters least to a developer and most to a
+ *  reader. The rationale comments travelled with them, including the gap-row
+ *  citations (218, 219, 290).
+ *
+ *  ALIASED SO THE BODIES BELOW ARE UNTOUCHED: this file's call sites still read
+ *  `LABEL` and `<Chip>`, so the extraction changed no rendered DOM here. */
+const LABEL = PANE_LABEL;
+const Chip = PaneChip;
 
 /** TODO-COPY. The tier, shown IN THE HEADER ONLY (§5) — red, orange and green
  *  share one body anatomy, and the tier is not repeated inside it. */
@@ -55,80 +73,6 @@ const TIER_LABEL: Record<RiskFlagPayload["tier"], string> = {
   orange: "Orange flag",
   green: "Standard flag",
 };
-
-/** SYSTEM-ATTRIBUTION FOR AI CONTENT (§5).
- *
- *  THE DESIGN SYSTEM HAS NO CONVENTION FOR THIS — audited: bloom-design-system_1.md
- *  has no AI/system-attribution token, component or pattern. The interim is the one
- *  this codebase already grew for the same problem on the record surface (the flag
- *  card's moment summary): an eyebrow naming the provenance, a Sparkles glyph, and
- *  a tonal inset at a step inside the card's radius — a TINT AND A RADIUS, never a
- *  border, so it reads as recessed rather than as a second card.
- *  See design-system-gaps.md row 218. */
-function SystemBlock({
-  label,
-  children,
-  link,
-}: {
-  label: string;
-  children: React.ReactNode;
-  link?: { href: string; label: string };
-}) {
-  return (
-    <div className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3.5 py-3">
-      <p className={cn("flex items-center gap-1.5", LABEL)}>
-        <Sparkles className="size-3 shrink-0" aria-hidden />
-        {label}
-      </p>
-      <p className="mt-1.5 text-[13.5px] leading-[20px] text-[var(--text-secondary)]">
-        {children}
-      </p>
-      {link && (
-        <Link
-          href={link.href}
-          className={cn(
-            "mt-2 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)]",
-            "underline decoration-[color:var(--border-contour)] underline-offset-2 hover:decoration-[color:var(--text-primary)]",
-            RING
-          )}
-        >
-          <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-          {link.label}
-        </Link>
-      )}
-    </div>
-  );
-}
-
-/** THE QUOTE BLOCK for flagged content (§5).
- *
- *  NO DESIGN-SYSTEM CONVENTION EXISTS for a quote block either — row 219. Interim:
- *  a `<blockquote>` with a left rule and the message set in a serif-neutral
- *  italic, so it reads as SOMEONE ELSE'S WORDS rather than as product copy. That
- *  distinction is the whole job here: this is the one place a teen's own message
- *  appears on a staff surface, and it must never be mistakable for the interface
- *  talking.
- *
- *  The left rule is the one place a left-edge bar is used on this surface — the
- *  record's no-left-bars rule is about severity accents on cards, and a quotation
- *  mark is not a severity signal. */
-function QuoteBlock({ children }: { children: React.ReactNode }) {
-  return (
-    <blockquote className="border-l-2 border-[color:var(--border-strong,var(--border-contour))] pl-3.5">
-      <p className="text-[14px] italic leading-[22px] text-[var(--text-primary)]">
-        {children}
-      </p>
-    </blockquote>
-  );
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-[var(--surface-s2)] px-2.5 py-0.5 text-[13px] leading-[18px] text-[var(--text-primary)]">
-      {children}
-    </span>
-  );
-}
 
 // ── Bodies ──────────────────────────────────────────────────────────────────
 

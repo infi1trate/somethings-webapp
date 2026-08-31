@@ -85,6 +85,9 @@ export default function ActivityPage({
    *  picks the filter. Read through `use(searchParams)` like everything else on
    *  this page — never `useSearchParams` (standing rule 3). */
   const scope = typeof query.scope === "string" ? query.scope : null;
+  /** `?event=<eventId>` — B3's handover link. Restores the selected row; the
+   *  scope and filters restore from their own params. */
+  const eventId = typeof query.event === "string" ? query.event : null;
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   const activity = useOnboardingStore((s) => s.activity);
@@ -116,6 +119,7 @@ export default function ActivityPage({
           initialTeenId={objectId}
           initialDomain={domain}
           initialScope={scope}
+          initialEventId={eventId}
         />
       </AdminShell>
     );
