@@ -87,22 +87,41 @@
   --band-clay-bg: #f6d3c6; /* hsl(16,72%,87%) — escalation; earthy, not pink */
   --band-clay-fg: #75301f; /* hsl(12,58%,29%) — 6.84:1 on clay */
 
-  /* ═══ SAGE + ROSE — the severity scale's two ends (row 312) ═══
+  /* ═══ SAGE + ROSE — NOW FROM THE BLOOM LOZENGE NODE ITSELF (row 312) ═══
      Added for the care record's severity bands, new/resolved content chips and
      the History score lozenge, which need a "settled" and an "acute" reading the
      sand/amber/clay triad cannot give: sand and amber are both cautionary and
      clay is deliberately "earthy, not pink".
-     DRAWN FROM BLOOM RAMPS, not invented: sage is forest/50 + forest/700, rose
-     is blush/50 + blush/1000. Ratios measured, and chosen to land in the
-     existing triad's 5.06–7.38 range rather than merely clear 4.5 — a new band
-     that only scraped past would read thinner than its neighbours.
-     SEPARATED BY HUE, NOT LIGHTNESS, like the rest of the family: every pale bg
-     sits within 1.25:1 of every other. That is precisely why the label always
+
+     ═══ THE FILLS ARE BLOOM'S, THE INK IS TWO STEPS DARKER, AND THAT IS A
+         DELIBERATE DIVERGENCE ═══
+
+     Read from Figma node 3455:8395 once the server was authorised, and MEASURED
+     off the render rather than inferred: Bloom's soft lozenge is `X/100` fill
+     with `X/700` ink, and four of its eleven hues fail 4.5:1 — including both
+     hues this needs. Emerald/100 × emerald/700 is 3.55:1; blush/100 ×
+     blush/700 is 2.81:1.
+
+     B4 asks for BOTH the Bloom lozenge styles AND 4.5:1 on every pairing, and
+     for these two hues those cannot both hold. So the fill — which is what
+     carries the hue identity at a glance — is Bloom's exactly, and only the ink
+     moves, to the next Bloom step that passes. Nothing here is invented: every
+     value is a real Bloom token.
+
+     THE GREEN ALSO CHANGED RAMP. The first version used `forest`, from
+     bloom-design-system_1.md. The lozenge node uses `emerald`, which is not in
+     that document at all — so the fill was the wrong green. The ink stays
+     forest/700 because emerald's darker steps are not exposed by the node, and a
+     real token from a neighbouring green ramp beats an invented emerald.
+
+     BOTH FILLS SIT IN THE EXISTING FAMILY: 1.27:1 and 1.29:1 against the white
+     card, inside the trio's own 1.15–1.40 range. And the family is still
+     separated by HUE rather than lightness, which is why the label always
      travels with the tint. */
-  --band-sage-bg: #e8f5e3; /* forest/50  — 1.13:1 vs the white card */
-  --band-sage-fg: #406333; /* forest/700 — 6.10:1 on sage */
-  --band-rose-bg: #ffeaee; /* blush/50   — 1.15:1 vs the white card */
-  --band-rose-fg: #b70b1f; /* blush/1000 — 5.93:1 on rose */
+  --band-sage-bg: #beefd6; /* emerald/100 — 1.27:1 vs the white card */
+  --band-sage-fg: #406333; /* forest/700  — 5.41:1 on sage (Bloom's own: 3.55) */
+  --band-rose-bg: #ffd9df; /* blush/100   — 1.29:1 vs the white card */
+  --band-rose-fg: #b70b1f; /* blush/1000  — 5.27:1 on rose (Bloom's own: 2.81) */
 
   /* TASK DOMAIN TINTS — the four summary cards' icon wells (Tasks spec §3.3).
      INTERIM; see design-system-gaps.md row 212.
@@ -437,12 +456,17 @@
   /* SAGE + ROSE, DARK. Same approach the triad above had to take: Bloom's ramps
      terminate in saturated colour, not in a dark well, so the fills are
      hand-derived to sit clear of the dark card while the ink stays a real ramp
-     step. Rose is pulled toward blue (#60393d) so it cannot be mistaken for
+     step.
+     THE LOZENGE NODE IS LIGHT-ONLY — it exposes no dark variant, so there is no
+     Figma value to defer to here and these remain derived. What DID change with
+     the node: sage's dark fill moved into emerald's hue (150°) to match the
+     light fill's ramp, so the two modes are the same colour rather than two
+     different greens. Rose is pulled toward blue so it cannot be mistaken for
      clay's warm brown at the same luminance. */
-  --band-sage-bg: #374a30; /* 1.38:1 on the dark card */
-  --band-sage-fg: #b0daa2; /* forest/200 — 6.13:1 on sage */
+  --band-sage-bg: #284d3b; /* emerald hue — 1.40:1 on the dark card */
+  --band-sage-fg: #beefd6; /* emerald/100 — 7.45:1 on sage */
   --band-rose-bg: #60393d; /* 1.36:1 */
-  --band-rose-fg: #ffc9d1; /* blush/200  — 6.76:1 on rose */
+  --band-rose-fg: #ffc9d1; /* blush/200   — 6.76:1 on rose */
 
   /* TASK DOMAIN TINTS, DARK. Hand-derived rather than taken from a ramp step —
      Bloom's hue ramps terminate in SATURATED colour at 900/950, not in near-black,

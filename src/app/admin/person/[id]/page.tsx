@@ -238,7 +238,14 @@ export default function PersonRecordPage({
             <button
               type="button"
               onClick={() => setSummaryOverlayOpen(true)}
-              className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)] min-[1100px]:hidden"
+              /* FILLED DARK, per the MO-4.1 reference frame — measured off
+                 node 2169:7058: a `#1f1e1d` pill with white text and a sparkle,
+                 sitting at the tab row's right edge. The first version was an
+                 outline pill, which read as a tertiary control; the reference
+                 gives it the same weight as the record's own primary action,
+                 which is right for the only route to the summary at this width.
+                 `--text-primary` is this system's equivalent of that fill. */
+              className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--text-primary)] px-3.5 text-[13px] font-semibold text-[var(--text-inverse)] transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)] min-[1100px]:hidden"
             >
               <Sparkles className="size-3.5 shrink-0" aria-hidden />
               {/* TODO-COPY */}
