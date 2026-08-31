@@ -86,6 +86,59 @@ const SHEET_POSITION = [
   "data-open:slide-in-from-bottom-4 data-closed:slide-out-to-bottom-4 data-open:zoom-in-100 data-closed:zoom-out-100",
 ].join(" ")
 
+/** ═══ THE SIDE VARIANT ═══
+ *
+ *  A right-edge, full-height panel. Same reasoning as the sheet — one position
+ *  change on the same overlay, so focus trap, Esc, overlay click, `DialogBody`
+ *  and the height bound all behave identically.
+ *
+ *  WHY A SIDE PANEL AND NOT THE SHEET, for a phone preview specifically. The
+ *  thing inside is a TALL PORTRAIT DEVICE FRAME. A bottom sheet bounded at
+ *  `90dvh` has to fit that frame into a box whose height is already spent on
+ *  the sheet's own header and close control, so the preview either scrolls
+ *  inside a sheet that is itself the height of the screen — two nested scrolls
+ *  in the same axis — or renders too small to read. A full-height panel gives
+ *  the frame the whole vertical run, which is the axis it needs, and the
+ *  slide-from-right reads as the device being brought in beside the work rather
+ *  than covering it.
+ *
+ *  THE CLOSE STAYS AT THE BOTTOM, as on the sheet, and for the same reason: at
+ *  full height the top-right corner is the least reachable point on the screen.
+ *  One close control, never two — plus Esc and the overlay tap.
+ *
+ *  IT STOPS ABOVE THE DEV BAR, like every other piece of fixed chrome here. */
+/** ═══ A COLUMN, NOT THE GRID ═══
+ *
+ *  `DialogContent` is `grid grid-rows-[minmax(0,1fr)]` — ONE explicit row. With
+ *  a header, a body and a close control that means the HEADER takes the `1fr`
+ *  row and the other two get implicit `auto` rows: the header stretches, the
+ *  body sizes to its content and never scrolls, and anything past the panel's
+ *  height is simply clipped. On a full-height side panel that rendered as a
+ *  band of dead space under the title and a device frame cut off at the bottom.
+ *
+ *  `DialogBody` is written `min-h-0 flex-1 overflow-y-auto`, which is a FLEX
+ *  child's declaration — it was authored for a column parent. So the side
+ *  variant supplies one, and the body then does exactly what it says.
+ *
+ *  SCOPED TO THIS VARIANT. The bottom sheet has the same latent mismatch and is
+ *  left alone here: it is used on six surfaces that ship today, and changing
+ *  their overlay's layout is not this change's business. Logged instead —
+ *  design-system-gaps row 309. */
+const SIDE_COLUMN = "flex flex-col items-stretch"
+
+const SIDE_POSITION = [
+  // Pinned to the right edge, full height between the top and the dev bar.
+  "top-0 right-0 left-auto translate-x-0 translate-y-0",
+  "bottom-[var(--dev-bar-h,0px)] h-auto max-h-none",
+  // Wide enough for a 360px frame with padding, and never wider than the
+  // screen: `92vw` leaves a strip of the page visible, so the panel reads as
+  // over the work rather than as a navigation away from it.
+  "w-[min(92vw,400px)] max-w-none sm:max-w-none",
+  // Only the left corners — the right two are off-screen.
+  "rounded-l-2xl rounded-r-none",
+  "data-open:slide-in-from-right-4 data-closed:slide-out-to-right-4 data-open:zoom-in-100 data-closed:zoom-out-100",
+].join(" ")
+
 function DialogContent({
   className,
   children,
@@ -96,9 +149,13 @@ function DialogContent({
   showCloseButton?: boolean
   /** `"sheet"` anchors the dialog to the bottom of the viewport — see the note
    *  above `SHEET_POSITION`. Everything else about the dialog is identical. */
-  variant?: "center" | "sheet"
+  variant?: "center" | "sheet" | "side"
 }) {
   const isSheet = variant === "sheet"
+  const isSide = variant === "side"
+  /** Both edge variants share the bottom-pinned close and the safe-area pad —
+   *  see the notes above each position block. */
+  const isEdge = isSheet || isSide
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -120,6 +177,8 @@ function DialogContent({
           // read than a pinned header but still strictly better than losing content.
           "fixed top-1/2 left-1/2 z-50 grid max-h-[90dvh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 grid-rows-[minmax(0,1fr)] gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           isSheet && SHEET_POSITION,
+          isSide && SIDE_POSITION,
+          isSide && SIDE_COLUMN,
           className
         )}
         // THE SAFE AREA IS A STYLE, NOT A CLASS, because it has to ADD to the
@@ -127,7 +186,7 @@ function DialogContent({
         // it: a notched phone needs the home-indicator strip cleared BELOW the
         // sheet's own bottom padding, or the close button sits in it.
         style={
-          isSheet
+          isEdge
             ? {
                 paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
                 ...props.style,
@@ -139,7 +198,7 @@ function DialogContent({
         {children}
         {/* THE CENTRED VARIANT'S CORNER X. Suppressed on a sheet, which closes
             from the bottom instead — one close control, never two. */}
-        {showCloseButton && !isSheet && (
+        {showCloseButton && !isEdge && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="ghost"
@@ -152,11 +211,12 @@ function DialogContent({
             </Button>
           </DialogPrimitive.Close>
         )}
-        {showCloseButton && isSheet && (
+        {showCloseButton && isEdge && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             {/* `shrink-0` so it never gets compressed by a tall body, and
                 `min-h-11` for the 44px floor. Full width because a thumb aiming
-                at the bottom of a sheet should not have to aim horizontally. */}
+                at the bottom of a sheet — or of a full-height side panel — should
+                not have to aim horizontally. */}
             <Button
               variant="outline"
               className="min-h-11 w-full shrink-0"

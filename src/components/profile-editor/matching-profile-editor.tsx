@@ -15,7 +15,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
-import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
+import {
+  PreviewDisclosure,
+  PreviewTrigger,
+} from "@/components/settings/preview-disclosure";
 import {
   MentorProfilePreview,
   type PreviewFocus,
@@ -90,6 +93,8 @@ export function MatchingProfileEditor({
       ? initialOpen
       : null;
   const [openId, setOpenId] = useState<string | null>(validInitial);
+  /** The preview overlay, lifted so the CTA can live in the section header. */
+  const [previewOpen, setPreviewOpen] = useState(false);
   // Deep-link scroll — target set via the render-adjust pattern; the effect
   // marks handled targets in a ref (never written during render).
   const [scrollTarget, setScrollTarget] = useState<string | null>(validInitial);
@@ -289,9 +294,24 @@ export function MatchingProfileEditor({
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_392px]">
         <div className="min-w-0 space-y-7">
           <section aria-label="Match card">
-            <h2 className="mb-2 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
-              Match card
-            </h2>
+            {/* ═══ THE HEADING SHARES ITS ROW WITH THE PREVIEW CTA ═══
+                Below `lg` the preview column stacks BELOW every field in this
+                section, so its trigger sat at the bottom of a long page: a
+                mentor editing their match card on a phone had to scroll past all
+                of it to see the card. The CTA now sits on the heading's own row,
+                at the far right, where the eye already is when the section
+                starts. It hides itself at `lg` — see `PreviewTrigger`. */}
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+                Match card
+              </h2>
+              <PreviewTrigger
+                /* TODO-COPY — "Preview", not "Preview your match card": the
+                   heading it sits beside already says which card. */
+                label="Preview"
+                onClick={() => setPreviewOpen(true)}
+              />
+            </div>
             <div className="space-y-[var(--card-gap)]">
               {MATCH_CARD_SECTIONS.map(renderSection)}
             </div>
@@ -302,8 +322,14 @@ export function MatchingProfileEditor({
             RC-2: was `hidden lg:…`, which deleted the mentor's own match card
             below 1024px while they were editing it. */}
         <PreviewDisclosure
-          /* TODO-COPY */
+          /* TODO-COPY. Kept for the uncontrolled path even though this call site
+             is controlled — the prop is required, and a surface that drops the
+             header CTA falls back to the inline button rather than to nothing. */
           triggerLabel="Preview your match card"
+          // A tall portrait frame needs the full vertical run; see the prop note.
+          overlay="side"
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
           title="What teens see on your match card"
           caption={
             <p className="text-xs text-[var(--text-muted)]">

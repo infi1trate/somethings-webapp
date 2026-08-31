@@ -60,6 +60,7 @@ import { clientId } from "@/lib/files";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -71,6 +72,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PreviewTrigger } from "@/components/settings/preview-disclosure";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { saveAccountField } from "@/lib/mock-api";
 import { PhotoRowCore } from "@/components/account/photo-row";
@@ -244,20 +246,34 @@ function StaffShell({
 function SectionShell({
   slot,
   helper,
+  action,
   children,
 }: {
   slot: RecordSectionSlot;
   /** One-line clarifier under the heading (muted 12px) — optional. */
   helper?: string;
+  /** ═══ A CONTROL ON THE HEADING'S OWN ROW, TOP-RIGHT ═══
+   *
+   *  Used for the teen-facing preview CTA below `lg`, where the rail that shows
+   *  the preview inline is hidden. It belongs on this row rather than inside the
+   *  cards below because it acts on the SECTION — "show me all of this as a teen
+   *  sees it" — and because the top of the section is where a reader is before
+   *  they have scrolled into the fields. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section aria-label={SLOT_TITLES[slot]} data-record-section={slot}>
       {/* Bare typographic heading — 16px. Spec asks medium weight; Avantt
-          ships Bold only (gaps.md #12), so this is 700 like --type-title-sm. */}
-      <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
-        {SLOT_TITLES[slot]}
-      </h2>
+          ships Bold only (gaps.md #12), so this is 700 like --type-title-sm.
+          The row is a flex only so `action` can sit at its right end; with no
+          action the heading renders exactly as it did. */}
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
+          {SLOT_TITLES[slot]}
+        </h2>
+        {action}
+      </div>
       {helper && (
         <p className="mt-1 text-[12px] leading-[16px] text-[var(--text-muted)]">
           {helper}
@@ -343,6 +359,20 @@ export default function MentorRecordPage({
   // publication state and has no meaning beside Organization / Mentorship /
   // Account content. Every other tab spans the full width.
   const showRail = activeTab === "profile" || activeTab === "first-moments";
+  /** The preview overlay below `lg`, opened from the section heading. */
+  const [previewOpen, setPreviewOpen] = useState(false);
+  /** THE CTA, placed by whichever section is showing. `PreviewTrigger` carries
+   *  its own `lg:hidden`, so a section cannot mount it into a width where the
+   *  rail is already visible. */
+  const previewCta = showRail ? (
+    <PreviewTrigger
+      /* TODO-COPY — the section heading beside it says which profile. */
+      label="Preview"
+      onClick={() => setPreviewOpen(true)}
+    />
+  ) : null;
+
+
 
   // Per-tab scroll memory: each tab remembers its position in the shell's
   // inner scroller and restores it on return. {scroll:false} on the push
@@ -506,6 +536,112 @@ export default function MentorRecordPage({
               pulse: false,
             };
   // Pre-publish "submitted for review" — feeds the overflow's Review entry.
+  /** THE RAIL'S CONTENT, mounted twice — see the note at the `<aside>`.
+   *
+   *  Preview only: Notes + Activity tabs are deferred (rolling out later), so
+   *  the rail's own segmented control is gone for now. (This was a JSX comment
+   *  sitting beside the root element; as a `const` that made two roots.) */
+  const previewRail = (
+      <div className="flex flex-col items-center gap-3">
+          {postLane && (
+            <SegmentedControl
+              size="md"
+              ariaLabel="Preview version"
+              options={[
+                { value: "live" as const, label: "Live" },
+                { value: "proposed" as const, label: "Proposed" },
+              ]}
+              value={previewSide}
+              onChange={(v) => setPreviewSide(v)}
+            />
+          )}
+          {/* Preview "tool" (elevated pass): a glass panel that FRAMES the
+              device without ever cropping it. The frame renders at its own
+              size — 266px, see the note below — rather than being a 360px
+              frame scaled down, so it reserves exactly the layout box it
+              paints and the device and its drop shadow are never masked on
+              any side. (This comment described CSS `zoom`, which Phase 4
+              removed; the no-clipping property it valued is unchanged.) */}
+          <div className="w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-card)] backdrop-blur-[var(--glass-blur)]">
+            {/* Visibility readout — the subtle "is this profile being seen
+                by potential matches" signal (lifecycle-derived). Text
+                carries the meaning; the dot is decorative; live states get
+                a soft pulse (motion-safe). role=group + aria-label name the
+                dot+label pair as one region. */}
+            <div
+              role="group"
+              aria-label={`Profile visibility: ${visibility.label}. ${visibility.sub}`}
+              className="mb-4 flex items-center gap-2.5 rounded-[var(--radius-control)] bg-[var(--surface-s1)] px-3 py-2 ring-1 ring-[color:var(--border-contour)]"
+            >
+              <span
+                aria-hidden
+                className="relative flex size-2.5 shrink-0 items-center justify-center"
+              >
+                {visibility.pulse && (
+                  <span
+                    className="absolute inline-flex size-2.5 rounded-full opacity-60 motion-safe:animate-ping"
+                    style={{ backgroundColor: visibility.dot }}
+                  />
+                )}
+                <span
+                  className="relative size-2 rounded-full"
+                  style={{ backgroundColor: visibility.dot }}
+                />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium leading-[16px] text-[var(--text-primary)]">
+                  {visibility.label}
+                </span>
+                <span className="block text-[12px] leading-[15px] text-[var(--text-muted)]">
+                  {visibility.sub}
+                </span>
+              </span>
+            </div>
+            {/* ═══ `zoom: 0.74` REMOVED (RC-2, Phase 4) ═══
+              
+                The old comment defended zoom on the grounds that it scales
+                layout and paint together, so the shadow is never clipped
+                and the untransformed width cannot widen the rail. Both
+                true, and both now achieved by a frame that is genuinely
+                that size instead of a 360px frame drawn smaller.
+              
+                WHY ZOOM HAD TO GO ANYWAY: it multiplies the reader's own
+                text size. Someone at 200% got 148% inside this rail, and
+                no amount of browser zoom could recover it — SC 1.4.4 is
+                not satisfiable from inside a page that does this.
+              
+                266px ≈ 360 × 0.74, so the rendered size is unchanged. It
+                is a `max-w` rather than a `w`, so the frame also shrinks
+                with the rail instead of overflowing it. */}
+            <div className="flex justify-center">
+              <div className="relative w-full max-w-[266px]">
+                <PhonePreviewShell label="Live preview — what teens see on the match card">
+                  <MentorProfilePreview draft={previewDraft} />
+                </PhonePreviewShell>
+                {profileHidden && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
+                    <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-card)]">
+                      <EyeOff className="size-4" aria-hidden />
+                      Hidden from teens
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {postLane && (
+              <p
+                className="mt-4 text-center text-[var(--text-muted)]"
+                style={{ font: "var(--type-helper)" }}
+              >
+                {previewSide === "proposed"
+                  ? "Preview of pending edits — live once approved"
+                  : "The current live version"}
+              </p>
+            )}
+          </div>
+        </div>
+  );
+
   const submittedForReview = status === "in_review";
   // Destructive account actions (accountOrg: edit) — the Lead Mentor manages
   // mentors (role migration); the Supervisor retains them as oversight.
@@ -593,6 +729,7 @@ export default function MentorRecordPage({
         <SectionShell
           key={slot}
           slot={slot}
+          action={previewCta}
           helper={
             matchingEditable
               ? "Everything teens see — edit any field directly."
@@ -672,6 +809,7 @@ export default function MentorRecordPage({
         <SectionShell
           key={slot}
           slot={slot}
+          action={previewCta}
           helper={
             fmEditable
               ? /* TODO-COPY */
@@ -1267,112 +1405,59 @@ export default function MentorRecordPage({
               "Live to teens" publication panel, which describe the profile, so
               they have no meaning beside Organization / Mentorship / Account /
               Schedule content. Passive and prop-fed (invariant 1). */}
-          {showRail && (
+          {/* ═══ THE PREVIEW: A DESKTOP COLUMN AND A MOBILE PANEL, ONE MARKUP ═══
+              The rail used to render at every width and simply STACK below the
+              content on a narrow screen — so a reader on a phone had the whole
+              record to scroll before reaching the teen-facing card, and the CTA
+              that would take them there did not exist. It is now `lg`-only, with
+              the same `previewRail` node mounted in a right-edge panel below
+              `lg`, opened from the section heading's own row.
+
+              ONE NODE, TWO MOUNTS. The version toggle, the visibility readout,
+              the "Hidden from teens" overlay and the pending-edits caption all
+              travel with it — a mobile reader gets the rail, not a reduced copy
+              of it that would drift the first time one of those changed. */}
+          {/* ═══ NEVER BOTH AT ONCE ═══
+              `!previewOpen` is not a visual condition — the aside is already
+              `display:none` below `lg`, and above `lg` the panel cannot open
+              because the CTA carries `lg:hidden`. It exists so `previewRail` is
+              never in the document TWICE.
+              WHY THAT MATTERS: the preview's silhouette defines document-global
+              SVG ids (`bust`, `bustMaskMid`, …), so a second copy duplicates
+              them and every `url(#…)` in it resolves to the first copy's defs —
+              which, with that copy hidden, means referencing into a
+              `display:none` subtree. Both copies render identically so nothing
+              LOOKS wrong; an id sweep is what found it.
+              The alternative was per-instance ids via `useId`, rejected because
+              `CutoutSpray` in the same file deliberately renders its filters
+              ONCE and documents duplicate global ids as an accepted tradeoff.
+              Two conventions for one problem in one file is worse than not
+              creating the duplicate. See design-system-gaps row 309. */}
+          {showRail && !previewOpen && (
           <aside
             aria-label="Profile rail"
-            className="min-w-0 lg:sticky lg:top-6 lg:mt-[56px]"
+            className="hidden min-w-0 lg:sticky lg:top-6 lg:mt-[56px] lg:block"
           >
-            {/* Preview only — Notes + Activity tabs deferred (rolling out
-                later), so the rail segmented control is gone for now. */}
-            <div className="flex flex-col items-center gap-3">
-                {postLane && (
-                  <SegmentedControl
-                    size="md"
-                    ariaLabel="Preview version"
-                    options={[
-                      { value: "live" as const, label: "Live" },
-                      { value: "proposed" as const, label: "Proposed" },
-                    ]}
-                    value={previewSide}
-                    onChange={(v) => setPreviewSide(v)}
-                  />
-                )}
-                {/* Preview "tool" (elevated pass): a glass panel that FRAMES the
-                    device without ever cropping it. The frame renders at its own
-                    size — 266px, see the note below — rather than being a 360px
-                    frame scaled down, so it reserves exactly the layout box it
-                    paints and the device and its drop shadow are never masked on
-                    any side. (This comment described CSS `zoom`, which Phase 4
-                    removed; the no-clipping property it valued is unchanged.) */}
-                <div className="w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-card)] backdrop-blur-[var(--glass-blur)]">
-                  {/* Visibility readout — the subtle "is this profile being seen
-                      by potential matches" signal (lifecycle-derived). Text
-                      carries the meaning; the dot is decorative; live states get
-                      a soft pulse (motion-safe). role=group + aria-label name the
-                      dot+label pair as one region. */}
-                  <div
-                    role="group"
-                    aria-label={`Profile visibility: ${visibility.label}. ${visibility.sub}`}
-                    className="mb-4 flex items-center gap-2.5 rounded-[var(--radius-control)] bg-[var(--surface-s1)] px-3 py-2 ring-1 ring-[color:var(--border-contour)]"
-                  >
-                    <span
-                      aria-hidden
-                      className="relative flex size-2.5 shrink-0 items-center justify-center"
-                    >
-                      {visibility.pulse && (
-                        <span
-                          className="absolute inline-flex size-2.5 rounded-full opacity-60 motion-safe:animate-ping"
-                          style={{ backgroundColor: visibility.dot }}
-                        />
-                      )}
-                      <span
-                        className="relative size-2 rounded-full"
-                        style={{ backgroundColor: visibility.dot }}
-                      />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[13px] font-medium leading-[16px] text-[var(--text-primary)]">
-                        {visibility.label}
-                      </span>
-                      <span className="block text-[12px] leading-[15px] text-[var(--text-muted)]">
-                        {visibility.sub}
-                      </span>
-                    </span>
-                  </div>
-                  {/* ═══ `zoom: 0.74` REMOVED (RC-2, Phase 4) ═══
-                      
-                      The old comment defended zoom on the grounds that it scales
-                      layout and paint together, so the shadow is never clipped
-                      and the untransformed width cannot widen the rail. Both
-                      true, and both now achieved by a frame that is genuinely
-                      that size instead of a 360px frame drawn smaller.
-                      
-                      WHY ZOOM HAD TO GO ANYWAY: it multiplies the reader's own
-                      text size. Someone at 200% got 148% inside this rail, and
-                      no amount of browser zoom could recover it — SC 1.4.4 is
-                      not satisfiable from inside a page that does this.
-                      
-                      266px ≈ 360 × 0.74, so the rendered size is unchanged. It
-                      is a `max-w` rather than a `w`, so the frame also shrinks
-                      with the rail instead of overflowing it. */}
-                  <div className="flex justify-center">
-                    <div className="relative w-full max-w-[266px]">
-                      <PhonePreviewShell label="Live preview — what teens see on the match card">
-                        <MentorProfilePreview draft={previewDraft} />
-                      </PhonePreviewShell>
-                      {profileHidden && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[46px] bg-[var(--surface-s1)]/70 backdrop-blur-[2px]">
-                          <span className="flex items-center gap-2 rounded-full bg-[var(--surface-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-card)]">
-                            <EyeOff className="size-4" aria-hidden />
-                            Hidden from teens
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {postLane && (
-                    <p
-                      className="mt-4 text-center text-[var(--text-muted)]"
-                      style={{ font: "var(--type-helper)" }}
-                    >
-                      {previewSide === "proposed"
-                        ? "Preview of pending edits — live once approved"
-                        : "The current live version"}
-                    </p>
-                  )}
-                </div>
-              </div>
+            {previewRail}
           </aside>
+          )}
+          {/* BELOW `lg`: the same rail in a right-edge panel. Radix portals it,
+              so it sits outside the grid and occupies no column — mounting it
+              here keeps it beside the branch it mirrors. */}
+          {showRail && (
+            <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+              <DialogContent variant="side" className="lg:hidden">
+                <DialogHeader>
+                  {/* TODO-COPY. A panel that slides over the record has no
+                      context around it, so it names what it is showing. */}
+                  <DialogTitle>What teens see on the match card</DialogTitle>
+                </DialogHeader>
+                {/* THE BODY SCROLLS, THE HEADING AND CLOSE DO NOT. The rail is
+                    taller than a phone once the visibility readout and the
+                    caption are stacked above and below the device frame. */}
+                <DialogBody>{previewRail}</DialogBody>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>
