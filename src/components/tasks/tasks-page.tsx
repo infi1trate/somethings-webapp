@@ -32,7 +32,6 @@ import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
 import { DomainTabs } from "@/components/tasks/domain-tabs";
 import { RespondStrip, elapsedLabel } from "@/components/tasks/strips";
-import { TaskScenarioSwitcher } from "@/components/tasks/scenario-switcher";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { TaskPane } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
@@ -49,7 +48,7 @@ import {
   openEscalations,
   preselectedFor,
 } from "@/lib/tasks/sort";
-import { DEFAULT_TASK_SCENARIO_ID, tasksScenario } from "@/lib/tasks/seed";
+import { tasksScenario } from "@/lib/tasks/seed";
 import {
   ACTIVITY_DOMAIN_OF,
   DOMAIN_LABEL,
@@ -95,7 +94,13 @@ function listForDomainCount(items: TaskItem[], domain: TaskDomain, now: number):
 
 export function TasksPage() {
   const mounted = useMounted();
-  const [scenarioId, setScenarioId] = useState(DEFAULT_TASK_SCENARIO_ID);
+  /** ═══ THE SCENARIO LIVES IN THE STORE (v42, gap row 311) ═══
+   *  It was `useState` here, driven by a panel pinned bottom-right — which sat
+   *  under the fixed mobile bottom nav and could not be tapped below `md`, and
+   *  reset on every navigation because it was page-local. Both are properties of
+   *  where the state lived, so the state moved: the dev bar's Scenario select owns
+   *  it, under a "Tasks" group, beside Activity's. */
+  const scenarioId = useOnboardingStore((st) => st.tasksScenarioId);
   /** Fixed at mount. `Date.now()` in render scope is impure — react-hooks/purity
    *  rejects it — and every elapsed figure and breach state on the page would move
    *  on an unrelated re-render. */
@@ -143,6 +148,30 @@ export function TasksPage() {
    *  state could not express it. */
   const [listStates, setListStates] = useState<Partial<Record<TaskDomain, ListState>>>({});
   const listState: ListState = listStates[activeDomain] ?? "ready";
+
+  /** ═══ THE DEV BAR'S LOAD STATE, APPLIED TO WHICHEVER TAB IS ACTIVE ═══
+   *
+   *  The other half of row 311: the pinned panel carried two axes, and this is
+   *  the second. It lands on the ACTIVE domain only, which is the property the
+   *  panel had and which is worth keeping — set "error", switch tabs, and watch
+   *  the others load normally. That makes "other tabs are unaffected" something a
+   *  reader can watch instead of something a comment claims.
+   *
+   *  REF-GUARDED ON THE DEV VALUE, NOT ON THE DOMAIN. The effect must fire when
+   *  the CONTROL moves and stay silent when the reader merely changes tabs —
+   *  without the guard, `activeDomain` in the dependency list would repaint every
+   *  tab visited afterwards with a state set once, which is the opposite of
+   *  per-domain. */
+  const devLoadState = useOnboardingStore((st) => st.devLoadState);
+  const lastDevLoadState = useRef(devLoadState);
+  useEffect(() => {
+    if (!mounted) return;
+    if (lastDevLoadState.current === devLoadState) return;
+    lastDevLoadState.current = devLoadState;
+    setListStates((prev) => ({ ...prev, [activeDomain]: devLoadState }));
+    // `activeDomain` is read, not depended on — see the note above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, devLoadState]);
 
   /** SELECTION. `selectedEntryId` is the ENTRY id — a group id for a collapsed
    *  group — while `selected` is the ITEM the pane shows. Two ids because
@@ -599,23 +628,12 @@ export function TasksPage() {
 
       <ShortcutSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
-      <TaskScenarioSwitcher
-        activeId={scenarioId}
-        onSelect={(id) => {
-          setScenarioId(id);
-          setPickedDomain(null);
-          setSelectedEntryId(null);
-          setPickedId(null);
-          setListStates({});
-        }}
-        listState={listState}
-        onListState={(st) =>
-          // APPLIED TO THE ACTIVE DOMAIN ONLY, which is how "other tabs
-          // unaffected" becomes demonstrable rather than merely claimed.
-          setListStates((prev) => ({ ...prev, [activeDomain]: st }))
-        }
-        activeDomainLabel={DOMAIN_LABEL[activeDomain]}
-      />
+      {/* ═══ THE PINNED SCENARIO PANEL WAS HERE ═══
+          Both of its axes moved into the dev bar (gap row 311): the scenario to
+          the Scenario select's "Tasks" group, backed by store v42, and the
+          per-domain list state to the Load control, applied to the active tab by
+          the effect above. Nothing is lost and the control is now reachable on a
+          phone, where the fixed bottom nav used to intercept every tap on it. */}
     </div>
   );
 }

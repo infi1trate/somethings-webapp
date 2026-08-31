@@ -90,11 +90,46 @@ export const ACTIVITY_VIEWS: ActivityView[] = [
 
 export const DEFAULT_VIEW_ID = "mine";
 
+/** ═══ FORGIVING, BECAUSE ITS INPUT IS A URL ═══
+ *
+ *  `?scope=` comes from outside the program — a stale bookmark, a truncated
+ *  link, someone typing. Falling back to the default view is the right answer
+ *  there: a reader who mistypes a parameter should land on the feed, not on an
+ *  error. Keep this for anything reading a query string.
+ *
+ *  IT IS THE WRONG ANSWER FOR A TEST, which is what row 325 is about. See
+ *  `viewByIdStrict`. */
 export function viewById(id: string): ActivityView {
   return (
     ACTIVITY_VIEWS.find((v) => v.id === id) ??
     ACTIVITY_VIEWS.find((v) => v.id === DEFAULT_VIEW_ID)!
   );
+}
+
+/** ═══ THROWS, BECAUSE A TEST NAMING A VIEW IS ASSERTING IT EXISTS ═══
+ *
+ *  WHY THIS EXISTS (gap row 325): three tests passed `viewId: "billing"` after
+ *  that view was removed, and `viewById` answered with My caseload — so they
+ *  carried on passing while querying a different question entirely. ONE of them
+ *  failed, by luck: it asserted that degraded rows are present, and `mine` scope
+ *  has none by definition. The other two would have passed forever against the
+ *  wrong view, which is worse than a red test and much harder to notice.
+ *
+ *  A fallback is friendly to a URL and hostile to a test. The id in a test is not
+ *  untrusted input — it is a claim about the registry, and a claim that has become
+ *  false should fail loudly at the moment it becomes false.
+ *
+ *  The message names the ids that DO exist, because the failure a reader meets is
+ *  "billing is gone" and the next question is always "so what do I use instead". */
+export function viewByIdStrict(id: string): ActivityView {
+  const view = ACTIVITY_VIEWS.find((v) => v.id === id);
+  if (!view) {
+    throw new Error(
+      `Unknown activity view "${id}". Registered views: ${ACTIVITY_VIEWS.map((v) => v.id).join(", ")}. ` +
+        `If you are reaching for a DOMAIN (billing), that is a filter and not a view — see gap row 325.`
+    );
+  }
+  return view;
 }
 
 /** ═══ READING DENSITY (A11) ═══

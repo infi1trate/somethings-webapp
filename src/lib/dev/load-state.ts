@@ -13,14 +13,21 @@
 //     it beside the feed's own scenario list implied it only ever applied there,
 //     which then became true by default because nothing else could reach it.
 //
-// ═══ ONE CONSUMER TODAY, AND THAT IS REPORTED, NOT HIDDEN ═══
+// ═══ TWO CONSUMERS NOW — TASKS JOINED (row 311) ═══
 //
-// Activity is the only screen that implements load states — it is the only place
-// `LoadState` was ever referenced. So this control is global and complete for
-// every screen that HAS these states, which is currently one. It is not
-// disabled elsewhere and it does not silently do nothing: the dev bar says which
-// screen the axis applies to, so "loading" on the Tasks page reads as
-// unimplemented rather than as broken. design-system-gaps row 317.
+// It shipped with one: Activity was the only screen that implemented these
+// states, and the dev bar named that scope in its own label rather than offering
+// an unqualified "Load" that silently did nothing on four screens out of five
+// (row 317). That note said the axis was "global and complete for every screen
+// that HAS these states, which is currently one" — and the Tasks worklist did
+// have them, as a per-domain `ListState` inside its own pinned panel, unreachable
+// below `md`. Folding that panel into the bar made Tasks the second consumer.
+//
+// THE TASKS AXIS STAYS PER-DOMAIN, and that property is worth keeping: the state
+// applies to whichever tab was active when it was set, so switching tabs shows
+// the others still loading normally — which is how "other tabs unaffected"
+// becomes something a reader can watch rather than something a comment claims.
+// The page owns that mapping; this module only owns the four states.
 
 /** The four states. `partial` is "some data arrived and some failed", which is
  *  the one a real feed hits most often and the one a prototype usually skips. */
@@ -40,4 +47,4 @@ export const LOAD_STATE_LABEL: Record<LoadState, string> = {
 
 /** Which screens actually render these. Used by the dev bar to name the scope of
  *  the axis rather than implying it is universal — see the note above. */
-export const LOAD_STATE_SCREENS = ["Activity"] as const;
+export const LOAD_STATE_SCREENS = ["Activity", "Tasks"] as const;

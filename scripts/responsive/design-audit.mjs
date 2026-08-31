@@ -1,6 +1,7 @@
 // PHASE 10 MEASUREMENTS. Typography and spacing claims, measured on the running
 // app rather than read off the source — measure (CPL), leading ratios, and how
 // much of the spacing in use is off the 4/8px scale.
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { launch, openView, VIEWPORTS, readStoreVersion, BASE } from "./harness.mjs";
 
 const version = await readStoreVersion();
@@ -78,3 +79,80 @@ for (const s of SURFACES) {
 
 await browser.close();
 console.log(JSON.stringify(out, null, 2));
+
+/** ═══ THE SPACING RATCHET (gap row 334) ═══
+ *
+ *  Row 334 measured 31–40% of applied spacing off the 4px scale and recommended
+ *  NOT sweeping it: normalising a third of every gap in the app is a large,
+ *  high-risk change for a benefit no reader would name, and it would churn
+ *  layouts verified by hand. The bounded action it named instead was "stop adding
+ *  half-steps in new work and normalise opportunistically".
+ *
+ *  A recommendation like that decays the moment the person who wrote it stops
+ *  looking. This is the mechanism: the current share is committed, and the audit
+ *  fails if a surface gets WORSE. It can only be ratcheted down.
+ *
+ *  THE OFFENDERS ARE TAILWIND'S HALF-STEPS — 2px (`0.5`), 6px (`1.5`), 10px
+ *  (`2.5`), 14px (`3.5`). They are on Tailwind's scale and are not on an
+ *  8px-base-with-4px-half-step system, which is why they arrive by habit rather
+ *  than by decision.
+ *
+ *  TOLERANCE OF 1 POINT, not 0: the share is a ratio over every applied value on
+ *  a rendered page, so content changes move it slightly without anybody adding a
+ *  half-step. Zero tolerance would cry wolf and get switched off, which is worse
+ *  than a loose ratchet.
+ *
+ *  `SPACING_RATCHET=update` rewrites the baseline — deliberate, and the same
+ *  shape as the a11y baseline's own guard, for the same reason (row 344: an
+ *  artifact that can be silently overwritten is not evidence). */
+const RATCHET_PATH = "docs/responsive/SPACING-BASELINE.json";
+const TOLERANCE = 1;
+const current = Object.fromEntries(
+  out.map((s) => [s.id, s.spacing.offScaleShare])
+);
+
+let base = null;
+try {
+  base = JSON.parse(await readFile(RATCHET_PATH, "utf8"));
+} catch {
+  base = null;
+}
+
+if (process.env.SPACING_RATCHET === "update" || !base) {
+  await mkdir("docs/responsive", { recursive: true });
+  await writeFile(
+    RATCHET_PATH,
+    JSON.stringify({ generated: new Date().toISOString(), offScaleShare: current }, null, 2)
+  );
+  console.log(
+    `\nSPACING RATCHET ${base ? "UPDATED" : "CREATED"} — ${RATCHET_PATH}`
+  );
+  for (const [id, v] of Object.entries(current)) console.log(`  ${id}: ${v}%`);
+} else {
+  const regressions = [];
+  const improvements = [];
+  for (const [id, now] of Object.entries(current)) {
+    const was = base.offScaleShare?.[id];
+    if (was === undefined) continue;
+    if (now > was + TOLERANCE) regressions.push(`${id}: ${was}% → ${now}%`);
+    else if (now < was) improvements.push(`${id}: ${was}% → ${now}%`);
+  }
+  console.log("\nSPACING RATCHET");
+  for (const [id, now] of Object.entries(current)) {
+    const was = base.offScaleShare?.[id];
+    console.log(`  ${id}: ${now}%${was === undefined ? " (new surface)" : ` (baseline ${was}%)`}`);
+  }
+  if (improvements.length) {
+    console.log(
+      `  IMPROVED: ${improvements.join(", ")} — run with SPACING_RATCHET=update to lock it in.`
+    );
+  }
+  if (regressions.length) {
+    console.log(`\n  OFF-SCALE SPACING INCREASED: ${regressions.join(", ")}`);
+    console.log(
+      "  A new half-step (2/6/10/14px) was added. Use a 4px multiple, or run\n" +
+        "  SPACING_RATCHET=update if the increase is deliberate. See gap row 334."
+    );
+    process.exitCode = 1;
+  }
+}

@@ -52,7 +52,7 @@
 // boundary for a prototype whose entire dataset is fixtures.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EyeOff, RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -66,6 +66,8 @@ import {
   scenarioHref,
 } from "@/lib/dev/record-scenarios";
 import { ACTIVITY_SCENARIOS } from "@/lib/activity/seed";
+import { TASK_SCENARIOS } from "@/lib/tasks/seed";
+import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import {
   LOAD_STATES,
   LOAD_STATE_LABEL,
@@ -82,6 +84,10 @@ import {
  *  switched the feed. Both lists happen to contain "typical-shift" today, which
  *  is exactly the collision this prevents. */
 const ACTIVITY_PREFIX = "activity:";
+/** Same reasoning as `ACTIVITY_PREFIX`: a Tasks scenario SETS STATE and does not
+ *  name a record, so `onChange` must be able to tell the families apart without
+ *  guessing from the id. */
+const TASKS_PREFIX = "tasks:";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -172,7 +178,13 @@ export function DevBar() {
   const setActivityScenario = useOnboardingStore(
     (s) => s.setActivityScenarioId
   );
+  const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
+  const setTasksScenario = useOnboardingStore((s) => s.setTasksScenarioId);
   const loadState = useOnboardingStore((s) => s.devLoadState);
+  /** This bar is the widest horizontal scroller in the app at phone widths —
+   *  measured 992px of controls in a 320px viewport. */
+  const barRef = useRef<HTMLDivElement>(null);
+  const edges = useEdgeOverflow(barRef);
   const setDevLoadState = useOnboardingStore((s) => s.setDevLoadState);
 
   const pickRole = (p: (typeof PERSONAS)[number]) => {
@@ -218,19 +230,45 @@ export function DevBar() {
 
   return (
     <>
+      {/* ═══ THE BAR SCROLLS SIDEWAYS, AND NOW IT SAYS SO ═══
+          Measured at 320px: 992px of controls in a 320px viewport, with the
+          Scenario select 321px past the right edge. It IS reachable, which is what
+          row 311 was actually about — the panel it replaced sat under the mobile
+          nav and could not be reached at any scroll — but a scroller with no edge
+          marking is a scroller nobody thinks to scroll.
+
+          THE OUTER DIV TAKES THE FIXED POSITIONING, the border and the ground; the
+          inner one scrolls. `EdgeFades` must be a SIBLING of the scroller, never a
+          child: a child of an `overflow-x-auto` element scrolls away from the edge
+          it marks and adds to that element's scrollWidth at the same time. Its own
+          doc comment says so — this is the first call site outside the record's
+          tab strip. */}
       <div
-        /* TODO-COPY */
-        aria-label="Prototype harness"
-        role="region"
         style={{ height: DEV_BAR_H }}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 flex items-center gap-3 overflow-x-auto",
+          "fixed inset-x-0 bottom-0 z-50",
           // DASHED TOP EDGE — the convention this codebase already uses to mark
           // prototype chrome, so nobody reads a screenshot of it as product.
-          "border-t border-dashed border-[color:var(--border-contour)] bg-[var(--surface-card)] px-3",
-          "text-[12px]"
+          "border-t border-dashed border-[color:var(--border-contour)] bg-[var(--surface-card)]"
         )}
       >
+        <div className="relative h-full">
+          <div
+            ref={barRef}
+            /* TODO-COPY */
+            aria-label="Prototype harness"
+            role="region"
+            /* NO `tabIndex` — SC 2.1.1 wants a scrollable region keyboard-
+               reachable, and every child here is already focusable (radios,
+               selects, buttons), so tabbing scrolls it natively. A stop on the
+               region itself would add a tab position that does nothing. Noted
+               because `scrollable-region-focusable` is a rule this repo has
+               already had to fight once. */
+            className={cn(
+              "flex h-full items-center gap-3 overflow-x-auto px-3",
+              "text-[12px]"
+            )}
+          >
         <span className="shrink-0 font-semibold tracking-[0.08em] text-[var(--text-muted)]">
           DEV
         </span>
@@ -288,7 +326,9 @@ export function DevBar() {
             value={
               pathname.startsWith("/app/activity")
                 ? `${ACTIVITY_PREFIX}${activityScenarioId}`
-                : scenarioId
+                : pathname.startsWith("/app/tasks")
+                  ? `${TASKS_PREFIX}${tasksScenarioId}`
+                  : scenarioId
             }
             onChange={(e) => {
               const value = e.target.value;
@@ -302,6 +342,14 @@ export function DevBar() {
                 // business doing.
                 if (!pathname.startsWith("/app/activity")) {
                   router.push("/app/activity", { scroll: false });
+                }
+                return;
+              }
+              // ── TASKS: identical shape to Activity above (gap row 311).
+              if (value.startsWith(TASKS_PREFIX)) {
+                setTasksScenario(value.slice(TASKS_PREFIX.length));
+                if (!pathname.startsWith("/app/tasks")) {
+                  router.push("/app/tasks", { scroll: false });
                 }
                 return;
               }
@@ -345,6 +393,20 @@ export function DevBar() {
             <optgroup label="Activity">
               {ACTIVITY_SCENARIOS.map((s) => (
                 <option key={s.id} value={`${ACTIVITY_PREFIX}${s.id}`}>
+                  {s.label}
+                </option>
+              ))}
+            </optgroup>
+            {/* ═══ TASKS, THE FOURTH SCREEN LEVEL (gap row 311) ═══
+                Its panel had Activity's two faults — page-local, so it reset on
+                navigation — plus a worse one: pinned bottom-right at z-40 under a
+                fixed bottom nav that is ALSO z-40 and `md:hidden`, so below `md`
+                every tap at its coordinates was taken by the nav's subtree and the
+                control could not be operated at all. Found by Playwright naming
+                the intercepting element, not by looking at it. */}
+            <optgroup label="Tasks">
+              {TASK_SCENARIOS.map((s) => (
+                <option key={s.id} value={`${TASKS_PREFIX}${s.id}`}>
                   {s.label}
                 </option>
               ))}
@@ -444,6 +506,9 @@ export function DevBar() {
         >
           <RotateCcw className="size-3.5" aria-hidden />
         </button>
+          </div>
+          <EdgeFades edges={edges} surface="var(--surface-card)" />
+        </div>
       </div>
 
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>

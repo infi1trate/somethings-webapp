@@ -30,10 +30,32 @@
  *  subject role as a param — and are flagged as a different chrome. */
 const SUBJECT = {
   mentor: "m1",
-  teen: "t21",
+  /** ═══ t17, THE POPULATED RECORD — NOT t21 (gap row 307) ═══
+   *
+   *  This was t21, the thinnest teen in the fixtures: two contact days and one
+   *  reading, where every element of the care summary refuses. That is a real
+   *  state and worth tracking, but as THE only teen subject it meant the
+   *  POPULATED care card — chips, flag rows, the sparkline, a full history — was
+   *  never in the matrix at all. Row 306's contrast violation survived a green
+   *  axe baseline for exactly that reason: the failing nodes do not exist on t21.
+   *
+   *  MEASURED, not assumed. Care tab at 1280px, per teen:
+   *      t17  49 chips, 13 history rows, 0 refusals   ← the populated one
+   *      t19  23 chips,  6 history rows, 0 refusals
+   *      t21  17 chips, 10 history rows, 1 refusal
+   *      t13  21 chips,  6 history rows, 1 refusal
+   *      t15  10 chips,  7 history rows, 2 refusals
+   *
+   *  t21 keeps its own row (`H8t` below), so both states are covered on purpose
+   *  rather than one of them by accident. H7/H9/H10 move to t17 with H8, which is
+   *  strictly better for them too — more content is more layout to get wrong. */
+  teen: "t17",
   "lead-mentor": "s-brandy",
   supervisor: "s-stephen",
 };
+
+/** The thin record, kept as an explicit subject rather than as the default. */
+const THIN_TEEN = "t21";
 
 const WIZARD_STEPS = [
   ["B1", "verify"],
@@ -279,6 +301,19 @@ export const VIEWS = [
     url: `/admin/person/${SUBJECT[role]}?tab=${tab}`,
     seed: { persona: "supervisor" },
   })),
+  {
+    /** ═══ THE REFUSING CARE CARD, ON PURPOSE (gap row 307) ═══
+     *  t21 used to BE the teen subject, which meant the tracker only ever saw
+     *  the state where the care summary declines to say anything. Now it is one
+     *  row beside the populated one, and the pair covers both halves: H8 proves
+     *  the card renders its chips, bands and history without breaking, H8t proves
+     *  it refuses cleanly on a record that cannot support a reading. */
+    id: "H8t",
+    cluster: "H",
+    url: `/admin/person/${THIN_TEEN}?tab=care`,
+    seed: { persona: "supervisor" },
+    note: "the thin teen record — every care element refuses",
+  },
   // H17/H18 — the admin SUBJECT. No admin-role fixture exists, so these are
   // unreachable on `/admin/person/[id]`; `?subjectRole=` is read only by
   // `/admin/mentor` (page.tsx:329), which renders its OWN record chrome rather

@@ -21,7 +21,7 @@ import { EMPTY_FILTERS } from "@/lib/activity/filters";
 import { queryFeed, type FeedRow } from "@/lib/activity/query";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { SIM_NOW, scenarioById } from "@/lib/activity/seed";
-import { viewById } from "@/lib/activity/views";
+import { viewByIdStrict } from "@/lib/activity/views";
 import type { ReadOverlay } from "@/lib/activity/read-state";
 
 const EMPTY_OVERLAY: ReadOverlay = {};
@@ -32,12 +32,12 @@ const viewerFor = (id: string): ActivityViewer => {
   return { id: s.viewerId, role: "supervisor", caseloadTeenIds: s.caseloadTeenIds };
 };
 
-function rowsOf(scenarioId: string, viewId = "caseload"): FeedRow[] {
+function rowsOf(scenarioId: string, viewId = "mine"): FeedRow[] {
   const s = scenario(scenarioId);
   return queryFeed({
     events: s.events,
     viewer: viewerFor(scenarioId),
-    view: viewById(viewId),
+    view: viewByIdStrict(viewId),
     overlay: EMPTY_OVERLAY,
     unreadOnly: false,
     filters: EMPTY_FILTERS,

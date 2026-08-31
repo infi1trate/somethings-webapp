@@ -18,13 +18,13 @@ import { describe, expect, it } from "vitest";
 import { queryFeed, unreadRowCount } from "@/lib/activity/query";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { ACTIVITY_SCENARIOS, SIM_NOW } from "@/lib/activity/seed";
-import { viewById } from "@/lib/activity/views";
+import { viewByIdStrict } from "@/lib/activity/views";
 import { seedOverlay } from "@/lib/activity/read-state";
 
 const HEAVY = ACTIVITY_SCENARIOS.find((s) => s.id === "heavy-day")!;
 const NETWORK_WIDE = ACTIVITY_SCENARIOS.find((s) => s.id === "network-wide")!;
-const MINE = viewById("mine");
-const NETWORK = viewById("network");
+const MINE = viewByIdStrict("mine");
+const NETWORK = viewByIdStrict("network");
 
 const viewerOf = (s: typeof HEAVY): ActivityViewer => ({
   id: s.viewerId,

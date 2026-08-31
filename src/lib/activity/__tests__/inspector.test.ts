@@ -5,28 +5,37 @@
 // which loosens the gate has to break something loud.
 
 import { describe, expect, it } from "vitest";
-import type { ActivityEvent } from "@/lib/activity/events";
+import type { ActivityDomain, ActivityEvent } from "@/lib/activity/events";
 import { EMPTY_FILTERS } from "@/lib/activity/filters";
 import { objectDetailFor, DEGRADED_MESSAGE } from "@/lib/activity/inspector";
 import { queryFeed, type FeedRow } from "@/lib/activity/query";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { ACTIVITY_SCENARIOS, SIM_NOW, STAFF, scenarioById } from "@/lib/activity/seed";
-import { viewById } from "@/lib/activity/views";
+import { ACTIVITY_VIEWS, viewByIdStrict } from "@/lib/activity/views";
 
 const viewerFor = (scenarioId: string): ActivityViewer => {
   const s = scenarioById(scenarioId);
   return { id: s.viewerId, role: "supervisor", caseloadTeenIds: s.caseloadTeenIds };
 };
 
-function rowsOf(scenarioId: string, viewId: string, includeActions = true): FeedRow[] {
+function rowsOf(
+  scenarioId: string,
+  viewId: string,
+  includeActions = true,
+  /** The DOMAIN axis, which is separate from the view's SCOPE axis. Added when
+   *  the billing view was found to be fictional here (gap row 325): a billing
+   *  ledger is the widest scope PLUS this filter, and without the parameter the
+   *  only way to express it was the id that no longer exists. */
+  domains: ActivityDomain[] = []
+): FeedRow[] {
   const s = scenarioById(scenarioId);
   return queryFeed({
     events: s.events,
     viewer: viewerFor(scenarioId),
-    view: viewById(viewId),
+    view: viewByIdStrict(viewId),
     overlay: {},
     unreadOnly: false,
-    filters: { ...EMPTY_FILTERS, includeActions },
+    filters: { ...EMPTY_FILTERS, includeActions, domains },
     now: SIM_NOW,
   }).flatMap((d) => d.rows);
 }
@@ -53,7 +62,10 @@ describe("a degraded network-scope row returns no object detail", () => {
 
   it("holds across every scenario and every view, not just the network one", () => {
     for (const s of ACTIVITY_SCENARIOS) {
-      for (const viewId of ["mine", "network", "billing"]) {
+      // EVERY REGISTERED VIEW, read from the registry. The typed list still had
+      // "billing" in it long after that view was removed, so this loop covered
+      // `mine` twice and believed it had covered three views.
+      for (const viewId of ACTIVITY_VIEWS.map((v) => v.id)) {
         for (const r of rowsOf(s.id, viewId)) {
           if (!r.degraded) continue;
           expect(detail(s.id, r), `${s.id}/${viewId}`).toBeNull();
@@ -85,7 +97,12 @@ describe("a degraded network-scope row returns no object detail", () => {
     // network-wide seeds Lydia's own past approval for Theo, who has left her
     // caseload. A5 clause (a) keeps it open, so the inspector must too — otherwise
     // the pane contradicts the row sitting next to it.
-    const own = rowsOf("network-wide", "billing").find(
+    // WAS `rowsOf("network-wide", "billing")`, which `viewById` answered with My
+    // caseload — the exact opposite of this test's subject, an OFF-caseload teen.
+    // It passed anyway because Lydia's own approval survives in `mine` too, so it
+    // was asserting clause (a) against a scope where the clause is not needed.
+    // Widest scope is the one that makes the assertion mean something.
+    const own = rowsOf("network-wide", "network", true, ["billing"]).find(
       (r) => r.actorIsSelf && r.eventType === "BILLING_REVIEW_COMPLETE"
     );
     expect(own).toBeDefined();

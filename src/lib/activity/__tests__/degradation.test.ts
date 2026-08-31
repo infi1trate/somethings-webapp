@@ -32,10 +32,10 @@ import type { ActivityEvent } from "@/lib/activity/events";
 import { queryFeed } from "@/lib/activity/query";
 import type { ActivityViewer } from "@/lib/activity/resolve-alert-type";
 import { ACTIVITY_SCENARIOS, SIM_NOW } from "@/lib/activity/seed";
-import { viewById } from "@/lib/activity/views";
+import { viewByIdStrict } from "@/lib/activity/views";
 
-const NETWORK = viewById("network");
-const MINE = viewById("mine");
+const NETWORK = viewByIdStrict("network");
+const MINE = viewByIdStrict("mine");
 // IMPORTED, NOT RESTATED. This was a hardcoded copy of the old SIM_NOW literal,
 // which meant the seed's clock and the test's clock were two facts that happened
 // to agree — and stopped agreeing the moment A9 moved the shift window.

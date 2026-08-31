@@ -1,6 +1,6 @@
 {
   "base": "http://localhost:3003",
-  "generated": "2026-08-31T22:07:04.419Z",
+  "generated": "2026-08-31T22:46:22.639Z",
   "byView": {
     "A1": 0,
     "A2": 0,
@@ -57,7 +57,7 @@
     "H4": 0,
     "H5": 0,
     "H6": 0,
-    "H7": 9,
+    "H7": 18,
     "H8": 0,
     "H9": 0,
     "H10": 0,
@@ -67,25 +67,26 @@
     "H14": 0,
     "H15": 0,
     "H16": 0,
+    "H8t": 0,
     "H17": 0,
     "H18": 0,
     "I1": 0
   },
   "byViewport": {
-    "xs": 4,
-    "s": 4,
-    "m": 4,
-    "md": 4,
-    "lg": 23,
-    "xl": 22,
-    "zoom400": 4,
-    "text200": 10,
-    "landscape": 4
+    "xs": 5,
+    "s": 5,
+    "m": 5,
+    "md": 5,
+    "lg": 24,
+    "xl": 23,
+    "zoom400": 5,
+    "text200": 11,
+    "landscape": 5
   },
   "byRule": {
     "color-contrast": {
       "impact": "serious",
-      "count": 79,
+      "count": 88,
       "views": [
         "B4@xs",
         "B4@s",
@@ -135,9 +136,9 @@
       ]
     }
   },
-  "total": 79,
+  "total": 88,
   "errors": [],
-  "viewCount": 68,
+  "viewCount": 69,
   "viewportCount": 9,
   "partial": false
 }

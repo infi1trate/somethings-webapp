@@ -15,7 +15,7 @@ import {
 } from "@/lib/activity/resolve-alert-type";
 import type { ActivityDomain } from "@/lib/activity/events";
 import { ACTIVITY_SCENARIOS, SHIFT_START_HOUR, SIM_NOW, scenarioById } from "@/lib/activity/seed";
-import { viewById } from "@/lib/activity/views";
+import { ACTIVITY_VIEWS, viewByIdStrict } from "@/lib/activity/views";
 import { markRead, type ReadOverlay } from "@/lib/activity/read-state";
 
 /** `ReadOverlay` is a plain record — {} IS the empty overlay. */
@@ -39,7 +39,7 @@ function rowsOf(
   return queryFeed({
     events: s.events,
     viewer: viewerFor(scenarioId),
-    view: viewById(viewId),
+    view: viewByIdStrict(viewId),
     overlay: EMPTY_OVERLAY,
     unreadOnly: false,
     filters: { ...EMPTY_FILTERS, includeActions, domains },
@@ -129,7 +129,11 @@ describe("ACTION rows use past-tense record voice (§5.1)", () => {
 
 describe("billing codes render where detail is granted", () => {
   it("a completed review the viewer performed carries its code", () => {
-    const rows = rowsOf("typical-shift", "billing", true).filter(
+    // WAS `rowsOf("typical-shift", "billing", true)` — a fourth stale call site
+    // row 325 did not catch, because `viewById` answered it too. `viewByIdStrict`
+    // found it. `includeActions` is dropped: a domain filter admits the full type
+    // set by itself, which is the property the removed tab used to carry.
+    const rows = billingLedger("typical-shift").filter(
       (r) => r.eventType === "BILLING_REVIEW_COMPLETE" && r.count === 1
     );
     expect(rows.length).toBeGreaterThan(0);
@@ -243,7 +247,7 @@ describe("A9 leaves rules 8-12 intact", () => {
     const overlay = markRead(EMPTY_OVERLAY, s.viewerId, "mine", [id]);
     const viewer = viewerFor("typical-shift");
     const inMine = queryFeed({
-      events: s.events, viewer, view: viewById("mine"), overlay,
+      events: s.events, viewer, view: viewByIdStrict("mine"), overlay,
       unreadOnly: false, filters: EMPTY_FILTERS, now: SIM_NOW,
     }).flatMap((d) => d.rows).find((r) => r.eventIds.includes(id));
     expect(inMine?.state).not.toBe("unread");
@@ -280,7 +284,11 @@ describe("row.lead is always a prefix of row.sentence", () => {
   const everyRow = () => {
     const out: FeedRow[] = [];
     for (const s of ACTIVITY_SCENARIOS) {
-      for (const viewId of ["mine", "network", "billing"]) {
+      // EVERY REGISTERED VIEW, read from the registry rather than typed out —
+      // the hardcoded list still contained "billing" after that view was removed,
+      // so the loop was silently running `mine` twice and `network` once instead
+      // of covering three views. Reading the registry cannot go stale.
+      for (const viewId of ACTIVITY_VIEWS.map((v) => v.id)) {
         for (const includeActions of [false, true]) {
           const rows = rowsOf(s.id, viewId, includeActions);
           out.push(...rows, ...rows.flatMap((r) => r.members ?? []));
@@ -327,7 +335,11 @@ describe("row.lead is always a prefix of row.sentence", () => {
 describe("the detailed row's context line respects rule 12", () => {
   it("no degraded row anywhere carries a context line", () => {
     for (const s of ACTIVITY_SCENARIOS) {
-      for (const viewId of ["mine", "network", "billing"]) {
+      // EVERY REGISTERED VIEW, read from the registry rather than typed out —
+      // the hardcoded list still contained "billing" after that view was removed,
+      // so the loop was silently running `mine` twice and `network` once instead
+      // of covering three views. Reading the registry cannot go stale.
+      for (const viewId of ACTIVITY_VIEWS.map((v) => v.id)) {
         for (const r of rowsOf(s.id, viewId, true)) {
           if (!r.degraded) continue;
           expect(r.context, `${s.id}/${viewId}/${r.id}`).toBeUndefined();

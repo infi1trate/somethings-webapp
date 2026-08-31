@@ -33,6 +33,11 @@ import {
   type ReadOverlay,
 } from "@/lib/activity/read-state";
 import type { ActivityDensity } from "@/lib/activity/views";
+// The default id, not the whole registry. `lib/tasks/seed.ts` imports only
+// `tasks/sla` and `tasks/types`, neither of which reaches back here, so there is
+// no cycle — checked rather than assumed, since a cycle through the store shows
+// up as an undefined default at module-init time and not as an error.
+import { DEFAULT_TASK_SCENARIO_ID } from "@/lib/tasks/seed";
 // care-demo is a pure data module with no store import — one-directional.
 import type {
   CareFlagClosure,
@@ -212,7 +217,16 @@ interface OnboardingState {
    *  property of the harness like `persona` and the scenario, not of one feed.
    *  See `lib/dev/load-state.ts` for why it has one consumer today. */
   devLoadState: LoadState;
+  /** WHICH TASKS SEED SCENARIO THE WORKLIST SHOWS (v42).
+   *
+   *  LIFTED OUT OF `tasks-page.tsx`, where it was `useState` inside a panel
+   *  pinned bottom-right — under the fixed mobile bottom nav, which made it
+   *  untappable below `md` (gap row 311), and page-local, so it reset on every
+   *  navigation away. Same two faults `activityScenarioId` had and the same fix:
+   *  the axis belongs to the harness, not to the screen it acts on. */
+  tasksScenarioId: string;
   setActivityScenarioId: (id: string) => void;
+  setTasksScenarioId: (id: string) => void;
   setDevLoadState: (state: LoadState) => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
    *
@@ -457,6 +471,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       activityRead: {},
       activityScenarioId: "typical-shift",
       devLoadState: DEFAULT_LOAD_STATE,
+      tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
       tasksLastVisitAt: 0,
       activityDensity: "dense",
       careUpdates: {},
@@ -852,6 +867,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         // meaningful (rule 11 is about a viewer clearing a ROW) — this is the
         // prototype simulator swapping one fixture ledger for another.
         set({ activityScenarioId: id, activityRead: {} }),
+      setTasksScenarioId: (id) => set({ tasksScenarioId: id }),
       setDevLoadState: (state) => set({ devLoadState: state }),
       seedActivityRead: (overlay) => set({ activityRead: overlay }),
       markActivityRowsRead: (viewerId, scope, eventIds) =>
@@ -992,6 +1008,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           // persona lens: a "start over" that left the feed in an error state
           // would look like the reset had failed.
           devLoadState: DEFAULT_LOAD_STATE,
+          tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
           tasksLastVisitAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
           careUpdates: {},
@@ -1102,7 +1119,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      rather than {} and anything unrecognised becomes "ready". A session
       //      opening on "error" because a stored value drifted would look like a
       //      broken app rather than a set control.
-      version: 41,
+      // v42: tasksScenarioId (which Tasks seed the worklist shows) — lifted out
+      //      of the page's own pinned panel, which was unreachable below `md`.
+      //      A scalar preference, so the backfill is the default id.
+      version: 42,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1514,6 +1534,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (st38.activityDensity !== "detailed") {
             st38.activityDensity = "dense";
           }
+          // v42: a scalar preference — same shape as v36 below.
+          const st42 = persisted as { tasksScenarioId?: unknown };
+          if (typeof st42.tasksScenarioId !== "string") {
+            st42.tasksScenarioId = DEFAULT_TASK_SCENARIO_ID;
+          }
           // v36: a scalar preference — backfill the default, not {}.
           const st36 = persisted as { activityScenarioId?: unknown };
           if (typeof st36.activityScenarioId !== "string") {
@@ -1740,6 +1765,12 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.tasksLastVisitAt = 0;
         }
         if (
+          typeof (merged as { tasksScenarioId?: unknown }).tasksScenarioId !==
+          "string"
+        ) {
+          merged.tasksScenarioId = DEFAULT_TASK_SCENARIO_ID;
+        }
+        if (
           merged.activityDensity !== "dense" &&
           merged.activityDensity !== "detailed"
         ) {
@@ -1835,6 +1866,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         careSummaryCommits: state.careSummaryCommits,
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
+        tasksScenarioId: state.tasksScenarioId,
         devLoadState: state.devLoadState,
         tasksLastVisitAt: state.tasksLastVisitAt,
         activityDensity: state.activityDensity,
