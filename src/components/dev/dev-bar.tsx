@@ -68,6 +68,7 @@ import {
 } from "@/lib/dev/record-scenarios";
 import { ACTIVITY_SCENARIOS } from "@/lib/activity/seed";
 import { TASK_SCENARIOS } from "@/lib/tasks/seed";
+import { CHAT_SCENARIOS } from "@/lib/chat/seed";
 import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import {
   LOAD_STATES,
@@ -89,6 +90,10 @@ const ACTIVITY_PREFIX = "activity:";
  *  name a record, so `onChange` must be able to tell the families apart without
  *  guessing from the id. */
 const TASKS_PREFIX = "tasks:";
+/** And the same again for chat, which is the fifth screen level. Four prefixed
+ *  families now share one select, and the prefix is the only reason `onChange` can
+ *  be a switch rather than a guess. */
+const CHAT_PREFIX = "chat:";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -172,6 +177,13 @@ export function DevBar() {
   });
 
   const active = mounted ? persona : null;
+  /** ═══ `/app/chat` AND NOT `/app/chats` ═══
+   *  The nav LABEL is "Chats" (plural, from the Figma frame) and the ROUTE is
+   *  singular — `hrefFor` builds it from the nav item's `id`, which is "chat".
+   *  Matching on the label would have made the select show the record axis on
+   *  the chat page, silently, which is the class of bug the value expression
+   *  below exists to prevent. */
+  const onChat = pathname.startsWith("/app/chat");
   /** A record route is one where a scenario has something to hold on to. */
   const onRecord = pathname?.startsWith("/admin/person/") ?? false;
   const scenario = scenarioById(scenarioId);
@@ -181,6 +193,8 @@ export function DevBar() {
   );
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
   const setTasksScenario = useOnboardingStore((s) => s.setTasksScenarioId);
+  const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
+  const setChatScenario = useOnboardingStore((s) => s.setChatScenarioId);
   const loadState = useOnboardingStore((s) => s.devLoadState);
   const resetTasksReviewed = useOnboardingStore((s) => s.resetTasksReviewed);
   /** This bar is the widest horizontal scroller in the app at phone widths —
@@ -328,7 +342,9 @@ export function DevBar() {
             value={
               pathname.startsWith("/app/activity")
                 ? `${ACTIVITY_PREFIX}${activityScenarioId}`
-                : pathname.startsWith("/app/tasks")
+                : onChat
+                  ? `${CHAT_PREFIX}${chatScenarioId}`
+                  : pathname.startsWith("/app/tasks")
                   ? `${TASKS_PREFIX}${tasksScenarioId}`
                   : scenarioId
             }
@@ -352,6 +368,17 @@ export function DevBar() {
                 setTasksScenario(value.slice(TASKS_PREFIX.length));
                 if (!pathname.startsWith("/app/tasks")) {
                   router.push("/app/tasks", { scroll: false });
+                }
+                return;
+              }
+              // ── CHAT: same shape again. Note that switching the chat scenario
+              //    also CLEARS the chat writes (see `setChatScenarioId`), because
+              //    an escalation or a sent activity is keyed to fixtures the new
+              //    scenario has just replaced.
+              if (value.startsWith(CHAT_PREFIX)) {
+                setChatScenario(value.slice(CHAT_PREFIX.length));
+                if (!onChat) {
+                  router.push("/app/chat", { scroll: false });
                 }
                 return;
               }
@@ -409,6 +436,18 @@ export function DevBar() {
             <optgroup label="Tasks">
               {TASK_SCENARIOS.map((s) => (
                 <option key={s.id} value={`${TASKS_PREFIX}${s.id}`}>
+                  {s.label}
+                </option>
+              ))}
+            </optgroup>
+            {/* ═══ CHAT, THE FIFTH SCREEN LEVEL ═══
+                Five relationship states, each pinned to a teen already on the live
+                mentor's roster — so the scenario and the conversation list cannot
+                disagree about who these people are. Prefixed for the same reason
+                the two above are. */}
+            <optgroup label="Mentor chat">
+              {CHAT_SCENARIOS.map((s) => (
+                <option key={s.id} value={`${CHAT_PREFIX}${s.id}`}>
                   {s.label}
                 </option>
               ))}

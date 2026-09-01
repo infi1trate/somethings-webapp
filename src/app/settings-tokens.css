@@ -279,6 +279,23 @@
   --type-button-tracking: 0px;
 
   --type-body: 400 14px/20px var(--font-lausanne); /* Body/Medium ✓ */
+
+  /* ═══ Body/Large-Regular — 16/24, tracking 0. THE MESSAGE SIZE. ═══
+     Bloom line 209, a real ramp stop that simply had no token yet.
+
+     Every other body role in this file is 14/20 or 12/16, and both are right for
+     what they do: record rows, panel meta, table cells — dense data a reader
+     SCANS. A message thread is the one place in this product where somebody reads
+     continuously, sentence after sentence, for as long as the conversation runs,
+     and 14/20 is a data size being asked to do prose. Bloom already has the
+     answer one step up.
+
+     Deliberately not extended to Body/Large-BOLD, which Bloom sets at Lausanne
+     700 — that file is not shipped (row 330), so a bold message would be a
+     browser-synthesised fake. Emphasis inside a bubble is not available, and
+     nothing in the thread design asks for it. */
+  --type-message: 400 16px/24px var(--font-lausanne);
+  --type-message-tracking: 0px;
   --type-tab: 400 16px/20px var(--font-lausanne); /* Label/Large-Regular ✓ */
 
   /* Label/Small is Lausanne 700 12/16 on the ramp, and 700 is NOT LOADED. Was

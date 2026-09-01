@@ -38,6 +38,18 @@ import type { ActivityDensity } from "@/lib/activity/views";
 // no cycle — checked rather than assumed, since a cycle through the store shows
 // up as an undefined default at module-init time and not as an error.
 import { DEFAULT_TASK_SCENARIO_ID } from "@/lib/tasks/seed";
+import { DEFAULT_CHAT_SCENARIO_ID } from "@/lib/chat/seed";
+/* ALIASED AT THE IMPORT. `ChatEvent` and `Note` are good names inside the chat
+   module and poor ones in a 1,900-line store that already has an `activity` feed
+   and an `internalNotes` field. The alias is where the disambiguation belongs —
+   renaming them in `lib/chat/types.ts` would make every chat component read worse
+   to make one file read better. */
+import type {
+  ChatEvent as ChatEventRecord,
+  EscalationState as ChatEscalation,
+  Note as ChatNoteRecord,
+  SentArtifact as ChatArtifactRecord,
+} from "@/lib/chat/types";
 // care-demo is a pure data module with no store import — one-directional.
 import type {
   CareFlagClosure,
@@ -236,8 +248,44 @@ interface OnboardingState {
    *  would be worse than useless: a stored nonce would fire the reset once on the
    *  next load, for no reason anybody could trace. */
   tasksResetNonce: number;
+  /** ═══ THE CHAT AXIS (v43) ═══
+   *
+   *  Fifth screen level on the harness's scenario select, and here for the same
+   *  reason the other two are: a scenario that lives in a page's `useState` resets
+   *  the moment you navigate, which makes it useless for reviewing a surface you
+   *  reach by clicking through the product. */
+  chatScenarioId: string;
+  /** ═══ WHAT THE MENTOR CHAT PERSISTS, AND WHY EACH ONE HAS TO ═══
+   *
+   *  Only four things. Everything else on that surface — which rail tab is open,
+   *  what is half-typed in the composer, where a card deck is — is per-thread UI
+   *  that is worthless after a reload and would mean a localStorage write per
+   *  keystroke.
+   *
+   *  ESCALATIONS ARE THE LOAD-BEARING ONE. An escalation stays open until someone
+   *  explicitly resolves it; a mentor who raises one, navigates to the teen's
+   *  record and comes back must find it exactly where it was. That is not a
+   *  convenience, it is the feature.
+   *
+   *  Keyed by thread id, which is a person id. One open escalation per thread —
+   *  a second one on the same conversation is the same crisis. */
+  escalations: Record<string, ChatEscalation>;
+  /** APPEND-ONLY. Activities sent and taken back, notes written, escalations
+   *  opened and resolved. There is no remove and no update: a rescinded activity
+   *  gets a SECOND event, because "sent and then pulled back" is the true history
+   *  and "never sent" is not. Keyed by thread id. */
+  chatEvents: Record<string, ChatEventRecord[]>;
+  /** Documentation. Keyed by note id rather than by thread, because a note is
+   *  reached from Timeline, from a reminder and from the thread it references —
+   *  three paths that would each need their own index into a thread-keyed map. */
+  chatNotes: Record<string, ChatNoteRecord>;
+  /** Sent activity artifacts, keyed by artifact id. Their `completion` is the one
+   *  mutable field in the chat model, so they cannot live in the append-only
+   *  event log. */
+  chatArtifacts: Record<string, ChatArtifactRecord>;
   setActivityScenarioId: (id: string) => void;
   setTasksScenarioId: (id: string) => void;
+  setChatScenarioId: (id: string) => void;
   /** Clears the Tasks worklist's reviewed items. Lives here because the control
    *  is in the dev footer and the state is in the page — a counter is the smallest
    *  seam that does not make the page reach into the bar or the reverse. */
@@ -487,6 +535,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       activityScenarioId: "typical-shift",
       devLoadState: DEFAULT_LOAD_STATE,
       tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
+      chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
+      escalations: {},
+      chatEvents: {},
+      chatNotes: {},
+      chatArtifacts: {},
       tasksResetNonce: 0,
       tasksLastVisitAt: 0,
       activityDensity: "dense",
@@ -884,6 +937,18 @@ export const useOnboardingStore = create<OnboardingState>()(
         // prototype simulator swapping one fixture ledger for another.
         set({ activityScenarioId: id, activityRead: {} }),
       setTasksScenarioId: (id) => set({ tasksScenarioId: id }),
+      /* Switching scenario drops everything keyed to the old fixtures — the same
+         reasoning as `setActivityScenarioId` clearing its read overlay. An
+         escalation on Jordan's thread means nothing once the roster's threads have
+         been rebuilt from another scenario's dialogue. */
+      setChatScenarioId: (id) =>
+        set({
+          chatScenarioId: id,
+          escalations: {},
+          chatEvents: {},
+          chatNotes: {},
+          chatArtifacts: {},
+        }),
       resetTasksReviewed: () =>
         set((st) => ({ tasksResetNonce: st.tasksResetNonce + 1 })),
       setDevLoadState: (state) => set({ devLoadState: state }),
@@ -1027,6 +1092,15 @@ export const useOnboardingStore = create<OnboardingState>()(
           // would look like the reset had failed.
           devLoadState: DEFAULT_LOAD_STATE,
           tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
+          chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
+          /* RESET CLEARS THE CHAT WRITES. Reset re-seeds every fixture, so an
+             escalation left open would be an escalation with no conversation
+             behind it — orphaned by id, and pinned to a thread whose messages have
+             been rebuilt from scratch. */
+          escalations: {},
+          chatEvents: {},
+          chatNotes: {},
+          chatArtifacts: {},
           tasksLastVisitAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
           careUpdates: {},
@@ -1140,7 +1214,13 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v42: tasksScenarioId (which Tasks seed the worklist shows) — lifted out
       //      of the page's own pinned panel, which was unreachable below `md`.
       //      A scalar preference, so the backfill is the default id.
-      version: 42,
+      // v43: the mentor chat's four persisted fields plus its scenario axis.
+      //      `chatScenarioId` is a scalar preference (backfill: the default id);
+      //      `escalations`, `chatEvents`, `chatNotes` and `chatArtifacts` are
+      //      sparse maps, so {} is the correct backfill and reads as "this mentor
+      //      has raised nothing, sent nothing and written nothing" — which is true
+      //      of every state persisted before this version existed.
+      version: 43,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1557,6 +1637,25 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (typeof st42.tasksScenarioId !== "string") {
             st42.tasksScenarioId = DEFAULT_TASK_SCENARIO_ID;
           }
+          /* v43: one scalar and four sparse maps. Explicit rather than left to
+             the shallow persist merge, for the reason the version log records at
+             v29 and again at v32: the merge does backfill a MISSING key, and it
+             does nothing at all for a key that is present and the wrong shape —
+             which is what a hand-edited localStorage payload and a
+             half-completed earlier migration both produce. */
+          const st43 = persisted as {
+            chatScenarioId?: unknown;
+            escalations?: unknown;
+            chatEvents?: unknown;
+            chatNotes?: unknown;
+            chatArtifacts?: unknown;
+          };
+          if (typeof st43.chatScenarioId !== "string") {
+            st43.chatScenarioId = DEFAULT_CHAT_SCENARIO_ID;
+          }
+          for (const k of ["escalations", "chatEvents", "chatNotes", "chatArtifacts"] as const) {
+            if (!st43[k] || typeof st43[k] !== "object") st43[k] = {};
+          }
           // v36: a scalar preference — backfill the default, not {}.
           const st36 = persisted as { activityScenarioId?: unknown };
           if (typeof st36.activityScenarioId !== "string") {
@@ -1921,6 +2020,11 @@ export const useOnboardingStore = create<OnboardingState>()(
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
         tasksScenarioId: state.tasksScenarioId,
+        chatScenarioId: state.chatScenarioId,
+        escalations: state.escalations,
+        chatEvents: state.chatEvents,
+        chatNotes: state.chatNotes,
+        chatArtifacts: state.chatArtifacts,
         devLoadState: state.devLoadState,
         tasksLastVisitAt: state.tasksLastVisitAt,
         activityDensity: state.activityDensity,

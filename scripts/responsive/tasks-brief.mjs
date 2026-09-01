@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const KEY = "somethings.mentor-onboarding";
-const VERSION = Number(process.env.STORE_VERSION ?? 42);
+import { STORE_VERSION as VERSION } from "./store-version.mjs";
 
 let fails = 0;
 const check = (ok, label, extra = "") => {

@@ -12,7 +12,7 @@
 import { chromium } from "playwright";
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const KEY = "somethings.mentor-onboarding";
-const VERSION = Number(process.env.STORE_VERSION ?? 42);
+import { STORE_VERSION as VERSION } from "./store-version.mjs";
 const b = await chromium.launch();
 let fails = 0;
 const VIEWS = [
@@ -23,6 +23,8 @@ const VIEWS = [
   ["/app/tasks", "tasks"],
   ["/app/activity", "activity"],
   ["/app/mentees", "mentees"],
+  ["/app/chat", "mentor chat"],
+  ["/app/chat?with=t13", "mentor chat · deep link"],
   ["/admin/person/t17?tab=care", "teen record · Care"],
   ["/admin/person/t17?tab=activity", "teen record · Activity"],
 ];
