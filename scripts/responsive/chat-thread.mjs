@@ -278,7 +278,10 @@ console.log("\n── message actions @ active-mentorship");
   })()`);
   check(!!menu, "the menu opened");
   check(menu.count === 6, "six reactions, not an emoji keyboard", String(menu.count));
-  check(menu.nonReaction === 1, "beside one non-reaction action", String(menu.nonReaction));
+  /* TWO SINCE PHASE 6: tag for documentation, and escalate. Both sit behind a rule
+     separating them from the reactions, and chat-documentation / chat-escalation
+     check each one — this only asserts the reaction SET has not grown. */
+  check(menu.nonReaction === 2, "beside two non-reaction actions", String(menu.nonReaction));
   check(menu.allNamed, "each names what it means", menu.labels.slice(0, 3).join(" | "));
 
   // Pressing one adds it, and pressing again removes it.

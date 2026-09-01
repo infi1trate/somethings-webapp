@@ -303,7 +303,7 @@ console.log("\n── support thread @ active-mentorship");
   await p.waitForTimeout(1800);
   await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
   await p.waitForTimeout(300);
-  await p.locator('[role="tabpanel"] button[aria-label]').first().click();
+  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
   await p.waitForTimeout(500);
   const tabs = await p.evaluate(`
     [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')].map((t) => t.textContent.trim())`);

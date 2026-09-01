@@ -290,6 +290,9 @@ export interface ChatData {
   events: Record<ThreadId, ChatEvent[]>;
   artifacts: Record<string, SentArtifact>;
   emergency: Record<ThreadId, EmergencyInfo>;
+  /** Keyed by thread id, like the store's own. Only the escalation scenario has
+   *  one; every other thread's is absent, which is what an absent escalation is. */
+  escalations: Record<ThreadId, EscalationState>;
   /** The thread the scenario is about — what opens when no `?with=` is given. */
   focusThreadId: ThreadId;
 }

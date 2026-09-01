@@ -28,15 +28,24 @@
 // nobody — the same treatment the Tasks excerpt's truncation marker uses.
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, ShieldAlert } from "lucide-react";
+import {
+  BannerButton,
+  StatusBanner,
+} from "@/components/chat/thread/status-banner";
 import { RecordAvatar } from "@/components/record/record-avatar";
 import { Composer } from "@/components/chat/thread/composer";
-import { MessageBubble, needsMeta } from "@/components/chat/thread/message-bubble";
+import {
+  MessageBubble,
+  clockTime,
+  needsMeta,
+} from "@/components/chat/thread/message-bubble";
 import { EventChip } from "@/components/chat/thread/event-chip";
 import type {
   ChatEvent,
   ChatMessage,
   ChatThread,
+  EscalationState,
   SentArtifact,
   ThreadBadge,
 } from "@/lib/chat/types";
@@ -114,11 +123,19 @@ export function Thread({
   messages,
   events = [],
   artifacts = {},
+  /** The live escalation, if there is one. Drives the banner, the transcript's
+   *  container marking, and whether the message menu still offers Escalate. */
+  escalation,
   now,
   reactions,
   onReact,
   onTagMessage,
+  onEscalateFrom,
   onOpenEvent,
+  onOpenAssessment,
+  onOpenCrisis,
+  onResolveEscalation,
+  insert,
   className,
 }: {
   thread: ChatThread;
@@ -128,13 +145,22 @@ export function Thread({
   /** Keyed by artifact id. The chip needs it only to know whether a send has since
    *  been taken back — the sheet is what reads the rest. */
   artifacts?: Record<string, SentArtifact>;
+  escalation?: EscalationState;
   now: number;
   /** Session-local reactions, keyed by message id. See `MessageActions`. */
   reactions?: Record<string, string[]>;
   onReact?: (messageId: string, emoji: string) => void;
   /** Starts a note pointed at this message. Absent on a support thread. */
   onTagMessage?: (message: ChatMessage) => void;
+  onEscalateFrom?: (message: ChatMessage) => void;
   onOpenEvent?: (event: ChatEvent) => void;
+  /** The banner's three actions. Absent on a support thread. */
+  onOpenAssessment?: () => void;
+  onOpenCrisis?: () => void;
+  onResolveEscalation?: () => void;
+  /** Text to drop into the composer, unsent. See `Composer`'s own note on why this
+   *  is a nonce rather than a plain string. */
+  insert?: { text: string; nonce: number } | null;
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -221,7 +247,14 @@ export function Thread({
     <div
       data-slot="chat-thread"
       className={cn(
-        "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-[var(--surface-card)]",
+        /* FOUR ROWS WHEN A BANNER IS UP. `auto` for the header and the banner, so
+           the banner is PINNED by the template rather than by a sticky position —
+           see `StatusBanner` on why an escalation a mentor can scroll away from is
+           an escalation they forget. */
+        "grid h-full min-h-0 bg-[var(--surface-card)]",
+        escalation
+          ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]"
+          : "grid-rows-[auto_minmax(0,1fr)_auto]",
         className
       )}
     >
@@ -274,6 +307,39 @@ export function Thread({
           <MoreHorizontal className="size-[18px]" aria-hidden />
         </button>
       </div>
+
+      {/* ── ESCALATION BANNER ─────────────────────────────────────────── */}
+      {escalation && (
+        <StatusBanner
+          tone="critical"
+          glyph={ShieldAlert}
+          /* TODO-COPY. Present tense, because the state is present. */
+          title="Escalation open"
+          /* ═══ THE TIMESTAMPED FACT ═══
+              Not a toast. The mentor who raised this needs to be able to check — an
+              hour later, mid-phone-call, after a navigation — that somebody knows.
+              See `StatusBanner`. */
+          meta={`Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)} · opened ${clockTime(escalation.openedAt)}`}
+        >
+          {/* ═══ CRISIS INFO IS THE PRIMARY, NOT THE ASSESSMENT ═══
+              A mentor pressing something on this banner in a hurry is reaching for
+              the phone numbers. The checklist is the considered path and sits
+              second. */}
+          <BannerButton tone="critical" primary onClick={onOpenCrisis} data-slot="banner-crisis">
+            {/* TODO-COPY */}
+            Emergency info
+          </BannerButton>
+          <BannerButton tone="critical" onClick={onOpenAssessment} data-slot="banner-assessment">
+            {/* TODO-COPY. Names the count so a mentor returning knows where they
+                got to without opening it. */}
+            Checklist
+          </BannerButton>
+          <BannerButton tone="critical" onClick={onResolveEscalation} data-slot="banner-resolve">
+            {/* TODO-COPY */}
+            Resolve
+          </BannerButton>
+        </StatusBanner>
+      )}
 
       {/* ── TRANSCRIPT ────────────────────────────────────────────────── */}
       <div
@@ -332,6 +398,13 @@ export function Thread({
                       // needs the next line attributed.
                       showMeta={entry.showMeta}
                       added={reactions?.[entry.message.id]}
+                      inEscalation={
+                        !!escalation &&
+                        entry.message.at >= escalation.openedAt &&
+                        (escalation.resolvedAt === null ||
+                          entry.message.at <= escalation.resolvedAt)
+                      }
+                      isAnchor={escalation?.anchorMessageId === entry.message.id}
                       onReact={
                         onReact
                           ? (emoji) => onReact(entry.message.id, emoji)
@@ -340,6 +413,15 @@ export function Thread({
                       onTag={
                         onTagMessage
                           ? () => onTagMessage(entry.message)
+                          : undefined
+                      }
+                      /* ABSENT WHILE ONE IS OPEN. A second escalation on the same
+                         conversation is the same crisis, and the store keys them by
+                         thread — so offering it would be offering an action that
+                         silently overwrites the first one's assessment. */
+                      onEscalate={
+                        onEscalateFrom && !escalation
+                          ? () => onEscalateFrom(entry.message)
                           : undefined
                       }
                     />
@@ -367,7 +449,7 @@ export function Thread({
       </div>
 
       {/* ── COMPOSER ─────────────────────────────────────────────────── */}
-      <Composer theirName={theirName} />
+      <Composer theirName={theirName} insert={insert} />
     </div>
   );
 }

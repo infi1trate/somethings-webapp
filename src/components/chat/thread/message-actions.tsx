@@ -37,7 +37,7 @@
 // hidden: if reactions become real content, they belong beside `chatNotes`.
 
 import { useState } from "react";
-import { FileText, SmilePlus } from "lucide-react";
+import { FileText, ShieldAlert, SmilePlus } from "lucide-react";
 import type { Sender } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -73,11 +73,18 @@ export function MessageActions({
    *  nobody can check. Absent on a support thread, where there is no teen to
    *  document; the menu then holds reactions alone rather than a disabled row. */
   onTag,
+  /** ═══ RAISING AN ESCALATION FROM A SPECIFIC MESSAGE (Phase 6) ═══
+   *  Which is how it almost always happens: a mentor reads one sentence and knows.
+   *  Anchoring the escalation to that message is what lets the thread show which
+   *  one it was about, and what gives a supervisor reading back the sentence rather
+   *  than a timestamp. Absent when one is already open, and on support threads. */
+  onEscalate,
   className,
 }: {
   side: Sender;
   onReact: (emoji: string) => void;
   onTag?: () => void;
+  onEscalate?: () => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -154,7 +161,7 @@ export function MessageActions({
             </button>
           ))}
 
-          {onTag && (
+          {(onTag || onEscalate) && (
             <>
               {/* A RULE, NOT A GAP. The six reactions are one gesture; tagging is a
                   different kind of act — it starts a written record — and a
@@ -164,26 +171,55 @@ export function MessageActions({
                 aria-hidden
                 className="mx-0.5 h-5 w-px shrink-0 bg-[var(--border-subtle)]"
               />
-              <button
-                type="button"
-                role="menuitem"
-                /* TODO-COPY. Names the OUTCOME — a note — rather than the mechanic.
-                   "Tag" alone means nothing to somebody who has not used this
-                   before, which is everybody the first time. */
-                aria-label="Write a note about this message"
-                title="Write a note about this"
-                onClick={() => {
-                  onTag();
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors",
-                  "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                  RING
-                )}
-              >
-                <FileText className="size-4" aria-hidden />
-              </button>
+              {onTag && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  /* TODO-COPY. Names the OUTCOME — a note — rather than the mechanic.
+                     "Tag" alone means nothing to somebody who has not used this
+                     before, which is everybody the first time. */
+                  aria-label="Write a note about this message"
+                  title="Write a note about this"
+                  onClick={() => {
+                    onTag();
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors",
+                    "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                    RING
+                  )}
+                >
+                  <FileText className="size-4" aria-hidden />
+                </button>
+              )}
+              {onEscalate && (
+                /* ═══ LAST IN THE MENU, AND THE ONLY TINTED ITEM ═══
+                   Last because a menu whose most consequential item sits beside six
+                   one-tap reactions is a menu somebody mis-presses. Tinted because
+                   at the moment a mentor needs it they are not reading — they are
+                   looking for the red one, and everything else here is neutral. */
+                <button
+                  type="button"
+                  role="menuitem"
+                  /* TODO-COPY. Names what it DOES — a supervisor is told — rather
+                     than the word "escalate", which a new mentor may not connect to
+                     "get a grown-up involved right now". */
+                  aria-label="Raise an escalation about this message"
+                  title="Raise an escalation — tells your supervisor now"
+                  onClick={() => {
+                    onEscalate();
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-full transition-colors",
+                    "text-[var(--alert-critical-accent)] hover:bg-[var(--alert-critical-bg)]",
+                    RING
+                  )}
+                >
+                  <ShieldAlert className="size-4" aria-hidden />
+                </button>
+              )}
             </>
           )}
         </div>

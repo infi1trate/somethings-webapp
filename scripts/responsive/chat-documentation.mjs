@@ -70,8 +70,16 @@ console.log("\n── tagging @ active-mentorship");
   const menu = await p.evaluate(`(() => {
     const m = document.querySelector('[role="menu"][aria-label="Reactions"]');
     const items = [...m.querySelectorAll('[role="menuitem"]')];
+    /* COUNTED BY KIND, not by total. Phase 6 added an escalate entry to the same
+       menu, so a total of 7 became 8 — and the claim here is about the REACTION set
+       plus the presence of the tag, neither of which changed. Reactions carry an
+       emoji; the two actions carry an SVG. */
+    const reactions = items.filter((i) => !i.querySelector("svg"));
+    const actions = items.filter((i) => i.querySelector("svg"));
     return {
       count: items.length,
+      reactions: reactions.length,
+      actions: actions.length,
       tag: items.map((i) => i.getAttribute("aria-label")).find((l) => /note/i.test(l ?? "")),
       /* A RULE BETWEEN THE REACTIONS AND THE TAG. Six reactions are one gesture;
          starting a written record is a different kind of act, and a hurried press
@@ -79,7 +87,11 @@ console.log("\n── tagging @ active-mentorship");
       separated: !!m.querySelector("span[aria-hidden][class*=w-px]"),
     };
   })()`);
-  check(menu.count === 7, "the menu holds six reactions and one tag", `${menu.count}`);
+  check(
+    menu.reactions === 6 && menu.actions === 2,
+    "six reactions and two actions",
+    `${menu.reactions} + ${menu.actions}`
+  );
   check(
     /note/i.test(menu.tag ?? ""),
     "and the tag names the OUTCOME, not the mechanic",
@@ -272,7 +284,7 @@ console.log("\n── support thread @ active-mentorship");
   const p = await chat("active-mentorship");
   await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
   await p.waitForTimeout(300);
-  await p.locator('[role="tabpanel"] button[aria-label]').first().click();
+  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
   await p.waitForTimeout(600);
   await p.locator('[role="tab"]', { hasText: "Timeline" }).first().click();
   await p.waitForTimeout(400);
@@ -296,6 +308,8 @@ console.log("\n── support thread @ active-mentorship");
   await p.waitForTimeout(300);
   const menu = await p.evaluate(`
     document.querySelectorAll('[role="menu"][aria-label="Reactions"] [role="menuitem"]').length`);
+  /* SIX, not eight — neither the tag nor Escalate is offered on a colleague's
+     thread, because neither means anything there. */
   check(menu === 6, "and the message menu holds reactions alone", `${menu}`);
   void support;
   await p.context().close();

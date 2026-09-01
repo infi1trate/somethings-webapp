@@ -70,6 +70,11 @@ console.log("\n── the route and the deep link @ 1440x900");
   await q.context().close();
 }
 
+  /* ═══ THE LIST'S TABPANEL, NOT ANY TABPANEL ═══
+     The rail is also a tablist with a tabpanel, so once Phase 6 put a checklist of
+     labelled buttons in it, an unscoped selector swept in five assessment steps
+     alongside the two support threads. Every probe that means "a conversation row"
+     now says so. */
 // ═══ 2 · The workspace switch is a visible control ════════════════════════
 console.log("\n── the workspace switch @ 1440x900");
 {
@@ -108,7 +113,7 @@ console.log("\n── the workspace switch @ 1440x900");
   await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
   await p.waitForTimeout(400);
   const rows = await p.evaluate(`
-    [...document.querySelectorAll('[role="tabpanel"] button[aria-label]')].map((b) => b.getAttribute("aria-label").split(",")[0])`);
+    [...document.querySelectorAll('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]')].map((b) => b.getAttribute("aria-label").split(",")[0])`);
   check(
     rows.length === 2 && rows.every((r) => /Brandy|Stephen/.test(r)),
     "switching shows the support threads",
@@ -157,7 +162,7 @@ console.log("\n── the rail @ 1440x900");
   // A SUPPORT thread gets two panels, not four — no profile, no activities.
   await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
   await p.waitForTimeout(300);
-  await p.locator('[role="tabpanel"] button[aria-label]').first().click();
+  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
   await p.waitForTimeout(400);
   const supportTabs = await p.evaluate(`
     [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')].map((t) => t.textContent.trim())`);
@@ -300,7 +305,7 @@ for (const [w, h, expect_] of [
 
   // Below md, selecting a row hands over the screen.
   if (!expect_.thread) {
-    await p.locator('[role="tabpanel"] button[aria-label]').first().click();
+    await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
     await p.waitForTimeout(400);
     const after = await p.evaluate(`(() => {
       const vis = (el) => !!el && el.getBoundingClientRect().width > 0;

@@ -28,7 +28,7 @@
 // takeover. Present-and-inert rather than absent, because their placement is part
 // of what this phase is deciding.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, Lightbulb, Mic, Sticker } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -71,16 +71,47 @@ function AttachButton({
 export function Composer({
   /** Whose thread this is, for the placeholder. */
   theirName,
+  /** ═══ TEXT DROPPED IN FROM ELSEWHERE, UNSENT ═══
+   *
+   *  The escalation checklist offers suggested wording and one press puts it here.
+   *  UNSENT, always: the mentor still says it in their own voice if they want to,
+   *  and nothing reaches a teen that a mentor did not press Send on.
+   *
+   *  A NONCE rather than a plain string, because the same sentence may be inserted
+   *  twice — a mentor who typed over it and wants it back. Keyed on the value alone,
+   *  the second insert would be a no-op and the button would look broken. */
+  insert,
   onSend,
   className,
 }: {
   theirName: string;
+  insert?: { text: string; nonce: number } | null;
   onSend?: (text: string) => void;
   className?: string;
 }) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const canSend = value.trim().length > 0;
+
+  /* REPLACES rather than appends, and then focuses with the caret at the end. A
+     mentor pressing "put this in the message box" wants that sentence, not that
+     sentence bolted onto a half-typed one — and the caret at the end is what lets
+     them add to it immediately. */
+  const lastInsert = useRef(insert?.nonce ?? 0);
+  useEffect(() => {
+    if (!insert || insert.nonce === lastInsert.current) return;
+    lastInsert.current = insert.nonce;
+    setValue(insert.text);
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    // After the value has been committed, or the caret lands in the old text.
+    requestAnimationFrame(() => {
+      el.setSelectionRange(el.value.length, el.value.length);
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 24 * MAX_ROWS)}px`;
+    });
+  }, [insert]);
 
   const grow = (el: HTMLTextAreaElement) => {
     // Reset before measuring, or the height only ever ratchets up.

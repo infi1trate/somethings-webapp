@@ -33,22 +33,29 @@ import { ToolkitPanel } from "@/components/chat/rail/toolkit";
 import { TimelinePanel } from "@/components/chat/rail/timeline";
 import { NoteComposer } from "@/components/chat/documentation/note-composer";
 import { NoteDetail } from "@/components/chat/documentation/note-detail";
+import { AssessmentPanel } from "@/components/chat/escalation/assessment-panel";
 import type {
   ActivityId,
   ChatEvent,
   ChatThread,
   ContextRef,
+  EscalationState,
   Note,
   SentArtifact,
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
-export type RailTab = "assist" | "profile" | "toolkit" | "timeline";
+export type RailTab = "escalation" | "assist" | "profile" | "toolkit" | "timeline";
 
 /** TODO-COPY. Short enough that four fit a 320px column at 11px without
  *  truncating — measured, not assumed. */
 const LABEL: Record<RailTab, string> = {
+  /* TODO-COPY. "Now", not "Escalation". Three reasons: it is the shortest label in
+     the set, which matters when a fifth tab has to fit 320px; it says what the tab
+     is FOR rather than naming a feature; and a tab reading "Escalation" beside a
+     banner reading "Escalation open" is the same word twice in fifty pixels. */
+  escalation: "Now",
   assist: "Assist",
   profile: "Profile",
   toolkit: "Toolkit",
@@ -58,10 +65,27 @@ const LABEL: Record<RailTab, string> = {
 /** WHICH TABS A THREAD GETS. A support thread has no profile canvas and no
  *  activity shelf; it keeps Assist and Timeline, which are about the working
  *  relationship rather than about a teen. */
-export function tabsFor(kind: ChatThread["kind"]): RailTab[] {
-  return kind === "teen"
-    ? ["assist", "profile", "toolkit", "timeline"]
-    : ["assist", "timeline"];
+/** ═══ AN OPEN ESCALATION ADDS A TAB, AT THE FRONT ═══
+ *
+ *  The rail's job is "what to do next", and while an escalation is open the answer
+ *  is the escalation — so it takes first position rather than being appended. Five
+ *  tabs at 320px is tight and it is the right trade: the alternative was putting the
+ *  checklist inside Assist, where it would have been one section among three while a
+ *  teenager was in crisis.
+ *
+ *  It APPEARS AND DISAPPEARS with the escalation, which is normally a thing to
+ *  avoid — a control whose position cannot be learned. It is correct here because
+ *  the state it belongs to is itself exceptional and loudly announced by the banner
+ *  above; a permanently-present Escalation tab would be a permanent invitation. */
+export function tabsFor(
+  kind: ChatThread["kind"],
+  hasEscalation = false
+): RailTab[] {
+  const base: RailTab[] =
+    kind === "teen"
+      ? ["assist", "profile", "toolkit", "timeline"]
+      : ["assist", "timeline"];
+  return hasEscalation ? ["escalation", ...base] : base;
 }
 
 /** ═══ WHAT THE TIMELINE PANEL IS SHOWING ═══
@@ -78,6 +102,7 @@ export function Rail({
   artifacts,
   events,
   notes,
+  escalation,
   now,
   /** CONTROLLED. See `RailMode` — the thread can put the rail into a mode, so
    *  neither the tab nor the mode can live in this component. */
@@ -89,6 +114,10 @@ export function Rail({
   onSaveNote,
   onOpenEvent,
   onOpenReference,
+  onCheckStep,
+  onUseWording,
+  onOpenCrisis,
+  onResolveEscalation,
   className,
 }: {
   thread: ChatThread;
@@ -97,6 +126,7 @@ export function Rail({
   artifacts: SentArtifact[];
   events: ChatEvent[];
   notes: Note[];
+  escalation?: EscalationState;
   now: number;
   tab: RailTab;
   onTabChange: (tab: RailTab) => void;
@@ -111,9 +141,14 @@ export function Rail({
   }) => void;
   onOpenEvent?: (event: ChatEvent) => void;
   onOpenReference: (ref: ContextRef) => void;
+  /** The escalation panel's four outward actions. */
+  onCheckStep: (stepId: string) => void;
+  onUseWording: (text: string) => void;
+  onOpenCrisis: () => void;
+  onResolveEscalation: () => void;
   className?: string;
 }) {
-  const tabs = tabsFor(thread.kind);
+  const tabs = tabsFor(thread.kind, !!escalation);
   const panelId = useId();
 
   /* ═══ THE SELECTED TAB IS NOT PERSISTED, AND THAT IS A DECISION ═══
@@ -170,6 +205,16 @@ export function Rail({
               than saying "coming soon" — a mentor reading these learns what the
               rail is for, which is more than the built version of three of these
               panels would teach them today. Phases 3, 5 and 7 replace them. */}
+          {active === "escalation" && escalation && (
+            <AssessmentPanel
+              escalation={escalation}
+              theirName={theirName}
+              onCheck={onCheckStep}
+              onUseWording={onUseWording}
+              onOpenCrisis={onOpenCrisis}
+              onResolve={onResolveEscalation}
+            />
+          )}
           {active === "assist" && (
             <PanelEmpty title="Where to start">
               {/* TODO-COPY */}

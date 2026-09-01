@@ -33,6 +33,9 @@ import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
 import { Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
+import { CrisisView } from "@/components/chat/escalation/crisis-view";
+import { ResolveDialog } from "@/components/chat/escalation/resolve-dialog";
+import { RESOLUTION_OUTCOMES } from "@/components/chat/escalation/resolve-dialog";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -44,6 +47,7 @@ import type {
   ChatEvent,
   ChatMessage,
   ContextRef,
+  EscalationState,
   Note,
   SentArtifact,
   SentArtifactItem,
@@ -141,6 +145,8 @@ export function ChatPage({
   const writtenEvents = useOnboardingStore((s) => s.chatEvents);
   const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
   const writtenNotes = useOnboardingStore((s) => s.chatNotes);
+  const writtenEscalations = useOnboardingStore((s) => s.escalations);
+  const putEscalation = useOnboardingStore((s) => s.putEscalation);
   const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
   const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
   const putChatNote = useOnboardingStore((s) => s.putChatNote);
@@ -201,13 +207,59 @@ export function ChatPage({
     return Object.values(writtenNotes).filter((n) => n.threadId === thread.id);
   }, [thread, mounted, writtenNotes]);
 
+  /** ═══ THE STORE'S ESCALATION WINS OVER THE FIXTURE'S ═══
+   *
+   *  Both are keyed by thread id, and the store's is the one a mentor has touched —
+   *  so a checked assessment step or a resolution has to beat the seed. The fixture
+   *  exists so the escalation scenario OPENS mid-crisis rather than requiring
+   *  somebody to perform one first; once the mentor acts, their record is the record.
+   *
+   *  A RESOLVED ESCALATION IS NOT AN ESCALATION. Resolving writes `resolvedAt`
+   *  rather than deleting the row, because the history is that this happened — so
+   *  the read filters it out here, once, and every consumer downstream sees
+   *  `undefined` and renders the no-escalation state. */
+  const escalation = useMemo<EscalationState | undefined>(() => {
+    if (!thread) return undefined;
+    const live =
+      (mounted ? writtenEscalations[thread.id] : undefined) ??
+      data?.escalations[thread.id];
+    return live && live.resolvedAt === null ? live : undefined;
+  }, [thread, mounted, writtenEscalations, data]);
+
   /* ═══ THE RAIL IS CONTROLLED FROM HERE ═══
      Because tagging a message in the THREAD has to be able to open the note
      composer in the RAIL. A tab and a mode owned by the rail could only ever be set
      from inside it, so the two panels could not talk — and the primary way a note
      starts is exactly that conversation between them. */
-  const [railTab, setRailTab] = useState<RailTab>("assist");
+  /** ═══ THE RAIL OPENS ON THE ESCALATION, WITHOUT AN EFFECT ═══
+   *
+   *  A screenshot caught it opening on Assist while a banner read "Escalation
+   *  open" two inches away — the rail's job is "what to do next", and it was
+   *  answering with a suggestion panel.
+   *
+   *  DERIVED, not synced. Storing the chosen tab WITH the thread it was chosen on
+   *  means the default re-applies when the thread changes and when an escalation
+   *  appears, with no effect to run one render late — and no `setState` in an
+   *  effect, which `react-hooks/set-state-in-effect` would reject anyway. */
+  const [pickedTab, setPickedTab] = useState<{ threadId: string; tab: RailTab } | null>(
+    null
+  );
+  const railTab: RailTab =
+    pickedTab && pickedTab.threadId === thread?.id
+      ? pickedTab.tab
+      : escalation
+        ? "escalation"
+        : "assist";
+  const setRailTab = (tab: RailTab) => {
+    if (!thread) return;
+    setPickedTab({ threadId: thread.id, tab });
+  };
   const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
+  const [crisisOpen, setCrisisOpen] = useState(false);
+  const [resolveOpen, setResolveOpen] = useState(false);
+  /** Text the assessment wants put in the composer. A one-shot value the composer
+   *  consumes — see the Composer's `insert` prop. */
+  const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
 
   /** ═══ SENDING WRITES TWO RECORDS, AND NEITHER IS THE OTHER ═══
    *
@@ -303,6 +355,124 @@ export function ChatPage({
     });
   };
 
+  /** ═══ RAISING AN ESCALATION NOTIFIES FIRST, THEN OPENS THE CHECKLIST ═══
+   *
+   *  The order matters and it is the whole design: the supervisor is notified at the
+   *  moment the escalation is created, BEFORE the mentor has assessed anything. A
+   *  flow that made notification the last step of a checklist would mean a
+   *  frightened twenty-three-year-old deciding whether the situation qualifies —
+   *  which is exactly the judgement this surface exists to take off them.
+   *
+   *  `supervisorNotifiedAt` is set here, in the same write, so the banner can state
+   *  it as a fact from the first render. There is no pending state and no "sending"
+   *  spinner: in this prototype the notification IS the record, and a spinner would
+   *  be theatre over a write that already happened. */
+  const raiseEscalation = (from: ChatMessage | null) => {
+    if (!thread) return;
+    const at = Date.now();
+    putEscalation({
+      id: `esc-${thread.id}-${at}`,
+      threadId: thread.id,
+      openedAt: at,
+      anchorMessageId: from?.id ?? null,
+      supervisorNotifiedAt: at,
+      // TODO-DATA. The lead is the mentor's own, from the supervision edges in
+      // people-demo — not a constant, so it is right when the roster changes.
+      supervisorId: "s-brandy",
+      assessment: {},
+      resolvedAt: null,
+      resolutionNoteId: null,
+    });
+    appendChatEvent({
+      id: `ev-${thread.id}-${at}`,
+      threadId: thread.id,
+      at,
+      kind: "escalation-opened",
+      actorId: LIVE_ID,
+      artifactId: `esc-${thread.id}-${at}`,
+      artifactName: "an escalation",
+    });
+    // AND PUT THE CHECKLIST IN FRONT OF THEM. Raising it and then leaving a mentor
+    // to find the panel is the moment they most need not to be looking for things.
+    setRailTab("escalation");
+    setRailMode({ kind: "list" });
+  };
+
+  /** Checking a step records WHEN. Steps do not un-check — see `AssessmentPanel`. */
+  const checkStep = (stepId: string) => {
+    if (!escalation || escalation.assessment[stepId]?.checked) return;
+    putEscalation({
+      ...escalation,
+      assessment: {
+        ...escalation.assessment,
+        [stepId]: { checked: true, at: Date.now() },
+      },
+    });
+  };
+
+  /** ═══ RESOLVING WRITES THREE THINGS ═══
+   *
+   *  `resolvedAt` on the escalation, a NOTE holding the account of how it ended, and
+   *  an `escalation-resolved` event. Three because they answer three different
+   *  questions — is it live, what happened, and when did what happen — and one
+   *  record answering all three would be a record that has to be edited to stay
+   *  true.
+   *
+   *  The note is why the dialog demands prose: an escalation whose only trace is two
+   *  timestamps tells a supervisor nothing about whether a teenager is all right. */
+  const resolveEscalation = (resolution: { outcomeId: string; note: string }) => {
+    if (!thread || !escalation) return;
+    const at = Date.now();
+    const noteId = `note-${thread.id}-${at}`;
+    const outcome =
+      RESOLUTION_OUTCOMES.find((o) => o.id === resolution.outcomeId)?.label ??
+      resolution.outcomeId;
+    putChatNote({
+      id: noteId,
+      threadId: thread.id,
+      // TODO-COPY. The title is the OUTCOME, so a lead scanning Timeline sees how
+      // it ended without opening it.
+      title: `Escalation resolved — ${outcome.toLowerCase()}`,
+      body: resolution.note,
+      createdAt: at,
+      updatedAt: at,
+      /* THE ANCHOR TRAVELS INTO THE NOTE. The message that caused the escalation is
+         the single most useful thing a supervisor reading back can be handed, and
+         without this it would only exist on a record that is no longer live. */
+      references: escalation.anchorMessageId
+        ? (() => {
+            const m = messages.find((x) => x.id === escalation.anchorMessageId);
+            return m
+              ? [
+                  {
+                    messageId: m.id,
+                    senderName:
+                      m.sender === "mentor" ? "You" : thread.displayName.split(" ")[0],
+                    at: m.at,
+                    firstLine: firstLineOf(m.text ?? m.media?.alt ?? "(no text)"),
+                  },
+                ]
+              : [];
+          })()
+        : [],
+      reminderAt: null,
+    });
+    putEscalation({ ...escalation, resolvedAt: at, resolutionNoteId: noteId });
+    appendChatEvent({
+      id: `ev-${thread.id}-${at}`,
+      threadId: thread.id,
+      at,
+      kind: "escalation-resolved",
+      actorId: LIVE_ID,
+      artifactId: escalation.id,
+      artifactName: "the escalation",
+    });
+    // BACK TO THE TIMELINE, where the resolution note now is — rather than to a tab
+    // that has just vanished from under the reader.
+    setRailTab("timeline");
+    setRailMode({ kind: "list" });
+  };
+
   /** ═══ RESCINDING WRITES, AND NEVER UNWRITES ═══
    *
    *  It sets `rescindedAt` on the artifact — which is what removes it from the
@@ -396,12 +566,23 @@ export function ChatPage({
                 events={events}
                 now={now}
                 artifacts={artifactById}
+                escalation={escalation}
                 reactions={reactions}
                 onReact={react}
                 /* Teen threads only — a colleague's conversation has no teen to
                    document, and the menu then holds reactions alone rather than a
                    disabled row. */
                 onTagMessage={thread.kind === "teen" ? tagMessage : undefined}
+                onEscalateFrom={
+                  thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
+                }
+                onOpenAssessment={() => {
+                  setRailTab("escalation");
+                  setRailMode({ kind: "list" });
+                }}
+                onOpenCrisis={() => setCrisisOpen(true)}
+                onResolveEscalation={() => setResolveOpen(true)}
+                insert={insert}
                 onOpenEvent={(e) => {
                   /* ═══ A NOTE EVENT OPENS THE NOTE, NOT THE SHEET ═══
                      The DetailSheet reads artifacts; a `note-added` event's
@@ -432,6 +613,33 @@ export function ChatPage({
                 }}
                 onRescind={rescind}
               />
+
+              <CrisisView
+                info={
+                  data?.emergency[thread.id] ?? {
+                    // A thread with no fixture emergency record gets the same
+                    // all-absent shape rather than a missing dialog — every
+                    // scenario has to be able to open this.
+                    teenPhone: null,
+                    address: null,
+                    liveLocation: null,
+                    contact: null,
+                  }
+                }
+                theirName={thread.displayName.split(" ")[0]}
+                open={crisisOpen}
+                onOpenChange={setCrisisOpen}
+              />
+
+              {escalation && (
+                <ResolveDialog
+                  escalation={escalation}
+                  theirName={thread.displayName.split(" ")[0]}
+                  open={resolveOpen}
+                  onOpenChange={setResolveOpen}
+                  onResolve={resolveEscalation}
+                />
+              )}
 
               {/* ═══ THE RAIL TOGGLE LIVES ON THE THREAD, NOT IN THE RAIL ═══
                   A control that hides a panel cannot live inside the panel it
@@ -497,6 +705,7 @@ export function ChatPage({
               artifacts={artifacts}
               events={events}
               notes={notes}
+              escalation={escalation}
               now={now}
               tab={railTab}
               onTabChange={setRailTab}
@@ -517,6 +726,14 @@ export function ChatPage({
                  navigate. Implemented as a DOM scroll rather than as state,
                  because the target is a rendered list item and the transcript's
                  own scroller is the thing that has to move. */
+              onCheckStep={checkStep}
+              /* PUTS THE SUGGESTED WORDING IN THE COMPOSER, unsent. The mentor still
+                 presses Send — nothing reaches a teen that a mentor did not send. */
+              onUseWording={(text) =>
+                setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))
+              }
+              onOpenCrisis={() => setCrisisOpen(true)}
+              onResolveEscalation={() => setResolveOpen(true)}
               onOpenReference={(r) => {
                 const el = document.getElementById(`msg-${r.messageId}`);
                 el?.scrollIntoView({ block: "center", behavior: "smooth" });

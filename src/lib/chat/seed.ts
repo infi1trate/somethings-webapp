@@ -42,6 +42,7 @@ import type {
   ChatMessage,
   ChatThread,
   EmergencyInfo,
+  EscalationState,
   SentArtifact,
   Sender,
   ThreadId,
@@ -298,6 +299,13 @@ interface ScenarioBuild {
    *  one above it — see `Line`. */
   lines: Line[];
   events?: (now: number) => ChatEvent[];
+  /** ═══ AN ESCALATION IN THE FIXTURE, NOT ONLY IN THE STORE ═══
+   *  The escalation scenario has to OPEN with a live escalation — the whole point
+   *  is reviewing the mid-crisis state, and requiring somebody to raise one first
+   *  would make it a state you can only reach by performing it. Merged with the
+   *  store's own at read time, the same way events and artifacts are, so a mentor
+   *  can also raise one on any other thread. */
+  escalation?: (now: number) => EscalationState;
   artifacts?: (now: number) => SentArtifact[];
   /** Overrides for the focus teen's unread count, when the scenario is about
    *  something arriving. */
@@ -552,6 +560,24 @@ const ESCALATION: ScenarioBuild = {
     liveLocation: { label: "Home · shared 14 minutes ago", at: 0 },
     contact: { name: "Renata Tate", relation: "Aunt / guardian", phone: "+19089102291" },
   },
+  /* PART-WAY THROUGH, which is the state worth reviewing: two steps covered, three
+     not, the supervisor notified four minutes after it opened, and the anchor set to
+     the message it was raised from. A fixture with a fresh escalation would only ever
+     show the first frame. */
+  escalation: (now) => ({
+    id: "esc-t13",
+    threadId: "t13",
+    openedAt: now - 235 * MINUTE,
+    anchorMessageId: "t13-m5",
+    supervisorNotifiedAt: now - 231 * MINUTE,
+    supervisorId: "s-brandy",
+    assessment: {
+      "safe-now": { checked: true, at: now - 220 * MINUTE },
+      alone: { checked: true, at: now - 214 * MINUTE },
+    },
+    resolvedAt: null,
+    resolutionNoteId: null,
+  }),
 };
 
 /** RE-MATCHED — Riley Moss, matched 40 days ago with a prior mentorship on
@@ -747,6 +773,7 @@ export function chatScenario(id: string, now: number): ChatData {
   const events: Record<ThreadId, ChatEvent[]> = {};
   const artifacts: Record<string, SentArtifact> = {};
   const emergency: Record<ThreadId, EmergencyInfo> = {};
+  const escalations: Record<ThreadId, EscalationState> = {};
   const threads: ChatThread[] = [];
 
   // ── Teens ────────────────────────────────────────────────────────────────
@@ -778,6 +805,10 @@ export function chatScenario(id: string, now: number): ChatData {
   });
 
   for (const a of b.artifacts?.(now) ?? []) artifacts[a.id] = a;
+  if (b.escalation) {
+    const e = b.escalation(now);
+    escalations[e.threadId] = e;
+  }
 
   // ── Support ──────────────────────────────────────────────────────────────
   const support = supportThreads(now);
@@ -799,6 +830,7 @@ export function chatScenario(id: string, now: number): ChatData {
     events,
     artifacts,
     emergency,
+    escalations,
     focusThreadId: b.focusThreadId,
   };
 }

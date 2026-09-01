@@ -301,6 +301,12 @@ interface OnboardingState {
    *  map is keyed by id, which is what lets Timeline, a reminder and a thread chip
    *  all reach the same note without three indexes. */
   putChatNote: (note: ChatNoteRecord) => void;
+  /** ═══ ONE OPEN ESCALATION PER THREAD, AND IT STAYS UNTIL SOMEBODY CLOSES IT ═══
+   *  Keyed by thread id, so a second escalation on the same conversation is the
+   *  same crisis rather than a second row. `put` because the record is edited in
+   *  place as the assessment is worked through — the append-only log is where the
+   *  HISTORY of it lives, and both exist. */
+  putEscalation: (escalation: ChatEscalation) => void;
   /** Clears the Tasks worklist's reviewed items. Lives here because the control
    *  is in the dev footer and the state is in the page — a counter is the smallest
    *  seam that does not make the page reach into the bar or the reverse. */
@@ -969,6 +975,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         })),
       putChatNote: (note) =>
         set((st) => ({ chatNotes: { ...st.chatNotes, [note.id]: note } })),
+      putEscalation: (escalation) =>
+        set((st) => ({
+          escalations: { ...st.escalations, [escalation.threadId]: escalation },
+        })),
       setChatScenarioId: (id) =>
         set({
           chatScenarioId: id,

@@ -53,15 +53,28 @@ export function MessageBubble({
   /** Reactions added in this session, merged over the fixture's own. Session-local
    *  by decision — see `MessageActions`. */
   added,
+  /** ═══ INSIDE THE ESCALATION WINDOW ═══
+   *  True for a message sent after an escalation opened and before it resolved. A
+   *  clay rule down the side, so a supervisor reading back can see at a glance
+   *  which part of the conversation happened while this was live — which is the
+   *  part they will actually read. */
+  inEscalation,
+  /** The message the escalation was raised FROM. One per escalation, and it gets a
+   *  stronger marker than the window does: it is the sentence that caused this. */
+  isAnchor,
   onReact,
   onTag,
+  onEscalate,
 }: {
   message: ChatMessage;
   theirName: string;
   showMeta?: boolean;
   added?: string[];
+  inEscalation?: boolean;
+  isAnchor?: boolean;
   onReact?: (emoji: string) => void;
   onTag?: () => void;
+  onEscalate?: () => void;
 }) {
   const mine = message.sender === "mentor";
   const who = mine ? "You" : theirName; // TODO-COPY
@@ -108,7 +121,17 @@ export function MessageBubble({
         mine ? "items-end" : "items-start",
         // A continuation sits tighter to what it continues than to the next turn.
         // The spacing is what makes a burst read as one utterance.
-        showMeta ? "mt-3" : "mt-1"
+        showMeta ? "mt-3" : "mt-1",
+        /* ═══ THE ESCALATION CONTAINER ═══
+           A rule down the left of the whole transcript for the duration of the
+           escalation, rather than a treatment on each bubble — which would have
+           made a run of messages read as a run of separate alarms. The rule is
+           continuous because the state is continuous.
+           `--band-clay-*`, the history tone, NOT `--alert-critical-*`: the banner
+           above is the loud one, and a transcript with a red rule down forty
+           messages would spend the whole alarm budget on marking a region. */
+        inEscalation && "border-l-2 border-[color:var(--band-clay-fg)]/35 pl-3 -ml-3",
+        isAnchor && "border-l-2 border-[color:var(--band-clay-fg)] pl-3 -ml-3"
       )}
     >
       {showMeta && (
@@ -144,7 +167,12 @@ export function MessageBubble({
         )}
       >
         {onReact && (
-          <MessageActions side={message.sender} onReact={onReact} onTag={onTag} />
+          <MessageActions
+            side={message.sender}
+            onReact={onReact}
+            onTag={onTag}
+            onEscalate={onEscalate}
+          />
         )}
       <div
         // The accessible name is on the CONTENT, not the list item, so a screen
