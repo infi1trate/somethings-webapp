@@ -323,8 +323,7 @@ function ComposeForm({
   // handler so a PREFILLED amendment opens at the height of the text it was
   // given — an amendment starts pre-filled with the original, which is exactly
   // the case a resize-on-type handler would miss until the first keystroke.
-  useAutoGrow(clinicalRef, body.clinical);
-  useAutoGrow(diagnosticRef, body.diagnostic);
+  // `useAutoGrow` moved into `CareUpdateFields` with the textareas it sizes.
 
   return (
     <>
@@ -348,138 +347,19 @@ function ComposeForm({
           Each group is label / helper / input, so the gap between groups has to
           beat the gap inside one or the helper text reads as belonging to the
           field below it. */}
-      <DialogBody className="space-y-6 px-0.5">
-        {/* 1 · CLINICAL SUMMARY */}
-        <Field
-          id="cu-clinical"
-          label={CARE_UPDATE_SECTIONS[0].label}
-          helper={CARE_UPDATE_SECTIONS[0].helper}
-          error={errors.clinical}
-        >
-          <textarea
-            id="cu-clinical"
-            ref={(el) => {
-              clinicalRef.current = el;
-              firstRef.current = el;
-            }}
-            value={body.clinical}
-            onChange={(e) => {
-              setBody((b) => ({ ...b, clinical: e.target.value }));
-              clearError("clinical");
-            }}
-            /* NO `rows` — `useAutoGrow` owns the height, floor 4 lines. A `rows`
-               here would set an inline height the hook then overwrites, which is
-               a flash of the wrong size on first paint. */
-            aria-invalid={errors.clinical || undefined}
-            aria-describedby="cu-clinical-help cu-clinical-err"
-            className={textareaClass(errors.clinical)}
-          />
-        </Field>
-
-        {/* 2 · DIAGNOSTIC SUPPORT STATEMENT.
-            The callout sits ABOVE the field, per spec — it asks the supervisor to
-            read before signing, so it has to arrive before the text does. */}
-        <div>
-          {/* `mb-3` (12px) on the scale, up from an arbitrary 10px. The callout
-              keeps `InfoCallout`'s own `px-3 py-2.5` padding untouched — it is the
-              standard for every callout in the record — and the 24px group gap
-              above it means it no longer sits against the field it follows. */}
-          <InfoCallout className="mb-3">
-            {/* TODO-COPY */}
-            Review this section carefully to ensure it accurately reflects your
-            client&apos;s symptoms and your clinical judgement.
-          </InfoCallout>
-          <Field
-            id="cu-diagnostic"
-            label={CARE_UPDATE_SECTIONS[1].label}
-            helper={CARE_UPDATE_SECTIONS[1].helper}
-            error={errors.diagnostic}
-            // PROVENANCE ON THE FIELD, not in a tooltip: a supervisor is about to
-            // sign this sentence, and whether a model wrote the first draft is
-            // part of what they are agreeing to.
-            badge={prefill ? PREFILL_LABEL[prefill.source] : undefined}
-          >
-            <textarea
-              id="cu-diagnostic"
-              ref={diagnosticRef}
-              value={body.diagnostic}
-              onChange={(e) => {
-                setBody((b) => ({ ...b, diagnostic: e.target.value }));
-                clearError("diagnostic");
-              }}
-              /* NO `rows` — see the clinical field above. */
-              aria-invalid={errors.diagnostic || undefined}
-              aria-describedby="cu-diagnostic-help cu-diagnostic-err"
-              className={textareaClass(errors.diagnostic)}
-            />
-          </Field>
-        </div>
-
-        {/* ═══ 3 · ASSESSMENT OF SYMPTOMS — NOW A SELECT (A6) ═══
-            This was a `RadioGroup`, and the reasoning for that is worth keeping
-            visible because this change overrides it: the segmented control offers
-            only `semantics="tabs"` and `semantics="group"` (role=group +
-            aria-pressed), neither of which announces a required single-select in a
-            form, and a radiogroup does. A `Select` announces as a combobox with a
-            single value, which also does — so the accessible semantics survive the
-            change; what is traded is RECOGNITION for RECALL. All three options
-            were visible at rest and now one click hides them.
-
-            THE SEGMENTED CONTROL DOES EXIST in this codebase
-            (`components/record/segmented-control.tsx`, three consumers) and would
-            keep all three visible on one line at the same footprint. Flagged in
-            the report, not implemented — the dropdown is the decided direction.
-
-            NO DEFAULT PRESELECTION: `value` is undefined until chosen, so the
-            placeholder shows and the required-field validation has something real
-            to catch. A preselected "Maintained" would be a clinical assertion
-            nobody made. */}
-        <div>
-          <label
-            htmlFor="cu-assessment"
-            className={cn(
-              "block",
-              errors.assessment
-                ? "text-[var(--state-error)]"
-                : "text-[var(--text-muted)]"
-            )}
-            style={LABEL_STYLE}
-          >
-            {CARE_UPDATE_ASSESSMENT_LABEL}
-          </label>
-          <Select
-            value={body.assessment ?? undefined}
-            onValueChange={(v) => {
-              setBody((b) => ({
-                ...b,
-                assessment: v as CareUpdateAssessment,
-              }));
-              clearError("assessment");
-            }}
-          >
-            <SelectTrigger
-              id="cu-assessment"
-              ref={assessmentRef}
-              aria-invalid={errors.assessment || undefined}
-              aria-describedby="cu-assessment-err"
-              className={cn(
-                "mt-1.5 w-full",
-                errors.assessment && "border-[color:var(--state-error)]"
-              )}
-            >
-              {/* TODO-COPY */}
-              <SelectValue placeholder="Select an assessment" />
-            </SelectTrigger>
-            <SelectContent>
-              {CARE_UPDATE_ASSESSMENTS.map((a) => (
-                <SelectItem key={a.value} value={a.value}>
-                  {a.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldError id="cu-assessment-err" show={errors.assessment} />
-        </div>
+      <DialogBody className="px-0.5">
+        <CareUpdateFields
+          idPrefix="cu"
+          body={body}
+          onChange={setBody}
+          errors={errors}
+          clearError={clearError}
+          prefill={prefill}
+          clinicalRef={clinicalRef}
+          diagnosticRef={diagnosticRef}
+          assessmentRef={assessmentRef}
+          firstRef={firstRef}
+        />
       </DialogBody>
 
       <DialogFooter>
@@ -663,5 +543,187 @@ function FieldError({ id, show }: { id: string; show: boolean }) {
       {/* TODO-COPY */}
       {show ? "This field is required." : ""}
     </p>
+  );
+}
+
+/** ═══ THE THREE CARE-UPDATE FIELDS, WITH NO SURFACE AROUND THEM ═══
+ *
+ *  Extracted so the review drawer can document a decision in the same fields the
+ *  standalone modal uses — B4's "parameterize, do not fork". A second copy of
+ *  these three would be two forms that start identical and drift on the day one
+ *  of them gains a required field.
+ *
+ *  WHAT STAYED BEHIND: the dialog chrome, the title/description, the footer and
+ *  the validation. Those differ per surface — the modal commits an update, the
+ *  drawer commits a decision AND an update as one act — and pretending otherwise
+ *  is how a shared component grows a `variant` prop for every caller.
+ *
+ *  `idPrefix` EXISTS BECAUSE BOTH CAN BE MOUNTED AT ONCE. The drawer is
+ *  non-modal, so a supervisor can open it and then open the standalone Write
+ *  form behind it; two `id="cu-clinical"` in one document would point every
+ *  `htmlFor` and `aria-describedby` at whichever rendered first. */
+export function CareUpdateFields({
+  idPrefix,
+  body,
+  onChange,
+  errors,
+  clearError,
+  prefill,
+  clinicalRef,
+  diagnosticRef,
+  assessmentRef,
+  firstRef,
+  className,
+}: {
+  idPrefix: string;
+  body: CareUpdateBody;
+  onChange: (update: (b: CareUpdateBody) => CareUpdateBody) => void;
+  errors: Record<FieldId, boolean>;
+  clearError: (id: FieldId) => void;
+  prefill?: DiagnosticPrefill | null;
+  clinicalRef: React.RefObject<HTMLTextAreaElement | null>;
+  diagnosticRef: React.RefObject<HTMLTextAreaElement | null>;
+  assessmentRef: React.RefObject<HTMLButtonElement | null>;
+  /** Set by the modal, which moves initial focus into the first field. The
+   *  drawer focuses its own header instead, so it passes nothing. */
+  firstRef?: React.RefObject<HTMLTextAreaElement | null>;
+  className?: string;
+}) {
+  useAutoGrow(clinicalRef, body.clinical);
+  useAutoGrow(diagnosticRef, body.diagnostic);
+  return (
+    <div className={cn("space-y-6", className)}>
+      {/* 1 · CLINICAL SUMMARY */}
+      <Field
+        id={`${idPrefix}-clinical`}
+        label={CARE_UPDATE_SECTIONS[0].label}
+        helper={CARE_UPDATE_SECTIONS[0].helper}
+        error={errors.clinical}
+      >
+        <textarea
+          id={`${idPrefix}-clinical`}
+          ref={(el) => {
+            clinicalRef.current = el;
+            if (firstRef) firstRef.current = el;
+          }}
+          value={body.clinical}
+          onChange={(e) => {
+            onChange((b) => ({ ...b, clinical: e.target.value }));
+            clearError("clinical");
+          }}
+          /* NO `rows` — `useAutoGrow` owns the height, floor 4 lines. A `rows`
+             here would set an inline height the hook then overwrites, which is
+             a flash of the wrong size on first paint. */
+          aria-invalid={errors.clinical || undefined}
+          aria-describedby={`${idPrefix}-clinical-help ${idPrefix}-clinical-err`}
+          className={textareaClass(errors.clinical)}
+        />
+      </Field>
+
+      {/* 2 · DIAGNOSTIC SUPPORT STATEMENT.
+          The callout sits ABOVE the field, per spec — it asks the supervisor to
+          read before signing, so it has to arrive before the text does. */}
+      <div>
+        {/* `mb-3` (12px) on the scale, up from an arbitrary 10px. The callout
+            keeps `InfoCallout`'s own `px-3 py-2.5` padding untouched — it is the
+            standard for every callout in the record — and the 24px group gap
+            above it means it no longer sits against the field it follows. */}
+        <InfoCallout className="mb-3">
+          {/* TODO-COPY */}
+          Review this section carefully to ensure it accurately reflects your
+          client&apos;s symptoms and your clinical judgement.
+        </InfoCallout>
+        <Field
+          id={`${idPrefix}-diagnostic`}
+          label={CARE_UPDATE_SECTIONS[1].label}
+          helper={CARE_UPDATE_SECTIONS[1].helper}
+          error={errors.diagnostic}
+          // PROVENANCE ON THE FIELD, not in a tooltip: a supervisor is about to
+          // sign this sentence, and whether a model wrote the first draft is
+          // part of what they are agreeing to.
+          badge={prefill ? PREFILL_LABEL[prefill.source] : undefined}
+        >
+          <textarea
+            id={`${idPrefix}-diagnostic`}
+            ref={diagnosticRef}
+            value={body.diagnostic}
+            onChange={(e) => {
+              onChange((b) => ({ ...b, diagnostic: e.target.value }));
+              clearError("diagnostic");
+            }}
+            /* NO `rows` — see the clinical field above. */
+            aria-invalid={errors.diagnostic || undefined}
+            aria-describedby={`${idPrefix}-diagnostic-help ${idPrefix}-diagnostic-err`}
+            className={textareaClass(errors.diagnostic)}
+          />
+        </Field>
+      </div>
+
+      {/* ═══ 3 · ASSESSMENT OF SYMPTOMS — NOW A SELECT (A6) ═══
+          This was a `RadioGroup`, and the reasoning for that is worth keeping
+          visible because this change overrides it: the segmented control offers
+          only `semantics="tabs"` and `semantics="group"` (role=group +
+          aria-pressed), neither of which announces a required single-select in a
+          form, and a radiogroup does. A `Select` announces as a combobox with a
+          single value, which also does — so the accessible semantics survive the
+          change; what is traded is RECOGNITION for RECALL. All three options
+          were visible at rest and now one click hides them.
+
+          THE SEGMENTED CONTROL DOES EXIST in this codebase
+          (`components/record/segmented-control.tsx`, three consumers) and would
+          keep all three visible on one line at the same footprint. Flagged in
+          the report, not implemented — the dropdown is the decided direction.
+
+          NO DEFAULT PRESELECTION: `value` is undefined until chosen, so the
+          placeholder shows and the required-field validation has something real
+          to catch. A preselected "Maintained" would be a clinical assertion
+          nobody made. */}
+      <div>
+        <label
+          htmlFor={`${idPrefix}-assessment`}
+          className={cn(
+            "block",
+            errors.assessment
+              ? "text-[var(--state-error)]"
+              : "text-[var(--text-muted)]"
+          )}
+          style={LABEL_STYLE}
+        >
+          {CARE_UPDATE_ASSESSMENT_LABEL}
+        </label>
+        <Select
+          value={body.assessment ?? undefined}
+          onValueChange={(v) => {
+            onChange((b) => ({
+              ...b,
+              assessment: v as CareUpdateAssessment,
+            }));
+            clearError("assessment");
+          }}
+        >
+          <SelectTrigger
+            id={`${idPrefix}-assessment`}
+            ref={assessmentRef}
+            aria-invalid={errors.assessment || undefined}
+            aria-describedby={`${idPrefix}-assessment-err`}
+            className={cn(
+              "mt-1.5 w-full",
+              errors.assessment && "border-[color:var(--state-error)]"
+            )}
+          >
+            {/* TODO-COPY */}
+            <SelectValue placeholder="Select an assessment" />
+          </SelectTrigger>
+          <SelectContent>
+            {CARE_UPDATE_ASSESSMENTS.map((a) => (
+              <SelectItem key={a.value} value={a.value}>
+                {a.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <FieldError id={`${idPrefix}-assessment-err`} show={errors.assessment} />
+      </div>
+    </div>
   );
 }

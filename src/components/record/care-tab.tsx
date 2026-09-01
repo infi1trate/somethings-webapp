@@ -41,7 +41,7 @@
 // cadence says it starts at the first survey, the AI summary says there isn't
 // enough data yet, and the timeline shows its designed empty state.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CareTimeline,
   type CareTimelineHandle,
@@ -74,12 +74,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
+import { CareReviewDrawer } from "@/components/record/care-review-drawer";
+import { cn } from "@/lib/utils";
+import { clearReviewDraft, type ReviewDecision } from "@/lib/record/review-draft";
+import { useMediaQuery } from "@/lib/use-media-query";
 import {
   REVIEW_NOUN,
   cadenceFor,
   careTimelineFor,
   scoreSeriesFor,
   latestCareUpdateFor,
+  openFlagsFor,
   pendingReviewFor,
   presentationFor,
   type CareStoreSlice,
@@ -187,6 +192,32 @@ export function CareTab({
   const [composing, setComposing] = useState(false);
   const [amending, setAmending] = useState<CareUpdateRecord | null>(null);
   const [searching, setSearching] = useState(false);
+
+  /** ═══ THE REVIEW DRAWER, AND THE ONE RULE THE SHELL ENFORCES ═══
+   *
+   *  Main column + rail + drawer must never all render. That is enforced HERE,
+   *  in the grid template and the rail's own mount condition, rather than by
+   *  each component minding its own width — a per-component rule is one someone
+   *  forgets on the day a fourth panel arrives.
+   *
+   *  It is also not merely a layout preference: the summary node carries
+   *  document-global SVG ids, so two mounts break the visible one (gap row 309).
+   *  The rail unmounting is what lets the drawer hold the same node. */
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewMinimized, setReviewMinimized] = useState(false);
+  /** ═══ 1240px, NOT THE RAIL'S 1100px ═══
+   *  The rail is 380px and the drawer is 520px, so the width the spine needs
+   *  beside each one differs by 140px. Below 1240 the drawer stops reflowing the
+   *  page and floats over it instead — at that width a 520px track would leave
+   *  the spine under 600px, where History's seven columns stop fitting. */
+  const pushMode = useMediaQuery("(min-width: 1240px)");
+  const drawerMode: "push" | "overlay" = pushMode ? "push" : "overlay";
+  /** The post-commit confirmation the attention card compresses into
+   *  (Workstream F). Null at rest; set for one render pass after a commit. */
+  const [reviewed, setReviewed] = useState<{
+    code: string;
+    changed: boolean;
+  } | null>(null);
   /** ═══ WHAT THE OPEN CARE UPDATE FORM IS DOCUMENTING ═══
    *
    *  THIS REPLACED THE PENDING-APPROVAL CONCEPT. A code chosen in the DSM-5
@@ -330,11 +361,19 @@ export function CareTab({
       at: number;
       amends?: string;
       diagnosticPrefill?: CareUpdatePrefill;
-    }
+    },
+    /** ═══ THE DRAWER PASSES ITS COMMIT IN ═══
+     *  The modal path leaves this undefined and the commit is read from state,
+     *  where `documentPresentation` put it before opening the form. The drawer
+     *  has no such round trip — it decides and commits in one act — and reading
+     *  `committing` after a `setCommitting` in the same handler would read the
+     *  previous render's value. Explicit beats a state write it would then have
+     *  to race. */
+    commitOverride?: PendingCommit
   ) => {
     const at = meta.at;
     const updateId = `cu-${teen.id}-${at}`;
-    const commit = committing;
+    const commit = commitOverride ?? committing;
 
     addCareUpdate({
       id: updateId,
@@ -468,6 +507,44 @@ export function CareTab({
 
   const tasks = careTasksFor(review);
 
+  /** For the evidence strip's collapsed one-liner. Counted here because this is
+   *  where the store slice is built — the drawer never reaches into the flag
+   *  store itself, the same boundary the rail keeps. */
+  const openFlagCount = openFlagsFor(teen.id, store).length;
+
+  /** ═══ THE CONFIRMATION HOLDS, THEN THE SECTION SETTLES ═══
+   *  2.4s, not the brief's ≤800ms total. 800ms is the right budget for the
+   *  MOVEMENT and the wrong one for the reading: "Reviewed · F33.1 unchanged ·
+   *  just now" is six words, and a line that leaves before it can be read is a
+   *  flash rather than a confirmation. The transition itself is well inside
+   *  800ms; this is the hold after it.
+   *  Cleared on unmount so a tab change mid-hold cannot fire into a dead tree. */
+  useEffect(() => {
+    if (!reviewed) return;
+    const t = setTimeout(() => setReviewed(null), 2400);
+    return () => clearTimeout(t);
+  }, [reviewed]);
+
+  /** The drawer is mounted from the moment it opens and STAYS mounted while
+   *  minimized — hidden, not unmounted. Unmounting would drop the scroll position
+   *  inside it, and restoring a review to the top of a long form is not
+   *  "restores with all state". */
+  const drawerMounted = reviewOpen && !!review;
+  /** Minimized means mounted-but-hidden, so this is the flag everything about
+   *  the summary node keys off — `hidden` does not remove ids from the document,
+   *  so "is it in the DOM" is the wrong question to ask about a duplicate id. */
+  const drawerVisible = drawerMounted && !reviewMinimized;
+  /** Occupies the grid's second track only in push mode; in overlay it is fixed
+   *  and out of flow. */
+  const drawerInGrid = drawerVisible && drawerMode === "push";
+  /** ═══ THE RAIL AND THE DRAWER'S EVIDENCE STRIP ARE MUTUALLY EXCLUSIVE ═══
+   *  Not merely a layout rule. The summary node carries document-global SVG ids,
+   *  so a second mount breaks whichever copy is visible (gap row 309) — which
+   *  means this has to key off the drawer being VISIBLE in either mode, not off
+   *  it holding a grid track. Minimizing gives the rail back, which is also what
+   *  a reader who just minimized the panel is asking for. */
+  const railInGrid = !drawerVisible;
+
   // ═══ NOTHING TIME-DERIVED UNTIL MOUNT (standing rule 3, gap row 291) ═══
   //
   // `now` comes from `useState(() => Date.now())`, whose initialiser runs on the
@@ -519,7 +596,24 @@ export function CareTab({
       //
       // 1100px, not `lg`: at 1024 a 380px rail leaves the spine ~600px, and
       // History is a seven-column table. `min-[1100px]` is where both fit.
-      className="grid grid-cols-1 items-start gap-6 min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]"
+      /* ═══ THREE COLUMNS CAN NEVER RENDER, AND THIS LINE IS WHY ═══
+         The second track holds the rail OR the drawer, never both, because the
+         template only ever declares one of them and the rail's mount condition
+         below reads the same flag. Enforced here rather than per-component: a
+         rule each panel keeps for itself is one that breaks when a third arrives.
+
+         In overlay mode the drawer is `position: fixed`, so it is out of flow and
+         the grid drops to a single column — the drawer is still the SAME React
+         element in the same slot, which is what preserves its fields and its
+         scroll position across the breakpoint. */
+      className={cn(
+        "grid grid-cols-1 items-start gap-6",
+        drawerInGrid
+          ? "min-[1240px]:grid-cols-[minmax(0,1fr)_520px]"
+          : railInGrid
+            ? "min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]"
+            : undefined
+      )}
     >
       <div className="min-w-0 space-y-7">
         {/* 1 · CARE SUMMARY — the spine. Leads even with a review pending. */}
@@ -543,67 +637,56 @@ export function CareTab({
             presentation work); their HISTORY stays in the table below. Renders
             NOTHING when no review is due — absence is the reward state, and
             there is no "all caught up" card. */}
+        {/* ═══ RESOLVE IN PLACE ═══
+            The card that was here is gone the moment the review commits —
+            `pendingReviewFor` stops returning it — so without this the section
+            would simply vanish and a supervisor would be left checking History
+            to find out whether their commit landed. The confirmation occupies
+            the same slot, quieter than the card it replaces: one line, muted
+            ink, no border, no action.
+            SHIPPED AS THE STATIC SWAP, per the brief's own escape clause. The
+            compress-in-place choreography is a height animation on a card that
+            is already unmounted by the time the line renders, which would mean
+            keeping a dead review in state purely to animate it. `motion-reduce`
+            gets the same thing, which is the other half of why this is the
+            honest version. */}
+        {reviewed && (
+          <p
+            data-record-section="review-resolved"
+            aria-live="polite"
+            className="text-[13px] leading-[18px] text-[var(--text-muted)] transition-opacity duration-200 motion-reduce:transition-none"
+          >
+            {/* TODO-COPY */}
+            Reviewed ·{" "}
+            {reviewed.changed
+              ? `changed to ${reviewed.code}`
+              : `${reviewed.code} unchanged`}{" "}
+            · just now
+          </p>
+        )}
+
         <CareTaskRegion
           tasks={tasks}
           reviewProps={{
             actor: staffName,
             actorRole: staffActorFor(persona),
-            // ABSENT below supervisor tier — not disabled. Passing undefined is
-            // how the card renders no action row at all.
-            onChangeRequest: canAct
-              ? () => openDialog(setSearching)
-              : undefined,
-            // APPROVE OPENS THE FORM. It commits nothing on its own — the
-            // recommendation is applied when the care update commits.
-            //
-            // THE ONLY PLACE A PRE-FILL COMES FROM. The review carries a
-            // rationale with a machine-readable provenance
-            // (`templated | ai | supervisor`), so the draft and its label are
-            // both derived from it rather than invented. An ad-hoc change has no
-            // rationale object, which is why that path passes null and opens the
-            // field empty.
-            onApproveRequest:
+            /* ═══ ONE CALLBACK, AND IT OPENS THE WORKSPACE ═══
+               `onChangeRequest` and `onApproveRequest` are gone with the ellipsis
+               and the Approve button they drove. The card no longer decides
+               anything: confirm and change are peer outcomes of one decision, and
+               that decision — with its commit — lives only in the drawer.
+
+               ABSENT BELOW SUPERVISOR TIER, not disabled. Passing undefined is how
+               the card renders no action row at all, which is the same tier gate
+               the two old callbacks carried. */
+            onReviewRequest:
               canAct && review
-                ? () =>
-                    documentPresentation(
-                      {
-                        decisionId: review.id,
-                        code: review.recommended.code,
-                        statement: review.recommended.statement,
-                        /* TODO-COPY. `REVIEW_NOUN`, not `STAGE_LABEL` + " review".
-                           The latter reads correctly for intake and day 30 and
-                           produced "90-day review review" for quarterly, because
-                           that stage label already ends in the word. See the two
-                           maps in care-demo.ts. */
-                        what:
-                          presentation?.code === review.recommended.code
-                            ? REVIEW_NOUN[review.stage]
-                            : `presentation change to ${review.recommended.code}`,
-                        applies:
-                          presentation?.code !== review.recommended.code,
-                      },
-                      // ═══ THE PRE-FILL SOURCE IS THE RECORDED RATIONALE, AND
-                      //     DELIBERATELY NOT THE CARE SUMMARY ═══
-                      //
-                      // Pre-filling the diagnostic statement from the evidence
-                      // document is the obvious next feature and it is not built
-                      // on purpose. The summary is what a supervisor READS in
-                      // order to form a judgement; the diagnostic statement is
-                      // that judgement. Seeding the second from the first turns
-                      // a clinical determination into an edit of generated text,
-                      // and the record would then show a signed statement whose
-                      // origin nobody can reconstruct.
-                      //
-                      // `review.rationale` is a different thing: a rationale
-                      // recorded WITH the recommendation, whose provenance the
-                      // field states out loud ("Pre-filled from the recorded
-                      // rationale"). Reported, not built — design-system-gaps
-                      // row 303.
-                      {
-                        source: review.rationale.source,
-                        text: review.rationale.text,
-                      }
-                    )
+                ? () => {
+                    returnFocusTo.current =
+                      document.activeElement as HTMLElement | null;
+                    setReviewMinimized(false);
+                    setReviewOpen(true);
+                  }
                 : undefined,
           }}
         />
@@ -718,7 +801,7 @@ export function CareTab({
           disabled. Nothing in here approves, writes, amends or closes anything,
           and it never authors a record entry — only `approveCareReview` does.
           That is the provenance boundary the two columns exist to draw. */}
-      {summaryNode && !summaryOverlayOpen && (
+      {summaryNode && !summaryOverlayOpen && railInGrid && (
         <aside
           /* TODO-COPY */
           aria-label="Care summary"
@@ -726,6 +809,120 @@ export function CareTab({
         >
           {summaryNode}
         </aside>
+      )}
+
+      {/* ═══ THE REVIEW DRAWER — SECOND TRACK IN PUSH, FIXED IN OVERLAY ═══
+          Rendered in ONE place in the tree for both modes. Moving it between two
+          JSX positions would remount it on every breakpoint crossing, and the
+          fields and the scroll position would go with it — C3 asks for exactly
+          the opposite. The mode only changes its className. */}
+      {drawerMounted && review && (
+        <div className={cn(reviewMinimized && "hidden")}>
+          <CareReviewDrawer
+            review={review}
+            currentCode={presentation?.code ?? null}
+            teenId={teen.id}
+            mode={drawerMode}
+            /* The rail's own node, handed over while the rail is unmounted.
+               Null while minimized so the rail can have it back — see
+               `drawerVisible`. */
+            evidence={drawerVisible ? summaryNode : null}
+            openFlagCount={openFlagCount}
+            prefill={{
+              source: review.rationale.source,
+              text: review.rationale.text,
+            }}
+            now={now}
+            onClose={() => {
+              // CLOSING NEVER DISCARDS. The draft is already in session storage;
+              // this only takes the panel off screen.
+              setReviewOpen(false);
+              setReviewMinimized(false);
+              returnFocusTo.current?.focus();
+            }}
+            onMinimize={
+              drawerMode === "overlay"
+                ? () => setReviewMinimized(true)
+                : undefined
+            }
+            onCommit={(decision: ReviewDecision, body, at) => {
+              const code =
+                decision.kind === "change"
+                  ? decision.code
+                  : (presentation?.code ?? review.recommended.code);
+              const statement =
+                decision.kind === "change"
+                  ? decision.statement
+                  : (presentation?.statement ??
+                    review.recommended.statement);
+              const applies = presentation?.code !== code;
+              saveUpdate(
+                body,
+                {
+                  at,
+                  diagnosticPrefill: {
+                    source: review.rationale.source,
+                    edited:
+                      body.diagnostic.trim() !== review.rationale.text.trim(),
+                  },
+                },
+                {
+                  decisionId: review.id,
+                  code,
+                  statement,
+                  /* TODO-COPY — `REVIEW_NOUN`, never `STAGE_LABEL` + " review".
+                     See the two maps in care-demo.ts. */
+                  what: applies
+                    ? `presentation change to ${code}`
+                    : REVIEW_NOUN[review.stage],
+                  applies,
+                }
+              );
+              // A COMMITTED REVIEW HAS NO DRAFT. Cleared here rather than on the
+              // next open, so the storage never holds text for a decision that
+              // has already been written to the record.
+              clearReviewDraft(teen.id, review.id);
+              setReviewOpen(false);
+              setReviewMinimized(false);
+              setReviewed({ code, changed: applies });
+            }}
+          />
+        </div>
+      )}
+
+      {/* ═══ THE MINIMIZE PILL — OVERLAY MODE ONLY ═══
+          Push mode has nothing to get out of the way of: the drawer is a column
+          beside the work, not on top of it.
+          A REAL BUTTON, not a floating div with an onClick — focusable in
+          document order, Enter and Space free, and a visible ring. 48px tall
+          (h-12), because the ≥44px target the brief asks for is not one of
+          `button.tsx`'s sizes: `default` is h-10 and the next step up is
+          `icon-lg`'s square 48. Height set here rather than by adding a size to
+          the shared component for one consumer. */}
+      {drawerMounted && reviewMinimized && review && (
+        <button
+          type="button"
+          onClick={() => setReviewMinimized(false)}
+          /* TODO-COPY */
+          aria-label={`Restore ${REVIEW_NOUN[review.stage]} draft`}
+          className={cn(
+            "fixed bottom-4 right-4 z-40 flex h-12 items-center gap-2.5 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 shadow-lg transition-colors hover:bg-[var(--tint-hover)]",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+          )}
+        >
+          {/* IN-PROGRESS INDICATOR, subtle: a small filled dot in the record's
+              attention band. It says "this is unfinished" without a spinner,
+              which would claim something is happening. Pulses only where motion
+              is welcome. */}
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full bg-[var(--band-amber-fg)] motion-safe:animate-pulse"
+          />
+          <span className="text-[14px] font-semibold leading-[20px] text-[var(--text-primary)]">
+            {/* TODO-COPY */}
+            Draft · {REVIEW_NOUN[review.stage]}
+          </span>
+        </button>
       )}
 
       {/* ── BELOW 1100px: THE SAME NODE, IN AN OVERLAY ────────────────────

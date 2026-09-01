@@ -33,22 +33,19 @@
 // accepted overstatement, not an oversight. Do not "fix" it; see
 // RATIONALE_SOURCE_LABEL.
 
-import { useRef, useState } from "react";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+// The dropdown-menu import is gone with the ellipsis it served — see the actions
+// slot below for what that menu contained.
 import { TaskCard } from "@/components/record/task-card";
 // `decision-footer` is deliberately NOT imported any more. It still exists and
 // the flag review modal still uses `DecisionNote` + `noteReady`; this card simply
 // stopped being a consumer when the provider note was retired. Leaving the
 // component alone is what keeps that out-of-scope surface from shifting.
 import { clinicalDate } from "@/components/record/care-presentation";
-import { bandLabel, ScoreChip } from "@/components/record/score-chip";
+import { bandLabel } from "@/components/record/score-chip";
+import { SurveyComparisonGrid } from "@/components/record/survey-comparison-grid";
 import { INSTRUMENT_MAX } from "@/lib/record/care-demo";
 import {
   RATIONALE_SOURCE_LABEL,
@@ -68,8 +65,6 @@ const LABEL_STYLE = {
 /** The hairline that does the sectioning a nested card used to do. */
 const SECTION = "mt-4 border-t border-[var(--border-subtle)] pt-4";
 
-/** The three-column breakdown, as a LOOSE table: no borders, no header fill, no
- *  surrounding card. Hairlines between rows only. */
 /** The band name beside the score, on ONE baseline with it — 12px, card tone,
  *  hairline ring. Neutral: severity lives in the task label band, and a second
  *  coloured chip inside the card would be a second severity signal. */
@@ -81,63 +76,15 @@ function BandChip({ severity }: { severity: string }) {
   );
 }
 
-function ItemTable({ items }: { items: AssessmentItem[] }) {
-  return (
-    <table className="w-full table-fixed text-left">
-      <colgroup>
-        {/* Question takes the room; answer is comfortable; points is narrow so
-            the digits line up in a true column. */}
-        <col />
-        <col className="w-[34%]" />
-        <col className="w-[64px]" />
-      </colgroup>
-      <thead>
-        <tr>
-          {/* TODO-COPY */}
-          {["Question", "Answer", "Points"].map((h, i) => (
-            <th
-              key={h}
-              className={cn(
-                "h-8 align-middle font-medium text-[var(--text-muted)]",
-                i === 2 ? "text-right" : "pr-3"
-              )}
-              style={LABEL_STYLE}
-            >
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((it) => (
-          <tr
-            key={it.question}
-            // Hairlines BETWEEN rows only — no top rule (the header supplies
-            // it), no bottom rule on the last row, no surrounding card.
-            className="border-t border-[var(--border-subtle)]"
-          >
-            <td className="h-9 pr-3 align-middle text-[13px] leading-[18px] text-[var(--text-primary)]">
-              {it.question}
-            </td>
-            <td className="h-9 pr-3 text-right align-middle text-[13px] leading-[18px] text-[var(--text-muted)]">
-              {it.answer}
-            </td>
-            <td className="h-9 text-right align-middle text-[13px] leading-[18px] tabular-nums text-[var(--text-primary)]">
-              {it.points}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+/** `ItemTable` lived here — one survey, three columns, answer text in every
+ *  cell. `SurveyComparisonGrid` replaced it: the question a supervisor is
+ *  answering is comparative, and a table of one survey cannot answer it. */
 
 export function PresentationReviewCard({
   review,
   actor,
   actorRole,
-  onChangeRequest,
-  onApproveRequest,
+  onReviewRequest,
 }: {
   review: PresentationReview;
   /** `currentCode` was here so approving could name what it replaced. The owner
@@ -145,38 +92,31 @@ export function PresentationReviewCard({
   /** The deciding supervisor's name + tier — the appended entry's author. */
   actor: string;
   actorRole: string;
-  /** Opens the DSM-5 search. Selecting there POPULATES this card's
-   *  recommendation — it never commits, so the provider-note gate below still
-   *  stands between a chosen code and the record.
+  /** ═══ ONE CALLBACK, AND IT DECIDES NOTHING ═══
    *
-   *  BOTH ARE OPTIONAL, and that is the whole tier gate. Read-wide, act-narrow:
-   *  mentors and lead mentors READ this card — the recommendation, the
-   *  provenance-labelled rationale and the survey evidence — and simply are not
-   *  handed the callbacks, so the action row does not render at all. There is no
-   *  disabled Approve: a greyed-out button advertises a decision they cannot take
-   *  part in. */
-  onChangeRequest?: () => void;
-  /** ═══ APPROVE IS A REQUEST NOW, NOT A COMMIT ═══
+   *  This card used to carry two: `onApproveRequest`, which opened the care
+   *  update form pre-loaded with "approve", and `onChangeRequest`, which opened
+   *  the DSM-5 dialog from an ellipsis menu. That shape asserted the answer
+   *  before the supervisor had judged — the recommendation sat under a one-click
+   *  Approve while its peer outcome was two interactions away behind a glyph.
+   *  On an append-only clinical record, a single tap is also the weakest error
+   *  prevention available.
    *
-   *  It used to build a `CareReviewDecision` here and hand it up, because the
-   *  card owned the provider note that justified it. The note is retired: every
-   *  presentation event is documented by a care update, so Approve OPENS THAT
-   *  FORM and the owner constructs the decision when it commits — the owner is
-   *  the only place that knows the resulting care update's id, which the decision
-   *  has to reference.
+   *  Both are replaced by one request to OPEN THE REVIEW. Confirm and change are
+   *  peer outcomes of one decision, and that decision — with its commit — lives
+   *  only in the drawer. Nothing on this card can approve anything.
    *
    *  Still the tier gate: read-wide, act-narrow. Mentors and lead mentors read
    *  the recommendation, the provenance-labelled rationale and the survey
-   *  evidence, and simply are not handed the callbacks, so the action row does
-   *  not render at all. There is no disabled Approve. */
-  onApproveRequest?: () => void;
+   *  evidence, and simply are not handed the callback, so the action row does not
+   *  render at all. There is no disabled Review. */
+  onReviewRequest?: () => void;
 }) {
   /** Lifted out of the old Disclosure component: the header must not own the
    *  body's open state, or it re-renders around it. */
   const [open, setOpen] = useState(false);
-  const overflowTrigger = useRef<HTMLButtonElement | null>(null);
   // One flag for the whole acting half of the card.
-  const canAct = !!onApproveRequest;
+  const canAct = !!onReviewRequest;
 
   /** ONE shape for both variants: the aggregate's weighted score reads in the
    *  same position as a single survey's, which is what makes the two variants
@@ -219,49 +159,22 @@ export function PresentationReviewCard({
       meta={STAGE_LABEL[review.stage]}
       actions={
         canAct && (
-          <>
-            <PillButton
-              onClick={() => onApproveRequest?.()}
-              className="h-9 px-5 text-[14px]"
-            >
-              {/* TODO-COPY */}
-              Approve
-            </PillButton>
-            {/* CHANGE IS A SECONDARY ACTION, in the overflow — one primary per
-                region, and changing a minor's diagnosis is not the thing to
-                make easiest. It opens the same DSM-5 modal the care summary's
-                "Change presentation" does. */}
-            {onChangeRequest && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    ref={overflowTrigger}
-                    type="button"
-                    /* TODO-COPY */
-                    aria-label="More review actions"
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-contour)] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-                      RING
-                    )}
-                  >
-                    <MoreHorizontal className="size-4" aria-hidden />
-                  </button>
-                </DropdownMenuTrigger>
-                {/* preventFocusRestore: opening a dialog from a menu item
-                    otherwise loses the focus trap, because the menu returns
-                    focus to its trigger AFTER the dialog mounts. */}
-                <DropdownMenuContent
-                  align="end"
-                  onCloseAutoFocus={(e) => e.preventDefault()}
-                >
-                  <DropdownMenuItem onSelect={() => onChangeRequest()}>
-                    {/* TODO-COPY */}
-                    Change presentation…
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </>
+          /* ═══ THE ELLIPSIS IS GONE, AND IT HELD EXACTLY ONE THING ═══
+             "Change presentation…" was its only item, so removing change from
+             the card emptied the menu entirely — a glyph opening a one-item menu
+             is a control that costs an interaction to reveal nothing. Both the
+             menu and its trigger are deleted rather than left with a remainder
+             surfaced inline; there was no remainder.
+             What survives is a single filled CTA that opens the review. It is
+             the only affordance on this card, which is the point: the card is a
+             statement of what needs review, and the workspace is elsewhere. */
+          <PillButton
+            onClick={() => onReviewRequest?.()}
+            className="h-9 whitespace-nowrap px-5 text-[14px]"
+          >
+            {/* TODO-COPY */}
+            Review
+          </PillButton>
         )
       }
       /* PROVENANCE, same slot as the flag cards'. It answers a real question
@@ -413,37 +326,31 @@ export function PresentationReviewCard({
                 header rather than beside the score. */}
             {open && (
               <div className="border-t border-[var(--border-subtle)] px-3.5 py-3">
-                {/* AGGREGATE: the contributing surveys come FIRST, above the
-                    question table — they are what the weighted score is made
-                    of, so they explain the number before breaking it down. */}
-                {review.aggregate && (
-                  <table className="mb-3 w-full text-left">
-                    <tbody>
-                      {review.aggregate.surveys.map((sv) => (
-                        <tr
-                          key={sv.at}
-                          className="border-b border-[var(--border-subtle)] last:border-0"
-                        >
-                          <td className="h-9 pr-3 text-[13px] text-[var(--text-secondary)]">
-                            {clinicalDate(sv.at)}
-                          </td>
-                          <td className="h-9 pr-3 text-[13px] text-[var(--text-secondary)]">
-                            {sv.instrument}
-                          </td>
-                          <td className="h-9 text-right">
-                            <ScoreChip score={sv.score} severity={sv.severity} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
-                <ItemTable
-                  items={
+                {/* ═══ THE SHARED GRID ═══
+                    The same component the drawer's evidence strip renders, so a
+                    supervisor who opens the answers here and then opens the
+                    review is looking at one table rather than two layouts of one
+                    dataset.
+                    It replaces a stacked pair — a list of the contributing
+                    surveys, then the newest survey's answers — which could show
+                    what the period contained OR what one day contained, never
+                    both at once. The claim being checked ("the movement sits in
+                    these items") is a comparison, so the display is one. */}
+                <SurveyComparisonGrid
+                  surveys={
                     review.aggregate
-                      ? (review.aggregate.surveys[0]?.items ?? [])
-                      : evidence.items
+                      ? review.aggregate.surveys
+                      : review.survey
+                        ? [review.survey]
+                        : []
+                  }
+                  weighted={
+                    review.aggregate
+                      ? {
+                          score: review.aggregate.score,
+                          severity: review.aggregate.severity,
+                        }
+                      : null
                   }
                 />
               </div>

@@ -141,8 +141,8 @@ function Dsm5SearchBody({
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Dsm5Entry | null>(null);
 
-  const results = useMemo(() => searchDsm5(query), [query]);
-  const browsing = query.trim() === "";
+  // The search input and its results moved into `Dsm5SearchList`. This body keeps
+  // only the two-step confirm, and the query it hands down.
 
   return (
       <>
@@ -211,87 +211,149 @@ function Dsm5SearchBody({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
-                aria-hidden
-              />
-              <input
-                ref={inputRef}
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="Search presentations by code or wording"
-                /* TODO-COPY */
-                placeholder="F41.1, or “generalized anxiety”"
-                className={cn(
-                  "h-11 w-full rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] pl-9 pr-3",
-                  "text-[15px] leading-[20px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
-                  RING
-                )}
-              />
-            </div>
-
-            {/* Common presentations BEFORE the user types — an empty box that
-                asks a supervisor to recall a code from memory is a worse start
-                than the handful this population actually presents with. */}
-            <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
-              {/* TODO-COPY */}
-              {browsing
-                ? "Common presentations"
-                : `${results.length} ${results.length === 1 ? "match" : "matches"}`}
-            </p>
-
-            <ul
-              className="max-h-72 overflow-y-auto rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] [&>li+li]:border-t [&>li+li]:border-[var(--border-subtle)]"
-              aria-label="Presentation results"
-            >
-              {results.length === 0 ? (
-                <li className="px-3.5 py-4 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                  {/* TODO-COPY */}
-                  No presentation matches that. Try a code like F41, or a word
-                  from the wording.
-                </li>
-              ) : (
-                results.map((r) => {
-                  const isCurrent = r.code === current?.code;
-                  return (
-                    <li key={r.code}>
-                      <button
-                        type="button"
-                        onClick={() => setPicked(r)}
-                        className={cn(
-                          "flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-[var(--tint-hover)]",
-                          RING
-                        )}
-                      >
-                        <span className="min-w-0 flex-1">
-                          {/* Statement primary, code secondary — a code is not
-                              readable by everyone who reads this record. */}
-                          <span className="block text-[15px] leading-[20px] text-[var(--text-primary)]">
-                            {r.statement}
-                          </span>
-                          <span className="mt-0.5 block text-[13px] leading-[18px] tabular-nums text-[var(--text-muted)]">
-                            {r.code}
-                          </span>
-                        </span>
-                        {isCurrent && (
-                          <span
-                            className="shrink-0 rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] font-medium text-[var(--text-secondary)]"
-                          >
-                            {/* TODO-COPY — so nobody "changes" to what's already
-                                on record without noticing. */}
-                            On record
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
+            {/* THE SEARCH ITSELF IS NOW `Dsm5SearchList` — see its own note. The
+                two-step confirm above it is this dialog's, not the list's. */}
+            <Dsm5SearchList
+              current={current}
+              query={query}
+              onQueryChange={setQuery}
+              onPick={setPicked}
+              inputRef={inputRef}
+            />
           </>
         )}
       </>
+  );
+}
+
+/** ═══ THE SEARCH, WITH NO DIALOG AROUND IT ═══
+ *
+ *  Extracted from `Dsm5SearchBody` so the review drawer can put the same search
+ *  inline. Two surfaces now show it and NEITHER owns it:
+ *
+ *    · `Dsm5SearchDialog` — the record's change-presentation flow, and the Tasks
+ *      pane's billing-code picker (`tasks/task-pane.tsx`). Both keep the modal
+ *      and its two-step confirm.
+ *    · The review drawer — inline, no confirm step, because the drawer's own
+ *      commit footer is the gate that the dialog's confirm screen was standing
+ *      in for. A second confirm inside a surface that already has one is a step
+ *      that teaches people to click through steps.
+ *
+ *  WHY THIS IS AN EXTRACTION AND NOT A SECOND COMPONENT: there is one list of
+ *  presentations a supervisor can pick from, and the day it grows a "recently
+ *  used" section or stops matching on a synonym, it has to grow it once. A
+ *  duplicated filterable list is two behaviours that start identical.
+ *
+ *  QUERY IS CONTROLLED BY THE PARENT, deliberately. Holding it in here would
+ *  reset the typed query every time the dialog's confirm step mounted and
+ *  unmounted this — so "Back to search" would land on an empty box, which is
+ *  exactly the behaviour the dialog has never had. */
+export function Dsm5SearchList({
+  current,
+  query,
+  onQueryChange,
+  onPick,
+  inputRef,
+  /** The list's own scroll bound. The dialog caps at `max-h-72`; the drawer
+   *  passes its own, because a panel that is already a column has different
+   *  headroom than a box floating in the middle of the page. */
+  listClassName = "max-h-72",
+}: {
+  /** What is on record — marks the row a supervisor is already on. */
+  current: PresentationRef | null;
+  query: string;
+  onQueryChange: (query: string) => void;
+  /** Fires on ROW CLICK. It does not commit anything anywhere — what happens
+   *  next belongs to whoever rendered this. */
+  onPick: (entry: Dsm5Entry) => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  listClassName?: string;
+}) {
+  const results = useMemo(() => searchDsm5(query), [query]);
+  const browsing = query.trim() === "";
+
+  return (
+    <>
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+          aria-hidden
+        />
+        <input
+          ref={inputRef}
+          type="search"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          aria-label="Search presentations by code or wording"
+          /* TODO-COPY */
+          placeholder="F41.1, or “generalized anxiety”"
+          className={cn(
+            "h-11 w-full rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] pl-9 pr-3",
+            "text-[15px] leading-[20px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
+            RING
+          )}
+        />
+      </div>
+
+      {/* Common presentations BEFORE the user types — an empty box that
+          asks a supervisor to recall a code from memory is a worse start
+          than the handful this population actually presents with. */}
+      <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+        {/* TODO-COPY */}
+        {browsing
+          ? "Common presentations"
+          : `${results.length} ${results.length === 1 ? "match" : "matches"}`}
+      </p>
+
+      <ul
+        className={cn(
+          "overflow-y-auto rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] [&>li+li]:border-t [&>li+li]:border-[var(--border-subtle)]",
+          listClassName
+        )}
+        aria-label="Presentation results"
+      >
+        {results.length === 0 ? (
+          <li className="px-3.5 py-4 text-[14px] leading-[20px] text-[var(--text-secondary)]">
+            {/* TODO-COPY */}
+            No presentation matches that. Try a code like F41, or a word from the
+            wording.
+          </li>
+        ) : (
+          results.map((r) => {
+            const isCurrent = r.code === current?.code;
+            return (
+              <li key={r.code}>
+                <button
+                  type="button"
+                  onClick={() => onPick(r)}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-[var(--tint-hover)]",
+                    RING
+                  )}
+                >
+                  <span className="min-w-0 flex-1">
+                    {/* Statement primary, code secondary — a code is not
+                        readable by everyone who reads this record. */}
+                    <span className="block text-[15px] leading-[20px] text-[var(--text-primary)]">
+                      {r.statement}
+                    </span>
+                    <span className="mt-0.5 block text-[13px] leading-[18px] tabular-nums text-[var(--text-muted)]">
+                      {r.code}
+                    </span>
+                  </span>
+                  {isCurrent && (
+                    <span className="shrink-0 rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] font-medium text-[var(--text-secondary)]">
+                      {/* TODO-COPY — so nobody "changes" to what's already
+                          on record without noticing. */}
+                      On record
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })
+        )}
+      </ul>
+    </>
   );
 }

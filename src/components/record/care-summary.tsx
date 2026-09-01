@@ -202,7 +202,14 @@ export function CareSummaryCard({
 
   return (
     <section aria-label="Primary presentation" data-record-section="care-summary">
-      <div className={CARD}>
+      {/* ═══ THE CARD IS A CONTAINER, SO ITS CONTENTS CAN ASK ITS WIDTH ═══
+          The metrics row below keyed off the VIEWPORT (`sm:` / `xl:`), which was
+          right up to the day something else started taking width off this
+          column. Open the review drawer at 1280–1440 and the viewport still says
+          "xl" while the column has lost 520px to the panel — five stats at
+          ~127px each, wrapping mid-word. A container query asks the only
+          question that was ever relevant: how wide is THIS box. */}
+      <div className={cn(CARD, "@container")}>
         {/* ── THE LOCKUP, INSIDE THE CARD. The section label used to float above
             the card as an h2 with the Change button beside it, so the card's
             most important line had a heading it did not own and an action
@@ -289,7 +296,15 @@ export function CareSummaryCard({
         </div>
 
         {/* ── METRICS: a hairline and a grid, NOT a nested card ─────────── */}
-        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-3 xl:grid-cols-5">
+        <div
+          /* 760px for five, 480px for three, two below that — measured against
+             the real content, not guessed: five stats need ~140px each plus the
+             24px gaps, and "Next review · due in 2 days · 90-day review" is the
+             one that decides it. At 760 this renders exactly as it did before
+             for every layout that was already correct; the change only shows up
+             where the viewport used to be lying. */
+          className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4 @[480px]:grid-cols-3 @[760px]:grid-cols-5"
+        >
           {/* TODO-COPY on every label. */}
           {/* RELATIONSHIP STATE BELONGS TO THE PAIRING, not to the review
               cadence — which is why "Mentorship ended" moved out of Next review

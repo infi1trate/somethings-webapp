@@ -1,0 +1,133 @@
+"use client";
+
+// THE REVIEW DRAFT — in-progress clinical text, and where it is allowed to live.
+//
+// ═══ WHY NOT THE STORE ═══
+//
+// `lib/onboarding/store.ts` is the app's persistence, and it is backed by
+// localStorage (see its `createJSONStorage` adapter). localStorage survives the
+// browser closing and is readable by every tab on the origin for as long as
+// nobody clears it. That is the right trade for a theme or a wizard draft and the
+// wrong one for a half-written diagnostic statement about a minor: it would
+// outlive the authenticated session that justified writing it.
+//
+// So: sessionStorage, keyed to the record AND the review instance. It dies with
+// the tab, which is the closest thing this prototype has to "the session ends".
+//
+// THIS IS NOT ENCRYPTION AND DOES NOT PRETEND TO BE. A draft is readable by
+// anything running on the origin while the tab is open. The claim is narrower and
+// worth stating exactly: it does not persist beyond the session, and it is not
+// written to a shared or global scope where another record's page could read it.
+//
+// ═══ KEYED BY REVIEW, NOT JUST BY RECORD ═══
+//
+// A draft belongs to the decision it was written for. When the cadence rolls and
+// a new review id appears, the old draft is about a review nobody can commit any
+// more — restoring it into the new one would put last quarter's reasoning under
+// this quarter's scores. Superseded drafts are cleared on open.
+
+import type { CareUpdateBody } from "@/lib/record/care-demo";
+
+const PREFIX = "somethings.review-draft.";
+
+/** The decision half of a draft. `null` while the supervisor has not chosen —
+ *  which is the state the drawer opens in, and a real state to persist: it is the
+ *  difference between "not decided yet" and "decided to confirm". */
+export type ReviewDecision =
+  | { kind: "confirm" }
+  | { kind: "change"; code: string; statement: string };
+
+export interface ReviewDraft {
+  decision: ReviewDecision | null;
+  body: CareUpdateBody;
+  /** When the draft was last written, for the restore notice. */
+  savedAt: number;
+}
+
+function keyFor(teenId: string, reviewId: string) {
+  return `${PREFIX}${teenId}.${reviewId}`;
+}
+
+/** Every storage call is wrapped: sessionStorage throws in private mode on some
+ *  browsers, is absent during SSR, and can be over quota. A draft that cannot be
+ *  saved must never take the drawer down with it — the supervisor's text is still
+ *  on screen in component state, which is the copy that matters. */
+function safe<T>(run: () => T, fallback: T): T {
+  try {
+    if (typeof sessionStorage === "undefined") return fallback;
+    return run();
+  } catch {
+    return fallback;
+  }
+}
+
+export function readReviewDraft(
+  teenId: string,
+  reviewId: string
+): ReviewDraft | null {
+  return safe(() => {
+    const raw = sessionStorage.getItem(keyFor(teenId, reviewId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ReviewDraft;
+    // A stored shape from an older build is discarded rather than trusted into
+    // the form — a draft is a convenience, and a malformed one is not worth a
+    // crash on a clinical surface.
+    if (!parsed || typeof parsed !== "object" || !parsed.body) return null;
+    return parsed;
+  }, null);
+}
+
+export function writeReviewDraft(
+  teenId: string,
+  reviewId: string,
+  draft: ReviewDraft
+): void {
+  safe(() => {
+    sessionStorage.setItem(keyFor(teenId, reviewId), JSON.stringify(draft));
+  }, undefined);
+}
+
+export function clearReviewDraft(teenId: string, reviewId: string): void {
+  safe(() => {
+    sessionStorage.removeItem(keyFor(teenId, reviewId));
+  }, undefined);
+}
+
+/** ═══ SUPERSEDED DRAFTS ═══
+ *
+ *  Called when a review opens. Anything stored for this record under a DIFFERENT
+ *  review id belongs to a cycle that has closed — the cadence moved, and the
+ *  review that draft was written against can no longer be committed. Clearing it
+ *  here rather than letting it sit means the storage for a record holds at most
+ *  the draft for the review that is actually open.
+ *
+ *  Returns the ids it cleared so the caller can report them. */
+export function clearSupersededDrafts(
+  teenId: string,
+  currentReviewId: string
+): string[] {
+  return safe(() => {
+    const mine = `${PREFIX}${teenId}.`;
+    const stale: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (!k || !k.startsWith(mine)) continue;
+      const reviewId = k.slice(mine.length);
+      if (reviewId !== currentReviewId) stale.push(reviewId);
+    }
+    for (const id of stale) sessionStorage.removeItem(mine + id);
+    return stale;
+  }, []);
+}
+
+/** TODO-COPY. Coarse on purpose — a draft restored "2 minutes ago" and one
+ *  restored "a moment ago" call for the same reaction, and a precise clock on a
+ *  restore notice invites reading it as a saved-at timestamp on the record. */
+export function draftAge(savedAt: number, now: number): string {
+  const mins = Math.max(0, Math.round((now - savedAt) / 60_000));
+  if (mins < 1) return "a moment ago";
+  if (mins === 1) return "1 minute ago";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.round(mins / 60);
+  return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
