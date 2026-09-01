@@ -145,6 +145,139 @@ console.log("\n═══ Part 1 · conversation excerpt ═══");
   await p.context().close();
 }
 
+// ═══ PARTS 2 & 3 · TAB-CARDS AND CLOSED-TODAY ═══
+console.log("\n═══ Parts 2/3 · tab-cards ═══");
+{
+  // `heavy-caseload` for the squint test; it has breaches and a busy row.
+  const p = await tasks({ scenario: "heavy-caseload" });
+  const r = await p.evaluate(() => {
+    const list = document.querySelector('[role="tablist"]');
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const boxes = tabs.map((t) => t.getBoundingClientRect());
+    const numerals = tabs.map((t) => {
+      const big = [...t.querySelectorAll("span")].find((s) => parseFloat(getComputedStyle(s).fontSize) >= 20);
+      return big ? { text: big.textContent.trim(), px: getComputedStyle(big).fontSize, weight: getComputedStyle(big).fontWeight } : null;
+    });
+    const closedLinks = [...document.querySelectorAll('[role="tablist"] a')];
+    return {
+      tabs: tabs.length,
+      heights: [...new Set(boxes.map((b) => Math.round(b.height)))],
+      widths: [...new Set(boxes.map((b) => Math.round(b.width)))],
+      // ONE ROW = every card shares a top edge.
+      tops: [...new Set(boxes.map((b) => Math.round(b.top)))],
+      numerals,
+      allClear: tabs.map((t) => t.textContent.includes("All clear")),
+      breachChips: tabs.filter((t) => /past \d+[hd]/i.test(t.textContent)).length,
+      closedLinks: closedLinks.map((a) => ({
+        text: a.textContent.trim(),
+        href: a.getAttribute("href"),
+        h: Math.round(a.getBoundingClientRect().height),
+      })),
+      // The old top-right unit is gone.
+      topRightGone: !document.body.innerText.includes("CLOSED TODAY") &&
+        ![...document.querySelectorAll("p,span")].some((e) => e.textContent.trim() === "Closed today"),
+      tablist: list.getAttribute("role"),
+      ariaSelected: tabs.filter((t) => t.getAttribute("aria-selected") === "true").length,
+      // Unselected cards keep FULL-STRENGTH counts — the workload must read
+      // across all four without selecting them.
+      numeralColors: tabs.map((t) => {
+        const big = [...t.querySelectorAll("span")].find((s) => parseFloat(getComputedStyle(s).fontSize) >= 20);
+        return big ? getComputedStyle(big).color : null;
+      }),
+    };
+  });
+  check(r.tabs === 4, "four tab-cards", String(r.tabs));
+  check(r.heights.every((h) => h >= 68 && h <= 84), "~72px tall", `${r.heights.join(", ")}px`);
+  check(r.widths.length === 1, "equal-width segments", `${r.widths.join(", ")}px`);
+  check(r.tops.length === 1, "a single row", `tops ${r.tops.join(", ")}`);
+  check(r.numerals.filter(Boolean).every((n) => parseFloat(n.px) >= 20 && Number(n.weight) >= 600),
+    "open count is a prominent numeral (~22px semibold)",
+    JSON.stringify(r.numerals.filter(Boolean).map((n) => `${n.text}@${n.px}/${n.weight}`)));
+  const distinctColors = [...new Set(r.numeralColors.filter(Boolean))];
+  check(distinctColors.length === 1, "counts are full strength whether selected or not", JSON.stringify(distinctColors));
+  check(r.topRightGone, 'the top-right "Closed today" unit is gone');
+  check(r.closedLinks.length > 0, "closed segments render inside the cards", JSON.stringify(r.closedLinks.map((l) => l.text)));
+  check(r.closedLinks.every((l) => l.h >= 44), "closed segment target ≥44px", JSON.stringify(r.closedLinks.map((l) => l.h)));
+  check(r.closedLinks.every((l) => /scope=mine/.test(l.href) && /domain=/.test(l.href) && /range=today/.test(l.href)),
+    "closed segment deep-links to Activity (mine, domain, today)", r.closedLinks[0]?.href ?? "none");
+  check(r.tablist === "tablist" && r.ariaSelected === 1, "tablist semantics preserved");
+
+  // ═══ THE TWO CONTROLS ARE UNAMBIGUOUS — BY KEYBOARD AND BY POINTER ═══
+  const first = p.locator('[role="tab"]').first();
+  await first.focus();
+  await p.keyboard.press("ArrowRight");
+  await p.waitForTimeout(300);
+  const afterArrow = await p.evaluate(() => ({
+    focused: document.activeElement?.getAttribute("id"),
+    selected: document.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("id"),
+    onTasks: location.pathname,
+  }));
+  check(afterArrow.focused === afterArrow.selected && afterArrow.onTasks === "/app/tasks",
+    "arrow keys move tabs and do NOT navigate", JSON.stringify(afterArrow));
+
+  // Tabbing from a card reaches its closed link, and activating it navigates.
+  const linkCount = await p.locator('[role="tablist"] a').count();
+  if (linkCount > 0) {
+    await p.locator('[role="tablist"] a').first().focus();
+    const focusedIsLink = await p.evaluate(() => document.activeElement?.tagName.toLowerCase());
+    check(focusedIsLink === "a", "the closed segment is keyboard-reachable", String(focusedIsLink));
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(1200);
+    const url = new URL(p.url());
+    check(url.pathname === "/app/activity" && url.searchParams.get("scope") === "mine",
+      "activating it navigates to Activity", url.pathname + url.search);
+  }
+  await p.context().close();
+}
+
+// ═══ ZERO-OPEN CARD ═══
+{
+  const p = await tasks({ scenario: "quiet-day" });
+  const r = await p.evaluate(() => {
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const empty = tabs.filter((t) => t.textContent.includes("All clear"));
+    return {
+      emptyCards: empty.length,
+      anyBigZero: tabs.some((t) => [...t.querySelectorAll("span")]
+        .some((s) => s.textContent.trim() === "0" && parseFloat(getComputedStyle(s).fontSize) >= 20)),
+      emptyWithClosed: empty.map((t) => t.parentElement.textContent.trim().replace(/\s+/g, " ")),
+    };
+  });
+  check(r.emptyCards > 0, "the quiet scenario has empty cards", String(r.emptyCards));
+  check(!r.anyBigZero, 'never a large "0"');
+  console.log("    empty card text:", JSON.stringify(r.emptyWithClosed.slice(0, 2)));
+  if (process.env.SHOT_DIR) await p.locator('[role="tablist"]').screenshot({ path: process.env.SHOT_DIR + "/P2-tabcards-quiet.png" });
+  await p.context().close();
+}
+
+{
+  const p = await tasks({ scenario: "heavy-caseload" });
+  if (process.env.SHOT_DIR) await p.locator('[role="tablist"]').screenshot({ path: process.env.SHOT_DIR + "/P2-tabcards-heavy.png" });
+  await p.context().close();
+}
+
+// ═══ THE SQUINT TEST: breaches survive on a heavy day ═══
+{
+  const p = await tasks({ scenario: "breach-overnight" });
+  const r = await p.evaluate(() => {
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    return {
+      withBreach: tabs.filter((t) => /past \d+[hd]/i.test(t.textContent)).length,
+      texts: tabs.map((t) => t.textContent.replace(/\s+/g, " ").trim()),
+      // An empty card that still has closed work — the brief's
+      // "All clear · 5 closed today" shape.
+      emptyWithClosed: tabs
+        .map((t) => t.parentElement.textContent.replace(/\s+/g, " ").trim())
+        .filter((x) => x.includes("All clear") && x.includes("closed")),
+    };
+  });
+  check(r.withBreach > 0, "breach chips survive on the breach scenario", `${r.withBreach} cards`);
+  console.log("    cards:", JSON.stringify(r.texts));
+  if (r.emptyWithClosed.length) console.log("    empty+closed:", JSON.stringify(r.emptyWithClosed));
+  if (process.env.SHOT_DIR) await p.locator('[role="tablist"]').screenshot({ path: process.env.SHOT_DIR + "/P2-tabcards-breach.png" });
+  await p.context().close();
+}
+
 await b.close();
 console.log(`\n${fails === 0 ? "ALL CHECKS PASS" : `${fails} CHECK(S) FAILED`}`);
 process.exit(fails === 0 ? 0 : 1);

@@ -61,15 +61,12 @@ import { cn } from "@/lib/utils";
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** TODO-COPY. Header counters' domain labels — shorter than the tab labels
- *  because they sit in a dense row, and COUNT-AWARE: the first pass rendered
- *  "1 escalations", which is the kind of thing that makes a careful surface look
- *  careless. "billing" is a mass noun and does not inflect. */
-function closedLabel(domain: TaskDomain, n: number): string {
-  if (domain === "billing") return "billing";
-  const singular = domain === "escalation" ? "escalation" : "flag";
-  return n === 1 ? singular : `${singular}s`;
-}
+/* `closedLabel` LIVED HERE and is gone with the top-right unit (Part 3). It
+   inflected the domain noun per count ("1 escalation" / "2 escalations",
+   "billing" uninflected because it is a mass noun). The tab-card's closed
+   segment does not need it: the card already NAMES its domain on line 1, so the
+   segment reads "· 2 closed" and repeating "flags" under a card labelled Flags
+   would be the redundancy the relocation was meant to remove. */
 
 /** THE ACTIVITY DEEP LINK for a "Closed today" counter (§1): Activity filtered to
  *  scope=mine, matching domain, today.
@@ -464,48 +461,12 @@ export function TasksPage() {
           </p>
         </div>
 
-        {/* CLOSED TODAY, per domain, deep-linking into Activity. Renders nothing
-            when nothing closed — a row of zeroes is chrome. */}
-        {Object.keys(closed).length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-              {/* TODO-COPY */}
-              Closed today
-            </span>
-            {(Object.entries(closed) as Array<[TaskDomain, number]>).map(
-              ([domain, n]) => (
-                <Link
-                  key={domain}
-                  href={closedTodayHref(domain)}
-                  // ═══ REAL PADDING, NOT `touchTarget()` (gap row 290) ═══
-                  //
-                  // SC 2.5.8: these render 18px tall (72x18, 33x18, 46x18). The
-                  // usual fix here is `touchTarget`, and it is WRONG for this
-                  // cluster. MEASURED at 320: the row wraps, so "1 escalation" and
-                  // "1 flag" sit on line 1 and "1 billing" drops to line 2 with
-                  // only 4px between them. A 13px `::after` bleed would have
-                  // overlapped the two lines by ~22px, and a tap in the overlap
-                  // belongs to both targets — the exact failure lib/touch-target.ts
-                  // warns about, and worse than the small target it replaces.
-                  //
-                  // Padding participates in layout; a pseudo-element does not.
-                  // `py-1.5` grows the box to 30px, clearing the 24px floor, and
-                  // the wrap gap grows with it so adjacent lines touch but never
-                  // overlap. At 1280 all three sit on one line anyway.
-                  className={cn(
-                    "rounded-sm py-1.5 text-[13px] leading-[18px] text-[var(--text-secondary)]",
-                    "underline decoration-transparent underline-offset-2 transition-colors",
-                    "hover:text-[var(--text-primary)] hover:decoration-[color:var(--text-primary)]",
-                    RING
-                  )}
-                >
-                  <span className="tabular-nums">{n}</span>{" "}
-                  {closedLabel(domain, n)}
-                </Link>
-              )
-            )}
-          </div>
-        )}
+        {/* ═══ THE TOP-RIGHT "CLOSED TODAY" UNIT WAS HERE (Part 3) ═══
+            Its data moved into the tab-cards, where the work happened: a card
+            reads "4 open · 2 closed", and an empty one "All clear · 5 closed
+            today". The Activity deep link travelled with it unchanged.
+            The unit was a second place to look for a number that belongs to a
+            domain, and it stated the domain's name a second time to say so. */}
       </div>
 
       {/* ── RESPOND STRIP (§3.2). Above the tabs, visible from every tab. ── */}
@@ -531,6 +492,11 @@ export function TasksPage() {
           summaries={summaries}
           active={activeDomain}
           onSelect={selectDomain}
+          /* CLOSED-TODAY MOVED INTO THE CARDS (Part 3). One derivation, passed
+             down — the page still owns `closedToday` and the Activity href, so a
+             card and its link cannot disagree about the number. */
+          closed={closed}
+          closedHref={closedTodayHref}
         />
       </div>
 

@@ -46,6 +46,7 @@ import { useRef } from "react";
 import { AlertTriangle, ClipboardCheck, Receipt, ShieldAlert } from "lucide-react";
 import type { DomainSummary } from "@/lib/tasks/sort";
 import { DOMAIN_LABEL, TASK_DOMAINS, type TaskDomain } from "@/lib/tasks/types";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -121,21 +122,28 @@ export function DomainTabs({
   summaries,
   active,
   onSelect,
+  /** Closed-today per domain, and where each one goes. Passed in rather than
+   *  computed here: the page already derives it, and a second derivation is how
+   *  a card and a link end up disagreeing about the same number. */
+  closed,
+  closedHref,
 }: {
   summaries: DomainSummary[];
   active: TaskDomain;
   onSelect: (d: TaskDomain) => void;
+  closed: Partial<Record<TaskDomain, number>>;
+  closedHref: (d: TaskDomain) => string;
 }) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const onKeyDown = (e: React.KeyboardEvent, index: number) => {
     const last = TASK_DOMAINS.length - 1;
-    let next: number | null = null;
+    let next = index;
     if (e.key === "ArrowRight") next = index === last ? 0 : index + 1;
     else if (e.key === "ArrowLeft") next = index === 0 ? last : index - 1;
     else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = last;
-    if (next === null) return;
+    else return;
     e.preventDefault();
     refs.current[next]?.focus();
     onSelect(TASK_DOMAINS[next]);
@@ -146,98 +154,134 @@ export function DomainTabs({
       role="tablist"
       /* TODO-COPY */
       aria-label="Task domains"
-      // ═══ ONE LINE AT EVERY WIDTH, SCROLLING WHEN IT HAS TO ═══
+      // ═══ EQUAL-WIDTH SEGMENTS IN ONE ROW (Part 2) ═══
       //
-      // Wrapping was tried first and produced four rows at 320px: a flex item's
-      // automatic minimum size is its content, so each segment refused to shrink
-      // to its 50% basis and took a line of its own — 200px of tabs above the
-      // list. Adding `min-w-0` would have achieved two-up by TRUNCATING the
-      // labels, and "Monito…" above a worklist is worse than the height it saves.
+      // The compact pill row was content-sized and scrolled at narrow widths.
+      // Tab-cards are a WORKLOAD SUMMARY as well as a control, and a summary only
+      // works if all four are readable at once — so the segments are equal-width
+      // and the row never scrolls horizontally.
       //
-      // So the row scrolls instead: full labels, one 44px line, at any width.
-      // Same pattern as the record's own tab nav. The CONTAINER scrolls, not the
-      // page — verified, document overflow is 0 at 320px.
-      className="flex gap-2 overflow-x-auto"
+      // `min-w-0` ON EVERY CHILD, or a flex item's automatic minimum size is its
+      // content and the four refuse to share the row — the same trap the pill
+      // version documented, arrived at from the other direction. The label
+      // truncates inside its own card rather than the row overflowing.
+      className="grid grid-cols-2 gap-2 sm:grid-cols-4"
     >
       {summaries.map((s, i) => {
         const visual = DOMAIN_VISUAL[s.domain];
         const Icon = visual.icon;
         const selected = s.domain === active;
         const empty = s.openCount === 0;
+        const closedCount = closed[s.domain] ?? 0;
         return (
-          <button
-            key={s.domain}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`tasks-tab-${s.domain}`}
-            aria-selected={selected}
-            aria-controls="tasks-panel"
-            tabIndex={selected ? 0 : -1}
-            onClick={() => onSelect(s.domain)}
-            onKeyDown={(e) => onKeyDown(e, i)}
-            className={cn(
-              // 44px MINIMUM, from the touch-target floor rather than from the
-              // spec's 44–48 range — they agree, and the floor is the reason.
-              "flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-left transition-colors",
-              // ═══ CONTENT-SIZED, NOT STRETCHED ═══
-              // Stretching the four to equal widths was tried and left a long
-              // gap between each label and its count — "Escalations ······ 1" —
-              // which reads as a table of figures, the exact dashboard quality
-              // this row exists to remove. Content-sized pills, left-aligned,
-              // read as navigation. `shrink-0` keeps labels whole and lets the
-              // row scroll instead of truncating.
-              "shrink-0",
-              // SELECTED IS A TONAL FILL. The old outline-plus-card treatment
-              // read as a selected OBJECT; a fill reads as a place you are in,
-              // which is what a tab is.
-              selected
-                ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-          >
-            {/* The tint well stays — it is the only per-domain identity in the
-                row now that the cards' size and position are gone. Smaller than
-                the cards' 32px because it shares a line with the label. */}
-            <span
-              aria-hidden
-              className="flex size-6 shrink-0 items-center justify-center rounded-[8px]"
-              style={{ backgroundColor: visual.bg, color: visual.fg }}
-            >
-              <Icon className="size-3.5" />
-            </span>
-
-            {/* No `truncate` and no `flex-1`: the row scrolls rather than
-                clipping a label, and the segment is content-sized, so there is
-                neither an ellipsis nor slack to distribute. */}
-            <span className="whitespace-nowrap text-[13.5px] leading-[18px]">
-              {DOMAIN_LABEL[s.domain]}
-            </span>
-
-            {/* THE COUNT, AT BODY SIZE. Reduced emphasis at zero rather than
-                hidden — the shape of the row is something a reader learns once,
-                and a tab that disappears when empty has to be re-learned. */}
-            <span
+          <div key={s.domain} className="relative min-w-0">
+            <button
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`tasks-tab-${s.domain}`}
+              aria-selected={selected}
+              aria-controls="tasks-panel"
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onSelect(s.domain)}
+              onKeyDown={(e) => onKeyDown(e, i)}
               className={cn(
-                "shrink-0 text-[13.5px] leading-[18px] tabular-nums",
-                empty
-                  ? "text-[var(--text-muted)]"
-                  : selected
-                    ? "font-semibold text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)]"
+                // ~72px, two lines. The height is the anatomy, not a value to
+                // tune: line 1 identifies the domain, line 2 is the workload.
+                "flex min-h-[72px] w-full flex-col justify-between gap-1 rounded-[var(--radius-surface)] px-3 py-2.5 text-left transition-colors",
+                // SELECTED IS A TONAL FILL PLUS A HAIRLINE. Unselected is flat and
+                // recessed — but the COUNT stays full strength either way, which
+                // is the whole point of re-weighting: the workload must be
+                // readable across all four without selecting them.
+                selected
+                  ? "bg-[var(--surface-s2)] ring-1 ring-[color:var(--border-contour)]"
+                  : "bg-[var(--surface-s1)] hover:bg-[var(--tint-hover)]",
+                RING
               )}
             >
-              {s.openCount}
-            </span>
+              {/* ── LINE 1 · identity ── */}
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  aria-hidden
+                  className="flex size-6 shrink-0 items-center justify-center rounded-[8px]"
+                  style={{ backgroundColor: visual.bg, color: visual.fg }}
+                >
+                  <Icon className="size-3.5" />
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 truncate text-[13px] leading-[18px]",
+                    selected
+                      ? "font-medium text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)]"
+                  )}
+                >
+                  {DOMAIN_LABEL[s.domain]}
+                </span>
+              </span>
 
-            {/* THE STATUS INDICATOR IS NOTHING WHEN ON TRACK. The old row always
-                said something; silence is the correct rendering of "fine", and it
-                is what makes the breach chip mean anything. */}
-            {s.breachedCount > 0 && <BreachChip label={breachLabel(s)} />}
-          </button>
+              {/* ── LINE 2 · the workload ── */}
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                {empty ? (
+                  // ═══ NEVER A LARGE "0" ═══
+                  // A 22px zero is the loudest thing on a calm row, and it reads
+                  // as a defect rather than as an achievement. "All clear" says
+                  // the same fact at the emphasis it deserves.
+                  <span className="text-[13px] leading-[22px] text-[var(--text-muted)]">
+                    {/* TODO-COPY */}
+                    All clear
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-[22px] font-semibold leading-[24px] tabular-nums text-[var(--text-primary)]">
+                      {s.openCount}
+                    </span>
+                    <span className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+                      {/* TODO-COPY */}
+                      open
+                    </span>
+                  </>
+                )}
+                {s.breachedCount > 0 && <BreachChip label={breachLabel(s)} />}
+                {/* THE CLOSED SEGMENT'S SPACE IS RESERVED HERE and the link is
+                    rendered OUTSIDE the button — see below. A nested <a> inside a
+                    <button> is invalid HTML and the browser hoists it out, which
+                    breaks both controls. */}
+                {closedCount > 0 && (
+                  <span aria-hidden className="text-[12px] leading-[16px] text-transparent">
+                    · {closedCount} closed
+                  </span>
+                )}
+              </span>
+            </button>
+
+            {/* ═══ THE CLOSED SEGMENT IS A SIBLING, NOT A CHILD (Part 3) ═══
+                An anchor inside a button is invalid and gets hoisted by the
+                parser, so the two controls are siblings and the link is
+                positioned over the space the button reserved above. Tapping the
+                card body switches tabs; tapping here navigates — unambiguous
+                because they do not overlap.
+                `min-h-11` gives the 44px target the brief asks for, and
+                `-my-2` lets it claim that height without growing the card. */}
+            {closedCount > 0 && (
+              <Link
+                href={closedHref(s.domain)}
+                className={cn(
+                  "absolute bottom-2.5 right-3 -my-2 inline-flex min-h-11 items-center rounded-sm px-1 text-[12px] leading-[16px]",
+                  "text-[var(--text-muted)] underline decoration-[color:var(--border-contour)] underline-offset-2",
+                  "hover:text-[var(--text-primary)] hover:decoration-[color:var(--text-primary)]",
+                  RING
+                )}
+              >
+                {/* TODO-COPY. Reads "· 2 closed" beside the open count on a busy
+                    card and "All clear · 5 closed today" on an empty one — the
+                    accomplishment stays where the work happened. */}
+                {empty ? `· ${closedCount} closed today` : `· ${closedCount} closed`}
+              </Link>
+            )}
+          </div>
         );
       })}
     </div>
