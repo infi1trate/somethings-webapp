@@ -28,6 +28,7 @@ import {
   eventEvidenceFor,
   flaggedContentFor,
 } from "@/lib/activity/evidence";
+import { codeHistoryFor, readingsFor } from "@/lib/activity/pane-fixtures";
 import { EventEvidencePane } from "@/components/activity/event-evidence-pane";
 import { staffFirstName, teenFirstName } from "@/lib/activity/seed";
 import { seedOverlay } from "@/lib/activity/read-state";
@@ -1134,6 +1135,52 @@ export function ActivityLedger({
             hasSelection={selectedRow !== null}
             degradedMessage={selectedRow?.degraded ? DEGRADED_MESSAGE : null}
             teenId={selectedRow?.groupObjectId ?? null}
+            /* ═══ THE ROW ALREADY CARRIES THE NAME ═══
+               This resolved `teenFirstName(groupObjectId)` and rendered "this
+               teen" on every risk-flag pane — because for a risk flag
+               `objectId` is the CONVERSATION id, not the teen's (see the note on
+               `ActivityEvent.objectId`), so the lookup missed and fell back.
+               `FeedRow.teenName` is the query's own resolution, correct for every
+               type and already first-name-only. Re-deriving what the row hands
+               over was the whole mistake. */
+            subjectName={selectedRow?.teenName ?? null}
+            /* ═══ HISTORY AND READINGS COME FROM THE LEDGER ITSELF ═══
+               Both are derived from `scenario.events` — the append-only store the
+               feed is already reading — rather than from a second model. A
+               billing row's earlier `BILLING_REVIEW_COMPLETE` events ARE its code
+               history, and a survey row's earlier `SURVEY_COMPLETED` events ARE
+               its trend.
+
+               DERIVED FOR THE SELECTED ROW ONLY, and only when it has a payload:
+               a degraded row opens no pane at all (rule 12), so this never runs
+               for one — but scoping it to `evidence` keeps that true by
+               construction rather than by the caller remembering. */
+            {...(() => {
+              /* BOTH DERIVATIONS KEY ON THE TEEN, and `groupObjectId` is only the
+                 teen for these two types — on a risk flag it is the conversation.
+                 Read from the payload where it exists so the key is the teen by
+                 construction rather than by which types happen to be listed. */
+              const teen =
+                (typeof selectedRow?.payload?.teenId === "string"
+                  ? selectedRow.payload.teenId
+                  : selectedRow?.groupObjectId) ?? "";
+              return {
+                codeHistory:
+                  evidence?.eventType === "BILLING_REVIEW_COMPLETE" && selectedRow
+                    ? codeHistoryFor(scenario.events, teen, selectedRow.occurredAt)
+                    : [],
+                readings:
+                  evidence?.eventType === "SURVEY_COMPLETED" && selectedRow
+                    ? readingsFor(
+                        scenario.events,
+                        teen,
+                        String(selectedRow.payload?.instrument ?? ""),
+                        selectedRow.occurredAt
+                      )
+                    : [],
+              };
+            })()}
+            actorName={staffFirstName}
             /* REVEALING LOGS, and the log needs the viewer — which the pane does
                not have and should not need. The seam lives in the data layer;
                this is the only call site. */

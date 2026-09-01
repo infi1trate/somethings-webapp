@@ -510,7 +510,10 @@ function networkWide(): ActivityEvent[] {
       teenId: TEENS.theo.id,
       occurredAt: ago(6, 3),
       payload: {
-        code: "H0038",
+        // F33.0, not H0038 — see the note on `payloadFor`. This row is the one
+        // A5 clause (a) exists for, and its CODE is incidental to that; what
+        // matters is that the viewer's own past approval keeps a code at all.
+        code: "F33.0",
         previousCode: "F41.9",
         note: "own past approval, teen since reassigned",
       },
@@ -635,7 +638,14 @@ function payloadFor(
     case "BILLING_REVIEW_COMPLETE":
       return {
         ...base,
-        code: pick(["F41.1", "F33.0", "F33.1", "F90.0", "H0038"] as const),
+        /* ═══ A CODE CHANGE STAYS INSIDE ONE SYSTEM (gap row 351) ═══
+           This drew `code` from a list mixing ICD-10 F-codes with the HCPCS
+           service code H0038, while `previousCode` was F-codes only — so rows
+           rendered "F32.9 → H0038". F-codes are DIAGNOSES; H0038 is a SERVICE
+           line ("self-help/peer services, per 15 minutes"). A diagnosis does not
+           become a service code, and an arrow between them is a category error
+           rather than a revision. Both sides are ICD-10 now. */
+        code: pick(["F41.1", "F33.0", "F33.1", "F90.0"] as const),
         previousCode: pick(["F41.9", "F32.9", "F41.1"] as const),
         status: "Active",
         // The review document the pane previews — the supervisor's own reasoning,

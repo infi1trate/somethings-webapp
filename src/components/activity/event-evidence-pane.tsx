@@ -2,13 +2,23 @@
 
 // THE EVENT EVIDENCE PANE — what was decided, on what basis.
 //
-// ═══ IT REUSES THE TASKS PANE'S PRIMITIVES, DELIBERATELY ═══
+// ═══ IT HAS A CONTENT VOCABULARY NOW (C2) ═══
 //
-// `PANE_LABEL`, `PaneField`, `QuoteBlock`, `PaneChip` and `PaneLink` all come
-// from `ui/evidence-primitives.tsx`, which is where the Tasks
-// pane's own definitions now live. The section rhythm is therefore the same one a
-// supervisor already reads on `/app/tasks` — eyebrow, then content, `space-y-4`
-// between — rather than a second dialect for the same job.
+// This pane used to import the TASKS pane's primitives — `PaneField`,
+// `PaneChip`, `PaneLink` — which gave it one shape, label-over-value, and it used
+// that shape for everything. A document, a decision, a timestamp and a related
+// record all arrived looking the same, which is why the pane read as a form
+// readout rather than as evidence. It was under-designed for want of primitives,
+// not for want of length.
+//
+// It now draws from `components/activity/pane`: a header with an outcome pill, a
+// tightened metadata list, a document surface, a quote with attribution, a
+// related-record card, a trend strip, a change log, and a pinned action bar.
+//
+// THE TASKS PANE IS UNTOUCHED. `ui/evidence-primitives.tsx` still exists and
+// still serves `/app/tasks`; this surface stopped borrowing from it rather than
+// changing it, because a shared primitive edited for one surface's brief is how
+// both surfaces end up with one surface's decisions.
 //
 // ═══ THREE STATES, AND TWO OF THEM ARE NOT ERRORS ═══
 //
@@ -20,27 +30,30 @@
 // The column itself is unmounted by the ledger when the list is empty (B2), so
 // this component never has to render "nothing to select" beside "nothing exists".
 //
-// ═══ NO `SystemBlock` HERE, AND THAT IS NOT AN OVERSIGHT ═══
+// ═══ NOTHING HERE MUTATES THE SELECTED EVENT (rule 13) ═══
 //
-// The Tasks pane's shape includes an AI-rationale inset, and B3 names it as part
-// of the rhythm to reuse. Nothing in the Activity payloads is AI-generated: a
-// closed flag carries a decision, categories and reviewer notes — all authored by
-// the person who closed it. Reviewer notes therefore render as prose under their
-// own label, NOT in the system-attributed inset, because attributing a human's
-// notes to a model would be a worse error than an inconsistent pane. The block is
-// imported the moment a type carries generated content.
+// Every control is navigational, referential or additive. `PaneActions` carries
+// the long-form statement of that rule; it is repeated here because this is the
+// file someone edits when they want to add a button.
 
 import { useState } from "react";
-import { Eye } from "lucide-react";
-import {
-  PANE_LABEL,
-  PaneChip,
-  PaneField,
-  PaneLink,
-  QuoteBlock,
-} from "@/components/ui/evidence-primitives";
+import { Eye, Link2 } from "lucide-react";
 import { chatHrefFor } from "@/lib/record/chat";
 import type { EventEvidence } from "@/lib/activity/evidence";
+import {
+  ChangeLog,
+  DocumentPreview,
+  MetadataList,
+  PaneActions,
+  PaneHeader,
+  PaneSection,
+  PaneShell,
+  QuoteBlock,
+  RelatedRecord,
+  TrendStrip,
+  type MetadataItem,
+} from "@/components/activity/pane";
+import { codeLabel, type CodeChange, type Reading } from "@/lib/activity/pane-fixtures";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -48,6 +61,39 @@ const RING =
 
 /** TODO-COPY on all three. */
 const NOTHING_SELECTED = "Select an event to see what was decided.";
+
+/** ═══ THE OUTCOME COMES OUT OF THE FACTS AND INTO THE HEADER ═══
+ *
+ *  The pane used to render "Status: Active" and "Decision: Closed" as metadata
+ *  rows indistinguishable from a timestamp — so the answer to "how did this come
+ *  out" was buried in a list whose other entries were "When" and "Approved by".
+ *
+ *  These three labels ARE the outcome, so the first one found is lifted into the
+ *  header pill and removed from the list. A closed set rather than a heuristic:
+ *  a label that means "outcome" is a decision the evidence model makes, and
+ *  guessing from the value would promote the wrong row the first time a fact
+ *  happened to read like a status word. */
+const OUTCOME_LABELS = ["Status", "Decision", "Outcome"];
+
+function splitOutcome(facts: EventEvidence["facts"]): {
+  outcome: string | null;
+  rest: MetadataItem[];
+} {
+  const i = facts.findIndex((f) => OUTCOME_LABELS.includes(f.label));
+  if (i < 0) return { outcome: null, rest: facts.map((f) => ({ ...f })) };
+  return {
+    outcome: facts[i].value,
+    rest: facts.filter((_, j) => j !== i).map((f) => ({ ...f })),
+  };
+}
+
+/** A body whose label names NOTES is a quotation — someone wrote it and the
+ *  attribution is the point. Anything else is a document. The distinction is the
+ *  1:1 re-expression of what the pane already had: two `body` shapes that were
+ *  rendering identically. */
+function bodyIsQuote(label: string): boolean {
+  return /note/i.test(label);
+}
 
 export function EventEvidencePane({
   evidence,
@@ -57,6 +103,16 @@ export function EventEvidencePane({
   degradedMessage,
   /** The teen this evidence concerns, for the chat link. */
   teenId,
+  /** FIRST NAME ONLY. Pre-formatted by the ledger, which owns the rule — this
+   *  surface never renders a surname. Drives the header's subject line. */
+  subjectName,
+  /** Prior code changes for the same object, derived from the ledger itself —
+   *  see `codeHistoryFor`. Empty for every type but billing. */
+  codeHistory = [],
+  /** The last five readings of this survey's instrument, oldest first. */
+  readings = [],
+  /** Resolves an actor id to a display name, for the change log. */
+  actorName,
   /** Reveals the flagged message. Returns null if there is none to reveal. The
    *  ledger owns this because revealing LOGS, and the log needs the viewer id. */
   onRevealFlaggedContent,
@@ -65,6 +121,10 @@ export function EventEvidencePane({
   hasSelection: boolean;
   degradedMessage?: string | null;
   teenId: string | null;
+  subjectName?: string | null;
+  codeHistory?: CodeChange[];
+  readings?: Reading[];
+  actorName?: (id: string) => string;
   onRevealFlaggedContent: () => string | null;
 }) {
   /** ═══ THE DISCLOSURE RESETS PER SELECTION, AND THAT IS THE POINT ═══
@@ -72,141 +132,199 @@ export function EventEvidencePane({
    *  another row must not carry a previous row's revealed state, or one
    *  disclosure would open every subsequent flagged message for free. */
   const [revealed, setRevealed] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  /** ═══ THE SHORT-CONTENT TREATMENT (layout item 9) ═══
+   *  Both empty states use the same shell as a full pane, so the footer sits on
+   *  the bottom edge either way and a short record never reads as a pane that
+   *  failed to finish rendering. */
+  if (!evidence) {
+    return (
+      <aside
+        /* TODO-COPY */
+        aria-label="Event evidence"
+        data-slot="event-evidence-pane"
+        className="flex min-w-0 flex-col rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      >
+        <div className="flex min-h-[12rem] flex-1 items-center justify-center px-6 py-8">
+          <p className="max-w-[28ch] text-center text-[13.5px] leading-[20px] text-[var(--text-muted)]">
+            {hasSelection && degradedMessage ? degradedMessage : NOTHING_SELECTED}
+          </p>
+        </div>
+      </aside>
+    );
+  }
+
+  const { outcome, rest } = splitOutcome(evidence.facts);
 
   return (
     <aside
       /* TODO-COPY */
       aria-label="Event evidence"
       data-slot="event-evidence-pane"
-      className="flex min-w-0 flex-col rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      className="flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
-      {evidence ? (
-        <>
-          <div className="min-w-0 flex-1 px-5 py-4">
-            <h2
-              className="text-[var(--text-primary)]"
-              style={{ font: "var(--type-card-title)" }}
-            >
-              {evidence.title}
-            </h2>
+      <PaneShell
+        header={
+          <PaneHeader
+            eventName={evidence.title}
+            outcome={outcome}
+            subjectName={subjectName}
+          />
+        }
+        footer={
+          <PaneActions
+            primary={{ href: evidence.record.href, label: evidence.record.label }}
+            secondary={[
+              {
+                // REFERENTIAL. Reads the event's identity; writes nothing.
+                label: copied ? "Link copied" : "Copy link",
+                icon: <Link2 className="size-3.5 shrink-0" aria-hidden />,
+                onClick: () => {
+                  void navigator.clipboard
+                    ?.writeText(
+                      `${window.location.origin}${window.location.pathname}?event=${encodeURIComponent(
+                        evidence.eventType
+                      )}`
+                    )
+                    .catch(() => {});
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1600);
+                },
+              },
+            ]}
+          />
+        }
+      >
+        {/* ── WHAT WAS DECIDED ── */}
+        {rest.length > 0 && (
+          <PaneSection>
+            <MetadataList items={rest} />
+          </PaneSection>
+        )}
 
-            <div className="mt-4 space-y-4">
-              {/* ── WHAT WAS DECIDED ── */}
-              {evidence.facts.map((f) => (
-                <PaneField key={f.label} label={f.label}>
-                  {f.value}
-                </PaneField>
-              ))}
+        {/* ── THE ARTIFACT ──
+            A body whose label names notes is a QUOTE with attribution; anything
+            else is a document. Both used to render as a paragraph under a label. */}
+        {evidence.body &&
+          (bodyIsQuote(evidence.body.label) ? (
+            <PaneSection label={evidence.body.label} divided>
+              <QuoteBlock attribution={actorName ? undefined : undefined}>
+                {evidence.body.text}
+              </QuoteBlock>
+            </PaneSection>
+          ) : (
+            <PaneSection divided>
+              {/* NO SECTION HEADING — the document carries its own title line, and
+                  a heading above it would be the same word twice (layout item 10). */}
+              <DocumentPreview
+                title={evidence.body.label}
+                paragraphs={evidence.body.text.split(/\n{2,}/)}
+              />
+            </PaneSection>
+          ))}
 
-              {/* ── THE ARTIFACT, when the event has one. Prose, so it reads as
-                     a document rather than as another value. ── */}
-              {evidence.body && (
-                <PaneField label={evidence.body.label}>
-                  <p className="whitespace-pre-line text-[13.5px] leading-[20px] text-[var(--text-secondary)]">
-                    {evidence.body.text}
-                  </p>
-                </PaneField>
-              )}
+        {/* ── THE TREND, when this event is a reading ── */}
+        {readings.length > 1 && (
+          <PaneSection label="Recent readings" divided>
+            <TrendStrip
+              instrument={
+                evidence.facts.find((f) => f.label === "Instrument")?.value ?? ""
+              }
+              readings={readings}
+            />
+          </PaneSection>
+        )}
 
-              {/* ═══ FLAGGED CONTENT, BEHIND A CONTROL ═══
-                  ═══ AND THIS DIFFERS FROM THE TASKS PANE ON PURPOSE ═══
-
-                  Tasks shows the message on open, which is right there: it is an
-                  active queue of items to act on now, the content IS the thing
-                  being judged, and one item is open at a time.
-
-                  Activity is a browsable 30-day history, so the same content has
-                  a far wider exposure surface — a reader scrolling a month of
-                  rows would surface teen messages incidentally, dozens of times,
-                  while looking for something else.
-
-                  Someone will notice the two panes differ and try to make them
-                  match. This is the reason not to. See `flaggedContentFor` and
-                  design-system-gaps row 328. Revealing LOGS. */}
-              {evidence.hasFlaggedContent && (
-                <div>
-                  <p className={PANE_LABEL}>
-                    {/* TODO-COPY */}
-                    Flagged content
-                  </p>
-                  {revealed ? (
-                    <div className="mt-2">
-                      <QuoteBlock>{revealed}</QuoteBlock>
-                      {teenId && (
-                        <PaneLink href={chatHrefFor(teenId)}>
-                          {/* TODO-COPY */}
-                          View chat context
-                        </PaneLink>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={() => setRevealed(onRevealFlaggedContent())}
-                        className={cn(
-                          "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold text-[var(--text-primary)]",
-                          "transition-colors hover:bg-[var(--tint-hover)]",
-                          RING
-                        )}
-                      >
-                        <Eye className="size-3.5 shrink-0" aria-hidden />
-                        {/* TODO-COPY */}
-                        View flagged content
-                      </button>
-                      <p className="mt-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
-                        {/* TODO-COPY. Says WHY it is behind a control, so the
-                            control does not read as an arbitrary extra click.
-                            Non-blaming and factual: it does not imply the reader
-                            should not look. */}
-                        A teen&apos;s own message. Opening it is recorded.
-                      </p>
-                    </div>
+        {/* ── FLAGGED CONTENT, BEHIND A CONTROL ──
+            ═══ AND THIS DIFFERS FROM THE TASKS PANE ON PURPOSE ═══
+            Tasks shows the message on open, which is right there: an active queue
+            of items to act on now, one open at a time. Activity is a browsable
+            30-day history, so the same content has a far wider exposure surface —
+            a reader scrolling a month of rows would surface teen messages
+            incidentally, dozens of times, while looking for something else.
+            See `flaggedContentFor` and gap row 328. Revealing LOGS. */}
+        {evidence.hasFlaggedContent && (
+          <PaneSection label="Flagged content" divided>
+            {revealed ? (
+              <QuoteBlock
+                attribution={subjectName ?? undefined}
+                /* TODO-COPY */
+                meta="flagged message"
+              >
+                {revealed}
+              </QuoteBlock>
+            ) : (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setRevealed(onRevealFlaggedContent())}
+                  className={cn(
+                    "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold text-[var(--text-primary)]",
+                    "transition-colors hover:bg-[var(--tint-hover)]",
+                    RING
                   )}
-                </div>
-              )}
+                >
+                  <Eye className="size-3.5 shrink-0" aria-hidden />
+                  {/* TODO-COPY */}
+                  View flagged content
+                </button>
+                <p className="mt-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
+                  {/* TODO-COPY. Says WHY it is behind a control, so the control
+                      does not read as an arbitrary extra click. */}
+                  A teen&apos;s own message. Opening it is recorded.
+                </p>
+              </div>
+            )}
+            {teenId && (
+              <a
+                href={chatHrefFor(teenId)}
+                className={cn(
+                  "mt-2.5 inline-flex items-center gap-1.5 rounded-sm py-1.5 text-[13px] font-semibold text-[var(--text-primary)]",
+                  "underline decoration-[color:var(--border-contour)] underline-offset-2 hover:decoration-[color:var(--text-primary)]",
+                  RING
+                )}
+              >
+                {/* TODO-COPY */}
+                View chat context
+              </a>
+            )}
+          </PaneSection>
+        )}
 
-              {/* ── RELATED CONTEXT, last: it frames the decision rather than
-                     being part of it. ── */}
-              {evidence.related && evidence.related.length > 0 && (
-                <div className="border-t border-[color:var(--border-subtle)] pt-4">
-                  <p className={PANE_LABEL}>
-                    {/* TODO-COPY */}
-                    Related
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {evidence.related.map((r) => (
-                      <PaneChip key={r.label}>
-                        {r.label}: {r.value}
-                      </PaneChip>
-                    ))}
-                  </div>
-                </div>
-              )}
+        {/* ── RELATED RECORDS ──
+            ═══ THIS REPLACES THE DEAD CHIP ═══
+            "Primary presentation: F33.1" was a neutral chip that named a record
+            and did nothing — not a link, not expandable, no content. A reader who
+            did not already know the code learned nothing from it. */}
+        {evidence.related && evidence.related.length > 0 && (
+          <PaneSection label="Related" divided>
+            <div className="space-y-2.5">
+              {evidence.related.map((r) => (
+                <RelatedRecord
+                  key={r.label}
+                  kind={r.label}
+                  title={<span className="font-mono text-[13.5px]">{r.value}</span>}
+                  summary={
+                    codeLabel(r.value) ??
+                    /* TODO-COPY. An honest fallback: the pane knows the code and
+                       not its descriptor, and saying so beats inventing one. */
+                    "No descriptor on file for this code."
+                  }
+                  href={evidence.record.href}
+                />
+              ))}
             </div>
-          </div>
+          </PaneSection>
+        )}
 
-          {/* ═══ THE PERSISTENT FOOTER LINK ═══
-              Every pane has one, in the same place, whatever the type. The pane
-              shows what was decided; the record is where the work lives, and a
-              reader who wants more should never have to hunt for the way there. */}
-          <div className="shrink-0 border-t border-[color:var(--border-subtle)] px-5 py-3">
-            <PaneLink href={evidence.record.href} icon={false}>
-              {evidence.record.label}
-              <span aria-hidden> →</span>
-            </PaneLink>
-          </div>
-        </>
-      ) : (
-        // BOTH EMPTY STATES CENTRE IN THE FULL COLUMN. `flex-1` on the aside plus
-        // this wrapper's own centring, rather than a fixed height — see the note
-        // in the ledger about the pane being the grid item itself.
-        <div className="flex min-h-[12rem] flex-1 items-center justify-center px-6 py-8">
-          <p className="max-w-[28ch] text-center text-[13.5px] leading-[20px] text-[var(--text-muted)]">
-            {hasSelection && degradedMessage ? degradedMessage : NOTHING_SELECTED}
-          </p>
-        </div>
-      )}
+        {/* ── THE CODE HISTORY, free from the append-only ledger ── */}
+        {codeHistory.length > 0 && actorName && (
+          <PaneSection label="Earlier changes" divided>
+            <ChangeLog changes={codeHistory} actorName={actorName} />
+          </PaneSection>
+        )}
+      </PaneShell>
     </aside>
   );
 }

@@ -26,6 +26,21 @@ import {
   STATUS_ORDER,
 } from "@/lib/record/mentor-status";
 import type { MentorAvailability } from "@/lib/types";
+import {
+  ChangeLog,
+  DocumentPreview,
+  MetadataList,
+  PaneActions,
+  PaneHeader,
+  PaneSection,
+  PaneShell,
+  QuoteBlock,
+  RelatedRecord,
+  TrendStrip,
+  OutcomePill,
+  OUTCOME_TONE,
+} from "@/components/activity/pane";
+import { reviewDocumentFor, reviewerNoteFor } from "@/lib/activity/pane-fixtures";
 
 const SWATCHES: { token: string; value: string; note?: string }[] = [
   { token: "surface/s2", value: "#e5e0d2" },
@@ -467,6 +482,159 @@ export default function ComponentsAuditPage() {
                   preview here).
                 </div>
               </PhonePreviewShell>
+            </div>
+          </div>
+        </Panel>
+
+        {/* ═══ ACTIVITY PANE PRIMITIVES (C2) ═══
+            Every primitive in every state, on the real surfaces. The pane's
+            defect was having ONE content shape and using it for everything, so
+            seeing the eight together — and seeing that they are visibly
+            different KINDS of thing — is the audit. */}
+        <Panel
+          title="Activity pane primitives"
+          note="C2. The pane's content vocabulary, in the states the pane can put them in. Prototype fixtures — see lib/activity/pane-fixtures.ts."
+        >
+          <div className="space-y-10">
+            <div>
+              <StateLabel>PaneHeader — every outcome word and tone</StateLabel>
+              <div className="flex flex-wrap items-center gap-2">
+                {Object.keys(OUTCOME_TONE).map((w) => (
+                  <OutcomePill key={w} word={w} />
+                ))}
+                {/* An UNMAPPED word still renders, neutral. A missing tint is a
+                    smaller failure than a missing outcome. */}
+                <OutcomePill word="Withdrawn" />
+              </div>
+              <div className="mt-4 max-w-[560px] rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                <PaneHeader
+                  eventName="Billing review"
+                  outcome="Active"
+                  subjectName="Caleb"
+                />
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>MetadataList — one and two columns</StateLabel>
+              <div className="max-w-[560px] rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                <MetadataList
+                  items={[
+                    { label: "Code", value: <span className="font-mono text-[13.5px]">F41.9 → F33.0</span> },
+                    { label: "Approved by", value: "Lydia · Supervisor" },
+                    { label: "When", value: "Aug 26, 2026 at 4:12 PM" },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>DocumentPreview — collapsed, with its expand control</StateLabel>
+              <div className="max-w-[560px]">
+                <DocumentPreview
+                  title={reviewDocumentFor(0).title}
+                  date="Aug 26, 2026"
+                  paragraphs={reviewDocumentFor(0).paragraphs}
+                  href="#"
+                />
+              </div>
+              <StateLabel>Single short paragraph — no control, nothing to expand</StateLabel>
+              <div className="max-w-[560px]">
+                <DocumentPreview
+                  title="Presentation review"
+                  date="Aug 12, 2026"
+                  paragraphs={["Confirming the existing code. No change."]}
+                />
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>QuoteBlock — with and without attribution</StateLabel>
+              <div className="max-w-[560px] space-y-5 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                <QuoteBlock attribution="Lydia" meta="Supervisor · Aug 26">
+                  {reviewerNoteFor(0)}
+                </QuoteBlock>
+                <QuoteBlock>{reviewerNoteFor(3)}</QuoteBlock>
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>RelatedRecord — replaces the dead chip</StateLabel>
+              <div className="max-w-[560px] space-y-2.5">
+                <RelatedRecord
+                  kind="Primary presentation"
+                  title={<span className="font-mono text-[13.5px]">F33.1</span>}
+                  summary="Major depressive disorder, recurrent, moderate"
+                  detail="Assigned Feb 6, 2026 from the intake mapping. Reviewed Jun 4, 2026 on cadence."
+                  href="#"
+                />
+                <RelatedRecord
+                  kind="Survey"
+                  title="GAD-7"
+                  summary="Score 11 of 21 — moderate."
+                />
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>TrendStrip — improving, worsening, and WHO-5 (higher is better)</StateLabel>
+              <div className="flex max-w-[720px] flex-wrap gap-8 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                <TrendStrip
+                  instrument="PHQ-9"
+                  readings={[
+                    { at: "2026-05-02T12:00:00.000Z", score: 17 },
+                    { at: "2026-06-01T12:00:00.000Z", score: 15 },
+                    { at: "2026-07-04T12:00:00.000Z", score: 13 },
+                    { at: "2026-08-02T12:00:00.000Z", score: 14 },
+                    { at: "2026-08-26T12:00:00.000Z", score: 11 },
+                  ]}
+                />
+                <TrendStrip
+                  instrument="WHO-5"
+                  readings={[
+                    { at: "2026-07-04T12:00:00.000Z", score: 8 },
+                    { at: "2026-08-26T12:00:00.000Z", score: 15 },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>ChangeLog — populated, and the empty case</StateLabel>
+              <div className="max-w-[560px] space-y-5 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4">
+                <ChangeLog
+                  actorName={(id) => id}
+                  changes={[
+                    { at: "2026-06-04T12:00:00.000Z", from: "F32.9", to: "F33.1", actorId: "Lydia" },
+                    { at: "2026-02-06T12:00:00.000Z", from: null, to: "F32.9", actorId: "Amara" },
+                  ]}
+                />
+                <ChangeLog actorName={(id) => id} changes={[]} />
+              </div>
+            </div>
+
+            <div>
+              <StateLabel>PaneShell + PaneActions — short content, footer pinned to the bottom edge</StateLabel>
+              <div className="h-[420px] max-w-[560px] overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
+                <PaneShell
+                  header={<PaneHeader eventName="Survey" outcome="Closed" subjectName="Maya" />}
+                  footer={
+                    <PaneActions
+                      primary={{ href: "#", label: "Open the survey history" }}
+                      secondary={[{ label: "Copy link", onClick: () => {} }]}
+                    />
+                  }
+                >
+                  <PaneSection>
+                    <MetadataList
+                      items={[
+                        { label: "Instrument", value: "GAD-7" },
+                        { label: "Completed", value: "Aug 26, 2026" },
+                      ]}
+                    />
+                  </PaneSection>
+                </PaneShell>
+              </div>
             </div>
           </div>
         </Panel>
