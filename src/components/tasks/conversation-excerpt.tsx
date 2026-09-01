@@ -37,10 +37,14 @@ import type { Conversation, ConversationMessage } from "@/lib/tasks/conversation
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** ~320px per the brief. Tall enough to hold roughly six exchanges — the amount
- *  it takes to read a turn of conversation — and short enough that the pane's own
- *  actions stay on screen beneath it. */
-const REGION_H = "h-[320px]";
+/** ~340px. Tall enough to hold roughly six exchanges — the amount it takes to
+ *  read a turn of conversation — and short enough that the pane's own actions
+ *  stay on screen beneath it.
+ *
+ *  IT WAS 320px AND THE AUDIT ASKED FOR 340. Both are inside "~340"; the raise is
+ *  taken because the pane's footer is pinned now (Part 1.2), so the twenty pixels
+ *  come out of the body's scroll rather than out of the resolve actions. */
+const REGION_H = "h-[340px]";
 
 const SHELL =
   "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-s1)]";

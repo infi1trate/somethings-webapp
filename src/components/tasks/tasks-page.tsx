@@ -588,15 +588,32 @@ export function TasksPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-8">
-      {/* ── HEADER (§1) ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    /* ═══ A FIXED FRAME, NOT A DOCUMENT (Part 1.2) ═══
+     *
+     *  The page used to flow: header, tabs, then two columns, all inside the
+     *  shell's scrolling `<main>`. That works while the content is short and
+     *  fails the moment it is not — at 40–60 open flags the list runs past the
+     *  viewport, the whole page scrolls, and the resolve footer goes with it.
+     *  The one control a supervisor presses fifty times a shift ends up below the
+     *  fold, reachable only by scrolling past the evidence they just read.
+     *
+     *  `h-full min-h-0 flex-col` makes this page exactly the height of the shell's
+     *  content box, and the two columns the only things that scroll. `min-h-0` is
+     *  the load-bearing half: a flex child's automatic minimum size is its
+     *  content, so without it the columns refuse to shrink, the frame grows past
+     *  its parent, and the page scrolls again — the same trap the care-update
+     *  modal and the dialog primitive both documented. */
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col px-6 py-6 lg:px-8">
+      {/* ── HEADER (§1) — PINNED. Never scrolls away. ─────────────────── */}
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
             {/* TODO-COPY */}
             Tasks
           </h1>
-          <p className="mt-0.5 text-[14px] leading-[20px] text-[var(--text-secondary)]">
+          {/* 4px under the display title — the spacing scale's first step, and
+              the only value between these two lines (Part 2). */}
+          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
             {/* TODO-COPY. "20 open · 4 overdue" — and the overdue clause is
                 omitted entirely at zero rather than reading "0 overdue", which is
                 a number nobody needs to see. */}
@@ -618,7 +635,7 @@ export function TasksPage() {
 
       {/* ── RESPOND STRIP (§3.2). Above the tabs, visible from every tab. ── */}
       {escalations.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-4 shrink-0">
           <RespondStrip escalations={escalations} now={now} />
         </div>
       )}
@@ -633,8 +650,10 @@ export function TasksPage() {
           `nextUp` IS UNTOUCHED and still drives all of that, plus tab-badge
           urgency. Only the strip's UI is gone. The Respond strip above is a different thing — escalations, not
           priority — and stays. */}
-      {/* ── TABS / SUMMARY CARDS (§3.3) ─────────────────────────────────── */}
-      <div className="mt-4">
+      {/* ── TABS / SUMMARY CARDS (§3.3) — PINNED with the header. ─────────
+             32px below the subtitle, 24px above the columns: the region's only
+             two vertical values, both on the scale (Part 2). */}
+      <div className="mt-8 shrink-0">
         {plan.cards === "loading" ? (
           <TabCardsSkeleton />
         ) : (
@@ -657,7 +676,9 @@ export function TasksPage() {
         role="tabpanel"
         aria-labelledby={`tasks-tab-${activeDomain}`}
         tabIndex={-1}
-        className="mt-5"
+        // THE FLEXIBLE ROW. Everything above is `shrink-0`; this is what absorbs
+        // the remaining height and hands it to the two columns.
+        className="mt-6 min-h-0 flex-1"
       >
         {nothingOpen ? (
           <WholePageEmpty />
@@ -667,11 +688,31 @@ export function TasksPage() {
               // 40 / 60 at >=1280px. Below 1100px only ONE of the two mounts —
               // switching rather than shrinking, so neither pane is ever squeezed
               // into a width it cannot use.
-              "grid gap-5",
+              // ═══ AN EXPLICIT ROW, OR THE GRID GROWS PAST ITS OWN HEIGHT ═══
+              // `h-full` alone was not enough: the grid's implicit row is
+              // `auto`, and an auto track sizes to its content — so the columns
+              // pushed the row taller than the frame and the SHELL scrolled
+              // instead, carrying the pinned header off the top of the viewport.
+              // MEASURED: the page was exactly 728px, the shell's panel reported
+              // scrollHeight 1062, and the title sat at y = -237.
+              // `minmax(0,1fr)` caps the row at the space available and lets it
+              // shrink below its content, which is what makes the columns scroll
+              // rather than the page. Same fix, same reason, as the dialog's
+              // body row.
+              "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
               "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
             )}
           >
-            <div className={cn(paneTakeover && "hidden xl:block")}>
+            {/* ── THE LIST SCROLLS ON ITS OWN ──
+                `overscroll-contain` so reaching the end of the list does not hand
+                the gesture to the page behind it. The two columns scroll
+                independently and neither chains into the other. */}
+            <div
+              className={cn(
+                "min-h-0 overflow-y-auto overscroll-contain",
+                paneTakeover && "hidden xl:block"
+              )}
+            >
               <Worklist
                 entries={entries}
                 domain={activeDomain}
@@ -695,13 +736,35 @@ export function TasksPage() {
                 }
               />
             </div>
-            <div className={cn(!paneTakeover && "hidden xl:block")}>
+            {/* ── THE PANE SCROLLS ON ITS OWN ──
+                Its footer is sticky at the pane's own bottom edge — see
+                `TaskPane`. The takeover below `xl` keeps the same behaviour,
+                because the pane is the same component either way. */}
+            <div
+              className={cn(
+                /* ═══ TWO SITUATIONS, TWO LAYOUTS ═══
+                   Below `xl` the takeover puts a "Back to list" button ABOVE the
+                   pane, so this is a FLEX COLUMN and the pane takes the remaining
+                   height. At `xl` that button is `xl:hidden` and nothing sits
+                   above the pane, so this is a plain BLOCK and the pane is simply
+                   `h-full`.
+                   One layout for both was tried twice and does not exist:
+                   `h-full` everywhere overflowed below `xl` by exactly the
+                   button's height (measured 20px at 1024×800 — small enough to
+                   read as rounding, and not), and `flex-1` everywhere overflowed
+                   at DESKTOP by 234px. The cases genuinely differ. */
+                "flex min-h-0 flex-col xl:block",
+                !paneTakeover && "hidden xl:block"
+              )}
+            >
               {paneTakeover && (
                 <button
                   type="button"
                   onClick={() => setPaneTakeover(false)}
                   className={cn(
-                    "mb-2 inline-flex min-h-9 items-center gap-1 rounded-full px-2 text-[13px] font-semibold xl:hidden",
+                    // `shrink-0 self-start`: a control, not a row — in a flex
+                    // column a stretched button would span the width.
+                    "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold xl:hidden",
                     "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                     RING
                   )}
@@ -727,7 +790,18 @@ export function TasksPage() {
                   // POLITE, and on the pane itself so an auto-advance announces
                   // the item that arrived rather than the whole page re-reading.
                   aria-live="polite"
-                  className="rounded-[var(--radius-elevated)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                  // ═══ THE HEIGHT CHAIN RUNS THROUGH HERE (Part 1.2) ═══
+                  // This wrapper exists for the focus ring and the live region,
+                  // and it was the break in the chain: content-sized at 854px in
+                  // a 728px frame, so the pane's own `h-full` resolved against
+                  // IT and inherited the overflow. Measured — the shallowest
+                  // element past the frame's bottom edge, by 334px, which is
+                  // exactly what the shell was scrolling.
+                  // A wrapper that only decorates still has to pass the height
+                  // through.
+                  // `flex-1` below `xl` (the height left beside the back button);
+                  // `h-full` at `xl` (the whole column). See the column's note.
+                  className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full xl:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                 >
                   {/* PANE AND EXCERPT ARE SEPARATE AXES (Part 4). Under partial
                       failure the excerpt errors while the pane stays healthy, so

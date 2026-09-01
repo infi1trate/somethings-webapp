@@ -410,9 +410,23 @@ export function TaskPane({
     p.kind === "billing" ? (override ?? p.recommended) : null;
 
   return (
-    <div className="flex max-h-[calc(100dvh-8rem)] flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
-      {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div className="border-b border-[color:var(--border-subtle)] px-5 py-4">
+    /* ═══ THE PANE IS THE FRAME'S HEIGHT, NOT THE VIEWPORT'S (Part 1.2) ═══
+     *
+     *  `max-h-[calc(100dvh-8rem)]` was a GUESS at the space available — it
+     *  subtracts a constant for chrome the pane cannot see, so it is wrong by
+     *  whatever the header, the tab-cards and the shell's own reserves actually
+     *  measure, and wrong differently at every viewport. `h-full` takes the
+     *  height its grid cell was given, which is the real answer.
+     *
+     *  `min-h-0` for the same reason as the page root: without it the body
+     *  refuses to shrink below its content and the footer is pushed out of the
+     *  box rather than the body scrolling. */
+    <div
+      data-slot="task-pane"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+    >
+      {/* ── HEADER — pinned inside the pane. ─────────────────────────────── */}
+      <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           <h2 className="font-display text-[18px] font-bold leading-[26px] text-[var(--text-primary)]">
             {item.teenDisplayName}
@@ -441,7 +455,11 @@ export function TaskPane({
       </div>
 
       {/* ── BODY, scrolls independently ─────────────────────────────────── */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      {/* ── THE BODY IS THE ONLY SCROLLING PART OF THE PANE ──
+             `overscroll-contain` so reaching its end does not scroll the page
+             behind it — and the excerpt inside contains its own overscroll too,
+             so three nested regions each stop at their own edge. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
         {p.kind === "riskFlag" && (
           <RiskFlagBody
             payload={p}
@@ -474,10 +492,19 @@ export function TaskPane({
         )}
       </div>
 
-      {/* ── FOOTER, sticky ─────────────────────────────────────────────── */}
+      {/* ═══ THE FOOTER, ACTUALLY PINNED (Part 1.2) ═══
+          This comment said "sticky" and the element was not — it sat in normal
+          flow, so it stayed on screen only while the pane happened to fit. The
+          fix is not `position: sticky` but `shrink-0` in a flex column whose
+          BODY is the flexible row: the footer then sits on the pane's bottom
+          edge by construction, at any content length, with no z-index and no
+          overlap to reason about.
+          "Was this flagged correctly?" and "Confirm {code}" are the controls a
+          supervisor presses fifty times a shift. They can never leave the
+          viewport. */}
       <div
         data-slot="task-pane-footer"
-        className="border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-3.5"
+        className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-3.5"
       >
         {p.kind === "riskFlag" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
