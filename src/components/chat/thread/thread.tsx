@@ -37,6 +37,7 @@ import type {
   ChatEvent,
   ChatMessage,
   ChatThread,
+  SentArtifact,
   ThreadBadge,
 } from "@/lib/chat/types";
 import { LIVE_ID } from "@/lib/record/subject";
@@ -112,6 +113,7 @@ export function Thread({
   thread,
   messages,
   events = [],
+  artifacts = {},
   now,
   reactions,
   onReact,
@@ -122,6 +124,9 @@ export function Thread({
   messages: ChatMessage[];
   /** Interleaved into the transcript by time — see `entries`. */
   events?: ChatEvent[];
+  /** Keyed by artifact id. The chip needs it only to know whether a send has since
+   *  been taken back — the sheet is what reads the rest. */
+  artifacts?: Record<string, SentArtifact>;
   now: number;
   /** Session-local reactions, keyed by message id. See `MessageActions`. */
   reactions?: Record<string, string[]>;
@@ -338,6 +343,10 @@ export function Thread({
                          know which of them did this. */
                       actorName={
                         entry.event.actorId === LIVE_ID ? "You" : theirName
+                      }
+                      retracted={
+                        entry.event.kind === "activity-sent" &&
+                        !!artifacts[entry.event.artifactId]?.rescindedAt
                       }
                       onOpen={onOpenEvent}
                     />

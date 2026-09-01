@@ -111,11 +111,19 @@ export function EventChip({
    *  Resolved by the caller, which is the only place that knows who is who. */
   actorName,
   variant = "inline",
+  /** ═══ THE SEND SURVIVES ITS OWN RETRACTION, QUIETLY ═══
+   *  When the artifact behind an `activity-sent` has been taken back, the chip is
+   *  still there and still says what it said — the history is that this WAS sent —
+   *  but it steps back, because the live fact is now the `activity-rescinded` chip
+   *  below it. Deleting the original would be rewriting the record; leaving it at
+   *  full strength would leave two chips claiming to be current. */
+  retracted,
   onOpen,
 }: {
   event: ChatEvent;
   actorName: string;
   variant?: "inline" | "row";
+  retracted?: boolean;
   onOpen?: (event: ChatEvent) => void;
 }) {
   const Glyph = GLYPH[event.kind];
@@ -139,6 +147,11 @@ export function EventChip({
   const shape = cn(
     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1",
     tone ?? "text-[var(--text-muted)]",
+    /* A LINE THROUGH THE SENTENCE, not a colour change. Reduced contrast alone
+       would be indistinguishable from the muted ink every untinted chip already
+       carries — and `line-through` is a treatment a screen reader can also expose,
+       which a tint is not. */
+    retracted && "line-through decoration-1 opacity-60",
     // An untinted chip needs SOMETHING when it is pressable, or hover is the only
     // affordance and touch has none.
     opens && !tone && "bg-[var(--surface-s1)]",
@@ -151,6 +164,7 @@ export function EventChip({
     const rowShape = cn(
       "flex w-full items-center gap-2 rounded-[var(--radius-inset)] px-2.5 py-2 text-left",
       tone ?? "text-[var(--text-secondary)]",
+      retracted && "line-through decoration-1 opacity-60",
       opens && "transition-colors hover:bg-[var(--tint-hover)]",
       RING
     );
@@ -174,7 +188,7 @@ export function EventChip({
     // A LIST ITEM, because the transcript is a list and an event is one of its
     // entries — a bare div here would break the list's structure for a screen
     // reader walking it.
-    <li className="mt-3 flex justify-center">
+    <li data-slot="event-chip" data-kind={event.kind} className="mt-3 flex justify-center">
       {opens ? (
         <button
           type="button"

@@ -162,9 +162,18 @@ console.log("\n── event chips @ activities-in-flight");
     "and both actors appear",
     events.map((e) => e.text.split(" ")[0]).join(",")
   );
-  /* PHASE 2 HAS NO DetailSheet, so no chip claims to open one. Inert-and-honest
-     rather than pressable-and-empty. Phase 4 flips these to buttons. */
-  check(events.every((e) => !e.pressable), "none pretends to open something Phase 4 has not built");
+  /* ═══ THIS CHECK INVERTED IN PHASE 4, ON PURPOSE ═══
+     While there was no DetailSheet it asserted that NO chip was pressable —
+     inert-and-honest rather than pressable-and-empty. Phase 4 built the sheet, so
+     the same rule ("a chip is a button only when there is somewhere to go") now
+     demands the opposite outcome. Rewritten rather than deleted, so the record of
+     what was true when is not lost. `chat-lifecycle.mjs` checks what the press
+     actually opens. */
+  check(
+    events.every((e) => e.pressable),
+    "every chip that has contents is pressable",
+    events.map((e) => e.pressable).join(",")
+  );
 
   const escalation = await chat("escalation-active");
   const tinted = await escalation.evaluate(`(() => {

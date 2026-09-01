@@ -32,6 +32,7 @@ import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
 import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail } from "@/components/chat/rail/rail";
 import { Thread } from "@/components/chat/thread/thread";
+import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -147,20 +148,43 @@ export function ChatPage({
   const selectedId = picked ?? withId ?? data?.focusThreadId ?? null;
   const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
   const messages = thread ? (data?.messages[thread.id] ?? []) : [];
-  const events: ChatEvent[] = thread
-    ? [
-        ...(data?.events[thread.id] ?? []),
-        ...(mounted ? (writtenEvents[thread.id] ?? []) : []),
-      ]
-    : [];
-  const artifacts: SentArtifact[] = thread
-    ? [
-        ...Object.values(data?.artifacts ?? {}).filter((a) => a.threadId === thread.id),
-        ...(mounted
-          ? Object.values(writtenArtifacts).filter((a) => a.threadId === thread.id)
-          : []),
-      ]
-    : [];
+
+  /** Which artifact the DetailSheet is showing. Held by ID rather than by object,
+   *  so the sheet re-reads the live record — a rescind that wrote to the store
+   *  while a stale object sat in state would show the old completion. */
+  const [openArtifactId, setOpenArtifactId] = useState<string | null>(null);
+
+  /* ═══ MEMOISED, BECAUSE THESE ARE THE INPUTS TO OTHER MEMOS ═══
+     Both merge the scenario's fixtures with what this session has written, so both
+     allocate a fresh array on every render — and a downstream memo keyed on an
+     always-new array is a memo that never memoises. The first version worked around
+     that with a hand-written dep list and an eslint-disable, which is the shape of
+     a bug rather than a fix: `artifacts.length` does not change when a rescind
+     mutates one entry in place.
+     Memoising the SOURCE instead means the derived map's dep list is just
+     `[artifacts]`, and it is correct by inspection. */
+  const events = useMemo<ChatEvent[]>(() => {
+    if (!thread) return [];
+    return [
+      ...(data?.events[thread.id] ?? []),
+      ...(mounted ? (writtenEvents[thread.id] ?? []) : []),
+    ];
+  }, [thread, data, mounted, writtenEvents]);
+
+  const artifacts = useMemo<SentArtifact[]>(() => {
+    if (!thread) return [];
+    return [
+      ...Object.values(data?.artifacts ?? {}).filter((a) => a.threadId === thread.id),
+      ...(mounted
+        ? Object.values(writtenArtifacts).filter((a) => a.threadId === thread.id)
+        : []),
+    ];
+  }, [thread, data, mounted, writtenArtifacts]);
+
+  const artifactById = useMemo(
+    () => Object.fromEntries(artifacts.map((a) => [a.id, a])),
+    [artifacts]
+  );
 
   /** ═══ SENDING WRITES TWO RECORDS, AND NEITHER IS THE OTHER ═══
    *
@@ -196,6 +220,30 @@ export function ChatPage({
       actorId: LIVE_ID,
       artifactId,
       artifactName: activityById(activityId).name,
+    });
+  };
+
+  /** ═══ RESCINDING WRITES, AND NEVER UNWRITES ═══
+   *
+   *  It sets `rescindedAt` on the artifact — which is what removes it from the
+   *  teen's side — and APPENDS a second event. The original `activity-sent` is
+   *  untouched, because the history is that this was sent and then taken back, and
+   *  "never sent" is a different and untrue history.
+   *
+   *  The event log has no remove for exactly this reason: making the retraction a
+   *  deletion would put the store one line of code away from being able to erase
+   *  what a mentor did. */
+  const rescind = (artifact: SentArtifact) => {
+    const at = Date.now();
+    putChatArtifact({ ...artifact, rescindedAt: at });
+    appendChatEvent({
+      id: `ev-${artifact.threadId}-${at}`,
+      threadId: artifact.threadId,
+      at,
+      kind: "activity-rescinded",
+      actorId: LIVE_ID,
+      artifactId: artifact.id,
+      artifactName: activityById(artifact.activityId).name,
     });
   };
 
@@ -267,12 +315,27 @@ export function ChatPage({
                 messages={messages}
                 events={events}
                 now={now}
+                artifacts={artifactById}
                 reactions={reactions}
                 onReact={react}
-                /* PHASE 4 opens the DetailSheet from here. Left undefined for now
-                   rather than wired to a no-op, because `EventChip` renders an
-                   inert chip when there is nothing to open — which is honest, and
-                   is what stops a pressable-looking chip from doing nothing. */
+                onOpenEvent={(e) => setOpenArtifactId(e.artifactId)}
+              />
+
+              {/* ═══ ONE SHEET, NOT ONE PER CHIP ═══
+                  A dialog per event would mount fifteen focus traps in a long
+                  thread. The open artifact is an id in page state and the sheet
+                  reads the live record, so a rescind performed inside it is
+                  reflected the moment it closes. */}
+              <DetailSheet
+                artifact={
+                  openArtifactId ? (artifactById[openArtifactId] ?? null) : null
+                }
+                theirName={thread.displayName.split(" ")[0]}
+                open={!!openArtifactId && !!artifactById[openArtifactId]}
+                onOpenChange={(o) => {
+                  if (!o) setOpenArtifactId(null);
+                }}
+                onRescind={rescind}
               />
 
               {/* ═══ THE RAIL TOGGLE LIVES ON THE THREAD, NOT IN THE RAIL ═══
