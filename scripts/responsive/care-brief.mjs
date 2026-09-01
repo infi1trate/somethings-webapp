@@ -30,7 +30,9 @@ async function open(teen, { width = 1440, height = 1000, zoom = 1 } = {}) {
 // ═══ B · THE HEADER, IN THREE DEV SCENARIOS ═══
 console.log("\n═══ B · header meta line ═══");
 const HEADER = {};
-for (const [scenario, teen] of [["New — day 1", "t1"], ["30-day review due", "t17"], ["Rich longitudinal", "t17"]]) {
+// "30-day review due" was this list's own stale label for t17 — the registry stopped
+// using those words when the scenario was corrected, and t17 renders "90-day review".
+for (const [scenario, teen] of [["New — day 1", "t1"], ["90-day review due", "t17"], ["Rich longitudinal", "t17"]]) {
   const p = await open(teen);
   const r = await p.evaluate(() => {
     const card = document.querySelector('[data-record-section="care-summary-doc"]');

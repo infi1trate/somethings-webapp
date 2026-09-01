@@ -584,6 +584,64 @@ export function severityFor(
   return "severe";
 }
 
+/** ═══ THE RECENCY-WEIGHTED AGGREGATE ═══
+ *
+ *  A cadence review from day 30 on is a judgment about a PERIOD, not about the
+ *  last thing a teen happened to answer. So the card reads a weighted score over
+ *  the most recent surveys rather than a single number that one good week or one
+ *  bad one can swing on its own.
+ *
+ *  THE 3:2:1 RATIO IS NOT ARBITRARY. t13's hand-written aggregate — the only one
+ *  that existed before this function — states its score is "11 rather than the
+ *  flat mean of 10.7", and 3:2:1 over its surveys (11, 13, 8) returns 67/6 =
+ *  11.17 → 11 where the flat mean is 10.67. Any other ratio would have made that
+ *  fixture contradict its own comment, so the formula was derived from the one
+ *  card already shipping rather than picked.
+ *
+ *  ONE INSTRUMENT ONLY. A PHQ-9 and a GAD-7 are different scales with different
+ *  denominators, so a mean across them is a number that means nothing — the same
+ *  reason `scoreSeriesFor` filters to the locked instrument, and the reason t13's
+ *  own comment says a weighted aggregate "is only meaningful across comparable
+ *  scores".
+ *
+ *  RETURNS NULL BELOW TWO COMPARABLE SURVEYS. There is nothing to weight, and a
+ *  card reading "recency-weighted across 1 surveys" would be wrong twice over.
+ *  The caller falls back to the single-survey block, which is honest about being
+ *  one reading. */
+export const AGGREGATE_WEIGHTS = [3, 2, 1] as const;
+
+export function weightedAggregate(
+  /** NEWEST FIRST. Ordering is the caller's job because both callers already hold
+   *  a sorted list, and re-sorting in here would silently paper over a third
+   *  caller that passed them the other way round. */
+  surveys: CareAssessment[]
+): { score: number; severity: string; surveys: CareAssessment[] } | null {
+  const instrument = surveys[0]?.instrument;
+  if (!instrument) return null;
+  const comparable = surveys
+    .filter((s) => s.instrument === instrument)
+    .slice(0, AGGREGATE_WEIGHTS.length);
+  if (comparable.length < 2) return null;
+  let total = 0;
+  let divisor = 0;
+  comparable.forEach((s, i) => {
+    // `slice` bounds `i` to the weight list, so the fallback is unreachable — but
+    // a weight of 0 is also the correct degenerate answer (it contributes to
+    // neither side of the mean) rather than a number invented to satisfy a check.
+    const weight = AGGREGATE_WEIGHTS[i] ?? 0;
+    total += s.score * weight;
+    divisor += weight;
+  });
+  // Math.round, matching how `reviewDueState` and `elapsed` round everywhere else
+  // in this file — and the rounding t13's stated 11 already implies.
+  const score = Math.round(total / divisor);
+  return {
+    score,
+    severity: severityFor(instrument as "PHQ-9" | "GAD-7", score),
+    surveys: comparable,
+  };
+}
+
 // ── The profile table ───────────────────────────────────────────────────────
 
 interface ProfileAssessment {
@@ -669,7 +727,14 @@ const CARE_PROFILES: Record<string, CareProfile> = {
       { daysAgo: 104, instrument: "PHQ-9", score: 12 },
     ],
     assigned: { daysAgo: 112, code: "F32.1" },
-    pending: { code: "F32.0" },
+    // ═══ MOVED FROM F32.0 WHEN THE CARD STARTED SHOWING A WEIGHTED SCORE ═══
+    // Two readings, 9 then 12 going back, so the recency-weighted score is 10 and
+    // the band the card prints is MODERATE — while F32.0 is "single episode,
+    // mild". The mild code was coherent against the latest reading on its own and
+    // stopped being coherent the moment the evidence block became the period.
+    // F32.1 is the code already on record, so this is a review that CONFIRMS
+    // rather than changes — see the confirm-unchanged rationale branch.
+    pending: { code: "F32.1" },
   },
   t23: {
     assessments: [
@@ -755,10 +820,20 @@ const CARE_PROFILES: Record<string, CareProfile> = {
   },
   t17: {
     assessments: [
-      { daysAgo: 14, instrument: "PHQ-9", score: 11 },
-      { daysAgo: 88, instrument: "PHQ-9", score: 15 },
+      // ═══ THE BANDS ARE LOAD-BEARING, AND THEY MUST MATCH THE PROSE BELOW ═══
+      // These five readings are read three ways on one screen: the History
+      // series, the generated rationale's "in the {band} band" sentence, and
+      // `pending.code` — which resolves to a STATEMENT carrying its own severity
+      // word. They previously ran 10–15, every one of them moderate or worse,
+      // under a fixture that recommends F33.0 (recurrent, MILD) and an update
+      // that says the record moves "between the mild and moderate bands".
+      // Nothing here was mild, so the card asserted a downgrade to a band the
+      // series never touched. Re-stepped so the narrative is true of the data:
+      // mild and moderate alternate, and the newest reading is genuinely mild.
+      { daysAgo: 14, instrument: "PHQ-9", score: 8 },
+      { daysAgo: 88, instrument: "PHQ-9", score: 11 },
       { daysAgo: 154, instrument: "PHQ-9", score: 13 },
-      { daysAgo: 190, instrument: "PHQ-9", score: 10 },
+      { daysAgo: 190, instrument: "PHQ-9", score: 9 },
       { daysAgo: 204, instrument: "PHQ-9", score: 12 },
     ],
     assigned: { daysAgo: 206, code: "F32.1" },
@@ -770,7 +845,14 @@ const CARE_PROFILES: Record<string, CareProfile> = {
       note: "A second episode inside the period on file, with a clear interval between them. The recurrent presentation is the better fit and the single-episode code was never re-examined after intake.",
     },
     reviewed: [{ daysAgo: 88, code: "F33.1", by: "Dr. Amara Patel" }],
-    pending: { code: "F33.0" },
+    // ═══ MOVED FROM F33.0 FOR THE SAME REASON AS t24 ═══
+    // The last three readings are 8, 11 and 13 going back, so the weighted score
+    // is 10 — the MODERATE band, not the mild one F33.0 names. The falling
+    // trajectory is real, and it is recorded in the amendment below; what it does
+    // not do yet is carry the weighted severity out of moderate, so the review
+    // confirms F33.1 instead of downgrading. The distance between "improving" and
+    // "improved enough to change the code" is the whole reason to weight.
+    pending: { code: "F33.1" },
     updates: [
       {
         daysAgo: 96,
@@ -788,9 +870,9 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         role: "Supervisor",
         amendsIndex: 0,
         clinical:
-          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The most recent reading is the lowest of the last three, and the last interval broke the shortening pattern.",
+          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The last three readings fall 13, 11 and 8 — a recency-weighted 10 — and the last interval broke the shortening pattern.",
         diagnostic:
-          "The recurrent course still fits, and the current severity now sits at the milder end of it: the most recent reading is the lowest of the last three, with the somatic items no longer reported. Amended to record the severity change; the earlier statement did not have this reading.",
+          "The recurrent course still fits, and the weighted severity across the last three readings remains in the moderate band, so the code on record is confirmed rather than changed. What is new is the direction: three consecutive falls, which the earlier statement did not have.",
         assessment: "improved",
       },
     ],
@@ -990,36 +1072,83 @@ export function fixtureCareUpdatesFor(
  *  Returns null on a closed record — see the note on CARE_PROFILES. */
 function profileReviewFor(
   teenId: string,
-  now: number
+  now: number,
+  /** ═══ THE STAGE DECIDES WHICH EVIDENCE BLOCK THE CARD GETS ═══
+   *  Passed in rather than derived here. `pendingReviewFor` already computes it
+   *  from cadence, and the whole reason it does that there is so a review can
+   *  never label itself a stage the cadence card disagrees with — a second
+   *  derivation in here would be a second thing to drift. */
+  stage: CadenceStage
 ): Omit<PresentationReview, "stage"> | null {
   const p = CARE_PROFILES[teenId];
   if (!p?.pending || isClosedRecord(teenId)) return null;
-  const latest = [...(p.assessments ?? [])].sort((a, b) => a.daysAgo - b.daysAgo)[0];
+  // NEWEST FIRST — the order `weightedAggregate` documents as the caller's job.
+  const ordered = [...(p.assessments ?? [])].sort((a, b) => a.daysAgo - b.daysAgo);
+  const latest = ordered[0];
   if (!latest) return null;
-  const severity = severityFor(latest.instrument, latest.score);
+  /** EVERY reading as a full `CareAssessment`, its own items included. The
+   *  expanded panel reads `aggregate.surveys[i].items`, so a weighted card needs
+   *  answers behind each survey and not just the newest — this used to build one
+   *  survey with a fixed `${teenId}-0` seed. The index is in the seed so two
+   *  readings that share an instrument and a score do not get identical items. */
+  const surveys: CareAssessment[] = ordered.map((a, i) => ({
+    instrument: a.instrument,
+    at: ago(now, a.daysAgo),
+    score: a.score,
+    severity: severityFor(a.instrument, a.score),
+    items: buildItems(a.instrument, a.score, `${teenId}-${i}`),
+  }));
+  /** INTAKE KEEPS THE SINGLE SURVEY. A first review has one reading behind it by
+   *  definition, and "Weighted across this period" over one number would be a
+   *  heading describing arithmetic that never happened. From day 30 on the review
+   *  is about a period, so it gets the period's weighted score. */
+  const aggregate = stage === "intake" ? null : weightedAggregate(surveys);
+  const latestSeverity = severityFor(latest.instrument, latest.score);
+  const severity = aggregate ? aggregate.severity : latestSeverity;
   const current = p.changed?.code ?? p.assigned?.code;
+  /** ═══ THE PROSE CITES THE NUMBER THE CARD SHOWS ═══
+   *  Every branch used to open "The most recent PHQ-9 scored 8, in the mild
+   *  band". Above a weighted score of 10 in the moderate band that is two numbers
+   *  and two bands for one clinical judgment — the same defect that had three
+   *  fixtures recommending a mild code under a moderate reading. The opening now
+   *  follows the evidence block: weighted when the card is weighted. */
+  const opening = aggregate
+    ? `Across the last ${aggregate.surveys.length} ${latest.instrument} results the recency-weighted score is ${aggregate.score}, in the ${severity} band.`
+    : `The most recent ${latest.instrument} scored ${latest.score}, in the ${severity} band.`;
+  const statement = STATEMENT_OF[p.pending.code] ?? p.pending.code;
+  /** ═══ A REVIEW THAT CONFIRMS THE CODE ON RECORD IS NOT A COMPARISON ═══
+   *
+   *  There was one branch here and it wrote a comparative sentence: "X fits the
+   *  current scores more closely than Y does". On a record where the review
+   *  proposes NO CHANGE, Y is X — so t23's card read "Generalized anxiety disorder
+   *  fits the current scores more closely than F41.1 does", which is the same code
+   *  on both sides of a comparison.
+   *
+   *  Confirming is a normal outcome of a cadence review, not an edge case: the
+   *  compose dialog has had a same-code path for as long as `REVIEW_NOUN` has
+   *  existed. The rationale needed one too. */
+  const unchanged = current === p.pending.code;
   return {
     id: `pr-${teenId}-cadence`,
     recommended: {
-      statement: STATEMENT_OF[p.pending.code] ?? p.pending.code,
+      statement,
       code: p.pending.code,
     },
     rationale: {
       source: current ? "ai" : "templated",
       // Names what the scores DID, never what the teen is forecast to do, and
       // describes contact CADENCE rather than anything anyone wrote.
-      text: current
-        ? `The most recent ${latest.instrument} scored ${latest.score}, in the ${severity} band. Across the surveys on file the movement sits in the items that carry the presentation on record, and ${STATEMENT_OF[p.pending.code] ?? p.pending.code} fits the current scores more closely than ${current} does.`
-        : `The intake ${latest.instrument} scored ${latest.score} in the ${severity} band. The mapping returns ${STATEMENT_OF[p.pending.code] ?? p.pending.code} for that profile.`,
+      text: !current
+        ? `The intake ${latest.instrument} scored ${latest.score} in the ${latestSeverity} band. The mapping returns ${statement} for that profile.`
+        : unchanged
+          ? `${opening} Across the surveys on file the movement sits in the items that carry the presentation on record, and ${statement} still fits them. No change to the code is proposed.`
+          : `${opening} Across the surveys on file the movement sits in the items that carry the presentation on record, and ${statement} fits the current scores more closely than ${current} does.`,
     },
-    survey: {
-      instrument: latest.instrument,
-      at: ago(now, latest.daysAgo),
-      score: latest.score,
-      severity,
-      items: buildItems(latest.instrument, latest.score, `${teenId}-0`),
-    },
-    aggregate: null,
+    // EXACTLY ONE OF THESE IS SET, which is the contract `PresentationReview`
+    // states and the condition `care-review-card.tsx` branches its whole
+    // evidence block on.
+    survey: aggregate ? null : (surveys[0] ?? null),
+    aggregate,
   };
 }
 
@@ -1627,7 +1756,11 @@ const PENDING_DEMO: Record<string, PendingDemo> = {
   // Mia Chen — joined 70d. Adjustment presentation proposed.
   t12: { daysAgo: 61, instrument: "GAD-7", score: 9, severity: "mild", items: GAD7_ITEMS, code: "F43.22" },
   // Zoe Bennett — joined 55d. Depression presentation proposed.
-  t8: { daysAgo: 48, instrument: "PHQ-9", score: 11, severity: "moderate", items: PHQ9_SCORE_11, code: "F33.0" },
+  // F32.1, not F33.0: `severity` and `code` sat in ONE object literal saying
+  // different things — "moderate" beside a statement ending "mild". Single
+  // episode as well as moderate, because this is one assessment 48 days in and
+  // nothing on the record describes a prior episode to recur from.
+  t8: { daysAgo: 48, instrument: "PHQ-9", score: 11, severity: "moderate", items: PHQ9_SCORE_11, code: "F32.1" },
 };
 
 /** A STATED SCORE MUST EQUAL ITS ITEM SUM. `cadenceFor` derives the score from
@@ -1735,8 +1868,12 @@ export function pendingReviewFor(
     return live({
       id: `pr-${teenId}-q90`,
       recommended: {
-        statement: STATEMENT_OF["F33.0"],
-        code: "F33.0",
+        // MODERATE, not F33.0. The rationale directly below says the scores rose
+        // INTO the moderate band and the aggregate underneath states
+        // `severity: "moderate"` — a mild code was the one thing on this card
+        // that nothing else on it supported.
+        statement: STATEMENT_OF["F33.1"],
+        code: "F33.1",
       },
       rationale: {
         source: "ai",
@@ -1763,7 +1900,7 @@ export function pendingReviewFor(
   const generated = pendingDemoReview(teenId, now);
   if (generated) return live(generated);
   // Roster-wide profiles, built from the teen's own latest assessment.
-  return live(profileReviewFor(teenId, now));
+  return live(profileReviewFor(teenId, now, stage));
 }
 
 

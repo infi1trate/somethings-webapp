@@ -21,11 +21,17 @@ const report = { base: BASE, rows: [] };
    Corrected here alongside the registry, and the intake case added — it was absent
    entirely, so the cadence row's warning tone at the FIRST review had never been
    captured. `src/lib/dev/__tests__/record-scenarios.test.ts` is what holds the
-   registry side; this list has to be edited with it. */
+   registry side; this list has to be edited with it.
+
+   AND IT DRIFTED A SECOND TIME. `review-intake` moved off t6 (which `single-flag`
+   owns) onto t9, and `review-day30` was added — the stage the product labels
+   "Day 30" had no scenario at all after an earlier fix repointed it at intake. Four
+   review rows now, one per renderable stage plus the overdue case. */
 const SCENARIOS = [
   { id: "new", teen: "t1", label: "New — day 1" },
   { id: "steady", teen: "t18", label: "Steady, healthy" },
-  { id: "review-intake", teen: "t6", label: "Intake review due" },
+  { id: "review-intake", teen: "t9", label: "Intake review due" },
+  { id: "review-day30", teen: "t23", label: "Day 30 review due" },
   { id: "review-90", teen: "t17", label: "90-day review due" },
   { id: "review-overdue", teen: "t19", label: "Review overdue" },
   { id: "longitudinal", teen: "t17", label: "Rich longitudinal" },
