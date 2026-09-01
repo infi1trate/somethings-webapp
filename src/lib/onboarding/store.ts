@@ -228,8 +228,20 @@ interface OnboardingState {
    *  navigation away. Same two faults `activityScenarioId` had and the same fix:
    *  the axis belongs to the harness, not to the screen it acts on. */
   tasksScenarioId: string;
+  /** ═══ EPHEMERAL, AND DELIBERATELY NOT PERSISTED ═══
+   *
+   *  A bump tells the Tasks page to drop its reviewed/resolved state. It is a
+   *  SIGNAL, not a fact about the user, so it is absent from `partialize` — which
+   *  also means adding it costs no schema version and no migration. Persisting it
+   *  would be worse than useless: a stored nonce would fire the reset once on the
+   *  next load, for no reason anybody could trace. */
+  tasksResetNonce: number;
   setActivityScenarioId: (id: string) => void;
   setTasksScenarioId: (id: string) => void;
+  /** Clears the Tasks worklist's reviewed items. Lives here because the control
+   *  is in the dev footer and the state is in the page — a counter is the smallest
+   *  seam that does not make the page reach into the bar or the reverse. */
+  resetTasksReviewed: () => void;
   setDevLoadState: (state: LoadState) => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
    *
@@ -475,6 +487,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       activityScenarioId: "typical-shift",
       devLoadState: DEFAULT_LOAD_STATE,
       tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
+      tasksResetNonce: 0,
       tasksLastVisitAt: 0,
       activityDensity: "dense",
       careUpdates: {},
@@ -871,6 +884,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         // prototype simulator swapping one fixture ledger for another.
         set({ activityScenarioId: id, activityRead: {} }),
       setTasksScenarioId: (id) => set({ tasksScenarioId: id }),
+      resetTasksReviewed: () =>
+        set((st) => ({ tasksResetNonce: st.tasksResetNonce + 1 })),
       setDevLoadState: (state) => set({ devLoadState: state }),
       seedActivityRead: (overlay) => set({ activityRead: overlay }),
       markActivityRowsRead: (viewerId, scope, eventIds) =>

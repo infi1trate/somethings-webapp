@@ -278,6 +278,129 @@ console.log("\n═══ Parts 2/3 · tab-cards ═══");
   await p.context().close();
 }
 
+// ═══ PART 4 · DEV CONSOLIDATION + LOAD STATES ═══
+console.log("\n═══ Part 4 · dev consolidation ═══");
+{
+  const p = await tasks({});
+  const r = await p.evaluate(() => {
+    const sel = [...document.querySelectorAll("select")].find((s) => s.querySelector('optgroup[label="Tasks"]'));
+    return {
+      floatingPanelGone: !document.body.innerText.includes("Prototype scenarios"),
+      tasksGroup: sel ? [...sel.querySelectorAll('optgroup[label="Tasks"] option')].map((o) => o.textContent.trim()) : [],
+      loadLabel: [...document.querySelectorAll("label")].map((l) => l.textContent.trim()).find((t) => /^Load/.test(t)),
+      loadOptions: (() => {
+        const ls = [...document.querySelectorAll("select")].find((s) => [...s.options].some((o) => /partial/i.test(o.textContent)));
+        return ls ? [...ls.options].map((o) => o.textContent.trim()) : [];
+      })(),
+    };
+  });
+  check(r.floatingPanelGone, "the floating Prototype scenarios panel is gone");
+  check(r.tasksGroup.length >= 5, "all Tasks scenarios are in the footer dropdown", JSON.stringify(r.tasksGroup));
+  check(/Tasks/.test(r.loadLabel ?? ""), "the Load control names Tasks", JSON.stringify(r.loadLabel));
+  check(r.loadOptions.some((o) => /partial/i.test(o)), "Load offers Partial failure", JSON.stringify(r.loadOptions));
+
+  // Reset reviewed states lives in the footer's reset control.
+  await p.getByRole("button", { name: /Reset as a new mentor/i }).first().click();
+  await p.waitForTimeout(500);
+  const soft = await p.getByRole("button", { name: /Reset reviewed states/i }).count();
+  check(soft === 1, '"Reset reviewed states" is in the footer reset control');
+  await p.keyboard.press("Escape");
+  await p.context().close();
+}
+
+// ═══ THE MATRIX: every scenario × every load state ═══
+console.log("\n═══ Part 4 · scenario × load-state matrix ═══");
+{
+  const SCENARIOS = ["quiet-day", "typical-shift", "heavy-caseload", "breach-overnight", "active-escalation"];
+  const LOADS = ["ready", "loading", "error", "partial"];
+  let bad = 0;
+  for (const scenario of SCENARIOS) {
+    const row = [];
+    for (const load of LOADS) {
+      const p = await tasks({ scenario, load });
+      const errs = [];
+      p.on("pageerror", (e) => errs.push(String(e).split("\n")[0]));
+      // `loading` resolves over ~1s of staged timers; wait past it.
+      await p.waitForTimeout(load === "loading" ? 1500 : 300);
+      const r = await p.evaluate(() => ({
+        tabs: document.querySelectorAll('[role="tab"]').length,
+        len: document.body.innerText.length,
+        crash: /Application error|client-side exception/i.test(document.body.innerText),
+      }));
+      const ok = !r.crash && r.tabs === 4 && r.len > 300 && errs.length === 0;
+      if (!ok) bad++;
+      row.push(`${load}:${ok ? "ok" : "BAD"}`);
+      if (process.env.SHOT_DIR && load !== "ready") {
+        await p.screenshot({ path: `${process.env.SHOT_DIR}/P4-${scenario}-${load}.png` });
+      }
+      await p.context().close();
+    }
+    console.log(`  ${scenario.padEnd(18)} ${row.join("  ")}`);
+  }
+  check(bad === 0, "every scenario × load state renders sanely", `${bad} bad cell(s) of ${SCENARIOS.length * LOADS.length}`);
+}
+
+// ═══ THE HIERARCHY IS OBSERVABLE ═══
+{
+  // ═══ SAMPLE INSIDE THE WINDOW ═══
+  // The `tasks()` helper waits 1600ms before returning, which is past the whole
+  // 4×240ms sequence — so "early" was not early and the check failed on a
+  // feature that works. Navigating here and polling immediately is the only way
+  // to observe an ordering that is, by design, over in a second.
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 1000 } });
+  await ctx.addInitScript(
+    ([k, v]) => localStorage.setItem(k, JSON.stringify(v)),
+    [KEY, { state: { persona: "supervisor", tasksScenarioId: "typical-shift", devLoadState: "loading" }, version: VERSION }]
+  );
+  const p = await ctx.newPage();
+  await p.goto(`${BASE}/app/tasks`, { waitUntil: "domcontentloaded" });
+  // Poll every 60ms and record the ORDER surfaces appear in — the hierarchy is
+  // an ordering claim, so an ordering is what to assert.
+  const seen = [];
+  for (let i = 0; i < 40; i++) {
+    const snap = await p.evaluate(() => ({
+      tabs: document.querySelectorAll('[role="tab"]').length,
+      rows: document.querySelectorAll('[role="tabpanel"] button').length,
+    })).catch(() => null);
+    if (snap) seen.push(snap);
+    if (snap && snap.tabs === 4 && snap.rows > 0) break;
+    await p.waitForTimeout(60);
+  }
+  const firstWithTabs = seen.findIndex((s) => s.tabs === 4);
+  const firstWithRows = seen.findIndex((s) => s.rows > 0);
+  check(firstWithTabs >= 0, "cards resolve", `at sample ${firstWithTabs}`);
+  check(
+    firstWithTabs >= 0 && firstWithRows >= 0 && firstWithTabs <= firstWithRows,
+    "cards resolve BEFORE the list rows (the hierarchy holds)",
+    `cards@${firstWithTabs}, rows@${firstWithRows} of ${seen.length} samples`
+  );
+  await ctx.close();
+}
+
+// ═══ PARTIAL: BILLING HEALTHY BESIDE A FAILED RISK-FLAG DOMAIN ═══
+{
+  const p = await tasks({ scenario: "typical-shift", load: "partial" });
+  const r = await p.evaluate(() => {
+    const body = document.body.innerText;
+    return { hasError: /Couldn't load/i.test(body), tabs: document.querySelectorAll('[role="tab"]').length };
+  });
+  check(r.tabs === 4, "cards stay readable under partial failure");
+  // Switch to Billing and confirm it is healthy.
+  const billing = p.locator('[role="tab"]', { hasText: "Billing" }).first();
+  if (await billing.count()) {
+    await billing.click();
+    await p.waitForTimeout(900);
+    const healthy = await p.evaluate(() => ({
+      paneError: /Couldn't load this billing item/i.test(document.body.innerText),
+      excerptError: /Couldn't load the conversation/i.test(document.body.innerText),
+    }));
+    check(!healthy.paneError, "the Billing pane stays healthy under partial failure");
+  }
+  console.log(`    (partial: some surface shows an error → ${r.hasError})`);
+  if (process.env.SHOT_DIR) await p.screenshot({ path: process.env.SHOT_DIR + "/P4-partial-billing.png" });
+  await p.context().close();
+}
+
 await b.close();
 console.log(`\n${fails === 0 ? "ALL CHECKS PASS" : `${fails} CHECK(S) FAILED`}`);
 process.exit(fails === 0 ? 0 : 1);

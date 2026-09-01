@@ -56,6 +56,7 @@ import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EyeOff, RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { toast } from "sonner";
 import { useMounted } from "@/lib/use-mounted";
 import type { Persona } from "@/lib/types";
 import {
@@ -181,6 +182,7 @@ export function DevBar() {
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
   const setTasksScenario = useOnboardingStore((s) => s.setTasksScenarioId);
   const loadState = useOnboardingStore((s) => s.devLoadState);
+  const resetTasksReviewed = useOnboardingStore((s) => s.resetTasksReviewed);
   /** This bar is the widest horizontal scroller in the app at phone widths —
    *  measured 992px of controls in a 320px viewport. */
   const barRef = useRef<HTMLDivElement>(null);
@@ -521,7 +523,31 @@ export function DevBar() {
               flow. Teen and staff fixtures are unaffected.
             </DialogDescription>
           </DialogHeader>
+          {/* ═══ TWO RESETS, AND THE SOFT ONE IS NOT DESTRUCTIVE (Part 4) ═══
+              "Reset reviewed states" came from the Tasks page's own floating
+              panel. It belongs beside this control because both answer "put the
+              prototype back" — but they are not the same size of act, so they are
+              not the same button: one clears a page's reviewed items, the other
+              wipes the mentor and restarts onboarding.
+              It sits on the LEFT, away from the destructive one, and closes the
+              dialog rather than navigating — nothing about it needs a reload. */}
           <DialogFooter>
+            <button
+              type="button"
+              onClick={() => {
+                resetTasksReviewed();
+                setConfirmReset(false);
+                toast("Reviewed states cleared on the Tasks worklist.");
+              }}
+              className={cn(
+                "mr-auto inline-flex min-h-9 items-center rounded-full px-3 text-[13px] font-medium text-[var(--text-secondary)]",
+                "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              {/* TODO-COPY */}
+              Reset reviewed states
+            </button>
             <Button variant="ghost" onClick={() => setConfirmReset(false)}>
               Cancel
             </Button>

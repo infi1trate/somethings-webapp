@@ -48,6 +48,7 @@ import {
   openEscalations,
   preselectedFor,
 } from "@/lib/tasks/sort";
+import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
 import {
   ACTIVITY_DOMAIN_OF,
@@ -60,6 +61,67 @@ import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+
+/** ═══ THE LOADING HIERARCHY'S PLACEHOLDERS (Part 4) ═══
+ *
+ *  Each matches the dimensions of the component it stands in for, because the
+ *  requirement is no layout shift on resolve — a skeleton that is the wrong
+ *  height moves the page under the reader at the exact moment they start reading
+ *  it, which is worse than no skeleton at all.
+ *
+ *  ALL `aria-hidden`. A screen-reader user is told the region is busy by the
+ *  surface's own live region; being read a list of empty boxes is noise. */
+function TabCardsSkeleton() {
+  return (
+    <div aria-hidden className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          // 72px — the tab-card's own height, so the row does not jump.
+          className="flex min-h-[72px] flex-col justify-between gap-1 rounded-[var(--radius-surface)] bg-[var(--surface-s1)] px-3 py-2.5"
+        >
+          <div className="flex items-center gap-2">
+            <div className="size-6 shrink-0 rounded-[8px] bg-[var(--surface-s2)]" />
+            <div className="h-4 w-20 rounded bg-[var(--surface-s2)]" />
+          </div>
+          <div className="h-6 w-10 rounded bg-[var(--surface-s2)]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PaneSkeleton() {
+  return (
+    <div aria-hidden className="space-y-4 p-5">
+      <div className="h-5 w-2/5 rounded bg-[var(--surface-s1)]" />
+      <div className="h-4 w-1/4 rounded bg-[var(--surface-s1)]" />
+      {/* The excerpt's own 320px box, so the pane resolving does not resize the
+          column a moment before the excerpt fills it. */}
+      <div className="h-[320px] rounded-[var(--radius-surface)] bg-[var(--surface-s1)]" />
+      <div className="h-9 w-32 rounded-full bg-[var(--surface-s1)]" />
+    </div>
+  );
+}
+
+/** The pane's own inline error. Names the domain, because under partial failure
+ *  the reader's next move is to switch to one that is healthy — and a message
+ *  that does not say which half is broken does not tell them that. */
+function PaneError({ domain }: { domain: TaskDomain }) {
+  return (
+    <div className="flex min-h-[12rem] flex-col items-start justify-center gap-2 p-6">
+      <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {/* TODO-COPY */}
+        Couldn&apos;t load this {DOMAIN_LABEL[domain].toLowerCase()} item.
+      </p>
+      <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
+        {/* TODO-COPY. Points at the working half rather than at a retry that the
+            prototype cannot honour. */}
+        Other domains may still be available.
+      </p>
+    </div>
+  );
+}
 
 /* `closedLabel` LIVED HERE and is gone with the top-right unit (Part 3). It
    inflected the domain noun per count ("1 escalation" / "2 escalations",
@@ -107,8 +169,53 @@ export function TasksPage() {
    *  carries what the pane decided (`flaggedCorrectly`, the confirmed code) onto
    *  the item, which is where §5 says the open feedback question is parked until
    *  it is answered (§8.3). */
-  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
-  const [detailById, setDetailById] = useState<Record<string, Record<string, unknown>>>({});
+  /** ═══ THE FOOTER'S "RESET REVIEWED STATES" (Part 4) ═══
+   *  An ephemeral store counter is the seam: the control lives in the dev footer,
+   *  the state lives here, and a nonce means neither has to reach into the other.
+   *  Paired with the value it was last seen at, so the reset is a DERIVATION and
+   *  nothing calls setState synchronously in an effect. */
+  const resetNonce = useOnboardingStore((st) => st.tasksResetNonce);
+  const [reviewed, setReviewed] = useState<{
+    forNonce: number;
+    ids: Set<string>;
+    details: Record<string, Record<string, unknown>>;
+  }>({ forNonce: resetNonce, ids: new Set(), details: {} });
+  const fresh = reviewed.forNonce === resetNonce;
+  /** MEMOISED, because the stale branch allocates. Without this the empty Set and
+   *  object were new identities on every render, so the `items` memo below —
+   *  which depends on both — re-derived the whole worklist every time anything on
+   *  the page changed. The lint caught it; the cost would have been invisible. */
+  const resolvedIds = useMemo(
+    () => (fresh ? reviewed.ids : new Set<string>()),
+    [fresh, reviewed.ids]
+  );
+  const detailById = useMemo(
+    () => (fresh ? reviewed.details : {}),
+    [fresh, reviewed.details]
+  );
+  const setResolvedIds = (fn: (prev: Set<string>) => Set<string>) =>
+    setReviewed((r) => {
+      const ok = r.forNonce === resetNonce;
+      return {
+        forNonce: resetNonce,
+        ids: fn(ok ? r.ids : new Set()),
+        details: ok ? r.details : {},
+      };
+    });
+  const setDetailById = (
+    fn: (
+      prev: Record<string, Record<string, unknown>>
+    ) => Record<string, Record<string, unknown>>
+  ) =>
+    setReviewed((r) => {
+      const ok = r.forNonce === resetNonce;
+      return {
+        forNonce: resetNonce,
+        ids: ok ? r.ids : new Set(),
+        details: fn(ok ? r.details : {}),
+      };
+    });
+
 
   const items = useMemo(() => {
     if (!mounted) return [];
@@ -144,30 +251,61 @@ export function TasksPage() {
    *  the other three alone — that is the requirement, and a single page-level
    *  state could not express it. */
   const [listStates, setListStates] = useState<Partial<Record<TaskDomain, ListState>>>({});
-  const listState: ListState = listStates[activeDomain] ?? "ready";
 
-  /** ═══ THE DEV BAR'S LOAD STATE, APPLIED TO WHICHEVER TAB IS ACTIVE ═══
+  /** ═══ THE DEV BAR'S LOAD STATE, AS A PLAN (Part 4) ═══
    *
-   *  The other half of row 311: the pinned panel carried two axes, and this is
-   *  the second. It lands on the ACTIVE domain only, which is the property the
-   *  panel had and which is worth keeping — set "error", switch tabs, and watch
-   *  the others load normally. That makes "other tabs are unaffected" something a
-   *  reader can watch instead of something a comment claims.
+   *  One value in, four surface states out — see `loadPlanFor`. The page holds
+   *  only the STAGE; every surface reads its own state off the plan, so the
+   *  hierarchy is one ordering in one place rather than four conditionals that
+   *  drift apart.
    *
-   *  REF-GUARDED ON THE DEV VALUE, NOT ON THE DOMAIN. The effect must fire when
-   *  the CONTROL moves and stay silent when the reader merely changes tabs —
-   *  without the guard, `activeDomain` in the dependency list would repaint every
-   *  tab visited afterwards with a state set once, which is the opposite of
-   *  per-domain. */
+   *  THE STAGE ADVANCES ON A TIMER because "loading" has to be watchable — a
+   *  sequence that resolves in the same frame is not a sequence anybody can see.
+   *  240ms per step is slow enough to read and short enough not to become the
+   *  demo. It resets whenever the load state changes, so re-selecting "Loading"
+   *  replays it. */
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
-  const lastDevLoadState = useRef(devLoadState);
+  /** ═══ THE STAGE CARRIES THE STATE IT BELONGS TO ═══
+   *
+   *  The first version reset with `setLoadStage(0)` in the effect body, which the
+   *  hooks lint rejects — and it is right to: a synchronous setState in an effect
+   *  is a second render pass every time, and here it also meant the surfaces
+   *  painted one frame at the OLD stage before resetting.
+   *
+   *  Pairing the stage with the load state it was counted for makes the reset a
+   *  DERIVATION instead: if the state has moved on, the stage is 0 by definition,
+   *  no write required. The effect then only schedules. */
+  const [progress, setProgress] = useState<{ forState: string; stage: number }>({
+    forState: devLoadState,
+    stage: LOAD_STAGES,
+  });
+  const loadStage =
+    progress.forState === devLoadState
+      ? progress.stage
+      : devLoadState === "loading"
+        ? 0
+        : LOAD_STAGES;
+
+  /** THE STAGE ADVANCES ON A TIMER because "loading" has to be watchable — a
+   *  sequence that resolves in the same frame is not a sequence anybody can see.
+   *  240ms per step is slow enough to read and short enough not to become the
+   *  demo. Re-selecting "Loading" replays it, because the state change moves
+   *  `forState` and the derivation above puts the stage back to 0. */
   useEffect(() => {
     if (!mounted) return;
-    if (lastDevLoadState.current === devLoadState) return;
-    lastDevLoadState.current = devLoadState;
-    setListStates((prev) => ({ ...prev, [activeDomain]: devLoadState }));
-    // `activeDomain` is read, not depended on — see the note above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NO WRITE FOR THE NON-LOADING CASE. The derivation above already reports
+    // `LOAD_STAGES` whenever `forState` has fallen behind, so setting it here was
+    // both redundant and a synchronous setState in an effect — the thing the
+    // hooks lint objects to, for the good reason that it costs a second render
+    // pass on every load-state change.
+    if (devLoadState !== "loading") return;
+    const timers = Array.from({ length: LOAD_STAGES }, (_, i) =>
+      setTimeout(
+        () => setProgress({ forState: devLoadState, stage: i + 1 }),
+        (i + 1) * 240
+      )
+    );
+    return () => timers.forEach(clearTimeout);
   }, [mounted, devLoadState]);
 
   /** SELECTION. `selectedEntryId` is the ENTRY id — a group id for a collapsed
@@ -256,6 +394,15 @@ export function TasksPage() {
    *  digest's CTA was its only caller — the Respond strip navigates by link and
    *  takes no callback — so it is removed rather than left as an unused seam. Any
    *  future cross-tab jump wants exactly this shape; it is in git history. */
+
+  /** THE PLAN, derived where both `selected` and the stage are in scope. Under
+   *  partial failure the pane's state depends on the SELECTED item's domain — a
+   *  pane erroring beside a healthy Billing item would claim an outage that did
+   *  not touch it. */
+  const plan = loadPlanFor(devLoadState, loadStage, selected?.domain ?? activeDomain);
+  /** The per-domain manual override still wins where one was set — the list's own
+   *  state, from before the dev bar owned this axis. `plan.list` is the default. */
+  const listState: ListState = listStates[activeDomain] ?? plan.list;
 
   const nothingOpen = mounted && counts.open === 0;
 
@@ -488,6 +635,9 @@ export function TasksPage() {
           priority — and stays. */}
       {/* ── TABS / SUMMARY CARDS (§3.3) ─────────────────────────────────── */}
       <div className="mt-4">
+        {plan.cards === "loading" ? (
+          <TabCardsSkeleton />
+        ) : (
         <DomainTabs
           summaries={summaries}
           active={activeDomain}
@@ -498,6 +648,7 @@ export function TasksPage() {
           closed={closed}
           closedHref={closedTodayHref}
         />
+        )}
       </div>
 
       {/* ── MASTER-DETAIL ───────────────────────────────────────────────── */}
@@ -578,7 +729,22 @@ export function TasksPage() {
                   aria-live="polite"
                   className="rounded-[var(--radius-elevated)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                 >
-                  <TaskPane item={selected} now={now} onResolve={onResolve} />
+                  {/* PANE AND EXCERPT ARE SEPARATE AXES (Part 4). Under partial
+                      failure the excerpt errors while the pane stays healthy, so
+                      an excerpt failure is demonstrably not a pane failure and
+                      never blocks the resolve actions. */}
+                  {plan.pane === "error" ? (
+                    <PaneError domain={selected?.domain ?? activeDomain} />
+                  ) : plan.pane === "loading" ? (
+                    <PaneSkeleton />
+                  ) : (
+                    <TaskPane
+                      item={selected}
+                      now={now}
+                      onResolve={onResolve}
+                      excerptState={plan.excerpt}
+                    />
+                  )}
                 </div>
               )}
             </div>
