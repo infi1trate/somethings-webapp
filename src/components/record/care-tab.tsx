@@ -164,9 +164,15 @@ export function CareTab({
   const draft = useOnboardingStore((s) => s.draft);
   const careReviews = useOnboardingStore((s) => s.careReviews);
   const careUpdates = useOnboardingStore((s) => s.careUpdates);
-  // The refresh stamp. Drives the document's Generated line — see below.
+  /** THE REFRESH STAMP, STILL READ AND NO LONGER WRITTEN (B2).
+   *
+   *  The Refresh button is gone, so nothing calls `refreshCareSummary` any more —
+   *  but this map is persisted store state and any record stamped by the old
+   *  button keeps its date, which is why the READ stays. Deleting the field would
+   *  cost a migration to remove a number that is correct where it exists and
+   *  absent everywhere else, and `summaryDocBase.generatedAt` is the fallback for
+   *  every record that never had one. Read without a writer, deliberately. */
   const summaryRefreshed = useOnboardingStore((s) => s.careSummaryRefreshedAt);
-  const refreshCareSummary = useOnboardingStore((s) => s.refreshCareSummary);
   const approveCareReview = useOnboardingStore((s) => s.approveCareReview);
   const addCareUpdate = useOnboardingStore((s) => s.addCareUpdate);
   const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
@@ -280,11 +286,11 @@ export function CareTab({
    *  unwindowed, so it describes the mentorship rather than this cycle; its day
    *  count also duplicated the theme element's denominator with a DIFFERENT
    *  number under the same words. See the prop's note in `care-summary-doc.tsx`. */
-  const engagementLine =
-    reading && reading.exchanges > 0
-      ? // TODO-COPY
-        `${reading.exchanges} exchanges across the mentorship`
-      : null;
+  /* ═══ THE ENGAGEMENT SENTENCE WAS BUILT HERE, AND THAT WAS THE BUG (B1) ═══
+     It read "21 exchanges across the mentorship" while the line above it named a
+     WINDOW — `careReadingFor` is unwindowed, so one header carried two numbers
+     about two different periods. The card now composes both halves from
+     `doc.window` and a raw count; see `summaryMetaLine`. */
 
   const staffName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
@@ -419,20 +425,11 @@ export function CareTab({
   const summaryNode = summaryDoc ? (
     <CareSummaryDocCard
       doc={summaryDoc}
-      canAct={canAct}
       pattern={pattern}
-      engagement={engagementLine}
-      onRefresh={
-        canAct
-          ? () => {
-              refreshCareSummary(teen.id, Date.now());
-              // HONEST ABOUT WHAT A REFRESH DOES. There is no generation step to
-              // re-run — the document is derived — so this re-stamps the
-              // generated line and says so. TODO-DATA.
-              toast("Summary re-checked. Regeneration isn’t wired yet.");
-            }
-          : undefined
-      }
+      /* THE COUNT, NOT A SENTENCE (B1). The card composes the meta line from its
+         own window; handing it a pre-formatted string was how a windowed period
+         and an UNWINDOWED exchange count ended up in one sentence. */
+      exchanges={reading?.exchanges ?? null}
       onJumpToEvent={(id) => {
         // FROM THE OVERLAY, JUMPING MUST ALSO CLOSE IT — History is behind the
         // panel, so scrolling to a row the reader cannot see is worse than not

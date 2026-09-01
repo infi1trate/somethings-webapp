@@ -27,6 +27,52 @@ async function open(teen, { width = 1440, height = 1000, zoom = 1 } = {}) {
   return p;
 }
 
+// ═══ B · THE HEADER, IN THREE DEV SCENARIOS ═══
+console.log("\n═══ B · header meta line ═══");
+const HEADER = {};
+for (const [scenario, teen] of [["New — day 1", "t1"], ["30-day review due", "t17"], ["Rich longitudinal", "t17"]]) {
+  const p = await open(teen);
+  const r = await p.evaluate(() => {
+    const card = document.querySelector('[data-record-section="care-summary-doc"]');
+    if (!card) return { absent: true };
+    const meta = card.querySelector("header p");
+    return {
+      line: meta?.textContent.trim() ?? null,
+      refresh: [...card.querySelectorAll("button")].some((x) => /refresh/i.test(x.textContent + (x.getAttribute("aria-label") ?? ""))),
+      // CONTRAST, MEASURED — composited over the first opaque ancestor.
+      ratio: (() => {
+        const lum = (c) => { const q = c.map(v=>v/255).map(v=> v<=0.03928 ? v/12.92 : ((v+0.055)/1.055)**2.4); return 0.2126*q[0]+0.7152*q[1]+0.0722*q[2]; };
+        const parse = (x) => String(x).match(/[\d.]+/g).slice(0,3).map(Number);
+        let n = meta, bg = [255,255,255];
+        while (n) { const m = String(getComputedStyle(n).backgroundColor).match(/[\d.]+/g); if (m && (m.length < 4 || Number(m[3]) > 0.98)) { bg = m.slice(0,3).map(Number); break; } n = n.parentElement; }
+        const [l1, l2] = [lum(parse(getComputedStyle(meta).color)), lum(bg)].sort((a,b)=>b-a);
+        return +((l1 + 0.05) / (l2 + 0.05)).toFixed(2);
+      })(),
+    };
+  });
+  HEADER[scenario] = r;
+  if (r.absent) { console.log(`  ${scenario}: (no summary card)`); await p.context().close(); continue; }
+  console.log(`  ${scenario.padEnd(20)} ${JSON.stringify(r.line)}`);
+  check(!r.refresh, `${scenario}: no Refresh button`);
+  check(!/Generated|Since the last|From intake/.test(r.line ?? ""), `${scenario}: no provenance prose in the header`);
+  check(r.ratio >= 4.5, `${scenario}: meta line passes 4.5:1`, `${r.ratio}:1`);
+  await p.context().close();
+}
+
+// ═══ B3 · the ⓘ carries the window ═══
+console.log("\n═══ B3 · provenance in the tooltip ═══");
+{
+  const p = await open("t17");
+  await p.locator('[data-record-section="care-summary-doc"] button[aria-label="About this generated text"]').first().click();
+  await p.waitForTimeout(300);
+  const note = (await p.locator('[role="note"]').first().textContent()) ?? "";
+  check(/Window:/.test(note), "tooltip names the window");
+  check(/Generated/.test(note), "tooltip carries the generated stamp");
+  check(/since the last presentation update|from intake/.test(note), "tooltip states the window basis");
+  check(/^AI/.test(note.trim()), "AI tag still leads the panel");
+  await p.context().close();
+}
+
 // ═══ A · THE AMEND MODAL ═══
 console.log("\n═══ A · amend modal ═══");
 for (const zoom of [1, 2]) {
@@ -182,5 +228,7 @@ if (process.env.SHOT_DIR) {
 }
 
 await b.close();
+console.log("\nHEADER STRINGS:");
+for (const [k, v] of Object.entries(HEADER)) console.log(`  ${k}: ${JSON.stringify(v.line)}  contrast ${v.ratio}:1`);
 console.log(`\n${fails === 0 ? "ALL CHECKS PASS" : `${fails} CHECK(S) FAILED`}`);
 process.exit(fails === 0 ? 0 : 1);

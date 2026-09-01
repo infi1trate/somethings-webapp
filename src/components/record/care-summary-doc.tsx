@@ -34,14 +34,13 @@
 //
 // DO NOT "CORRECT" THIS to the usual pattern. design-system-gaps.md row 301.
 
-import { RefreshCw } from "lucide-react";
 import {
   SUMMARY_MIN_CONTACT_DAYS,
   type CareSummaryDoc,
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { CareSparkline } from "@/components/record/care-sparkline";
-import { Provenance } from "@/components/record/provenance";
+import { PROVENANCE_NOTE, Provenance } from "@/components/record/provenance";
 import type { CarePattern } from "@/lib/record/care-pattern";
 import type { RiskTier } from "@/lib/record/risk-taxonomy";
 import { cn } from "@/lib/utils";
@@ -104,18 +103,102 @@ const TIER_CHIP: Record<RiskTier | "unassigned", string> = {
 
 
 
+/** ═══ THE PROVENANCE THE HEADER NO LONGER PRINTS (B3) ═══
+ *
+ *  Demoted, not deleted. Dates, the generated stamp and the window BASIS are what
+ *  someone reconciling this record against an outside provider's notes needs, and
+ *  they are useless to everyone else on every other read — which is the exact
+ *  shape of an on-demand disclosure.
+ *
+ *  IT IS APPENDED TO THE AI NOTE RATHER THAN REPLACING IT. The ⓘ already answers
+ *  "where did this text come from"; the window answers "over what period", and a
+ *  reader opening one expects both. Two panels for one question would be worse
+ *  than a slightly longer one.
+ *
+ *  THE BASIS SENTENCE IS THE POINT. "Jun 4 – Aug 31" alone does not say why those
+ *  dates — a reader cannot tell a review cycle from a calendar quarter. */
+export function summaryProvenanceNote(
+  window: { fromAt: number; toAt: number; firstCycle: boolean },
+  generatedAt: number
+): string {
+  // TODO-COPY.
+  const basis = window.firstCycle
+    ? "from intake"
+    : "since the last presentation update";
+  return (
+    `${PROVENANCE_NOTE} ` +
+    `Window: ${clinicalDate(window.fromAt)} – ${clinicalDate(window.toAt)}, ${basis}. ` +
+    `Generated ${clinicalDate(generatedAt)}.`
+  );
+}
+
+/** ═══ THE HEADER'S ONE LINE (B1) ═══
+ *
+ *  Two lines of provenance prose used to sit here — "Since the last presentation
+ *  update, Jun 4, 2026 – Aug 31, 2026 · Generated Aug 31, 2026" and "21 exchanges
+ *  across the mentorship". Both true, both a header nobody reads twice: the dates
+ *  are reconciliation detail, and the reader's actual question is how much
+ *  evidence this document rests on. So one line answers it — the period and the
+ *  volume — and the dates move to the ⓘ.
+ *
+ *  WEEKS ARE ROUNDED, NOT FLOORED. A 90-day window is 12.9 weeks; flooring calls
+ *  it 12 and rounding calls it 13, and 13 is the honest description of the period
+ *  someone would say out loud. `Math.max(1, …)` is the floor of last resort.
+ *
+ *  THE SUB-WEEK CASE IS ITS OWN SENTENCE, not a "0-week analysis": on a day-1
+ *  intake record the window is hours old, and a number of weeks is the wrong unit
+ *  rather than a small one. "First week" is also true on day 6, which is the
+ *  point — it describes where the record IS, not how much time has elapsed.
+ *
+ *  THE PERIOD IS COMPUTED FROM THE WINDOW, never handed in as a string. The old
+ *  engagement line was formatted in `care-tab.tsx` while the dates came from
+ *  `doc.window`, so the two halves were assembled in different files from
+ *  different sources.
+ *
+ *  ═══ TODO-DATA — THE COUNT IS STILL NOT THE WINDOW'S COUNT ═══
+ *
+ *  AND THIS IS THE ONE THING TO FIX NEXT. `exchanges` reaches this card from
+ *  `careReadingFor`, which carries its OWN window of `READING_WINDOW_DAYS = 21`
+ *  and derives the number from a hash (`engagementFor` → `h % 3`) because there is
+ *  no conversation pipeline. So "13-week analysis · 21 exchanges" states a
+ *  13-week period beside a count that is neither 13 weeks long nor real. It is
+ *  most visible on a day-one record, where the line reads "First week · 22
+ *  exchanges" for a teen with nothing on file at all.
+ *
+ *  This is the SAME two-periods-in-one-sentence defect the two-line header had,
+ *  narrowed rather than removed: the period is now honest and the count is not.
+ *  Shipping it is deliberate — the format is specified and the numbers are demo
+ *  fixtures — but it needs a windowed exchange count from the data layer.
+ *  `doc.contactDays` IS windowed and is the nearest real field, but it counts DAYS
+ *  WITH CONTENT rather than exchanges, so substituting it would change the claim
+ *  rather than fix it. */
+const DAY_MS = 86_400_000;
+
+export function summaryMetaLine(
+  window: { fromAt: number; toAt: number },
+  exchanges: number | null
+): string {
+  const days = Math.max(0, (window.toAt - window.fromAt) / DAY_MS);
+  // TODO-COPY on both forms.
+  const period =
+    days < 7 ? "First week" : `${Math.max(1, Math.round(days / 7))}-week analysis`;
+  // A record with no conversation content yet says nothing about volume rather
+  // than claiming "0 exchanges", which reads as a measurement instead of an
+  // absence.
+  return exchanges && exchanges > 0
+    ? `${period} · ${exchanges} exchanges`
+    : period;
+}
+
 export function CareSummaryDocCard({
   doc,
   /** Supervisor tier. Gates the refresh control — element 5, which it also used
    *  to gate, is removed. */
-  canAct,
   pattern,
-  engagement,
-  onRefresh,
+  exchanges,
   onJumpToEvent,
 }: {
   doc: CareSummaryDoc;
-  canAct: boolean;
   /** ═══ THE PATTERN STRIP'S DATA ═══
    *  Passed in rather than derived here: `carePatternFor` is one of the Care
    *  tab's existing store reads and this component is otherwise pure in its
@@ -136,8 +219,10 @@ export function CareSummaryDocCard({
    *
    *  TODO-COPY — "9 sessions · 17 exchanges · 5h average reply", demoted to a
    *  muted context line so it informs without competing with the structure. */
-  engagement: string | null;
-  onRefresh?: () => void;
+  /** THE COUNT, NOT A SENTENCE. It used to arrive pre-formatted from
+   *  `care-tab.tsx`; the card owns the wording now because the card owns the
+   *  window the wording is about. */
+  exchanges: number | null;
   onJumpToEvent?: (eventId: string) => void;
 }) {
   const thin = doc.contactDays < SUMMARY_MIN_CONTACT_DAYS;
@@ -167,58 +252,34 @@ export function CareSummaryDocCard({
               {/* TODO-COPY */}
               Care summary
             </h2>
+            {/* ═══ ONE LINE (B1) ═══
+                `--text-secondary` at 13px, the same token the two-line block
+                used — measured 7.63:1 on `--surface-card`, well clear of 4.5:1,
+                so demoting the prose costs nothing in legibility.
+
+                THERE IS NO "PREVIOUS CYCLE" STATE HERE, AND CANNOT BE. A
+                "· previous cycle" label used to sit in this block for a frozen
+                summary. The two ideas are mutually exclusive by construction: the
+                window is the interval SINCE THE LAST CODE UPDATE, and
+                `presentation_reviewed` is a code event — so approving a review
+                opens a new window in the same act that commits the old one.
+                Driving the flow proved it: after an approval the header read
+                "Aug 28 – Aug 28 · previous cycle", a zero-length window labelled
+                as a past one. THIS CARD IS ALWAYS THE LIVE CYCLE; the committed
+                one is a History entry with its own frozen window. Gap row 305. */}
             <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              {/* TODO-COPY — the window is stated in the header precisely so a
-                  previous cycle's summary cannot be mistaken for a current read. */}
-              {doc.window.firstCycle
-                ? `From intake, ${clinicalDate(doc.window.fromAt)} – ${clinicalDate(doc.window.toAt)}`
-                : // TODO-COPY. NOT "From sessions" — this product has no
-                  // sessions, and the theme element two elements down says so
-                  // out loud. The window is the interval since the last code
-                  // update; naming that is both accurate and more useful than
-                  // naming a unit of contact.
-                  `Since the last presentation update, ${clinicalDate(doc.window.fromAt)} – ${clinicalDate(doc.window.toAt)}`}
-              {" · "}
-              {`Generated ${clinicalDate(doc.generatedAt)}`}
-              {/* ═══ THERE IS NO "PREVIOUS CYCLE" STATE HERE, AND CANNOT BE ═══
-                  A "· previous cycle" label used to sit here, for a frozen
-                  summary. It is removed because the two ideas are mutually
-                  exclusive by construction: the window is the interval SINCE THE
-                  LAST CODE UPDATE, and `presentation_reviewed` is a code event —
-                  so approving a review opens a new window in the same act that
-                  commits the old one. A frozen document can never be the one
-                  this card derives.
-                  Driving the flow proved it: after an approval the header read
-                  "Aug 28 – Aug 28 · previous cycle" — a zero-length window
-                  labelled as a past one. THIS CARD IS ALWAYS THE LIVE CYCLE.
-                  The committed cycle is a History entry carrying its own frozen
-                  window and findings. design-system-gaps row 305. */}
+              {summaryMetaLine(doc.window, exchanges)}
             </p>
-            {engagement && (
-              <p className="mt-1 text-[12.5px] leading-[17px] text-[var(--text-muted)]">
-                {engagement}
-              </p>
-            )}
           </div>
 
-          {/* REFRESH IS THE ONLY AFFORDANCE IN THIS CARD. No frozen check: see
-              the note above — the card never renders a committed cycle. */}
-          {canAct && onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              /* TODO-COPY */
-              aria-label="Regenerate the care summary"
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <RefreshCw className="size-3.5" aria-hidden />
-              {/* TODO-COPY */}
-              Refresh
-            </button>
-          )}
+          {/* ═══ REFRESH IS GONE (B2) ═══
+              It re-stamped the Generated date and showed a toast saying
+              regeneration was not wired — a control whose honest label was "this
+              does almost nothing". The summary is DERIVED from the record, so it
+              is already current whenever the record changes; there was never a
+              stale state for a reader to fix. Removing it also removes the
+              question it invited ("should I refresh before I read this?"), which
+              is the real cost of a control nobody needs. */}
           {/* ═══ PROVENANCE, AS A MARK RATHER THAN A SENTENCE ═══
               A 20-word disclaimer used to run full-width under this header. It
               was accurate and the wrong shape: a reader who has seen it once
@@ -228,7 +289,9 @@ export function CareSummaryDocCard({
               GUARDRAIL 6 STILL HOLDS — attribution is visible without scrolling.
               What changed is that the EXPLANATION is now on demand, not that it
               is optional. */}
-          <Provenance />
+          {/* THE ⓘ NOW CARRIES THE WINDOW (B3). The AI tag inside the panel is
+              unchanged — see `provenance.tsx`. */}
+          <Provenance note={summaryProvenanceNote(doc.window, doc.generatedAt)} />
         </div>
 
       </header>
