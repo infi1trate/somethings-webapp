@@ -1881,10 +1881,43 @@ export interface CareUpdateRecord {
   diagnosticPrefill?: CareUpdatePrefill;
 }
 
+/** One body field, or "" when the stored record has no such key.
+ *
+ *  Returns the TRIMMED value, because every caller here is asking "is there text
+ *  in this field" or "render this text" — and a field holding only whitespace
+ *  should answer no to the first. */
+function sectionText(u: CareUpdateRecord, id: CareUpdateSectionId): string {
+  const raw = (u.body as Partial<Record<CareUpdateSectionId, unknown>>)[id];
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
 /** One care update as a timeline entry. The prose travels in `providerNote` so
  *  the timeline's existing disclosure renders it without a special case. */
 function careUpdateToEvent(u: CareUpdateRecord): CareEvent {
-  const filled = CARE_UPDATE_SECTIONS.filter((s) => u.body[s.id].trim());
+  /** ═══ A STORED BODY IS UNTRUSTED INPUT, EVEN THOUGH WE WROTE IT ═══
+   *
+   *  This was `u.body[s.id].trim()`, and it threw
+   *  `Cannot read properties of undefined (reading 'trim')` — taking down the
+   *  ENTIRE person record, not just this row. The path is worth naming because
+   *  it explains the blast radius: `PersonRecordPage` → `RecordTaskRegions`
+   *  (the Overview tab's attention regions) → `alertsForTeen` → `cadenceFor` →
+   *  `careTimelineFor` → here. A single malformed entry in `localStorage` and the
+   *  record will not render at all, on any tab.
+   *
+   *  WHY A FIELD GOES MISSING: `body` is PERSISTED. Anything written by an
+   *  earlier build outlives the code that wrote it, so a body stored before a
+   *  section existed — or written partially — has no key for it. `CareUpdateBody`
+   *  types the field as `string`, and TypeScript is describing what the CURRENT
+   *  code writes, not what is already in the browser. A type is a claim about
+   *  new data; it is not a guarantee about old data.
+   *
+   *  So the read tolerates it. `sectionText` is the only way this module touches
+   *  a body field, so there is one place for the rule to live rather than a
+   *  `?.` sprinkled at each use.
+   *
+   *  THIS IS THE READ HALF. The store's rehydrate repairs the record so the bad
+   *  shape does not survive the session — see the care-update backfill there. */
+  const filled = CARE_UPDATE_SECTIONS.filter((s) => sectionText(u, s.id));
   /** The row's outcome column names the FIELDS present, never their content —
    *  it is a row label, not a summary of clinical prose. The assessment is
    *  included because it is a structured value a reader can scan for. */
@@ -1906,8 +1939,12 @@ function careUpdateToEvent(u: CareUpdateRecord): CareEvent {
     // The prose travels here so the timeline's existing disclosure renders it
     // with no special case. The assessment does NOT: it is a structured value and
     // the timeline renders it as a chip from `body`, not as a line of text.
+    // SAME GUARD AS ABOVE. `filled` already excludes the missing ones, so this
+    // could not throw today — but it reads the raw body a second time, and the
+    // next person to change the filter would have to notice that to keep it safe.
+    // One accessor, used everywhere, is the property worth having.
     providerNote: filled
-      .map((s) => `${s.label}\n${u.body[s.id].trim()}`)
+      .map((s) => `${s.label}\n${sectionText(u, s.id)}`)
       .join("\n\n"),
     documents: u.documents,
     diagnosticPrefill: u.diagnosticPrefill,

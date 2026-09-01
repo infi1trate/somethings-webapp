@@ -44,6 +44,9 @@ import type {
   CareReviewDecision,
   CareUpdateRecord,
 } from "@/lib/record/care-demo";
+// A VALUE import, not a type — the rehydrate repair below iterates the sections
+// to backfill a stored body. Same one-directional edge as the types above.
+import { CARE_UPDATE_SECTIONS } from "@/lib/record/care-demo";
 import {
   DEFAULT_LOAD_STATE,
   LOAD_STATES,
@@ -1701,6 +1704,42 @@ export const useOnboardingStore = create<OnboardingState>()(
           merged.careUpdates === null
         ) {
           merged.careUpdates = {};
+        }
+        /** ═══ EVERY STORED CARE UPDATE HAS A BODY WITH EVERY SECTION ═══
+         *
+         *  A body missing a section key crashed the WHOLE person record:
+         *  `careUpdateToEvent` read `u.body[s.id].trim()` and threw, through
+         *  `alertsForTeen` → `RecordTaskRegions`, so the page rendered nothing on
+         *  any tab. `care-demo.ts` now reads defensively, which stops the crash;
+         *  this stops the bad shape SURVIVING, so the record is repaired once
+         *  rather than tolerated on every read forever.
+         *
+         *  BOTH HALVES ARE WANTED. The read guard protects a body this repair has
+         *  not seen yet — a record written by another tab mid-session, or a shape
+         *  that arrives after some future section is added. The repair keeps the
+         *  data honest. Neither alone is enough.
+         *
+         *  IT ONLY ADDS MISSING KEYS. An existing string is never touched, so a
+         *  supervisor's clinical prose cannot be rewritten by a migration — which
+         *  is the one thing a repair on clinical text must never do. */
+        {
+          // THROUGH `unknown` DELIBERATELY. `CareUpdateRecord.body` is typed as a
+          // complete `CareUpdateBody`, and the whole point here is that the
+          // PERSISTED value may not be one — so the cast has to admit it is
+          // describing untrusted data rather than pretending the type holds.
+          const updates = merged.careUpdates as unknown as Record<
+            string,
+            { body?: Record<string, unknown> }
+          >;
+          for (const u of Object.values(updates ?? {})) {
+            if (!u || typeof u !== "object") continue;
+            if (typeof u.body !== "object" || u.body === null) {
+              u.body = {};
+            }
+            for (const s of CARE_UPDATE_SECTIONS) {
+              if (typeof u.body[s.id] !== "string") u.body[s.id] = "";
+            }
+          }
         }
         if (
           typeof (merged as { careSummaryRefreshedAt?: unknown })

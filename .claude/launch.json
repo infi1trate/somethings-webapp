@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "Somethings Web App",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=\"$HOME/.local/node/bin:$PATH\" && cd /Users/Brandon-Somethings/Desktop/Somethings/Claude/somethings-webapp && npm run dev"
+      ],
       "port": 3000
     }
   ]
