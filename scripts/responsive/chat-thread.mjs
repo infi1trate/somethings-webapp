@@ -20,8 +20,15 @@ const b = await chromium.launch();
 
 async function chat(scenario, width = 1440, height = 900) {
   const ctx = await b.newContext({ viewport: { width, height } });
+  /* ═══ GUARDED, BECAUSE `addInitScript` RUNS ON EVERY LOAD ═══
+     Including a reload. An unguarded `setItem` therefore WIPES the store on the
+     way back in, which made a persistence check report zero and look like the app
+     had failed to save — the write was fine, the probe overwrote it. Same guarded
+     form `care-brief.mjs` already uses, and this is the reason it does. */
   await ctx.addInitScript(
-    ([k, v]) => localStorage.setItem(k, JSON.stringify(v)),
+    ([k, v]) => {
+      if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify(v));
+    },
     [KEY, { state: { persona: "mentor", chatScenarioId: scenario }, version: STORE_VERSION }]
   );
   const p = await ctx.newPage();

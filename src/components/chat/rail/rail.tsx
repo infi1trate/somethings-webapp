@@ -29,7 +29,13 @@
 import { useId, useState } from "react";
 import { SegmentedControl } from "@/components/record/segmented-control";
 import { PanelEmpty, PanelShell } from "@/components/chat/rail/rail-panel";
-import type { ChatThread } from "@/lib/chat/types";
+import { ToolkitPanel } from "@/components/chat/rail/toolkit";
+import type {
+  ActivityId,
+  ChatThread,
+  SentArtifact,
+  SentArtifactItem,
+} from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
 export type RailTab = "assist" | "profile" | "toolkit" | "timeline";
@@ -54,9 +60,15 @@ export function tabsFor(kind: ChatThread["kind"]): RailTab[] {
 
 export function Rail({
   thread,
+  artifacts,
+  onSendActivity,
   className,
 }: {
   thread: ChatThread;
+  /** Everything ever sent on this thread. The Toolkit's lock reads it; Phase 4's
+   *  DetailSheet reads it too. */
+  artifacts: SentArtifact[];
+  onSendActivity: (activityId: ActivityId, items: SentArtifactItem[]) => void;
   className?: string;
 }) {
   const tabs = tabsFor(thread.kind);
@@ -126,11 +138,11 @@ export function Rail({
             </PanelEmpty>
           )}
           {active === "toolkit" && (
-            <PanelEmpty title="Things to send">
-              {/* TODO-COPY */}
-              Conversation starters, question sets and photo swaps. Each one says
-              what it is for before you send it.
-            </PanelEmpty>
+            <ToolkitPanel
+              artifacts={artifacts}
+              disabled={thread.kind !== "teen"}
+              onSendActivity={onSendActivity}
+            />
           )}
           {active === "timeline" && (
             <PanelEmpty title="What has happened">

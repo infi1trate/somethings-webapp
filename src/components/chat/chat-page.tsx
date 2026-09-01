@@ -33,9 +33,17 @@ import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail } from "@/components/chat/rail/rail";
 import { Thread } from "@/components/chat/thread/thread";
 import { chatScenario } from "@/lib/chat/seed";
+import { activityById } from "@/lib/chat/activities";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
-import type { ThreadId } from "@/lib/chat/types";
+import { LIVE_ID } from "@/lib/record/subject";
+import type {
+  ActivityId,
+  ChatEvent,
+  SentArtifact,
+  SentArtifactItem,
+  ThreadId,
+} from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -119,6 +127,17 @@ export function ChatPage({
       };
     });
 
+  /* ═══ THE SCENARIO'S FIXTURES AND WHAT THIS SESSION HAS WRITTEN ═══
+     The seed supplies the history; the store carries what the mentor has done
+     since. They are merged at READ time rather than the store being pre-loaded
+     with the fixtures — a store seeded from a scenario would have to be cleared
+     and re-seeded on every scenario switch, and anything the mentor wrote in
+     between would be indistinguishable from fixture data. */
+  const writtenEvents = useOnboardingStore((s) => s.chatEvents);
+  const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
+  const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
+  const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
+
   const threads = data?.threads ?? [];
   /* ═══ THE DEEP LINK IS A FALLBACK, NOT AN OVERRIDE ═══
      `picked` first, so a reader who follows `?with=t18` and then chooses someone
@@ -128,7 +147,57 @@ export function ChatPage({
   const selectedId = picked ?? withId ?? data?.focusThreadId ?? null;
   const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
   const messages = thread ? (data?.messages[thread.id] ?? []) : [];
-  const events = thread ? (data?.events[thread.id] ?? []) : [];
+  const events: ChatEvent[] = thread
+    ? [
+        ...(data?.events[thread.id] ?? []),
+        ...(mounted ? (writtenEvents[thread.id] ?? []) : []),
+      ]
+    : [];
+  const artifacts: SentArtifact[] = thread
+    ? [
+        ...Object.values(data?.artifacts ?? {}).filter((a) => a.threadId === thread.id),
+        ...(mounted
+          ? Object.values(writtenArtifacts).filter((a) => a.threadId === thread.id)
+          : []),
+      ]
+    : [];
+
+  /** ═══ SENDING WRITES TWO RECORDS, AND NEITHER IS THE OTHER ═══
+   *
+   *  An `activity-sent` EVENT (append-only, the history) and a `SentArtifact` (the
+   *  contents and, later, the completion). They are separate because their
+   *  lifetimes differ: the artifact's `completion` changes as the teen works
+   *  through it and its `rescindedAt` can be set, while the event that it was sent
+   *  is a fact that never changes. Collapsing them would mean a rescind editing
+   *  history.
+   *
+   *  The ids are derived from the thread and the instant, not from a counter, so
+   *  two sends in one session cannot collide and nothing has to be persisted to
+   *  keep a sequence. */
+  const sendActivity = (activityId: ActivityId, items: SentArtifactItem[]) => {
+    if (!thread) return;
+    const at = Date.now();
+    const artifactId = `art-${thread.id}-${at}`;
+    putChatArtifact({
+      id: artifactId,
+      threadId: thread.id,
+      activityId,
+      sentAt: at,
+      items,
+      // UNOPENED, which is also what makes a rescind eligible (Phase 4).
+      completion: { openedAt: null, completedItemIds: [] },
+      rescindedAt: null,
+    });
+    appendChatEvent({
+      id: `ev-${thread.id}-${at}`,
+      threadId: thread.id,
+      at,
+      kind: "activity-sent",
+      actorId: LIVE_ID,
+      artifactId,
+      artifactName: activityById(activityId).name,
+    });
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -265,7 +334,11 @@ export function ChatPage({
               !railOpen && "hidden xl:block"
             )}
           >
-            <Rail thread={thread} />
+            <Rail
+              thread={thread}
+              artifacts={artifacts}
+              onSendActivity={sendActivity}
+            />
           </div>
         )}
       </div>

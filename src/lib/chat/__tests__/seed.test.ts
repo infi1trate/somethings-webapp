@@ -24,6 +24,12 @@ import { menteeRecency, teenAsMentee, TEEN_QUIET_DAYS } from "@/lib/record/mente
 import { teensForMentor } from "@/lib/record/people-demo";
 import { LIVE_ID } from "@/lib/record/subject";
 import { needsMeta } from "@/components/chat/thread/message-bubble";
+import {
+  ACTIVITIES,
+  ITEM_POOL,
+  isUnlocked,
+  metaLine,
+} from "@/lib/chat/activities";
 
 /** A fixed instant. The builders take `now` as a parameter, so a test can pin it
  *  without the fixtures themselves being frozen. */
@@ -299,5 +305,98 @@ describe("the vocabulary this product does not use", () => {
         expect(json.includes(word), `${id} contains "${word}"`).toBe(false);
       }
     }
+  });
+});
+
+// ── Activities ──────────────────────────────────────────────────────────────
+
+describe("the activity definitions", () => {
+  it("all five carry a purpose, a mechanic and structured meta", () => {
+    /* THE DEFECT THIS PREVENTS: five hand-laid-out covers where one named its
+       purpose, one described its mechanic, one said neither, and the metadata line
+       was prose written per activity. Structured fields are what make the covers
+       comparable, and a missing one would render an empty slot rather than fail. */
+    for (const a of ACTIVITIES) {
+      expect(a.purpose.trim().length, a.id).toBeGreaterThan(20);
+      expect(a.mechanic.trim().length, a.id).toBeGreaterThan(20);
+      expect(a.meta.count, a.id).toBeGreaterThan(0);
+      expect(a.meta.unit.trim().length, a.id).toBeGreaterThan(0);
+      expect(a.meta.minutes, a.id).toBeGreaterThan(0);
+      // SINGULAR, because `metaLine` pluralises. A pool carrying "questions" would
+      // render "3 questionss".
+      expect(a.meta.unit.endsWith("s"), `${a.id}: unit must be singular`).toBe(false);
+    }
+    expect(ACTIVITIES.length).toBe(5);
+  });
+
+  it("every metadata line comes out in one format", () => {
+    // The whole reason `meta` is structured. One formatter, so "3 questions · ~2
+    // min" and "1 theme · ~1 min" cannot diverge in shape.
+    for (const a of ACTIVITIES) {
+      expect(metaLine(a), a.id).toMatch(/^\d+ \w+s? · ~\d+ min$/);
+    }
+  });
+
+  it("each activity's pool holds at least as many prompts as its set needs", () => {
+    // A deck shorter than the set means a mentor can never fill it, and the
+    // builder's "the deck ends when the set is full" branch never fires.
+    for (const a of ACTIVITIES) {
+      expect(ITEM_POOL[a.id].length, a.id).toBeGreaterThanOrEqual(a.meta.count);
+    }
+  });
+
+  it("exactly one activity is locked, and it says what opens it", () => {
+    const locked = ACTIVITIES.filter((a) => a.locked);
+    expect(locked.length).toBe(1);
+    for (const a of locked) {
+      expect(a.locked!.requires.length).toBeGreaterThan(0);
+      // The microcopy has to name the CONDITION, not just say "locked" — a gate
+      // that does not teach the path reads as arbitrary.
+      expect(a.locked!.microcopy.length).toBeGreaterThan(40);
+      for (const req of a.locked!.requires) {
+        expect(ACTIVITIES.some((x) => x.id === req), `${a.id} requires ${req}`).toBe(true);
+      }
+    }
+  });
+
+  it("the lock reads answers, not sends", () => {
+    /* The rule is about whether the pair has a habit of ANSWERING. A set that was
+       sent and ignored must not open it, or the gate is measuring the mentor's
+       activity rather than the relationship. */
+    const deep = ACTIVITIES.find((a) => a.locked)!;
+    const sentButIgnored = [
+      {
+        id: "x",
+        threadId: "t1",
+        activityId: "connection-cards" as const,
+        sentAt: 0,
+        items: [],
+        completion: { openedAt: 1, completedItemIds: [] },
+        rescindedAt: null,
+      },
+    ];
+    expect(isUnlocked(deep, sentButIgnored)).toBe(false);
+    const answered = [
+      { ...sentButIgnored[0], completion: { openedAt: 1, completedItemIds: ["a", "b"] } },
+    ];
+    expect(isUnlocked(deep, answered)).toBe(true);
+    // AND A RESCINDED SET DOES NOT COUNT. Taking something back cannot leave the
+    // credit for it behind.
+    expect(isUnlocked(deep, [{ ...answered[0], rescindedAt: 2 }])).toBe(false);
+  });
+
+  it("the lock is demonstrable in both directions across the scenarios", () => {
+    /* A gate that is closed in every scenario is a gate nobody has seen open, and
+       one that is open in every scenario is dead code. Both states have to be
+       reachable from the dev harness. */
+    const deep = ACTIVITIES.find((a) => a.locked)!;
+    const states = every().map(({ id, data }) => {
+      const own = Object.values(data.artifacts).filter(
+        (a) => a.threadId === data.focusThreadId
+      );
+      return { id, open: isUnlocked(deep, own) };
+    });
+    expect(states.some((s) => s.open), "no scenario opens it").toBe(true);
+    expect(states.some((s) => !s.open), "no scenario locks it").toBe(true);
   });
 });

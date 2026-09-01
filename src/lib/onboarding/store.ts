@@ -286,6 +286,14 @@ interface OnboardingState {
   setActivityScenarioId: (id: string) => void;
   setTasksScenarioId: (id: string) => void;
   setChatScenarioId: (id: string) => void;
+  /** ═══ APPEND. THE ONLY MUTATION THE EVENT LOG HAS ═══
+   *  No remove and no update, so "an event, once written, is never retracted" is a
+   *  property of the store rather than a convention every caller has to keep. A
+   *  rescinded activity gets a SECOND event; the first one stays. */
+  appendChatEvent: (event: ChatEventRecord) => void;
+  /** Sent artifacts. Upsert rather than append, because `completion` is the one
+   *  mutable field in the chat model — a teen opening a set changes it. */
+  putChatArtifact: (artifact: ChatArtifactRecord) => void;
   /** Clears the Tasks worklist's reviewed items. Lives here because the control
    *  is in the dev footer and the state is in the page — a counter is the smallest
    *  seam that does not make the page reach into the bar or the reverse. */
@@ -941,6 +949,17 @@ export const useOnboardingStore = create<OnboardingState>()(
          reasoning as `setActivityScenarioId` clearing its read overlay. An
          escalation on Jordan's thread means nothing once the roster's threads have
          been rebuilt from another scenario's dialogue. */
+      appendChatEvent: (event) =>
+        set((st) => ({
+          chatEvents: {
+            ...st.chatEvents,
+            [event.threadId]: [...(st.chatEvents[event.threadId] ?? []), event],
+          },
+        })),
+      putChatArtifact: (artifact) =>
+        set((st) => ({
+          chatArtifacts: { ...st.chatArtifacts, [artifact.id]: artifact },
+        })),
       setChatScenarioId: (id) =>
         set({
           chatScenarioId: id,

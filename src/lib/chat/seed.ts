@@ -373,6 +373,41 @@ const ACTIVE: ScenarioBuild = {
     { from: "mentor", after: 1300, text: "How did the weekend conversation go?" },
     { from: "them", after: 1163, text: "went ok actually. my mom was more chill about it than i expected" },
   ],
+  /* ═══ A FINISHED SET, WHICH IS WHAT OPENS DEEP THOUGHTS ═══
+     171 days in with a completed Connection Cards behind them is exactly the
+     relationship the lock is describing, so this is the scenario where the
+     unlocked shelf should be seen. It also matches Caleb's own
+     `completedActivities` fixture in people-demo, which has been standing in for
+     an activity layer that did not exist until this build. */
+  events: (now) => [
+    {
+      id: "ev-t18-1",
+      threadId: "t18",
+      at: now - 8 * DAY,
+      kind: "activity-sent",
+      actorId: LIVE_ID,
+      artifactId: "art-t18-cards",
+      artifactName: "Connection Cards", // TODO-COPY
+    },
+  ],
+  artifacts: (now) => [
+    {
+      id: "art-t18-cards",
+      threadId: "t18",
+      activityId: "connection-cards",
+      sentAt: now - 8 * DAY,
+      items: [
+        { id: "c1", text: "Something you're better at than you were a year ago" },
+        { id: "c2", text: "A person who made this week easier" },
+        { id: "c3", text: "Something small that went right" },
+      ],
+      completion: {
+        openedAt: now - 8 * DAY + 3 * HOUR,
+        completedItemIds: ["c1", "c2", "c3"],
+      },
+      rescindedAt: null,
+    },
+  ],
   emergency: {
     teenPhone: "+19089107001",
     address: "1412 Rosewood Ave, Charlotte, NC 28203",
@@ -543,6 +578,40 @@ const REMATCHED: ScenarioBuild = {
     { from: "mentor", after: 45, text: "Yeah? How's it going?" },
     { from: "them", after: 15, text: "the guy is kind of funny actually. it helps" },
     { from: "them", after: 4320, gif: { w: 480, h: 270, alt: "An animated thumbs up" } },
+  ],
+  /* TWO OF THREE ANSWERED — over the unlock threshold, which is the case the
+     `>= 2` rather than "all" rule exists for. A teen who did most of a set has the
+     habit the gate is checking for, and requiring every card would make the gate
+     turn on somebody finishing a thing they were told they did not have to
+     finish. */
+  events: (now) => [
+    {
+      id: "ev-t15-1",
+      threadId: "t15",
+      at: now - 20 * DAY,
+      kind: "activity-sent",
+      actorId: LIVE_ID,
+      artifactId: "art-t15-cards",
+      artifactName: "Connection Cards",
+    },
+  ],
+  artifacts: (now) => [
+    {
+      id: "art-t15-cards",
+      threadId: "t15",
+      activityId: "connection-cards",
+      sentAt: now - 20 * DAY,
+      items: [
+        { id: "c1", text: "A thing you're looking forward to" },
+        { id: "c2", text: "Something you'd want someone to notice about you" },
+        { id: "c3", text: "A place you feel like yourself" },
+      ],
+      completion: {
+        openedAt: now - 20 * DAY + 40 * MINUTE,
+        completedItemIds: ["c1", "c3"],
+      },
+      rescindedAt: null,
+    },
   ],
   emergency: {
     teenPhone: "+17078894102",
