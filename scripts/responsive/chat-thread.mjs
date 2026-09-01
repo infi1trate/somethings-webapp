@@ -256,11 +256,11 @@ console.log("\n── message actions @ active-mentorship");
     const m = document.querySelector('[role="menu"][aria-label="Reactions"]');
     if (!m) return null;
     /* ═══ THE REACTIONS, NOT EVERY MENU ITEM ═══
-       Phase 5 added a tag entry to the same menu, so counting `menuitem` started
-       reporting 7 against a check that means "six reactions, not an emoji
+       Phase 5 added a tag entry to the same menu, so counting every menuitem
+       started reporting 7 against a check that means "six reactions, not an emoji
        keyboard". The claim is about the reaction set; the tag is a different kind of
-       act and `chat-documentation.mjs` counts it. Split by whether the item's own
-       glyph is an emoji rather than an SVG. */
+       act, and chat-documentation.mjs is what counts it. Split by whether the
+       item's own glyph is an emoji rather than an SVG. */
     const all = [...m.querySelectorAll('[role="menuitem"]')];
     const items = all.filter((i) => !i.querySelector("svg"));
     const box = m.getBoundingClientRect();
