@@ -95,6 +95,30 @@ describe("§2.4 — seeded data is internally consistent", () => {
     }
   });
 
+  it("no teen has an intake billing review and a monthly re-review open at once", () => {
+    /* ═══ REUSE ACROSS DOMAINS IS REQUIRED; INCOHERENCE IS NOT ═══
+       §2.4 wants the same teens appearing in several domains, and the bulk fill
+       delivers that. What it also delivered, until the seeds were made to stride,
+       was Sofia holding an INTAKE and a MONTHLY RE-REVIEW at the same time — one
+       band above the other in the Billing tab, same name on both rows. An intake
+       assigns a teen's first code; a re-review revises an existing one. A teen
+       cannot be having both done this week.
+       Caught by looking at a screenshot, which is exactly the kind of luck this
+       test replaces. */
+    for (const { id, items } of every()) {
+      const open = items.filter((i) => i.status !== "resolved");
+      const intake = new Set(
+        open.filter((i) => i.taskType === "intakeBillingReview").map((i) => i.teenId)
+      );
+      const rereview = open
+        .filter((i) => i.taskType === "monthlyReReview")
+        .map((i) => i.teenId);
+      for (const teenId of rereview) {
+        expect(intake.has(teenId), `${id}: ${teenId} has both an intake and a re-review`).toBe(false);
+      }
+    }
+  });
+
   it("the active-escalation scenario's escalated teen also has flag history", () => {
     const items = tasksScenario("active-escalation", NOW);
     const escalated = items.filter((i) => i.taskType === "activeEscalation");

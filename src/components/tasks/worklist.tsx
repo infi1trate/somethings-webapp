@@ -835,7 +835,12 @@ function BandHeader({ band }: { band: TierBand }) {
     <div
       aria-hidden
       style={{ height: HEADER_H }}
-      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]"
+      /* SENTENCE CASE, for the same reasons the pane's field labels dropped
+         theirs (gap row 354) — and more so here, because this label's ENTIRE JOB
+         is to be scanned. All caps strips the ascenders and descenders that make
+         "Imminent" recognisable in peripheral vision, which is exactly how a
+         reader forty rows down uses it. */
+      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[12px] font-semibold leading-[16px] text-[var(--text-muted)]"
     >
       {/* `tabular-nums` — the counts tick down as a supervisor works, and
           proportional figures would shift the whole line each time. */}
@@ -866,7 +871,12 @@ function RetiredBand({ band }: { band: Retiring }) {
       <div
         aria-hidden
         style={{ height: HEADER_H }}
-        className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]"
+        /* SENTENCE CASE, for the same reasons the pane's field labels dropped
+         theirs (gap row 354) — and more so here, because this label's ENTIRE JOB
+         is to be scanned. All caps strips the ascenders and descenders that make
+         "Imminent" recognisable in peripheral vision, which is exactly how a
+         reader forty rows down uses it. */
+      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[12px] font-semibold leading-[16px] text-[var(--text-muted)]"
       >
         <span className="tabular-nums">
           {retiredBandLabel(band.label, band.closedToday)}

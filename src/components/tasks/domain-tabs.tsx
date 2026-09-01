@@ -42,7 +42,7 @@
 // navigation, one tab stop for the set — the same APG pattern the Activity rail
 // uses. They swap a panel in place; they are not links.
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Receipt, ShieldAlert } from "lucide-react";
 import type { DomainSummary } from "@/lib/tasks/sort";
 import { DOMAIN_LABEL, TASK_DOMAINS, type TaskDomain } from "@/lib/tasks/types";
@@ -116,6 +116,59 @@ function breachLabel(summary: DomainSummary): string {
   const hours = Math.floor((summary.worstBreachMs ?? 0) / 3_600_000);
   const past = hours >= 24 ? `${Math.floor(hours / 24)}d` : `${Math.max(1, hours)}h`;
   return `${summary.breachedCount} past ${past}`;
+}
+
+/** ═══ THE CLOSED COUNT ACKNOWLEDGES ITSELF (Part 5) ═══
+ *
+ *  A resolve makes the open count drop by one and the closed count rise by one,
+ *  and only the drop is visible: the eye is on the list, which just lost a row.
+ *  The closed figure — the only place the work a supervisor has DONE is recorded
+ *  on this page — changes silently in the corner of a card.
+ *
+ *  So it pulses: a brief lift to full opacity and back. Not a bounce, not a
+ *  colour change, not a flourish — the Somethings rule is that clearing work is a
+ *  fact, not an achievement, and a celebratory animation on a page about teen risk
+ *  flags would be the wrong register entirely. What this does is make a number
+ *  that moved LOOK like it moved, which is the minimum a changing figure owes a
+ *  reader.
+ *
+ *  Fires on the value CHANGING, never on mount — arriving on a page with eleven
+ *  already closed is not an event. Suppressed under `prefers-reduced-motion`,
+ *  where the number simply reads correctly. */
+function ClosedCount({ count, label }: { count: number; label: string }) {
+  const [pulsing, setPulsing] = useState(false);
+  const prev = useRef(count);
+  useEffect(() => {
+    if (prev.current === count) return;
+    prev.current = count;
+    setPulsing(true);
+    const t = window.setTimeout(() => setPulsing(false), 520);
+    return () => window.clearTimeout(t);
+  }, [count]);
+  /* ═══ THE PULSE IS AN OVERLAY, NOT A CHANGE TO THE RESTING STATE ═══
+     The obvious implementation animates this element's own opacity — and it
+     cannot, because at rest it is already at 1: an "opacity pulse" from full
+     opacity has nowhere to go but DOWN, and a dip reads as a flicker or a
+     rendering fault. Lowering the resting opacity instead would trade a moment of
+     motion for a permanent contrast loss on muted ink that is already near the
+     floor.
+     So the resting text is untouched and a duplicate in primary ink fades in over
+     it and back out. `aria-hidden`, or a screen reader announces the count twice. */
+  return (
+    <span className="relative inline-block">
+      {label}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 text-[var(--text-primary)]",
+          "transition-opacity duration-[260ms] ease-out motion-reduce:hidden",
+          pulsing ? "opacity-100" : "opacity-0"
+        )}
+      >
+        {label}
+      </span>
+    </span>
+  );
 }
 
 export function DomainTabs({
@@ -199,7 +252,15 @@ export function DomainTabs({
               className={cn(
                 // ~72px, two lines. The height is the anatomy, not a value to
                 // tune: line 1 identifies the domain, line 2 is the workload.
-                "flex min-h-[72px] w-full flex-col justify-between gap-1 rounded-[var(--radius-surface)] px-3 py-2.5 text-left transition-colors",
+                /* `h-full`, NOT JUST `min-h-[72px]` — MEASURED FROM THE
+                   SCREENSHOT. Risk flags carries a breach chip AND a closed
+                   segment, they wrap to a second line, and that card alone grew
+                   past 72px while the other three sat at 72. A row of four cards
+                   where one is taller does not read as "this one has more news",
+                   it reads as broken. The grid stretches its items by default, so
+                   `h-full` makes every card the height of the tallest and the
+                   minimum becomes the floor rather than the answer. */
+                "flex h-full min-h-[72px] w-full flex-col justify-between gap-1 rounded-[var(--radius-surface)] px-3 py-2.5 text-left transition-colors",
                 /* ═══ EVERY CARD IS VISIBLY CONTAINED ═══
                    Unselected cards were `--surface-s1` on a `--surface-s1` page —
                    the same value, so they had no edge at all and read as text
@@ -305,7 +366,10 @@ export function DomainTabs({
                 {/* TODO-COPY. Reads "· 2 closed" beside the open count on a busy
                     card and "All clear · 5 closed today" on an empty one — the
                     accomplishment stays where the work happened. */}
-                {empty ? `· ${closedCount} closed today` : `· ${closedCount} closed`}
+                <ClosedCount
+                  count={closedCount}
+                  label={empty ? `· ${closedCount} closed today` : `· ${closedCount} closed`}
+                />
               </Link>
             )}
           </div>

@@ -31,6 +31,7 @@
 
 import type { TaskItem } from "@/lib/tasks/types";
 
+const SECOND = 1_000;
 const MINUTE = 60_000;
 
 export type MessageSender = "teen" | "mentor";
@@ -160,15 +161,55 @@ export function buildConversation(
    *
    *  Walking backwards and SUBTRACTING each gap is monotonic by construction: the
    *  jitter can vary as much as it likes and the order still holds. */
+  /* ═══ PEOPLE SEND TWO IN A ROW, AND THE FIXTURE DID NOT ═══
+   *
+   *  This alternated strictly — teen, mentor, teen, mentor, for thirty messages.
+   *  MEASURED against the pane's timestamp clustering: 20 of 20 bubbles carried a
+   *  header, because the sender changed on every single line, so the clustering
+   *  rule was live code that could never fire.
+   *
+   *  The right conclusion was that the FIXTURE was wrong, not the rule. Nobody
+   *  texts in perfect turns. A teen types a thought, then the rest of it eight
+   *  seconds later; a mentor sends a question and then softens it. That is what a
+   *  supervisor reading a real transcript sees, and it changes how the excerpt
+   *  reads — a burst is one utterance, and splitting it into two headed bubbles
+   *  makes a hesitant sentence look like two separate disclosures.
+   *
+   *  So a run is 1 or 2 messages, decided by the seed. Deterministic, and the
+   *  invariant that survives is the one that matters: the message immediately
+   *  before the anchor is still the MENTOR's, because a flagged teen message
+   *  almost always answers something.
+   *
+   *  Within a run the gap is well under the clustering threshold (30–90s) and
+   *  between runs it is well over (4–10min), so the rule is exercised in both
+   *  directions rather than sitting near its boundary. */
   const before: ConversationMessage[] = [];
   let cursor = anchorAt;
+  let sender: MessageSender = "mentor";
+  /** How many MORE messages this speaker still owes after the current one. A
+   *  counter of the extras rather than of the run length: the first draft counted
+   *  the run and asked `runLeft > 1` on the NEXT iteration, by which point it had
+   *  already been decremented to 1 — so the condition was never true and the
+   *  fixture alternated exactly as strictly as before. Caught by the test, which
+   *  reported zero consecutive pairs across sixty conversations; both versions
+   *  render a perfectly plausible transcript, so nothing about looking at it
+   *  would have shown the difference. */
+  let extra = 0;
   for (let i = 1; i <= CONTEXT_BEFORE; i++) {
-    // Alternating, starting so the message BEFORE the anchor is the mentor's —
-    // a flagged teen message almost always answers something.
-    const sender: MessageSender = i % 2 === 1 ? "mentor" : "teen";
+    const continuing = i > 1 && extra > 0;
+    if (continuing) {
+      extra -= 1;
+    } else if (i > 1) {
+      sender = sender === "mentor" ? "teen" : "mentor";
+      // Roughly one turn in three is two messages. Seeded, so it is stable per
+      // item and varies between items.
+      extra = (seed + i * 7) % 3 === 0 ? 1 : 0;
+    }
     const pool = sender === "teen" ? TEEN_LINES : MENTOR_LINES;
     // Spacing varies a little so the column does not read as a metronome.
-    cursor -= 4 * MINUTE + ((seed + i) % 7) * MINUTE;
+    cursor -= continuing
+      ? 30 * SECOND + ((seed + i) % 60) * SECOND
+      : 4 * MINUTE + ((seed + i) % 7) * MINUTE;
     before.push({
       id: `${item.id}-m-b${i}`,
       sender,
@@ -191,16 +232,27 @@ export function buildConversation(
   };
 
   const after: ConversationMessage[] = [];
+  let fwdSender: MessageSender = "mentor";
+  let fwdExtra = 0;
   // AFTER THE FLAG THE CONVERSATION THINS OUT, which is true to life and also
   // true to the data: the flag is recent, so there has not been much since. The
   // count is seeded so it varies per item without varying per render.
   const afterCount = Math.min(CONTEXT_AFTER, 2 + (seed % 5));
   let fwd = anchorAt;
   for (let i = 1; i <= afterCount; i++) {
-    const sender: MessageSender = i % 2 === 1 ? "mentor" : "teen";
+    const continuing = i > 1 && fwdExtra > 0;
+    if (continuing) {
+      fwdExtra -= 1;
+    } else if (i > 1) {
+      fwdSender = fwdSender === "mentor" ? "teen" : "mentor";
+      fwdExtra = (seed + i * 5) % 3 === 0 ? 1 : 0;
+    }
+    const sender = fwdSender;
     const pool = sender === "teen" ? TEEN_LINES : MENTOR_LINES;
     // Same accumulation as above, for the same reason.
-    fwd += 6 * MINUTE + ((seed + i) % 5) * MINUTE;
+    fwd += continuing
+      ? 40 * SECOND + ((seed + i) % 50) * SECOND
+      : 6 * MINUTE + ((seed + i) % 5) * MINUTE;
     const at = fwd;
     // NEVER IN THE FUTURE. A transcript with tomorrow's timestamp in it is the
     // kind of detail that makes a reader distrust everything else on the screen.

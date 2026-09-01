@@ -23,6 +23,19 @@ function everyFlag() {
   );
 }
 
+/** The same sweep, with the built conversation attached. Sampled to the first
+ *  60 flags: the dense scenarios now carry ~140 each and building every one is
+ *  several seconds of work to re-prove a property the first dozen already show. */
+function everyFlagConversation() {
+  return everyFlag()
+    .slice(0, 60)
+    .map(({ scenario, item, payload }) => ({
+      scenario,
+      item,
+      c: buildConversation(item, payload.flaggedExcerpt, NOW),
+    }));
+}
+
 describe("the conversation fixture", () => {
   it("covers every risk flag in every scenario", () => {
     const flags = everyFlag();
@@ -62,6 +75,36 @@ describe("the conversation fixture", () => {
     for (const { item, payload } of everyFlag()) {
       const c = buildConversation(item, payload.flaggedExcerpt, NOW);
       for (const m of c.messages) expect(m.at).toBeLessThanOrEqual(NOW);
+    }
+  });
+
+  /* ═══ THE BURSTS ARE LOAD-BEARING, SO THEY ARE PINNED ═══
+     The pane clusters timestamps: a bubble drops its name-and-time header when it
+     continues the one above it. MEASURED before this test existed — 20 of 20
+     bubbles carried a header, because the fixture alternated speakers strictly
+     and the clustering rule could never fire. A fixture that quietly returns to
+     strict alternation would make that rule dead code again, invisibly, since
+     both versions render perfectly well. */
+  it("has consecutive messages from one sender — people send two in a row", () => {
+    let runs = 0;
+    let checked = 0;
+    for (const { c } of everyFlagConversation()) {
+      checked++;
+      for (let i = 1; i < c.messages.length; i++) {
+        if (c.messages[i].sender === c.messages[i - 1].sender) runs++;
+      }
+    }
+    expect(checked, "no conversations were checked").toBeGreaterThan(5);
+    expect(runs, "the fixture alternates strictly — clustering can never fire").toBeGreaterThan(0);
+  });
+
+  it("still puts the mentor's message immediately before the flagged one", () => {
+    // A flagged teen message almost always answers something, and the bursts must
+    // not have broken that.
+    for (const { scenario, item, c } of everyFlagConversation()) {
+      const i = c.messages.findIndex((m) => m.flagged);
+      if (i <= 0) continue;
+      expect(c.messages[i - 1].sender, `${scenario}/${item.id}`).toBe("mentor");
     }
   });
 

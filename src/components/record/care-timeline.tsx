@@ -32,6 +32,7 @@ import {
   type CareFilterId,
 } from "@/lib/record/care-demo";
 import { AssessmentChip } from "@/components/record/care-update-view";
+import { ScoreLozenge } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -57,13 +58,10 @@ const CHIP_OFF =
  *  the label is never dropped to save space; the lozenge shrinks instead.
  *  Ratios are the tokens' own, measured in settings-tokens.css: sage 6.10:1,
  *  amber 7.24:1, rose 5.93:1. Row 312. */
-const BAND_CHIP: Record<string, string> = {
-  minimal: "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
-  mild: "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
-  moderate: "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]",
-  "moderately severe": "bg-[var(--band-rose-bg)] text-[var(--band-rose-fg)]",
-  severe: "bg-[var(--band-rose-bg)] text-[var(--band-rose-fg)]",
-};
+/* THE TINT TABLE AND THE LOZENGE MARKUP MOVED to ui/evidence-primitives, because
+   the Tasks billing pane shows the same instrument, the same number and the same
+   band, and a supervisor should not have to work out whether two differently
+   shaped readings mean the same thing. The reasoning above travelled with it. */
 
 /** ═══ THE SCORE LOZENGE'S DATA ═══
  *
@@ -79,24 +77,16 @@ const BAND_CHIP: Record<string, string> = {
  *  Returns null for every non-assessment row, and for an assessment whose result
  *  carries no parseable number — absence renders no lozenge, which is correct and
  *  better than a lozenge reading "NaN". */
-function scoreFor(event: CareEvent): {
-  value: number;
-  band: string;
-  bandLabel: string;
-} | null {
+function scoreFor(event: CareEvent): { value: number; band: string } | null {
   if (event.type !== "assessment") return null;
   const n = Number(String(event.result).match(/\d+/)?.[0]);
   if (!Number.isFinite(n)) return null;
   const instrument = event.description;
   if (instrument !== "PHQ-9" && instrument !== "GAD-7") return null;
   const band = severityFor(instrument, n);
-  return {
-    value: n,
-    band,
-    // TODO-COPY — sentence case, so the lozenge reads as a label rather than a
-    // shout: "Moderately severe", not "MODERATELY SEVERE".
-    bandLabel: band.charAt(0).toUpperCase() + band.slice(1),
-  };
+  // The sentence-cased label lives on the lozenge itself now — see `bandLabel`
+  // in ui/evidence-primitives.
+  return { value: n, band };
 }
 
 const TONE_STYLE: Record<string, string> = {
@@ -429,22 +419,7 @@ function Row({
                 a number that happens to sit near a word. It replaces the
                 separate result line for this type, which is why assessments get
                 no line 2 unless they are amended. */}
-            {score && (
-              <span
-                className={cn(
-                  "inline-flex shrink-0 items-stretch overflow-hidden rounded-[4px] text-[12px] font-medium leading-[18px]",
-                  BAND_CHIP[score.band]
-                )}
-              >
-                <span className="px-1.5 tabular-nums">{score.value}</span>
-                {/* The divider is a border, not a character: a "|" would be
-                    read aloud by some screen readers and would inherit the text
-                    colour rather than the tint's. */}
-                <span className="border-l border-current/25 px-1.5">
-                  {score.bandLabel}
-                </span>
-              </span>
-            )}
+            {score && <ScoreLozenge value={score.value} band={score.band} />}
 
             {/* RIGHT-ALIGNED. `ml-auto` rather than `justify-between` so it
                 still sits beside the title when the row is short instead of

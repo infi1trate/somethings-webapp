@@ -97,8 +97,18 @@ const ROSTER: Teen[] = [
   { id: "tk-clara", name: "Clara L." },
   { id: "tk-marco", name: "Marco B." },
   { id: "tk-elena", name: "Elena Q." },
-  ...Object.values(TEENS),
 ];
+/* ═══ THE NAMED EIGHT ARE NOT IN THE FILL ROSTER, DELIBERATELY ═══
+   They were, via a `...Object.values(TEENS)` spread — and the bulk intake fill
+   landed on Riley, who already carries a hand-written MONTHLY RE-REVIEW. A teen
+   cannot have both: an intake assigns a first code, a re-review revises an
+   existing one. Striding the seeds fixed the fills colliding with each other and
+   could not fix a fill colliding with a hand-written spec, because the hand-
+   written specs do not go through `fill` at all.
+   Keeping the two casts disjoint is the version of this that stays true as
+   scenarios are edited: the eight carry the narrative fixtures anyone reviewing
+   this surface is asked to look at, the twenty-four carry the volume, and neither
+   can silently contradict the other. Pinned in seed.test.ts. */
 
 const MENTORS = {
   brandon: { id: "tk-m-brandon", name: "Brandon Forant" },
@@ -341,7 +351,18 @@ function fill(o: FillOptions): Spec[] {
   const span = Math.max(1, o.maxAgo - o.minAgo);
   for (let i = 0; i < o.count; i++) {
     const conv = i % o.conversations;
-    const teen = ROSTER[(conv + o.seed) % ROSTER.length];
+    /* ═══ THE SEED STRIDES, IT DOES NOT OFFSET BY ONE ═══
+       `(conv + seed)` put consecutive fills on overlapping slices of the roster,
+       and the visible consequence was incoherent data: Sofia had an INTAKE
+       billing review and a MONTHLY RE-REVIEW open at the same time. An intake is
+       the first code a teen is ever assigned and a re-review revises an existing
+       one, so a teen cannot plausibly have both — and it was on screen, one band
+       above the other, with the same name on both rows.
+       Striding by 7 gives each fill a disjoint window of the roster. Flags and
+       monitoring still overlap each other deliberately, because a teen WITH a red
+       flag plausibly has an orange one and a green one; §2.4's cross-domain reuse
+       requirement is what that serves, and it is asserted in seed.test.ts. */
+    const teen = ROSTER[(conv + o.seed * 7) % ROSTER.length];
     const mentor = MENTOR_POOL[(conv + o.seed) % MENTOR_POOL.length];
     // Age walks the window by conversation, not by index, so the members of one
     // group are MINUTES apart (they are flags on one conversation) while

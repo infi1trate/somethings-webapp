@@ -28,7 +28,7 @@
 // the transcript never loses their place in the pane. Without it the two regions
 // feel like one broken one.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, MessageSquare, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,36 @@ function timeOf(at: number): string {
   });
 }
 
+/** ═══ TIMESTAMP CLUSTERING (Part 5) ═══
+ *
+ *  Every bubble carried a name-and-time line. In a transcript where one person
+ *  sends four messages in ninety seconds, that is four identical headers — the
+ *  same name, times a minute apart — and the effect is that the transcript reads
+ *  as eight things instead of four, with the reader's eye caught by a label that
+ *  never changes.
+ *
+ *  So a header appears when it is NEWS: the speaker changed, or enough time
+ *  passed that the gap itself is information. Five minutes is the threshold —
+ *  short enough that a genuine pause in a conversation shows, long enough that a
+ *  burst of consecutive messages stays one block. Consecutive messages from one
+ *  speaker inside that window are visibly one turn, which is how they were
+ *  written.
+ *
+ *  The FIRST message always gets one, and so does the flagged one: the anchor is
+ *  the line the whole pane is about and it must be attributable on sight, even if
+ *  it happens to be the third message of a burst. */
+const CLUSTER_MS = 5 * 60_000;
+
+function needsHeader(
+  m: ConversationMessage,
+  prev: ConversationMessage | undefined
+): boolean {
+  if (!prev) return true;
+  if (m.flagged) return true;
+  if (m.sender !== prev.sender) return true;
+  return m.at - prev.at > CLUSTER_MS;
+}
+
 /** ═══ THE BUBBLE ═══
  *
  *  Simplified deliberately: sender, time, text. No avatars, no reactions, no read
@@ -70,23 +100,42 @@ function timeOf(at: number): string {
  *  to infer from alignment. */
 function Bubble({
   m,
+  header,
+  blooming,
   flaggedRef,
 }: {
   m: ConversationMessage;
+  /** False for a message clustered under the one above it. See `needsHeader`. */
+  header: boolean;
+  /** The one-shot highlight when this excerpt is anchored. See `bloom`. */
+  blooming?: boolean;
   flaggedRef?: React.Ref<HTMLLIElement>;
 }) {
   const mine = m.sender === "mentor";
   return (
     <li
       ref={flaggedRef}
-      className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}
+      className={cn(
+        "flex flex-col gap-1",
+        mine ? "items-end" : "items-start",
+        // A clustered message sits closer to the one it continues than to the
+        // next turn — the spacing is what makes the cluster read as one block,
+        // and it is the reason dropping the header does not just leave a gap.
+        !header && "-mt-2.5"
+      )}
     >
-      <p className="flex items-center gap-1.5 px-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-        <span className="font-medium text-[var(--text-secondary)]">
-          {m.senderName}
-        </span>
-        <time dateTime={new Date(m.at).toISOString()}>{timeOf(m.at)}</time>
-      </p>
+      {header && (
+        <p className="flex items-center gap-1.5 px-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+          <span className="font-medium text-[var(--text-secondary)]">
+            {m.senderName}
+          </span>
+          {/* `tabular-nums`: the times sit in a column down one edge of the
+              transcript, and proportional figures make that column ragged. */}
+          <time className="tabular-nums" dateTime={new Date(m.at).toISOString()}>
+            {timeOf(m.at)}
+          </time>
+        </p>
+      )}
       <div
         className={cn(
           "relative max-w-[85%] rounded-[var(--radius-control)] px-3 py-2 text-[13.5px] leading-[19px]",
@@ -107,7 +156,18 @@ function Bubble({
           // message looked like every other bubble. Nothing errors, nothing warns
           // — measured, not noticed. Zero new tokens is the rule; this is why.
           m.flagged &&
-            "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)] ring-1 ring-[color:var(--band-amber-fg)]/25"
+            "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)] ring-1 ring-[color:var(--band-amber-fg)]/25",
+          /* ═══ THE ANCHOR BLOOM (Part 5) ═══
+             The excerpt opens already scrolled to the flagged line, which means
+             the reader's eye arrives with no idea that anything moved — the
+             transcript simply starts in the middle. A single soft ring, widened
+             for ~200ms and eased away, says "this is the line, and this is where
+             you were put". Once per selection: it fires on the anchor effect, not
+             on every render, so a re-render never re-blooms and a supervisor
+             working through fifty flags sees it once each, not repeatedly.
+             `motion-reduce` drops it entirely rather than shortening it. */
+          m.flagged && "transition-[box-shadow] duration-200 ease-out motion-reduce:transition-none",
+          m.flagged && blooming && "shadow-[0_0_0_6px_var(--band-amber-bg)]"
         )}
       >
         {/* THE GUTTER MARKER. `-left-6` put it 24px left of the bubble — which is
@@ -176,6 +236,18 @@ export function ConversationExcerpt({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLLIElement>(null);
+  /** ONE BLOOM PER SELECTION. Keyed by the anchor id rather than a boolean, so
+   *  the effect below can set it for the anchor it just scrolled to and a
+   *  re-render with the same anchor cannot fire a second one. */
+  const [bloomFor, setBloomFor] = useState<string | null>(null);
+  /** ═══ THE ROLE CAPTION, DISMISSED FOR GOOD ═══
+   *  A supervisor learns "left is the teen, right is the mentor" once and then
+   *  reads it fifty more times a shift. Dismissible, and the dismissal sticks for
+   *  the session — `localStorage` was considered and rejected: this is a
+   *  prototype with no per-user store on this surface, and a preference that
+   *  outlives the session but is written nowhere a reader can see or reset is a
+   *  worse trade than one they re-dismiss tomorrow. */
+  const [captionOpen, setCaptionOpen] = useState(true);
 
   /** ═══ ANCHOR WITHOUT SCROLLING THE PAGE ═══
    *
@@ -219,6 +291,17 @@ export function ConversationExcerpt({
     // The first anchor is instant — a smooth scroll on open reads as the panel
     // settling and draws the eye to the motion instead of the message.
     anchor(false);
+    /* AND THEN THE BLOOM, one frame later. In the same commit the ring would
+       mount already-wide and there would be nothing to transition FROM — the
+       same reason the retiring band in the worklist waits a frame. Cleared after
+       the transition so the ring does not sit permanently expanded. */
+    const id = conversation.anchorId;
+    const on = requestAnimationFrame(() => setBloomFor(id));
+    const off = window.setTimeout(() => setBloomFor(null), 320);
+    return () => {
+      cancelAnimationFrame(on);
+      window.clearTimeout(off);
+    };
   }, [state, conversation?.anchorId, anchor, conversation]);
 
   const regionLabel =
@@ -277,23 +360,62 @@ export function ConversationExcerpt({
         )}
       >
         {conversation.truncatedStart && (
-          <p className="pb-3 text-center text-[12px] leading-[16px] text-[var(--text-muted)]">
-            {/* TODO-COPY. A quiet edge marker, not a control: there is no
-                pagination in v1, and a button that loaded nothing would be worse
-                than a sentence that explains the boundary. */}
-            Earlier messages in the full conversation
+          /* ═══ A QUIET EDGE MARKER, CENTRED ON A RULE ═══
+             It was a centred sentence with nothing to centre it against, which at
+             the top of a scroll region reads as a first message from nobody. A
+             hairline running the width with the words sitting in a gap in it says
+             "the transcript starts here" as a boundary rather than as content.
+             Still not a control: there is no pagination in v1, and a button that
+             loaded nothing would be worse than a sentence that explains the
+             edge. */
+          <p
+            className="mb-4 flex items-center gap-2.5 text-[11.5px] leading-[16px] text-[var(--text-muted)]"
+            aria-hidden={false}
+          >
+            <span className="h-px flex-1 bg-[var(--border-subtle)]" aria-hidden />
+            {/* TODO-COPY */}
+            <span className="shrink-0">Earlier messages not shown</span>
+            <span className="h-px flex-1 bg-[var(--border-subtle)]" aria-hidden />
           </p>
         )}
         <ul className="space-y-4">
-          {conversation.messages.map((m) => (
+          {conversation.messages.map((m, i) => (
             <Bubble
               key={m.id}
               m={m}
+              header={needsHeader(m, conversation.messages[i - 1])}
+              blooming={bloomFor === m.id}
               flaggedRef={m.id === conversation.anchorId ? anchorRef : undefined}
             />
           ))}
         </ul>
       </div>
+
+      {/* ═══ ONE LINE, ONCE ═══
+          Left is the teen, right is the mentor. The alignment and tint carry it
+          after the first read, and the names are on the bubbles regardless — so
+          this is an onboarding line, not a legend, and it goes away when it has
+          done its job. Sits BELOW the region rather than inside it, so dismissing
+          it cannot change the transcript's scroll position. */}
+      {captionOpen && (
+        <p className="mt-2 flex items-center gap-2 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+          {/* TODO-COPY */}
+          <span className="min-w-0">
+            {teenName} on the left, mentor on the right.
+          </span>
+          <button
+            type="button"
+            onClick={() => setCaptionOpen(false)}
+            className={cn(
+              "shrink-0 rounded-sm font-semibold text-[var(--text-secondary)] underline decoration-[color:var(--border-contour)] underline-offset-2 hover:text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            {/* TODO-COPY */}
+            Hide
+          </button>
+        </p>
+      )}
 
       {/* PINNED BELOW, ALWAYS. The excerpt is a window; the way out of it is not
           something a reader should have to scroll to find. */}

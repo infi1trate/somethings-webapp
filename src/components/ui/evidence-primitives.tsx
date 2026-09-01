@@ -31,9 +31,37 @@ const RING =
 
 /** The section eyebrow. Every block in an evidence pane is this label followed
  *  by its content — that repetition IS the section rhythm, so it is one constant
- *  rather than a class copied per block. */
+ *  rather than a class copied per block.
+ *
+ *  ═══ SENTENCE CASE, NOT ALL CAPS (Part 5) ═══
+ *
+ *  These were `uppercase` with 0.04em tracking. Three problems, in order of how
+ *  much they cost:
+ *
+ *   · A pane with five all-caps eyebrows reads as five SHOUTS between the
+ *     paragraphs a supervisor is actually there to read. Emphasis applied to
+ *     every label is emphasis applied to none of them, and the labels are the
+ *     least important text on the pane.
+ *   · Some screen readers spell out short all-caps strings letter by letter.
+ *     "TYPE" becoming "T-Y-P-E" is a small thing fifty times a shift.
+ *   · All caps removes ascenders and descenders, which is most of what makes a
+ *     word recognisable at a glance — the exact scanning this label supports.
+ *
+ *  Weight and colour still separate the label from its value, which is what the
+ *  case was doing badly.
+ *
+ *  ═══ AND THERE IS STILL NO TOKEN FOR IT ═══
+ *
+ *  Bloom's type ramp has six roles (Display / Headline / Title / Body / Label /
+ *  Label-Alt) and `Label/Small` is 12/16 bold with 0 tracking — close, but it is
+ *  the ramp step, not a semantic "this is a field label on a dense surface" that
+ *  carries its own colour and case. So the value here stays interim.
+ *  THIS IS THE THIRD RECURRENCE of the same missing convention — the record's
+ *  field labels, the Activity pane's section headings, and now this — which is
+ *  what makes it a system gap rather than three local choices. Logged as
+ *  design-system-gaps.md row 354. */
 export const PANE_LABEL =
-  "text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]";
+  "text-[12px] font-semibold leading-[16px] text-[var(--text-muted)]";
 
 /** SYSTEM-ATTRIBUTION FOR AI CONTENT (§5).
  *
