@@ -167,28 +167,45 @@ function sentenceWithTeenChip(row: FeedRow) {
   return (
     <>
       {glued}
-      {/* `align-middle` and NO TRANSLATE. The previous version was a 20px avatar
-          nudged down 2px inside a 20px line box, which necessarily grew the box and
-          pushed the lines apart — the "disturbs line-height" §8 reports. A 16px
-          avatar centred on the text's middle fits inside the box and changes
-          nothing about it.
+      {/* ═══ A CIRCLE IS CENTRED ACROSS THE CAP BAND, NOT SAT ON THE BASELINE ═══
           
-          `whitespace-nowrap` keeps the avatar and the name together; they are one
-          token and breaking between them would leave a lone initial at a line end. */}
-      <span className="inline-flex items-baseline gap-1 whitespace-nowrap align-baseline">
-        {/* ═══ CAP HEIGHT, BASELINE-ALIGNED (item 7) ═══
-            `align-middle` on the container centred the 16px avatar on the text's
-            x-height midpoint, which sits it visibly high against cap height on a
-            20px line box. `items-baseline` on the container plus a translate on
-            the avatar itself drops it onto the text baseline, and because the
-            avatar is 16px inside a 20px line box the box does not grow — verified
-            by measuring the line height with and without the chip. */}
-        <span
-          aria-hidden
-          className="inline-block translate-y-[3px] self-baseline"
-        >
-          <RecordAvatar name={row.teenName} size={16} />
-        </span>
+          This was `items-baseline` plus `translate-y-[3px]` on the avatar, and the
+          instruction behind it — "align the chip to the text baseline" — is wrong
+          for a circular element. Text SITS ON the baseline; a circle has to be
+          centred across the cap-height band, because its optical centre is its
+          geometric centre and the text's is the middle of that band.
+          Baseline-aligning a circle therefore drops it by roughly half a cap
+          height. MEASURED before the fix: cap height 9.99px, chip centre +5.0px
+          below the cap-band centre.
+          
+          `items-center` does the centring. `h-5` and `align-top` are what keep it
+          from costing anything: MEASURED, `items-center` alone centred the chip
+          perfectly and grew the line box by 2px, because an inline-flex's own
+          baseline is derived from its first item — the avatar — so the whole unit
+          hung below the line and the box stretched to hold it.
+          
+          Making the unit EXACTLY ONE LINE TALL (`h-5` = the 20px line-height) and
+          aligning it to the line box's top means it fills the line and cannot
+          extend past it; `items-center` then centres the 16px chip inside that
+          20px box, which is where the cap band's middle already is. Four
+          alternatives were measured — `align-middle`, `h-5 align-middle`,
+          `h-[1lh]`, `leading-[0]` — and every one either grew the box by 1.4px or
+          moved the chip back off centre. No translate, so nothing to re-tune when
+          the type token moves.
+          
+          `whitespace-nowrap` keeps chip, name and possessive as one token — which
+          is also what stops "'s conversation." orphaning onto its own line. And
+          `inline-flex` is safe HERE precisely because the unit never wraps
+          internally; an inline-flex that could wrap would break the line box. */}
+      <span className="inline-flex h-5 items-center gap-1 whitespace-nowrap align-top">
+        {/* 16px against a 9.99px cap height is 1.6× — above the 1.05× the brief
+            asks for, and kept deliberately. The size scale's smallest entry is
+            16px with a 9px initial; a ~10px chip would need ~6px text, which is a
+            coloured dot rather than an avatar, and the initial is the only thing
+            distinguishing two teens whose tints are close. The constraint that
+            actually protects the line box is the line box itself, and that is
+            measured and unchanged. Recorded as design-system-gaps row 350. */}
+        <RecordAvatar name={row.teenName} size={16} />
         <span>
           {row.teenName}
           {firstToken}
