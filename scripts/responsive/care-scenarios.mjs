@@ -23,16 +23,17 @@ const report = { base: BASE, rows: [] };
    captured. `src/lib/dev/__tests__/record-scenarios.test.ts` is what holds the
    registry side; this list has to be edited with it.
 
-   AND IT DRIFTED A SECOND TIME. `review-intake` moved off t6 (which `single-flag`
-   owns) onto t9, and `review-day30` was added — the stage the product labels
-   "Day 30" had no scenario at all after an earlier fix repointed it at intake. Four
-   review rows now, one per renderable stage plus the overdue case. */
+   AND IT DRIFTED TWICE MORE, both times because `STAGE_LABEL` named the review
+   already behind a record rather than the one ahead of it — so the row calling
+   itself a 30-day review sat on a teen 134 days into their mentorship. The labels
+   name the review that is DUE now (see the note on those maps), which is what lets
+   these three rows describe themselves honestly: the day-30 review comes due at
+   the INTAKE stage, and the first 90-day one at the stage still keyed `day30`. */
 const SCENARIOS = [
   { id: "new", teen: "t1", label: "New — day 1" },
   { id: "steady", teen: "t18", label: "Steady, healthy" },
-  { id: "review-intake", teen: "t9", label: "Intake review due" },
-  { id: "review-day30", teen: "t23", label: "Day 30 review due" },
-  { id: "review-90", teen: "t17", label: "90-day review due" },
+  { id: "review-day30", teen: "t9", label: "Day 30 review due" },
+  { id: "review-90", teen: "t23", label: "90-day review due" },
   { id: "review-overdue", teen: "t19", label: "Review overdue" },
   { id: "longitudinal", teen: "t17", label: "Rich longitudinal" },
 ];

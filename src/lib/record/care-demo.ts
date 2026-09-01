@@ -1390,9 +1390,36 @@ export type CadenceStage = "intake" | "day30" | "quarterly";
 /** TODO-COPY. THE STAGE, as a standalone chip. Note that `quarterly` already reads
  *  "90-day review" — which is why concatenating this with the word "review" is a
  *  trap, and why `REVIEW_NOUN` below exists. */
+/** ═══ THESE NAME THE REVIEW THAT IS DUE, NOT THE STAGE YOU ARE IN ═══
+ *
+ *  THEY USED TO NAME THE STAGE, AND IT WAS OFF BY ONE REVIEW. `cadenceFor` sets
+ *  the stage from the review that has already HAPPENED — you enter `day30` once
+ *  your day-30 review is behind you — while the chip pairs that label with a
+ *  countdown to the review AHEAD. So the card read "due in 8 days · Day 30" on a
+ *  teen 134 days into their mentorship whose next review actually falls on survey
+ *  day 120. Reported twice from the app, from both ends of the same defect:
+ *  first as "we're missing the 30 day review scenario" (nothing ever showed a
+ *  day-30 review coming due, because the record where one IS due said "Intake"),
+ *  then as "119 days in mentorship doesn't match a 30 day review".
+ *
+ *  MEASURED, and this is the whole argument: every record labelled "Intake" has
+ *  its review on survey day 30, and every record labelled "Day 30" has its review
+ *  on survey day 120. Not one exception in the roster. No fixture could have
+ *  fixed it — a `day30`-stage record cannot have a day-30 review due, because
+ *  that stage begins the moment that review is done.
+ *
+ *  So the label follows the countdown it sits beside:
+ *    intake     → the day-30 review is next
+ *    day30      → the first 90-day review is next (day 30 + 90 = day 120)
+ *    quarterly  → every 90-day review after that
+ *
+ *  TWO STAGES SHARING A LABEL IS CORRECT, not a collapse worth avoiding: the
+ *  review due at day 120 and the one due at day 210 are the same review on the
+ *  same 90-day cadence. What distinguished them was only which was first, and
+ *  that is not a fact about the review a supervisor is being asked to do. */
 export const STAGE_LABEL: Record<CadenceStage, string> = {
-  intake: "Intake",
-  day30: "Day 30",
+  intake: "Day 30",
+  day30: "90-day review",
   quarterly: "90-day review",
 };
 
@@ -1412,8 +1439,8 @@ export const STAGE_LABEL: Record<CadenceStage, string> = {
  *  reaching for `STAGE_LABEL` and appending a word — which is exactly what happened
  *  the first time. */
 export const REVIEW_NOUN: Record<CadenceStage, string> = {
-  intake: "intake review",
-  day30: "day 30 review",
+  intake: "day 30 review",
+  day30: "90-day review",
   quarterly: "90-day review",
 };
 

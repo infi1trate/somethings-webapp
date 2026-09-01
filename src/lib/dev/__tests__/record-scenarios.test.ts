@@ -48,6 +48,7 @@ import {
   pendingReviewFor,
   reviewDueState,
   severityFor,
+  REVIEW_NOUN,
   STAGE_LABEL,
   weightedAggregate,
 } from "@/lib/record/care-demo";
@@ -61,9 +62,14 @@ const NOW = new Date("2026-09-01T12:00:00.000Z").getTime();
  *  than parsed out of the label, because parsing prose is how a test ends up
  *  agreeing with a typo. */
 const REVIEW_CLAIMS = [
-  { id: "review-intake", stage: "intake" as const, overdue: false },
-  { id: "review-day30", stage: "day30" as const, overdue: false },
-  { id: "review-90", stage: "quarterly" as const, overdue: false },
+  /* THE STAGE A SCENARIO SITS IN IS NOT THE REVIEW IT NAMES, and that gap is the
+     defect this table now pins down. `cadenceFor` names a stage after the review
+     already behind you, so the day-30 review comes due while a record is still at
+     `intake`, and the first 90-day review comes due at `day30`. Written out as
+     the pair rather than as one field, so a future edit that "corrects" one of
+     them has to explain the other. */
+  { id: "review-day30", stage: "intake" as const, overdue: false },
+  { id: "review-90", stage: "day30" as const, overdue: false },
   { id: "review-overdue", stage: "quarterly" as const, overdue: true },
 ];
 
@@ -79,9 +85,6 @@ const DECLARED_SHARED_SUBJECTS: ReadonlyArray<readonly [string, string]> = [
   // exists for the ORDERING of two items in the action region, which by definition
   // needs both on one record.
   ["escalation-crisis", "escalation-and-review"],
-  // t17 is the only quarterly record due-but-not-overdue inside the warning window,
-  // and also the longest history in the roster. Different regions of one screen.
-  ["review-90", "longitudinal"],
   // Admin is a ROLE, not a person — there is no separate admin staff record to point
   // at, which is why `admin` is marked mocked.
   ["supervisor", "admin"],
@@ -197,7 +200,7 @@ describe("the review scenarios exhibit the state they name", () => {
     }
   });
 
-  it("all three renderable stages have a scenario", () => {
+  it("all three cadence stages have a scenario", () => {
     /* THE GAP THE LAST FIX OPENED. Repointing `review-30` at the intake stage left
        the stage the product labels "Day 30" with no scenario at all — reported from
        the app as "were missing the 30 day review scenario". A stage the chip can
@@ -314,6 +317,94 @@ describe("a pending review's band and its recommended code agree", () => {
       expect(
         words.some((w) => ALLOWED[band!]?.includes(w)),
         `${teen.id} (${teen.name}): the card shows the ${band} band and recommends "${pending.recommended.statement}" — two different severities for one judgment.`
+      ).toBe(true);
+    }
+  });
+});
+
+describe("the cadence label names the review that is actually due", () => {
+  const DAY = 86_400_000;
+
+  /** Where the next review lands on the SURVEY clock — days since the first
+   *  assessment, which is what `cadenceFor` measures the cadence from. */
+  function dueOnSurveyDay(teenId: string) {
+    const cadence = cadenceFor(teenId, NOW, {});
+    if (!cadence.nextReviewDue) return null;
+    const first = careTimelineFor(teenId, NOW, {})
+      .filter((e) => e.type === "assessment")
+      .sort((a, b) => a.occurredAt - b.occurredAt)[0];
+    if (!first) return null;
+    return Math.round((cadence.nextReviewDue - first.occurredAt) / DAY);
+  }
+
+  it("a record showing 'Day 30' has its review on survey day 30", () => {
+    /* ═══ THE DEFECT, STATED AS A TEST ═══
+       `STAGE_LABEL` used to name the review already BEHIND you while the chip
+       paired it with a countdown to the one ahead, so the label was one review
+       out of date on every record. It read "due in 8 days · Day 30" beside "134
+       days in mentorship" — reported from the app, and the second report of the
+       same root cause.
+       No fixture could have fixed that: a `day30`-stage record cannot have a
+       day-30 review due, because the stage starts when that review is done. So
+       the guard is on the LABEL, not on any record's numbers. */
+    for (const teen of DEMO_TEENS) {
+      const due = dueOnSurveyDay(teen.id);
+      if (due === null) continue;
+      const label = STAGE_LABEL[cadenceFor(teen.id, NOW, {}).stage];
+      if (!/30/.test(label)) continue;
+      expect(
+        due,
+        `${teen.id} (${teen.name}) shows "${label}" but its next review falls on survey day ${due}`
+      ).toBe(30);
+    }
+  });
+
+  it("and a review on survey day 30 is the only thing that may show it", () => {
+    // The converse, which is the half that went missing: the record where a
+    // day-30 review IS due said "Intake", so nothing on the surface ever showed
+    // one and the scenario was reported missing.
+    for (const teen of DEMO_TEENS) {
+      const due = dueOnSurveyDay(teen.id);
+      if (due !== 30) continue;
+      const label = STAGE_LABEL[cadenceFor(teen.id, NOW, {}).stage];
+      expect(
+        label,
+        `${teen.id} (${teen.name}) has its review on survey day 30 and shows "${label}"`
+      ).toMatch(/30/);
+    }
+  });
+
+  it("every 90-day label sits on a review 90 days after the last one", () => {
+    /* The other half of the cadence: intake → day 30 → every 90 days. So a
+       "90-day review" label has to sit on a review that is 90 days after the
+       previous review point — day 120 for the first one (30 + 90), and 90 days
+       after the last look for the ones after that. */
+    for (const teen of DEMO_TEENS) {
+      const due = dueOnSurveyDay(teen.id);
+      if (due === null) continue;
+      const stage = cadenceFor(teen.id, NOW, {}).stage;
+      if (stage !== "day30") continue;
+      expect(
+        due,
+        `${teen.id}: the first 90-day review should fall on survey day 120 (30 + 90), not ${due}`
+      ).toBe(120);
+      expect(STAGE_LABEL[stage]).toMatch(/90-day/);
+    }
+  });
+
+  it("the noun and the chip label agree about which review it is", () => {
+    // `REVIEW_NOUN` writes the drawer title and the pill; `STAGE_LABEL` writes the
+    // chip. They are two maps over one enum precisely so neither can grow a suffix
+    // rule — but nothing checked they still describe the same review.
+    for (const stage of Object.keys(STAGE_LABEL) as Array<
+      keyof typeof STAGE_LABEL
+    >) {
+      const chip = STAGE_LABEL[stage].toLowerCase();
+      const noun = REVIEW_NOUN[stage].toLowerCase();
+      const number = chip.match(/[0-9]+/)?.[0];
+      expect(
+        noun.includes(number ?? ""),
+        `stage "${stage}": chip says "${STAGE_LABEL[stage]}" and the noun says "${REVIEW_NOUN[stage]}"`
       ).toBe(true);
     }
   });

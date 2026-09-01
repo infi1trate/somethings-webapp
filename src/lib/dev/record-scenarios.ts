@@ -35,9 +35,8 @@
 //   new                          t1       real
 //   intake-complete              t11      real
 //   steady                       t18      real    (imperfect — see note)
-//   review-intake                t9       real    warning tone at the intake stage
-//   review-day30                 t23      real    the Day 30 stage; see below
-//   review-90                    t17      real    weighted over the last 3 surveys
+//   review-day30                 t9       real    the first review, 2 weeks out
+//   review-90                    t23      real    the first 90-day one (survey day 120)
 //   review-overdue               t19      real
 //   single-flag                  t6       real
 //   flag-cluster                 t21      real    4 flags, one day, one mark
@@ -45,8 +44,7 @@
 //   escalation-and-review        t13      real    the two-item ordering case
 //   paused                       t3       real
 //   deactivated                  t22      real
-//   longitudinal                 t17      mocked  206 days, not 8+ months;
-//                                                 SHARES t17 with review-90
+//   longitudinal                 t17      mocked  206 days, not 8+ months
 //   low-data                     t5       real
 //   attention-only               t12      mocked  role-dependent — view as mentor
 //
@@ -60,9 +58,9 @@
 // FOUR OF TWENTY-ONE ARE MOCKED, and each note says exactly what is missing
 // rather than what was invented.
 //
-// TWO PAIRS SHARE A SUBJECT ON PURPOSE, and both are declared in the entries
-// themselves: t13 (escalation-crisis + escalation-and-review) and t17
-// (review-90 + longitudinal). `record-scenarios.test.ts` holds that list and
+// ONE PAIR SHARES A SUBJECT ON PURPOSE, declared in the entries themselves: t13
+// (escalation-crisis + escalation-and-review). t17 used to be a second such pair
+// until `review-90` moved to t23. `record-scenarios.test.ts` holds that list and
 // FAILS on any third pair — an accidental duplicate means two scenarios are one
 // screenshot, which is how `review-90` and `review-overdue` were the same screen
 // for a while without anyone noticing.
@@ -116,72 +114,54 @@ export const TEEN_SCENARIOS: RecordScenario[] = [
       "IMPERFECT MATCH, stated rather than hidden: the brief asks for the pattern block thin OR suppressed, and t18 renders it (4 assessments, 3 presentation events). It is the closest healthy long record in the roster. A genuinely suppressed healthy record is `low-data`.",
   },
   {
-    /* ═══ THIS ENTRY HAS NOW BEEN WRONG TWICE, IN OPPOSITE DIRECTIONS ═══
-       FIRST it read `id: "review-30", label: "30-day review due", subjectId: "t17"`
-       while t17 is 196 days in on the QUARTERLY cadence, so the record rendered
-       "due in 2 days · 90-day review" under a heading naming a 30-day review.
+    /* ═══ THIS ENTRY WAS WRONG THREE TIMES, AND THE THIRD TIME FOUND THE CAUSE ═══
+       FIRST it read `id: "review-30", subjectId: "t17"` while t17 is 200+ days in
+       on the quarterly cadence — a 30-day heading over a 90-day record.
+       SECOND, the fix repointed it at the intake stage, which was right about the
+       arithmetic and wrong about the screen: the chip there said "Intake", so the
+       scenario still never showed a 30-day review and it was reported missing.
+       THIRD, a `day30`-stage record was added to fill the gap — and that one read
+       "due in 8 days · Day 30" beside "134 days in mentorship", which is what got
+       reported next.
 
-       THE FIX FOR THAT WAS ALSO WRONG. It concluded that "30-day review" was not a
-       state this product has, and repointed the scenario at the INTAKE stage — on
-       the reasoning that a review falling due at the 30-day mark happens while a
-       teen is still in intake. That arithmetic is right and the conclusion did not
-       follow: `STAGE_LABEL` is Intake / **Day 30** / 90-day review, so Day 30 is a
-       stage the product names on the chip, and the repoint left it with no scenario
-       at all. Reported from the app: "were missing the 30 day review scenario".
+       NONE OF THOSE WERE FIXTURE PROBLEMS. `STAGE_LABEL` named the review that had
+       already happened while the countdown beside it pointed at the next one, so
+       the label was one review behind, always. See the note on those maps — they
+       name the review that is DUE now, which is what makes this entry describable
+       at last: the record where a day-30 review is genuinely coming due is an
+       INTAKE-stage record, and it now says so.
 
-       So there are TWO entries, because there are two states and they render
-       differently. This one is the intake-stage review, and it moves off t6 —
-       `single-flag` already owns t6, and one record answering to two scenario names
-       is the duplication this registry exists to prevent. t9 is 16 days past his
-       first assessment with the first review 14 days out: intake stage, inside the
-       14-day window, so the warning tone this scenario exists to show is live. */
-    id: "review-intake",
-    label: "Intake review due",
-    kind: "teen",
-    subjectId: "t9",
-    exercises:
-      "First review due in 2 weeks — the warning tone on the cadence row at the intake stage. Chip reads \"due in 2 weeks · Intake\".",
-    data: "real",
-  },
-  {
-    /* ═══ THE STAGE THE PRODUCT LABELS "Day 30" ═══
-       Restored after the repoint above deleted it. This is the stage a teen is in
-       between their day-30 review and their day-120 one, and it is the only one of
-       the three whose chip and whose `REVIEW_NOUN` disagree in wording ("Day 30" on
-       the chip, "day 30 review" in the compose dialog) — worth a scenario of its
-       own for that alone.
-       t23 is the ONLY day30 record inside the 14-day warning window: t8 is 72 days
-       out, t15 80, t24 16 — all neutral. Measured, not assumed. */
+       t9 is 16 days past his first assessment with that review 14 days out —
+       inside the warning window, so the tone this scenario exists to show is live,
+       and 18 days into the mentorship, which is a number that agrees with it. */
     id: "review-day30",
     label: "Day 30 review due",
     kind: "teen",
-    subjectId: "t23",
+    subjectId: "t9",
     exercises:
-      "Day 30 cadence with the review 8 days out — warning tone, and the one stage whose chip wording differs from the noun the compose dialog uses. Chip reads \"due in 8 days · Day 30\".",
+      "The first cadence review, 2 weeks out — warning tone on the cadence row, and a single intake survey behind it, so the evidence block is one survey rather than a weighted period. Chip reads \"due in 2 weeks · Day 30\".",
     data: "real",
   },
   {
-    /* ═══ REPOINTED FROM t19 TO t17, WHICH ALSO REMOVES A DUPLICATE ═══
-       This and `review-overdue` both named t19, in the identical state — "overdue by
-       10 days · 90-day review". So the scenario called "90-day review DUE"
-       demonstrated a review that was already overdue, and two of the twenty
-       scenarios were the same screenshot.
-       t17 is the record that genuinely shows a 90-day review coming due: quarterly
-       stage, due in 2 days, warning tone. It also has five assessments against t19's
-       three, which serves the "multiple contributing surveys" line better. */
+    /* ═══ THE FIRST 90-DAY REVIEW, WHICH FALLS ON SURVEY DAY 120 ═══
+       Repointed from t17 to t23 with the label correction above, and that move
+       pays a second debt: `review-90` and `longitudinal` both named t17, declared
+       but still two scenarios on one screenshot. t23 leaves t17 to `longitudinal`
+       alone.
+       t23 is in the `day30` stage — 112 days past its first survey, so the review
+       ahead is the first of the 90-day cadence — 8 days out and inside the warning
+       window. 134 days in mentorship, which is the kind of tenure a reader expects
+       beside a 90-day review. */
     id: "review-90",
     label: "90-day review due",
     kind: "teen",
-    subjectId: "t17",
+    subjectId: "t23",
     exercises:
-      "Quarterly cadence, due in 2 days, with the review reading a recency-weighted score across the last three of five readings — 10 in the moderate band, expandable to all three surveys and their answers. Chip reads \"due in 2 days · 90-day review\".",
+      "90-day cadence, due in 8 days, with the review reading a recency-weighted score across the two GAD-7 results on file — 10 of 21 in the moderate band, expandable to both surveys and their answers. Chip reads \"due in 8 days · 90-day review\".",
     data: "real",
-    note:
-      "WAS MOCKED AND IS NOT ANY MORE, which is the only reason this note survives. It used to say the recency-weighted aggregate the brief describes did not exist — `scoreSeriesFor` returns a flat series, and no weighting function existed anywhere in the codebase, so the card showed the latest score under a heading promising a period. `weightedAggregate` now computes it from t17's own readings and the card shows 10 across the last three rather than the newest 8. SHARES t17 WITH `longitudinal`, declared rather than accidental: t17 is the only quarterly record whose review is due-and-not-overdue inside the warning window (t13 and t19 are overdue, t18 and t21 are 80+ days out, and the rest of the quarterly records are closed). The two scenarios read different regions of the same screen — this one the action slot, `longitudinal` the History density.",
   },
   {
-    /* KEEPS t19, and is now the ONLY scenario pointing at it — `review-90` used to
-       name the same record in the same state. */
+    /* KEEPS t19, and is still the ONLY scenario pointing at it. */
     id: "review-overdue",
     label: "Review overdue",
     kind: "teen",
