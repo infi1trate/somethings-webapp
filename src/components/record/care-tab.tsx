@@ -75,7 +75,7 @@ import {
 } from "@/components/ui/dialog";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import {
-  STAGE_LABEL,
+  REVIEW_NOUN,
   cadenceFor,
   careTimelineFor,
   scoreSeriesFor,
@@ -570,10 +570,14 @@ export function CareTab({
                         decisionId: review.id,
                         code: review.recommended.code,
                         statement: review.recommended.statement,
-                        // TODO-COPY
+                        /* TODO-COPY. `REVIEW_NOUN`, not `STAGE_LABEL` + " review".
+                           The latter reads correctly for intake and day 30 and
+                           produced "90-day review review" for quarterly, because
+                           that stage label already ends in the word. See the two
+                           maps in care-demo.ts. */
                         what:
                           presentation?.code === review.recommended.code
-                            ? `${STAGE_LABEL[review.stage].toLowerCase()} review`
+                            ? REVIEW_NOUN[review.stage]
                             : `presentation change to ${review.recommended.code}`,
                         applies:
                           presentation?.code !== review.recommended.code,

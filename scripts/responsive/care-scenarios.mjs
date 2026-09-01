@@ -1,10 +1,10 @@
 // B7 · EVERY TEEN-RECORD SCENARIO, AGAINST THE RESTRUCTURED CARE TAB.
 //
 // What each one is here to break: day-1 must render the rail with its low-data
-// states rather than collapsing the layout; review-overdue and 90-day must still
-// show the action region beside a rail; steady has no flags, so the sparkline
-// must render on the trajectory alone; longitudinal is the dense case where
-// History's two-line cap and date gutter have to hold.
+// states rather than collapsing the layout; the three review states must each show
+// the action region beside a rail, at three different cadence stages; steady has no
+// flags, so the sparkline must render on the trajectory alone; longitudinal is the
+// dense case where History's two-line cap and date gutter have to hold.
 import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
@@ -13,10 +13,20 @@ const version = await readStoreVersion();
 const browser = await launch();
 const report = { base: BASE, rows: [] };
 
+/* ═══ A COPY OF THE REGISTRY, AND IT DRIFTED ═══
+   This is a `.mjs` probe and the registry is TypeScript, so it cannot import it —
+   which means this list is a second source for the same mapping. It had the same
+   defect the registry did: `review-90` and `review-overdue` both named t19, in the
+   identical state, so two rows of this matrix were the same screenshot.
+   Corrected here alongside the registry, and the intake case added — it was absent
+   entirely, so the cadence row's warning tone at the FIRST review had never been
+   captured. `src/lib/dev/__tests__/record-scenarios.test.ts` is what holds the
+   registry side; this list has to be edited with it. */
 const SCENARIOS = [
   { id: "new", teen: "t1", label: "New — day 1" },
   { id: "steady", teen: "t18", label: "Steady, healthy" },
-  { id: "review-90", teen: "t19", label: "90-day review due" },
+  { id: "review-intake", teen: "t6", label: "Intake review due" },
+  { id: "review-90", teen: "t17", label: "90-day review due" },
   { id: "review-overdue", teen: "t19", label: "Review overdue" },
   { id: "longitudinal", teen: "t17", label: "Rich longitudinal" },
 ];

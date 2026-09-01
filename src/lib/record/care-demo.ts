@@ -1258,10 +1258,33 @@ export function careTimelineFor(
 
 export type CadenceStage = "intake" | "day30" | "quarterly";
 
-/** TODO-COPY */
+/** TODO-COPY. THE STAGE, as a standalone chip. Note that `quarterly` already reads
+ *  "90-day review" — which is why concatenating this with the word "review" is a
+ *  trap, and why `REVIEW_NOUN` below exists. */
 export const STAGE_LABEL: Record<CadenceStage, string> = {
   intake: "Intake",
   day30: "Day 30",
+  quarterly: "90-day review",
+};
+
+/** ═══ THE SAME THREE STAGES, AS A NOUN PHRASE ═══
+ *
+ *  TODO-COPY. For anywhere a sentence needs to name the review rather than the
+ *  stage — "Documenting: 90-day review".
+ *
+ *  IT EXISTS BECAUSE THE OBVIOUS THING IS WRONG. The care tab composed this as
+ *  `${STAGE_LABEL[stage].toLowerCase()} review`, which reads correctly for two of
+ *  the three stages and produces "90-day review review" for the third, because
+ *  `STAGE_LABEL.quarterly` already ends in the word. It rendered in the care-update
+ *  compose dialog's "Documenting:" line, on the path a supervisor takes to approve
+ *  an unchanged quarterly review.
+ *
+ *  A second map rather than a suffix rule, so the fix cannot be undone by somebody
+ *  reaching for `STAGE_LABEL` and appending a word — which is exactly what happened
+ *  the first time. */
+export const REVIEW_NOUN: Record<CadenceStage, string> = {
+  intake: "intake review",
+  day30: "day 30 review",
   quarterly: "90-day review",
 };
 

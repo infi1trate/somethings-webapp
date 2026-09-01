@@ -35,8 +35,8 @@
 //   new                          t1       real
 //   intake-complete              t11      real
 //   steady                       t18      real    (imperfect — see note)
-//   review-30                    t17      real
-//   review-90                    t19      mocked  no weighted aggregate exists
+//   review-intake                t6       real    was review-30 → t17; see below
+//   review-90                    t17      mocked  no weighted aggregate exists
 //   review-overdue               t19      real
 //   single-flag                  t6       real
 //   flag-cluster                 t21      real    4 flags, one day, one mark
@@ -107,25 +107,54 @@ export const TEEN_SCENARIOS: RecordScenario[] = [
       "IMPERFECT MATCH, stated rather than hidden: the brief asks for the pattern block thin OR suppressed, and t18 renders it (4 assessments, 3 presentation events). It is the closest healthy long record in the roster. A genuinely suppressed healthy record is `low-data`.",
   },
   {
-    id: "review-30",
-    label: "30-day review due",
+    /* ═══ THIS ENTRY WAS WRONG ON TWO COUNTS, AND BOTH WERE REPORTED FROM THE APP ═══
+       It read `id: "review-30", label: "30-day review due", subjectId: "t17"`, and
+       t17 is 196 days into a mentorship on the QUARTERLY cadence. What the record
+       rendered was "due in 2 days · 90-day review", which is correct for t17 and has
+       nothing to do with a 30-day review — so a reviewer selecting the scenario got
+       a screen that contradicted its own name at every data point.
+
+       AND "30-day review" IS NOT A STATE THIS PRODUCT HAS. `STAGE_LABEL` is
+       Intake / Day 30 / 90-day review. A review falling due at the 30-day mark
+       happens while a teen is in the INTAKE stage (`dueOffset = 30`), and the chip
+       then reads "due in N days · Intake". Measured: the string "30-day" appears
+       nowhere in the rendered record — only in this file's own label, which is
+       where it came from.
+
+       So the id and the label now name the stage the product names, and the subject
+       is a teen who is actually in it: t6 is 20 days past her first assessment, in
+       intake, with her first review due in 10 days — inside the 14-day window, so
+       the warning tone this scenario exists to show is live. */
+    id: "review-intake",
+    label: "Intake review due",
     kind: "teen",
-    subjectId: "t17",
-    exercises: "Review due in 2 days — the warning tone on the cadence row.",
+    subjectId: "t6",
+    exercises:
+      "First review due in 10 days — the warning tone on the cadence row, at the intake stage. Chip reads \"due in 10 days · Intake\".",
     data: "real",
   },
   {
+    /* ═══ REPOINTED FROM t19 TO t17, WHICH ALSO REMOVES A DUPLICATE ═══
+       This and `review-overdue` both named t19, in the identical state — "overdue by
+       10 days · 90-day review". So the scenario called "90-day review DUE"
+       demonstrated a review that was already overdue, and two of the twenty
+       scenarios were the same screenshot.
+       t17 is the record that genuinely shows a 90-day review coming due: quarterly
+       stage, due in 2 days, warning tone. It also has five assessments against t19's
+       three, which serves the "multiple contributing surveys" line better. */
     id: "review-90",
     label: "90-day review due",
     kind: "teen",
-    subjectId: "t19",
+    subjectId: "t17",
     exercises:
-      "Longer cadence with multiple contributing surveys behind the aggregate.",
+      "Quarterly cadence, due in 2 days — five assessments behind it. Chip reads \"due in 2 days · 90-day review\".",
     data: "mocked",
     note:
-      "The RECURRENCE is real (t19 is on a 90-day cadence, review overdue by 10 days) but the AGGREGATE RECENCY-WEIGHTED SCORE the brief describes does not exist: `scoreSeriesFor` returns a flat series and no weighting function exists anywhere in the codebase. The card shows the latest score, not a weighted aggregate.",
+      "The RECURRENCE is real (t17 is on a 90-day cadence with a review due in 2 days) but the AGGREGATE RECENCY-WEIGHTED SCORE the brief describes does not exist: `scoreSeriesFor` returns a flat series and no weighting function exists anywhere in the codebase. The card shows the latest score, not a weighted aggregate. Unchanged by the repoint — the gap is in `scoreSeriesFor`, not in the subject.",
   },
   {
+    /* KEEPS t19, and is now the ONLY scenario pointing at it — `review-90` used to
+       name the same record in the same state. */
     id: "review-overdue",
     label: "Review overdue",
     kind: "teen",
