@@ -33,7 +33,7 @@ const RING =
  *  by its content — that repetition IS the section rhythm, so it is one constant
  *  rather than a class copied per block.
  *
- *  ═══ SENTENCE CASE, NOT ALL CAPS (Part 5) ═══
+ *  ═══ SENTENCE CASE, NOT ALL CAPS ═══
  *
  *  These were `uppercase` with 0.04em tracking. Three problems, in order of how
  *  much they cost:
@@ -47,21 +47,23 @@ const RING =
  *   · All caps removes ascenders and descenders, which is most of what makes a
  *     word recognisable at a glance — the exact scanning this label supports.
  *
- *  Weight and colour still separate the label from its value, which is what the
- *  case was doing badly.
+ *  ═══ AND IT USES THE TOKEN THAT ALREADY EXISTED ═══
  *
- *  ═══ AND THERE IS STILL NO TOKEN FOR IT ═══
+ *  CORRECTED. The first version of this change hardcoded
+ *  `text-[12px] font-semibold leading-[16px]` and logged a gap row claiming the
+ *  design system had no semantic field-label token. Both halves were wrong:
+ *  `--type-field-label` has been in settings-tokens.css all along at exactly
+ *  this stop, five files already use it, and the WEIGHT was an active mistake —
+ *  only TWKLausanne-400 is shipped, so `font-semibold` on Lausanne is a
+ *  browser-SYNTHESISED faux bold. The token's own comment says so, and says why
+ *  it resolves to 400. See design-system-gaps.md rows 330 and 354.
  *
- *  Bloom's type ramp has six roles (Display / Headline / Title / Body / Label /
- *  Label-Alt) and `Label/Small` is 12/16 bold with 0 tracking — close, but it is
- *  the ramp step, not a semantic "this is a field label on a dense surface" that
- *  carries its own colour and case. So the value here stays interim.
- *  THIS IS THE THIRD RECURRENCE of the same missing convention — the record's
- *  field labels, the Activity pane's section headings, and now this — which is
- *  what makes it a system gap rather than three local choices. Logged as
- *  design-system-gaps.md row 354. */
+ *  So the label is the token, paired with `--text-muted` — which is the pattern
+ *  the record's own field labels and the care timeline's table headers already
+ *  use. Label and value are separated by COLOUR and SIZE, not by a weight that
+ *  does not exist. */
 export const PANE_LABEL =
-  "text-[12px] font-semibold leading-[16px] text-[var(--text-muted)]";
+  "[font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)] text-[var(--text-muted)]";
 
 /** SYSTEM-ATTRIBUTION FOR AI CONTENT (§5).
  *

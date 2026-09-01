@@ -836,11 +836,14 @@ function BandHeader({ band }: { band: TierBand }) {
       aria-hidden
       style={{ height: HEADER_H }}
       /* SENTENCE CASE, for the same reasons the pane's field labels dropped
-         theirs (gap row 354) — and more so here, because this label's ENTIRE JOB
-         is to be scanned. All caps strips the ascenders and descenders that make
+         theirs — and more so here, because this label's ENTIRE JOB is to be
+         scanned. All caps strips the ascenders and descenders that make
          "Imminent" recognisable in peripheral vision, which is exactly how a
-         reader forty rows down uses it. */
-      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[12px] font-semibold leading-[16px] text-[var(--text-muted)]"
+         reader forty rows down uses it.
+         `--type-field-label`, not a hand-rolled size: the token exists, this is
+         the stop it names, and its weight is 400 because TWKLausanne-700 is not
+         shipped — a `font-semibold` here would be a synthesised faux bold. */
+      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 [font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)] text-[var(--text-muted)]"
     >
       {/* `tabular-nums` — the counts tick down as a supervisor works, and
           proportional figures would shift the whole line each time. */}
@@ -872,11 +875,14 @@ function RetiredBand({ band }: { band: Retiring }) {
         aria-hidden
         style={{ height: HEADER_H }}
         /* SENTENCE CASE, for the same reasons the pane's field labels dropped
-         theirs (gap row 354) — and more so here, because this label's ENTIRE JOB
-         is to be scanned. All caps strips the ascenders and descenders that make
+         theirs — and more so here, because this label's ENTIRE JOB is to be
+         scanned. All caps strips the ascenders and descenders that make
          "Imminent" recognisable in peripheral vision, which is exactly how a
-         reader forty rows down uses it. */
-      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[12px] font-semibold leading-[16px] text-[var(--text-muted)]"
+         reader forty rows down uses it.
+         `--type-field-label`, not a hand-rolled size: the token exists, this is
+         the stop it names, and its weight is 400 because TWKLausanne-700 is not
+         shipped — a `font-semibold` here would be a synthesised faux bold. */
+      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 [font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)] text-[var(--text-muted)]"
       >
         <span className="tabular-nums">
           {retiredBandLabel(band.label, band.closedToday)}
