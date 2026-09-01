@@ -135,8 +135,17 @@ export function EventChip({
     <>
       <Glyph className="size-3.5 shrink-0" aria-hidden />
       <span className={cn(variant === "row" ? "min-w-0 flex-1" : "min-w-0")}>{text}</span>
+      {/* ═══ NO `opacity-70` ON ALREADY-MUTED INK ═══
+          MEASURED BY AXE at 2.74:1. An untinted chip's text is `--text-muted`
+          (#6e6b67), which clears AA on `--surface-s1` at 5.30:1 — and 70% of it
+          resolves to #979490, which does not clear anything. The opacity was
+          reaching for "quieter than the sentence" on ink that was already the
+          quietest step available.
+          Dropped rather than reduced: the time and the sentence are the same
+          weight of information on a chip this small, and the tinted variants have
+          the same problem with less headroom. */}
       <time
-        className="shrink-0 tabular-nums opacity-70"
+        className="shrink-0 tabular-nums"
         dateTime={new Date(event.at).toISOString()}
       >
         {clockTime(event.at)}

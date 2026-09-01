@@ -130,8 +130,21 @@ export function ConversationRow({
           >
             {thread.displayName}
           </span>
+          {/* ═══ THE SELECTED ROW'S INK STEPS UP, AND THIS IS GAP ROW 294 AGAIN ═══
+              MEASURED BY AXE: `--text-muted` (#6e6b67) on `--surface-s2` (#e5e0d2)
+              is 4.01:1 — under the 4.5 floor for 12px text. It passes on the card
+              and fails on the selected fill, so it fails only on the row a reader
+              is looking at.
+              The Tasks worklist hit this exact pairing and took the same fix:
+              `--text-secondary` (#58534b) is 5.78:1 on s2 and is the design
+              system's own next step, so nothing is invented. Conditional here
+              rather than unconditional because these rows DO sit on the card most
+              of the time, where muted is correct and quieter. */}
           <span
-            className="shrink-0 tabular-nums text-[var(--text-muted)]"
+            className={cn(
+              "shrink-0 tabular-nums",
+              selected ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"
+            )}
             style={{ font: "var(--type-field-label)" }}
           >
             {shortAgo(thread.lastActivityAt, clock)}
@@ -143,7 +156,10 @@ export function ConversationRow({
           <span
             className={cn(
               "min-w-0 flex-1 truncate",
-              unread ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"
+              // Same reason as the timestamp above — see its note.
+              unread || selected
+                ? "text-[var(--text-secondary)]"
+                : "text-[var(--text-muted)]"
             )}
             style={{ font: "var(--type-body)" }}
           >
