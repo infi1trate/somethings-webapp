@@ -73,6 +73,74 @@ console.log("\n═══ B3 · provenance in the tooltip ═══");
   await p.context().close();
 }
 
+// ═══ C · RISK FLAG ROWS ═══
+console.log("\n═══ C · risk flag rows ═══");
+{
+  // t17, MEASURED to carry three flags in window — t15 has none, so a run there
+  // asserts nothing and reports a pass for the empty state.
+  const p = await open("t17");
+  const r = await p.evaluate(() => {
+    const card = document.querySelector('[data-record-section="care-summary-doc"]');
+    const rows = [...card.querySelectorAll("li > button[aria-label*='open in History']")];
+    if (!rows.length) return { none: true };
+    const lum = (c) => { const q = c.map(v=>v/255).map(v=> v<=0.03928 ? v/12.92 : ((v+0.055)/1.055)**2.4); return 0.2126*q[0]+0.7152*q[1]+0.0722*q[2]; };
+    const parse = (x) => String(x).match(/[\d.]+/g).slice(0,3).map(Number);
+    const bgOf = (el) => { let n = el; while (n) { const m = String(getComputedStyle(n).backgroundColor).match(/[\d.]+/g); if (m && (m.length < 4 || Number(m[3]) > 0.98)) return m.slice(0,3).map(Number); n = n.parentElement; } return [255,255,255]; };
+    const ratio = (a, bg) => { const [l1,l2] = [lum(a), lum(bg)].sort((x,y)=>y-x); return (l1+0.05)/(l2+0.05); };
+    const contrast = {};
+    for (const row of rows) for (const sp of row.querySelectorAll("span")) {
+      const t = sp.textContent.trim();
+      if (!t || sp.querySelector("span")) continue;
+      contrast[t.slice(0,18)] = +ratio(parse(getComputedStyle(sp).color), bgOf(sp)).toFixed(2);
+    }
+    return {
+      count: rows.length,
+      heights: rows.map((x) => Math.round(x.getBoundingClientRect().height)),
+      // ONE LINE = the button's text is on a single rendered line box.
+      lineCounts: rows.map((x) => {
+        const lh = parseFloat(getComputedStyle(x).lineHeight) || 19;
+        return Math.round(x.getBoundingClientRect().height / lh);
+      }),
+      names: rows.map((x) => x.getAttribute("aria-label")),
+      linkTextGone: !card.textContent.includes("Open in History"),
+      arrowsHidden: rows.every((x) => [...x.querySelectorAll("svg")].every((sv) => sv.getAttribute("aria-hidden") !== null)),
+      contrast,
+    };
+  });
+  if (r.none) check(false, "t17 carries flags in window");
+  else {
+    check(r.heights.every((h) => h >= 40), "every row ≥40px (SC 2.5.8 with margin)", `heights ${r.heights.join(", ")}`);
+    check(r.linkTextGone, 'the repeated "Open in History" text link is gone');
+    check(r.arrowsHidden, "the arrow icon is aria-hidden");
+    check(r.names.every((n) => /open in History/i.test(n)), "row names its destination", JSON.stringify(r.names[0]));
+    await p.locator("li > button[aria-label*='open in History']").first().focus();
+    const ring = await p.evaluate(() => {
+      const cs = getComputedStyle(document.activeElement);
+      return { w: cs.outlineWidth, style: cs.outlineStyle };
+    });
+    check(parseFloat(ring.w) > 0 && ring.style !== "none", "focus ring visible on the row (2.4.7)", JSON.stringify(ring));
+    const worst = Math.min(...Object.values(r.contrast));
+    console.log("    flag-row contrast:", JSON.stringify(r.contrast));
+    check(worst >= 4.5, "every flag-row text passes 4.5:1", `worst ${worst}:1`);
+  }
+  if (process.env.SHOT_DIR) await p.locator('[data-record-section="care-summary-doc"]').screenshot({ path: process.env.SHOT_DIR + "/BC-summary-t17.png" });
+  await p.context().close();
+}
+
+// ═══ C6 · rows never wrap, even at 200% on the rail ═══
+{
+  const p = await open("t17", { zoom: 2, width: 1440, height: 1200 });
+  const r = await p.evaluate(() => {
+    const rows = [...document.querySelectorAll("li > button[aria-label*='open in History']")];
+    return rows.map((x) => {
+      const lh = parseFloat(getComputedStyle(x).lineHeight) || 19;
+      return Math.round(x.getBoundingClientRect().height / lh);
+    });
+  });
+  check(r.length > 0 && r.every((n) => n <= 2), "rows do not wrap at 200% zoom", `line boxes: ${JSON.stringify(r)}`);
+  await p.context().close();
+}
+
 // ═══ A · THE AMEND MODAL ═══
 console.log("\n═══ A · amend modal ═══");
 for (const zoom of [1, 2]) {

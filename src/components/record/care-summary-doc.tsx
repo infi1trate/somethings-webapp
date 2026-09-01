@@ -40,6 +40,7 @@ import {
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { CareSparkline } from "@/components/record/care-sparkline";
+import { ArrowRight } from "lucide-react";
 import { PROVENANCE_NOTE, Provenance } from "@/components/record/provenance";
 import type { CarePattern } from "@/lib/record/care-pattern";
 import type { RiskTier } from "@/lib/record/risk-taxonomy";
@@ -438,55 +439,76 @@ export function CareSummaryDocCard({
             No risk flags triggered this cycle.
           </Refusal>
         ) : (
-          <ul className="space-y-2">
-            {doc.flags.map((f) => (
-              /* ═══ ONE FLAG, ONE BLOCK ═══
-                 At 320px a single wrapping row split each flag across two lines
-                 at a different point — "Imminent risk · Aug 25" then "Open ·
-                 Open in History", but the next flag broke after "Open" — and a
-                 reader scanning the list could not tell which fragment belonged
-                 to which flag. So the row STACKS below `sm`: identity and date
-                 on the first line, status and link beneath, the same way every
-                 time. It stays one line from `sm` up, where it fits. */
-              <li
-                key={f.eventId}
-                className="flex flex-col gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2.5"
-              >
-                <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          /* ═══ ONE LINE, ONE TARGET (C1–C4) ═══
+              Each flag was TWO lines with its own "Open in History →" text link:
+              a repeated link in a list where every row goes to the same place,
+              and at 320px the pair wrapped at a different point per flag
+              ("Imminent risk · Aug 25" / "Open · Open in History", but the next
+              one broke after "Open"), so a reader scanning could not tell which
+              fragment belonged to which flag.
+
+              THE WHOLE ROW IS THE CONTROL NOW. The link text is gone and the
+              arrow is the affordance — `aria-hidden`, because the row's own
+              accessible name says where it goes. `space-y-0.5` rather than
+              `space-y-2`: the rows are their own targets with their own hover, so
+              the gap between them stops carrying the separation. */
+          <ul className="-mx-1.5 space-y-0.5">
+            {doc.flags.map((f) => {
+              const label = `${f.tierLabel} flag, ${clinicalDate(f.at)}, ${f.resolved ? "resolved" : "open"}`;
+              return (
+              <li key={f.eventId}>
+                <button
+                  type="button"
+                  onClick={() => onJumpToEvent?.(f.eventId)}
+                  disabled={!onJumpToEvent}
+                  /* TODO-COPY. The destination is in the name because the arrow
+                     cannot say it, and "Imminent risk, Aug 28, open" alone does
+                     not tell a screen-reader user that activating goes
+                     anywhere. */
+                  aria-label={`${label} — open in History`}
+                  className={cn(
+                    // ≥40px: `min-h-10` plus the row's own padding. SC 2.5.8 asks
+                    // 24px; 40 is the practical bar this product holds elsewhere
+                    // and it is what makes a whole-row target feel like one.
+                    "flex min-h-10 w-full items-center gap-x-2.5 rounded-[var(--radius-control)] px-1.5 text-left",
+                    // SUBTLE SURFACE ON HOVER/FOCUS ONLY — never a resting tint,
+                    // and no left-edge accent bar (the record's standing rule).
+                    "transition-colors enabled:hover:bg-[var(--tint-hover)]",
+                    "disabled:cursor-default",
+                    RING
+                  )}
+                >
                   <span
                     className={cn(
-                      "inline-flex items-center rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px]",
+                      "inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px]",
                       TIER_CHIP[f.tier]
                     )}
                   >
                     {f.tierLabel}
                   </span>
-                  <span className="text-[13.5px] leading-[19px] text-[var(--text-primary)]">
+                  {/* ═══ THE DATE TRUNCATES BEFORE THE ROW WRAPS (C6) ═══
+                      At 200% zoom on the rail the full "Aug 28, 2026" does not
+                      fit beside a chip, a status and an arrow. `truncate` on the
+                      date's own span means it loses its year rather than the row
+                      gaining a second line — the rule is that these never wrap,
+                      and the year is the least load-bearing part of the string. */}
+                  <span className="min-w-0 truncate text-[13.5px] leading-[19px] text-[var(--text-primary)]">
                     {clinicalDate(f.at)}
                   </span>
-                </span>
-                <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                  <span className="text-[13.5px] leading-[19px] text-[var(--text-muted)]">
+                  <span className="shrink-0 text-[13.5px] leading-[19px] text-[var(--text-muted)]">
                     {/* TODO-COPY */}
                     {f.resolved ? "Resolved" : "Open"}
                   </span>
-                {onJumpToEvent && (
-                  <button
-                    type="button"
-                    onClick={() => onJumpToEvent(f.eventId)}
-                    className={cn(
-                      "rounded-sm py-1 text-[13px] text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--text-primary)]",
-                      RING
-                    )}
-                  >
-                    {/* TODO-COPY */}
-                    Open in History
-                    <span aria-hidden> →</span>
-                  </button>
-                )}
-                </span>
+                  {onJumpToEvent && (
+                    <ArrowRight
+                      aria-hidden
+                      className="ml-auto size-3.5 shrink-0 text-[var(--text-muted)]"
+                    />
+                  )}
+                </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </Element>
