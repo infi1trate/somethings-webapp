@@ -308,15 +308,47 @@ function Row({
           NOT GROUPED BY MONTH. Dividers that fire on almost every row are chrome
           (the same finding as the Activity feed's day dividers); the gutter
           carries the same information continuously and costs no vertical space. */}
-      <div className="flex items-start gap-3 sm:gap-4">
+      {/* ═══ ONE ROW LAYOUT, ALIGNED TO LINE ONE (E1–E4) ═══
+          Before: `items-start` plus a `pt-0.5` on the date and an `mt-0.5` on the
+          chevron — two magic 2px nudges approximating an alignment nobody had
+          defined. The date (12px/16px) and the title (14px/20px) have different
+          line boxes, so top-aligning them puts their baselines 2px apart and the
+          nudges were an attempt to close that by eye.
+
+          NOW: `--care-row-line1` is the height of line one, and the date, the
+          chevron and the lozenge are all boxes of exactly that height with their
+          content centred in it. That gives three things at once — the date sits on
+          the title's optical centre (which for a single line of text IS baseline
+          alignment, since both boxes share a centre), the chevron centres on the
+          FIRST line rather than on the container, and neither moves when a second
+          line appears below. A two-line row grows downward only.
+
+          22px, NOT 20px: line one's tallest child is the type chip
+          (`text-[12px] py-0.5` → 18px of line box plus 4px of padding), not the
+          14px/20px title. Measuring the chip is the difference between the chevron
+          being centred and being 1px high.
+
+          THE VALUE IS LOCAL, not a token: it is the height of THIS row's first
+          line, derived from this row's own children, and a global spacing token
+          would imply it applies somewhere else. Flagged rather than minted. */}
+      <div
+        className="flex items-start gap-3 sm:gap-4"
+        style={{ "--care-row-line1": "22px" } as React.CSSProperties}
+      >
         {/* NOT `aria-hidden`. The gutter is the row's date at `sm` and up, and
             the inline copy below is `sm:hidden` — so exactly ONE of the two is
             rendered at any width, and `display:none` keeps the other out of the
             accessibility tree. Hiding this one as decorative would have taken
             the date out of the row's accessible name at every width above
             640px, which is where most readers are. */}
+        {/* E2 · THE DATE COLUMN. 96px is sized to the longest string the
+            formatter produces — "Aug 28, 2026" at `--type-row-label` with
+            `tabular-nums`, which is what makes the column a straight edge rather
+            than a ragged one: proportional digits change width per numeral, so
+            "Jul 11" and "Aug 28" would not end at the same place.
+            `h-[var(--care-row-line1)] items-center` replaces `pt-0.5`. */}
         <span
-          className="hidden w-[96px] shrink-0 pt-0.5 text-right tabular-nums text-[var(--text-muted)] sm:block"
+          className="hidden h-[var(--care-row-line1)] w-[96px] shrink-0 items-center justify-end text-right tabular-nums text-[var(--text-muted)] sm:flex"
           style={{ font: "var(--type-row-label)" }}
         >
           {dateOf(event.occurredAt)}
@@ -329,7 +361,10 @@ function Row({
             aria-expanded={open}
             aria-label={`${open ? "Hide" : "Show"} details for ${TYPE_LABEL[event.type]} on ${dateOf(event.occurredAt)}`}
             className={cn(
-              "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)]",
+              // E3 · A FIXED 24px SLOT, CENTRED ON LINE ONE. `size-6` gives the
+              // 24px target; the wrapper height is line one's, so the glyph
+              // cannot drift when the row gains a second line.
+              "flex h-[var(--care-row-line1)] w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)]",
               "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
               RING
             )}
@@ -340,8 +375,13 @@ function Row({
             />
           </button>
         ) : (
-          // Keeps the columns aligned without implying a control.
-          <span aria-hidden className="mt-0.5 size-6 shrink-0" />
+          // Keeps the columns aligned without implying a control. Same slot
+          // geometry as the button above, or the titles of expandable and
+          // non-expandable rows would start at different x.
+          <span
+            aria-hidden
+            className="h-[var(--care-row-line1)] w-6 shrink-0"
+          />
         )}
 
         <div className="min-w-0 flex-1">
@@ -351,7 +391,11 @@ function Row({
               measured at 88 and 95px against a 70px two-line row, which is how
               this was caught. The two-line cap is the point of the anatomy, so
               the TITLE truncates instead and the chip holds its place. */}
-          <div className="flex items-center gap-x-2">
+          {/* E4 · LINE ONE IS A KNOWN HEIGHT, and the lozenge centres in it. On a
+              single-line row that is the same as centring in the row; on a
+              two-line row it stays anchored here, because the chip labels the
+              EVENT and not the paragraph under it. */}
+          <div className="flex h-[var(--care-row-line1)] items-center gap-x-2">
             {/* THE GUTTER IS HIDDEN BELOW `sm`, so the date returns inline there
                 — a 96px column plus a chevron plus a title does not fit at
                 320px. Exactly one of the two renders at any width, so the

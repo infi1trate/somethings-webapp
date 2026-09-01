@@ -295,6 +295,70 @@ if (process.env.SHOT_DIR) {
   }
 }
 
+// ═══ E · HISTORY ROW ALIGNMENT ═══
+console.log("\n═══ E · History rows (Rich longitudinal, t17) ═══");
+{
+  const p = await open("t17", { height: 1200 });
+  const r = await p.evaluate(() => {
+    const list = document.querySelector('[data-record-section="care-timeline"]');
+    if (!list) return { absent: true };
+    const rows = [...list.querySelectorAll("li[id^='care-']")];
+    const near = (a, b, tol = 1.5) => Math.abs(a - b) <= tol;
+    const data = rows.map((li) => {
+      const cols = li.querySelector(".flex.items-start");
+      if (!cols) return null;
+      const [date, chev, content] = [...cols.children];
+      const line1 = content?.querySelector(":scope > div");
+      const title = line1?.querySelector("span[title]");
+      const loz = line1 ? [...line1.children].at(-1) : null;
+      const line2 = content ? [...content.children][1] : null;
+      const b = (el) => (el ? el.getBoundingClientRect() : null);
+      const cs = getComputedStyle(li);
+      return {
+        twoLine: !!line2,
+        dateBox: b(date), chevBox: b(chev), line1Box: b(line1),
+        titleBox: b(title), lozBox: b(loz), line2Box: b(line2),
+        pad: `${cs.paddingTop}/${cs.paddingBottom}`,
+      };
+    }).filter(Boolean);
+    const mid = (r) => r.top + r.height / 2;
+    return {
+      rows: data.length,
+      twoLineRows: data.filter((d) => d.twoLine).length,
+      titleLefts: [...new Set(data.filter((d) => d.titleBox).map((d) => Math.round(d.titleBox.left)))],
+      dateWidths: [...new Set(data.map((d) => Math.round(d.dateBox.width)))],
+      pads: [...new Set(data.map((d) => d.pad))],
+      dateCentred: data.filter((d) => d.dateBox.width > 0 && d.line1Box).every((d) => near(mid(d.dateBox), mid(d.line1Box), 2)),
+      chevCentred: data.filter((d) => d.chevBox && d.line1Box).every((d) => near(mid(d.chevBox), mid(d.line1Box))),
+      lozCentred: data.filter((d) => d.lozBox && d.line1Box).every((d) => near(mid(d.lozBox), mid(d.line1Box))),
+      line2Aligned: data.filter((d) => d.line2Box && d.titleBox).every((d) => near(d.line2Box.left, d.titleBox.left)),
+      line2N: data.filter((d) => d.line2Box && d.titleBox).length,
+    };
+  });
+  if (r.absent) check(false, "History list present");
+  else {
+    console.log(`  ${r.rows} rows, ${r.twoLineRows} of them two-line`);
+    check(r.titleLefts.length === 1, "every title starts on ONE shared left edge", `lefts: ${r.titleLefts.join(", ")}`);
+    check(r.dateWidths.length === 1, "the date column is one fixed width", `${r.dateWidths.join(", ")}px`);
+    check(r.dateCentred, "date shares line one's optical centre with the title");
+    check(r.chevCentred, "chevron centred on line one, every row");
+    check(r.lozCentred, "lozenge centred on line one, every row (incl. two-line rows)");
+    check(r.line2Aligned, "line 2 aligns to the TITLE's left edge, not the date's", `${r.line2N} two-line rows`);
+    check(r.pads.length === 1, "row padding identical on single- and two-line rows", r.pads.join(" | "));
+  }
+  if (process.env.SHOT_DIR) await p.locator('[data-record-section="care-timeline"]').screenshot({ path: process.env.SHOT_DIR + "/E-history-t17.png" });
+  await p.context().close();
+}
+
+// ═══ E7 · the deactivated / short record ═══
+{
+  const p = await open("t16", { height: 1000 });
+  const n = await p.evaluate(() => document.querySelectorAll('[data-record-section="care-timeline"] li[id^="care-"]').length);
+  check(n > 0, "the short/deactivated record still renders History rows", `${n} rows`);
+  if (n > 0 && process.env.SHOT_DIR) await p.locator('[data-record-section="care-timeline"]').screenshot({ path: process.env.SHOT_DIR + "/E-history-short.png" });
+  await p.context().close();
+}
+
 await b.close();
 console.log("\nHEADER STRINGS:");
 for (const [k, v] of Object.entries(HEADER)) console.log(`  ${k}: ${JSON.stringify(v.line)}  contrast ${v.ratio}:1`);
