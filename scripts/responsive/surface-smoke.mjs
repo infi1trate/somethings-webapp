@@ -25,6 +25,7 @@ const VIEWS = [
   ["/app/mentees", "mentees"],
   ["/app/chat", "mentor chat"],
   ["/app/chat?with=t13", "mentor chat · deep link"],
+  ["/dev/components", "component gallery"],
   ["/admin/person/t17?tab=care", "teen record · Care"],
   ["/admin/person/t17?tab=activity", "teen record · Activity"],
 ];

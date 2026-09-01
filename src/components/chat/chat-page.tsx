@@ -38,6 +38,9 @@ import { ResolveDialog } from "@/components/chat/escalation/resolve-dialog";
 import { RESOLUTION_OUTCOMES } from "@/components/chat/escalation/resolve-dialog";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
+import { relLength, teenAsMentee } from "@/lib/record/mentees-demo";
+import { teensForMentor } from "@/lib/record/people-demo";
+import type { AssistInput } from "@/lib/chat/assist";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { LIVE_ID } from "@/lib/record/subject";
@@ -159,7 +162,12 @@ export function ChatPage({
      what removes the effect. */
   const selectedId = picked ?? withId ?? data?.focusThreadId ?? null;
   const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
-  const messages = thread ? (data?.messages[thread.id] ?? []) : [];
+  /* MEMOISED for the same reason `events` and `artifacts` are: it feeds the Assist
+     memo, and a fresh array every render makes that memo useless. */
+  const messages = useMemo<ChatMessage[]>(
+    () => (thread ? (data?.messages[thread.id] ?? []) : []),
+    [thread, data]
+  );
 
   /** Which artifact the DetailSheet is showing. Held by ID rather than by object,
    *  so the sheet re-reads the live record — a rescind that wrote to the store
@@ -225,6 +233,29 @@ export function ChatPage({
       data?.escalations[thread.id];
     return live && live.resolvedAt === null ? live : undefined;
   }, [thread, mounted, writtenEscalations, data]);
+
+  /** ═══ THE ASSIST LADDER'S INPUTS, AND THE TEEN BEHIND THE THREAD ═══
+   *
+   *  A thread id IS a person id (see `lib/chat/types.ts`), so the roster record is a
+   *  lookup rather than a join — which is what lets the Assist rules read the same
+   *  `mentorLastSentDaysAgo` stamps the list's Check-in filter reads, instead of a
+   *  second copy that would drift. Null for a support thread: every rule in the
+   *  ladder is about a mentorship. */
+  const teen = useMemo(
+    () => (thread?.kind === "teen" ? teensForMentor(LIVE_ID).find((t) => t.id === thread.id) : undefined),
+    [thread]
+  );
+  const assist = useMemo<AssistInput | null>(
+    () => (teen ? { teen, messages, artifacts, noteCount: notes.length, now } : null),
+    [teen, messages, artifacts, notes.length, now]
+  );
+  /** `relLength` from `mentees-demo` rather than arithmetic here — the mentee table
+   *  already phrases this, and two phrasings of one fact is how "5 months" and
+   *  "171 days" end up on two surfaces. */
+  const matchedFor = useMemo(
+    () => (teen ? relLength(teenAsMentee(teen, now).matchedAt, now) : null),
+    [teen, now]
+  );
 
   /* ═══ THE RAIL IS CONTROLLED FROM HERE ═══
      Because tagging a message in the THREAD has to be able to open the note
@@ -583,6 +614,7 @@ export function ChatPage({
                 onOpenCrisis={() => setCrisisOpen(true)}
                 onResolveEscalation={() => setResolveOpen(true)}
                 insert={insert}
+                phone={teen?.phone ?? null}
                 onOpenEvent={(e) => {
                   /* ═══ A NOTE EVENT OPENS THE NOTE, NOT THE SHEET ═══
                      The DetailSheet reads artifacts; a `note-added` event's
@@ -706,6 +738,8 @@ export function ChatPage({
               events={events}
               notes={notes}
               escalation={escalation}
+              assist={assist}
+              matchedFor={matchedFor}
               now={now}
               tab={railTab}
               onTabChange={setRailTab}

@@ -6,6 +6,22 @@
 // Hover / focus / active are LIVE states — mouse over and Tab through to audit.
 
 import { useState } from "react";
+import { ShieldAlert } from "lucide-react";
+import { ACTIVITIES } from "@/lib/chat/activities";
+import { ActivityCover } from "@/components/chat/activity/activity-cover";
+import { PanelShell } from "@/components/chat/rail/rail-panel";
+import { AssistPanel } from "@/components/chat/rail/assist";
+import { ProfilePanel } from "@/components/chat/rail/profile";
+import { ToolkitPanel } from "@/components/chat/rail/toolkit";
+import { TimelinePanel } from "@/components/chat/rail/timeline";
+import {
+  BannerButton,
+  StatusBanner,
+} from "@/components/chat/thread/status-banner";
+import { EventChip } from "@/components/chat/thread/event-chip";
+import { MediaFrame } from "@/components/chat/thread/media-frame";
+import { GALLERY_ASSIST, GALLERY_EVENTS, GALLERY_NOW, GALLERY_THREAD } from "@/lib/chat/gallery";
+
 import { SettingsSidebar } from "@/components/settings/sidebar";
 import { SettingsTabBar } from "@/components/settings/tab-bar";
 import { SectionCard } from "@/components/settings/section-card";
@@ -636,6 +652,181 @@ export default function ComponentsAuditPage() {
                 </PaneShell>
               </div>
             </div>
+          </div>
+        </Panel>
+
+        {/* ═══ THE MENTOR CHAT'S PRIMITIVES ═══
+            Here rather than only in the app, because this is where the SQUINT TEST
+            actually happens: five activity covers side by side is the only way to
+            see whether they are genuinely one format, and four rail panels in a row
+            is the only way to see whether their section rhythm matches. Both are
+            claims the components make about themselves, and both are invisible one
+            at a time inside a 320px rail. */}
+        <Panel
+          title="Chat · activity covers"
+          note="All five, side by side. The claim these make is that they are COMPARABLE — same anatomy, same glyph disc, one metadata format — and five in a row is the only way to check it. The locked one renders in full at reduced emphasis, which is the whole argument against hiding it."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {ACTIVITIES.map((def) => (
+              <div key={def.id} className="w-full max-w-[320px]">
+                <ActivityCover def={def} onSelect={() => {}} />
+              </div>
+            ))}
+            <div className="w-full max-w-[320px]">
+              <ActivityCover
+                def={ACTIVITIES.find((a) => a.locked)!}
+                locked
+                progress="1 of 2 answered"
+              />
+            </div>
+            <div className="w-full max-w-[320px]">
+              <ActivityCover
+                def={ACTIVITIES[0]}
+                variant="detail"
+                onSelect={() => {}}
+              />
+            </div>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Chat · rail panels"
+          note="Four panels at their real 320px width. They hold genuinely different content — a suggestion, a canvas, a shelf, a log — and the reason they share one shell is that built separately they would end up with four paddings and four ideas of how a heading relates to what is under it."
+        >
+          <div className="flex flex-wrap gap-4">
+            {[
+              {
+                label: "Assist",
+                body: (
+                  <AssistPanel
+                    input={GALLERY_ASSIST}
+                    onOpenToolkit={() => {}}
+                  />
+                ),
+              },
+              {
+                label: "Profile",
+                body: (
+                  <ProfilePanel thread={GALLERY_THREAD} matchedFor="5 months" />
+                ),
+              },
+              {
+                label: "Toolkit",
+                body: <ToolkitPanel artifacts={[]} onSendActivity={() => {}} />,
+              },
+              {
+                label: "Timeline · empty",
+                body: (
+                  <TimelinePanel
+                    events={[]}
+                    notes={[]}
+                    now={GALLERY_NOW}
+                    theirName="Caleb"
+                    onNewNote={() => {}}
+                    onOpenNote={() => {}}
+                    rescindedArtifactIds={new Set()}
+                  />
+                ),
+              },
+            ].map((p) => (
+              <div key={p.label} className="w-[320px]">
+                <p className="mb-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
+                  {p.label}
+                </p>
+                <div className="h-[440px] overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
+                  <PanelShell>{p.body}</PanelShell>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel
+          title="Chat · status banner"
+          note="Three tones from one component. Escalation is its first tenant and not its shape — the next thread-level state should not need a second banner that starts identical. The primary's fill is a per-tone token pair, because `bg-current` beside a `text-*` on the same element resolves to the button's own colour and renders it invisible."
+        >
+          <div className="space-y-3">
+            {(["critical", "attention", "neutral"] as const).map((tone) => (
+              <div
+                key={tone}
+                className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)]"
+              >
+                <StatusBanner
+                  tone={tone}
+                  glyph={ShieldAlert}
+                  title={
+                    tone === "critical"
+                      ? "Escalation open"
+                      : tone === "attention"
+                        ? "Mentorship paused"
+                        : "Re-match in progress"
+                  }
+                  meta="Supervisor notified 4:12 PM · opened 4:08 PM"
+                >
+                  <BannerButton tone={tone} primary>
+                    Emergency info
+                  </BannerButton>
+                  <BannerButton tone={tone}>Checklist</BannerButton>
+                  <BannerButton tone={tone}>Resolve</BannerButton>
+                </StatusBanner>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel
+          title="Chat · event chips"
+          note="All six kinds, inline and as Timeline rows, from one component reading one record. Only escalation is tinted; a retracted send is struck through rather than dimmed, because every untinted chip is already muted ink."
+        >
+          <div className="flex flex-wrap gap-8">
+            <div className="w-[420px] rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-3">
+              <p className="mb-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
+                Inline, in a transcript
+              </p>
+              <ul>
+                {GALLERY_EVENTS.map((e) => (
+                  <EventChip
+                    key={e.id}
+                    event={e}
+                    actorName={e.actorId === "live" ? "You" : "Caleb"}
+                    retracted={e.kind === "activity-sent" && e.id === "g2"}
+                    onOpen={() => {}}
+                  />
+                ))}
+              </ul>
+            </div>
+            <div className="w-[320px] rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-3 py-3">
+              <p className="mb-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
+                As Timeline rows
+              </p>
+              <div className="space-y-1.5">
+                {GALLERY_EVENTS.map((e) => (
+                  <EventChip
+                    key={e.id}
+                    event={e}
+                    variant="row"
+                    actorName={e.actorId === "live" ? "You" : "Caleb"}
+                    retracted={e.kind === "activity-sent" && e.id === "g2"}
+                    onOpen={() => {}}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Chat · media frames"
+          note="Each frame is sized from the record's own dimensions before any bytes arrive — which is why there is no spinner. The three below are a phone portrait, a GIF and a square; nothing about them moves when an image resolves, because nothing was ever the wrong size."
+        >
+          <div className="flex flex-wrap items-end gap-4">
+            {[
+              { w: 1200, h: 1600, alt: "A cat asleep on a stack of textbooks" },
+              { w: 480, h: 270, alt: "An animated thumbs up" },
+              { w: 900, h: 900, alt: "Tomatoes on a windowsill" },
+            ].map((media) => (
+              <MediaFrame key={media.alt} media={media} />
+            ))}
           </div>
         </Panel>
       </div>

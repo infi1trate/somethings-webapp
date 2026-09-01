@@ -28,7 +28,8 @@
 // nobody — the same treatment the Tasks excerpt's truncation marker uses.
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { MoreHorizontal, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
+import { ThreadMenu } from "@/components/chat/thread/thread-menu";
 import {
   BannerButton,
   StatusBanner,
@@ -51,9 +52,6 @@ import type {
 } from "@/lib/chat/types";
 import { LIVE_ID } from "@/lib/record/subject";
 import { cn } from "@/lib/utils";
-
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 /** TODO-COPY. A durable fact about the relationship — not a state, which is what
  *  a `StatusBanner` is for. */
@@ -136,6 +134,8 @@ export function Thread({
   onOpenCrisis,
   onResolveEscalation,
   insert,
+  /** For the kebab's dialer link. Null on a thread with no number on file. */
+  phone,
   className,
 }: {
   thread: ChatThread;
@@ -152,7 +152,9 @@ export function Thread({
   onReact?: (messageId: string, emoji: string) => void;
   /** Starts a note pointed at this message. Absent on a support thread. */
   onTagMessage?: (message: ChatMessage) => void;
-  onEscalateFrom?: (message: ChatMessage) => void;
+  /** `null` when raised from the kebab rather than from a message — see the menu's
+   *  note on why both paths exist. */
+  onEscalateFrom?: (message: ChatMessage | null) => void;
   onOpenEvent?: (event: ChatEvent) => void;
   /** The banner's three actions. Absent on a support thread. */
   onOpenAssessment?: () => void;
@@ -161,6 +163,7 @@ export function Thread({
   /** Text to drop into the composer, unsent. See `Composer`'s own note on why this
    *  is a nonce rather than a plain string. */
   insert?: { text: string; nonce: number } | null;
+  phone?: string | null;
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -291,21 +294,16 @@ export function Thread({
             </p>
           )}
         </div>
-        {/* THE KEBAB IS PRESENT AND NAMED. Phase 7 fills it; an unnamed icon
-            button would be the exact defect this build is correcting. */}
-        <button
-          type="button"
-          /* TODO-COPY */
-          aria-label={`More options for ${theirName}`}
-          title="More options"
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors",
-            "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-            RING
-          )}
-        >
-          <MoreHorizontal className="size-[18px]" aria-hidden />
-        </button>
+        <ThreadMenu
+          threadId={thread.id}
+          theirName={theirName}
+          phone={phone ?? null}
+          /* THE SECOND ENTRY POINT. Gone while one is open, like the message menu's
+             — a second escalation on the same thread is the same crisis. */
+          onEscalate={
+            onEscalateFrom && !escalation ? () => onEscalateFrom(null) : undefined
+          }
+        />
       </div>
 
       {/* ── ESCALATION BANNER ─────────────────────────────────────────── */}

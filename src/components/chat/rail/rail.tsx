@@ -28,9 +28,12 @@
 
 import { useId } from "react";
 import { SegmentedControl } from "@/components/record/segmented-control";
-import { PanelEmpty, PanelShell } from "@/components/chat/rail/rail-panel";
+import { PanelShell } from "@/components/chat/rail/rail-panel";
 import { ToolkitPanel } from "@/components/chat/rail/toolkit";
 import { TimelinePanel } from "@/components/chat/rail/timeline";
+import { AssistPanel } from "@/components/chat/rail/assist";
+import { ProfilePanel } from "@/components/chat/rail/profile";
+import type { AssistInput } from "@/lib/chat/assist";
 import { NoteComposer } from "@/components/chat/documentation/note-composer";
 import { NoteDetail } from "@/components/chat/documentation/note-detail";
 import { AssessmentPanel } from "@/components/chat/escalation/assessment-panel";
@@ -103,6 +106,8 @@ export function Rail({
   events,
   notes,
   escalation,
+  assist,
+  matchedFor,
   now,
   /** CONTROLLED. See `RailMode` — the thread can put the rail into a mode, so
    *  neither the tab nor the mode can live in this component. */
@@ -127,6 +132,11 @@ export function Rail({
   events: ChatEvent[];
   notes: Note[];
   escalation?: EscalationState;
+  /** Everything the Assist ladder reads. Null on a support thread, where none of
+   *  its rules apply. */
+  assist: AssistInput | null;
+  /** Phrased by the page — `mentees-demo` owns the arithmetic. */
+  matchedFor: string | null;
   now: number;
   tab: RailTab;
   onTabChange: (tab: RailTab) => void;
@@ -216,18 +226,14 @@ export function Rail({
             />
           )}
           {active === "assist" && (
-            <PanelEmpty title="Where to start">
-              {/* TODO-COPY */}
-              One suggestion at a time, based on what has happened in this
-              conversation — with the option to do it or to leave it.
-            </PanelEmpty>
+            <AssistPanel
+              input={assist}
+              disabled={thread.kind !== "teen"}
+              onOpenToolkit={() => onTabChange("toolkit")}
+            />
           )}
           {active === "profile" && (
-            <PanelEmpty title={`About ${theirName}`}>
-              {/* TODO-COPY */}
-              What this teen has chosen to share about themselves, in their own
-              words.
-            </PanelEmpty>
+            <ProfilePanel thread={thread} matchedFor={matchedFor} />
           )}
           {active === "toolkit" && (
             <ToolkitPanel
