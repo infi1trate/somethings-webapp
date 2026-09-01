@@ -36,16 +36,23 @@
 //
 // Radix Dialog carries the focus trap and Escape.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PillButton } from "@/components/settings/pill-button";
 import { InfoCallout } from "@/components/record/info-callout";
 import { clinicalDate } from "@/components/record/care-presentation";
@@ -139,7 +146,29 @@ export function CareUpdateCompose({
           commit pre-filled from its rationale, a standalone update empty, with no
           reset-in-an-effect and no stale text leaking from a cancelled compose. */}
       <DialogContent
-        className="sm:max-w-lg"
+        /* ═══ 640px, AND EXACTLY ONE SCROLL CONTEXT ═══
+         *
+         *  WIDTH. `sm:max-w-lg` was 512px, which put the diagnostic statement at
+         *  roughly 46 characters per line — under the 45–75 measure convention and
+         *  the reason the fields read as cramped. 40rem is 640px; measured, the
+         *  text column lands at 68ch, inside the range.
+         *  NO BLOCK-WIDTH TOKEN EXISTS to reach for — Bloom ships surface, radius,
+         *  spacing and type tokens but nothing for container widths, so this is a
+         *  literal. Flagged rather than minted.
+         *
+         *  SCROLL. Three regions could scroll before: each textarea (fixed
+         *  `rows`), a bespoke `max-h-[52vh] overflow-y-auto` body, and
+         *  DialogContent itself (`max-h-[90dvh] overflow-y-auto`). Nested
+         *  scrollers are why content clipped and why a wheel gesture landed in
+         *  whichever box the pointer happened to be over.
+         *
+         *  So: `overflow-hidden` here takes DialogContent OUT of the scrolling
+         *  business — `cn` is tailwind-merge, so it genuinely replaces the base
+         *  `overflow-y-auto` rather than losing to it — and the rows template
+         *  makes the middle child the only flexible one, which pins the header
+         *  and the footer without either needing a sticky position. The one
+         *  remaining scroller is `<DialogBody>`. */
+        className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-[40rem]"
         // FOCUS RESTORE, EXPLICIT AND CAPTURED AT CLICK TIME. Radix's default
         // close-autofocus did not return focus to the trigger in this app
         // (measured: focus landed on <body> with the trigger still mounted), and
@@ -290,14 +319,36 @@ function ComposeForm({
       ? "Apply change and save update" // TODO-COPY — names the change explicitly.
       : "Save update"; // TODO-COPY
 
+  // BOTH FIELDS FIT THEMSELVES. Keyed on the value rather than on an onInput
+  // handler so a PREFILLED amendment opens at the height of the text it was
+  // given — an amendment starts pre-filled with the original, which is exactly
+  // the case a resize-on-type handler would miss until the first keystroke.
+  useAutoGrow(clinicalRef, body.clinical);
+  useAutoGrow(diagnosticRef, body.diagnostic);
+
   return (
     <>
-      <DialogHeader>
+      {/* ═══ TITLE → EXPLANATION → FIRST FIELD, ON THE SCALE (A3) ═══
+          8px under the title, 24px under the explanation. The copy teaches the
+          append-only model — "this appends a new update that references the
+          Aug 17 one; the original stays on the record" — and it only teaches it
+          if it is not crushed against the first label. */}
+      <DialogHeader className="gap-2 pb-6">
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
 
-      <div className="max-h-[52vh] space-y-5 overflow-y-auto">
+      {/* ═══ THE ONE SCROLLER, AND THE FIELD RHYTHM (A1, A4) ═══
+          `DialogBody` is `min-h-0 flex-1 overflow-y-auto` — the primitive that
+          already existed for exactly this and that this modal was not using. It
+          replaces a `max-h-[52vh]` guess: a viewport fraction is not the height
+          available, because it ignores the header and footer sharing the box.
+
+          `space-y-6` is a FULL step between field groups, up from `space-y-5`.
+          Each group is label / helper / input, so the gap between groups has to
+          beat the gap inside one or the helper text reads as belonging to the
+          field below it. */}
+      <DialogBody className="space-y-6 px-0.5">
         {/* 1 · CLINICAL SUMMARY */}
         <Field
           id="cu-clinical"
@@ -316,7 +367,9 @@ function ComposeForm({
               setBody((b) => ({ ...b, clinical: e.target.value }));
               clearError("clinical");
             }}
-            rows={3}
+            /* NO `rows` — `useAutoGrow` owns the height, floor 4 lines. A `rows`
+               here would set an inline height the hook then overwrites, which is
+               a flash of the wrong size on first paint. */
             aria-invalid={errors.clinical || undefined}
             aria-describedby="cu-clinical-help cu-clinical-err"
             className={textareaClass(errors.clinical)}
@@ -327,7 +380,11 @@ function ComposeForm({
             The callout sits ABOVE the field, per spec — it asks the supervisor to
             read before signing, so it has to arrive before the text does. */}
         <div>
-          <InfoCallout className="mb-2.5">
+          {/* `mb-3` (12px) on the scale, up from an arbitrary 10px. The callout
+              keeps `InfoCallout`'s own `px-3 py-2.5` padding untouched — it is the
+              standard for every callout in the record — and the 24px group gap
+              above it means it no longer sits against the field it follows. */}
+          <InfoCallout className="mb-3">
             {/* TODO-COPY */}
             Review this section carefully to ensure it accurately reflects your
             client&apos;s symptoms and your clinical judgement.
@@ -350,7 +407,7 @@ function ComposeForm({
                 setBody((b) => ({ ...b, diagnostic: e.target.value }));
                 clearError("diagnostic");
               }}
-              rows={4}
+              /* NO `rows` — see the clinical field above. */
               aria-invalid={errors.diagnostic || undefined}
               aria-describedby="cu-diagnostic-help cu-diagnostic-err"
               className={textareaClass(errors.diagnostic)}
@@ -358,15 +415,28 @@ function ComposeForm({
           </Field>
         </div>
 
-        {/* 3 · ASSESSMENT OF SYMPTOMS — a three-state single-select.
-            A RADIOGROUP, not the segmented control. The segmented control offers
-            `semantics="tabs"` and `semantics="group"` (role=group + aria-pressed,
-            a mode toggle); neither announces a required single-select in a form.
-            `ui/radio-group.tsx` had no consumers before this, so adopting it
-            shifts no other screen — which the segmented control could not
-            promise. */}
-        <fieldset>
-          <legend
+        {/* ═══ 3 · ASSESSMENT OF SYMPTOMS — NOW A SELECT (A6) ═══
+            This was a `RadioGroup`, and the reasoning for that is worth keeping
+            visible because this change overrides it: the segmented control offers
+            only `semantics="tabs"` and `semantics="group"` (role=group +
+            aria-pressed), neither of which announces a required single-select in a
+            form, and a radiogroup does. A `Select` announces as a combobox with a
+            single value, which also does — so the accessible semantics survive the
+            change; what is traded is RECOGNITION for RECALL. All three options
+            were visible at rest and now one click hides them.
+
+            THE SEGMENTED CONTROL DOES EXIST in this codebase
+            (`components/record/segmented-control.tsx`, three consumers) and would
+            keep all three visible on one line at the same footprint. Flagged in
+            the report, not implemented — the dropdown is the decided direction.
+
+            NO DEFAULT PRESELECTION: `value` is undefined until chosen, so the
+            placeholder shows and the required-field validation has something real
+            to catch. A preselected "Maintained" would be a clinical assertion
+            nobody made. */}
+        <div>
+          <label
+            htmlFor="cu-assessment"
             className={cn(
               "block",
               errors.assessment
@@ -376,9 +446,9 @@ function ComposeForm({
             style={LABEL_STYLE}
           >
             {CARE_UPDATE_ASSESSMENT_LABEL}
-          </legend>
-          <RadioGroup
-            value={body.assessment ?? ""}
+          </label>
+          <Select
+            value={body.assessment ?? undefined}
             onValueChange={(v) => {
               setBody((b) => ({
                 ...b,
@@ -386,29 +456,31 @@ function ComposeForm({
               }));
               clearError("assessment");
             }}
-            aria-invalid={errors.assessment || undefined}
-            aria-describedby="cu-assessment-err"
-            className="mt-2 flex flex-wrap gap-x-6 gap-y-2.5"
           >
-            {CARE_UPDATE_ASSESSMENTS.map((a, i) => (
-              // The whole label is the target — a 16px dot alone is under the
-              // 24px floor, and wrapping it means the word counts too.
-              <label
-                key={a.value}
-                className="flex cursor-pointer items-center gap-2 py-1 text-[14px] leading-[20px] text-[var(--text-primary)]"
-              >
-                <RadioGroupItem
-                  ref={i === 0 ? assessmentRef : undefined}
-                  value={a.value}
-                  className={RING}
-                />
-                {a.label}
-              </label>
-            ))}
-          </RadioGroup>
+            <SelectTrigger
+              id="cu-assessment"
+              ref={assessmentRef}
+              aria-invalid={errors.assessment || undefined}
+              aria-describedby="cu-assessment-err"
+              className={cn(
+                "mt-1.5 w-full",
+                errors.assessment && "border-[color:var(--state-error)]"
+              )}
+            >
+              {/* TODO-COPY */}
+              <SelectValue placeholder="Select an assessment" />
+            </SelectTrigger>
+            <SelectContent>
+              {CARE_UPDATE_ASSESSMENTS.map((a) => (
+                <SelectItem key={a.value} value={a.value}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <FieldError id="cu-assessment-err" show={errors.assessment} />
-        </fieldset>
-      </div>
+        </div>
+      </DialogBody>
 
       <DialogFooter>
         {/* THE LIVE REGION IS ALWAYS MOUNTED and starts empty. A region added to
@@ -419,12 +491,27 @@ function ComposeForm({
         >
           {announce}
         </p>
-        <p className="mr-auto text-[13px] leading-[18px] text-[var(--text-muted)]">
+        {/* `min-w-0` so THIS is what gives way when the footer is tight. Without
+            it both flex items shrink proportionally and the button loses the
+            argument to a sentence. */}
+        <p className="mr-auto min-w-0 text-[13px] leading-[18px] text-[var(--text-muted)]">
           {/* TODO-COPY — permanence stated while there is still time to act on it. */}
           All three fields are required. This cannot be edited once saved;
           corrections append.
         </p>
-        <PillButton onClick={() => attemptSave(Date.now())}>
+        {/* ═══ ONE LINE, AT ANY ZOOM (A5) ═══
+            "Append amendment" wrapped to two lines, and the cause was not the
+            label's length. `PillButton` sets no `shrink-0` and no
+            `whitespace-nowrap`, and a flex item defaults to `flex-shrink: 1` — so
+            in this footer's row the button was compressed below its own text
+            width and the label broke. Both classes are needed: `shrink-0` keeps
+            the box at its content width, `whitespace-nowrap` means that content
+            width is one line. At 200% text zoom the note beside it wraps instead,
+            which is the correct thing to sacrifice. */}
+        <PillButton
+          className="shrink-0 whitespace-nowrap"
+          onClick={() => attemptSave(Date.now())}
+        >
           {commitLabel}
         </PillButton>
       </DialogFooter>
@@ -432,9 +519,77 @@ function ComposeForm({
   );
 }
 
+/** SSR-safe layout effect. Third declaration of this local in the codebase
+ *  (`scroll-affordance.tsx`, `segmented-control.tsx`) — flagged as a shared
+ *  helper worth extracting rather than copied a fourth time. */
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/** ═══ THE AUTO-GROWING TEXTAREA (A1) ═══
+ *
+ *  A fixed `rows` is the third scroll context: type past three lines and the box
+ *  scrolls inside a body that also scrolls inside a dialog that also scrolls, and
+ *  the clinical statement a supervisor is about to sign is read four lines at a
+ *  time through a slot.
+ *
+ *  So the field grows with its content. `MIN_LINES` (4) is the resting height —
+ *  enough that the box reads as "write a paragraph" rather than "fill in a
+ *  value". `MAX_LINES` (12) is where growth stops and the textarea is allowed to
+ *  scroll internally, as the degenerate case: past twelve lines a field that keeps
+ *  growing pushes the footer's CTA off the bottom of a laptop screen, and a
+ *  scroller the reader chose by writing an essay is better than a hidden button.
+ *
+ *  MEASURED IN LINES, NOT PIXELS: `lineHeight` is read off the element, so the
+ *  clamp follows the type token instead of hardcoding what 20px happens to be
+ *  today, and it survives a text-zoom change.
+ *
+ *  `height = "auto"` FIRST, EVERY TIME. `scrollHeight` on an element with an
+ *  explicit height returns that height whenever the content shrank, so deleting
+ *  text would leave the box at its high-water mark forever. */
+const MIN_LINES = 4;
+const MAX_LINES = 12;
+
+function fitToContent(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  const cs = getComputedStyle(el);
+  const line = parseFloat(cs.lineHeight) || 20;
+  // The padding is part of the box but not of the text, so it is added to both
+  // bounds rather than being absorbed into the line count.
+  const chrome =
+    parseFloat(cs.paddingTop) +
+    parseFloat(cs.paddingBottom) +
+    parseFloat(cs.borderTopWidth) +
+    parseFloat(cs.borderBottomWidth);
+  const min = line * MIN_LINES + chrome;
+  const max = line * MAX_LINES + chrome;
+  el.style.height = "auto";
+  const needed = el.scrollHeight;
+  el.style.height = `${Math.min(Math.max(needed, min), max)}px`;
+  // The scrollbar appears ONLY at the cap. Below it the element is exactly as
+  // tall as its content, so `auto` would still paint a bar on some platforms
+  // during the frame the height is being set.
+  el.style.overflowY = needed > max ? "auto" : "hidden";
+}
+
+/** Keeps a textarea fitted across mounts, edits and prefills. Runs on layout so
+ *  the first paint is already the right height — a growing-in animation on open
+ *  would read as the dialog settling. */
+function useAutoGrow(
+  ref: React.RefObject<HTMLTextAreaElement | null>,
+  value: string
+) {
+  useIsoLayoutEffect(() => {
+    fitToContent(ref.current);
+  }, [ref, value]);
+}
+
 function textareaClass(error: boolean) {
   return cn(
-    "mt-1.5 block w-full resize-y rounded-[var(--radius-surface)] border bg-[var(--surface-card)] px-3 py-2.5",
+    // `resize-none`, NOT `resize-y`: the handle and the auto-grow fight each
+    // other — a manual drag sets an inline height that the next keystroke
+    // overwrites, so the control lies about being adjustable. Growth is
+    // automatic and capped instead.
+    "mt-1.5 block w-full resize-none rounded-[var(--radius-surface)] border bg-[var(--surface-card)] px-3 py-2.5",
     "text-[14px] leading-[20px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
     error
       ? "border-[color:var(--state-error)]"
