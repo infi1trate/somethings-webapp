@@ -255,7 +255,14 @@ console.log("\n── message actions @ active-mentorship");
   const menu = await p.evaluate(`(() => {
     const m = document.querySelector('[role="menu"][aria-label="Reactions"]');
     if (!m) return null;
-    const items = [...m.querySelectorAll('[role="menuitem"]')];
+    /* ═══ THE REACTIONS, NOT EVERY MENU ITEM ═══
+       Phase 5 added a tag entry to the same menu, so counting `menuitem` started
+       reporting 7 against a check that means "six reactions, not an emoji
+       keyboard". The claim is about the reaction set; the tag is a different kind of
+       act and `chat-documentation.mjs` counts it. Split by whether the item's own
+       glyph is an emoji rather than an SVG. */
+    const all = [...m.querySelectorAll('[role="menuitem"]')];
+    const items = all.filter((i) => !i.querySelector("svg"));
     const box = m.getBoundingClientRect();
     return {
       count: items.length,
@@ -263,6 +270,7 @@ console.log("\n── message actions @ active-mentorship");
          means — "grinning face" describes a picture, not an action. */
       allNamed: items.every((i) => (i.getAttribute("aria-label") || "").length > 3),
       labels: items.map((i) => i.getAttribute("aria-label")),
+      nonReaction: all.length - items.length,
       /* IT OPENS AWAY FROM THE BUBBLE. On this surface the message underneath may
          be the sentence a mentor is deciding about. */
       aboveTrigger: box.bottom <= document.querySelector('button[aria-label="React to this message"]').getBoundingClientRect().top + 2,
@@ -270,6 +278,7 @@ console.log("\n── message actions @ active-mentorship");
   })()`);
   check(!!menu, "the menu opened");
   check(menu.count === 6, "six reactions, not an emoji keyboard", String(menu.count));
+  check(menu.nonReaction === 1, "beside one non-reaction action", String(menu.nonReaction));
   check(menu.allNamed, "each names what it means", menu.labels.slice(0, 3).join(" | "));
 
   // Pressing one adds it, and pressing again removes it.
