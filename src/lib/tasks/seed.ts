@@ -51,6 +51,55 @@ const TEENS = {
   theo: { id: "tk-theo", name: "Theo L." },
 };
 
+/** ═══ THE WIDER CASELOAD (Part 3) ═══
+ *
+ *  A supervisor's real queue is forty to sixty open flags, not eight — and the
+ *  eight names above cannot carry that. Repeating them seven times each would
+ *  produce a list that LOOKS like volume while testing none of what volume breaks:
+ *  name-column truncation, avatar-initial collisions, and a reader's ability to
+ *  find one person among many.
+ *
+ *  So the roster is extended rather than the existing names multiplied. The eight
+ *  above stay exactly as they were — every hand-written scenario spec still refers
+ *  to them by key, and the narrative fixtures (Marcus's five flags, Riley's
+ *  documentation) are unchanged.
+ *
+ *  DELIBERATE COLLISIONS. Two Jordans (`Jordan P.`, `Jordan A.`), two Ms, several
+ *  shared initials. A roster of forty distinct first letters is not a caseload,
+ *  it is an alphabet — and the disambiguation work a supervisor actually does is
+ *  exactly the work a too-tidy fixture hides.
+ *
+ *  FIRST NAME + LAST INITIAL, MAXIMUM (locked decision 11), asserted in
+ *  seed.test.ts across every scenario — so a name added here that carries a
+ *  surname fails the suite rather than reaching a screen. */
+const ROSTER: Teen[] = [
+  { id: "tk-ava", name: "Ava M." },
+  { id: "tk-jordan-a", name: "Jordan A." },
+  { id: "tk-diego", name: "Diego S." },
+  { id: "tk-mei", name: "Mei W." },
+  { id: "tk-kai", name: "Kai N." },
+  { id: "tk-priya", name: "Priya R." },
+  { id: "tk-noah", name: "Noah B." },
+  { id: "tk-zara", name: "Zara H." },
+  { id: "tk-eli", name: "Eli F." },
+  { id: "tk-sofia", name: "Sofia G." },
+  { id: "tk-tobias", name: "Tobias K." },
+  { id: "tk-amara", name: "Amara D." },
+  { id: "tk-luca", name: "Luca V." },
+  { id: "tk-hana", name: "Hana T." },
+  { id: "tk-omari", name: "Omari J." },
+  { id: "tk-blake", name: "Blake C." },
+  { id: "tk-nia", name: "Nia P." },
+  { id: "tk-santiago", name: "Santiago R." },
+  { id: "tk-ines", name: "Ines M." },
+  { id: "tk-devon", name: "Devon A." },
+  { id: "tk-yusuf", name: "Yusuf E." },
+  { id: "tk-clara", name: "Clara L." },
+  { id: "tk-marco", name: "Marco B." },
+  { id: "tk-elena", name: "Elena Q." },
+  ...Object.values(TEENS),
+];
+
 const MENTORS = {
   brandon: { id: "tk-m-brandon", name: "Brandon Forant" },
   maria: { id: "tk-m-maria", name: "Maria Lopez" },
@@ -58,8 +107,29 @@ const MENTORS = {
   omar: { id: "tk-m-omar", name: "Omar Haddad" },
 };
 
-type Teen = (typeof TEENS)[keyof typeof TEENS];
-type Mentor = (typeof MENTORS)[keyof typeof MENTORS];
+/** Mentors carry FULL names — they are staff, and locked decision 11 is about
+ *  teens. Six more so a fifty-row list is not four mentors repeated. */
+const MENTOR_POOL: Mentor[] = [
+  ...Object.values(MENTORS),
+  { id: "tk-m-tasha", name: "Tasha Reyes" },
+  { id: "tk-m-daniel", name: "Daniel Okafor" },
+  { id: "tk-m-priscilla", name: "Priscilla Vance" },
+  { id: "tk-m-jae", name: "Jae Sung Park" },
+  { id: "tk-m-nour", name: "Nour Barakat" },
+  { id: "tk-m-vic", name: "Victoria Ellery" },
+];
+
+/* Declared as standalone interfaces rather than derived from the literals: the
+   roster below is a second source of the same shape, and a type derived from one
+   of two sources is a type that stops describing the other. */
+interface Teen {
+  id: string;
+  name: string;
+}
+interface Mentor {
+  id: string;
+  name: string;
+}
 
 // ── Payload builders ────────────────────────────────────────────────────────
 // TODO-COPY / TODO-DATA on every string.
@@ -209,6 +279,113 @@ const CODES = {
   adjustment: { code: "R45.89", statement: "Other symptoms involving emotional state" },
 };
 
+// ── Bulk fill (Part 3) ──────────────────────────────────────────────────────
+//
+// ═══ WHY THE FIXTURES GOT BIGGER ═══
+//
+// Every density decision on this surface — sticky band headers, 56px rows, the
+// virtualized list, keyboard resolution — exists because a supervisor works
+// through FIFTY flags, not eight. At eight rows none of those decisions can be
+// evaluated: the list fits on one screen, the headers have nothing to separate,
+// virtualization never crosses a boundary, and a keyboard shortcut saves nothing
+// over clicking. A prototype that only ever shows eight rows is a prototype that
+// answers a question nobody asked.
+//
+// So `typical-shift` and `heavy-caseload` now carry realistic volume, and the
+// three narrative scenarios (quiet day, breach overnight, active escalation) do
+// not — they exist to demonstrate specific states, and burying a single active
+// escalation under sixty flags would demonstrate it worse.
+//
+// ═══ DETERMINISTIC, WITH NO RANDOMNESS ANYWHERE ═══
+//
+// No `Math.random`. The module's contract is that two builds with the same `now`
+// are byte-identical, and a shuffled fixture breaks every snapshot, every
+// screenshot comparison and every "is this the row I was just looking at" moment
+// in review. Variation comes from `spread`, an integer hash of the index — the
+// same input always yields the same caseload.
+
+/** A small integer hash. Not cryptographic and not trying to be: it needs to
+ *  produce a well-distributed value from an index so ages, mentors and group
+ *  sizes vary without a random source. Knuth's multiplicative constant. */
+function spread(i: number, salt: number): number {
+  return Math.abs(Math.imul(i + salt * 977 + 1, 2654435761) >>> 8);
+}
+
+interface FillOptions {
+  taskType: TaskType;
+  /** How many TASKS to emit. */
+  count: number;
+  /** Distinct object ids (conversations / surveys) to spread them across. Fewer
+   *  than `count` produces coalesced groups — which is the point: at fifty flags
+   *  a supervisor's list is mostly groups, and a fixture of fifty singletons
+   *  would never exercise the disclosure path at volume. */
+  conversations: number;
+  /** Age window, in ms before `now`. Ages are distributed across it, so a run of
+   *  rows shows a real age gradient rather than one repeated value. */
+  minAgo: number;
+  maxAgo: number;
+  payload: () => TaskPayload;
+  /** Offsets the roster walk so two fills do not hand the same teens to the same
+   *  conversations. Also salts the hash. */
+  seed: number;
+}
+
+/** Emit `count` specs of one task type, spread across `conversations` objects.
+ *
+ *  ONE TEEN PER CONVERSATION, always. A conversation is between one teen and one
+ *  mentor, so a group whose members named different teens would be incoherent
+ *  data that happened to render — and the coalesced parent row shows the head's
+ *  name, so the incoherence would be invisible until someone expanded it. */
+function fill(o: FillOptions): Spec[] {
+  const specs: Spec[] = [];
+  const span = Math.max(1, o.maxAgo - o.minAgo);
+  for (let i = 0; i < o.count; i++) {
+    const conv = i % o.conversations;
+    const teen = ROSTER[(conv + o.seed) % ROSTER.length];
+    const mentor = MENTOR_POOL[(conv + o.seed) % MENTOR_POOL.length];
+    // Age walks the window by conversation, not by index, so the members of one
+    // group are MINUTES apart (they are flags on one conversation) while
+    // different conversations are hours apart. A flat distribution over `count`
+    // would have made every group's members hours apart, which no real
+    // conversation produces.
+    const base = o.minAgo + Math.round((span * conv) / o.conversations);
+    const jitter = (spread(i, o.seed) % 41) * MINUTE;
+    specs.push({
+      taskType: o.taskType,
+      teen,
+      mentor,
+      objectId: `conv-${o.taskType}-${o.seed}-${conv}`,
+      openedAgo: base + jitter,
+      payload: o.payload(),
+    });
+  }
+  return specs;
+}
+
+/** Resolved fixtures, so a fifty-row board also has a plausible number of things
+ *  already closed today — the tab cards' closed segment reads "· 14 closed" at
+ *  volume, and a band that clears reports a real figure rather than "1 today".
+ *  All resolved within the last eight hours, so `closedToday` counts them. */
+function closedFill(
+  taskType: TaskType,
+  count: number,
+  payload: () => TaskPayload,
+  seed: number
+): Spec[] {
+  return Array.from({ length: count }, (_, i) => ({
+    taskType,
+    teen: ROSTER[(i * 3 + seed) % ROSTER.length],
+    mentor: MENTOR_POOL[(i + seed) % MENTOR_POOL.length],
+    objectId: `conv-${taskType}-done-${seed}-${i}`,
+    openedAgo: (10 + (spread(i, seed) % 20)) * HOUR,
+    payload: payload(),
+    status: "resolved" as const,
+    // Spread across the shift so the figure is not obviously synthetic, and
+    // always inside today.
+    resolvedAgo: 30 * MINUTE + (spread(i, seed + 5) % 7) * HOUR,
+  }));
+}
+
 // ── The five scenarios ──────────────────────────────────────────────────────
 
 /** QUIET DAY — a handful of low-tier items, nothing breached, no escalation.
@@ -272,8 +449,11 @@ function quietDay(now: number): TaskItem[] {
  *  escalation but a documentation task outstanding. The scenario the surface
  *  should be judged on. */
 function typicalShift(now: number): TaskItem[] {
-  return build(
-    [
+  // THE NAMED CASES COME FIRST and are unchanged — Riley's documentation clock
+  // with four hours left, Marcus's breached red flag, the two orange. They are
+  // the ones anyone reviewing this surface is asked to look at, and the priority
+  // sort puts them at the top of their bands where they can be found.
+  const specs: Spec[] = [
       // ── Escalations: documentation only (no active escalation here).
       {
         taskType: "escalationDocumentation",
@@ -375,9 +555,30 @@ function typicalShift(now: number): TaskItem[] {
         status: "resolved",
         resolvedAgo: 7 * HOUR,
       },
-    ],
-    now
+  ];
+
+  /* ═══ AND THEN THE REST OF THE SHIFT ═══
+     Forty-six open flags across twenty-eight conversations, thirteen billing
+     reviews, eighteen monitoring rows. That is what a supervisor's Tuesday looks
+     like, and it is the volume every Part 3 decision was made against.
+
+     THE RED WINDOW CROSSES ITS SLA ON PURPOSE (2h → 26h against a 24h SLA), so a
+     handful of imminent flags are genuinely breached and the Imminent band opens
+     with them — breach outranks tier in the comparator, and a fixture where
+     nothing is breached never proves that. The orange window (6h → 44h against
+     48h) stays inside its SLA, so the two bands differ in more than their label. */
+  specs.push(
+    ...fill({ taskType: "redFlagReview", count: 22, conversations: 12, minAgo: 2 * HOUR, maxAgo: 26 * HOUR, payload: RED, seed: 1 }),
+    ...fill({ taskType: "orangeFlagReview", count: 24, conversations: 16, minAgo: 6 * HOUR, maxAgo: 44 * HOUR, payload: ORANGE, seed: 2 }),
+    ...fill({ taskType: "intakeBillingReview", count: 7, conversations: 7, minAgo: 4 * HOUR, maxAgo: 60 * HOUR, payload: () => billingPayload(false, now, null, CODES.gad, 12), seed: 3 }),
+    ...fill({ taskType: "monthlyReReview", count: 6, conversations: 6, minAgo: 8 * HOUR, maxAgo: 66 * HOUR, payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15), seed: 4 }),
+    ...fill({ taskType: "standardFlagReview", count: 18, conversations: 14, minAgo: 1 * DAY, maxAgo: 6 * DAY, payload: GREEN, seed: 5 }),
+    // Closed today, at a volume that matches the open one.
+    ...closedFill("redFlagReview", 6, RED, 6),
+    ...closedFill("orangeFlagReview", 5, ORANGE, 7),
+    ...closedFill("intakeBillingReview", 4, () => billingPayload(false, now, null, CODES.adjustment, 9), 8),
   );
+  return build(specs, now);
 }
 
 /** HEAVY CASELOAD — the coalescing stress case. One conversation carrying five
@@ -460,6 +661,25 @@ function heavyCaseload(now: number): TaskItem[] {
     status: "resolved",
     resolvedAgo: 3 * HOUR,
   });
+
+  /* ═══ THE WORST TUESDAY (Part 3) ═══
+     Ninety-seven open flags. Not a number chosen for drama — it is the top of the
+     range the brief asks the list to survive, and the one where every fallback
+     has to hold at once: the virtualized window is crossing group boundaries, the
+     band headers are the only way to tell where imminent stops, and the age
+     gradient runs from two hours to three days inside a single band.
+     Marcus's five-flag conversation above is still in here, and still findable —
+     if it stops being findable at this volume, the density work failed. */
+  specs.push(
+    ...fill({ taskType: "redFlagReview", count: 40, conversations: 14, minAgo: 1 * HOUR, maxAgo: 34 * HOUR, payload: RED, seed: 11 }),
+    ...fill({ taskType: "orangeFlagReview", count: 48, conversations: 22, minAgo: 4 * HOUR, maxAgo: 3 * DAY, payload: ORANGE, seed: 12 }),
+    ...fill({ taskType: "intakeBillingReview", count: 7, conversations: 7, minAgo: 6 * HOUR, maxAgo: 70 * HOUR, payload: () => billingPayload(false, now, null, CODES.gad, 13), seed: 13 }),
+    ...fill({ taskType: "monthlyReReview", count: 5, conversations: 5, minAgo: 12 * HOUR, maxAgo: 80 * HOUR, payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 17), seed: 14 }),
+    ...fill({ taskType: "standardFlagReview", count: 20, conversations: 15, minAgo: 2 * DAY, maxAgo: 8 * DAY, payload: GREEN, seed: 15 }),
+    ...closedFill("redFlagReview", 11, RED, 16),
+    ...closedFill("orangeFlagReview", 9, ORANGE, 17),
+    ...closedFill("intakeBillingReview", 5, () => billingPayload(false, now, null, CODES.adjustment, 10), 18),
+  );
   return build(specs, now);
 }
 
@@ -621,8 +841,8 @@ export interface TaskScenario {
  *  simulator's registry. */
 export const TASK_SCENARIOS: TaskScenario[] = [
   { id: "quiet-day", label: "Quiet day", description: "Three open, nothing breached.", build: quietDay },
-  { id: "typical-shift", label: "Typical shift", description: "Every tab populated, one breach.", build: typicalShift },
-  { id: "heavy-caseload", label: "Heavy caseload", description: "Five red flags on one conversation.", build: heavyCaseload },
+  { id: "typical-shift", label: "Typical shift", description: "46 open flags, 13 billing, a few breached.", build: typicalShift },
+  { id: "heavy-caseload", label: "Heavy caseload", description: "97 open flags across two bands.", build: heavyCaseload },
   { id: "breach-overnight", label: "Breach overnight", description: "Everything past its SLA.", build: breachOvernight },
   { id: "active-escalation", label: "Active escalation", description: "Two open escalations, one 911.", build: activeEscalation },
 ];

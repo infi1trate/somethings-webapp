@@ -21,7 +21,7 @@
 // pane" in §5's words — is the only filled button on the surface. It uses
 // PillButton; every other control here is a RecordButton.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
@@ -367,10 +367,30 @@ function EscalationBody({
 
 // ── The frame ───────────────────────────────────────────────────────────────
 
+/** ═══ WHAT THE KEYBOARD CAN PRESS (Part 3) ═══
+ *
+ *  `y` / `n` / Enter act on the pane's controls, but the LISTENER lives on the
+ *  page — one keyboard layer, one "is someone typing" guard, one dialog guard.
+ *  So the pane publishes its two decisions into a ref the page holds.
+ *
+ *  This exists because of `override`: the recommended code is not `item`'s code
+ *  once a supervisor has picked a different one from the DSM-5 dialog, and that
+ *  choice is pane state. A page-level Enter that read `item.payload.recommended`
+ *  would confirm the code the model suggested rather than the one on screen —
+ *  silently, on a minor's billing record. Either the state moves up or the action
+ *  comes down; the action is smaller. */
+export interface PaneActions {
+  /** Present only for risk-flag and monitoring items. */
+  answer?: (correct: boolean) => void;
+  /** Present only for billing items, and it carries the OVERRIDE. */
+  confirm?: () => void;
+}
+
 export function TaskPane({
   item,
   now,
   onResolve,
+  actionsRef,
   /** THE EXCERPT'S OWN STATE, from the page's load-state axis. Separate from the
    *  pane's so the two can disagree — which is the point: the dev harness must be
    *  able to fail the excerpt while the pane succeeds. */
@@ -380,6 +400,8 @@ export function TaskPane({
   now: number;
   /** Fires with the pane's detail; the page owns resolveWithUndo. */
   onResolve: (item: TaskItem, detail: Record<string, unknown>) => void;
+  /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
+  actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
@@ -390,8 +412,56 @@ export function TaskPane({
   const effectiveExcerptState: ExcerptState =
     retryNonce > 0 ? "ready" : excerptState;
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [override, setOverride] = useState<{ code: string; statement: string } | null>(null);
+  /* ═══ THE OVERRIDE BELONGS TO ONE ITEM, AND ONLY ONE ═══
+     The pane does not unmount between reviews — resolving auto-advances to the
+     next item in the same component — so a code picked for Jordan's intake was
+     still sitting in `override` when Riley's arrived, and the footer offered to
+     confirm it. On a minor's billing record.
+     Fixed by STORING THE ITEM'S ID WITH THE CHOICE and deriving whether it still
+     applies, rather than by resetting the state in an effect when `item` changes.
+     A reset runs one render LATE: there is a frame in which the new item is on
+     screen and the old code is still in state, which is precisely the frame a
+     fast keyboard resolve lands in. Derivation has no such frame. */
+  const [override, setOverride] = useState<
+    { id: string; code: string; statement: string } | null
+  >(null);
+  const activeOverride =
+    override && override.id === item?.id
+      ? { code: override.code, statement: override.statement }
+      : null;
   const pickerTrigger = useRef<HTMLElement | null>(null);
+
+  /* PUBLISH THE KEYBOARD-REACHABLE ACTIONS. Before the early return, because
+     hooks cannot live after one — and it has to handle the no-item case itself
+     rather than being skipped, or the page would keep pressing the last item's
+     buttons after the list emptied. */
+  const payload = item?.payload;
+  const confirmCode =
+    payload?.kind === "billing" ? (activeOverride ?? payload.recommended) : null;
+  useEffect(() => {
+    if (!actionsRef) return;
+    if (!item || !payload) {
+      actionsRef.current = {};
+      return;
+    }
+    actionsRef.current = {
+      // Flags and monitoring only — an escalation has no correctness question,
+      // and locked decision 3 says nothing on its pane resolves anything.
+      answer:
+        payload.kind === "riskFlag"
+          ? (correct: boolean) => onResolve(item, { flaggedCorrectly: correct })
+          : undefined,
+      confirm:
+        payload.kind === "billing" && confirmCode
+          ? () =>
+              onResolve(item, {
+                outcome: "confirmed",
+                code: confirmCode.code,
+                changed: confirmCode.code !== payload.recommended.code,
+              })
+          : undefined,
+    };
+  }, [actionsRef, item, payload, confirmCode, onResolve]);
 
   if (!item) {
     return (
@@ -407,7 +477,7 @@ export function TaskPane({
   const p = item.payload;
   const breached = isBreached(item, now);
   const recommended =
-    p.kind === "billing" ? (override ?? p.recommended) : null;
+    p.kind === "billing" ? (activeOverride ?? p.recommended) : null;
 
   return (
     /* ═══ THE PANE IS THE FRAME'S HEIGHT, NOT THE VIEWPORT'S (Part 1.2) ═══
@@ -595,7 +665,7 @@ export function TaskPane({
           onOpenChange={setPickerOpen}
           current={p.current}
           onSelect={(entry) => {
-            setOverride({ code: entry.code, statement: entry.statement });
+            setOverride({ id: item.id, code: entry.code, statement: entry.statement });
             setPickerOpen(false);
           }}
           returnFocusTo={pickerTrigger}

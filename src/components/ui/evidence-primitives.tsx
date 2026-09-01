@@ -48,17 +48,38 @@ export function SystemBlock({
   label,
   children,
   link,
+  /** ═══ BADGE, NOT HEADER (Part 4) ═══
+   *
+   *  An "AI SUMMARY" eyebrow announces the machinery before the sentence, and on
+   *  the billing pane that is backwards: the summary is the first thing a
+   *  supervisor reads and the provenance is a qualification on it, not a section
+   *  they navigated to. As a badge the words come first and the attribution rides
+   *  alongside them — still stated, still glyphed, no longer the headline.
+   *
+   *  Kept as a variant rather than a second component: it is the same block with
+   *  the same tint, the same radius and the same attribution rule, and two
+   *  components would drift on all three. */
+  attribution = "header",
 }: {
   label: string;
   children: React.ReactNode;
   link?: { href: string; label: string };
+  attribution?: "header" | "badge";
 }) {
+  const badge = attribution === "badge";
   return (
     <div className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3.5 py-3">
-      <p className={cn("flex items-center gap-1.5", PANE_LABEL)}>
-        <Sparkles className="size-3 shrink-0" aria-hidden />
-        {label}
-      </p>
+      {badge ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[11.5px] font-medium leading-[16px] text-[var(--text-secondary)]">
+          <Sparkles className="size-3 shrink-0" aria-hidden />
+          {label}
+        </span>
+      ) : (
+        <p className={cn("flex items-center gap-1.5", PANE_LABEL)}>
+          <Sparkles className="size-3 shrink-0" aria-hidden />
+          {label}
+        </p>
+      )}
       {/* ═══ MEASURE, NOT JUST WIDTH ═══
           Measured on `/app/tasks` at 1440px: the AI rationale ran to 100
           characters per line against the 45–75 convention (66 ideal). The pane is
@@ -82,6 +103,66 @@ export function SystemBlock({
         </Link>
       )}
     </div>
+  );
+}
+
+/** ═══ THE SQUARE SCORE LOZENGE — EXTRACTED FROM THE CARE TIMELINE ═══
+ *
+ *  Two cells, a hairline between them: the number, then the band it falls in.
+ *  Square-cornered at 4px rather than a pill, which is what separates it from the
+ *  round status chips beside it — a lozenge is a READING, a pill is a STATE.
+ *
+ *  Moved here rather than re-made in the Tasks pane. The billing review shows the
+ *  same instrument, the same number and the same band the record's History shows,
+ *  and a supervisor who reads "14 · Moderate" on one surface and a differently
+ *  shaped "14 (moderate)" on the other has to work out whether they mean the same
+ *  thing. They do, so they look the same.
+ *
+ *  THE BAND TINTS CARRY THE SAME MEANING THEY DO ON THE RECORD — sage settled,
+ *  amber attention, rose acute — and moderately-severe and severe deliberately
+ *  share rose, one step apart on a five-step ladder with the LABEL separating
+ *  them. Which is why the label is never dropped to save space: the pale fills
+ *  are within 1.25:1 of each other and are told apart by hue, so a lozenge
+ *  showing only a tint and a number would be unreadable to a share of readers.
+ *  Ratios measured in settings-tokens.css: sage 6.10:1, amber 7.24:1, rose
+ *  5.93:1. Gap row 312. */
+const BAND_TINT: Record<string, string> = {
+  minimal: "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
+  mild: "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]",
+  moderate: "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]",
+  "moderately severe": "bg-[var(--band-rose-bg)] text-[var(--band-rose-fg)]",
+  severe: "bg-[var(--band-rose-bg)] text-[var(--band-rose-fg)]",
+};
+
+/** TODO-COPY — sentence case, so the lozenge reads as a label rather than a
+ *  shout: "Moderately severe", not "MODERATELY SEVERE". */
+export function bandLabel(band: string): string {
+  return band.charAt(0).toUpperCase() + band.slice(1);
+}
+
+export function ScoreLozenge({
+  value,
+  band,
+  className,
+}: {
+  value: number | string;
+  band: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-stretch overflow-hidden rounded-[4px] text-[12px] font-medium leading-[18px]",
+        BAND_TINT[band] ?? "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
+        className
+      )}
+    >
+      <span className="px-1.5 tabular-nums">{value}</span>
+      {/* The divider is a border, not a character: a "|" would be read aloud by
+          some screen readers and would inherit the text colour rather than the
+          tint's. */}
+      <span className="border-l border-current/25 px-1.5">{bandLabel(band)}</span>
+    </span>
   );
 }
 

@@ -165,7 +165,16 @@ export function DomainTabs({
       // content and the four refuse to share the row — the same trap the pill
       // version documented, arrived at from the other direction. The label
       // truncates inside its own card rather than the row overflowing.
-      className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+      /* ═══ A CONTAINED GROUP, LEFT-PACKED (Part 2) ═══
+         The four cards were a `grid-cols-4` across the full content width, so at
+         1440 they sat far apart with unbounded space between them and read as
+         four separate things — or, unselected and unfilled, as floating text.
+         They are one control: a group of segments, packed together at the left,
+         sized to their content rather than to the page.
+         `w-fit` is what stops the grid stretching; `minmax(0,168px)` gives each
+         card the same width without letting a long label push one wider.
+         8px gaps, per the spec. */
+      className="grid w-fit grid-cols-2 gap-2 sm:grid-cols-[repeat(4,minmax(0,168px))]"
     >
       {summaries.map((s, i) => {
         const visual = DOMAIN_VISUAL[s.domain];
@@ -191,13 +200,20 @@ export function DomainTabs({
                 // ~72px, two lines. The height is the anatomy, not a value to
                 // tune: line 1 identifies the domain, line 2 is the workload.
                 "flex min-h-[72px] w-full flex-col justify-between gap-1 rounded-[var(--radius-surface)] px-3 py-2.5 text-left transition-colors",
-                // SELECTED IS A TONAL FILL PLUS A HAIRLINE. Unselected is flat and
-                // recessed — but the COUNT stays full strength either way, which
-                // is the whole point of re-weighting: the workload must be
-                // readable across all four without selecting them.
+                /* ═══ EVERY CARD IS VISIBLY CONTAINED ═══
+                   Unselected cards were `--surface-s1` on a `--surface-s1` page —
+                   the same value, so they had no edge at all and read as text
+                   floating in the region. A white fill, a hairline and the soft
+                   shadow make them cards whether or not they are the current one;
+                   SELECTION is then a tonal fill and a stronger hairline, which is
+                   a difference between two contained things rather than the
+                   difference between a card and nothing.
+                   The COUNT stays full strength either way — the workload has to
+                   be readable across all four without selecting them. */
+                "border shadow-[var(--shadow-card)]",
                 selected
-                  ? "bg-[var(--surface-s2)] ring-1 ring-[color:var(--border-contour)]"
-                  : "bg-[var(--surface-s1)] hover:bg-[var(--tint-hover)]",
+                  ? "border-[color:var(--border-contour)] bg-[var(--surface-s2)]"
+                  : "border-[color:var(--border-subtle)] bg-[var(--surface-card)] hover:bg-[var(--tint-hover)]",
                 RING
               )}
             >
@@ -223,19 +239,30 @@ export function DomainTabs({
               </span>
 
               {/* ── LINE 2 · the workload ── */}
+              {/* ═══ ONE BASELINE FOR THE COUNT LINE, ON ALL FOUR CARDS ═══
+                  `items-baseline` aligns the numeral, the word "open", the breach
+                  chip and the closed segment to a single baseline — and the empty
+                  state renders "All clear" at the COUNT'S OWN line-height so a
+                  card with nothing open does not sit a few pixels off the three
+                  beside it. A row of four cards where one baseline is wrong is
+                  the kind of thing a reader feels without being able to name. */}
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                 {empty ? (
                   // ═══ NEVER A LARGE "0" ═══
                   // A 22px zero is the loudest thing on a calm row, and it reads
                   // as a defect rather than as an achievement. "All clear" says
-                  // the same fact at the emphasis it deserves.
-                  <span className="text-[13px] leading-[22px] text-[var(--text-muted)]">
+                  // the same fact at the emphasis it deserves — reduced emphasis,
+                  // same baseline.
+                  <span className="text-[13px] leading-[24px] text-[var(--text-muted)]">
                     {/* TODO-COPY */}
                     All clear
                   </span>
                 ) : (
                   <>
-                    <span className="text-[22px] font-semibold leading-[24px] tabular-nums text-[var(--text-primary)]">
+                    {/* `tabular-nums` and a 3-digit min-width: at 80–100 open
+                        flags the count reaches three digits, and proportional
+                        figures would reflow the whole line as it ticks down. */}
+                    <span className="min-w-[2.2ch] text-[22px] font-semibold leading-[24px] tabular-nums text-[var(--text-primary)]">
                       {s.openCount}
                     </span>
                     <span className="text-[12px] leading-[16px] text-[var(--text-muted)]">

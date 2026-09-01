@@ -39,13 +39,51 @@
 // chevron itself is aria-hidden because the state lives on the treeitem. Logged as
 // design-system-gaps.md row 215.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, Phone, RotateCcw } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import {
+  bandHeaderLabel,
+  bandsAreMeaningful,
+  bandsFor,
+  closedTodayInBand,
+  retiredBandLabel,
+  type TierBand,
+} from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
-import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem } from "@/lib/tasks/types";
+import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem, type TaskType } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+
+/** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
+ *
+ *  56px per row, 34px per band header. Both are declared here rather than left to
+ *  the content, because the virtualizer computes every offset from them: a row
+ *  that grew to 57px would put the window one pixel out per row and forty rows
+ *  down the list would be selecting the wrong thing.
+ *
+ *  So the row's height is a CONTRACT, not an outcome. `h-14` is exact rather than
+ *  `min-h-14`, and the two-line name/mentor stack is sized to fit inside it
+ *  (20 + 16 = 36, plus 10 top and bottom). Adding a third line to a row means
+ *  changing this constant, and the compiler will not tell you — the list will
+ *  simply drift. */
+const ROW_H = 56;
+const HEADER_H = 34;
+
+/** Rows rendered beyond each edge of the viewport. Six is enough that ordinary
+ *  arrow-key movement never lands on an unmounted row (so focus is immediate) and
+ *  small enough that a hundred-row list mounts a dozen nodes rather than a
+ *  hundred. */
+const OVERSCAN = 6;
+
+/** How long a cleared band's rows take to compress away. The brief's number.
+ *  Short enough to read as the list settling, long enough to be seen at all —
+ *  under about 120ms a collapse reads as a jump. */
+const RETIRE_MS = 160;
+
+/** And how long the retired header stays before it goes. Long enough to read a
+ *  seven-word line, and it is the only reason the band lingers at all. */
+const RETIRE_HOLD_MS = 2600;
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -139,6 +177,7 @@ function Row({
   optionId,
   tabbable,
   indent,
+  flush,
   onSelect,
   onToggle,
   registerRef,
@@ -150,6 +189,9 @@ function Row({
   optionId: string;
   tabbable: boolean;
   indent?: boolean;
+  /** The first row of the whole list with no band header above it — drops the
+   *  top hairline so it does not draw against the card's rounded corner. */
+  flush?: boolean;
   onSelect: () => void;
   onToggle?: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
@@ -192,8 +234,15 @@ function Row({
       // ROVING TABINDEX: one tab stop for the whole listbox.
       tabIndex={tabbable ? 0 : -1}
       onClick={onSelect}
+      style={{ height: ROW_H }}
       className={cn(
-        "flex cursor-pointer items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 py-2.5 transition-colors first:border-t-0",
+        /* EXACT HEIGHT, NOT A MINIMUM — see ROW_H. `border-t` on EVERY row,
+           including the first: a band header sits above it and the hairline is
+           what separates the two. The old `first:border-t-0` made the first row
+           55px while every other row was 56, which the virtualizer would have
+           accumulated into a real offset error. */
+        "flex cursor-pointer items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 transition-colors",
+        flush && "border-t-0",
         // SELECTED AND FOCUSED ARE DISTINCT (§4): selected is a filled ground,
         // focus is the ring. A reader arrowing through a list sees the ring move
         // while the fill stays put.
@@ -273,13 +322,24 @@ function Row({
 
 // ── States ──────────────────────────────────────────────────────────────────
 
-function ListSkeleton() {
+/** ═══ SKELETON ROWS FILL THE FRAME, THEY DO NOT COUNT TO FIVE ═══
+ *
+ *  Five skeleton rows under a forty-row list is a worse signal than none: the
+ *  frame is mostly empty, so the load reads as "there are five of these" and then
+ *  the list arrives eight times taller and everything below it jumps. The count
+ *  comes from the height actually available.
+ *
+ *  Sized from `ROW_H` so a skeleton row occupies exactly what a real row will —
+ *  which is what makes the swap from skeleton to content produce no layout shift
+ *  at all. */
+function ListSkeleton({ rows }: { rows: number }) {
   return (
     <div aria-hidden>
-      {[0, 1, 2, 3, 4].map((i) => (
+      {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 py-3 first:border-t-0"
+          style={{ height: ROW_H }}
+          className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 first:border-t-0"
         >
           <span className="w-5 shrink-0" />
           <span className="size-7 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
@@ -366,8 +426,37 @@ function CalmCheck() {
 
 // ── The list ────────────────────────────────────────────────────────────────
 
+/** One rendered row — a parent entry or an expanded child. */
+interface VisibleRow {
+  id: string;
+  entry: ListEntry;
+  item: TaskItem;
+  child: boolean;
+}
+
+/** A band plus everything the renderer needs to place it. */
+interface Section {
+  band: TierBand;
+  rows: VisibleRow[];
+  /** Absolute y of the band's first row inside the scroller. */
+  rowsTop: number;
+}
+
+/** A band that has just been cleared and is on its way out. Held in state rather
+ *  than derived, because the whole point is that it OUTLIVES the data. */
+interface Retiring {
+  id: TaskType;
+  label: string;
+  closedToday: number;
+  /** The height its rows occupied, which is what compresses to zero. */
+  height: number;
+}
+
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
 export function Worklist({
   entries,
+  items,
   domain,
   now,
   selectedId,
@@ -376,6 +465,10 @@ export function Worklist({
   onRetry,
 }: {
   entries: ListEntry[];
+  /** THE WHOLE DOMAIN'S ITEMS, open and resolved. Needed only by band
+   *  retirement, which reports how many of a cleared tier closed today — a fact
+   *  that by definition is not in `entries`, since `entries` is the open set. */
+  items: TaskItem[];
   domain: TaskDomain;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
@@ -387,27 +480,126 @@ export function Worklist({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const refs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
 
-  /** THE FLATTENED, VISIBLE OPTION SEQUENCE — what the arrow keys walk. A group's
-   *  children are in it only while the group is expanded, which is what makes
-   *  ↑/↓ match what a reader can see. */
-  const visible = useMemo(() => {
-    const out: Array<{ id: string; entry: ListEntry; item: TaskItem; child: boolean }> = [];
-    for (const entry of entries) {
-      out.push({ id: entry.id, entry, item: paneItemFor(entry), child: false });
-      if (entry.kind === "group" && expanded.has(entry.id)) {
-        for (const m of entry.members) {
-          out.push({ id: m.id, entry: { kind: "item", id: m.id, item: m }, item: m, child: true });
+  /* ═══ THE VIRTUALIZER'S ONLY STATE ═══
+     Where the scroller is and how tall it is. Everything else — which rows mount,
+     how tall the spacers are — is computed from these two numbers during render,
+     so there is no second copy of the window to fall out of sync. */
+  const [viewport, setViewport] = useState({ top: 0, height: 0 });
+  /** A row the keyboard has moved to that may not be mounted yet. See the layout
+   *  effect below — this is what makes selection work ACROSS the window boundary
+   *  rather than only inside it. */
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+
+  const bands = useMemo(() => bandsFor(entries), [entries]);
+  const showBands = bandsAreMeaningful(bands);
+
+  /* ═══ SECTIONS: THE RENDER ORDER, AND THE KEYBOARD'S ORDER ═══
+     Both come from here, and that is deliberate. Bands bucket by first
+     appearance, so a band's second run of entries is pulled up to join its first
+     — which means the rendered order is NOT the raw `entries` order. Deriving the
+     arrow-key sequence from `entries` instead would have produced a list where
+     ↓ sometimes jumps two rows up. */
+  const sections = useMemo(() => {
+    const out: Section[] = [];
+    let y = 0;
+    for (const band of bands) {
+      if (showBands) y += HEADER_H;
+      const rows: VisibleRow[] = [];
+      for (const entry of band.entries) {
+        rows.push({ id: entry.id, entry, item: paneItemFor(entry), child: false });
+        if (entry.kind === "group" && expanded.has(entry.id)) {
+          for (const m of entry.members) {
+            rows.push({
+              id: m.id,
+              entry: { kind: "item", id: m.id, item: m },
+              item: m,
+              child: true,
+            });
+          }
         }
       }
+      out.push({ band, rows, rowsTop: y });
+      y += rows.length * ROW_H;
     }
     return out;
-  }, [entries, expanded]);
+  }, [bands, showBands, expanded]);
+
+  /** The flattened, visible sequence — what the arrow keys walk. */
+  const visible = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
+
+  /** Absolute offset per row id, so the keyboard can scroll a row into view
+   *  without it being mounted first. */
+  const offsets = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of sections) {
+      s.rows.forEach((r, i) => m.set(r.id, s.rowsTop + i * ROW_H));
+    }
+    return m;
+  }, [sections]);
 
   const activeIndex = Math.max(
     0,
     visible.findIndex((v) => v.id === selectedId)
   );
+
+  // ── Measuring the scroller ───────────────────────────────────────────────
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const sync = () => setViewport({ top: el.scrollTop, height: el.clientHeight });
+    sync();
+    el.addEventListener("scroll", sync, { passive: true });
+    // The frame is a grid row that resizes with the window; a resize that grows
+    // the viewport must mount the rows it just revealed.
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", sync);
+      ro.disconnect();
+    };
+  }, [state]);
+
+  /* THE WINDOW. `height || 900` covers the first render, before the effect above
+     has measured anything: mounting a screenful is right, mounting zero rows
+     would make the first paint empty. */
+  const winTop = viewport.top - OVERSCAN * ROW_H;
+  const winBottom = viewport.top + (viewport.height || 900) + OVERSCAN * ROW_H;
+
+  // ── Keyboard movement, including across the boundary ─────────────────────
+
+  /** Scroll a row into view by ARITHMETIC, not by `scrollIntoView` — the element
+   *  may not exist yet, which is the entire problem virtualization creates for
+   *  keyboard users. `HEADER_H` of clearance above, so a row never comes to rest
+   *  underneath its own sticky band header. */
+  const revealRow = (id: string) => {
+    const el = scrollerRef.current;
+    const top = offsets.get(id);
+    if (!el || top === undefined) return;
+    const vh = el.clientHeight;
+    const pad = showBands ? HEADER_H : 0;
+    let next = el.scrollTop;
+    if (top - pad < el.scrollTop) next = Math.max(0, top - pad);
+    else if (top + ROW_H > el.scrollTop + vh) next = top + ROW_H - vh;
+    if (next === el.scrollTop) return;
+    el.scrollTop = next;
+    // AND UPDATE STATE IN THE SAME TICK. The scroll event fires asynchronously,
+    // so waiting for it would render one frame with the old window — and the row
+    // we are about to focus would not be in it.
+    setViewport((v) => ({ ...v, top: next }));
+  };
+
+  /** Focus the pending row once it exists. Runs again on every window change, so
+   *  a row that was outside the window when the key was pressed gets focused the
+   *  moment `revealRow`'s scroll brings it in. */
+  useLayoutEffect(() => {
+    if (!pendingFocus) return;
+    const el = refs.current.get(pendingFocus);
+    if (!el) return;
+    el.focus();
+    setPendingFocus(null);
+  }, [pendingFocus, viewport, visible]);
 
   // Collapsing a group whose child is selected would strand the selection on an
   // invisible option. Reselect the group instead.
@@ -425,7 +617,8 @@ export function Worklist({
     const next = visible[activeIndex + delta];
     if (!next) return;
     onSelect(next.entry, next.item);
-    refs.current.get(next.id)?.focus();
+    revealRow(next.id);
+    setPendingFocus(next.id);
   };
 
   const toggle = (id: string) =>
@@ -462,13 +655,88 @@ export function Worklist({
     }
   };
 
+  // ── Band retirement ──────────────────────────────────────────────────────
+
+  const [retiring, setRetiring] = useState<Retiring[]>([]);
+  /** What was on screen last render: each band's task ids and its pixel height.
+   *  Both are needed — the ids to prove the band was CLEARED rather than merely
+   *  swapped away, the height to know what to compress. */
+  const lastSeen = useRef<
+    Map<TaskType, { label: string; ids: string[]; height: number; domain: TaskDomain }>
+  >(new Map());
+
+  useEffect(() => {
+    const next = new Map(lastSeen.current);
+    const live = new Set(sections.map((s) => s.band.id));
+
+    for (const [id, prev] of lastSeen.current) {
+      if (live.has(id)) continue;
+      next.delete(id);
+      /* ═══ WHY THIS IS NOT JUST "THE BAND IS GONE" ═══
+         A band disappears for three different reasons and only one of them is a
+         clearance: the supervisor resolved its last row (retire), they switched
+         tabs (do not), or the dev bar swapped the scenario out from under the
+         page (do not). Retiring on all three would flash "cleared · 0 today" on
+         every tab change, which is both wrong and loud.
+         The test is specific: every task the band held must now exist, resolved.
+         A tab switch fails it because the ids are absent from this domain's
+         items; a scenario swap fails it because the ids do not exist at all. */
+      if (prev.domain !== domain) continue;
+      const allResolved =
+        prev.ids.length > 0 &&
+        prev.ids.every((tid) =>
+          items.some((it) => it.id === tid && it.status === "resolved")
+        );
+      if (!allResolved) continue;
+      // And nothing to retire INTO an empty list — the whole-tab empty state is a
+      // better answer than a header over nothing.
+      if (sections.length === 0) continue;
+      setRetiring((r) =>
+        r.some((x) => x.id === id)
+          ? r
+          : [
+              ...r,
+              {
+                id,
+                label: prev.label,
+                closedToday: closedTodayInBand(items, id, now),
+                height: prev.height,
+              },
+            ]
+      );
+    }
+
+    for (const s of sections) {
+      next.set(s.band.id, {
+        label: s.band.label,
+        ids: s.rows.filter((r) => !r.child).flatMap((r) => itemsOf(r.entry).map((i) => i.id)),
+        height: s.rows.length * ROW_H,
+        domain,
+      });
+    }
+    lastSeen.current = next;
+    // `now` ticks every second and must not re-run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections, items, domain]);
+
+  // Retired bands leave on their own.
+  useEffect(() => {
+    if (retiring.length === 0) return;
+    const t = window.setTimeout(() => setRetiring((r) => r.slice(1)), RETIRE_HOLD_MS);
+    return () => window.clearTimeout(t);
+  }, [retiring]);
+
+  // ── The frame ────────────────────────────────────────────────────────────
+
   const frame =
     "overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]";
 
   if (state === "loading")
     return (
-      <div className={frame}>
-        <ListSkeleton />
+      <div className={cn(frame, "h-full")} ref={scrollerRef}>
+        {/* Enough rows to fill whatever height this frame got, so the load does
+            not read as a five-item list. */}
+        <ListSkeleton rows={Math.max(5, Math.ceil((viewport.height || 560) / ROW_H))} />
         <p className="sr-only" role="status">
           {/* TODO-COPY */}
           Loading {DOMAIN_LABEL[domain]}.
@@ -481,7 +749,7 @@ export function Worklist({
         <ListError domain={domain} onRetry={onRetry} />
       </div>
     );
-  if (entries.length === 0)
+  if (entries.length === 0 && retiring.length === 0)
     return (
       <div className={frame}>
         <EmptyList domain={domain} />
@@ -490,32 +758,128 @@ export function Worklist({
 
   return (
     <div
+      ref={scrollerRef}
       role="tree"
       /* TODO-COPY */
       aria-label={`${DOMAIN_LABEL[domain]} worklist`}
       onKeyDown={onKeyDown}
-      className={frame}
+      /* ═══ THE LIST IS ITS OWN SCROLLER (Part 3) ═══
+         It used to sit inside a scrolling column, which was fine at eight rows and
+         wrong at fifty: a sticky band header inside a non-scrolling element sticks
+         to nothing, so "Imminent — 23" would scroll away and the reader forty rows
+         down would have no idea which tier they were in. Moving the scroll here
+         gives the headers something to stick to — the card's own top edge. */
+      className={cn(frame, "h-full overflow-y-auto overscroll-contain")}
     >
-      {visible.map((v, i) => (
-        <Row
-          key={v.id}
-          entry={v.entry}
-          now={now}
-          optionId={`task-option-${v.id}`}
-          selected={v.id === selectedId}
-          expanded={expanded.has(v.id)}
-          tabbable={i === activeIndex}
-          indent={v.child}
-          onSelect={() => onSelect(v.entry, v.item)}
-          onToggle={
-            v.entry.kind === "group" ? () => toggle(v.entry.id) : undefined
-          }
-          registerRef={(el) => {
-            if (el) refs.current.set(v.id, el);
-            else refs.current.delete(v.id);
-          }}
-        />
+      {sections.map((section, si) => {
+        const n = section.rows.length;
+        const first = clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
+        const last = clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
+        return (
+          <div
+            key={section.band.id}
+            /* A `group`, not an `<h3>`: `role="tree"` accepts `treeitem` and
+               `group` as children and nothing else, so a heading element here
+               would have broken the tree's content model. The band's name and
+               count ride on the group's label instead, which is also how a
+               screen reader announces it — "Imminent — 23, group". */
+            role="group"
+            aria-label={bandHeaderLabel(section.band)}
+          >
+            {showBands && <BandHeader band={section.band} />}
+            {/* SPACERS, NOT RENDERED ROWS. Two divs stand in for everything
+                outside the window, which is what keeps a hundred-row list at a
+                dozen mounted nodes. */}
+            {first > 0 && <div aria-hidden style={{ height: first * ROW_H }} />}
+            {section.rows.slice(first, last).map((v, k) => (
+              <Row
+                key={v.id}
+                entry={v.entry}
+                now={now}
+                optionId={`task-option-${v.id}`}
+                selected={v.id === selectedId}
+                expanded={expanded.has(v.id)}
+                tabbable={visible[activeIndex]?.id === v.id}
+                indent={v.child}
+                // The very first row of the whole list, with no header above it,
+                // would otherwise draw a hairline against the card's rounded top
+                // edge.
+                flush={!showBands && si === 0 && first + k === 0}
+                onSelect={() => onSelect(v.entry, v.item)}
+                onToggle={
+                  v.entry.kind === "group" ? () => toggle(v.entry.id) : undefined
+                }
+                registerRef={(el) => {
+                  if (el) refs.current.set(v.id, el);
+                  else refs.current.delete(v.id);
+                }}
+              />
+            ))}
+            {last < n && <div aria-hidden style={{ height: (n - last) * ROW_H }} />}
+          </div>
+        );
+      })}
+
+      {retiring.map((r) => (
+        <RetiredBand key={r.id} band={r} />
       ))}
+    </div>
+  );
+}
+
+/** THE STICKY BAND HEADER. Quiet by construction: muted ink, no fill beyond the
+ *  card's own, no rule of its own — the first row's hairline already separates it.
+ *  It is a wayfinding label, not a section title competing with the rows. */
+function BandHeader({ band }: { band: TierBand }) {
+  return (
+    <div
+      aria-hidden
+      style={{ height: HEADER_H }}
+      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]"
+    >
+      {/* `tabular-nums` — the counts tick down as a supervisor works, and
+          proportional figures would shift the whole line each time. */}
+      <span className="tabular-nums">{bandHeaderLabel(band)}</span>
+    </div>
+  );
+}
+
+/** ═══ A BAND ON ITS WAY OUT ═══
+ *
+ *  Mounts at the height its rows occupied and compresses to zero, so the list
+ *  settles rather than jumps. The header stays for a beat and reports the
+ *  clearance as a fact — see `retiredBandLabel` for why it does not celebrate.
+ *
+ *  `motion-reduce:transition-none` is not decoration: a 160ms height collapse is
+ *  exactly the kind of unrequested movement `prefers-reduced-motion` exists to
+ *  suppress, and with it the band simply appears cleared and then goes. */
+function RetiredBand({ band }: { band: Retiring }) {
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    // A frame later, so the browser has a start value to animate FROM. Setting
+    // both heights in one commit animates nothing.
+    const id = requestAnimationFrame(() => setCollapsed(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <div role="group" aria-label={retiredBandLabel(band.label, band.closedToday)}>
+      <div
+        aria-hidden
+        style={{ height: HEADER_H }}
+        className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]"
+      >
+        <span className="tabular-nums">
+          {retiredBandLabel(band.label, band.closedToday)}
+        </span>
+      </div>
+      <div
+        aria-hidden
+        style={{
+          height: collapsed ? 0 : band.height,
+          transitionDuration: `${RETIRE_MS}ms`,
+        }}
+        className="overflow-hidden transition-[height] ease-out motion-reduce:transition-none"
+      />
     </div>
   );
 }

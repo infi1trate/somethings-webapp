@@ -33,7 +33,7 @@ import { useMounted } from "@/lib/use-mounted";
 import { DomainTabs } from "@/components/tasks/domain-tabs";
 import { RespondStrip, elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
-import { TaskPane } from "@/components/tasks/task-pane";
+import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
 import { UNDO_WINDOW_MS, resolveWithUndo, type ResolveHandle } from "@/lib/tasks/resolve";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
@@ -247,6 +247,15 @@ export function TasksPage() {
     [items, activeDomain, now]
   );
 
+  /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
+   *  retirement needs to report how many of a cleared tier closed today, which is
+   *  a fact about the resolved ones. Filtered here rather than handing the list
+   *  every domain's items, so a retiring Billing band cannot count a risk flag. */
+  const domainItems = useMemo(
+    () => items.filter((i) => i.domain === activeDomain),
+    [items, activeDomain]
+  );
+
   /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves
    *  the other three alone — that is the requirement, and a single page-level
    *  state could not express it. */
@@ -332,6 +341,10 @@ export function TasksPage() {
   /** Enter focuses the pane — it needs a target, and tabIndex={-1} makes the
    *  scroll container focusable without adding a tab stop. */
   const paneRef = useRef<HTMLDivElement | null>(null);
+  /** What the pane's keyboard shortcuts press. Published by TaskPane — see
+   *  PaneActions there for why the actions come down rather than the state going
+   *  up. */
+  const paneActions = useRef<PaneActions>({});
 
   /** THE LIVE UNDO. One at a time — a second resolve flushes the first, because
    *  two open windows would mean two toasts and an ambiguous `u` key. */
@@ -468,6 +481,19 @@ export function TasksPage() {
    *  sheet. The list's own ↑/↓/j/k live in the tree (T3). */
   useTaskShortcuts({
     onTab: (i) => selectDomain(TASK_DOMAINS[i]),
+    /* `y` / `n` — the footer's two buttons, without the aim. A no-op on a
+       billing or escalation item, because `answer` is only published for a flag:
+       a key that resolved the wrong kind of task would be much worse than a key
+       that did nothing. */
+    onAnswer: (correct) => paneActions.current.answer?.(correct),
+    /* Enter confirms when there is a code to confirm, and reports whether it
+       did — the hook falls through to focusing the pane when it did not. */
+    onEnter: () => {
+      const confirm = paneActions.current.confirm;
+      if (!confirm) return false;
+      confirm();
+      return true;
+    },
     onFocusPane: () => {
       // BELOW `xl` THE PANE IS `display:none` UNTIL IT TAKES OVER, and the
       // browser refuses `focus()` on a zero-size element outright — silently, so
@@ -703,18 +729,24 @@ export function TasksPage() {
               "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
             )}
           >
-            {/* ── THE LIST SCROLLS ON ITS OWN ──
-                `overscroll-contain` so reaching the end of the list does not hand
-                the gesture to the page behind it. The two columns scroll
-                independently and neither chains into the other. */}
+            {/* ── THE LIST SCROLLS ON ITS OWN, INSIDE ITSELF ──
+                The scroll USED to live here, on the column. It moved into the
+                Worklist's own card in Part 3, because the band headers are sticky
+                and a sticky element sticks to its scrolling ancestor: with the
+                scroll out here, "Imminent — 23" stuck to a box the reader could
+                not see the top of, and scrolled away like an ordinary row.
+                What stays here is `min-h-0` — without it this grid child refuses
+                to shrink below its content and the card never gets a bounded
+                height to scroll inside. */}
             <div
               className={cn(
-                "min-h-0 overflow-y-auto overscroll-contain",
+                "min-h-0",
                 paneTakeover && "hidden xl:block"
               )}
             >
               <Worklist
                 entries={entries}
+                items={domainItems}
                 domain={activeDomain}
                 now={now}
                 selectedId={selectedEntryId ?? activeEntry?.id ?? null}
@@ -816,6 +848,7 @@ export function TasksPage() {
                       item={selected}
                       now={now}
                       onResolve={onResolve}
+                      actionsRef={paneActions}
                       excerptState={plan.excerpt}
                     />
                   )}

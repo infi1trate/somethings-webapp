@@ -3,10 +3,33 @@
 // THE KEYBOARD LAYER AND ITS SHEET (§7).
 //
 //   ↑ ↓ / j k   move through the list        (built in T3, in the tree)
-//   Enter       focus the pane
+//   y / n       answer "was this flagged correctly?" — and resolve
+//   Enter       confirm the billing code, or focus the pane
 //   1 – 4       switch tabs
 //   u           undo, while the toast is live
 //   ?           this sheet
+//
+// ═══ WHY y / n EXIST (Part 3) ═══
+//
+// At fifty flags a shift, the resolve is the whole job: read the excerpt, decide,
+// move on. With a pointer that is scroll, aim, click, and the aim is the expensive
+// part — two 36px targets at the bottom of a pane, fifty times. `y` and `n` remove
+// the aim entirely, and because the list auto-advances the whole loop becomes read,
+// press, read, press, without the hand ever leaving the keyboard.
+//
+// EITHER ANSWER RESOLVES. `n` is not "skip" and not "leave it open" — it is the
+// same resolve carrying the opposite feedback, exactly like the footer's two
+// buttons (§5). A key that quietly meant something different from the button it
+// mirrors would be worse than no key at all.
+//
+// ═══ ENTER DOES TWO THINGS, AND THAT IS A DELIBERATE OVERLOAD ═══
+//
+// §7 gave Enter to "focus the review panel"; Part 3 asks it to confirm a billing
+// code. Both are "do the obvious thing with what is selected", and they never
+// apply at once: a billing item HAS a primary confirm, and a flag or an escalation
+// does not. So Enter confirms when there is something to confirm and focuses the
+// pane otherwise — resolved by the page, which is the only place that knows which
+// kind of item is selected.
 //
 // SCOPED TO THE PAGE, NOT THE DOCUMENT — and guarded against firing while someone
 // is typing. A bare `u` listener on the window means a supervisor searching for
@@ -31,7 +54,9 @@ const SHORTCUTS: Array<{ keys: string[]; what: string }> = [
   { keys: ["↑", "↓"], what: "Move through the list" },
   { keys: ["j", "k"], what: "Move through the list" },
   { keys: ["→", "←"], what: "Expand or collapse a group" },
-  { keys: ["Enter"], what: "Focus the review panel" },
+  { keys: ["y"], what: "Flagged correctly — resolve" },
+  { keys: ["n"], what: "Not flagged correctly — resolve" },
+  { keys: ["Enter"], what: "Confirm the billing code, or focus the panel" },
   { keys: ["1", "2", "3", "4"], what: "Switch tabs" },
   { keys: ["u"], what: "Undo the last resolve, while the toast is up" },
   { keys: ["?"], what: "Show this list" },
@@ -58,11 +83,19 @@ export function keyboardIsBusy(target: EventTarget | null): boolean {
 export function useTaskShortcuts({
   onTab,
   onFocusPane,
+  onAnswer,
+  onEnter,
   onUndo,
   onHelp,
 }: {
   onTab: (index: number) => void;
   onFocusPane: () => void;
+  /** "Was this flagged correctly?" — the footer's two buttons, as keys. A no-op
+   *  when the selected item is not a flag. */
+  onAnswer: (correct: boolean) => void;
+  /** Returns true if it consumed the key — i.e. there was a billing code to
+   *  confirm. False falls through to focusing the pane. */
+  onEnter: () => boolean;
   onUndo: () => void;
   onHelp: () => void;
 }) {
@@ -81,6 +114,16 @@ export function useTaskShortcuts({
         onUndo();
         return;
       }
+      /* `y` AND `n` ARE INERT IN A TEXT INPUT — and that is not a nicety here.
+         Two of the commonest letters in English resolve a minor's risk flag; a
+         supervisor typing "Naomi" into any field would fire `n` and close
+         whatever was selected. `keyboardIsBusy` above is the guard, and it also
+         covers the DSM-5 code search, which is an input inside a dialog. */
+      if (e.key === "y" || e.key === "n") {
+        e.preventDefault();
+        onAnswer(e.key === "y");
+        return;
+      }
       if (e.key === "?") {
         e.preventDefault();
         onHelp();
@@ -91,12 +134,15 @@ export function useTaskShortcuts({
         const active = document.activeElement as HTMLElement | null;
         if (active?.getAttribute("role") !== "treeitem") return;
         e.preventDefault();
+        // Confirm first; fall through to focusing the pane when there is nothing
+        // to confirm. See the module note on the overload.
+        if (onEnter()) return;
         onFocusPane();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onTab, onFocusPane, onUndo, onHelp]);
+  }, [onTab, onFocusPane, onAnswer, onEnter, onUndo, onHelp]);
 }
 
 export function ShortcutSheet({
