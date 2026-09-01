@@ -23,13 +23,21 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, MessageSquare } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
 import { BreachChip } from "@/components/tasks/domain-tabs";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
+// Still used by the BILLING pane's AI-summary link — a different block from the
+// risk-flag excerpt, and unaffected by Part 1.
 import { chatHrefFor } from "@/lib/record/chat";
+import {
+  buildConversation,
+  conversationHref,
+  firstNameOf,
+} from "@/lib/tasks/conversation";
+import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
 import {
   DOMAIN_LABEL,
   isBreached,
@@ -43,7 +51,6 @@ import { slaLabelFor } from "@/lib/tasks/sla";
 import {
   PANE_LABEL,
   PaneChip,
-  QuoteBlock,
   SystemBlock,
 } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
@@ -74,15 +81,36 @@ const TIER_LABEL: Record<RiskFlagPayload["tier"], string> = {
   green: "Standard flag",
 };
 
+/** ═══ THE EXCERPT FAILS INDEPENDENTLY ═══
+ *
+ *  Its own state, threaded from the pane rather than derived from the pane's, so
+ *  an excerpt that cannot load never blocks the rest of the body or the resolve
+ *  actions. That is the whole requirement: a supervisor who cannot see the
+ *  transcript can still act on the flag, and one who can see it is not waiting on
+ *  anything else. */
+export type ExcerptState = "ready" | "loading" | "error";
+
 // ── Bodies ──────────────────────────────────────────────────────────────────
 
 function RiskFlagBody({
   payload,
   teenId,
+  item,
+  now,
+  excerptState,
+  onRetryExcerpt,
 }: {
   payload: RiskFlagPayload;
   teenId: string;
+  item: TaskItem;
+  now: number;
+  excerptState: ExcerptState;
+  onRetryExcerpt: () => void;
 }) {
+  /** THE FLAGGED LINE IS THE ANCHOR, verbatim — see `buildConversation`. Built
+   *  per render rather than memoised: it is a pure function of three values the
+   *  pane already holds, and the fixture is ~20 objects. */
+  const conversation = buildConversation(item, payload.flaggedExcerpt, now);
   return (
     <div className="space-y-4">
       <div>
@@ -103,25 +131,25 @@ function RiskFlagBody({
         </div>
       </div>
 
+      {/* ═══ THE CONVERSATION, NOT A QUOTE (Part 1) ═══
+          The `QuoteBlock` that lived here showed the flagged line alone. It
+          answered "what was said"; the question this pane asks — "was this
+          flagged correctly?" — is about what surrounds it. "idk it's fine" is
+          unremarkable after a joke and worth a second look after a disclosure,
+          and one line cannot tell those apart.
+          THE STRING IS THE SAME ONE. `flaggedExcerpt` is placed verbatim at the
+          anchor, so the rationale below still quotes a sentence the reader can
+          see in the transcript. */}
       <div>
-        <p className={LABEL}>{/* TODO-COPY */}Flagged content</p>
+        <p className={LABEL}>{/* TODO-COPY */}Conversation</p>
         <div className="mt-2">
-          <QuoteBlock>{payload.flaggedExcerpt}</QuoteBlock>
-          <Link
-            href={chatHrefFor(teenId)}
-            // SC 2.5.8 — 126x20; `py-1.5` gives 32px. Padding rather than
-            // `touchTarget()`, per gap row 290: this sits at the end of a block
-            // with `mt-2.5` above it, so a bleed upward would reach its sibling.
-            className={cn(
-              "mt-2.5 inline-flex items-center gap-1.5 rounded-sm py-1.5 text-[13px] font-semibold text-[var(--text-primary)]",
-              "underline decoration-[color:var(--border-contour)] underline-offset-2 hover:decoration-[color:var(--text-primary)]",
-              RING
-            )}
-          >
-            <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-            {/* TODO-COPY */}
-            View chat context
-          </Link>
+          <ConversationExcerpt
+            conversation={conversation}
+            teenName={firstNameOf(item.teenDisplayName)}
+            href={conversationHref(teenId, conversation.anchorId)}
+            state={excerptState}
+            onRetry={onRetryExcerpt}
+          />
         </div>
       </div>
 
@@ -236,12 +264,27 @@ function EscalationBody({
   payload,
   item,
   now,
+  excerptState,
+  onRetryExcerpt,
 }: {
   payload: EscalationPayload | DocumentationPayload;
   item: TaskItem;
   now: number;
+  excerptState: ExcerptState;
+  onRetryExcerpt: () => void;
 }) {
   const isDocs = payload.kind === "documentation";
+  /** ═══ CONTEXT, NOT EVIDENCE ═══
+   *
+   *  An escalation has no `flaggedExcerpt` — nothing here was flagged, so there is
+   *  no line to highlight and `anchorText` is null, which anchors the excerpt to
+   *  the most recent messages instead. That is the brief's fallback and it is also
+   *  the honest one: highlighting an arbitrary message would assert that it
+   *  triggered the escalation, and the payload does not say that.
+   *
+   *  NOTHING ABOUT MITIGATION MOVES. This body is read-only (§5, locked decision
+   *  3) and stays so; the excerpt is one more statement, not an action. */
+  const conversation = buildConversation(item, null, now);
   return (
     <div className="space-y-4">
       {/* READ-ONLY (§5). Every field here is a statement; there is no control in
@@ -288,6 +331,28 @@ function EscalationBody({
         )}
       </div>
 
+      {/* THE EXCERPT SITS ABOVE THE "this pane does not act" LINE, because it is
+          the last piece of CONTEXT and that line closes the body. A reader who
+          has just been told nothing here changes state should not then be handed
+          more to read. */}
+      {!isDocs && (
+        <div>
+          <p className={LABEL}>{/* TODO-COPY */}Recent conversation</p>
+          <div className="mt-2">
+            <ConversationExcerpt
+              conversation={conversation}
+              teenName={firstNameOf(item.teenDisplayName)}
+              href={conversationHref(item.teenId, conversation.anchorId)}
+              state={excerptState}
+              onRetry={onRetryExcerpt}
+              /* TODO-COPY. A different name from the flag pane's, because this
+                 excerpt makes a weaker claim: nothing here is flagged. */
+              label={`Recent conversation with ${firstNameOf(item.teenDisplayName)}`}
+            />
+          </div>
+        </div>
+      )}
+
       <p className="text-[13px] leading-[18px] text-[var(--text-muted)]">
         {/* TODO-COPY. States plainly that this pane does not act — the honest
             version of a read-only surface, rather than leaving a reader hunting
@@ -306,12 +371,24 @@ export function TaskPane({
   item,
   now,
   onResolve,
+  /** THE EXCERPT'S OWN STATE, from the page's load-state axis. Separate from the
+   *  pane's so the two can disagree — which is the point: the dev harness must be
+   *  able to fail the excerpt while the pane succeeds. */
+  excerptState = "ready",
 }: {
   item: TaskItem | null;
   now: number;
   /** Fires with the pane's detail; the page owns resolveWithUndo. */
   onResolve: (item: TaskItem, detail: Record<string, unknown>) => void;
+  excerptState?: ExcerptState;
 }) {
+  /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
+   *  re-render — but a reader cannot tell that, and a Retry that did nothing
+   *  would be worse than none. `retryNonce` forces the excerpt to remount, which
+   *  re-runs the anchor scroll and clears the error the caller set. */
+  const [retryNonce, setRetryNonce] = useState(0);
+  const effectiveExcerptState: ExcerptState =
+    retryNonce > 0 ? "ready" : excerptState;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [override, setOverride] = useState<{ code: string; statement: string } | null>(null);
   const pickerTrigger = useRef<HTMLElement | null>(null);
@@ -366,7 +443,14 @@ export function TaskPane({
       {/* ── BODY, scrolls independently ─────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {p.kind === "riskFlag" && (
-          <RiskFlagBody payload={p} teenId={item.teenId} />
+          <RiskFlagBody
+            payload={p}
+            teenId={item.teenId}
+            item={item}
+            now={now}
+            excerptState={effectiveExcerptState}
+            onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
+          />
         )}
         {p.kind === "billing" && recommended && (
           <BillingBody
@@ -380,7 +464,13 @@ export function TaskPane({
           />
         )}
         {(p.kind === "escalation" || p.kind === "documentation") && (
-          <EscalationBody payload={p} item={item} now={now} />
+          <EscalationBody
+            payload={p}
+            item={item}
+            now={now}
+            excerptState={effectiveExcerptState}
+            onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
+          />
         )}
       </div>
 
