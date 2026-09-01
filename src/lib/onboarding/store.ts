@@ -294,6 +294,13 @@ interface OnboardingState {
   /** Sent artifacts. Upsert rather than append, because `completion` is the one
    *  mutable field in the chat model — a teen opening a set changes it. */
   putChatArtifact: (artifact: ChatArtifactRecord) => void;
+  /** ═══ PUT, AND THERE IS NO REMOVE ═══
+   *  A note is a record of what somebody observed at a time, so nothing on this
+   *  surface edits or deletes one — see `NoteDetail` on why, and on the amendment
+   *  path that is a real gap (row 356). `put` rather than `append` only because the
+   *  map is keyed by id, which is what lets Timeline, a reminder and a thread chip
+   *  all reach the same note without three indexes. */
+  putChatNote: (note: ChatNoteRecord) => void;
   /** Clears the Tasks worklist's reviewed items. Lives here because the control
    *  is in the dev footer and the state is in the page — a counter is the smallest
    *  seam that does not make the page reach into the bar or the reverse. */
@@ -960,6 +967,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((st) => ({
           chatArtifacts: { ...st.chatArtifacts, [artifact.id]: artifact },
         })),
+      putChatNote: (note) =>
+        set((st) => ({ chatNotes: { ...st.chatNotes, [note.id]: note } })),
       setChatScenarioId: (id) =>
         set({
           chatScenarioId: id,

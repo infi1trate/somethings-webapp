@@ -26,13 +26,19 @@
 // two tabs, from the same component, because the alternative is a second rail
 // that starts identical and drifts.
 
-import { useId, useState } from "react";
+import { useId } from "react";
 import { SegmentedControl } from "@/components/record/segmented-control";
 import { PanelEmpty, PanelShell } from "@/components/chat/rail/rail-panel";
 import { ToolkitPanel } from "@/components/chat/rail/toolkit";
+import { TimelinePanel } from "@/components/chat/rail/timeline";
+import { NoteComposer } from "@/components/chat/documentation/note-composer";
+import { NoteDetail } from "@/components/chat/documentation/note-detail";
 import type {
   ActivityId,
+  ChatEvent,
   ChatThread,
+  ContextRef,
+  Note,
   SentArtifact,
   SentArtifactItem,
 } from "@/lib/chat/types";
@@ -58,21 +64,56 @@ export function tabsFor(kind: ChatThread["kind"]): RailTab[] {
     : ["assist", "timeline"];
 }
 
+/** ═══ WHAT THE TIMELINE PANEL IS SHOWING ═══
+ *  Its own three-way mode, held by the PAGE rather than here — because tagging a
+ *  message in the thread has to be able to put the rail into `composing`, and a
+ *  mode that lived in this component could only be set from inside it. */
+export type RailMode =
+  | { kind: "list" }
+  | { kind: "composing"; references: ContextRef[] }
+  | { kind: "reading"; noteId: string };
+
 export function Rail({
   thread,
   artifacts,
+  events,
+  notes,
+  now,
+  /** CONTROLLED. See `RailMode` — the thread can put the rail into a mode, so
+   *  neither the tab nor the mode can live in this component. */
+  tab,
+  onTabChange,
+  mode,
+  onModeChange,
   onSendActivity,
+  onSaveNote,
+  onOpenEvent,
+  onOpenReference,
   className,
 }: {
   thread: ChatThread;
-  /** Everything ever sent on this thread. The Toolkit's lock reads it; Phase 4's
+  /** Everything ever sent on this thread. The Toolkit's lock reads it; the
    *  DetailSheet reads it too. */
   artifacts: SentArtifact[];
+  events: ChatEvent[];
+  notes: Note[];
+  now: number;
+  tab: RailTab;
+  onTabChange: (tab: RailTab) => void;
+  mode: RailMode;
+  onModeChange: (mode: RailMode) => void;
   onSendActivity: (activityId: ActivityId, items: SentArtifactItem[]) => void;
+  onSaveNote: (note: {
+    title: string;
+    body: string;
+    references: ContextRef[];
+    reminderAt: number | null;
+  }) => void;
+  onOpenEvent?: (event: ChatEvent) => void;
+  onOpenReference: (ref: ContextRef) => void;
   className?: string;
 }) {
   const tabs = tabsFor(thread.kind);
-  const [tab, setTab] = useState<RailTab>(tabs[0]);
   const panelId = useId();
 
   /* ═══ THE SELECTED TAB IS NOT PERSISTED, AND THAT IS A DECISION ═══
@@ -82,6 +123,12 @@ export function Rail({
      opens on a conversation should be the one that says what to do next, not
      whichever one you happened to leave open on somebody else. */
   const active = tabs.includes(tab) ? tab : tabs[0];
+  const rescinded = new Set(
+    artifacts.filter((a) => a.rescindedAt).map((a) => a.id)
+  );
+  const reading =
+    mode.kind === "reading" ? notes.find((n) => n.id === mode.noteId) : undefined;
+  const theirName = thread.displayName.split(" ")[0];
 
   return (
     <div
@@ -99,7 +146,7 @@ export function Rail({
             controls: `${panelId}-panel`,
           }))}
           value={active}
-          onChange={setTab}
+          onChange={onTabChange}
           semantics="tabs"
           fullWidth
           size="sm"
@@ -131,7 +178,7 @@ export function Rail({
             </PanelEmpty>
           )}
           {active === "profile" && (
-            <PanelEmpty title={`About ${thread.displayName.split(" ")[0]}`}>
+            <PanelEmpty title={`About ${theirName}`}>
               {/* TODO-COPY */}
               What this teen has chosen to share about themselves, in their own
               words.
@@ -144,12 +191,46 @@ export function Rail({
               onSendActivity={onSendActivity}
             />
           )}
-          {active === "timeline" && (
-            <PanelEmpty title="What has happened">
-              {/* TODO-COPY */}
-              Activities sent, notes written and escalations raised, in order.
-            </PanelEmpty>
-          )}
+          {/* ═══ TIMELINE OWNS NOTES, AND HAS THREE MODES ═══
+              The list, writing one, and reading one. Both of the latter are FULL
+              TAKEOVERS of the panel rather than sections inside it — see
+              `NoteComposer` on why writing a note gets the whole rail. */}
+          {active === "timeline" &&
+            (mode.kind === "composing" ? (
+              <NoteComposer
+                theirName={theirName}
+                initialReferences={mode.references}
+                onCancel={() => onModeChange({ kind: "list" })}
+                onSave={(note) => {
+                  onSaveNote(note);
+                  onModeChange({ kind: "list" });
+                }}
+              />
+            ) : reading ? (
+              <NoteDetail
+                note={reading}
+                onBack={() => onModeChange({ kind: "list" })}
+                onOpenReference={onOpenReference}
+              />
+            ) : (
+              <TimelinePanel
+                events={events}
+                notes={notes}
+                now={now}
+                theirName={theirName}
+                /* ABSENT on a support thread — a colleague's conversation has no
+                   teen to document, and an absent control is clearer than a
+                   disabled one. */
+                onNewNote={
+                  thread.kind === "teen"
+                    ? () => onModeChange({ kind: "composing", references: [] })
+                    : undefined
+                }
+                onOpenNote={(n) => onModeChange({ kind: "reading", noteId: n.id })}
+                onOpenEvent={onOpenEvent}
+                rescindedArtifactIds={rescinded}
+              />
+            ))}
         </PanelShell>
       </div>
     </div>

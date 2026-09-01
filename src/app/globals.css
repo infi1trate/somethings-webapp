@@ -435,3 +435,40 @@
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
+
+/* ═══ THE FLASH A NOTE'S REFERENCE LEAVES ON THE MESSAGE IT POINTS AT ═══
+ *
+ *  Following a reference scrolls the transcript, and a scroll on its own does not
+ *  say WHICH message was meant — the reader arrives somewhere in the middle of a
+ *  conversation with no marker. A brief band tint on the bubble answers it, and
+ *  fades, so nothing is left permanently highlighted.
+ *
+ *  `--band-amber-*` is the record's own attention band and flips with the theme;
+ *  an rgba literal here would have been a light-mode-only highlight.
+ *
+ *  In CSS rather than a Tailwind class because it is a keyframe applied from an
+ *  imperative scroll handler — a class toggled by JS is exactly the case Tailwind's
+ *  JIT cannot see, and an arbitrary animation value would not have been generated.
+ */
+@keyframes chat-ref-flash {
+  0%,
+  70% {
+    background-color: var(--band-amber-bg);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.chat-ref-flash > span > div {
+  animation: chat-ref-flash 1200ms ease-out;
+  border-radius: var(--radius-inset);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* NO FADE, BUT STILL A MARKER. Suppressing the animation entirely would leave a
+     reduced-motion reader with a scroll and no answer to "which one" — so the tint
+     simply appears and is removed by the same timer. */
+  .chat-ref-flash > span > div {
+    animation: none;
+    background-color: var(--band-amber-bg);
+  }
+}

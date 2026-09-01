@@ -117,6 +117,7 @@ export function Thread({
   now,
   reactions,
   onReact,
+  onTagMessage,
   onOpenEvent,
   className,
 }: {
@@ -131,6 +132,8 @@ export function Thread({
   /** Session-local reactions, keyed by message id. See `MessageActions`. */
   reactions?: Record<string, string[]>;
   onReact?: (messageId: string, emoji: string) => void;
+  /** Starts a note pointed at this message. Absent on a support thread. */
+  onTagMessage?: (message: ChatMessage) => void;
   onOpenEvent?: (event: ChatEvent) => void;
   className?: string;
 }) {
@@ -332,6 +335,11 @@ export function Thread({
                       onReact={
                         onReact
                           ? (emoji) => onReact(entry.message.id, emoji)
+                          : undefined
+                      }
+                      onTag={
+                        onTagMessage
+                          ? () => onTagMessage(entry.message)
                           : undefined
                       }
                     />

@@ -54,12 +54,14 @@ export function MessageBubble({
    *  by decision — see `MessageActions`. */
   added,
   onReact,
+  onTag,
 }: {
   message: ChatMessage;
   theirName: string;
   showMeta?: boolean;
   added?: string[];
   onReact?: (emoji: string) => void;
+  onTag?: () => void;
 }) {
   const mine = message.sender === "mentor";
   const who = mine ? "You" : theirName; // TODO-COPY
@@ -94,6 +96,10 @@ export function MessageBubble({
 
   return (
     <li
+      /* ADDRESSABLE. A note's `ContextReference` scrolls the transcript to the
+         message it points at, and the only stable handle for that is the message's
+         own id on its list item. */
+      id={`msg-${message.id}`}
       className={cn(
         // `group` is what the actions trigger reads for its hover reveal — see
         // `MessageActions`. On the LIST ITEM rather than the bubble, so the
@@ -137,7 +143,9 @@ export function MessageBubble({
           mine ? "flex-row justify-end" : "flex-row-reverse justify-end"
         )}
       >
-        {onReact && <MessageActions side={message.sender} onReact={onReact} />}
+        {onReact && (
+          <MessageActions side={message.sender} onReact={onReact} onTag={onTag} />
+        )}
       <div
         // The accessible name is on the CONTENT, not the list item, so a screen
         // reader reads one coherent string per message.

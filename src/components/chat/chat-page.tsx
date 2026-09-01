@@ -30,7 +30,7 @@
 import { useMemo, useState } from "react";
 import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
 import { ConversationList } from "@/components/chat/list/conversation-list";
-import { Rail } from "@/components/chat/rail/rail";
+import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
 import { Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { chatScenario } from "@/lib/chat/seed";
@@ -38,9 +38,13 @@ import { activityById } from "@/lib/chat/activities";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { LIVE_ID } from "@/lib/record/subject";
+import { firstLineOf } from "@/components/chat/documentation/context-reference";
 import type {
   ActivityId,
   ChatEvent,
+  ChatMessage,
+  ContextRef,
+  Note,
   SentArtifact,
   SentArtifactItem,
   ThreadId,
@@ -136,8 +140,10 @@ export function ChatPage({
      between would be indistinguishable from fixture data. */
   const writtenEvents = useOnboardingStore((s) => s.chatEvents);
   const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
+  const writtenNotes = useOnboardingStore((s) => s.chatNotes);
   const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
   const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
+  const putChatNote = useOnboardingStore((s) => s.putChatNote);
 
   const threads = data?.threads ?? [];
   /* ═══ THE DEEP LINK IS A FALLBACK, NOT AN OVERRIDE ═══
@@ -186,6 +192,23 @@ export function ChatPage({
     [artifacts]
   );
 
+  /** Notes for this thread. There are no fixture notes — a note is something the
+   *  mentor wrote, and seeding one would put words in their mouth. So Timeline's
+   *  empty state is the first thing every scenario shows, which is the right thing
+   *  for it to be good at. */
+  const notes = useMemo<Note[]>(() => {
+    if (!thread || !mounted) return [];
+    return Object.values(writtenNotes).filter((n) => n.threadId === thread.id);
+  }, [thread, mounted, writtenNotes]);
+
+  /* ═══ THE RAIL IS CONTROLLED FROM HERE ═══
+     Because tagging a message in the THREAD has to be able to open the note
+     composer in the RAIL. A tab and a mode owned by the rail could only ever be set
+     from inside it, so the two panels could not talk — and the primary way a note
+     starts is exactly that conversation between them. */
+  const [railTab, setRailTab] = useState<RailTab>("assist");
+  const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
+
   /** ═══ SENDING WRITES TWO RECORDS, AND NEITHER IS THE OTHER ═══
    *
    *  An `activity-sent` EVENT (append-only, the history) and a `SentArtifact` (the
@@ -220,6 +243,63 @@ export function ChatPage({
       actorId: LIVE_ID,
       artifactId,
       artifactName: activityById(activityId).name,
+    });
+  };
+
+  /** ═══ TAGGING A MESSAGE OPENS THE COMPOSER, PRE-LOADED ═══
+   *
+   *  Three things at once, and all three are the point: switch the rail to the panel
+   *  that owns notes, put it into its composing mode, and hand it the reference
+   *  built from the message. A mentor who tags a message should be typing one press
+   *  later — anything that makes them then find the panel and press New has turned
+   *  the primary path into the long one. */
+  const tagMessage = (message: ChatMessage) => {
+    if (!thread) return;
+    const reference: ContextRef = {
+      messageId: message.id,
+      senderName:
+        message.sender === "mentor" ? "You" : thread.displayName.split(" ")[0],
+      at: message.at,
+      // The FIRST LINE, not the whole message — see `ContextReference` on why the
+      // note points at the transcript rather than copying it.
+      firstLine: firstLineOf(
+        message.text ?? message.media?.alt ?? "(no text)"
+      ),
+    };
+    setRailTab("timeline");
+    setRailMode({ kind: "composing", references: [reference] });
+  };
+
+  /** Saving writes the note AND appends a `note-added` event, so the thread and the
+   *  timeline both show that documentation happened. The note is the record; the
+   *  event is the history — the same separation sending an activity makes. */
+  const saveNote = (draft: {
+    title: string;
+    body: string;
+    references: ContextRef[];
+    reminderAt: number | null;
+  }) => {
+    if (!thread) return;
+    const at = Date.now();
+    const id = `note-${thread.id}-${at}`;
+    putChatNote({
+      id,
+      threadId: thread.id,
+      title: draft.title,
+      body: draft.body,
+      createdAt: at,
+      updatedAt: at,
+      references: draft.references,
+      reminderAt: draft.reminderAt,
+    });
+    appendChatEvent({
+      id: `ev-${thread.id}-${at}`,
+      threadId: thread.id,
+      at,
+      kind: "note-added",
+      actorId: LIVE_ID,
+      artifactId: id,
+      artifactName: draft.title,
     });
   };
 
@@ -318,7 +398,22 @@ export function ChatPage({
                 artifacts={artifactById}
                 reactions={reactions}
                 onReact={react}
-                onOpenEvent={(e) => setOpenArtifactId(e.artifactId)}
+                /* Teen threads only — a colleague's conversation has no teen to
+                   document, and the menu then holds reactions alone rather than a
+                   disabled row. */
+                onTagMessage={thread.kind === "teen" ? tagMessage : undefined}
+                onOpenEvent={(e) => {
+                  /* ═══ A NOTE EVENT OPENS THE NOTE, NOT THE SHEET ═══
+                     The DetailSheet reads artifacts; a `note-added` event's
+                     `artifactId` is a note id. Routing both through the sheet would
+                     have opened an empty dialog on every note chip. */
+                  if (e.kind === "note-added") {
+                    setRailTab("timeline");
+                    setRailMode({ kind: "reading", noteId: e.artifactId });
+                    return;
+                  }
+                  setOpenArtifactId(e.artifactId);
+                }}
               />
 
               {/* ═══ ONE SHEET, NOT ONE PER CHIP ═══
@@ -400,7 +495,34 @@ export function ChatPage({
             <Rail
               thread={thread}
               artifacts={artifacts}
+              events={events}
+              notes={notes}
+              now={now}
+              tab={railTab}
+              onTabChange={setRailTab}
+              mode={railMode}
+              onModeChange={setRailMode}
               onSendActivity={sendActivity}
+              onSaveNote={saveNote}
+              onOpenEvent={(e) => {
+                if (e.kind === "note-added") {
+                  setRailMode({ kind: "reading", noteId: e.artifactId });
+                  return;
+                }
+                setOpenArtifactId(e.artifactId);
+              }}
+              /* ═══ A REFERENCE GOES BACK TO THE MESSAGE ═══
+                 Which on a desktop means scrolling the transcript to it — the
+                 thread is already on screen beside the note, so nothing needs to
+                 navigate. Implemented as a DOM scroll rather than as state,
+                 because the target is a rendered list item and the transcript's
+                 own scroller is the thing that has to move. */
+              onOpenReference={(r) => {
+                const el = document.getElementById(`msg-${r.messageId}`);
+                el?.scrollIntoView({ block: "center", behavior: "smooth" });
+                el?.classList.add("chat-ref-flash");
+                window.setTimeout(() => el?.classList.remove("chat-ref-flash"), 1200);
+              }}
             />
           </div>
         )}

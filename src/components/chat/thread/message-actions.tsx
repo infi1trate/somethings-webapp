@@ -37,7 +37,7 @@
 // hidden: if reactions become real content, they belong beside `chatNotes`.
 
 import { useState } from "react";
-import { SmilePlus } from "lucide-react";
+import { FileText, SmilePlus } from "lucide-react";
 import type { Sender } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -67,10 +67,17 @@ export function MessageActions({
   /** Which side the bubble is on, so the trigger and the menu open away from it. */
   side,
   onReact,
+  /** ═══ THE PRIMARY WAY A NOTE STARTS (Phase 5) ═══
+   *  Tagging a message is what gives a note its provenance — see
+   *  `ContextReference` on why a note without traceable evidence is an assertion
+   *  nobody can check. Absent on a support thread, where there is no teen to
+   *  document; the menu then holds reactions alone rather than a disabled row. */
+  onTag,
   className,
 }: {
   side: Sender;
   onReact: (emoji: string) => void;
+  onTag?: () => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -146,6 +153,39 @@ export function MessageActions({
               <span aria-hidden>{r.emoji}</span>
             </button>
           ))}
+
+          {onTag && (
+            <>
+              {/* A RULE, NOT A GAP. The six reactions are one gesture; tagging is a
+                  different kind of act — it starts a written record — and a
+                  separator is what stops a hurried press from landing on the wrong
+                  side of that line. */}
+              <span
+                aria-hidden
+                className="mx-0.5 h-5 w-px shrink-0 bg-[var(--border-subtle)]"
+              />
+              <button
+                type="button"
+                role="menuitem"
+                /* TODO-COPY. Names the OUTCOME — a note — rather than the mechanic.
+                   "Tag" alone means nothing to somebody who has not used this
+                   before, which is everybody the first time. */
+                aria-label="Write a note about this message"
+                title="Write a note about this"
+                onClick={() => {
+                  onTag();
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors",
+                  "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                <FileText className="size-4" aria-hidden />
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
