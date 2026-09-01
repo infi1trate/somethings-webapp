@@ -41,6 +41,38 @@ import type { ActivityEventType } from "@/lib/activity/events";
 // on two surfaces.
 import { humaniseCategory, type FeedRow } from "@/lib/activity/query";
 import { recordFlaggedContentAccess } from "@/lib/activity/access-log";
+import {
+  INSTRUMENTS,
+  bandFor,
+  reviewDocumentFor,
+  reviewerNoteFor,
+} from "@/lib/activity/pane-fixtures";
+
+/** Seeds a fixture per EVENT, so one row always previews the same document. The
+ *  same shape the seed and the conversation fixtures use. */
+/** ═══ THE OUTCOME WORD IS SENTENCE CASE, WHOEVER WROTE IT ═══
+ *
+ *  A risk flag's `decision` is stored "Closed"; an escalation's `outcome` is
+ *  stored "referred". Both land in the same pill, so without normalising, one
+ *  type's pill was capitalised and another's was not — on a surface whose voice
+ *  is meant to be consistent, in the one element that carries the decision.
+ *
+ *  SENTENCE CASE, NOT TITLE CASE: "Guardian contacted" and "Safety plan agreed"
+ *  are sentences about what happened, and title-casing them ("Guardian
+ *  Contacted") would read as a status enum rather than as an outcome. */
+function outcomeWord(raw: string): string {
+  const t = raw.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function hashOf(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
 
 /** A labelled fact. Values are strings because the pane renders them — anything
  *  that needs formatting is formatted before it gets here, so the component never
@@ -50,27 +82,90 @@ export interface EvidenceFact {
   value: string;
 }
 
-export interface EventEvidence {
+/** ═══ ONE SHAPE PER EVENT TYPE (C3) ═══
+ *
+ *  C2 gave every type the same four fields — `facts`, an optional `body`, an
+ *  optional `related` — and the pane rendered them in one order. That was the
+ *  right thing while the primitives were being built, and it is the wrong thing
+ *  now: a billing review's evidence is a code change, a document and a history; a
+ *  survey's is a number in a series; a closed flag's is a judgement and the words
+ *  it was about. Those are not the same shape wearing different labels.
+ *
+ *  A DISCRIMINATED UNION rather than a widening bag of optional fields. With
+ *  optionals, "which of these does a survey have" is answerable only by reading
+ *  the builder, and every renderer has to re-check; with a union the compiler
+ *  answers it, and a new event type cannot be added without deciding what its
+ *  evidence IS.
+ *
+ *  THE SHARED FIELDS ARE THE ONES EVERY PANE HAS REGARDLESS: what happened, how
+ *  it came out, who it concerns, and the way to the record. */
+export interface EvidenceBase {
   eventType: ActivityEventType;
   /** The pane's own heading. TODO-COPY. */
   title: string;
-  /** What was decided. Two to four facts — more than that is a table, and a table
-   *  is what A12's object summary already proved does not earn a column. */
-  facts: EvidenceFact[];
-  /** The artifact itself, when the event has one to preview: the review document,
-   *  the survey responses, the reviewer's notes. Prose, never a value. */
-  body?: { label: string; text: string };
-  /** Related context — the presentation in force, a prior score. Absent when
-   *  there is nothing true to say. */
-  related?: EvidenceFact[];
-  /** Set only when the event's artifact includes a teen's own words. The words
-   *  themselves are NOT here — see `flaggedContentFor`. */
-  hasFlaggedContent: boolean;
-  /** The conversation the flagged content belongs to, for the chat link. */
-  conversationId?: string;
+  /** The outcome word for the header pill — Active, Closed, Monitoring,
+   *  Referred, Paused. Null for a type that has no outcome: a completed survey
+   *  did not come out any way, and inventing "Done" would be filler in a pill
+   *  whose whole job is to carry a real decision. */
+  outcome: string | null;
   /** The persistent footer link every pane carries. */
   record: { href: string; label: string };
 }
+
+/** A labelled fact. Values are strings because the pane renders them — anything
+ *  that needs formatting is formatted before it gets here, so the component never
+ *  has to know what a code or a score is. */
+export interface EvidenceFact {
+  label: string;
+  value: string;
+}
+
+export interface BillingEvidence extends EvidenceBase {
+  kind: "billing";
+  facts: EvidenceFact[];
+  /** The code now in force, for the related-record card. */
+  code: string;
+  /** The review document. Multi-paragraph — see `reviewDocumentFor`. The seed's
+   *  one-line `note` is used as the document's OPENING paragraph when present, so
+   *  a supervisor's own sentence is never replaced by a fixture. */
+  document: { title: string; paragraphs: string[] };
+}
+
+export interface SurveyEvidence extends EvidenceBase {
+  kind: "survey";
+  facts: EvidenceFact[];
+  instrument: string;
+  score: number;
+  /** The instrument's items, for the response breakdown. Empty when the
+   *  instrument is not one this prototype has an item set for — an unknown
+   *  instrument shows its score and says nothing it cannot support. */
+  items: string[];
+  instrumentName: string | null;
+  band: string | null;
+}
+
+export interface RiskFlagEvidence extends EvidenceBase {
+  kind: "riskFlag";
+  facts: EvidenceFact[];
+  /** The reviewer's own words, with who wrote them. A quote without attribution
+   *  on this surface is ambiguous in a way that matters: an unattributed sentence
+   *  could be the reviewer's judgement or the teen's message. */
+  reviewerNote: { text: string; attribution: string; meta: string } | null;
+  hasFlaggedContent: boolean;
+  conversationId?: string;
+}
+
+export interface EscalationEvidence extends EvidenceBase {
+  kind: "escalation";
+  facts: EvidenceFact[];
+  notes: { text: string; attribution: string; meta: string } | null;
+}
+
+export type EventEvidence =
+  | BillingEvidence
+  | SurveyEvidence
+  | RiskFlagEvidence
+  | EscalationEvidence;
 
 /** ═══ THE TYPES THAT OPEN NO PANE, AS A LIST RATHER THAN A DEFAULT ═══
  *
@@ -113,76 +208,90 @@ export function eventEvidenceFor(row: FeedRow): EventEvidence | null {
   const teenHref = `/admin/person/${row.groupObjectId}?tab=care`;
 
   switch (row.eventType) {
+    // ═══ BILLING · a code change, its reasoning, and what it applies to ═══
     case "BILLING_REVIEW_COMPLETE": {
       const code = str(p.code);
       if (!code) return null;
-      const facts: EvidenceFact[] = [];
       const previous = str(p.previousCode);
-      // THE CHANGE, NOT JUST THE RESULT. "F41.9 → F41.1" is the decision; "F41.1"
-      // alone is the state, and the state is already on the row.
-      facts.push({
-        label: "Code",
-        value: previous ? `${previous} → ${code}` : code,
-      });
-      facts.push({ label: "Status", value: str(p.status) ?? "Active" });
-      facts.push({
-        label: "Approved by",
-        value: row.actorIsSelf ? "You" : `${row.actorName} · ${row.actorRole}`,
-      });
-      facts.push({ label: "When", value: row.absolute });
+      const doc = reviewDocumentFor(hashOf(row.id));
+      const note = str(p.note);
       return {
+        kind: "billing",
         eventType: row.eventType,
         title: "Billing review",
-        facts,
-        body: str(p.note)
-          ? { label: "Review document", text: str(p.note)! }
-          : undefined,
-        related: [{ label: "Primary presentation", value: code }],
-        hasFlaggedContent: false,
+        // THE STATUS IS THE OUTCOME — the code took effect, which is what a
+        // completed review comes out as.
+        outcome: outcomeWord(str(p.status) ?? "Active"),
+        code,
+        facts: [
+          // THE CHANGE, NOT JUST THE RESULT. "F41.9 → F41.1" is the decision;
+          // "F41.1" alone is the state, and the state is on the row already.
+          { label: "Code", value: previous ? `${previous} → ${code}` : code },
+          {
+            label: "Approved by",
+            value: row.actorIsSelf ? "You" : `${row.actorName} · ${row.actorRole}`,
+          },
+          { label: "When", value: row.absolute },
+        ],
+        /** ═══ THE SUPERVISOR'S OWN SENTENCE LEADS ═══
+         *  The seed carries a one-line `note` — a real thing someone wrote — and
+         *  the fixture carries the multi-paragraph structure a document needs.
+         *  The note goes FIRST and the fixture continues it, so the prose a
+         *  reviewer actually typed is never replaced by invented text; it is
+         *  given a document to sit in. Where there is no note, the fixture stands
+         *  alone. */
+        document: {
+          title: doc.title,
+          paragraphs: note ? [note, ...doc.paragraphs.slice(1)] : doc.paragraphs,
+        },
         record: { href: teenHref, label: "Open the full billing record" },
       };
     }
 
+    // ═══ SURVEY · a number that only means something in a series ═══
     case "SURVEY_COMPLETED": {
       const instrument = str(p.instrument);
       const score = num(p.score);
       if (!instrument || score === undefined) return null;
-      const prior = num(p.priorScore);
+      const inst = INSTRUMENTS[instrument as keyof typeof INSTRUMENTS];
       return {
+        kind: "survey",
         eventType: row.eventType,
         title: "Survey",
+        /** NO OUTCOME PILL. A completed survey did not come out any way — the
+         *  BAND is a reading of the score, not a decision anybody took, and
+         *  putting it in the pill would make a measurement look like a judgement
+         *  beside four types where the pill genuinely is one. It renders in the
+         *  trend strip instead, next to the number it describes. */
+        outcome: null,
+        instrument,
+        instrumentName: inst?.name ?? null,
+        score,
+        band: bandFor(instrument, score),
+        items: inst?.items ?? [],
         facts: [
           { label: "Instrument", value: instrument },
-          { label: "Score", value: String(score) },
           { label: "Completed", value: row.absolute },
         ],
-        // TREND ONLY WHEN THERE IS A PRIOR SCORE. A "trend" from one reading is a
-        // number with an arrow next to it.
-        related:
-          prior !== undefined
-            ? [
-                {
-                  label: "Previous",
-                  value: `${prior} → ${score} (${score > prior ? "up" : score < prior ? "down" : "unchanged"})`,
-                },
-              ]
-            : undefined,
-        hasFlaggedContent: false,
         record: { href: teenHref, label: "Open the survey history" },
       };
     }
 
+    // ═══ RISK FLAG · a judgement, and the words it was about ═══
     case "RISK_FLAG_CLOSED": {
       const cats = (Array.isArray(p.categories) ? p.categories : []).filter(
         (c): c is string => typeof c === "string"
       );
       const decision = str(p.decision);
       if (!decision && cats.length === 0) return null;
+      const note = str(p.reviewerNotes) ?? reviewerNoteFor(hashOf(row.id));
       return {
+        kind: "riskFlag",
         eventType: row.eventType,
         title: "Risk flag",
+        // THE DECISION IS THE OUTCOME, and it is already one of the pill's words.
+        outcome: outcomeWord(decision ?? "Closed"),
         facts: [
-          { label: "Decision", value: decision ?? "Closed" },
           ...(cats.length
             ? [{ label: "Category", value: cats.map(humaniseCategory).join(", ") }]
             : []),
@@ -192,34 +301,47 @@ export function eventEvidenceFor(row: FeedRow): EventEvidence | null {
           },
           { label: "When", value: row.absolute },
         ],
-        body: str(p.reviewerNotes)
-          ? { label: "Reviewer notes", text: str(p.reviewerNotes)! }
-          : undefined,
-        // The one type that has any, and it stays behind the disclosure.
+        reviewerNote: {
+          text: note,
+          // WHO WROTE IT. The pane already names the actor in a metadata row, and
+          // repeating it here is the point: on a quote, attribution is not
+          // redundancy — it is what separates the reviewer's judgement from the
+          // teen's message two sections below.
+          attribution: row.actorIsSelf ? "You" : row.actorName,
+          meta: row.actorIsSelf ? row.absolute : `${row.actorRole} · ${row.absolute}`,
+        },
         hasFlaggedContent: !!str(p.flaggedExcerpt),
         conversationId: str(p.conversationId) ?? undefined,
         record: { href: teenHref, label: "Open the full record" },
       };
     }
 
+    // ═══ ESCALATION · an outcome and what was said ═══
     case "ESCALATION_CLOSED": {
       const outcome = str(p.outcome);
       if (!outcome) return null;
+      const notes = str(p.notes);
       return {
+        kind: "escalation",
         eventType: row.eventType,
         title: "Escalation",
+        outcome: outcomeWord(outcome),
         facts: [
-          { label: "Outcome", value: outcome },
           {
             label: "Closed by",
             value: row.actorIsSelf ? "You" : `${row.actorName} · ${row.actorRole}`,
           },
           { label: "When", value: row.absolute },
         ],
-        body: str(p.notes)
-          ? { label: "Notes and recorded discussion", text: str(p.notes)! }
-          : undefined,
-        hasFlaggedContent: false,
+        notes: notes
+          ? {
+              text: notes,
+              attribution: row.actorIsSelf ? "You" : row.actorName,
+              meta: row.actorIsSelf
+                ? row.absolute
+                : `${row.actorRole} · ${row.absolute}`,
+            }
+          : null,
         record: { href: teenHref, label: "Open the escalation record" },
       };
     }

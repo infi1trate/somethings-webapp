@@ -122,7 +122,11 @@ describe("flagged content is reachable only through the logging seam", () => {
     for (const r of withContent) {
       const e = eventEvidenceFor(r);
       if (!e) continue;
-      expect(e.hasFlaggedContent).toBe(true);
+      // NARROWED, not cast. `hasFlaggedContent` belongs to the risk-flag member
+      // of the union now — asking any other member for it is a question that no
+      // longer makes sense, and the compiler saying so is the union working.
+      expect(e.kind).toBe("riskFlag");
+      expect(e.kind === "riskFlag" && e.hasFlaggedContent).toBe(true);
       // And the seam returns it.
       expect(flaggedContentFor(r, "viewer-x", SIM_NOW)).toBe(
         r.payload!.flaggedExcerpt
@@ -192,19 +196,37 @@ describe("the four types that do open a pane", () => {
       eventEvidenceFor(r)!.facts.find((f) => f.label === "Code")!.value;
     expect(codeOf(withPrev[0])).toMatch(/^\S+ → \S+$/);
     expect(codeOf(without[0])).not.toMatch(/→/);
-    expect(eventEvidenceFor(withPrev[0])!.body?.label).toBe("Review document");
+    // C3: the review document is a `document` on the billing member, with real
+    // paragraph structure rather than a single `body.text` string.
+    const billing = eventEvidenceFor(withPrev[0])!;
+    expect(billing.kind).toBe("billing");
+    if (billing.kind === "billing") {
+      expect(billing.document.paragraphs.length).toBeGreaterThan(1);
+      expect(billing.document.title).toBeTruthy();
+    }
   });
 
   it("shows a survey trend only when a prior score exists", () => {
     const rows = allRows().filter(
       (r) => r.eventType === "SURVEY_COMPLETED" && !r.degraded
     );
-    const withPrior = rows.filter((r) => typeof r.payload?.priorScore === "number");
-    const without = rows.filter((r) => r.payload?.priorScore === undefined);
-    expect(withPrior.length).toBeGreaterThan(0);
-    expect(without.length).toBeGreaterThan(0);
-    expect(eventEvidenceFor(withPrior[0])!.related).toBeTruthy();
-    expect(eventEvidenceFor(without[0])!.related).toBeUndefined();
+    /* ═══ REWRITTEN FOR C3 — AND THE OLD ASSERTION HAD BECOME UNTRUE ═══
+       This asserted that a survey's `related` field exists only when the payload
+       carries a `priorScore`. The trend is no longer built from that field: the
+       strip is derived from the EVENT STORE (`readingsFor`), because a comparison
+       to one remembered prior score cannot show a series and could disagree with
+       the ledger it was summarising. What the evidence now owes is the
+       instrument, the score and its band — the series is the ledger's to supply. */
+    const rowsWithScore = rows.filter((r) => typeof r.payload?.score === "number");
+    expect(rowsWithScore.length).toBeGreaterThan(0);
+    const e = eventEvidenceFor(rowsWithScore[0])!;
+    expect(e.kind).toBe("survey");
+    if (e.kind === "survey") {
+      expect(e.instrument).toBeTruthy();
+      expect(typeof e.score).toBe("number");
+      // NO OUTCOME PILL on a survey — it did not come out any way.
+      expect(e.outcome).toBeNull();
+    }
   });
 
   it("humanises flag categories and never leaks a wire value", () => {

@@ -620,6 +620,28 @@ function longHistory(): ActivityEvent[] {
  *
  *  `extra` is for a scenario that needs to add something the type does not carry
  *  by default — the network fixture's degradation bait, for instance. */
+/** ═══ THE CODE A TEEN'S nth REVIEW SETS ═══
+ *
+ *  Deterministic and MONOTONIC in `i`, so consecutive reviews chain: the code
+ *  before review `i` is by definition the code review `i - 1` set. Walking one
+ *  sequence is what makes that true without any per-teen bookkeeping.
+ *
+ *  Step 2 rather than 1 so consecutive reviews are not adjacent list entries —
+ *  a history that reads F41.1 → F41.9 → F32.9 looks like a cursor moving down a
+ *  list rather than like clinical decisions.
+ *
+ *  ICD-10 ONLY. See the note at the call site. */
+const REVIEW_CODES = ["F41.9", "F41.1", "F32.9", "F33.0", "F33.1", "F90.0"] as const;
+
+function codeAt(teenId: string, i: number): string {
+  const base = teenId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  // `i` can be -1 for the "code before the first review"; the modulo is written
+  // to stay positive rather than returning undefined at index -1.
+  const n = ((base + i * 2) % REVIEW_CODES.length + REVIEW_CODES.length) %
+    REVIEW_CODES.length;
+  return REVIEW_CODES[n];
+}
+
 function payloadFor(
   type: ActivityEventType,
   teenId: string,
@@ -644,9 +666,20 @@ function payloadFor(
            rendered "F32.9 → H0038". F-codes are DIAGNOSES; H0038 is a SERVICE
            line ("self-help/peer services, per 15 minutes"). A diagnosis does not
            become a service code, and an arrow between them is a category error
-           rather than a revision. Both sides are ICD-10 now. */
-        code: pick(["F41.1", "F33.0", "F33.1", "F90.0"] as const),
-        previousCode: pick(["F41.9", "F32.9", "F41.1"] as const),
+           rather than a revision. Both sides are ICD-10 now.
+
+           ═══ AND THE HISTORY CHAINS (gap row 353) ═══
+           Both sides were also picked INDEPENDENTLY, so a teen's reviews did not
+           connect: one row read "F41.9 → F90.0" and the next "F41.9 → F33.0",
+           which says the code reverted to F41.9 in between with no event saying
+           so. It was invisible until C3 rendered the change log — the feed shows
+           one row at a time, and one row is always self-consistent.
+
+           `previousCode` here is only a SEED value. The real chain is stitched by
+           `chainBillingCodes` once the scenario's timeline exists — see its note
+           for why a per-call index could not do it. */
+        code: codeAt(teenId, i),
+        previousCode: codeAt(teenId, i - 1),
         status: "Active",
         // The review document the pane previews — the supervisor's own reasoning,
         // which is what makes the code checkable rather than just recorded.
@@ -774,6 +807,54 @@ function pickUnread(events: ActivityEvent[], n: number): string[] {
     .map((e) => e.id);
 }
 
+/** ═══ A TEEN'S REVIEWS CHAIN: EACH STARTS WHERE THE LAST ENDED ═══
+ *
+ *  `payloadFor` picks `code` and `previousCode` from a per-call index, and that
+ *  index is the position in the GENERATOR LOOP — which is neither per teen nor in
+ *  time order (the loop counts up while `ago()` counts back). So one row read
+ *  "F41.9 → F90.0" and the next "F41.9 → F33.0": the code reverting in between
+ *  with no event saying so.
+ *
+ *  It was invisible until C3 rendered the change log. The feed shows one row at a
+ *  time, and one row is always self-consistent; a ledger's whole claim is that
+ *  the rows COMPOSE, and nothing was checking that they did.
+ *
+ *  Stitching after placement is what makes it correct rather than approximately
+ *  correct: the chain is defined by time, and placement is what decides time. A
+ *  counter threaded through the generator would have had to reproduce the sort
+ *  the timeline already does.
+ *
+ *  THE FIRST REVIEW KEEPS ITS SEEDED `previousCode` — a teen had a code before
+ *  the window opened, and dropping it would say this was their first ever, which
+ *  the fixture does not know. */
+function chainBillingCodes(events: ActivityEvent[]): ActivityEvent[] {
+  const byTeen = new Map<string, ActivityEvent[]>();
+  for (const e of events) {
+    if (e.eventType !== "BILLING_REVIEW_COMPLETE") continue;
+    if (typeof e.payload.code !== "string") continue;
+    const list = byTeen.get(e.objectId) ?? [];
+    list.push(e);
+    byTeen.set(e.objectId, list);
+  }
+  for (const list of byTeen.values()) {
+    list.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    for (let i = 1; i < list.length; i++) {
+      const prior = list[i - 1].payload.code as string;
+      // A "change" from a code to itself is not a change. Where the sequence
+      // would repeat, the review is left as a re-confirmation of the SAME code
+      // rather than rendered as an arrow between two identical values — and its
+      // `previousCode` is dropped so the pane says "F33.0" rather than
+      // "F33.0 → F33.0".
+      if (list[i].payload.code === prior) {
+        delete list[i].payload.previousCode;
+      } else {
+        list[i].payload.previousCode = prior;
+      }
+    }
+  }
+  return events;
+}
+
 function scenario(
   id: string,
   label: string,
@@ -785,7 +866,10 @@ function scenario(
   // ONE CHOKEPOINT. Every scenario is built with plain `at`/`ago` offsets and then
   // placed, so no builder has to know about the shift window and none can forget
   // it. `pickUnread` runs on the PLACED events because it sorts by time.
-  const shifted = placeInShiftWindows(events);
+  // THE CODE CHAIN IS STITCHED ON THE PLACED TIMELINE — see `chainBillingCodes`.
+  // After placement, because the chain is defined by TIME and placement is what
+  // decides it.
+  const shifted = chainBillingCodes(placeInShiftWindows(events));
   return {
     id,
     label,

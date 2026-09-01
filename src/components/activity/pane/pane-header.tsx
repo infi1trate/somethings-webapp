@@ -43,18 +43,38 @@ export type OutcomeTone = keyof typeof TONE;
  *  new outcome word is a decision someone makes here — not a value that arrives
  *  from a payload and renders untinted because nobody mapped it. */
 export const OUTCOME_TONE: Record<string, OutcomeTone> = {
-  Active: "positive",
-  Closed: "positive",
-  Monitoring: "attention",
-  Referred: "escalated",
-  Escalated: "escalated",
-  Paused: "neutral",
+  active: "positive",
+  closed: "positive",
+  supported: "positive",
+  "no further action": "positive",
+  monitoring: "attention",
+  "guardian contacted": "attention",
+  "safety plan agreed": "attention",
+  referred: "escalated",
+  escalated: "escalated",
+  paused: "neutral",
 };
+
+/** ═══ LOOKED UP CASE-INSENSITIVELY, AND THAT IS NOT TIDINESS ═══
+ *
+ *  The outcome words arrive from different payload fields with different casing:
+ *  a risk flag's `decision` is "Closed", an escalation's `outcome` is "referred".
+ *  A capitalised key map therefore tinted one type and silently neutralised the
+ *  other — MEASURED: the escalation pill rendered lowercase "referred" in the
+ *  neutral tone, which is the tone for "neither good nor bad" on the one outcome
+ *  that means a case was handed onward.
+ *
+ *  The vocabulary also runs past the five words the brief named. "Guardian
+ *  contacted" and "safety plan agreed" are real outcomes in the seed, and a pill
+ *  that only knows five of nine words is a pill that is wrong four times. */
+export function toneFor(word: string): OutcomeTone {
+  return OUTCOME_TONE[word.trim().toLowerCase()] ?? "neutral";
+}
 
 export function OutcomePill({ word }: { word: string }) {
   // An unmapped word still renders, in the neutral tone. A missing tint is a
   // smaller failure than a missing outcome.
-  const tone = OUTCOME_TONE[word] ?? "neutral";
+  const tone = toneFor(word);
   return (
     <span
       className={cn(

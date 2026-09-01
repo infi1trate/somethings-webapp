@@ -171,7 +171,12 @@ console.log("\n═══ PRIMITIVES ═══");
 console.log("\n═══ TREND STRIP (survey) ═══");
 {
   const p = await activity("long-history");
-  const found = await openUntil(p, "Recent readings");
+  // ═══ THE MARKER MOVED WITH THE DESIGN ═══
+  // This looked for a "Recent readings" heading. C3 removed it: the trend LEADS
+  // the survey body, and a heading over a single-item section is the rule the
+  // layout brief asked to drop. The instrument name is what identifies a survey
+  // pane now.
+  const found = await openUntil(p, "Instrument");
   check(found, "a survey pane shows the trend strip");
   if (found) {
     const r = await p.evaluate(() => {
@@ -189,6 +194,87 @@ console.log("\n═══ TREND STRIP (survey) ═══");
   }
   if (process.env.SHOT_DIR && found) await p.locator('[data-slot="event-evidence-pane"]').screenshot({ path: process.env.SHOT_DIR + "/C2-trend.png" });
   await p.context().close();
+}
+
+// ═══ C3 · ONE BODY PER TYPE ═══
+console.log("\n═══ C3 · per-type bodies ═══");
+{
+  // TWO SCENARIOS, because no single one carries all four types: `long-history`
+  // has the billing and survey series, `typical-shift` has the closed risk flag.
+  // Sampling one and reporting "not reached" would have left a quarter of the
+  // work unverified while every check on screen said pass.
+  const seen = {};
+  for (const scenario of ["long-history", "typical-shift"]) {
+  const p = await activity(scenario, 1200);
+  const rows = p.locator("[data-row-id]");
+  const n = await rows.count();
+  for (let i = 0; i < Math.min(n, 30); i++) {
+    await rows.nth(i).click().catch(() => {});
+    await p.waitForTimeout(260);
+    const r = await p.evaluate(() => {
+      const pane = document.querySelector('[data-slot="event-evidence-pane"]');
+      if (!pane) return null;
+      const t = pane.textContent ?? "";
+      const h2 = pane.querySelector("h2")?.textContent?.trim() ?? "";
+      const pill = pane.querySelector("h2")?.parentElement?.querySelector("span")?.textContent?.trim() ?? null;
+      const labels = [...pane.querySelectorAll("section > h3")].map((x) => x.textContent?.trim());
+      return {
+        type: h2,
+        pill,
+        sections: labels,
+        // Which primitives are present, by their distinguishing marks.
+        hasTrend: /First reading on this instrument/.test(t) || !!pane.querySelector("ol > li > span.tabular-nums"),
+        hasDocument: !!pane.querySelector("svg + p") && /Presentation review|Questionnaire|Anxiety|Well-Being/i.test(t),
+        hasQuote: !!pane.querySelector("figure blockquote"),
+        hasAttribution: !!pane.querySelector("figure figcaption"),
+        hasRelated: /Primary presentation/i.test(t),
+        hasChangeLog: labels.includes("Earlier changes"),
+        hasFlagged: labels.includes("Flagged content"),
+        // Rule 13.
+        mutators: [...pane.querySelectorAll("button")].filter((x) =>
+          /resolve|close |approve|dismiss|reopen|delete/i.test(x.textContent ?? "")).length,
+        // THE FOOTER, PER TYPE. A tall pane with short content stitches into a
+        // screenshot that is mostly white, so the footer is measured rather than
+        // looked for — the eye cannot tell "pinned at the bottom" from "absent".
+        footer: (() => {
+          const grid = pane.firstElementChild;
+          const f = grid.children[grid.children.length - 1];
+          const link = f.querySelector("a");
+          const pb = pane.getBoundingClientRect();
+          const fb = f.getBoundingClientRect();
+          return {
+            link: link?.textContent?.trim() ?? null,
+            flush: Math.abs(fb.bottom - pb.bottom) <= 1,
+          };
+        })(),
+      };
+    });
+    if (r && r.type && !seen[r.type]) seen[r.type] = r;
+  }
+  await p.context().close();
+  }
+
+  const want = {
+    "Billing review": { pill: true, need: ["hasRelated", "hasDocument", "hasChangeLog"] },
+    "Survey": { pill: false, need: ["hasTrend", "hasDocument"] },
+    "Risk flag": { pill: true, need: ["hasQuote", "hasAttribution", "hasFlagged"] },
+    "Escalation": { pill: true, need: ["hasQuote", "hasAttribution"] },
+  };
+  for (const [type, spec] of Object.entries(want)) {
+    const r = seen[type];
+    if (!r) { console.log(`  · ${type}: not reached in this scenario`); continue; }
+    console.log(`  ── ${type} ── pill=${JSON.stringify(r.pill)} sections=${JSON.stringify(r.sections)}`);
+    check(spec.pill ? !!r.pill : r.pill === null || r.pill === undefined,
+      `${type}: ${spec.pill ? "has" : "has NO"} outcome pill`, String(r.pill));
+    for (const k of spec.need) check(r[k], `${type}: ${k}`);
+    check(r.mutators === 0, `${type}: no mutation control (rule 13)`, String(r.mutators));
+    check(!!r.footer.link && r.footer.flush,
+      `${type}: footer pinned to the bottom edge with its link`,
+      `${JSON.stringify(r.footer.link)} flush=${r.footer.flush}`);
+  }
+  for (const type of Object.keys(want)) {
+    if (!seen[type]) check(false, `${type}: reached in one of the two scenarios`);
+  }
 }
 
 await b.close();

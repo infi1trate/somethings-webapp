@@ -41,6 +41,53 @@ describe("code systems (brief item 12)", () => {
     expect(checked).toBeGreaterThan(3);
   });
 
+  it("chains a teen's code history — each review starts where the last ended", () => {
+    /* ═══ THE DEFECT THIS EXISTS FOR (gap row 353) ═══
+       `code` and `previousCode` were picked independently, so one row read
+       "F41.9 → F90.0" and the next "F41.9 → F33.0" — the code reverting in
+       between with no event saying so. INVISIBLE UNTIL C3 rendered the change
+       log, because the feed shows one row at a time and one row is always
+       self-consistent. A ledger's whole claim is that the rows compose. */
+    let checked = 0;
+    for (const s of ACTIVITY_SCENARIOS) {
+      // Per teen, in time order.
+      const byTeen = new Map<string, typeof s.events>();
+      for (const e of s.events) {
+        if (e.eventType !== "BILLING_REVIEW_COMPLETE") continue;
+        if (typeof e.payload.code !== "string") continue;
+        const list = byTeen.get(e.objectId) ?? [];
+        list.push(e);
+        byTeen.set(e.objectId, list);
+      }
+      for (const [teen, list] of byTeen) {
+        list.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+        for (let i = 1; i < list.length; i++) {
+          const prev = list[i - 1].payload.code;
+          const here = list[i].payload.previousCode;
+          if (typeof here !== "string") continue;
+          checked++;
+          expect(here, `${s.id}/${teen}: review ${i} starts from ${here}, but review ${i - 1} set ${prev}`).toBe(prev);
+        }
+      }
+    }
+    // Guards a vacuous pass: with no teen having two reviews, the loop above
+    // asserts nothing and reports green.
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("never sets a code to the one it already was", () => {
+    // A "change" from F33.0 to F33.0 is not a change, and a change log full of
+    // them reads as a broken renderer.
+    for (const s of ACTIVITY_SCENARIOS) {
+      for (const e of s.events) {
+        if (e.eventType !== "BILLING_REVIEW_COMPLETE") continue;
+        const { code, previousCode } = e.payload;
+        if (typeof code !== "string" || typeof previousCode !== "string") continue;
+        expect(code, `${s.id}/${e.id}`).not.toBe(previousCode);
+      }
+    }
+  });
+
   it("keeps the two systems disjoint", () => {
     const icd = new Set<string>(ICD10.map((c) => c.code));
     // Widened to string: the two lists have disjoint literal types, so `has`
