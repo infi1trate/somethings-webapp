@@ -475,7 +475,10 @@ export function TaskPane({
       </div>
 
       {/* ── FOOTER, sticky ─────────────────────────────────────────────── */}
-      <div className="border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-3.5">
+      <div
+        data-slot="task-pane-footer"
+        className="border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-3.5"
+      >
         {p.kind === "riskFlag" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
