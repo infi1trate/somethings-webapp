@@ -359,6 +359,75 @@ console.log("\n═══ E · History rows (Rich longitudinal, t17) ═══");
   await p.context().close();
 }
 
+// ═══ D · THE SUCCESS MOMENT ═══
+console.log("\n═══ D · success moment ═══");
+for (const reduced of [false, true]) {
+  const ctx = await b.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: reduced ? "reduce" : "no-preference",
+  });
+  await ctx.addInitScript(
+    ([k, v]) => { if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify(v)); },
+    [KEY, { state: { persona: "supervisor" }, version: VERSION }]
+  );
+  const p = await ctx.newPage();
+  await p.goto(`${BASE}/admin/person/t17?tab=care`, { waitUntil: "networkidle" });
+  await p.waitForTimeout(1600);
+
+  const before = await p.evaluate(() => document.querySelectorAll('[data-record-section="care-timeline"] li[id^="care-"]').length);
+  await p.getByRole("button", { name: "Amend care update", exact: true }).first().click();
+  await p.waitForTimeout(800);
+  // Fill all three required fields, then append for real.
+  const tas = p.locator('[data-slot="dialog-content"] textarea');
+  await tas.nth(0).fill("Amended clinical summary for the success-moment check.");
+  await tas.nth(1).fill("Amended diagnostic support statement.");
+  await p.locator('[data-slot="dialog-content"] [id="cu-assessment"]').click();
+  await p.waitForTimeout(250);
+  await p.getByRole("option", { name: /maintained/i }).first().click();
+  await p.waitForTimeout(250);
+  await p.locator('[data-slot="dialog-content"] button').filter({ hasText: /Append amendment|Apply change|Save update/ }).first().click();
+  await p.waitForTimeout(400);
+
+  const r = await p.evaluate(() => {
+    const dialog = document.querySelector('[data-slot="dialog-content"]');
+    const rows = [...document.querySelectorAll('[data-record-section="care-timeline"] li[id^="care-"]')];
+    // The landed row is the one carrying the press tint.
+    const landed = rows.find((li) => getComputedStyle(li).backgroundColor === getComputedStyle(document.documentElement).getPropertyValue("--tint-press").trim() || li.className.includes("bg-[var(--tint-press)]"));
+    // THE AMENDS LINK, NOT THE FIRST BUTTON. `querySelector("button")` returns
+    // the CHEVRON — icon-only, so its text was "" and its 0.15s transition was
+    // reported as the link's. Match on the copy the link actually carries.
+    const link = landed
+      ? [...landed.querySelectorAll("button")].find((x) => /^Amends the /.test(x.textContent.trim()))
+      : null;
+    return {
+      dialogClosed: !dialog,
+      rows: rows.length,
+      landedId: landed?.id ?? null,
+      linkText: link?.textContent.trim() ?? null,
+      // ═══ PROPERTY, NOT DURATION ═══
+      // Tailwind's `transition-none` sets `transition-property: none` and leaves
+      // `transition-duration` alone, so the duration still reads 0.8s under
+      // reduced motion while nothing actually animates. Asserting the duration
+      // reported a failure the code did not have.
+      linkTransition: link ? getComputedStyle(link).transitionDuration : null,
+      linkTransitionProperty: link ? getComputedStyle(link).transitionProperty : null,
+    };
+  });
+  const tag = reduced ? "reduced motion" : "default motion";
+  check(r.dialogClosed, `${tag}: the modal closed on success`);
+  check(r.rows === before + 1, `${tag}: the new entry is in History`, `${before} → ${r.rows}`);
+  check(!!r.landedId, `${tag}: the new entry is highlighted`, r.landedId ?? "none");
+  check(/^Amends the /.test(r.linkText ?? ""), `${tag}: the highlighted row carries the amends link`, JSON.stringify(r.linkText));
+  if (reduced) {
+    check(r.linkTransitionProperty === "none", "reduced motion: nothing transitions on the link",
+      `property=${r.linkTransitionProperty} (duration ${r.linkTransition} is left alone by transition-none, and is inert)`);
+  } else {
+    check(r.linkTransition === "0.8s", "default motion: the link fades over ~800ms", String(r.linkTransition));
+    check(r.linkTransitionProperty !== "none", "default motion: the transition is live", `property=${r.linkTransitionProperty}`);
+  }
+  await ctx.close();
+}
+
 await b.close();
 console.log("\nHEADER STRINGS:");
 for (const [k, v] of Object.entries(HEADER)) console.log(`  ${k}: ${JSON.stringify(v.line)}  contrast ${v.ratio}:1`);

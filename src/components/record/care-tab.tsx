@@ -348,6 +348,32 @@ export function CareTab({
       diagnosticPrefill: meta.diagnosticPrefill,
     });
 
+    /** ═══ THE SUCCESS MOMENT (Workstream D) ═══
+     *
+     *  An append-only correction is a RELATIONSHIP between two entries, and the
+     *  moment it exists is the only moment a reader is thinking about that
+     *  relationship. So the record scrolls to the new entry and its "Amends the
+     *  {date} entry" link lights up briefly — the teaching happens once, at the
+     *  point of creation, instead of in a paragraph nobody reads.
+     *
+     *  IT REUSES `jump`, which already scrolls and highlights under a
+     *  `motion-reduce` guard, rather than growing a second highlight mechanism.
+     *  The id is derivable: a care update's timeline event is `ce-cu-${updateId}`
+     *  (see `careUpdateToEvent`), so the target exists as soon as the write lands.
+     *
+     *  AMENDMENTS ONLY. A plain update has no relationship to teach, and scrolling
+     *  the page on every save would be motion for its own sake.
+     *
+     *  `requestAnimationFrame` because the row does not exist yet: the store write
+     *  above is synchronous but React has not re-rendered, so `getElementById`
+     *  would return null this tick. `jump` has its own inner frame, so this is one
+     *  frame for the render and one for the scroll. */
+    if (meta.amends) {
+      requestAnimationFrame(() => {
+        timelineRef.current?.jump(`ce-cu-${updateId}`);
+      });
+    }
+
     if (commit) {
       // ═══ THE DECISION AND ITS EVIDENCE, IN ONE WRITE ═══
       //

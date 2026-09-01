@@ -496,6 +496,17 @@ function Row({
                 onClick={() => onJump(amends.id)}
                 className={cn(
                   "rounded-sm text-[var(--text-secondary)] underline underline-offset-2",
+                  /* ═══ THE LINK IS WHAT LIGHTS UP (Workstream D) ═══
+                     The row already tints when jumped to; this puts the emphasis
+                     on the SENTENCE that names the relationship, because that is
+                     the thing being taught. ~800ms, half the row's 1600 — the
+                     link should settle before the row does, so the eye ends on the
+                     text rather than on a fading rectangle.
+                     `motion-reduce:transition-none` makes it a static highlight
+                     that clears on the next state change rather than a fade, which
+                     is what "no animation" means for a decaying cue. */
+                  "-mx-1 rounded-sm px-1 transition-colors duration-[800ms] motion-reduce:transition-none",
+                  landed && "bg-[var(--tint-press)] text-[var(--text-primary)]",
                   RING
                 )}
               >
