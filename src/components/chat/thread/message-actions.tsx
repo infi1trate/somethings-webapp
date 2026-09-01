@@ -1,0 +1,153 @@
+"use client";
+
+// WHAT YOU CAN DO WITH ONE MESSAGE.
+//
+// ═══ BUILT IN PHASE 2, FILLED IN PHASES 5 AND 6 ═══
+//
+// This slot exists before most of what goes in it, deliberately. Two of the three
+// entries a message will eventually offer — tag it for documentation, escalate
+// from it — are the entry points for whole features, and if the slot arrives with
+// them the thread gets redesigned twice. Its placement, its reveal behaviour and
+// its keyboard path are decided now, once, against one working action.
+//
+// ═══ THE TRIGGER IS VISIBLE ON TOUCH AND REVEALED ON HOVER ═══
+//
+// "Reveal on hover" is the desktop convention and it is a trap on a phone: there
+// is no hover, so `opacity-0` leaves a button that is present, focusable, and
+// invisible. `@media (hover: hover)` is the distinction that matters — where a
+// pointer can hover, the trigger hides until it does; where one cannot, it is
+// simply there.
+//
+// NO LONG-PRESS. It was considered and dropped: a long-press handler on a bubble
+// inside a scroll container has to disambiguate itself from a scroll gesture, gets
+// that wrong on the first flick, and buys nothing over a button that is already on
+// screen. The visible trigger is the touch affordance.
+//
+// KEYBOARD REACHES IT WITHOUT HOVERING, which is the case a hover-reveal usually
+// breaks: the trigger is a real button in the tab order, and `focus-visible` shows
+// it. `group-focus-within` also holds it open while the menu inside has focus.
+//
+// ═══ REACTIONS ARE SESSION-LOCAL, AND THAT IS A CHOICE ═══
+//
+// They live in the page's state rather than in the persisted store. The four things
+// the chat persists are the ones that have to survive a navigation to mean anything
+// — an open escalation, a sent activity, a note. A reaction on a fixture message is
+// a prototype interaction; persisting it would mean a schema version and a
+// migration for something whose whole job is to be immediate. Noted rather than
+// hidden: if reactions become real content, they belong beside `chatNotes`.
+
+import { useState } from "react";
+import { SmilePlus } from "lucide-react";
+import type { Sender } from "@/lib/chat/types";
+import { cn } from "@/lib/utils";
+
+const RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+
+/** ═══ SIX, NOT A PICKER ═══
+ *
+ *  A full emoji keyboard on a staff surface is a search field, a scroll region and
+ *  a decision. What a mentor is doing here is acknowledging a message in one tap,
+ *  and six covers the range that acknowledgement has: warm, amused, impressed,
+ *  sad, sorry, agreed.
+ *
+ *  Each one carries a WORD, because an emoji has no accessible name of its own that
+ *  says what pressing it means — "grinning face with smiling eyes" is a description
+ *  of a picture, not of an action. TODO-COPY. */
+const REACTIONS: Array<{ emoji: string; label: string }> = [
+  { emoji: "❤️", label: "Love this" },
+  { emoji: "😂", label: "That's funny" },
+  { emoji: "🙌", label: "Proud of you" },
+  { emoji: "😔", label: "That's hard" },
+  { emoji: "🤝", label: "Agreed" },
+  { emoji: "👀", label: "Noticed this" },
+];
+
+export function MessageActions({
+  /** Which side the bubble is on, so the trigger and the menu open away from it. */
+  side,
+  onReact,
+  className,
+}: {
+  side: Sender;
+  onReact: (emoji: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const mine = side === "mentor";
+
+  return (
+    <div
+      className={cn(
+        "relative flex shrink-0 items-center self-center",
+        className
+      )}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        /* TODO-COPY. Names the action, not the glyph. */
+        aria-label="React to this message"
+        title="React"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={(e) => {
+          // Close when focus leaves the whole control, not on every blur — a blur
+          // onto one of the emoji buttons inside must not dismiss it.
+          if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) {
+            setOpen(false);
+          }
+        }}
+        className={cn(
+          "flex size-7 items-center justify-center rounded-full text-[var(--text-muted)] transition-opacity",
+          "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+          // VISIBLE WHERE THERE IS NO HOVER — see the module note. Only a pointer
+          // that can hover gets the hidden-until-hovered treatment.
+          "[@media(hover:hover)]:opacity-0",
+          "[@media(hover:hover)]:group-hover:opacity-100",
+          "[@media(hover:hover)]:group-focus-within:opacity-100",
+          open && "[@media(hover:hover)]:opacity-100",
+          RING
+        )}
+      >
+        <SmilePlus className="size-4" aria-hidden />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          /* TODO-COPY */
+          aria-label="Reactions"
+          className={cn(
+            "absolute bottom-full z-10 mb-1 flex items-center gap-0.5 rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-card)] p-1 shadow-[var(--shadow-card)]",
+            // OPENS AWAY FROM THE BUBBLE, so it never covers the message it is
+            // about — which on this surface may be the sentence a mentor is
+            // deciding about.
+            mine ? "right-0" : "left-0"
+          )}
+        >
+          {REACTIONS.map((r) => (
+            <button
+              key={r.emoji}
+              type="button"
+              role="menuitem"
+              aria-label={r.label}
+              title={r.label}
+              onClick={() => {
+                onReact(r.emoji);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-full text-[15px] leading-none transition-colors",
+                "hover:bg-[var(--tint-hover)]",
+                RING
+              )}
+            >
+              <span aria-hidden>{r.emoji}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

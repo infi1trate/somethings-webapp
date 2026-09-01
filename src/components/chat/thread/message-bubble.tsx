@@ -25,7 +25,8 @@
 
 import { Mic } from "lucide-react";
 import { MediaFrame } from "@/components/chat/thread/media-frame";
-import type { ChatMessage } from "@/lib/chat/types";
+import { MessageActions } from "@/components/chat/thread/message-actions";
+import type { ChatMessage, MessageReaction } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
 /** TODO-COPY. Clock time, which is what a reader wants INSIDE a conversation —
@@ -49,13 +50,35 @@ export function MessageBubble({
   theirName,
   /** False when this message continues the one above it — see `needsMeta`. */
   showMeta = true,
+  /** Reactions added in this session, merged over the fixture's own. Session-local
+   *  by decision — see `MessageActions`. */
+  added,
+  onReact,
 }: {
   message: ChatMessage;
   theirName: string;
   showMeta?: boolean;
+  added?: string[];
+  onReact?: (emoji: string) => void;
 }) {
   const mine = message.sender === "mentor";
   const who = mine ? "You" : theirName; // TODO-COPY
+
+  /* ═══ FIXTURE REACTIONS AND ADDED ONES ARE ONE LIST, DEDUPED ═══
+     A mentor pressing 😂 on a message a teen already reacted to with 😂 should not
+     produce two of them. Merged here rather than at the call site so every
+     consumer of this component gets the same behaviour. */
+  const reactions: MessageReaction[] = (() => {
+    const base = message.reactions ?? [];
+    if (!added?.length) return base;
+    const seen = new Set(base.map((r) => r.emoji));
+    return [
+      ...base,
+      ...added
+        .filter((e) => !seen.has(e))
+        .map((emoji) => ({ emoji, by: "mentor" as const })),
+    ];
+  })();
 
   /** The bubble, spoken. Sender, then content, then time — the order a reader
    *  would ask for them in. Non-text kinds name themselves, because "photo" is
@@ -72,7 +95,10 @@ export function MessageBubble({
   return (
     <li
       className={cn(
-        "flex flex-col",
+        // `group` is what the actions trigger reads for its hover reveal — see
+        // `MessageActions`. On the LIST ITEM rather than the bubble, so the
+        // trigger sitting beside the bubble is inside the same group.
+        "group flex flex-col",
         mine ? "items-end" : "items-start",
         // A continuation sits tighter to what it continues than to the next turn.
         // The spacing is what makes a burst read as one utterance.
@@ -93,6 +119,25 @@ export function MessageBubble({
         </p>
       )}
 
+      {/* THE ROW HOLDS THE BUBBLE AND ITS ACTIONS SIDE BY SIDE, in the order the
+          side dictates: the trigger always sits on the OUTSIDE of the bubble, away
+          from the column's centre, so it never lands between two messages.
+          `max-w-full` on the row and the cap on the bubble, so the trigger's 28px
+          does not eat into the message's measure. */}
+      <span
+        className={cn(
+          /* ═══ `w-full`, NOT `max-w-full` ═══
+             MEASURED FROM A SCREENSHOT: bubbles wrapped ~80px earlier than their
+             cap. The bubble's `max-w-[min(78%,420px)]` resolves against THIS row,
+             and a content-sized row makes that circular — the row was as wide as
+             the bubble, so 78% of it was always narrower than the bubble wanted.
+             A full-width row gives the percentage something real to measure
+             against, and `justify-*` is then what puts the pair on its side. */
+          "flex w-full items-center gap-1",
+          mine ? "flex-row justify-end" : "flex-row-reverse justify-end"
+        )}
+      >
+        {onReact && <MessageActions side={message.sender} onReact={onReact} />}
       <div
         // The accessible name is on the CONTENT, not the list item, so a screen
         // reader reads one coherent string per message.
@@ -157,8 +202,9 @@ export function MessageBubble({
           </span>
         )}
       </div>
+      </span>
 
-      {message.reactions && message.reactions.length > 0 && (
+      {reactions.length > 0 && (
         /* ═══ REACTIONS SIT ON THE BUBBLE'S EDGE, NOT OVER IT ═══
            Overlapping the corner is the convention elsewhere and it costs a line
            of text to the overlap on a two-line message. Below and inset keeps
@@ -173,13 +219,11 @@ export function MessageBubble({
           )}
         >
           <span aria-hidden className="text-[11px] leading-[14px]">
-            {message.reactions.map((r) => r.emoji).join("")}
+            {reactions.map((r) => r.emoji).join("")}
           </span>
           <span className="sr-only">
             {/* TODO-COPY */}
-            {message.reactions.length === 1
-              ? "1 reaction"
-              : `${message.reactions.length} reactions`}
+            {reactions.length === 1 ? "1 reaction" : `${reactions.length} reactions`}
           </span>
         </span>
       )}

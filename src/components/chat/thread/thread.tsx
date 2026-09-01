@@ -27,12 +27,19 @@
 // on a hairline so the date reads as a boundary rather than as a message from
 // nobody — the same treatment the Tasks excerpt's truncation marker uses.
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { RecordAvatar } from "@/components/record/record-avatar";
 import { Composer } from "@/components/chat/thread/composer";
 import { MessageBubble, needsMeta } from "@/components/chat/thread/message-bubble";
-import type { ChatMessage, ChatThread, ThreadBadge } from "@/lib/chat/types";
+import { EventChip } from "@/components/chat/thread/event-chip";
+import type {
+  ChatEvent,
+  ChatMessage,
+  ChatThread,
+  ThreadBadge,
+} from "@/lib/chat/types";
+import { LIVE_ID } from "@/lib/record/subject";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -104,12 +111,22 @@ function DayDivider({ label }: { label: string }) {
 export function Thread({
   thread,
   messages,
+  events = [],
   now,
+  reactions,
+  onReact,
+  onOpenEvent,
   className,
 }: {
   thread: ChatThread;
   messages: ChatMessage[];
+  /** Interleaved into the transcript by time — see `entries`. */
+  events?: ChatEvent[];
   now: number;
+  /** Session-local reactions, keyed by message id. See `MessageActions`. */
+  reactions?: Record<string, string[]>;
+  onReact?: (messageId: string, emoji: string) => void;
+  onOpenEvent?: (event: ChatEvent) => void;
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -138,21 +155,59 @@ export function Thread({
     return () => cancelAnimationFrame(id);
   }, [thread.id]);
 
-  /** ═══ DAY BOUNDARIES, COMPUTED BEFORE THE RENDER ═══
-   *  The first version carried a `let lastDay` and reassigned it inside `.map`,
-   *  which `react-hooks/immutability` rejects — and rightly: a render that mutates
-   *  a variable as it walks is a render whose output depends on how many times it
-   *  ran. Marking the boundaries up front makes the map a pure function of them. */
-  const startsDay = useMemo(() => {
-    const flags = new Set<string>();
-    let prev = "";
-    for (const m of messages) {
-      const key = dayKey(m.at);
-      if (key !== prev) flags.add(m.id);
-      prev = key;
+  /** ═══ ONE TIMELINE OF MESSAGES AND EVENTS ═══
+   *
+   *  Merged by timestamp into a single sequence, and the day boundaries and the
+   *  clustering rule both run over THAT rather than over messages alone. Both
+   *  details matter:
+   *
+   *   · An event between two of a teen's messages BREAKS THE CLUSTER. "You sent
+   *     Hot Takes" sitting between them means the second one is not a continuation
+   *     of the first any more, so it gets its name and time back. Clustering over
+   *     messages-only would have dropped that header and made the second message
+   *     look like it came straight after the first.
+   *   · A day divider has to be able to land on an event. A thread whose only
+   *     Tuesday entry is an activity going out would otherwise put Wednesday's
+   *     first message under "Tuesday".
+   *
+   *  Computed before the render, not accumulated inside `.map` —
+   *  `react-hooks/immutability` rejects the latter, and rightly: a render that
+   *  mutates as it walks produces output that depends on how many times it ran. */
+  const entries = useMemo(() => {
+    type Entry =
+      | { kind: "message"; at: number; message: ChatMessage }
+      | { kind: "event"; at: number; event: ChatEvent };
+    const merged: Entry[] = [
+      ...messages.map((m) => ({ kind: "message" as const, at: m.at, message: m })),
+      ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
+    ].sort((a, b) => a.at - b.at);
+
+    /* A `for` LOOP, NOT `.map`. `react-hooks/immutability` rejects reassigning a
+       closure variable from inside a callback — correctly, since a callback can in
+       principle run outside the pass that created it. A loop body is ordinary
+       local scope, so the running state is just a local. */
+    const out: Array<Entry & { newDay: boolean; showMeta: boolean }> = [];
+    let prevDay = "";
+    let prevMessage: ChatMessage | undefined;
+    for (const entry of merged) {
+      const key = dayKey(entry.at);
+      const newDay = key !== prevDay;
+      prevDay = key;
+      if (entry.kind === "event") {
+        // An event resets the cluster — see above.
+        prevMessage = undefined;
+        out.push({ ...entry, newDay, showMeta: false });
+        continue;
+      }
+      out.push({
+        ...entry,
+        newDay,
+        showMeta: newDay || needsMeta(entry.message, prevMessage),
+      });
+      prevMessage = entry.message;
     }
-    return flags;
-  }, [messages]);
+    return out;
+  }, [messages, events]);
 
   return (
     <div
@@ -219,7 +274,7 @@ export function Thread({
         // start scrolling the page behind it.
         className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4"
       >
-        {messages.length === 0 ? (
+        {entries.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6">
             <div className="max-w-[34ch] text-center">
               <p
@@ -242,20 +297,52 @@ export function Thread({
           </div>
         ) : (
           <ul role="list" aria-label={`Conversation with ${theirName}`}>
-            {messages.map((m, i) => {
-              const newDay = startsDay.has(m.id);
+            {entries.map((entry) => {
+              const id =
+                entry.kind === "message" ? entry.message.id : entry.event.id;
               return (
-                <div key={m.id} className="contents">
-                  {newDay && <DayDivider label={dayLabel(m.at, now)} />}
-                  <MessageBubble
-                    message={m}
-                    theirName={theirName}
-                    // A new day always re-states who is speaking, whatever the
-                    // clustering rule says — a reader arriving at "Tuesday" needs
-                    // the next line attributed.
-                    showMeta={newDay || needsMeta(m, messages[i - 1])}
-                  />
-                </div>
+                /* ═══ A FRAGMENT, NOT A `display: contents` DIV ═══
+                   Each entry can render TWO list items — a day divider and then the
+                   message or event — so it needs a keyed wrapper, and the first
+                   version used `<div className="contents">`. That is wrong twice
+                   over. A `<ul>` may only contain `<li>`, so a div child breaks the
+                   list's structure for a screen reader walking it — `display:
+                   contents` hides the box, not the node. And a
+                   `display: contents` element reports a ZERO-SIZED rect, which
+                   silently broke a probe that was measuring the gap between two
+                   bubbles and reported 0px as a pass.
+                   A keyed Fragment adds no DOM node at all, which is what was
+                   wanted. */
+                <Fragment key={id}>
+                  {entry.newDay && <DayDivider label={dayLabel(entry.at, now)} />}
+                  {entry.kind === "message" ? (
+                    <MessageBubble
+                      message={entry.message}
+                      theirName={theirName}
+                      // A new day always re-states who is speaking, whatever the
+                      // clustering rule says — a reader arriving at "Tuesday"
+                      // needs the next line attributed.
+                      showMeta={entry.showMeta}
+                      added={reactions?.[entry.message.id]}
+                      onReact={
+                        onReact
+                          ? (emoji) => onReact(entry.message.id, emoji)
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <EventChip
+                      event={entry.event}
+                      /* TODO-COPY. "You" for the mentor's own actions, the other
+                         party's first name otherwise — a mentor scanning needs to
+                         know which of them did this. */
+                      actorName={
+                        entry.event.actorId === LIVE_ID ? "You" : theirName
+                      }
+                      onOpen={onOpenEvent}
+                    />
+                  )}
+                </Fragment>
               );
             })}
           </ul>

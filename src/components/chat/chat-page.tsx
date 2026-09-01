@@ -99,6 +99,26 @@ export function ChatPage({
    *  starts open covers the thread a mentor came here to read. */
   const [railOpen, setRailOpen] = useState(false);
 
+  /** ═══ REACTIONS ADDED THIS SESSION, KEYED BY MESSAGE ID ═══
+   *  Not persisted, and `MessageActions` carries the reasoning: the four things
+   *  this surface persists are the ones that have to survive a navigation to mean
+   *  anything, and a reaction on a fixture message is not one of them. Held at the
+   *  PAGE rather than in the thread so switching conversations and coming back
+   *  does not lose them. */
+  const [reactions, setReactions] = useState<Record<string, string[]>>({});
+  const react = (messageId: string, emoji: string) =>
+    setReactions((r) => {
+      const had = r[messageId] ?? [];
+      // Pressing the same one again removes it — a reaction is a toggle, and a
+      // menu that can only ever add is a menu that accumulates mistakes.
+      return {
+        ...r,
+        [messageId]: had.includes(emoji)
+          ? had.filter((e) => e !== emoji)
+          : [...had, emoji],
+      };
+    });
+
   const threads = data?.threads ?? [];
   /* ═══ THE DEEP LINK IS A FALLBACK, NOT AN OVERRIDE ═══
      `picked` first, so a reader who follows `?with=t18` and then chooses someone
@@ -108,6 +128,7 @@ export function ChatPage({
   const selectedId = picked ?? withId ?? data?.focusThreadId ?? null;
   const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
   const messages = thread ? (data?.messages[thread.id] ?? []) : [];
+  const events = thread ? (data?.events[thread.id] ?? []) : [];
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -172,7 +193,18 @@ export function ChatPage({
 
           {thread ? (
             <div className="relative min-h-0 flex-1">
-              <Thread thread={thread} messages={messages} now={now} />
+              <Thread
+                thread={thread}
+                messages={messages}
+                events={events}
+                now={now}
+                reactions={reactions}
+                onReact={react}
+                /* PHASE 4 opens the DetailSheet from here. Left undefined for now
+                   rather than wired to a no-op, because `EventChip` renders an
+                   inert chip when there is nothing to open — which is honest, and
+                   is what stops a pressable-looking chip from doing nothing. */
+              />
 
               {/* ═══ THE RAIL TOGGLE LIVES ON THE THREAD, NOT IN THE RAIL ═══
                   A control that hides a panel cannot live inside the panel it
