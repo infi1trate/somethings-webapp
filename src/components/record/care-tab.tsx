@@ -79,6 +79,7 @@ import {
   CareReviewSlot,
   CareSummaryDigest,
   ReviewDraftBar,
+  useFittedHeight,
   type SlotExpanded,
 } from "@/components/record/care-review-slot";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { clearReviewDraft, type ReviewDecision } from "@/lib/record/review-draft";
 import {
   REVIEW_NOUN,
+  type PresentationReview,
   cadenceFor,
   careTimelineFor,
   scoreSeriesFor,
@@ -215,6 +217,17 @@ export function CareTab({
    *  one. Opening a review tips to `review`; closing it tips back to `summary`
    *  and leaves the draft bar behind. */
   const [expanded, setExpanded] = useState<SlotExpanded>("review");
+  /** ═══ THE COMMITTED REVIEW, HELD SO IT CAN LEAVE ═══
+   *  Committing writes to the store, `pendingReviewFor` immediately returns null
+   *  and the panel would unmount on the click frame — there is nothing left to
+   *  animate out. So the review is snapshotted here for the length of the exit
+   *  and the panel renders from the snapshot. The RECORD WRITE IS NOT DELAYED:
+   *  it happens on the click, and only the panel's removal waits. */
+  const [closingReview, setClosingReview] =
+    useState<PresentationReview | null>(null);
+  /** 40px: the page's own column gutter (`lg:px-10`), so the panel's bottom gap
+   *  matches its right one. */
+  const { ref: columnRef, maxHeight: columnMaxHeight } = useFittedHeight(40);
   /** The post-commit confirmation the attention card compresses into
    *  (Workstream F). Null at rest; set for one render pass after a commit. */
   const [reviewed, setReviewed] = useState<{
@@ -508,6 +521,11 @@ export function CareTab({
     />
   ) : null;
 
+  /** The review the panel is rendering: the live one, or the one on its way
+   *  out. */
+  const panelReview = review ?? closingReview;
+  const reviewInProgress = (reviewOpen && !!review) || !!closingReview;
+
   /** ═══ TIPPING THE SEE-SAW, AND WHERE FOCUS LANDS ═══
    *
    *  Every tip is a press on a real control — the digest, the draft bar, or the
@@ -531,17 +549,18 @@ export function CareTab({
    *  1100px, the sheet below it. One element in one variable rather than two JSX
    *  sites, because two would remount the form on every breakpoint crossing and
    *  take the draft's scroll position with it. */
-  const panelNode = review ? (
+  const panelNode = panelReview ? (
     <CareReviewPanel
-      review={review}
+      review={panelReview}
       currentCode={presentation?.code ?? null}
       teenId={teen.id}
       prefill={{
-        source: review.rationale.source,
-        text: review.rationale.text,
+        source: panelReview.rationale.source,
+        text: panelReview.rationale.text,
       }}
       now={now}
       focusSignal={panelFocus}
+      closing={!!closingReview}
       onClose={() => {
         /* CLOSING TIPS THE SEE-SAW; it does not end the review. The draft bar
            takes the panel's place, so the work is one press away and nothing is
@@ -549,6 +568,8 @@ export function CareTab({
         tipTo("summary");
       }}
       onCommit={(decision: ReviewDecision, body, at) => {
+        const review = panelReview;
+        if (!review) return;
         const code =
           decision.kind === "change"
             ? decision.code
@@ -585,7 +606,11 @@ export function CareTab({
            places for different reasons. `reviewOpen` false takes the slot back
            to the summary on this frame; `setReviewed` on the next paints the
            confirmation into the space the card was holding. */
-        setReviewOpen(false);
+        /* THE PANEL LEAVES UNDER ITS OWN ANIMATION. `closing` runs the settle
+           in reverse for 200ms; only then does it unmount and the card resolve,
+           which keeps the sequence the spec asks for and gives the exit
+           something to animate rather than vanishing on the click frame. */
+        setClosingReview(review);
         setExpanded("review");
         /* ═══ ONE BEAT BETWEEN THEM, NOT ONE FRAME ═══
            `requestAnimationFrame` put the card's confirmation on screen ~16ms
@@ -594,7 +619,11 @@ export function CareTab({
            matches the slot's own transition, so the column has finished settling
            before the card starts. Total choreography stays well inside the
            budget: 200 to settle, 200 for the card, then the hold. */
-        window.setTimeout(() => setReviewed({ code, changed: applies }), 200);
+        window.setTimeout(() => {
+          setReviewOpen(false);
+          setClosingReview(null);
+          setReviewed({ code, changed: applies });
+        }, 200);
       }}
     />
   ) : null;
@@ -635,7 +664,6 @@ export function CareTab({
    *  two sets of fields. So the slot is rendered in exactly one place and this
    *  decides which. */
   const wide = useMediaQuery("(min-width: 1100px)");
-  const reviewInProgress = reviewOpen && !!review;
 
 
   // ═══ NOTHING TIME-DERIVED UNTIL MOUNT (standing rule 3, gap row 291) ═══
@@ -917,7 +945,13 @@ export function CareTab({
           rendering the slot (this one above 1100px, the sheet below it), so the
           panel is never mounted twice and its fields never remount. */}
       {summaryNode && !summaryOverlayOpen && wide && (
-        <div className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:flex min-[1100px]:max-h-[calc(100dvh-6rem)] min-[1100px]:flex-col">
+        <div
+          ref={columnRef}
+          /* The measured fit replaces `max-h-[calc(100dvh-6rem)]`, which was
+             only correct once this column was stuck — see `useFittedHeight`. */
+          style={{ maxHeight: columnMaxHeight }}
+          className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:flex min-[1100px]:flex-col"
+        >
           <CareReviewSlot
             expanded={expanded}
             reviewInProgress={reviewInProgress}

@@ -472,3 +472,44 @@
     background-color: var(--band-amber-bg);
   }
 }
+
+/* ═══ THE REVIEW PANEL SETTLES IN; IT DOES NOT SLIDE OUT ═══
+ *
+ *  A horizontal slide from the right edge is drawer semantics — it says "this
+ *  came out of the app frame", which is the exact reading the floating panel
+ *  exists to avoid. So the panel arrives where it already belongs: a short lift
+ *  from 8px below, a 2% scale, and opacity. Nothing travels from an edge.
+ *
+ *  Exit is the same curve reversed, so closing reads as the card setting back
+ *  down rather than as a second, different animation.
+ *
+ *  In CSS rather than a Tailwind arbitrary value for the reason `chat-ref-flash`
+ *  is: the exit class is toggled from a commit handler, and a class the JIT never
+ *  sees in source is a class it never generates.
+ */
+@keyframes review-panel-settle {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.review-panel-enter {
+  animation: review-panel-settle 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.review-panel-exit {
+  animation: review-panel-settle 200ms cubic-bezier(0.4, 0, 0.2, 1) reverse
+    forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* INSTANT, BOTH WAYS. No fade, no lift — the panel is simply there, or gone.
+     `forwards` on the exit is dropped with the animation, so the element is
+     unmounted by its owner rather than left invisible. */
+  .review-panel-enter,
+  .review-panel-exit {
+    animation: none;
+  }
+}

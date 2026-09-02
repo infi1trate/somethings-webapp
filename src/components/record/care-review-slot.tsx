@@ -23,6 +23,7 @@
 // combination of props that can express a third state — which is the only way a
 // rule like this survives the next person to touch it.
 
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { CareSummaryDoc } from "@/lib/record/care-summary-doc";
 import { cn } from "@/lib/utils";
@@ -105,7 +106,11 @@ export function CareSummaryDigest({
       aria-label="Expand the care summary"
       data-record-section="care-summary-digest"
       className={cn(
-        "w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-1.5 text-left transition-colors hover:bg-[var(--tint-hover)]",
+        /* SAME LIFT AS THE PANEL. The build gave the panel a shadow and left the
+           digest flat, so the column read as one fused surface with a seam rather
+           than two cards with a gap between them. Both float now; what separates
+           them is the 12px gap and their sizes, not their elevation. */
+        "w-full rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-1.5 text-left shadow-[var(--shadow-card)] transition-colors hover:bg-[var(--tint-hover)]",
         RING,
         className
       )}
@@ -219,6 +224,64 @@ export function ReviewDraftBar({
       <ChevronUp className="size-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
     </button>
   );
+}
+
+/** ═══ FULL HEIGHT MEANS "TO THE BOTTOM INSET", NOT "OFF THE SCREEN" ═══
+ *
+ *  The build bounded the column with `max-h-[calc(100dvh-6rem)]`, which is only
+ *  right once the sticky column is stuck to the top. Unscrolled, the column
+ *  starts ~300px down the page, so that height ran the panel 207px PAST the
+ *  bottom of the window — measured. A panel with no visible bottom edge is
+ *  exactly what reads as extruded from the app frame rather than laid on it.
+ *
+ *  No CSS length knows where an element currently sits, so this measures. It
+ *  reads the tab's own scroll container (the page itself does not scroll) and
+ *  leaves the same gap at the bottom that the page gutter leaves at the right,
+ *  recomputing on scroll and resize behind a frame so the sticky transition in
+ *  and out of stuck position stays correct.
+ *
+ *  @param bottomInset px to leave below the column — the page's column gutter,
+ *  so the bottom gap matches the right one. */
+export function useFittedHeight(bottomInset: number) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let frame = 0;
+
+    // The tab content scrolls inside its own box; `window` never scrolls here.
+    let scroller: HTMLElement | null = el.parentElement;
+    while (scroller && getComputedStyle(scroller).overflowY !== "auto") {
+      scroller = scroller.parentElement;
+    }
+
+    const measure = () => {
+      frame = 0;
+      const top = el.getBoundingClientRect().top;
+      const floor = scroller
+        ? scroller.getBoundingClientRect().bottom
+        : window.innerHeight;
+      // A floor of 240px so a very short window degrades to a scrollable panel
+      // rather than to one with no room for its own footer.
+      setMaxHeight(Math.max(240, Math.round(floor - top - bottomInset)));
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+
+    measure();
+    window.addEventListener("resize", schedule);
+    scroller?.addEventListener("scroll", schedule, { passive: true });
+    return () => {
+      window.removeEventListener("resize", schedule);
+      scroller?.removeEventListener("scroll", schedule);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [bottomInset]);
+
+  return { ref, maxHeight };
 }
 
 /** Which unit currently holds the column. */

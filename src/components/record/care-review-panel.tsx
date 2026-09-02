@@ -81,6 +81,12 @@ export interface CareReviewPanelProps {
    *  callback, so a re-render for any other reason cannot pull focus out of a
    *  field somebody is typing in. */
   focusSignal: number;
+  /** ═══ THE PANEL IS STILL MOUNTED WHILE IT LEAVES ═══
+   *  Set for the length of the exit animation and then dropped by the owner. An
+   *  unmount on click would give the exit nothing to animate, and the commit
+   *  choreography (panel out, then the card resolves) depends on the panel
+   *  actually taking that time rather than vanishing on the frame. */
+  closing?: boolean;
   onClose: () => void;
   onCommit: (
     decision: ReviewDecision,
@@ -96,6 +102,7 @@ export function CareReviewPanel({
   prefill,
   now,
   focusSignal,
+  closing,
   onClose,
   onCommit,
 }: CareReviewPanelProps) {
@@ -241,7 +248,16 @@ export function CareReviewPanel({
            that container rather than against `100dvh`, and the panel reads as a
            document lying on the workspace instead of chrome bolted to the
            window. */
-        "min-h-0 flex-1 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] shadow-lg"
+        /* `--shadow-card`, not `shadow-lg`. The build shipped Tailwind's own
+           default shadow, which is not a Bloom token at all — and of the tokens
+           that exist, `--shadow-panel` is a flat all-round glow used by app
+           chrome, which is the reading this panel is supposed to avoid.
+           `--shadow-card` is the directional lift every other elevated surface
+           on this record uses, and "a card placed on the workspace" is exactly
+           what it is for. */
+        "min-h-0 flex-1 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] shadow-[var(--shadow-card)]",
+        /* See `review-panel-settle` in globals.css. */
+        closing ? "review-panel-exit" : "review-panel-enter"
       )}
     >
       {/* ═══ HEADER ═══ */}
