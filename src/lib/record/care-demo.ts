@@ -1417,8 +1417,19 @@ export type CadenceStage = "intake" | "day30" | "quarterly";
  *  review due at day 120 and the one due at day 210 are the same review on the
  *  same 90-day cadence. What distinguished them was only which was first, and
  *  that is not a fact about the review a supervisor is being asked to do. */
+/** ═══ R6: ALL THREE STAGES NOW READ "{N}-day review" ═══
+ *
+ *  `intake` said "Day 30", which named the milestone rather than the review. The
+ *  Figma composition puts the review TYPE beside the status chip, and "Day 30"
+ *  beside "Recommended presentation" reads as a date, not a review.
+ *
+ *  CHANGED IN PLACE RATHER THAN GIVEN A THIRD MAP. There are already two of these
+ *  (`STAGE_LABEL` and `REVIEW_NOUN`) and the note below explains what the second
+ *  one cost; a third for one string is how a fourth gets added. `STAGE_LABEL` has
+ *  exactly two non-test consumers, both on the Care tab and both in this pack's
+ *  scope, so the edit reaches nothing it should not. */
 export const STAGE_LABEL: Record<CadenceStage, string> = {
-  intake: "Day 30",
+  intake: "30-day review",
   day30: "90-day review",
   quarterly: "90-day review",
 };
@@ -1714,6 +1725,51 @@ export function cadenceFor(
  *  mixed series would put two scales on one line. The locked instrument is the
  *  one `cadenceFor` reports, so the sparkline and the Last assessment chip
  *  beside it are always describing the same measurement. */
+/** ═══ THE WEIGHTED AVERAGE ON RECORD, INDEPENDENT OF A PENDING REVIEW ═══
+ *
+ *  R6 gives the presentation card a `Weighted Avg` cell, and the brief requires it
+ *  to reconcile with the review card's Weighted column and the attention strip.
+ *  The review card gets its number from `pendingReviewFor(...).aggregate` — but
+ *  the presentation card renders on EVERY record, including the many with no
+ *  review pending, and a cell that reads "—" on a teen with five surveys would be
+ *  hiding the row's most useful number behind an unrelated condition.
+ *
+ *  So the value is derived from the record itself, by the same rule: the locked
+ *  instrument's most recent comparable surveys, newest first, through
+ *  `weightedAggregate`. One ratio, one instrument rule, one rounding — which is
+ *  what makes the two cells agree rather than merely look similar. Asserted in
+ *  `record-scenarios.test.ts`.
+ *
+ *  INSTRUMENT SELECTION IS `scoreSeriesFor`'s, deliberately: the most recent
+ *  assessment's instrument, so the axis, the series and this number all lock to
+ *  the same one. `null` when there are fewer than two comparable readings, which
+ *  is the cell's "—" state and not an error. */
+export function weightedNowFor(
+  teenId: string,
+  now: number,
+  store: CareStoreSlice = {}
+): { score: number; severity: string; surveys: CareAssessment[] } | null {
+  const assessments = careTimelineFor(teenId, now, store)
+    .filter((e) => e.type === "assessment")
+    // NEWEST FIRST — `weightedAggregate` documents the ordering as the caller's.
+    .sort((a, b) => b.occurredAt - a.occurredAt);
+  if (assessments.length === 0) return null;
+  const instrument = assessments[0].description;
+  const surveys: CareAssessment[] = assessments
+    .filter((e) => e.description === instrument)
+    .map((e) => {
+      const score = (e.items ?? []).reduce((a, i) => a + i.points, 0);
+      return {
+        instrument,
+        at: e.occurredAt,
+        score,
+        severity: severityFor(instrument as "PHQ-9" | "GAD-7", score),
+        items: e.items ?? [],
+      };
+    });
+  return weightedAggregate(surveys);
+}
+
 export function scoreSeriesFor(
   teenId: string,
   now: number,
@@ -1730,26 +1786,62 @@ export function scoreSeriesFor(
   return { instrument, scores };
 }
 
+/** ═══ R6: RELATIVE TIME ONLY, AND A NARROWER URGENT WINDOW ═══
+ *
+ *  The Figma composition puts a bare relative time in the Next review cell — no
+ *  pill, no "due in" preamble, no absolute-date sub-line (both the date and the
+ *  review type move into that cell's tooltip). So the label IS the duration, and
+ *  the framing that used to ride in front of it is gone.
+ *
+ *  THE WARNING WINDOW TIGHTENS FROM 14 DAYS TO 7. A fortnight of warning tone
+ *  meant most records with a scheduled review rendered urgent, which is the same
+ *  as none of them doing so.
+ *
+ *  `overdue` IS RETURNED RATHER THAN PARSED. The scenario suite used to test this
+ *  with `label.startsWith("overdue")`, and its own module note says why that is
+ *  the wrong shape: "parsing prose is how a test ends up agreeing with a typo".
+ *  One copy change would have made that assertion silently vacuous.
+ *
+ *  CHANGED IN PLACE, NOT FORKED: this helper has exactly one non-test consumer
+ *  (the presentation card's cell), so there is no second countdown to disagree
+ *  with. TODO-COPY on every string. */
 export function reviewDueState(
   dueAt: number,
   now: number
-): { tone: "neutral" | "warning"; label: string } {
+): { tone: "neutral" | "warning"; label: string; overdue: boolean; days: number } {
   const days = Math.round((dueAt - now) / DAY);
-  // TODO-COPY
   if (days < 0)
-    return { tone: "warning", label: `overdue by ${elapsed(-days)}` };
-  if (days === 0) return { tone: "warning", label: "due today" };
-  if (days <= 14) return { tone: "warning", label: `due in ${elapsed(days)}` };
-  return { tone: "neutral", label: `due in ${elapsed(days)}` };
+    return { tone: "warning", label: `Overdue · ${elapsed(-days)}`, overdue: true, days };
+  if (days === 0) return { tone: "warning", label: "Due today", overdue: false, days };
+  return {
+    tone: days <= URGENT_WITHIN_DAYS ? "warning" : "neutral",
+    label: elapsed(days),
+    overdue: false,
+    days,
+  };
 }
 
-/** Unit rollup for the countdown — days under a fortnight, then weeks, then
- *  months, matching relJoined's steps so the two never disagree on a span. */
+/** The brief's window: "due within 7 days or overdue". Named so the cell and this
+ *  helper cannot drift apart on what "urgent" means. */
+export const URGENT_WITHIN_DAYS = 7;
+
+/** ═══ DAYS, THEN MONTHS — NO WEEKS STEP ═══
+ *
+ *  The composition asks for "45 days" and "3 months", which means days have to
+ *  survive well past the fortnight where the previous rollup switched to weeks.
+ *  60 days is the changeover: two months is the point where a day count stops
+ *  being a thing anyone counts.
+ *
+ *  This DIVERGES from `relJoined`'s steps, which the old version was written to
+ *  match. That is deliberate and one-directional: a tenure ("196 days in
+ *  mentorship") is a fact about the past that reads naturally in days for a long
+ *  time, while a countdown is something a supervisor plans around. They are
+ *  different questions and the composition treats them differently. */
 function elapsed(days: number): string {
   if (days === 1) return "1 day";
-  if (days < 14) return `${days} days`;
-  if (days < 60) return `${Math.round(days / 7)} weeks`;
-  return `${Math.round(days / 30)} months`;
+  if (days <= 60) return `${days} days`;
+  const months = Math.round(days / 30);
+  return months === 1 ? "1 month" : `${months} months`;
 }
 
 // ── Pending reviews ─────────────────────────────────────────────────────────

@@ -48,6 +48,9 @@ import {
   pendingReviewFor,
   reviewDueState,
   severityFor,
+  URGENT_WITHIN_DAYS,
+  scoreSeriesFor,
+  weightedNowFor,
   REVIEW_NOUN,
   STAGE_LABEL,
   weightedAggregate,
@@ -150,15 +153,16 @@ describe("the review scenarios exhibit the state they name", () => {
       const cadence = cadenceFor(scenario.subjectId, NOW, {});
       expect(cadence.nextReviewDue, `${claim.id} has no review due at all`).not.toBeNull();
       const state = reviewDueState(cadence.nextReviewDue!, NOW);
+      /* ASSERTED ON THE FLAG, NOT THE PROSE. This read
+         `state.label.startsWith("overdue")`, and R6's copy change to sentence
+         case would have made it silently FALSE for an overdue review rather than
+         failing — exactly what this file's own note warns about ("parsing prose
+         is how a test ends up agreeing with a typo"). `reviewDueState` now
+         returns the boolean it was being asked to infer. */
       expect(
-        state.label.startsWith("overdue"),
-        `${claim.id} → ${scenario.subjectId}: expected ${claim.overdue ? "overdue" : "due, not overdue"} but the chip reads "${state.label}"`
+        state.overdue,
+        `${claim.id} → ${scenario.subjectId}: expected ${claim.overdue ? "overdue" : "due, not overdue"} but the cell reads "${state.label}"`
       ).toBe(claim.overdue);
-      // All three exist to show the WARNING TONE on the cadence row. A review due
-      // in forty days renders neutral and demonstrates nothing.
-      expect(state.tone, `${claim.id} is outside the warning window ("${state.label}")`).toBe(
-        "warning"
-      );
     }
   });
 
@@ -187,16 +191,58 @@ describe("the review scenarios exhibit the state they name", () => {
     }
   });
 
-  it("every review scenario's subject is in the warning window", () => {
-    // Folded out of the due/overdue test so a tone regression names itself rather
-    // than arriving as a second failure on an assertion about lapsing.
-    for (const claim of REVIEW_CLAIMS) {
-      const scenario = scenarioById(claim.id)!;
-      const cadence = cadenceFor(scenario.subjectId, NOW, {});
-      const state = reviewDueState(cadence.nextReviewDue!, NOW);
-      expect(state.tone, `${claim.id} → ${scenario.subjectId} reads "${state.label}"`).toBe(
-        "warning"
-      );
+  it("the registry can still demonstrate BOTH Next review tones", () => {
+    /* ═══ REWRITTEN, AND THE REASON MATTERS ═══
+     *
+     *  This asserted that ALL THREE review scenarios render the warning tone,
+     *  which held while the urgent window was a fortnight. R6 narrows it to 7
+     *  days per the Figma composition, and that is a deliberate change: a
+     *  fortnight of warning meant almost every scheduled review rendered urgent,
+     *  which is the same as none of them doing so.
+     *
+     *  Measured after the change: `review-day30` (t9) is due in 14 days and
+     *  `review-90` (t23) in 8 — both now NEUTRAL — while `review-overdue` (t19)
+     *  is 10 days lapsed and urgent. So the old assertion is not a regression
+     *  detector any more, it is a restatement of the old threshold.
+     *
+     *  What actually needs guarding is that the registry can still SHOW both
+     *  treatments, because that is what the scenarios exist for. It can — and
+     *  this fails the day a fixture drift leaves every review in one tone.
+     *
+     *  KNOWN GAP, reported rather than papered over: no fixture sits in the
+     *  due-within-7-days window, so the urgent-but-not-yet-lapsed wording
+     *  ("2 days") has no scenario. It is pinned by the boundary tests below
+     *  instead. */
+    const tones = REVIEW_CLAIMS.map((claim) => {
+      const cadence = cadenceFor(scenarioById(claim.id)!.subjectId, NOW, {});
+      return reviewDueState(cadence.nextReviewDue!, NOW).tone;
+    });
+    expect(new Set(tones), `tones across the review scenarios: ${tones.join(", ")}`).toEqual(
+      new Set(["warning", "neutral"])
+    );
+  });
+
+  it("the Next review cell's wording at every boundary the composition names", () => {
+    // The window and the rollup are both design decisions with exact edges, and
+    // the fixtures only land on two of them. Pinned directly.
+    const at = (days: number) => reviewDueState(NOW + days * 86_400_000, NOW);
+    expect(at(-10)).toMatchObject({ tone: "warning", overdue: true, label: "Overdue · 10 days" });
+    expect(at(-1)).toMatchObject({ tone: "warning", overdue: true, label: "Overdue · 1 day" });
+    expect(at(0)).toMatchObject({ tone: "warning", overdue: false, label: "Due today" });
+    expect(at(1)).toMatchObject({ tone: "warning", label: "1 day" });
+    expect(at(2)).toMatchObject({ tone: "warning", label: "2 days" });
+    // 7 is inside the urgent window, 8 is the first neutral day.
+    expect(at(URGENT_WITHIN_DAYS)).toMatchObject({ tone: "warning", label: "7 days" });
+    expect(at(URGENT_WITHIN_DAYS + 1)).toMatchObject({ tone: "neutral", label: "8 days" });
+    // Days survive to 60, then months — "45 days" and "3 months" per the mock.
+    expect(at(45)).toMatchObject({ tone: "neutral", label: "45 days" });
+    expect(at(60)).toMatchObject({ tone: "neutral", label: "60 days" });
+    expect(at(61)).toMatchObject({ tone: "neutral", label: "2 months" });
+    expect(at(90)).toMatchObject({ tone: "neutral", label: "3 months" });
+    // No "1 months", and no weeks step anywhere.
+    expect(at(30).label).toBe("30 days");
+    for (const d of [1, 7, 20, 45, 61, 90, 200]) {
+      expect(at(d).label, `${d} days`).not.toMatch(/week|1 months/);
     }
   });
 
@@ -577,6 +623,63 @@ describe("which evidence block a pending review gets", () => {
         Number(cited),
         `${teen.id}: the card shows ${shown} and the rationale says ${cited} — "${pending.rationale.text}"`
       ).toBe(shown);
+    }
+  });
+});
+
+// ═══ R6 · THE WEIGHTED AVG CELL RECONCILES ════════════════════════════════
+//
+// The brief's requirement on this cell is not that it shows a number — it is that
+// the number is THE SAME ONE the review card's Weighted column and the attention
+// strip show. Two derivations of one figure on one page is the defect this tab has
+// already paid for, so the agreement is asserted rather than compared by eye.
+
+describe("the Weighted Avg cell", () => {
+  it("equals the review card's aggregate wherever a review is pending", () => {
+    let compared = 0;
+    for (const teen of DEMO_TEENS) {
+      const pending = pendingReviewFor(teen.id, NOW, {});
+      if (!pending?.aggregate) continue;
+      const cell = weightedNowFor(teen.id, NOW, {});
+      expect(cell, `${teen.id}: a review shows an aggregate but the card cell has none`).not.toBeNull();
+      expect(
+        cell!.score,
+        `${teen.id}: presentation card Weighted Avg vs review card Weighted column`
+      ).toBe(pending.aggregate.score);
+      expect(cell!.severity, `${teen.id}: band`).toBe(pending.aggregate.severity);
+      compared++;
+    }
+    // A vacuous pass would be worse than a failure.
+    expect(compared, "teens with a pending aggregate").toBeGreaterThan(0);
+  });
+
+  it("still produces a figure on records with NO review pending", () => {
+    // The whole reason the cell has its own source: it must not read "—" on a
+    // teen with a series just because nothing is due.
+    const withoutReview = DEMO_TEENS.filter(
+      (t) => !pendingReviewFor(t.id, NOW, {})?.aggregate
+    );
+    const populated = withoutReview.filter((t) => weightedNowFor(t.id, NOW, {}) !== null);
+    expect(populated.length, "records with a weighted figure but no pending review").toBeGreaterThan(0);
+  });
+
+  it("reads null — the cell's em-dash state — below two comparable surveys", () => {
+    for (const teen of DEMO_TEENS) {
+      const w = weightedNowFor(teen.id, NOW, {});
+      if (w === null) continue;
+      expect(w.surveys.length, `${teen.id}`).toBeGreaterThanOrEqual(2);
+      expect(w.surveys.length, `${teen.id}`).toBeLessThanOrEqual(AGGREGATE_WEIGHTS.length);
+      // One instrument only, or the mean means nothing.
+      expect(new Set(w.surveys.map((s) => s.instrument)).size, `${teen.id}`).toBe(1);
+    }
+  });
+
+  it("locks to the same instrument the trajectory axis uses", () => {
+    for (const teen of DEMO_TEENS) {
+      const w = weightedNowFor(teen.id, NOW, {});
+      const series = scoreSeriesFor(teen.id, NOW, {});
+      if (!w || !series) continue;
+      expect(w.surveys[0].instrument, `${teen.id}`).toBe(series.instrument);
     }
   });
 });
