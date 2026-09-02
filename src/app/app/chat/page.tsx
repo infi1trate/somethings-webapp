@@ -35,6 +35,8 @@
 // render the same rail from the same `nav-items.ts` source.
 
 import { use } from "react";
+import { redirect } from "next/navigation";
+import { chatThreadHref } from "@/lib/record/chat";
 import { MentorShell } from "@/components/mentor/mentor-shell";
 import { ChatPage } from "@/components/chat/chat-page";
 import { NAV } from "@/components/settings/nav-items";
@@ -50,9 +52,39 @@ export default function ChatRoute({
   // meant is worse than opening the default thread.
   const withId = typeof query.with === "string" ? query.with : null;
 
+  /* ═══ `?with=` IS HONOURED BY REDIRECT, NOT BY RENDERING ═══
+   *
+   *  The thread moved to `/app/chat/[personId]`, and `chatHrefFor` moved with
+   *  it — but links produced before that are in browser histories, bookmarks and
+   *  anything already rendered. Rendering the thread here instead would keep
+   *  them working and quietly re-create the defect: two URLs for one view, only
+   *  one of which the shell can recognise as a detail route.
+   *
+   *  So this redirects rather than serves. `redirect()` throws, so nothing below
+   *  it runs, and the resulting entry REPLACES the query URL in history — a back
+   *  press from the thread returns to wherever the reader came from rather than
+   *  bouncing through the redirect again. */
+  if (withId) redirect(chatThreadHref(withId));
+
   return (
-    <MentorShell active={NAV.chat.id}>
-      <ChatPage withId={withId} />
+    <MentorShell
+      active={NAV.chat.id}
+      /* ═══ THE LIST RUNS UNDER THE BAR, SO IT RESERVES ITS OWN ROOM ═══
+       *
+       *  The panel's default `padding-bottom: var(--nav-reserve)` ended this
+       *  route's content exactly at the bar's top edge — measured at 390×844:
+       *  scroller bottom 700, bar top 700. A list that stops dead at a solid
+       *  band reads as the end of the list, and it spends a full row's height
+       *  on a gap. Handing the reservation to the list's own scroller lets the
+       *  rows scroll *beneath* the translucent bar while the last one still
+       *  clears it. See `conversation-list.tsx`, which is where both halves of
+       *  the reservation now live. */
+      bottomInset="surface"
+    >
+      {/* `null` — this route IS the list. Below `md` that is the only pane on
+          screen; at `md` and up the thread pane still renders beside it, showing
+          the scenario's focus conversation until a row is chosen. */}
+      <ChatPage personId={null} />
     </MentorShell>
   );
 }

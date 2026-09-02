@@ -26,9 +26,14 @@ import { useMounted } from "@/lib/use-mounted";
 
 export function MentorShell({
   active,
+  bottomInset,
   children,
 }: {
   active: string;
+  /** Forwarded verbatim to `AppShell` — see its note. A surface passes
+   *  `"surface"` when its own inner scroller should run under the bar and
+   *  reserve the room itself; everything else leaves it alone. */
+  bottomInset?: "panel" | "surface";
   children: React.ReactNode;
 }) {
   const mounted = useMounted();
@@ -83,6 +88,7 @@ export function MentorShell({
     // badge counts, and the id → href mapping.
     <AppShell
       activeId={active}
+      bottomInset={bottomInset}
       railItems={railItems(p)}
       barItems={barItems(p)}
       navLabel="Mentor navigation"

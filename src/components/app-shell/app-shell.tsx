@@ -43,6 +43,7 @@ import {
 } from "@/components/settings/sidebar";
 import { BottomNav } from "@/components/app-shell/bottom-nav";
 import { TopBar } from "@/components/app-shell/top-bar";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export function AppShell({
@@ -57,6 +58,7 @@ export function AppShell({
   avatarSrc,
   activityHref,
   activityUnread = 0,
+  bottomInset = "panel",
   className,
   children,
 }: {
@@ -87,12 +89,64 @@ export function AppShell({
    *  longer a tab, so this badge is the only signal it has anything in it. */
   activityHref: string;
   activityUnread?: number;
+  /** ═══ WHO RESERVES THE ROOM ABOVE THE BAR ═══
+   *
+   *  `"panel"` (the default, and right for every scroll-the-whole-page view):
+   *  the panel below pads its own bottom by `--nav-reserve`, so content stops
+   *  where the bar begins.
+   *
+   *  `"surface"`: the panel pads nothing and the surface takes the reservation
+   *  onto ITS OWN scroller instead. For a surface whose content should run
+   *  *underneath* the translucent bar rather than stop dead at a solid band —
+   *  chat's conversation list, where the panel's padding ended the list exactly
+   *  at the bar's top edge (measured: scroller bottom 700, bar top 700) and cost
+   *  a full row of the list to a gap.
+   *
+   *  A surface taking this on OWES BOTH HALVES: `padding-bottom` so the last row
+   *  can be scrolled clear of the bar, and `scroll-padding-bottom` so a focused
+   *  row is never parked under it (SC 2.4.11). Padding alone leaves the
+   *  keyboard case broken — see the panel's note below. */
+  bottomInset?: "panel" | "surface";
   className?: string;
   children: React.ReactNode;
 }) {
+  /** ═══ A DETAIL VIEW HIDES THE BAR — THE GENERAL RULE, NOT A CHAT ONE ═══
+   *
+   *  Drilling in gives the screen to one thing. The bottom bar is how a reader
+   *  moves between sections, and a detail view is not a section — leaving it up
+   *  spends 68px of a phone on navigation away from the thing they just opened,
+   *  and on chat it competes with the composer for the same edge.
+   *
+   *  DERIVED FROM THE PATH, so it is one rule for every surface rather than a
+   *  prop each one remembers to pass. Anything deeper than `/app/<section>` is a
+   *  detail view: `/app/chat` keeps the bar, `/app/chat/t13` does not. This is
+   *  the same vocabulary the record surfaces use, which is the point — a reader
+   *  learns the drill-in once.
+   *
+   *  The route is the signal precisely BECAUSE it is a route. A state toggle
+   *  could not be read from here at all, which is why the bar used to appear and
+   *  vanish with no navigation to explain it. */
+  const pathname = usePathname();
+  const isDetailView = (pathname ?? "").split("/").filter(Boolean).length > 2;
+
   return (
     <div
+      /* `data-detail-view` is for tests and anything that wants to style off the
+         mode; the reservation itself is the class below. */
+      data-detail-view={isDetailView ? "true" : undefined}
       className={cn(
+        /* ═══ A DETAIL VIEW RESERVES NOTHING AT THE BOTTOM ═══
+           `--nav-reserve` keeps the content panel clear of the floating bar. A
+           detail view does not render that bar, so the reservation would be 104px
+           of dead space above the composer — on chat, a gap between the message
+           box and the bottom of the phone.
+           AN ARBITRARY-PROPERTY CLASS, NOT AN INLINE STYLE and not a rule in
+           globals.css. Inline is the trap this file has fallen into twice (see
+           the panel's note): it beats the `min-width: 60rem` reset that zeroes
+           this above the bar's tier. A class on an ancestor is inherited by the
+           subtree and cannot outrank that reset — and 0 is what the reset wants
+           anyway, so the two agree at every width. */
+        isDetailView && "[--nav-reserve:0px]",
         // `dvh`, never `vh` — and it subtracts the dev harness's height, which
         // both shells already did before this extraction.
         "flex h-[calc(100dvh-var(--dev-bar-h,0px))] bg-[var(--surface-s2)]",
@@ -146,7 +200,7 @@ export function AppShell({
       {/* THE CONTENT PANEL. Below `md` it loses the rail's left inset and the
           right gutter — a 16px gutter on a 390px viewport is 4% of the width
           spent on nothing — and gains bottom room for the tab bar. */}
-      <main className="min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
+      <main data-anno-ref="app-main" className="min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
         <div
           // ═══ THE FOCUS-OBSTRUCTION GUARD (SC 2.4.11, RC-5) ═══
           //
@@ -183,8 +237,15 @@ export function AppShell({
             // 953 exactly. One invisible screen-reader label was still dragging
             // the rail out of the viewport.
             "relative h-full overflow-y-auto bg-[var(--surface-s1)]",
-            "[padding-bottom:var(--nav-reserve)]",
-            "[scroll-padding-bottom:calc(var(--nav-reserve)+1rem)]",
+            // ═══ UNLESS THE SURFACE ASKED TO OWN IT (`bottomInset`) ═══
+            // Both halves move together. Handing over the padding but keeping
+            // the scroll-padding here would reserve space against a panel that
+            // no longer scrolls — the surface's inner scroller is what the
+            // browser scrolls into view, and this rule cannot reach it.
+            bottomInset === "panel" && [
+              "[padding-bottom:var(--nav-reserve)]",
+              "[scroll-padding-bottom:calc(var(--nav-reserve)+1rem)]",
+            ],
             // THE TOP BAR IS FIXED, so the panel reserves its height the same
             // way it reserves the bar's at the bottom. `scroll-padding-top`
             // matters as much as the padding: without it the browser's own
@@ -203,7 +264,8 @@ export function AppShell({
       </main>
       </div>
 
-      {/* THE BAR — below `md` only. */}
+      {/* THE BAR — below `md` only, and never on a detail view. */}
+      {!isDetailView && (
       <BottomNav
         items={barItems}
         activeId={activeId}
@@ -211,6 +273,7 @@ export function AppShell({
         hrefFor={hrefFor}
         navLabel={navLabel}
       />
+      )}
     </div>
   );
 }
