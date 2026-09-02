@@ -18,9 +18,18 @@ import {
 
 const at = (id: string, x: number, y: number): Clusterable => ({ id, x, y });
 
-/** What the layer passes: 24px is the criterion, the pin is 30px wide, so the
- *  layer asks for 34 to clear both. Tested at the criterion floor too. */
-const SEP = 34;
+/** ═══ SWEPT, NOT PINNED TO ONE NUMBER ═══
+ *
+ *  This was `const SEP = 34`, tied to the pin's size at the time. The pin then
+ *  doubled (26px disc -> 52px), `PIN_SEP` went 34 -> 60, and the assertion kept
+ *  passing while its own comment had become false — a test that describes the
+ *  wrong geometry is one nobody can read for the guarantee.
+ *
+ *  So the guarantee is asserted across a RANGE of separations that spans every
+ *  plausible pin size, plus the criterion floor itself. `fanOut` takes the
+ *  separation as an argument, so this is what it was always actually promising. */
+const SEPARATIONS = [24, 30, 34, 44, 60, 72, 96];
+const SEP = 60; // the layer's current PIN_SEP, for the shape assertions
 const SC_2_5_8_FLOOR = 24;
 
 describe("clusterByProximity", () => {
@@ -97,11 +106,17 @@ describe("clusterByProximity", () => {
 
 describe("fanOut — the SC 2.5.8 guarantee", () => {
   it("keeps every pair AND the centre control at least `separation` apart", () => {
-    // The whole point of the module. Swept, not spot-checked.
-    for (let n = 2; n <= 12; n++) {
-      const offsets = fanOut(n, SEP);
-      expect(offsets).toHaveLength(n);
-      expect(minSeparation(offsets)).toBeGreaterThanOrEqual(SEP - 0.01);
+    // The whole point of the module. Swept over BOTH axes — cluster size and the
+    // separation asked for — so a future change to the pin's geometry cannot
+    // quietly land outside what this proves.
+    for (const sep of SEPARATIONS) {
+      for (let n = 2; n <= 12; n++) {
+        const offsets = fanOut(n, sep);
+        expect(offsets, `n=${n} sep=${sep}`).toHaveLength(n);
+        expect(minSeparation(offsets), `n=${n} sep=${sep}`).toBeGreaterThanOrEqual(
+          sep - 0.01
+        );
+      }
     }
   });
 
