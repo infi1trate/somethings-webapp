@@ -115,6 +115,17 @@ export interface CareEvent {
    *  travels in `providerNote`; this does not, because it is a value and not a
    *  paragraph. */
   assessment?: CareUpdateAssessment;
+  /** ═══ risk_flag / escalation rows — THE SOURCE RECORD ITSELF ═══
+   *
+   *  The History expansion renders a field set (escalation type, suicide-risk
+   *  assessment, safety plan; media type, priority, the flagged excerpt) that has
+   *  no home on `CareEvent` and would need a dozen optional fields here to get
+   *  one. Carrying the record it was built from is one field instead, and it
+   *  cannot drift from its source because it IS its source.
+   *
+   *  Set only by `flagEventsFor`. A closure entry (`ce-close-*`) does NOT carry
+   *  it: a closure is its own event about the flag, not the flag. */
+  flagRecord?: CareFlagRecord;
 }
 
 import type { CareSummaryCommit, ConcordanceResult } from "@/lib/record/care-summary-doc";
@@ -1247,6 +1258,8 @@ function flagEventsFor(teenId: string, now: number): CareEvent[] {
     author: { kind: "person", name: f.raisedBy, role: f.raisedByRole },
     visibility: "all_staff",
     providerNote: f.resolutionNote,
+    // The expansion's field set — see `CareEvent.flagRecord`.
+    flagRecord: f,
   }));
 }
 

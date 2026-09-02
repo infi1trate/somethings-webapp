@@ -28,7 +28,7 @@
 
 import { cn } from "@/lib/utils";
 
-export type ChipTone = "neutral" | "warning";
+export type ChipTone = "neutral" | "warning" | "risk";
 
 // A HAIRLINE, NOT A HEAVIER FILL. Measured, `--surface-s1` sits at 1.10:1
 // against `--surface-card` — a tonal chip whose fill you cannot see reads as
@@ -42,6 +42,23 @@ const TONE: Record<ChipTone, string> = {
   neutral:
     "bg-[var(--surface-s1)] text-[var(--text-primary)] ring-1 ring-inset ring-[color:var(--border-subtle)]",
   warning: "bg-[var(--status-warn-bg)] text-[var(--status-warn-fg)]",
+  /** ═══ `risk` ADDED FOR THE HISTORY EXPANSION ═══
+   *
+   *  The note above says there is no critical tone "because nothing on the Care
+   *  page except an open escalation is critical, and that is a task-region
+   *  concern". The History expansion is now the second thing that is: it renders
+   *  a suicide-assessment level and a flag priority, and a High that looks like a
+   *  Medium is the one thing those fields must not do.
+   *
+   *  NO NEW TOKENS. This is the clay band the task region's critical family
+   *  already uses, so the two surfaces cannot drift apart on what "risk" looks
+   *  like.
+   *
+   *  ADDITIVE ONLY — `tone` still defaults to `neutral`, so every existing
+   *  consumer (care-summary, relationship-table, score-chip) renders exactly what
+   *  it rendered before. COLOUR IS NEVER ALONE: every caller pairs this tone with
+   *  a word that says the same thing ("High risk", not a red chip reading "High"). */
+  risk: "bg-[var(--band-clay-bg)] text-[var(--band-clay-fg)]",
 };
 
 export function TonalChip({

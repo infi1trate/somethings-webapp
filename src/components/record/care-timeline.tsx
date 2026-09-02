@@ -21,7 +21,13 @@
 // have to infer who wrote a rationale.
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronRight, Sparkles } from "lucide-react";
+import { QuoteBlock } from "@/components/ui/evidence-primitives";
+import { TonalChip } from "@/components/record/tonal-chip";
+import { riskCategory } from "@/lib/record/risk-taxonomy";
+import { CRISIS_TYPE, type CareFlagRecord } from "@/lib/record/people-demo";
+import { chatThreadHref } from "@/lib/record/chat";
 import {
   severityFor,
   CARE_FILTERS,
@@ -639,7 +645,22 @@ function Row({
                 </div>
               )}
 
-              {event.items?.length ? (
+              {/* ═══ THE FIELD SETS COME FIRST ═══
+                  Before the assessment table and before the bare providerNote
+                  fallback, because an escalation or a flag that reached here used
+                  to fall all the way through to `providerNote` — one paragraph
+                  where a field set belongs. `flagRecord` is set only by
+                  `flagEventsFor`, so a CLOSURE entry (`ce-close-*`) still takes
+                  the fallback: a closure is its own event about the flag, and its
+                  note is the right thing to show. */}
+              {event.flagRecord && event.type === "escalation" ? (
+                <EscalationDetail
+                  record={event.flagRecord}
+                  occurredAt={event.occurredAt}
+                />
+              ) : event.flagRecord && event.type === "risk_flag" ? (
+                <FlagDetail record={event.flagRecord} occurredAt={event.occurredAt} />
+              ) : event.items?.length ? (
                 <table className="w-full text-left">
                   <thead>
                     <tr>
@@ -732,6 +753,329 @@ function Row({
         </div>
       </div>
     </li>
+  );
+}
+
+/* ══════════════════ THE ESCALATION AND FLAG EXPANSIONS ══════════════════
+ *
+ * ═══ THE N/A RULE, AND WHY IT IS NOT AN OMISSION ═══
+ *
+ * A field with no value renders as its LABEL PLUS AN EM-DASH, never as nothing.
+ * This is an audit surface: "no safety plan was recorded" and "this row has no
+ * safety plan field" are different facts, and only the first is true here. A
+ * reader scanning for what was missed cannot see a row that is not drawn.
+ *
+ * The single exception is the brief's own: Emergency contact and Conversations
+ * collapse into ONE em-dash line when both are empty, because two adjacent
+ * dashes about the same absent person is a row of furniture.
+ *
+ * ═══ EVERYTHING HERE IS REUSED ═══
+ *
+ * `TonalChip` for every chip, `QuoteBlock` from `ui/evidence-primitives` for the
+ * excerpt, the care update's label-over-prose rhythm for the blocks, and the
+ * timeline's own `Attribution` grammar for the footer. NO NEW COMPONENT: the
+ * brief expected one (a quote block) and two already existed. */
+
+const FIELD_LABEL = {
+  font: "var(--type-field-label)",
+  letterSpacing: "var(--type-field-label-tracking)",
+} as const;
+
+/** TODO-COPY on every label string in this block. */
+const EM_DASH = "\u2014";
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      className="flex items-center gap-1.5 text-[var(--text-muted)]"
+      style={FIELD_LABEL}
+    >
+      {children}
+    </p>
+  );
+}
+
+/** One cell of the fact grid. The value sits on its own line under the label,
+ *  the same rhythm as the care update's read view. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** TWO COLUMNS, and a container query rather than a viewport one — this grid
+ *  lives inside an inset inside a row inside a rail-flanked column, so the
+ *  viewport has never been the thing that decides whether two columns fit. */
+function FactGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="@container">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-3 @[22rem]:grid-cols-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Label over prose, exactly the care update's block. `body` absent renders the
+ *  em-dash — see the N/A rule. */
+function ProseBlock({
+  label,
+  body,
+  badge,
+}: {
+  label: string;
+  body?: string;
+  /** The AI badge, on the ONE block that is model-written. */
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <FieldLabel>
+        {label}
+        {badge}
+      </FieldLabel>
+      {body ? (
+        <p className="mt-1 max-w-prose whitespace-pre-line text-[14px] leading-[1.55] text-[var(--text-primary)]">
+          {body}
+        </p>
+      ) : (
+        <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-muted)]">
+          {EM_DASH}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** ═══ THE AI BADGE ═══
+ *  The same Sparkles + wording the timeline's own `Attribution` uses for an
+ *  AI author, so a model's writing is marked identically wherever it appears.
+ *  It rides on ONE label in this expansion and nowhere else. */
+function AiBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
+      <Sparkles className="size-3" aria-hidden />
+      {/* TODO-COPY */}
+      AI generated
+    </span>
+  );
+}
+
+/** "Resolved by X · 12 Mar 2026 at 9:32 PM". Mirrors the care update's
+ *  attribution row. NOT rendered while open — the collapsed row's "Open" already
+ *  carries that state, and a footer saying nothing would be the second place a
+ *  reader looks for a status that is one line up. */
+function ResolutionFooter({
+  verb,
+  who,
+  at,
+  time,
+}: {
+  verb: string;
+  who: string;
+  at: number;
+  time?: string;
+}) {
+  return (
+    <p
+      className="border-t border-[color:var(--border-subtle)] pt-2.5 text-[var(--text-muted)]"
+      style={{ font: "var(--type-row-label)" }}
+    >
+      {/* TODO-COPY */}
+      {`${verb} by ${who} · ${dateOf(at)}${time ? ` at ${time}` : ""}`}
+    </p>
+  );
+}
+
+/** ═══ THE RESOLUTION DATE IS DERIVED FROM THE ROW, NOT FROM `Date.now()` ═══
+ *
+ *  The first version called `Date.now()` in the footer and lint stopped it —
+ *  "Cannot call impure function during render". The rule caught a real defect,
+ *  not a style point: the row's own date came from `ago(now, daysAgo)` against
+ *  the timeline's fixed `now`, so a footer reading the wall clock could state a
+ *  resolution date that disagrees with the entry it sits inside.
+ *
+ *  `occurredAt` already encodes that `now`. The gap between raise and resolution
+ *  is `daysAgo - resolvedDaysAgo`, so the resolution instant is the row's own
+ *  timestamp plus that gap — pure, and incapable of drifting from the row. */
+function resolvedAtFrom(record: CareFlagRecord, occurredAt: number): number | null {
+  if (record.resolvedDaysAgo === undefined) return null;
+  const openDays = record.daysAgo - record.resolvedDaysAgo;
+  return occurredAt + openDays * 86_400_000;
+}
+
+function EscalationDetail({
+  record,
+  occurredAt,
+}: {
+  record: CareFlagRecord;
+  occurredAt: number;
+}) {
+  const d = record.escalationDetail;
+  /* THE BRIEF'S ONE COMBINING EXCEPTION. Both empty is a common shape on an
+     open escalation — nobody has been contacted yet — and two dashes about the
+     same absent person reads as a form nobody filled in rather than as a fact. */
+  const contactsBothEmpty = !d?.emergencyContact && !d?.contactConversations;
+  const crisisLabel = record.crisis
+    ? (CRISIS_TYPE.find((c) => c.id === record.crisis!.type)?.label ?? null)
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <FactGrid>
+        <Fact label="Escalation type">
+          {d?.type ? <TonalChip tone="warning">{d.type}</TonalChip> : EM_DASH}
+        </Fact>
+        <Fact label="Crisis sub-type">
+          {crisisLabel ? <TonalChip>{crisisLabel}</TonalChip> : EM_DASH}
+        </Fact>
+        <Fact label="Suicide assessment risk">
+          {d?.suicideRisk ? (
+            /* LABEL AND TONE TOGETHER, never tone alone — the chip reads
+               "High risk", so greyscale and a monochrome print carry it. */
+            <TonalChip tone={d.suicideRisk === "High" ? "risk" : "warning"}>
+              {`${d.suicideRisk} risk`}
+            </TonalChip>
+          ) : (
+            EM_DASH
+          )}
+        </Fact>
+        {!contactsBothEmpty && (
+          <Fact label="Emergency contact">
+            {d?.emergencyContact ?? EM_DASH}
+          </Fact>
+        )}
+      </FactGrid>
+
+      <ProseBlock label="Reason for escalation" body={d?.reasonDetail} />
+      <ProseBlock label="Information provided by mentor" body={d?.mentorInformation} />
+      {contactsBothEmpty ? (
+        <ProseBlock label="Emergency contact and conversations" />
+      ) : (
+        <ProseBlock
+          label="Conversations with emergency contact / first responders"
+          body={d?.contactConversations}
+        />
+      )}
+      <ProseBlock label="Next steps" body={d?.nextSteps} />
+      <ProseBlock label="Safety plan" body={d?.safetyPlan} />
+
+      {record.resolvedBy && resolvedAtFrom(record, occurredAt) !== null && (
+        <ResolutionFooter
+          verb="Resolved"
+          who={record.resolvedBy}
+          at={resolvedAtFrom(record, occurredAt)!}
+          time={d?.resolvedAtTime}
+        />
+      )}
+    </div>
+  );
+}
+
+function FlagDetail({
+  record,
+  occurredAt,
+}: {
+  record: CareFlagRecord;
+  occurredAt: number;
+}) {
+  const d = record.flagDetail;
+  const categories = (record.categories ?? [])
+    .map((c) => riskCategory(c)?.label)
+    .filter((l): l is string => !!l);
+
+  return (
+    <div className="space-y-4">
+      <FactGrid>
+        <Fact label="Media type">
+          {d?.mediaType ? <TonalChip>{d.mediaType}</TonalChip> : EM_DASH}
+        </Fact>
+        <Fact label="Priority">
+          {d?.priority ? (
+            <TonalChip tone={d.priority === "high" ? "risk" : "warning"}>
+              {d.priority === "high" ? "High risk" : "Medium risk"}
+            </TonalChip>
+          ) : (
+            EM_DASH
+          )}
+        </Fact>
+        <Fact label="Category">
+          {/* THE MAPPED LABEL, never the raw value — an unmapped category is
+              reported by `unmappedCategories()` and shows nothing here rather
+              than leaking a wire constant onto a clinical record. */}
+          {categories.length ? (
+            categories.map((c) => <TonalChip key={c}>{c}</TonalChip>)
+          ) : (
+            EM_DASH
+          )}
+        </Fact>
+        <Fact label="Detected">
+          {`${dateOf(occurredAt)}${d?.detectedAtTime ? ` \u00b7 ${d.detectedAtTime}` : ""}`}
+        </Fact>
+      </FactGrid>
+
+      <div>
+        <FieldLabel>Flagged content</FieldLabel>
+        {d?.flaggedContent ? (
+          <div className="mt-1.5">
+            {/* ═══ VERBATIM. NEVER PARAPHRASED, TRUNCATED OR SUMMARISED ═══
+                The exact wording is the clinical datum, so it is rendered as
+                authored and wrapped in quotation marks so it can never be
+                mistaken for the interface talking. `QuoteBlock` is the shared
+                primitive from `ui/evidence-primitives`, reused rather than
+                reinvented — its own note calls it "the one place a teen's own
+                message appears on a staff surface".
+
+                THIS SURFACE IS NEW FOR THAT, and it contradicts a rule this
+                codebase calls locked. See `CareFlagRecord.flagDetail.flaggedContent`
+                and the report. */}
+            <QuoteBlock>{`\u201c${d.flaggedContent}\u201d`}</QuoteBlock>
+          </div>
+        ) : (
+          <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-muted)]">
+            {/* An image or a video carries no words — a real state, not a gap. */}
+            {EM_DASH}
+          </p>
+        )}
+        {record.conversationWith && (
+          <Link
+            href={chatThreadHref(record.conversationWith)}
+            className={cn(
+              "mt-2 inline-flex rounded-sm py-1 underline underline-offset-2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]",
+              RING
+            )}
+            style={{ font: "var(--type-row-label)" }}
+          >
+            {/* TODO-COPY */}
+            View chat context
+            <span aria-hidden>&nbsp;&rarr;</span>
+          </Link>
+        )}
+      </div>
+
+      <ProseBlock
+        label="Why this was flagged"
+        body={record.momentSummary?.text}
+        /* THE BADGE IS CONDITIONAL ON PROVENANCE, not on the field existing. A
+           deterministic classifier's output is not a model's writing, and
+           badging both the same way would let a match wear a model's hedge. */
+        badge={record.momentSummary?.provenance === "ai" ? <AiBadge /> : undefined}
+      />
+
+      {record.resolvedBy && resolvedAtFrom(record, occurredAt) !== null && (
+        <ResolutionFooter
+          verb="Reviewed"
+          who={record.resolvedBy}
+          at={resolvedAtFrom(record, occurredAt)!}
+          time={d?.reviewedAtTime}
+        />
+      )}
+    </div>
   );
 }
 

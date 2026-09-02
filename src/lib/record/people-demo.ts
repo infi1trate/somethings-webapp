@@ -697,12 +697,33 @@ export const DEMO_TEENS: DemoTeen[] = [
         conversationWith: "t17",
         conversationId: "conv-t17-a",
         outcome: "supported",
+        // The brief's own example pair — escalation type "Crisis", sub-type
+        // "Other". Without this the "all fields populated" case was not.
+        crisis: { type: "other" },
         referral: { type: "family_services" },
         resolvedDaysAgo: 38,
         resolvedBy: "Dr. Amara Patel",
         resolvedByRole: "Supervisor",
         resolutionNote:
           "Spoke with the teen and their parent the same evening. Immediate support was in place and the mentorship carried on without a pause.",
+        // CASE 1 of Workstream C2 — a RESOLVED escalation with every field
+        // populated, so the expansion can be judged at its fullest.
+        escalationDetail: {
+          type: "Crisis",
+          suicideRisk: "Low",
+          emergencyContact: "Denise Okafor (aunt) · +1 704 555 0148",
+          reasonDetail:
+            "The teen told their mentor during a scheduled call that a family member had been admitted to hospital that morning and that they were at home alone. They described difficulty sleeping and said they had not eaten since the previous day.",
+          mentorInformation:
+            "Mentor reported the teen was tearful but engaged for the full call and answered every question. No mention of self-harm and none of the standing risk indicators were raised. Mentor confirmed the teen knew where their aunt was and had a phone with charge.",
+          contactConversations:
+            "Reached the aunt at 7:40 PM the same evening. She confirmed she was already travelling to the house and expected to arrive within the hour. A follow-up call at 9:15 PM confirmed she was with the teen. No emergency services were contacted.",
+          nextSteps:
+            "Mentor to hold the next two scheduled calls at their usual times rather than adding extra contact. Supervisor to review at the 30-day mark. Family services referral raised so the household has a named worker.",
+          safetyPlan:
+            "Teen has their aunt's number saved and agreed to call her first. Crisis line number sent in chat and confirmed received. Teen agreed to tell their mentor at the next call if the sleeping difficulty continued.",
+          resolvedAtTime: "9:32 PM",
+        },
       },
       {
         // A SECOND OPEN ESCALATION, so one record carries all three task types at
@@ -730,6 +751,25 @@ export const DEMO_TEENS: DemoTeen[] = [
           provenance: "ai",
           text: "The teen mentioned losing access to their phone and asked to move a scheduled call. Two earlier exchanges this month referred to tension at home.",
         },
+        // CASE 2 of Workstream C2 — an OPEN escalation with NO suicide
+        // assessment and NO emergency-contact conversation, so both em-dash
+        // paths render on a real record. `resolvedBy` is absent, so no
+        // attribution footer: the collapsed row's "Open" already carries state.
+        escalationDetail: {
+          type: "Welfare concern",
+          // suicideRisk: deliberately absent — no assessment was recorded.
+          emergencyContact: undefined,
+          reasonDetail:
+            "Lead mentor raised this after the teen said a family member had taken their phone for a week and asked whether missing calls would count against them. The question about consequences, rather than the phone itself, is what prompted the escalation.",
+          mentorInformation:
+            "Lead mentor reviewed the last three weeks of scheduled contact. Two calls moved at short notice, both rescheduled by the teen and both kept. No missed calls without notice.",
+          // contactConversations: deliberately absent — nobody has been
+          // contacted yet, which is exactly what an open escalation looks like.
+          nextSteps:
+            "Supervisor to review within five working days. Mentor to keep the next call at its scheduled time and note whether the teen raises the arrangement again.",
+          safetyPlan:
+            "Not required at this tier. Teen has the crisis line number from intake and confirmed it at their 90-day check.",
+        },
       },
       {
         id: "cf-t17-2",
@@ -746,6 +786,56 @@ export const DEMO_TEENS: DemoTeen[] = [
         categories: ["CATEGORY_4"],
         conversationWith: "t17",
         conversationId: "conv-t17-b",
+        // CASE 3 of Workstream C2 — an OPEN flag, and the NON-MESSAGE media type
+        // the brief requires. An image carries no words, so `flaggedContent` is
+        // absent and the quote block does not render — the em-dash rule covers
+        // the label.
+        flagDetail: {
+          mediaType: "Image",
+          priority: "medium",
+          detectedAtTime: "4:12 PM",
+        },
+      },
+      {
+        // CASE 4 of Workstream C2 — a REVIEWED flag of Message type, so the
+        // verbatim quote, the AI rationale and the attribution footer all render
+        // together. Its own conversation, so it stays a separate card from the
+        // two above.
+        id: "cf-t17-4",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Described feeling like a burden to the people around them",
+        raisedBy: "Somethings",
+        raisedByRole: "System",
+        daysAgo: 21,
+        source: "system",
+        // THE REAL TAXONOMY ID. I first wrote "SELF_HARM_SUICIDE", which is not
+        // in `RISK_CATEGORIES` at all — the chip silently rendered nothing,
+        // because `riskCategory()` returns null for an unmapped value and the
+        // Category cell falls to its em-dash. Passive ideation is the correct
+        // entry for a statement of low self-worth with no plan, means or
+        // timeframe, which is exactly what the excerpt below is.
+        categories: ["PASSIVE_SUICIDAL_IDEATION"],
+        conversationWith: "t17",
+        conversationId: "conv-t17-d",
+        resolvedDaysAgo: 20,
+        resolvedBy: "Dr. Amara Patel",
+        resolvedByRole: "Supervisor",
+        resolutionNote:
+          "Reviewed with the mentor the following morning. The teen was describing a rough week at home rather than intent, and said so directly when asked. No change to the presentation; mentor to keep the usual cadence.",
+        momentSummary: {
+          provenance: "ai",
+          text: "The message pairs a statement of low self-worth with a reference to other people being better off, which the model scores against the self-harm indicator set. Two messages earlier in the same exchange describe a family argument. No plan, means or timeframe appears anywhere in the conversation.",
+        },
+        flagDetail: {
+          mediaType: "Message",
+          priority: "high",
+          detectedAtTime: "11:47 PM",
+          // VERBATIM — see the field's own note, and the report. Synthetic.
+          flaggedContent:
+            "honestly everyone would have an easier week if i just wasn't around making everything harder",
+          reviewedAtTime: "8:15 AM",
+        },
       },
     ],
   },
@@ -1138,6 +1228,81 @@ export interface CareFlagRecord {
   crisis?: { type: CrisisType; note?: string };
   /** A referral made during review. */
   referral?: { type: ReferralType; detail?: string };
+
+  /** ═══ ESCALATION DETAIL — the History expansion's field set ═══
+   *
+   *  Escalations only. Every field is OPTIONAL and the renderer prints a label
+   *  with an em-dash for the ones that are absent, because this is an audit
+   *  surface: "nobody recorded a safety plan" is information, and omitting the
+   *  row would hide it.
+   *
+   *  `reason` above stays the ROW TITLE — the one line that identifies the entry
+   *  in a collapsed list. `reasonDetail` here is the paragraph a supervisor
+   *  writes, which is a different length and a different job.
+   *
+   *  "Referral?" from the legacy detail view is DELIBERATELY ABSENT: the field
+   *  spec omits it. `referral` above still exists and still drives the closure
+   *  entry's label — it is simply not part of this expansion.
+   *
+   *  TODO-DATA: fixture shape. The real source is the escalation service. */
+  escalationDetail?: {
+    /** Chip. The kind of escalation raised — "Crisis", "Welfare concern". */
+    type: string;
+    /** Chip, risk-tint family. Absent = no assessment was recorded, which is a
+     *  real and common state, not missing data. */
+    suicideRisk?: "Low" | "Moderate" | "High";
+    /** Text. Absent = none on file. */
+    emergencyContact?: string;
+    reasonDetail?: string;
+    mentorInformation?: string;
+    /** Conversations with the emergency contact or first responders. */
+    contactConversations?: string;
+    nextSteps?: string;
+    safetyPlan?: string;
+    /** Local time of the resolution, for "Resolved by X · {date} at {time}". The
+     *  DATE is derived from `resolvedDaysAgo` so it cannot drift from the row. */
+    resolvedAtTime?: string;
+  };
+
+  /** ═══ FLAG DETAIL — the History expansion's field set ═══
+   *
+   *  Risk flags only. `momentSummary` above already carries "why this was
+   *  flagged" and its provenance, so it is NOT duplicated here.
+   *
+   *  TODO-DATA: fixture shape. The real source is the moderation service. */
+  flagDetail?: {
+    /** Neutral chip. What the flagged item WAS. */
+    mediaType: "Message" | "Video" | "Audio" | "Image";
+    /** Risk-family chip. Named separately from `severity` because `severity` is
+     *  what the task region SORTS on and a display priority should not silently
+     *  become a sort key. */
+    priority: "high" | "medium";
+    /** Local time of detection, for "{date} · {time}". */
+    detectedAtTime?: string;
+    /** ═══ THE TEEN'S OWN WORDS, VERBATIM ═══
+     *
+     *  Rendered as a quote, exactly as authored — never paraphrased, truncated
+     *  or summarised.
+     *
+     *  THIS CONTRADICTS A RULE THIS CODEBASE CALLS LOCKED, and it is recorded
+     *  here rather than quietly absorbed. `people-demo.ts` says of
+     *  `conversationWith` that "message text is never rendered on the record";
+     *  `flag-review-dialog.tsx` says "MESSAGE CONTENT IS NEVER RENDERED HERE.
+     *  Not in the context step, not anywhere"; `tasks/conversation.ts` calls it
+     *  "the locked rule — no message content in list rows, ever".
+     *
+     *  The R6-History field spec requires it on this surface, on the reasoning
+     *  that the exact wording IS the clinical datum. That is a product decision
+     *  and it is Brandon's to make; it is flagged in the report rather than
+     *  settled here. Removing it again is deleting one block and this field.
+     *
+     *  The nearest precedent that already exists: `RiskFlagPayload.flaggedExcerpt`
+     *  renders verbatim in the TASKS pane, under the framing that the pane is the
+     *  conversation surface. */
+    flaggedContent?: string;
+    /** Time of the review, paired with `resolvedBy` for the footer. */
+    reviewedAtTime?: string;
+  };
   /** What the supervisor concluded, recorded at close. */
   outcome?: FlagOutcome;
 }
