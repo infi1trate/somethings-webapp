@@ -72,6 +72,21 @@ const SCORE_BOTTOM = 34;
 const FLAG_Y = 58;
 const TICK_TOP = 42;
 const TICK_BOTTOM = 50;
+/** ═══ THE AREA FILL'S STOP OPACITIES ═══
+ *
+ *  The 14% used to live inside the token as a `color-mix`, and that shipped
+ *  broken on browsers without `color-mix` — the compiler emitted the bare
+ *  `--text-muted` as its fallback, i.e. an opaque grey block under the line. An
+ *  explicit rgba fallback above the mix was deduped away. See the token's own
+ *  note in `settings-tokens.css`.
+ *
+ *  `stop-opacity` has been in SVG since 1.1, cannot be compiled away, and keeps
+ *  the fill deriving from the line's token rather than from a literal. The pair
+ *  is one gradient definition: 14% where the fill meets the line, nothing at the
+ *  baseline. */
+const AREA_FILL_OPACITY = 0.14;
+const AREA_FADE_OPACITY = 0;
+
 /** The hairline the dots are positioned against, and the floor the area fill
  *  fades to. Was written inline as `SCORE_BOTTOM + 3` in two places; the gradient
  *  is a third, and three copies of a baseline is how a fill stops meeting its
@@ -308,8 +323,21 @@ export function CareSparkline({
                   x2="0"
                   y2={BASELINE}
                 >
-                  <stop offset="0" stopColor="var(--chart-area-fill)" />
-                  <stop offset="1" stopColor="transparent" />
+                  {/* ONE COLOUR, TWO OPACITIES — not a colour and a
+                      `transparent`. A `transparent` keyword stop interpolates
+                      through transparent BLACK in some engines, which greys the
+                      fade; an explicit opacity on the same colour interpolates
+                      only the alpha. */}
+                  <stop
+                    offset="0"
+                    stopColor="var(--chart-area-fill)"
+                    stopOpacity={AREA_FILL_OPACITY}
+                  />
+                  <stop
+                    offset="1"
+                    stopColor="var(--chart-area-fill)"
+                    stopOpacity={AREA_FADE_OPACITY}
+                  />
                 </linearGradient>
               </defs>
               <path d={areaPath} fill={`url(#care-area-${gradientId})`} />
