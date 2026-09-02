@@ -481,20 +481,32 @@
 
   /* ═══ CHART-ONLY GRADIENT EXTENSION — the ONE new token in R6 ═══
      Bloom PROHIBITS GRADIENTS ON SURFACES. This is a documented chart-only
-     extension: it exists solely as the top stop of the area fill under the care
-     trajectory line, and it must never be reused on a non-chart surface. It
-     CONSUMES the existing line token (`--text-muted`, which is what the polyline
-     is stroked with) rather than introducing a colour, so the fill can never
-     disagree with the line above it.
+     extension: it is the colour of the area fill under the care trajectory line,
+     and it must never be used on a non-chart surface. It IS the line's own token
+     — the polyline is stroked with `--text-muted` — so the fill can never
+     disagree with the line above it, and it follows `--text-muted` into dark mode
+     on its own because custom properties substitute at computed-value time.
 
-     14% sits in the 12–16% band the brief specifies: enough to read as a filled
-     area, light enough that the risk-flag triangles keep their contrast where
-     they cross it (measured — see docs).
+     ═══ WHY THE ALPHA IS NOT IN HERE, AND THAT IS THE FIX ═══
 
-     NO DARK-MODE OVERRIDE IS NEEDED. Custom properties substitute at
-     computed-value time, so `var(--text-muted)` resolves against whichever mode
-     is active and the mix follows it. One token, both modes. */
-  --chart-area-fill: color-mix(in oklab, var(--text-muted) 14%, transparent);
+     This was `color-mix(in oklab, var(--text-muted) 14%, transparent)`, and it
+     shipped BROKEN on browsers without `color-mix`. Caught by reading the
+     deployed CSS rather than by assuming: the compiler cannot statically evaluate
+     a mix whose argument is a `var()`, so it emitted the bare token as the
+     pre-`@supports` fallback — a FULLY OPAQUE mid-grey block under the line
+     instead of a 14% wash (Safari <16.2, Chrome <111, Firefox <113).
+
+     Declaring an explicit `rgb(… / 0.14)` fallback ABOVE the mix does not work
+     either: two declarations of one custom property in one rule are deduped to
+     the last, and the compiler then regenerates its own fallback anyway. Verified
+     against the built CSS, not guessed.
+
+     So the alpha moved to where it cannot be compiled away — `stop-opacity` on
+     the SVG gradient stops, which is universally supported and has been since
+     SVG 1.1. The gradient owns its own stop opacities (0.14 -> 0), which is one
+     gradient definition rather than two, and this token owns the hue. No
+     `@supports`, no fallback, nothing to rot. */
+  --chart-area-fill: var(--text-muted);
 
   /* Elevated type roles. */
   /* `--type-record-name` moved up into the ramp block above — it is a Headline
