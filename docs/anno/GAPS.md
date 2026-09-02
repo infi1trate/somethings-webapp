@@ -38,6 +38,22 @@ does not work on Vercel (read-only filesystem outside `/tmp`, and serverless
 instances do not share one — writes would fail or fragment per instance), and the
 Upstash path needs one live round-trip before anyone trusts it.
 
+**UPDATE — the second half is now largely closed.**
+`src/lib/anno/server/upstash-driver.test.ts` runs the REAL `UpstashDriver` and the
+REAL `repo.ts` against an in-process HTTP stub of Upstash's REST contract: 20
+tests covering all six commands the driver issues, the bearer header, the
+`{result}` envelope, `set` as a POST body rather than a URL, the empty-scan case,
+and the repo's numbering, soft delete, restore, patch surface and reviewer upsert.
+
+Mutation-tested rather than trusted: sending `set` as a GET with the value in the
+URL fails 15 of 20; dropping the `{result}` unwrap fails 16; numbering from a
+count instead of `incr` fails exactly 1 — the soft-delete case, which is the only
+condition where a count diverges from a counter.
+
+What remains unproven is **Upstash's own production behaviour**, which no local
+test can establish. The residual risk on switching is now their service rather
+than our driver.
+
 **Decision needed from:** Brandon / eng — provision Upstash or Vercel KV on the
 project, or accept single-dev-server sharing for the demo cycle.
 
