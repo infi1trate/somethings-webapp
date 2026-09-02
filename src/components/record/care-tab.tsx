@@ -85,7 +85,6 @@ import {
   type PresentationReview,
   cadenceFor,
   careTimelineFor,
-  scoreSeriesFor,
   latestCareUpdateFor,
   pendingReviewFor,
   presentationFor,
@@ -261,7 +260,8 @@ export function CareTab({
   const events = careTimelineFor(teen.id, now, store);
   const presentation = presentationFor(teen.id, now, store);
   const cadence = cadenceFor(teen.id, now, store);
-  const series = scoreSeriesFor(teen.id, now, store);
+  // `scoreSeriesFor` is read by the care summary rail, not here — the metrics
+  // row's sparkline is gone with the survey-cell merge.
   /** THE READING. One call, one place — replaces `careAiSummaryFor`, which
    *  consumed assessments only and produced a paragraph about survey movement.
    *  The panel is the CONVERSATIONAL layer now, so the reading is built from the
@@ -740,7 +740,6 @@ export function CareTab({
             [draft.firstName, draft.lastName].filter(Boolean).join(" ") ||
             undefined
           }
-          series={series}
         />
 
         {/* 2 · TASK REGION — the presentation review, and only that.

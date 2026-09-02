@@ -75,10 +75,18 @@ export function Provenance({
   /** Overrides the note for a block drawing on something narrower. Keep these
    *  rare: divergent wordings are how one policy becomes several. */
   note = PROVENANCE_NOTE,
+  /** ═══ WHAT THE TRIGGER ANNOUNCES ═══
+   *  Defaults to the generated-text wording, because that is what this mark is
+   *  for and what every existing consumer means by it. Overridden where the
+   *  panel carries a plain fact about the record instead — the survey lock date
+   *  on the presentation card is not generated text, and a screen reader being
+   *  told it was would be the component lying on that surface's behalf. */
+  triggerLabel = "About this generated text",
   className,
 }: {
   label?: string;
   note?: string;
+  triggerLabel?: string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -163,7 +171,7 @@ export function Provenance({
         aria-controls={open ? panelId : undefined}
         // The accessible name has to say what the button reveals; "Info" beside
         // an AI badge does not. TODO-COPY.
-        aria-label="About this generated text"
+        aria-label={triggerLabel}
         onClick={() => {
           pinned.current = !pinned.current;
           setOpen(pinned.current);

@@ -41,12 +41,12 @@ import {
   type CarePresentation,
 } from "@/lib/record/care-demo";
 import { clinicalDate } from "@/components/record/care-presentation";
-import { ScoreChip } from "@/components/record/score-chip";
+import { bandLabel } from "@/components/record/score-chip";
 import { TonalChip } from "@/components/record/tonal-chip";
-import {
-  ScoreSparkline,
-  SPARKLINE_MIN_POINTS,
-} from "@/components/record/score-sparkline";
+import { Provenance } from "@/components/record/provenance";
+// `ScoreSparkline` is no longer imported here: trajectory belongs to the care
+// summary rail, which renders the same series legibly instead of squeezing a
+// 5-point copy of it beside a score chip.
 import { RecordButton } from "@/components/record/record-button";
 import { RecordAvatar } from "@/components/record/record-avatar";
 import {
@@ -100,7 +100,7 @@ function Metric({
   sub,
   tone = "default",
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
   /** The muted second line — a date, a lock, a countdown. */
   sub?: React.ReactNode;
@@ -143,7 +143,6 @@ export function CareSummaryCard({
   onChange,
   onAssignSurvey,
   liveMentorName,
-  series,
 }: {
   teen: DemoTeen;
   presentation: CarePresentation | null;
@@ -168,7 +167,6 @@ export function CareSummaryCard({
   /** The locked instrument's scores, oldest → newest, from `scoreSeriesFor`.
    *  Passed in rather than derived here so this card keeps taking data and not
    *  a store. */
-  series?: { instrument: string; scores: number[] } | null;
 }) {
   // A DEACTIVATED TEEN'S PAIRING IS OVER even when no relationship event says
   // so: the fixture population carries `active: false` and nothing else, so
@@ -297,13 +295,24 @@ export function CareSummaryCard({
 
         {/* ── METRICS: a hairline and a grid, NOT a nested card ─────────── */}
         <div
-          /* 760px for five, 480px for three, two below that — measured against
-             the real content, not guessed: five stats need ~140px each plus the
-             24px gaps, and "Next review · due in 2 days · 90-day review" is the
-             one that decides it. At 760 this renders exactly as it did before
-             for every layout that was already correct; the change only shows up
-             where the viewport used to be lying. */
-          className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4 @[480px]:grid-cols-3 @[760px]:grid-cols-5"
+          /* ═══ FOUR ACROSS, OR TWO BY TWO — NOTHING IN BETWEEN ═══
+             REPLACES the R2 rule (`grid-cols-2 / @[480px]:3 / @[760px]:5`)
+             rather than layering on it: that one existed to keep five equal
+             columns from crushing each other, and five equal columns are what
+             this change removes.
+
+             THE MENTOR TRACK IS PROTECTED, the other three flex. `max-content`
+             as its floor is what makes "names never truncate" structural rather
+             than a promise — the track cannot shrink below the name it holds, so
+             there is nothing for an ellipsis to do.
+
+             760px for four, MEASURED against the worst case rather than the
+             fixtures: a 24-character name is 200px of text plus 28px of avatar
+             and gap, and 760 − 72px of gaps leaves exactly enough beside it for
+             the other three. The narrowest this card ever gets is 558px (main
+             column at its floor, 1100px viewport), which is comfortably 2×2 —
+             267px a cell, where a 228px mentor cell fits with room. */
+          className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4 @[760px]:grid-cols-[minmax(max-content,1.2fr)_minmax(0,0.7fr)_minmax(0,1.1fr)_minmax(0,1.1fr)]"
         >
           {/* TODO-COPY on every label. */}
           {/* RELATIONSHIP STATE BELONGS TO THE PAIRING, not to the review
@@ -319,8 +328,13 @@ export function CareSummaryCard({
                 <RecordAvatar name={mentorName} size={20} />
                 <Link
                   href={recordHrefFor(mentorId)}
+                  /* NO `truncate`, and no `min-w-0` to shrink under. The cell's
+                     own track is floored at `max-content`, so the name always
+                     has its width — clipping a person's name to fit a column is
+                     the failure this row had, and an ellipsis on it was the
+                     mechanism. */
                   className={cn(
-                    "min-w-0 truncate rounded-sm underline decoration-[var(--border-contour)] underline-offset-2 transition-opacity hover:opacity-70",
+                    "whitespace-nowrap rounded-sm underline decoration-[var(--border-contour)] underline-offset-2 transition-opacity hover:opacity-70",
                     RING
                   )}
                 >
@@ -337,51 +351,72 @@ export function CareSummaryCard({
             {formatDaysInMentorship(daysInMentorship(teen))}
           </Metric>
 
+          {/* ═══ ONE ASSESSMENT CELL, FROM TWO ═══
+              "Assigned survey" and "Last assessment" were two cells restating
+              one fact from two angles — the instrument appeared in both, and a
+              reader comparing them had to notice they agreed. Merged: the
+              instrument, the score and the band on one line, when it was taken
+              underneath.
+              THE LOCK DATE MOVED TO THE ⓘ. It answers "why this instrument and
+              not another", which is a question about the record's history rather
+              than about the current reading, and it was costing a whole line of
+              a four-line cell to say so.
+              THE SPARKLINE IS GONE from this row. Trajectory is the care summary
+              rail's job — it renders the same series at a size you can actually
+              read, with its own sentence — and a 5-point sparkline squeezed
+              beside a score chip was the smallest, least legible copy of it. */}
           <Metric
-            label="Assigned survey"
-            sub={
-              cadence.surveyLockedAt
-                ? `Locked ${clinicalDate(cadence.surveyLockedAt)}`
-                : cadence.outstandingSurvey
-                  ? `Sent ${clinicalDate(cadence.outstandingSurvey.sentAt)} · not returned yet`
-                  : undefined
+            label={
+              /* ═══ THE LABEL BOX STAYS 16px ═══
+                 `Provenance`'s trigger is a 20px circle, and a 20px child in a
+                 16px label line pushed this cell's value 4px below the other
+                 three — measured, and visible as soon as you look along the row.
+                 A fixed 16px height lets the icon overflow its box by 2px either
+                 side without moving anything; nothing clips, because nothing here
+                 hides overflow. */
+              <span className="flex h-4 items-center gap-1.5">
+                {/* TODO-COPY */}
+                Assessment
+                {cadence.surveyLockedAt && cadence.assignedSurvey && (
+                  /* The record's one focus-triggerable info affordance — hover,
+                     focus AND click, Escape to dismiss, hoverable panel. Reused
+                     rather than reinvented; see `provenance.tsx`. TODO-COPY. */
+                  <Provenance
+                    label="Survey"
+                    /* TODO-COPY */
+                    triggerLabel="About the assigned survey"
+                    note={`${cadence.assignedSurvey} assigned and locked ${clinicalDate(cadence.surveyLockedAt)}.`}
+                  />
+                )}
+              </span>
             }
-          >
-            {cadence.assignedSurvey ??
-              cadence.outstandingSurvey?.instrument ?? (
-                <span className="text-[var(--text-muted)]">Not yet assigned</span>
-              )}
-          </Metric>
-
-          <Metric
-            label="Last assessment"
             sub={
               cadence.lastAssessment
-                ? `${cadence.lastAssessment.instrument} · ${clinicalDate(cadence.lastAssessment.at)}`
-                : undefined
+                ? /* TODO-COPY */ `Last taken ${clinicalDate(cadence.lastAssessment.at)}`
+                : cadence.outstandingSurvey
+                  ? /* TODO-COPY */ `Sent ${clinicalDate(cadence.outstandingSurvey.sentAt)} · not returned yet`
+                  : undefined
             }
           >
             {cadence.lastAssessment ? (
               <>
+                <span className="tabular-nums">
+                  {cadence.lastAssessment.instrument} ·{" "}
+                  {cadence.lastAssessment.score}
+                </span>
                 {/* THE SHARED CHIP: one component across this cell, the review
                     card's survey evidence and History's Result column, so a
-                    score never reads two ways on one page. */}
-                <ScoreChip
-                  score={cadence.lastAssessment.score}
-                  severity={cadence.lastAssessment.severity}
-                />
-                {/* TRAJECTORY, beside the reading. Renders only from three
-                    assessments up — see the sparkline's note. */}
-                {series && series.scores.length >= SPARKLINE_MIN_POINTS && (
-                  <ScoreSparkline
-                    scores={series.scores}
-                    /* TODO-COPY */
-                    label={`${series.instrument} scores over time: ${series.scores.join(", ")}`}
-                  />
-                )}
+                    score never reads two ways on one page. Band only here — the
+                    number is already on the line beside it. */}
+                <TonalChip>{bandLabel(cadence.lastAssessment.severity)}</TonalChip>
               </>
+            ) : cadence.assignedSurvey || cadence.outstandingSurvey ? (
+              <span className="text-[var(--text-muted)]">
+                {cadence.assignedSurvey ?? cadence.outstandingSurvey?.instrument}
+              </span>
             ) : (
-              <span className="text-[var(--text-muted)]">None yet</span>
+              // TODO-COPY. A real state, not missing data.
+              <span className="text-[var(--text-muted)]">Not yet assigned</span>
             )}
           </Metric>
 
