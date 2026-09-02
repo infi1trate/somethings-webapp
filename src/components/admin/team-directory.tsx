@@ -188,7 +188,8 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
   };
 
   return (
-    <div className="px-6 py-6 lg:px-10">
+    /* ANNO REGIONS — see the note in roster.tsx. Inert markers only. */
+    <div data-anno-ref="team-directory" className="px-6 py-6 lg:px-10">
       <header className="max-w-prose">
         <h1
           className="text-[var(--text-primary)]"
@@ -211,7 +212,7 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
       {/* Filters — one row above the table. A mentor sees no role chips: their
           scope is only leads + supervisors, so filtering by role would offer a
           "Mentors" chip that can never match. */}
-      <div className="mt-6 flex flex-wrap items-center gap-2">
+      <div data-anno-ref="team-filters" className="mt-6 flex flex-wrap items-center gap-2">
         {scope !== "mentor" &&
           ROLE_FILTERS.map((f) => (
             <button
@@ -268,6 +269,7 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
           its trigger doubles as the status chip — so demoting it would have cost
           both the answer and the action. */}
       <DataView
+        annoRef="team-table"
         className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]"
         caption="Team directory"
         rows={view}

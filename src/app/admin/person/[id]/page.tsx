@@ -402,7 +402,7 @@ function PersonOverview({
   statusBadge: React.ReactNode;
 }) {
   return (
-    <section aria-label="Overview" data-record-section="overview">
+    <section aria-label="Overview" data-record-section="overview" data-anno-ref="record-overview">
       <div className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-[var(--surface-pad-x)] py-[var(--surface-pad-y)] shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
@@ -468,7 +468,7 @@ function PersonAccount({
         <PersonOrganization subject={subject} />
       </section>
 
-      <section aria-label="Account" data-record-section="account">
+      <section aria-label="Account" data-record-section="account" data-anno-ref="record-account">
         <h2 className="mb-3 font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
           Account
         </h2>

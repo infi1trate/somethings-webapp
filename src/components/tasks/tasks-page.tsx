@@ -631,7 +631,10 @@ export function TasksPage() {
      *  modal and the dialog primitive both documented. */
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col px-6 py-6 lg:px-8">
       {/* ── HEADER (§1) — PINNED. Never scrolls away. ─────────────────── */}
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
+      {/* ANNO REGION. The worklist scroller and the task pane were already
+          tagged; this top strip and the tab cards below were not, so a comment
+          on either fell back to `app-main`. */}
+      <div data-anno-ref="tasks-header" className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
             {/* TODO-COPY */}
@@ -679,7 +682,7 @@ export function TasksPage() {
       {/* ── TABS / SUMMARY CARDS (§3.3) — PINNED with the header. ─────────
              32px below the subtitle, 24px above the columns: the region's only
              two vertical values, both on the scale (Part 2). */}
-      <div className="mt-8 shrink-0">
+      <div data-anno-ref="tasks-domain-tabs" className="mt-8 shrink-0">
         {plan.cards === "loading" ? (
           <TabCardsSkeleton />
         ) : (
