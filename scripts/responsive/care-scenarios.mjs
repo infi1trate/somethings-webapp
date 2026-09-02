@@ -59,6 +59,9 @@ for (const w of [
       const q = (s) => document.querySelector(s);
       const rail = q('aside[aria-label="Care summary"]');
       const summary = q('[data-record-section="care-summary-doc"]');
+      const summaryTrigger = [...document.querySelectorAll("button")].find(
+        (b) => b.textContent?.trim() === "Care summary"
+      );
       const timeline = q('[data-record-section="care-timeline"]');
       const rows = [...(timeline?.querySelectorAll("li") ?? [])];
       // THE TWO-LINE CAP, MEASURED. A collapsed row's own height, excluding any
@@ -73,7 +76,18 @@ for (const w of [
       ];
       return {
         railVisible: rail ? rail.getBoundingClientRect().width > 0 : false,
-        summaryPresent: !!summary,
+        /* ═══ REACHABLE, NOT NECESSARILY MOUNTED ═══
+           Above 1100px the summary is in the right column. Below it, it is in
+           the sheet behind the tab-row trigger and is NOT in the DOM at rest —
+           which is new, and is the point: it used to sit in the column as a
+           `hidden` copy at every width, so a record could have two of it mounted
+           the moment the sheet opened. The summary carries document-global SVG
+           ids (gap row 309), so that latent duplicate was a real hazard.
+           The check therefore asks the question that actually matters at each
+           width: is the summary on screen, or is there a control that brings it
+           on screen. */
+        summaryPresent: !!summary || !!summaryTrigger,
+        summaryInColumn: !!summary,
         // VISIBILITY, NOT PRESENCE. The trigger is hidden by
         // `min-[1100px]:hidden`, so it is in the DOM at every width — a presence
         // check reported it as showing at 1280 and would have hidden a real

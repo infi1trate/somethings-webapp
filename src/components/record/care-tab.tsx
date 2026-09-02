@@ -74,17 +74,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
-import { CareReviewDrawer } from "@/components/record/care-review-drawer";
+import { CareReviewPanel } from "@/components/record/care-review-panel";
+import {
+  CareReviewSlot,
+  CareSummaryDigest,
+  ReviewDraftBar,
+  type SlotExpanded,
+} from "@/components/record/care-review-slot";
 import { cn } from "@/lib/utils";
-import { clearReviewDraft, type ReviewDecision } from "@/lib/record/review-draft";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { clearReviewDraft, type ReviewDecision } from "@/lib/record/review-draft";
 import {
   REVIEW_NOUN,
   cadenceFor,
   careTimelineFor,
   scoreSeriesFor,
   latestCareUpdateFor,
-  openFlagsFor,
   pendingReviewFor,
   presentationFor,
   type CareStoreSlice,
@@ -204,14 +209,12 @@ export function CareTab({
    *  document-global SVG ids, so two mounts break the visible one (gap row 309).
    *  The rail unmounting is what lets the drawer hold the same node. */
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewMinimized, setReviewMinimized] = useState(false);
-  /** ═══ 1240px, NOT THE RAIL'S 1100px ═══
-   *  The rail is 380px and the drawer is 520px, so the width the spine needs
-   *  beside each one differs by 140px. Below 1240 the drawer stops reflowing the
-   *  page and floats over it instead — at that width a 520px track would leave
-   *  the spine under 600px, where History's seven columns stop fitting. */
-  const pushMode = useMediaQuery("(min-width: 1240px)");
-  const drawerMode: "push" | "overlay" = pushMode ? "push" : "overlay";
+  /** ═══ THE SEE-SAW ═══
+   *  Which of the right column's two units holds the space. There is no third
+   *  value and no "both" — see `CareReviewSlot`, whose signature cannot express
+   *  one. Opening a review tips to `review`; closing it tips back to `summary`
+   *  and leaves the draft bar behind. */
+  const [expanded, setExpanded] = useState<SlotExpanded>("review");
   /** The post-commit confirmation the attention card compresses into
    *  (Workstream F). Null at rest; set for one render pass after a commit. */
   const [reviewed, setReviewed] = useState<{
@@ -505,12 +508,101 @@ export function CareTab({
     />
   ) : null;
 
+  /** ═══ TIPPING THE SEE-SAW, AND WHERE FOCUS LANDS ═══
+   *
+   *  Every tip is a press on a real control — the digest, the draft bar, or the
+   *  panel's close — so moving focus into whatever just expanded is following
+   *  the reader rather than interrupting them. It happens on the frame AFTER the
+   *  state change, because the thing being focused does not exist until then.
+   *
+   *  NOTHING ELSE MOVES FOCUS. The panel's own focus effect keys off
+   *  `panelFocus`, which only this function increments, so a re-render from a
+   *  keystroke or a store write cannot pull the caret out of a field. */
+  const summaryRef = useRef<HTMLElement | null>(null);
+  const [panelFocus, setPanelFocus] = useState(0);
+  const tipTo = (next: SlotExpanded) => {
+    setExpanded(next);
+    if (next === "review") setPanelFocus((n) => n + 1);
+    else requestAnimationFrame(() => summaryRef.current?.focus());
+  };
+
+  /** ═══ THE PANEL, BUILT ONCE ═══
+   *  Handed to whichever container is showing the slot — the right column above
+   *  1100px, the sheet below it. One element in one variable rather than two JSX
+   *  sites, because two would remount the form on every breakpoint crossing and
+   *  take the draft's scroll position with it. */
+  const panelNode = review ? (
+    <CareReviewPanel
+      review={review}
+      currentCode={presentation?.code ?? null}
+      teenId={teen.id}
+      prefill={{
+        source: review.rationale.source,
+        text: review.rationale.text,
+      }}
+      now={now}
+      focusSignal={panelFocus}
+      onClose={() => {
+        /* CLOSING TIPS THE SEE-SAW; it does not end the review. The draft bar
+           takes the panel's place, so the work is one press away and nothing is
+           discarded — `review-draft.ts` already has every keystroke. */
+        tipTo("summary");
+      }}
+      onCommit={(decision: ReviewDecision, body, at) => {
+        const code =
+          decision.kind === "change"
+            ? decision.code
+            : (presentation?.code ?? review.recommended.code);
+        const statement =
+          decision.kind === "change"
+            ? decision.statement
+            : (presentation?.statement ?? review.recommended.statement);
+        const applies = presentation?.code !== code;
+        saveUpdate(
+          body,
+          {
+            at,
+            diagnosticPrefill: {
+              source: review.rationale.source,
+              edited: body.diagnostic.trim() !== review.rationale.text.trim(),
+            },
+          },
+          {
+            decisionId: review.id,
+            code,
+            statement,
+            /* TODO-COPY — `REVIEW_NOUN`, never `STAGE_LABEL` + " review". */
+            what: applies
+              ? `presentation change to ${code}`
+              : REVIEW_NOUN[review.stage],
+            applies,
+          }
+        );
+        clearReviewDraft(teen.id, review.id);
+        /* ═══ SEQUENCED, NOT SIMULTANEOUS ═══
+           The panel leaves first and the card resolves after it. Both at once
+           reads as the page coming apart — two things moving in different
+           places for different reasons. `reviewOpen` false takes the slot back
+           to the summary on this frame; `setReviewed` on the next paints the
+           confirmation into the space the card was holding. */
+        setReviewOpen(false);
+        setExpanded("review");
+        /* ═══ ONE BEAT BETWEEN THEM, NOT ONE FRAME ═══
+           `requestAnimationFrame` put the card's confirmation on screen ~16ms
+           after the panel left, which is simultaneous as far as an eye is
+           concerned — two things moving in two places for two reasons. 200ms
+           matches the slot's own transition, so the column has finished settling
+           before the card starts. Total choreography stays well inside the
+           budget: 200 to settle, 200 for the card, then the hold. */
+        window.setTimeout(() => setReviewed({ code, changed: applies }), 200);
+      }}
+    />
+  ) : null;
+
   const tasks = careTasksFor(review);
 
-  /** For the evidence strip's collapsed one-liner. Counted here because this is
-   *  where the store slice is built — the drawer never reaches into the flag
-   *  store itself, the same boundary the rail keeps. */
-  const openFlagCount = openFlagsFor(teen.id, store).length;
+  // `openFlagCount` lived here for the panel's evidence strip. The strip is
+  // gone and the digest counts its own from the summary document.
 
   /** ═══ THE CONFIRMATION HOLDS, THEN THE SECTION SETTLES ═══
    *  2.4s, not the brief's ≤800ms total. 800ms is the right budget for the
@@ -529,21 +621,22 @@ export function CareTab({
    *  minimized — hidden, not unmounted. Unmounting would drop the scroll position
    *  inside it, and restoring a review to the top of a long form is not
    *  "restores with all state". */
-  const drawerMounted = reviewOpen && !!review;
-  /** Minimized means mounted-but-hidden, so this is the flag everything about
-   *  the summary node keys off — `hidden` does not remove ids from the document,
-   *  so "is it in the DOM" is the wrong question to ask about a duplicate id. */
-  const drawerVisible = drawerMounted && !reviewMinimized;
-  /** Occupies the grid's second track only in push mode; in overlay it is fixed
-   *  and out of flow. */
-  const drawerInGrid = drawerVisible && drawerMode === "push";
-  /** ═══ THE RAIL AND THE DRAWER'S EVIDENCE STRIP ARE MUTUALLY EXCLUSIVE ═══
-   *  Not merely a layout rule. The summary node carries document-global SVG ids,
-   *  so a second mount breaks whichever copy is visible (gap row 309) — which
-   *  means this has to key off the drawer being VISIBLE in either mode, not off
-   *  it holding a grid track. Minimizing gives the rail back, which is also what
-   *  a reader who just minimized the panel is asking for. */
-  const railInGrid = !drawerVisible;
+  /** A review is in progress from the moment it is opened until it commits or
+   *  is closed. The slot renders both units throughout; `expanded` decides which
+   *  one is full. */
+  /** ═══ 1100px, THE BREAKPOINT THIS LAYOUT ALREADY HAD ═══
+   *  Not a new one. It is where the grid gains its second track and where the
+   *  summary already switched to a sheet, so the slot follows the column it
+   *  lives in rather than introducing a third number to keep in sync. R2's
+   *  1240px drawer breakpoint is gone with the drawer.
+   *
+   *  READ IN JS, NOT CSS, AND ONLY FOR THIS. Hiding one copy with `hidden` would
+   *  mean the panel is MOUNTED twice — two `rv-clinical` ids, two draft writers,
+   *  two sets of fields. So the slot is rendered in exactly one place and this
+   *  decides which. */
+  const wide = useMediaQuery("(min-width: 1100px)");
+  const reviewInProgress = reviewOpen && !!review;
+
 
   // ═══ NOTHING TIME-DERIVED UNTIL MOUNT (standing rule 3, gap row 291) ═══
   //
@@ -596,23 +689,30 @@ export function CareTab({
       //
       // 1100px, not `lg`: at 1024 a 380px rail leaves the spine ~600px, and
       // History is a seven-column table. `min-[1100px]` is where both fit.
-      /* ═══ THREE COLUMNS CAN NEVER RENDER, AND THIS LINE IS WHY ═══
-         The second track holds the rail OR the drawer, never both, because the
-         template only ever declares one of them and the rail's mount condition
-         below reads the same flag. Enforced here rather than per-component: a
-         rule each panel keeps for itself is one that breaks when a third arrives.
-
-         In overlay mode the drawer is `position: fixed`, so it is out of flow and
-         the grid drops to a single column — the drawer is still the SAME React
-         element in the same slot, which is what preserves its fields and its
-         scroll position across the breakpoint. */
+      /* ═══ THE MAIN COLUMN DOES NOT MOVE ═══
+         One template, always. R2 swapped this between a 380px rail track and a
+         520px drawer track, so opening a review reflowed the spine underneath
+         the reader — every card narrowed, the metrics row rewrapped, and the
+         thing they had been looking at moved. The right column now time-shares
+         its own width between two units (see `CareReviewSlot`), so nothing
+         outside that track notices a review at all. */
       className={cn(
         "grid grid-cols-1 items-start gap-6",
-        drawerInGrid
-          ? "min-[1240px]:grid-cols-[minmax(0,1fr)_520px]"
-          : railInGrid
-            ? "min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]"
-            : undefined
+        /* ═══ THE ONE WIDTH TRANSITION, AND IT IS CRITERION-GATED ═══
+           The default is that nothing outside this track moves. The spec allows
+           exactly one exception, and the measurement triggered it: at the rail's
+           380px the Clinical summary textarea has a 320px text box, and at
+           14px Lausanne the `ch` advance is 8.51px — 37.6ch, under the ~40ch
+           floor for a field somebody writes a clinical paragraph into. 420px
+           takes it to 42.3ch. Measured in the browser at both widths, not
+           computed from a guess at the font.
+           The main column absorbs the 40px, once, on open, with a transition on
+           the template itself so the two tracks move together rather than the
+           panel appearing and the spine jumping afterwards. */
+        reviewInProgress
+          ? "min-[1100px]:grid-cols-[minmax(560px,1fr)_420px]"
+          : "min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]",
+        "motion-safe:transition-[grid-template-columns] motion-safe:duration-200"
       )}
     >
       <div className="min-w-0 space-y-7">
@@ -684,8 +784,15 @@ export function CareTab({
                 ? () => {
                     returnFocusTo.current =
                       document.activeElement as HTMLElement | null;
-                    setReviewMinimized(false);
+                    /* Opening always tips to the review — State 1 is the
+                       default on Review, per the see-saw spec. */
+                    setExpanded("review");
+                    setPanelFocus((n) => n + 1);
                     setReviewOpen(true);
+                    /* Below 1100px the slot lives in the sheet, so opening a
+                       review has to open the sheet with it — otherwise the CTA
+                       appears to do nothing. */
+                    if (!wide) setSummaryOverlayOpen(true);
                   }
                 : undefined,
           }}
@@ -801,128 +908,50 @@ export function CareTab({
           disabled. Nothing in here approves, writes, amends or closes anything,
           and it never authors a record entry — only `approveCareReview` does.
           That is the provenance boundary the two columns exist to draw. */}
-      {summaryNode && !summaryOverlayOpen && railInGrid && (
-        <aside
-          /* TODO-COPY */
-          aria-label="Care summary"
-          className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:block"
-        >
-          {summaryNode}
-        </aside>
-      )}
-
-      {/* ═══ THE REVIEW DRAWER — SECOND TRACK IN PUSH, FIXED IN OVERLAY ═══
-          Rendered in ONE place in the tree for both modes. Moving it between two
-          JSX positions would remount it on every breakpoint crossing, and the
-          fields and the scroll position would go with it — C3 asks for exactly
-          the opposite. The mode only changes its className. */}
-      {drawerMounted && review && (
-        <div className={cn(reviewMinimized && "hidden")}>
-          <CareReviewDrawer
-            review={review}
-            currentCode={presentation?.code ?? null}
-            teenId={teen.id}
-            mode={drawerMode}
-            /* The rail's own node, handed over while the rail is unmounted.
-               Null while minimized so the rail can have it back — see
-               `drawerVisible`. */
-            evidence={drawerVisible ? summaryNode : null}
-            openFlagCount={openFlagCount}
-            prefill={{
-              source: review.rationale.source,
-              text: review.rationale.text,
-            }}
-            now={now}
-            onClose={() => {
-              // CLOSING NEVER DISCARDS. The draft is already in session storage;
-              // this only takes the panel off screen.
-              setReviewOpen(false);
-              setReviewMinimized(false);
-              returnFocusTo.current?.focus();
-            }}
-            onMinimize={
-              drawerMode === "overlay"
-                ? () => setReviewMinimized(true)
-                : undefined
+      {/* ═══ THE RIGHT COLUMN — ONE TRACK, TWO UNITS, ONE EXPANDED ═══
+          The track is 380px whether a review is open or not. What changes is
+          which unit inside it holds the height: the care summary, or the review
+          panel. `CareReviewSlot` owns that rule — see its note on why the
+          invariant lives in a signature rather than in a comment.
+          `panelNode` is built once and handed to whichever container is
+          rendering the slot (this one above 1100px, the sheet below it), so the
+          panel is never mounted twice and its fields never remount. */}
+      {summaryNode && !summaryOverlayOpen && wide && (
+        <div className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:flex min-[1100px]:max-h-[calc(100dvh-6rem)] min-[1100px]:flex-col">
+          <CareReviewSlot
+            expanded={expanded}
+            reviewInProgress={reviewInProgress}
+            summaryFull={
+              <aside
+                /* TODO-COPY */
+                aria-label="Care summary"
+                /* -1 so tipping can land focus here without adding the region to
+                   the tab order — a reader arrowing the page should not have to
+                   pass through a container to reach its contents. */
+                ref={summaryRef}
+                tabIndex={-1}
+                className="min-w-0 outline-none"
+              >
+                {summaryNode}
+              </aside>
             }
-            onCommit={(decision: ReviewDecision, body, at) => {
-              const code =
-                decision.kind === "change"
-                  ? decision.code
-                  : (presentation?.code ?? review.recommended.code);
-              const statement =
-                decision.kind === "change"
-                  ? decision.statement
-                  : (presentation?.statement ??
-                    review.recommended.statement);
-              const applies = presentation?.code !== code;
-              saveUpdate(
-                body,
-                {
-                  at,
-                  diagnosticPrefill: {
-                    source: review.rationale.source,
-                    edited:
-                      body.diagnostic.trim() !== review.rationale.text.trim(),
-                  },
-                },
-                {
-                  decisionId: review.id,
-                  code,
-                  statement,
-                  /* TODO-COPY — `REVIEW_NOUN`, never `STAGE_LABEL` + " review".
-                     See the two maps in care-demo.ts. */
-                  what: applies
-                    ? `presentation change to ${code}`
-                    : REVIEW_NOUN[review.stage],
-                  applies,
-                }
-              );
-              // A COMMITTED REVIEW HAS NO DRAFT. Cleared here rather than on the
-              // next open, so the storage never holds text for a decision that
-              // has already been written to the record.
-              clearReviewDraft(teen.id, review.id);
-              setReviewOpen(false);
-              setReviewMinimized(false);
-              setReviewed({ code, changed: applies });
-            }}
+            summaryDigest={
+              <CareSummaryDigest
+                doc={summaryDoc}
+                onExpand={() => tipTo("summary")}
+              />
+            }
+            reviewPanel={panelNode}
+            draftBar={
+              review && (
+                <ReviewDraftBar
+                  reviewNoun={REVIEW_NOUN[review.stage]}
+                  onRestore={() => tipTo("review")}
+                />
+              )
+            }
           />
         </div>
-      )}
-
-      {/* ═══ THE MINIMIZE PILL — OVERLAY MODE ONLY ═══
-          Push mode has nothing to get out of the way of: the drawer is a column
-          beside the work, not on top of it.
-          A REAL BUTTON, not a floating div with an onClick — focusable in
-          document order, Enter and Space free, and a visible ring. 48px tall
-          (h-12), because the ≥44px target the brief asks for is not one of
-          `button.tsx`'s sizes: `default` is h-10 and the next step up is
-          `icon-lg`'s square 48. Height set here rather than by adding a size to
-          the shared component for one consumer. */}
-      {drawerMounted && reviewMinimized && review && (
-        <button
-          type="button"
-          onClick={() => setReviewMinimized(false)}
-          /* TODO-COPY */
-          aria-label={`Restore ${REVIEW_NOUN[review.stage]} draft`}
-          className={cn(
-            "fixed bottom-4 right-4 z-40 flex h-12 items-center gap-2.5 rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 shadow-lg transition-colors hover:bg-[var(--tint-hover)]",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-          )}
-        >
-          {/* IN-PROGRESS INDICATOR, subtle: a small filled dot in the record's
-              attention band. It says "this is unfinished" without a spinner,
-              which would claim something is happening. Pulses only where motion
-              is welcome. */}
-          <span
-            aria-hidden
-            className="size-2 shrink-0 rounded-full bg-[var(--band-amber-fg)] motion-safe:animate-pulse"
-          />
-          <span className="text-[14px] font-semibold leading-[20px] text-[var(--text-primary)]">
-            {/* TODO-COPY */}
-            Draft · {REVIEW_NOUN[review.stage]}
-          </span>
-        </button>
       )}
 
       {/* ── BELOW 1100px: THE SAME NODE, IN AN OVERLAY ────────────────────
@@ -932,15 +961,48 @@ export function CareTab({
           own header and close control either scrolls inside a box already the
           height of the screen or shrinks the strip past reading.
           Radix portals it, so it sits outside the grid and occupies no column. */}
-      {summaryNode && (
+      {summaryNode && !wide && (
         <Dialog open={summaryOverlayOpen} onOpenChange={setSummaryOverlayOpen}>
           <DialogContent variant="side" className="min-[1100px]:hidden">
             <DialogHeader>
               {/* TODO-COPY. A panel over the record has no context around it, so
-                  it names what it is showing. */}
-              <DialogTitle>Care summary</DialogTitle>
+                  it names what it is showing — and with a review in progress the
+                  sheet is holding both units, so it says so. */}
+              <DialogTitle>
+                {reviewInProgress && review
+                  ? `Care summary · ${REVIEW_NOUN[review.stage]}`
+                  : "Care summary"}
+              </DialogTitle>
             </DialogHeader>
-            <DialogBody>{summaryNode}</DialogBody>
+            {/* ═══ THE SAME SEE-SAW, NOT A SECOND LAYOUT ═══
+                Below 1100px the right column has nowhere to be, so the whole slot
+                moves into the sheet the summary already used — same component,
+                same two units, same tipping. R2 had a separate overlay mode for
+                the drawer with its own dimensions and its own minimize control;
+                that was a second implementation of one idea, and it is gone. */}
+            <DialogBody className="flex min-h-0 flex-col">
+              <CareReviewSlot
+                expanded={expanded}
+                reviewInProgress={reviewInProgress}
+                summaryFull={<div className="min-w-0">{summaryNode}</div>}
+                summaryDigest={
+                  <CareSummaryDigest
+                    doc={summaryDoc}
+                    onExpand={() => tipTo("summary")}
+                  />
+                }
+                reviewPanel={panelNode}
+                draftBar={
+                  review && (
+                    <ReviewDraftBar
+                      reviewNoun={REVIEW_NOUN[review.stage]}
+                      onRestore={() => tipTo("review")}
+                    />
+                  )
+                }
+                className="min-h-0 flex-1"
+              />
+            </DialogBody>
           </DialogContent>
         </Dialog>
       )}

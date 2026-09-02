@@ -1,6 +1,6 @@
 "use client";
 
-// THE REVIEW DRAWER — where a presentation decision is made and committed.
+// THE REVIEW PANEL — where a presentation decision is made and committed.
 //
 // ═══ NON-MODAL, AND THAT IS THE POINT ═══
 //
@@ -27,19 +27,15 @@
 // three answers.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Minus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { Dsm5SearchList } from "@/components/record/dsm5-search";
 import {
   CareUpdateFields,
   type DiagnosticPrefill,
 } from "@/components/record/care-update-compose";
-import { Provenance } from "@/components/record/provenance";
-import { bandLabel } from "@/components/record/score-chip";
 import {
   emptyCareUpdateBody,
-  INSTRUMENT_MAX,
-  RATIONALE_SOURCE_LABEL,
   REVIEW_NOUN,
   type CareUpdateBody,
   type PresentationReview,
@@ -71,28 +67,21 @@ function reviewTitle(review: PresentationReview) {
   return noun.charAt(0).toUpperCase() + noun.slice(1);
 }
 
-export interface CareReviewDrawerProps {
+export interface CareReviewPanelProps {
   review: PresentationReview;
   /** The code on record — what "confirm" confirms, and the "before" of a change. */
   currentCode: string | null;
   teenId: string;
-  /** Push reflows the page; overlay floats above it and gains a minimize pill. */
-  mode: "push" | "overlay";
-  /** ═══ THE RAIL'S OWN NODE, MOVED IN HERE ═══
-   *  Not a re-implementation of the summary — the same element the rail renders,
-   *  handed over while the rail is unmounted. Two mounts would duplicate the
-   *  sparkline's document-global SVG ids and break whichever one is visible
-   *  (care-tab.tsx's own note, gap row 309), so "the rail collapses" is not a
-   *  layout preference here: it is what makes this legal. */
-  evidence: React.ReactNode;
-  /** For the collapsed one-liner. Counted by the owner, which is the only place
-   *  that reads the flag store. */
-  openFlagCount: number;
   prefill?: DiagnosticPrefill | null;
   now: number;
+  /** ═══ A TICK THAT MEANS "TAKE FOCUS" ═══
+   *  The panel stays mounted while the see-saw is tipped away from it, so a
+   *  mount effect can no longer be what moves focus in. The owner increments
+   *  this when the reader tips BACK, and only then — a value rather than a
+   *  callback, so a re-render for any other reason cannot pull focus out of a
+   *  field somebody is typing in. */
+  focusSignal: number;
   onClose: () => void;
-  /** Overlay mode only — push mode has nothing to get out of the way of. */
-  onMinimize?: () => void;
   onCommit: (
     decision: ReviewDecision,
     body: CareUpdateBody,
@@ -100,19 +89,16 @@ export interface CareReviewDrawerProps {
   ) => void;
 }
 
-export function CareReviewDrawer({
+export function CareReviewPanel({
   review,
   currentCode,
   teenId,
-  mode,
-  evidence,
-  openFlagCount,
   prefill,
   now,
+  focusSignal,
   onClose,
-  onMinimize,
   onCommit,
-}: CareReviewDrawerProps) {
+}: CareReviewPanelProps) {
   /** ═══ STATE IS SEEDED FROM THE DRAFT, ONCE ═══
    *  In a lazy initialiser rather than an effect: an effect would render the
    *  empty form first and then replace it, which is a visible flash of a blank
@@ -138,7 +124,6 @@ export function CareReviewDrawer({
     assessment: false,
   });
   const [decisionError, setDecisionError] = useState(false);
-  const [evidenceOpen, setEvidenceOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -156,7 +141,7 @@ export function CareReviewDrawer({
    *  impose. Nothing traps focus afterwards — see the module note. */
   useEffect(() => {
     headingRef.current?.focus();
-  }, []);
+  }, [focusSignal]);
 
   /** ═══ EVERY KEYSTROKE AND EVERY DECISION IS PERSISTED ═══
    *  Not on close, not on a timer — on change. Close, minimise, a breakpoint
@@ -174,25 +159,6 @@ export function CareReviewDrawer({
   const outcomeCode =
     decision?.kind === "change" ? decision.code : (currentCode ?? proposed.code);
 
-  const evidenceScore = review.aggregate?.score ?? review.survey?.score ?? null;
-  const evidenceBand =
-    review.aggregate?.severity ?? review.survey?.severity ?? "";
-  const instrument =
-    review.aggregate?.surveys[0]?.instrument ?? review.survey?.instrument ?? "";
-  const max = INSTRUMENT_MAX[instrument as keyof typeof INSTRUMENT_MAX];
-
-  /** TODO-COPY. The collapsed strip has to be worth reading on its own, or
-   *  collapsing it is just hiding the evidence. Score, band, flags — the three
-   *  facts a supervisor would re-open it for. */
-  const collapsedSummary = [
-    "Evidence",
-    evidenceScore !== null
-      ? `${instrument} ${evidenceScore}${max ? `/${max}` : ""} ${bandLabel(evidenceBand)}`
-      : null,
-    `${openFlagCount} open ${openFlagCount === 1 ? "flag" : "flags"}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 
   const clearError = (id: FieldId) =>
     setErrors((e) => (e[id] ? { ...e, [id]: false } : e));
@@ -257,20 +223,25 @@ export function CareReviewDrawer({
 
   return (
     <div
-      data-record-section="care-review-drawer"
-      data-mode={mode}
+      data-record-section="care-review-panel"
+      /* ═══ A REGION, NOT A DIALOG ═══
+         No scrim, no focus trap, no `role="dialog"`. The page behind stays
+         readable and scrollable, which is the whole reason the evidence could
+         come OUT of this panel: a supervisor checks the rationale and the survey
+         grid in the main column rather than in a copy of them in here. */
       role="region"
-      aria-label={`${reviewTitle(review)} for this record`}
+      aria-label={reviewTitle(review)}
       className={cn(
         "flex min-h-0 flex-col bg-[var(--surface-card)]",
-        mode === "push"
-          ? // In push mode the drawer is a grid track: it belongs to the page,
-            // scrolls with a sticky top like the rail it replaced, and casts no
-            // shadow because it is not floating over anything.
-            "sticky top-6 max-h-[calc(100dvh-3rem)] rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)]"
-          : // Overlay: right-docked, full height, elevated. No scrim — the page
-            // behind stays legible and the strip makes this self-sufficient.
-            "fixed inset-y-0 right-0 z-40 w-[min(520px,100vw)] border-l border-[color:var(--border-contour)] shadow-2xl"
+        /* ═══ A FLOATING CARD, NOT AN EDGE-ATTACHED DRAWER ═══
+           Card radius and elevation, inset from the column's edges, sticky
+           inside the tab's own scroll container — which is NOT the viewport
+           (measured: an inner `overflow-y-auto` div, 16px from the top of the
+           window and 56px from the bottom). So the height is bounded against
+           that container rather than against `100dvh`, and the panel reads as a
+           document lying on the workspace instead of chrome bolted to the
+           window. */
+        "min-h-0 flex-1 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] shadow-lg"
       )}
     >
       {/* ═══ HEADER ═══ */}
@@ -287,20 +258,9 @@ export function CareReviewDrawer({
               ({proposed.code})
             </span>
           </h2>
-          {mode === "overlay" && onMinimize && (
-            <button
-              type="button"
-              onClick={onMinimize}
-              /* TODO-COPY */
-              aria-label={`Minimize ${reviewTitle(review).toLowerCase()}`}
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)]",
-                RING
-              )}
-            >
-              <Minus className="size-4" aria-hidden />
-            </button>
-          )}
+          {/* NO MINIMIZE CONTROL. Condensing is the see-saw's job now — closing
+              tips the slot to the care summary and leaves a draft bar behind, so a
+              second way to shrink this would be two controls for one idea. */}
           <button
             type="button"
             onClick={onClose}
@@ -389,59 +349,16 @@ export function CareReviewDrawer({
           </div>
         )}
 
-        {/* ═══ EVIDENCE STRIP ═══
-            Load-bearing: this is the content the rail is showing until the
-            moment this panel opens, and collapsing the rail without it would
-            mean deciding a code with the evidence off screen. */}
-        <section className="rounded-[var(--radius-inset)] border border-[color:var(--border-subtle)]">
-          <button
-            type="button"
-            onClick={() => setEvidenceOpen((o) => !o)}
-            aria-expanded={evidenceOpen}
-            className={cn(
-              "flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-          >
-            <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              {evidenceOpen ? /* TODO-COPY */ "Evidence" : collapsedSummary}
-            </span>
-            <ChevronDown
-              className={cn(
-                "size-4 shrink-0 text-[var(--text-muted)] transition-transform",
-                !evidenceOpen && "-rotate-90"
-              )}
-              aria-hidden
-            />
-          </button>
-          {evidenceOpen && (
-            <div className="border-t border-[color:var(--border-subtle)] p-3">
-              {evidence}
-              {/* THE RATIONALE, with the shared provenance mark rather than a
-                  third wording of the same policy — see `provenance.tsx`. */}
-              {review.rationale.source !== "templated" && (
-                <div className="mt-3 border-t border-[color:var(--border-subtle)] pt-3">
-                  <p
-                    className="flex items-center gap-1.5 text-[var(--text-muted)]"
-                    style={LABEL_STYLE}
-                  >
-                    {/* TODO-COPY */}
-                    Rationale
-                    {review.rationale.source === "ai" && <Provenance />}
-                  </p>
-                  <p className="mt-1.5 text-[13px] leading-[19px] text-[var(--text-secondary)]">
-                    {review.rationale.text}
-                  </p>
-                  {review.rationale.source === "supervisor" && (
-                    <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-                      {RATIONALE_SOURCE_LABEL[review.rationale.source]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        {/* ═══ NO EVIDENCE IN HERE, DELIBERATELY ═══
+            R2 put a collapsible copy of the care summary at the top of this
+            panel, because the panel had displaced the rail and the evidence had
+            nowhere else to be. The see-saw removes that premise: the summary is
+            still on screen — condensed to the digest directly above this card,
+            one tap from full — so a second rendering of it would be the same
+            document in two places, competing for the same column.
+            What is left is a form. Reference lives in the main column (the
+            rationale, and the survey grid behind the card's disclosure) and in
+            the digest; this is where the decision gets written. */}
 
         {/* ═══ DECISION ═══ */}
         <section
