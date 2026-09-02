@@ -65,6 +65,7 @@ export function SettingsSidebar({
 }: SettingsSidebarProps) {
   return (
     <aside
+      data-anno-ref="app-rail"
       className={cn(
         "flex h-full w-[92px] flex-col items-center bg-[var(--surface-s2)] px-3 py-5",
         className

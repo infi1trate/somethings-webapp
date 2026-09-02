@@ -132,6 +132,7 @@ export function BottomNav({
       // other's ancestor is `display:none`, which removes it). `data-slot` is how
       // tests tell them apart, since the label cannot.
       data-slot="bottom-nav"
+      data-anno-ref="app-bottom-nav"
       style={{
         // ABOVE THE DEV BAR and clear of the physical bezel. The frame's 16px
         // becomes the floating gap; the safe-area inset is added to it rather

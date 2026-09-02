@@ -31,6 +31,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Lightbulb, Mic, Sticker } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { touchTarget } from "@/lib/touch-target";
+import { useKeyboardInset } from "@/lib/use-keyboard-inset";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -60,6 +62,12 @@ function AttachButton({
       className={cn(
         "flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors",
         "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+        /* 36 visual + 2×4 = 44. Measured at 390×844: all four of these and Send
+           were 36×36 with no extension at all, against the 44pt bar
+           `03-DEFINITION-OF-DONE.md` sets. The `gap-0.5` between them is what
+           keeps the extended boxes from meeting — the helper grows vertically
+           only, for exactly that reason. */
+        touchTarget(36),
         RING
       )}
     >
@@ -91,6 +99,7 @@ export function Composer({
 }) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const keyboardInset = useKeyboardInset();
   const canSend = value.trim().length > 0;
 
   /* REPLACES rather than appends, and then focuses with the caret at the end. A
@@ -135,10 +144,29 @@ export function Composer({
   return (
     <div
       data-slot="composer"
+      data-anno-ref="chat-composer"
       className={cn(
-        "shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 py-3",
+        "shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 pt-3",
+        /* ═══ THE BOTTOM INSET IS WHICHEVER OBSTRUCTION IS TALLER ═══
+         *
+         *  Two different things can cover this edge and they never both apply:
+         *  the home indicator (`env(safe-area-inset-bottom)`, present whenever
+         *  the keyboard is down) and the keyboard itself, which covers the
+         *  indicator while it is up. `max()` picks the live one, so the composer
+         *  clears whichever is actually there without ever reserving both.
+         *
+         *  The bar is not in this list — a thread is a detail view, so
+         *  `--nav-reserve` is already 0 here and there is no bar to clear. */
+        "[padding-bottom:calc(0.75rem+max(env(safe-area-inset-bottom,0px),var(--kb-inset,0px)))]",
         className
       )}
+      style={
+        /* Only set while the keyboard is up, so the declaration is absent — not
+           `0px` — at rest, and `max()` falls through to its own default. */
+        keyboardInset > 0
+          ? ({ "--kb-inset": `${keyboardInset}px` } as React.CSSProperties)
+          : undefined
+      }
     >
       <div className="flex items-end gap-1.5">
         <div className="flex shrink-0 items-center gap-0.5 pb-0.5">
@@ -174,6 +202,20 @@ export function Composer({
                 send();
               }
             }}
+            /* ═══ BRING THE FIELD BACK INTO VIEW WHEN IT IS FOCUSED ═══
+               The inset above reserves the room, but the reserve only takes
+               effect on the render after the keyboard reports itself — and on a
+               short thread the browser may have already scrolled elsewhere.
+               `block: "nearest"` scrolls the least that works, so a thread
+               already showing the composer does not jump.
+
+               Deferred a frame: called synchronously it measures the layout
+               from before the inset applied, and scrolls to the wrong place. */
+            onFocus={() => {
+              requestAnimationFrame(() =>
+                ref.current?.scrollIntoView({ block: "nearest" })
+              );
+            }}
             /* TODO-COPY. Names the person, so the field is visibly about this
                conversation rather than being a generic box. */
             placeholder={`Message ${theirName}`}
@@ -203,6 +245,8 @@ export function Composer({
             canSend
               ? "bg-[var(--text-primary)] text-[var(--text-inverse)] hover:opacity-90"
               : "bg-[var(--surface-s2)] text-[var(--text-muted)]",
+            // 36 + 2×4 = 44, same as the attach cluster.
+            touchTarget(36),
             RING
           )}
           style={{ font: "var(--type-button)" }}

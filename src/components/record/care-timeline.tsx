@@ -890,7 +890,7 @@ export function CareTimeline({
   useImperativeHandle(ref, () => ({ jump }));
 
   return (
-    <section aria-label="Care timeline" data-record-section="care-timeline">
+    <section aria-label="Care timeline" data-record-section="care-timeline" data-anno-ref="care-timeline">
       <div className="flex flex-wrap items-center gap-2">
         {CARE_FILTERS.map((f) => (
           <button

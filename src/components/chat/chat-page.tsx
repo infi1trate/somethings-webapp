@@ -29,6 +29,9 @@
 
 import { useMemo, useState } from "react";
 import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
 import { Thread } from "@/components/chat/thread/thread";
@@ -54,7 +57,6 @@ import type {
   Note,
   SentArtifact,
   SentArtifactItem,
-  ThreadId,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -62,12 +64,22 @@ const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 export function ChatPage({
-  /** From `?with=` — the deep link every record table's Chat action already
-   *  produces. See `lib/record/chat.ts`; this is why no call site changed. */
-  withId,
+  /** ═══ THE OPEN THREAD IS A ROUTE SEGMENT NOW, NOT A QUERY OR A STATE ═══
+   *
+   *  This was `withId` from `?with=` plus a `useState<"list" | "thread">` toggle,
+   *  and the toggle is what this replaces. A thread held in state has no URL, so
+   *  it had no browser back, no scroll restoration, nothing to deep-link to, and
+   *  no signal the app shell could read to hide the bottom bar — the bar
+   *  appeared and disappeared with no navigation to explain it.
+   *
+   *  `null` on `/app/chat`, a person id on `/app/chat/[personId]`. Below `md`
+   *  that is what decides which pane is on screen; at `md` and up both render
+   *  and this only decides which conversation the thread shows. */
+  personId,
 }: {
-  withId: string | null;
+  personId: string | null;
 }) {
+  const router = useRouter();
   const mounted = useMounted();
   const scenarioId = useOnboardingStore((s) => s.chatScenarioId);
 
@@ -99,7 +111,6 @@ export function ChatPage({
     [mounted, scenarioId, now]
   );
 
-  const [picked, setPicked] = useState<ThreadId | null>(null);
   /** ═══ THE TAKEOVER'S STARTING SIDE IS DERIVED FROM THE LINK, NOT SET BY ONE ═══
    *
    *  Below 900px only one column mounts, so arriving with no conversation chosen
@@ -111,7 +122,11 @@ export function ChatPage({
    *  following a deep link on a phone would have seen the list for a frame and then
    *  been moved. A `useState` initialiser reads the prop before the first render
    *  instead, which is both correct and one fewer render. */
-  const [view, setView] = useState<"list" | "thread">(withId ? "thread" : "list");
+  /** DERIVED, NEVER STORED. The route is the single source of which pane is up,
+   *  so there is no second copy to fall out of step with the URL — and a browser
+   *  back is a route change, which means it just works rather than needing a
+   *  popstate listener. */
+  const view: "list" | "thread" = personId ? "thread" : "list";
   /** ═══ CLOSED BY DEFAULT, WHICH ONLY MATTERS BELOW `xl` ═══
    *  At `xl` the rail is a grid track and this flag does nothing — the class that
    *  reads it is `!railOpen && "hidden xl:block"`, so `xl` always shows it.
@@ -155,12 +170,12 @@ export function ChatPage({
   const putChatNote = useOnboardingStore((s) => s.putChatNote);
 
   const threads = data?.threads ?? [];
-  /* ═══ THE DEEP LINK IS A FALLBACK, NOT AN OVERRIDE ═══
-     `picked` first, so a reader who follows `?with=t18` and then chooses someone
-     else is not dragged back by a prop that never changes. Then `withId`, then the
-     scenario's own focus thread. Derived rather than written into state, which is
-     what removes the effect. */
-  const selectedId = picked ?? withId ?? data?.focusThreadId ?? null;
+  /* ═══ THE ROUTE FIRST, THEN THE SCENARIO'S OWN FOCUS ═══
+     `picked` is gone with the toggle: choosing a row navigates, so the route
+     already carries the answer and a state copy could only disagree with it.
+     The scenario's focus thread is still the fallback at `md` and up, where the
+     thread pane needs something to show before anyone has chosen. */
+  const selectedId = personId ?? data?.focusThreadId ?? null;
   const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
   /* MEMOISED for the same reason `events` and `artifacts` are: it feeds the Assist
      memo, and a fresh array every render makes that memo useless. */
@@ -554,10 +569,11 @@ export function ChatPage({
           now={now}
           selectedId={thread?.id ?? null}
           onSelect={(id) => {
-            setPicked(id);
-            // AND HAND OVER THE SCREEN. A no-op at md and up, which is why the
-            // narrow case has to be the one that is written down.
-            setView("thread");
+            /* A NAVIGATION, NOT A SETSTATE. Below `md` this hands over the
+               screen exactly as the toggle did; the difference is that it also
+               produces a URL, a history entry and a back gesture, and lets the
+               shell see that a detail view is open. */
+            router.push(chatThreadHref(id));
           }}
           className={cn(view === "thread" && "hidden md:flex")}
         />
@@ -572,10 +588,19 @@ export function ChatPage({
           {/* THE WAY BACK, below `md` only. Above it the list is on screen and a
               Back button would point at something already visible. */}
           {view === "thread" && (
-            <button
-              type="button"
+            /* ═══ A LINK, BECAUSE THREE GESTURES HAVE TO LAND ON THE LIST ═══
+               Browser back, the Android system back gesture and iOS swipe-back
+               all navigate — none of them fire an onClick. A button could only
+               ever serve the fourth case, the tap, which is why this is an
+               anchor with a real href.
+               DEEP-LINK ENTRY GOES TO THE LIST, not the referrer: arriving from
+               a record's Chat action and pressing "All conversations" should
+               land somewhere that explains itself, and `router.back()` from that
+               entry would return to the record — which is not what the label
+               says. The browser's own back still returns to the referrer. */
+            <Link
+              href="/app/chat"
               data-slot="chat-back"
-              onClick={() => setView("list")}
               className={cn(
                 "flex min-h-11 shrink-0 items-center gap-1.5 border-b border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 text-[var(--text-secondary)] md:hidden",
                 "hover:text-[var(--text-primary)]",
@@ -586,7 +611,7 @@ export function ChatPage({
               <ArrowLeft className="size-4 shrink-0" aria-hidden />
               {/* TODO-COPY */}
               All conversations
-            </button>
+            </Link>
           )}
 
           {thread ? (

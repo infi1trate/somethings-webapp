@@ -33,8 +33,21 @@ export function canChatWith(
   return true;
 }
 
-/** The one place that knows the chat URL shape. `?with=` carries the person so
- *  the eventual thread view inherits a correct deep link. */
-export function chatHrefFor(personId: string): string {
-  return `/app/chat?with=${encodeURIComponent(personId)}`;
+/** ═══ THE ONE PLACE THAT KNOWS THE CHAT URL SHAPE ═══
+ *
+ *  It used to return `/app/chat?with=<id>`, from the days when the thread was a
+ *  query param on a single route. The thread is a route segment now, so the
+ *  shape moved — and because every caller has always gone through this function
+ *  (six of them: the person record, the task pane, the record task regions, the
+ *  relationship table and the flag card), moving it cost no call-site edits.
+ *
+ *  `?with=` IS NOT BROKEN, it is redirected. Links already sitting in someone's
+ *  history, a bookmark or an Activity row still resolve — `/app/chat` reads the
+ *  param and redirects to the segment. See that route's own note. */
+export function chatThreadHref(personId: string): string {
+  return `/app/chat/${encodeURIComponent(personId)}`;
 }
+
+/** The name the record surfaces have always called this by. Kept as an alias so
+ *  the six call sites read unchanged; `chatThreadHref` is the canonical name. */
+export const chatHrefFor = chatThreadHref;

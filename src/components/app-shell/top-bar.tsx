@@ -86,6 +86,7 @@ export function TopBar({
       // replacing it — a notched device needs the inset AND the designed padding.
       // `change-requests-dock.tsx:63` is the reference for this in the codebase.
       style={{ paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))" }}
+      data-anno-ref="app-topbar"
       className="fixed inset-x-0 top-0 z-40 flex w-full items-center justify-between bg-[var(--surface-s1)] px-6 pb-4 md:hidden"
     >
       <Wordmark className="h-6" />

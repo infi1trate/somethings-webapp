@@ -94,6 +94,7 @@ export function StatusBanner({
   return (
     <div
       data-slot="status-banner"
+      data-anno-ref="chat-status-banner"
       data-tone={tone}
       /* `role="status"`, NOT `role="alert"`. An alert interrupts a screen reader
          mid-sentence, which is right for something that just happened and wrong

@@ -234,6 +234,14 @@ function Row({
       // ROVING TABINDEX: one tab stop for the whole listbox.
       tabIndex={tabbable ? 0 : -1}
       onClick={onSelect}
+      /* ═══ THE ROW'S OWN ID IS PART OF THE NAME ═══
+         A bare "task-row" repeats on every mounted row, and the anno-02 spike
+         measured what that costs: four pins on four different rows all captured
+         the same reference and all resolved to the first one, reporting tier 1
+         while pointing at the wrong task. The id makes the name identify a row
+         rather than a row TYPE — so a pin resolves exactly when its row is
+         mounted, and honestly orphans when the virtualizer has unmounted it. */
+      data-anno-ref={`task-row:${item.id}`}
       style={{ height: ROW_H }}
       className={cn(
         /* EXACT HEIGHT, NOT A MINIMUM — see ROW_H. `border-t` on EVERY row,
@@ -769,6 +777,7 @@ export function Worklist({
          to nothing, so "Imminent — 23" would scroll away and the reader forty rows
          down would have no idea which tier they were in. Moving the scroll here
          gives the headers something to stick to — the card's own top edge. */
+      data-anno-ref="tasks-worklist-scroller"
       className={cn(frame, "h-full overflow-y-auto overscroll-contain")}
     >
       {sections.map((section, si) => {
