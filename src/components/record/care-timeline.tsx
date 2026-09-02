@@ -21,7 +21,13 @@
 // have to infer who wrote a rationale.
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { ChevronRight, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Search, Sparkles, X } from "lucide-react";
+import { QuoteBlock } from "@/components/ui/evidence-primitives";
+import { TonalChip } from "@/components/record/tonal-chip";
+import { riskCategory } from "@/lib/record/risk-taxonomy";
+import { CRISIS_TYPE, type CareFlagRecord } from "@/lib/record/people-demo";
+import { chatThreadHref } from "@/lib/record/chat";
 import {
   severityFor,
   CARE_FILTERS,
@@ -178,6 +184,7 @@ function Row({
   documentedBy,
   summarizedBy,
   landed,
+  matchInDetails,
   onJump,
 }: {
   event: CareEvent;
@@ -216,6 +223,9 @@ function Row({
   summarizedBy?: CareEvent;
   /** True for ~1.6s after another surface jumped to this row. See `jump`. */
   landed: boolean;
+  /** The query matched only inside this row's COLLAPSED expansion. Renders a
+   *  quiet hint so a result never looks like a false positive. */
+  matchInDetails?: boolean;
   onJump: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -506,6 +516,24 @@ function Row({
             )
           )}
 
+          {/* ═══ WHY A ROW SAYS IT MATCHED ═══
+              A result whose match is inside a collapsed expansion looks like a
+              false positive, and a reader who cannot see why a row is in their
+              results stops trusting the search. The hint is ROW-LEVEL only —
+              nothing is highlighted inside the expansion, and emphatically
+              nothing inside a flagged quote, which renders verbatim and
+              untouched. Suppressed once the row is open: the content is on
+              screen by then, so the hint would be pointing at something the
+              reader is already looking at. TODO-COPY. */}
+          {matchInDetails && !open && (
+            <p
+              className="mt-1 text-[var(--text-muted)]"
+              style={{ font: "var(--type-row-label)" }}
+            >
+              Match in details
+            </p>
+          )}
+
           {open && (
             <div className="mt-3 rounded-[var(--radius-surface)] bg-[var(--surface-s1)] p-3">
               {/* ═══ THE DEMOTED LINES ═══
@@ -639,7 +667,22 @@ function Row({
                 </div>
               )}
 
-              {event.items?.length ? (
+              {/* ═══ THE FIELD SETS COME FIRST ═══
+                  Before the assessment table and before the bare providerNote
+                  fallback, because an escalation or a flag that reached here used
+                  to fall all the way through to `providerNote` — one paragraph
+                  where a field set belongs. `flagRecord` is set only by
+                  `flagEventsFor`, so a CLOSURE entry (`ce-close-*`) still takes
+                  the fallback: a closure is its own event about the flag, and its
+                  note is the right thing to show. */}
+              {event.flagRecord && event.type === "escalation" ? (
+                <EscalationDetail
+                  record={event.flagRecord}
+                  occurredAt={event.occurredAt}
+                />
+              ) : event.flagRecord && event.type === "risk_flag" ? (
+                <FlagDetail record={event.flagRecord} occurredAt={event.occurredAt} />
+              ) : event.items?.length ? (
                 <table className="w-full text-left">
                   <thead>
                     <tr>
@@ -735,6 +778,329 @@ function Row({
   );
 }
 
+/* ══════════════════ THE ESCALATION AND FLAG EXPANSIONS ══════════════════
+ *
+ * ═══ THE N/A RULE, AND WHY IT IS NOT AN OMISSION ═══
+ *
+ * A field with no value renders as its LABEL PLUS AN EM-DASH, never as nothing.
+ * This is an audit surface: "no safety plan was recorded" and "this row has no
+ * safety plan field" are different facts, and only the first is true here. A
+ * reader scanning for what was missed cannot see a row that is not drawn.
+ *
+ * The single exception is the brief's own: Emergency contact and Conversations
+ * collapse into ONE em-dash line when both are empty, because two adjacent
+ * dashes about the same absent person is a row of furniture.
+ *
+ * ═══ EVERYTHING HERE IS REUSED ═══
+ *
+ * `TonalChip` for every chip, `QuoteBlock` from `ui/evidence-primitives` for the
+ * excerpt, the care update's label-over-prose rhythm for the blocks, and the
+ * timeline's own `Attribution` grammar for the footer. NO NEW COMPONENT: the
+ * brief expected one (a quote block) and two already existed. */
+
+const FIELD_LABEL = {
+  font: "var(--type-field-label)",
+  letterSpacing: "var(--type-field-label-tracking)",
+} as const;
+
+/** TODO-COPY on every label string in this block. */
+const EM_DASH = "\u2014";
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      className="flex items-center gap-1.5 text-[var(--text-muted)]"
+      style={FIELD_LABEL}
+    >
+      {children}
+    </p>
+  );
+}
+
+/** One cell of the fact grid. The value sits on its own line under the label,
+ *  the same rhythm as the care update's read view. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** TWO COLUMNS, and a container query rather than a viewport one — this grid
+ *  lives inside an inset inside a row inside a rail-flanked column, so the
+ *  viewport has never been the thing that decides whether two columns fit. */
+function FactGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="@container">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-3 @[22rem]:grid-cols-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Label over prose, exactly the care update's block. `body` absent renders the
+ *  em-dash — see the N/A rule. */
+function ProseBlock({
+  label,
+  body,
+  badge,
+}: {
+  label: string;
+  body?: string;
+  /** The AI badge, on the ONE block that is model-written. */
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <FieldLabel>
+        {label}
+        {badge}
+      </FieldLabel>
+      {body ? (
+        <p className="mt-1 max-w-prose whitespace-pre-line text-[14px] leading-[1.55] text-[var(--text-primary)]">
+          {body}
+        </p>
+      ) : (
+        <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-muted)]">
+          {EM_DASH}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** ═══ THE AI BADGE ═══
+ *  The same Sparkles + wording the timeline's own `Attribution` uses for an
+ *  AI author, so a model's writing is marked identically wherever it appears.
+ *  It rides on ONE label in this expansion and nowhere else. */
+function AiBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
+      <Sparkles className="size-3" aria-hidden />
+      {/* TODO-COPY */}
+      AI generated
+    </span>
+  );
+}
+
+/** "Resolved by X · 12 Mar 2026 at 9:32 PM". Mirrors the care update's
+ *  attribution row. NOT rendered while open — the collapsed row's "Open" already
+ *  carries that state, and a footer saying nothing would be the second place a
+ *  reader looks for a status that is one line up. */
+function ResolutionFooter({
+  verb,
+  who,
+  at,
+  time,
+}: {
+  verb: string;
+  who: string;
+  at: number;
+  time?: string;
+}) {
+  return (
+    <p
+      className="border-t border-[color:var(--border-subtle)] pt-2.5 text-[var(--text-muted)]"
+      style={{ font: "var(--type-row-label)" }}
+    >
+      {/* TODO-COPY */}
+      {`${verb} by ${who} · ${dateOf(at)}${time ? ` at ${time}` : ""}`}
+    </p>
+  );
+}
+
+/** ═══ THE RESOLUTION DATE IS DERIVED FROM THE ROW, NOT FROM `Date.now()` ═══
+ *
+ *  The first version called `Date.now()` in the footer and lint stopped it —
+ *  "Cannot call impure function during render". The rule caught a real defect,
+ *  not a style point: the row's own date came from `ago(now, daysAgo)` against
+ *  the timeline's fixed `now`, so a footer reading the wall clock could state a
+ *  resolution date that disagrees with the entry it sits inside.
+ *
+ *  `occurredAt` already encodes that `now`. The gap between raise and resolution
+ *  is `daysAgo - resolvedDaysAgo`, so the resolution instant is the row's own
+ *  timestamp plus that gap — pure, and incapable of drifting from the row. */
+function resolvedAtFrom(record: CareFlagRecord, occurredAt: number): number | null {
+  if (record.resolvedDaysAgo === undefined) return null;
+  const openDays = record.daysAgo - record.resolvedDaysAgo;
+  return occurredAt + openDays * 86_400_000;
+}
+
+function EscalationDetail({
+  record,
+  occurredAt,
+}: {
+  record: CareFlagRecord;
+  occurredAt: number;
+}) {
+  const d = record.escalationDetail;
+  /* THE BRIEF'S ONE COMBINING EXCEPTION. Both empty is a common shape on an
+     open escalation — nobody has been contacted yet — and two dashes about the
+     same absent person reads as a form nobody filled in rather than as a fact. */
+  const contactsBothEmpty = !d?.emergencyContact && !d?.contactConversations;
+  const crisisLabel = record.crisis
+    ? (CRISIS_TYPE.find((c) => c.id === record.crisis!.type)?.label ?? null)
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <FactGrid>
+        <Fact label="Escalation type">
+          {d?.type ? <TonalChip tone="warning">{d.type}</TonalChip> : EM_DASH}
+        </Fact>
+        <Fact label="Crisis sub-type">
+          {crisisLabel ? <TonalChip>{crisisLabel}</TonalChip> : EM_DASH}
+        </Fact>
+        <Fact label="Suicide assessment risk">
+          {d?.suicideRisk ? (
+            /* LABEL AND TONE TOGETHER, never tone alone — the chip reads
+               "High risk", so greyscale and a monochrome print carry it. */
+            <TonalChip tone={d.suicideRisk === "High" ? "risk" : "warning"}>
+              {`${d.suicideRisk} risk`}
+            </TonalChip>
+          ) : (
+            EM_DASH
+          )}
+        </Fact>
+        {!contactsBothEmpty && (
+          <Fact label="Emergency contact">
+            {d?.emergencyContact ?? EM_DASH}
+          </Fact>
+        )}
+      </FactGrid>
+
+      <ProseBlock label="Reason for escalation" body={d?.reasonDetail} />
+      <ProseBlock label="Information provided by mentor" body={d?.mentorInformation} />
+      {contactsBothEmpty ? (
+        <ProseBlock label="Emergency contact and conversations" />
+      ) : (
+        <ProseBlock
+          label="Conversations with emergency contact / first responders"
+          body={d?.contactConversations}
+        />
+      )}
+      <ProseBlock label="Next steps" body={d?.nextSteps} />
+      <ProseBlock label="Safety plan" body={d?.safetyPlan} />
+
+      {record.resolvedBy && resolvedAtFrom(record, occurredAt) !== null && (
+        <ResolutionFooter
+          verb="Resolved"
+          who={record.resolvedBy}
+          at={resolvedAtFrom(record, occurredAt)!}
+          time={d?.resolvedAtTime}
+        />
+      )}
+    </div>
+  );
+}
+
+function FlagDetail({
+  record,
+  occurredAt,
+}: {
+  record: CareFlagRecord;
+  occurredAt: number;
+}) {
+  const d = record.flagDetail;
+  const categories = (record.categories ?? [])
+    .map((c) => riskCategory(c)?.label)
+    .filter((l): l is string => !!l);
+
+  return (
+    <div className="space-y-4">
+      <FactGrid>
+        <Fact label="Media type">
+          {d?.mediaType ? <TonalChip>{d.mediaType}</TonalChip> : EM_DASH}
+        </Fact>
+        <Fact label="Priority">
+          {d?.priority ? (
+            <TonalChip tone={d.priority === "high" ? "risk" : "warning"}>
+              {d.priority === "high" ? "High risk" : "Medium risk"}
+            </TonalChip>
+          ) : (
+            EM_DASH
+          )}
+        </Fact>
+        <Fact label="Category">
+          {/* THE MAPPED LABEL, never the raw value — an unmapped category is
+              reported by `unmappedCategories()` and shows nothing here rather
+              than leaking a wire constant onto a clinical record. */}
+          {categories.length ? (
+            categories.map((c) => <TonalChip key={c}>{c}</TonalChip>)
+          ) : (
+            EM_DASH
+          )}
+        </Fact>
+        <Fact label="Detected">
+          {`${dateOf(occurredAt)}${d?.detectedAtTime ? ` \u00b7 ${d.detectedAtTime}` : ""}`}
+        </Fact>
+      </FactGrid>
+
+      <div>
+        <FieldLabel>Flagged content</FieldLabel>
+        {d?.flaggedContent ? (
+          <div className="mt-1.5">
+            {/* ═══ VERBATIM. NEVER PARAPHRASED, TRUNCATED OR SUMMARISED ═══
+                The exact wording is the clinical datum, so it is rendered as
+                authored and wrapped in quotation marks so it can never be
+                mistaken for the interface talking. `QuoteBlock` is the shared
+                primitive from `ui/evidence-primitives`, reused rather than
+                reinvented — its own note calls it "the one place a teen's own
+                message appears on a staff surface".
+
+                THIS SURFACE IS NEW FOR THAT, and it contradicts a rule this
+                codebase calls locked. See `CareFlagRecord.flagDetail.flaggedContent`
+                and the report. */}
+            <QuoteBlock>{`\u201c${d.flaggedContent}\u201d`}</QuoteBlock>
+          </div>
+        ) : (
+          <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-muted)]">
+            {/* An image or a video carries no words — a real state, not a gap. */}
+            {EM_DASH}
+          </p>
+        )}
+        {record.conversationWith && (
+          <Link
+            href={chatThreadHref(record.conversationWith)}
+            className={cn(
+              "mt-2 inline-flex rounded-sm py-1 underline underline-offset-2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]",
+              RING
+            )}
+            style={{ font: "var(--type-row-label)" }}
+          >
+            {/* TODO-COPY */}
+            View chat context
+            <span aria-hidden>&nbsp;&rarr;</span>
+          </Link>
+        )}
+      </div>
+
+      <ProseBlock
+        label="Why this was flagged"
+        body={record.momentSummary?.text}
+        /* THE BADGE IS CONDITIONAL ON PROVENANCE, not on the field existing. A
+           deterministic classifier's output is not a model's writing, and
+           badging both the same way would let a match wear a model's hedge. */
+        badge={record.momentSummary?.provenance === "ai" ? <AiBadge /> : undefined}
+      />
+
+      {record.resolvedBy && resolvedAtFrom(record, occurredAt) !== null && (
+        <ResolutionFooter
+          verb="Reviewed"
+          who={record.resolvedBy}
+          at={resolvedAtFrom(record, occurredAt)!}
+          time={d?.reviewedAtTime}
+        />
+      )}
+    </div>
+  );
+}
+
 /** WHAT THE PATTERN BLOCK CAN ASK OF HISTORY. One method, and it is a READ —
  *  filter and scroll, never a write.
  *
@@ -747,6 +1113,81 @@ export interface CareTimelineHandle {
   jump: (eventId: string) => void;
 }
 
+/* ══════════════════════ PAGINATION + SEARCH ══════════════════════════
+ *
+ * ═══ WHY PROGRESSIVE REVEAL AND NOT PAGES ═══
+ *
+ * A clinical record is read backwards from now, and the question is almost never
+ * "what is on page 3" — it is "keep going until I find it". Numbered pages make
+ * that a navigation task; revealing more in place keeps it a reading one, and it
+ * leaves everything already read still on screen above.
+ *
+ * ═══ THE DEEP-LINK RULE IS WHAT MAKES PAGINATION SAFE ═══
+ *
+ * Every anchor into History — the strip's marks, the rail's flags, an amendment
+ * chain, the survey dialog — targets a specific row, and pagination can hide it.
+ * `jump` therefore RESOLVES rather than scrolls: it clears the filter, clears the
+ * search, and reveals whole pages until the target is inside the window, and only
+ * then scrolls. A link that silently lands on nothing is worse than no link. */
+const PAGE_SIZE = 15;
+
+/** Minimum query length. One character matches most of a long record, which is
+ *  not a search result, it is the list again with extra steps. */
+const MIN_QUERY = 2;
+
+/** ═══ TWO HAYSTACKS PER ROW, NOT ONE ═══
+ *
+ *  `surface` is everything a reader can see with the row COLLAPSED; `details` is
+ *  everything only its expansion shows. Both match, but the split is what lets a
+ *  row say "Match in details" — a result whose match is invisible looks like a
+ *  false positive, and a reader who cannot see why a row is in their results
+ *  stops trusting the search.
+ *
+ *  Built over the event, NOT over the DOM: the expansion of a collapsed row is
+ *  not rendered, so anything read from the document would miss exactly the case
+ *  the hint exists for. */
+type Haystack = { surface: string; details: string };
+
+function haystackFor(event: CareEvent): Haystack {
+  const surface = [
+    event.description,
+    event.result,
+    TYPE_LABEL[event.type],
+  ]
+    .filter(Boolean)
+    .join(" \n ")
+    .toLowerCase();
+
+  const r = event.flagRecord;
+  const esc = r?.escalationDetail;
+  const flag = r?.flagDetail;
+  const details = [
+    event.providerNote,
+    // Flag and escalation field sets — the expansion's own content.
+    r?.reason,
+    r?.momentSummary?.text,
+    r?.resolutionNote,
+    ...(r?.categories ?? []).map((c) => riskCategory(c)?.label ?? ""),
+    esc?.type,
+    esc?.suicideRisk,
+    esc?.emergencyContact,
+    esc?.reasonDetail,
+    esc?.mentorInformation,
+    esc?.contactConversations,
+    esc?.nextSteps,
+    esc?.safetyPlan,
+    flag?.mediaType,
+    flag?.flaggedContent,
+    // Assessment breakdowns.
+    ...(event.items ?? []).flatMap((i) => [i.question, i.answer]),
+  ]
+    .filter(Boolean)
+    .join(" \n ")
+    .toLowerCase();
+
+  return { surface, details };
+}
+
 export function CareTimeline({
   events,
   ref,
@@ -756,6 +1197,24 @@ export function CareTimeline({
   ref?: React.Ref<CareTimelineHandle>;
 }) {
   const [filter, setFilter] = useState<CareFilterId>("all");
+  /** What is in the field, and what the list is actually filtered by. Separate so
+   *  typing never costs a re-filter of forty rows per keystroke. */
+  const [query, setQuery] = useState("");
+  const [applied, setApplied] = useState("");
+  /** How many rows of the CURRENT result set are revealed. */
+  const [visible, setVisible] = useState(PAGE_SIZE);
+
+  /* ═══ DEBOUNCE, AND WHY THE RESET IS NOT IN HERE ═══
+     `setApplied` runs inside the timeout, not in the effect body — a synchronous
+     setState during an effect is what this repo's lint forbids, and an async
+     callback is not that. The page reset lives in the HANDLERS instead of keying
+     off `applied`: resetting where the change originates means one obvious line
+     per control, rather than an effect that has to distinguish "the query
+     changed" from "the query settled". */
+  useEffect(() => {
+    const t = setTimeout(() => setApplied(query.trim().toLowerCase()), 200);
+    return () => clearTimeout(t);
+  }, [query]);
 
   // Newest first, and an index of what supersedes what.
   const ordered = useMemo(
@@ -835,7 +1294,76 @@ export function CareTimeline({
     return out;
   }, [events]);
 
-  const rows = ordered.filter((e) => matchesFilter(e.type, filter));
+  /** Built once per event set. A row's searchable text does not change when the
+   *  query does, and rebuilding forty of them per keystroke is work nobody asked
+   *  for. */
+  const haystacks = useMemo(() => {
+    const m = new Map<string, Haystack>();
+    for (const e of events) m.set(e.id, haystackFor(e));
+    return m;
+  }, [events]);
+
+  /** Below the floor the query is IGNORED, not treated as empty-string — the
+   *  difference matters for the count line, which must not claim to be filtering
+   *  by a single letter it is deliberately not filtering by. */
+  const q = applied.length >= MIN_QUERY ? applied : "";
+
+  /** ═══ SEARCH ANDs WITH THE CHIP, USING THE SAME MECHANISM ═══
+      The chip was already a client-side predicate over `ordered`; search is a
+      second predicate in the same pass, so the two compose by construction rather
+      than by one filtering the other's output. */
+  const rows = useMemo(
+    () =>
+      ordered.filter((e) => {
+        if (!matchesFilter(e.type, filter)) return false;
+        if (!q) return true;
+        const h = haystacks.get(e.id);
+        return !!h && (h.surface.includes(q) || h.details.includes(q));
+      }),
+    [ordered, filter, q, haystacks]
+  );
+
+  /** A row whose ONLY match is inside its collapsed expansion. */
+  const matchInDetailsOnly = (e: CareEvent): boolean => {
+    if (!q) return false;
+    const h = haystacks.get(e.id);
+    return !!h && !h.surface.includes(q) && h.details.includes(q);
+  };
+
+  const shown = rows.slice(0, visible);
+  const allShown = shown.length >= rows.length;
+
+  /** ONE LINE, and it names both axes only when both are active. "matching X in
+   *  Flags" when no chip is set would invent a filter the reader did not choose.
+   *  TODO-COPY — placeholder wording. */
+  const filterLabel = CARE_FILTERS.find((f) => f.id === filter)?.label ?? "";
+  const countSuffix = q
+    ? filter === "all"
+      ? ` matching \u201c${applied}\u201d`
+      : ` matching \u201c${applied}\u201d in ${filterLabel}`
+    : filter === "all"
+      ? ""
+      : ` in ${filterLabel}`;
+
+  /** Focus lands on the first NEWLY revealed row after Show more — but only for a
+   *  keyboard activation. Moving focus after a mouse click would yank the page
+   *  under a pointer user who was reading. `detail === 0` is the browser's own
+   *  signal for a keyboard-triggered click. */
+  const revealMore = (keyboard: boolean) => {
+    const firstNew = visible;
+    setVisible((v) => Math.min(v + PAGE_SIZE, rows.length));
+    if (!keyboard) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const id = rows[firstNew]?.id;
+        if (!id) return;
+        document
+          .getElementById(`care-${id}`)
+          ?.querySelector<HTMLElement>("button[aria-expanded]")
+          ?.focus();
+      });
+    });
+  };
 
   // Jumping between the two halves of an amendment chain has to survive a
   // filter: "Flags" can show a superseded entry whose correction is a
@@ -866,16 +1394,44 @@ export function CareTimeline({
   const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const jump = (id: string) => {
+    /* ═══ RESOLVE, DO NOT MERELY SCROLL ═══
+       Three things can hide the target: the filter chip, the search query, and
+       pagination. All three are cleared or opened before the scroll is asked
+       for, in that order, because each one changes what "row N" means.
+
+       CLEARING SEARCH AND FILTER IS THE CHOSEN BEHAVIOUR, stated plainly: a
+       reader following a link is asking to be taken to a specific entry, and
+       arriving at an empty list because their chip excluded it is the failure
+       this exists to prevent. Losing a chip selection is the cheaper cost, and it
+       is the same trade the filter reset already made before pagination existed.
+
+       THE REVEAL IS BY WHOLE PAGES, not to the exact index: landing with the
+       target as the last visible row would leave a "Show more" directly under
+       it and nothing after, which reads as the end of the record rather than as
+       the middle of it. */
     setFilter("all");
+    setQuery("");
+    setApplied("");
+    const index = ordered.findIndex((e) => e.id === id);
+    if (index >= 0) {
+      const needed = Math.ceil((index + 1) / PAGE_SIZE) * PAGE_SIZE;
+      setVisible((v) => Math.max(v, needed));
+    }
+    /* TWO FRAMES, not one. The single rAF was enough when the only change was a
+       filter reset; revealing rows adds a second commit, and asking for a scroll
+       to a row React has not painted yet lands on nothing. Measured — one frame
+       reached the old row position, two reaches the new one. */
     requestAnimationFrame(() => {
-      document
-        .getElementById(`care-${id}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setLandedId(id);
-      if (landedTimer.current) clearTimeout(landedTimer.current);
-      // Long enough to notice after a smooth scroll settles, short enough that it
-      // never reads as state.
-      landedTimer.current = setTimeout(() => setLandedId(null), 1600);
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`care-${id}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setLandedId(id);
+        if (landedTimer.current) clearTimeout(landedTimer.current);
+        // Long enough to notice after a smooth scroll settles, short enough that
+        // it never reads as state.
+        landedTimer.current = setTimeout(() => setLandedId(null), 1600);
+      });
     });
   };
 
@@ -891,19 +1447,103 @@ export function CareTimeline({
 
   return (
     <section aria-label="Care timeline" data-record-section="care-timeline" data-anno-ref="care-timeline">
+      {/* ═══ SEARCH SITS INLINE WITH THE CHIPS, RIGHT-ALIGNED ═══
+          The brief offered a header row opposite the "History" heading or the
+          chip row. The heading belongs to `care-tab`'s section, not to this
+          component, so putting the field beside it would mean lifting this
+          component's search state one level up and threading it back down — a
+          worse shape for a purely local concern. `ml-auto` on the field pushes it
+          to the right of the same row, and the row already wraps, so a narrow
+          container drops it to its own line instead of squeezing the chips. */}
       <div className="flex flex-wrap items-center gap-2">
         {CARE_FILTERS.map((f) => (
           <button
             key={f.id}
             type="button"
-            onClick={() => setFilter(f.id)}
+            onClick={() => {
+              setFilter(f.id);
+              // RESET TO THE FIRST PAGE — a new result set, so "visible" from the
+              // old one means nothing.
+              setVisible(PAGE_SIZE);
+            }}
             aria-pressed={filter === f.id}
             className={cn(CHIP, filter === f.id ? CHIP_ON : CHIP_OFF, RING)}
           >
             {f.label}
           </button>
         ))}
+
+        {/* NO BLOOM SEARCH COMPONENT EXISTS — audited. This is the roster's
+            pattern (`admin/roster.tsx`): a control pill carrying the icon and a
+            bare input, so the two searches on the console look like one idea. */}
+        <span
+          className={cn(
+            "ml-auto inline-flex items-center gap-2 rounded-full px-3 py-1",
+            "border border-[color:var(--border-subtle)] bg-[var(--surface-card)]",
+            "focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[color:var(--focus-ring)]"
+          )}
+        >
+          <Search className="size-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setVisible(PAGE_SIZE);
+            }}
+            onKeyDown={(e) => {
+              /* ESC CLEARS RATHER THAN BLURS. Stops propagation so it cannot also
+                 close whatever contains the record. */
+              if (e.key === "Escape" && query) {
+                e.stopPropagation();
+                setQuery("");
+                setApplied("");
+                setVisible(PAGE_SIZE);
+              }
+            }}
+            /* TODO-COPY */
+            aria-label="Search history"
+            placeholder="Search history"
+            className="w-36 bg-transparent py-0.5 text-[13px] leading-[18px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          />
+          {query && (
+            <button
+              type="button"
+              /* TODO-COPY */
+              aria-label="Clear search"
+              title="Clear search"
+              onClick={() => {
+                setQuery("");
+                setApplied("");
+                setVisible(PAGE_SIZE);
+              }}
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </span>
       </div>
+
+      {/* ═══ THE COUNT LINE RESERVES ITS SPACE ═══
+          `min-h` and a permanently-rendered node, so a result count appearing or
+          changing never moves the list underneath it while someone is typing.
+          `aria-live="polite"` announces the settled count — on `applied`, which is
+          debounced, so a screen reader is told the result and not each keystroke. */}
+      <p
+        aria-live="polite"
+        className="mt-2 min-h-[18px] text-[var(--text-muted)]"
+        style={{ font: "var(--type-row-label)" }}
+      >
+        {/* TODO-COPY — PLACEHOLDER wording, one line, per the brief. */}
+        {rows.length === 0
+          ? ""
+          : allShown
+            ? `Showing all ${rows.length} ${rows.length === 1 ? "event" : "events"}${countSuffix}`
+            : `Showing ${shown.length} of ${rows.length} events${countSuffix}`}
+      </p>
 
       <div className="mt-4 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
         {rows.length === 0 ? (
@@ -912,16 +1552,23 @@ export function CareTimeline({
             style={{ font: "var(--type-row-label)" }}
           >
             {/* TODO-COPY */}
+            {/* THREE DIFFERENT EMPTINESSES, and they must not share a sentence:
+                an empty record, a chip with nothing under it, and a search with no
+                hits are three different facts about why the list is blank.
+                TODO-COPY — placeholders. */}
             {events.length === 0
               ? "Nothing recorded yet. Entries appear here once the first survey is assigned."
-              : "No entries of this kind yet."}
+              : q
+                ? "No events match"
+                : "No entries of this kind yet."}
           </p>
         ) : (
           <ul className="[&>li+li]:border-t [&>li+li]:border-[var(--border-subtle)]">
-            {rows.map((e) => (
+            {shown.map((e) => (
               <Row
                 key={e.id}
                 event={e}
+                matchInDetails={matchInDetailsOnly(e)}
                 amendedBy={amendedBy.get(e.id)}
                 relational={relational.get(e.id)}
                 amends={e.amends ? byId.get(e.amends) : undefined}
@@ -939,6 +1586,50 @@ export function CareTimeline({
           </ul>
         )}
       </div>
+
+      {/* ═══ SHOW MORE — QUIET, FULL WIDTH, AND IT DISAPPEARS ═══
+          Full width of the list because it belongs to the list rather than
+          sitting beside it, and quiet because revealing more of a record you are
+          already reading is not a decision that needs a filled button. It is
+          REMOVED, not disabled, once everything is visible: a disabled control at
+          the end of a record is a dead affordance the reader has to test. */}
+      {!allShown && rows.length > 0 && (
+        <button
+          type="button"
+          onClick={(e) => revealMore(e.detail === 0)}
+          className={cn(
+            "mt-2 w-full rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] py-2",
+            "text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+          style={{ font: "var(--type-row-label)" }}
+        >
+          {/* TODO-COPY */}
+          {`Show ${Math.min(PAGE_SIZE, rows.length - shown.length)} more`}
+        </button>
+      )}
+
+      {/* ONE CLICK BACK OUT OF A DEAD END. Only when a SEARCH produced the empty
+          list — an empty chip result is cleared by the chips, which are right
+          there, and a second control for it would be noise. */}
+      {rows.length === 0 && q && (
+        <button
+          type="button"
+          onClick={() => {
+            setQuery("");
+            setApplied("");
+            setVisible(PAGE_SIZE);
+          }}
+          className={cn(
+            "mt-2 rounded-sm py-1 underline underline-offset-2 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
+            RING
+          )}
+          style={{ font: "var(--type-row-label)" }}
+        >
+          {/* TODO-COPY */}
+          Clear search
+        </button>
+      )}
     </section>
   );
 }
