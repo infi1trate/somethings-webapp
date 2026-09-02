@@ -905,13 +905,16 @@ export function ActivityLedger({
   };
 
   return (
-    <div className={PAGE_WRAPPER}>
+    /* ANNO REGIONS — see the note in roster.tsx. Inert markers only. The feed
+       ROWS are deliberately left untagged: a row is record-bound, and anchoring
+       to one is refused by the accepted anno-02 trade. */
+    <div data-anno-ref="activity-ledger" className={PAGE_WRAPPER}>
       <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
         {/* TODO-COPY */}
         Activity
       </h1>
 
-      <div className="mt-5">
+      <div data-anno-ref="activity-view-rail" className="mt-5">
         <ViewRail
           activeId={viewId}
           onSelect={(id) => {
@@ -998,6 +1001,7 @@ export function ActivityLedger({
           ceiling so a very tall window does not stretch it into emptiness. */}
       <div
         ref={feedRef}
+        data-anno-ref="activity-feed"
         id="activity-panel"
         role="tabpanel"
         aria-labelledby={`activity-tab-${viewId}`}

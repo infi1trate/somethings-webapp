@@ -288,11 +288,16 @@ export function Roster({
   const sortProps = { sortKey, sortDir, onSort: toggleSort };
 
   return (
-    <div className="px-6 py-6 lg:px-10">
+    /* ANNO REGIONS. Inert `data-anno-ref` markers so a review comment anchors to
+       the filter bar or the table rather than to the whole content area — the
+       measured problem after the first cycle, where 10 of 10 comments landed on
+       `app-main`. No name carries a ":", so none of these is volatile: the rows
+       inside the table stay unannotatable by the accepted anno-02 trade. */
+    <div data-anno-ref="roster" className="px-6 py-6 lg:px-10">
       <h1 className="font-display text-2xl font-bold tracking-tight">{heading}</h1>
 
       {/* Filters — relevant to the view; all functional. */}
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div data-anno-ref="roster-filters" className="mt-5 flex flex-wrap items-center gap-2">
         {isMentors
           ? MENTOR_ROLE_FILTERS.map((f) => (
               <button
@@ -404,7 +409,10 @@ export function Roster({
       {showQueues && <ReviewQueues className="mt-6" />}
 
       {/* Roster table */}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]">
+      <div
+        data-anno-ref="roster-table"
+        className="mt-6 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)]"
+      >
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-[var(--surface-s2)] text-left text-[var(--text-secondary)]">

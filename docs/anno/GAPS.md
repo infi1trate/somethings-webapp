@@ -949,3 +949,87 @@ about this prototype".
 **Decision needed from:** Brandon — leave as is, or add a `This page / All pages`
 scope to the filter row. The latter is a feature, so it belongs in anno-08 with
 the rest of the fast-follow set, not in this fix.
+
+---
+
+## [anno-mvp-3] FIXED — every comment anchored to the whole content area
+
+**Found by:** reading the production store after the first (aborted) review cycle.
+**All 10 comments ever placed on production** — across two routes and two
+reviewers — carried `elementRef: "app-main"`. Not one landed on a card, panel or
+control.
+
+**Why:** the anchor vocabulary was 20 names, and 14 of them were on Chat, Tasks
+and the Care tab. Measured per route, under the SUPERVISOR persona (the mentor
+branch renders different components, and an earlier count taken under `mentor`
+understated Tasks by two):
+
+| Route | Stable content tags, before |
+|---|---|
+| `/app/chat` | 4 |
+| `/app/tasks` | 2 |
+| `/admin/person/[id]?tab=care` | 3 |
+| `/app/mentees` · `/app/activity` · `/app/team` · `/admin/person/[id]` other tabs | **0** |
+
+With nothing tagged between the page root and the leaf, `captureAnchor`'s
+deepest-unique-prefix walk had exactly one candidate on those routes: `app-main`.
+
+**What that cost, in the reviewers' own data:** comment 9's `structuralPath` is
+`… > table > thead > tr > th:nth-of-type(5) > button` — the reviewer was pointing
+at a column-sort button. Comment 8, the only substantive one ("This is bad"), has
+`structuralPath: null`, so there is no record at all of what "this" was. It points
+at a 1302×700 rectangle.
+
+**Fixed:** 15 new region names on the untagged surfaces —
+`roster` / `roster-filters` / `roster-table`, `review-queues`,
+`team-directory` / `team-filters` / `team-table`,
+`activity-ledger` / `activity-view-rail` / `activity-feed`,
+`tasks-header` / `tasks-domain-tabs`,
+`record-tabs` / `record-panel`, `record-overview` / `record-account`.
+Vocabulary 20 → 35. Every name is a plain `data-anno-ref` on a real DOM element,
+inert: no styling, no layout, no behaviour.
+
+**`DataView` needed a prop, not an attribute.** It destructures a closed prop list
+and spreads nothing, so `data-anno-ref` written at the call site would have been
+SILENTLY DROPPED — the same component-boundary failure anno-02 measured. It now
+takes an optional `annoRef`, written onto its real root. Absent by default, so its
+one other consumer is byte-identical.
+
+**Rows are still deliberately untagged.** No new name contains `":"`, and no feed
+row, roster row or directory row was given one. Annotating a record-bound row
+stays refused per the accepted anno-02 trade — this phase widens the vocabulary of
+PLACES, not of records.
+
+**Verified** by placing 13 comments through the real capture path and reading back
+what the store recorded:
+
+| Clicked | Region captured | Element inside it |
+|---|---|---|
+| mentees filter bar | `app-main/roster/roster-filters` | `select:nth-of-type(1)` |
+| mentees table header | `app-main/roster/roster-table` | `tr > th:nth-of-type(4)` |
+| mentees table cell | `app-main/roster/roster-table` | `tr:nth-of-type(2) > td:nth-of-type(4)` |
+| mentees heading | `app-main/roster` | `h1` |
+| activity view rail | `app-main/activity-ledger/activity-view-rail` | `button:nth-of-type(1) > span` |
+| activity feed | `app-main/activity-ledger/activity-feed` | `li:nth-of-type(3) > button` |
+| team filters | `app-main/team-directory/team-filters` | `button:nth-of-type(1)` |
+| team table | `app-main/team-directory/team-table` | `th:nth-of-type(3) > button` |
+| tasks header | `app-main/tasks-header` | `div > h1` |
+| tasks domain tabs | `app-main/tasks-domain-tabs` | `button > span:nth-of-type(2)` |
+| record tab row | `app-main/record-tabs` | `nav > button:nth-of-type(1)` |
+| record panel | `app-main/record-panel` | `div > section:nth-of-type(1)` |
+| care summary panel | `app-main/record-panel/care-summary-panel` | `div > div:nth-of-type(1)` |
+
+**12 of 12 on a specific region; 0 fell back to `app-main`.**
+
+**No regression on existing anchors.** `record-panel` now sits between `app-main`
+and the Care sections, but resolve uses a DESCENDANT selector, so the old chain
+`app-main/care-summary-panel` still matches exactly one element — measured, and
+all 7 pins on `/admin/person/t13?tab=care` resolve with 0 orphans. The Care tab
+also still wins as the deeper unique prefix, so it gained precision rather than
+losing it.
+
+**Not measured:** whether a wider vocabulary changes the orphan RATE over time.
+anno-02's spike measured 3.1% against the old vocabulary; the new regions are
+structural containers rather than leaf content, which should hold or improve it,
+but that is reasoning and not a measurement. Worth re-running the spike after a
+real cycle.

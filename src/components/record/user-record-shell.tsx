@@ -319,7 +319,10 @@ export function UserRecordShell({
           page rather than to the tab set. Underlining the set says what the set
           is. `w-fit` on the nav so the rule ends at the last tab even when there
           is width to spare; `min-w-0` keeps it scrollable when there is not. */}
-      <div className="mt-6 flex items-end gap-3">
+      {/* ANNO REGIONS. `record-panel` covers EVERY tab in one place — the Care
+          tab already carries its own deeper sections, and those still win as the
+          deeper unique prefix, so this only changes the tabs that had nothing. */}
+      <div data-anno-ref="record-tabs" className="mt-6 flex items-end gap-3">
         {/* THE SCROLL PORT. The fades are siblings of the nav inside this
             wrapper, never children of it — a child of an `overflow-x-auto`
             element scrolls with the content and adds to its scrollWidth, so a
@@ -384,7 +387,9 @@ export function UserRecordShell({
           rail && "lg:grid-cols-[minmax(0,900px)_300px]",
         )}
       >
-        <div className="min-w-0">{children}</div>
+        <div data-anno-ref="record-panel" className="min-w-0">
+          {children}
+        </div>
         {rail && <aside className="min-w-0 lg:sticky lg:top-6">{rail}</aside>}
       </div>
     </div>

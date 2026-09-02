@@ -176,6 +176,7 @@ export function DataView<T>({
   maxCardHeight,
   threshold = "45rem",
   className,
+  annoRef,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -207,6 +208,18 @@ export function DataView<T>({
   /** The container width at which the table replaces the cards. See THRESHOLDS. */
   threshold?: DataViewThreshold;
   className?: string;
+  /** ═══ AN ANNOTATION REGION NAME, OPTIONAL ═══
+   *
+   *  A `data-anno-ref` written on `<DataView>` at a call site would be DROPPED —
+   *  this component destructures a closed prop list and spreads nothing, which is
+   *  precisely the failure anno-02 measured when a tag was put on a component
+   *  boundary. So the name comes in as a prop and is written onto the real root
+   *  element below.
+   *
+   *  Omitted by default: no prop, no attribute, and every existing caller renders
+   *  exactly what it rendered before. Names must not contain ":" — that suffix
+   *  convention marks a region as record-bound, and annotating one is refused. */
+  annoRef?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const edges = useEdgeOverflow(scrollRef);
@@ -221,7 +234,7 @@ export function DataView<T>({
   const at = THRESHOLDS[threshold];
 
   return (
-    <div className={cn("@container", className)}>
+    <div data-anno-ref={annoRef} className={cn("@container", className)}>
       {/* ══ CARD LIST — below the threshold ═══════════════════════════════ */}
       <ul
         className={cn(

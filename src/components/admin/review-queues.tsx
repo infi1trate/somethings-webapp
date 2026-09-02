@@ -77,7 +77,7 @@ export function ReviewQueues({
   if (!needsReview && !pendingUpdate) return null;
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div data-anno-ref="review-queues" className={cn("space-y-6", className)}>
       {needsReview && (
         <section className={SECTION} aria-label="Needs review">
           <div className={HEAD}>
