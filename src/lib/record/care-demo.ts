@@ -436,6 +436,74 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
       },
     ];
   }
+  if (teenId === "t17") {
+    /* ═══ THE RICH LONGITUDINAL RECORD — DEEP ENOUGH TO PAGE ═══
+     *
+     *  t17 carried 14 events, UNDER the 15-row page size, so the pagination it is
+     *  meant to demonstrate would never have appeared on the one scenario named
+     *  to demonstrate it. Extended to ~40 per the brief.
+     *
+     *  ═══ WHY THESE ARE ALL care_update AND care_summary ═══
+     *
+     *  Deliberate. Assessments, presentation events and flags are DERIVED for
+     *  this teen — `CARE_PROFILES.t17` builds the assessment series and the
+     *  presentation spine, `careFlags` builds the flags. Writing an assessment
+     *  through THIS path would put a score in History that `weightedNowFor` and
+     *  `pendingReviewFor` never see, so the presentation card's Weighted Avg and
+     *  the review card would disagree with the record underneath them. That is
+     *  exactly what `record-scenarios.test.ts` asserts against; the guard would
+     *  fire, and it should.
+     *
+     *  So the depth comes from the two classes that are pure documentation — and
+     *  they are also the right ones for search, because every entry carries prose.
+     *
+     *  SYNTHETIC. Modelled on the tone of supervision notes; no real names, and
+     *  nothing here is anyone's actual words. */
+    const NOTES: [
+      days: number,
+      kind: "care_update" | "care_summary",
+      title: string,
+      result: string,
+      note: string,
+    ][] = [
+      [9, "care_update", "Weekly supervision note", "Logged", "Mentor reports the calls have settled back into their usual rhythm after the schedule change. Two consecutive weeks kept without a reschedule."],
+      [16, "care_summary", "Care summary committed", "Committed", "Mood steady across the period. Sleep is still the recurring theme in check-ins, and the teen continues to raise it themselves rather than waiting to be asked."],
+      [23, "care_update", "School term change noted", "Logged", "Teen mentioned a timetable change for the new term. Mentor moved the standing call thirty minutes later to fit around it. No other adjustment needed."],
+      [31, "care_update", "Mentor coaching note", "Logged", "Coached the mentor on holding silence when the teen is working up to something rather than filling the gap. They tried it on the following call and reported it went well."],
+      [38, "care_summary", "Care summary committed", "Committed", "A quieter month. The teen initiated contact twice outside the scheduled calls, which is new, and both times about something ordinary."],
+      [45, "care_update", "Guardian contact logged", "Logged", "Routine check-in with the guardian. No concerns raised. Confirmed the contact number on file is still current."],
+      [52, "care_update", "Activity completed", "Logged", "Teen finished the goal-setting activity and shared the result with their mentor unprompted. Mentor noted it was the first thing they had volunteered in several weeks."],
+      [59, "care_update", "Supervision review", "Logged", "Reviewed the last six weeks with the mentor. Nothing outstanding. Agreed to keep the current cadence rather than adding contact."],
+      [66, "care_summary", "Care summary committed", "Committed", "Engagement consistent through the period. The theme running through the check-ins is workload rather than mood, and the teen frames it as manageable."],
+      [74, "care_update", "Missed call followed up", "Logged", "One missed call, followed up the same day by message. Teen replied within the hour and rescheduled themselves."],
+      [81, "care_update", "Mentor availability change", "Logged", "Mentor flagged a two-week absence. Cover arranged with the lead mentor and the teen was told a fortnight in advance."],
+      [88, "care_update", "Cover handover note", "Logged", "Handover to the covering mentor. Briefed on the sleep theme and on the teen preferring to be asked directly rather than approached sideways."],
+      [96, "care_summary", "Care summary committed", "Committed", "Two calls held with the covering mentor and both kept. The teen mentioned the change without appearing unsettled by it."],
+      [104, "care_update", "Return from cover", "Logged", "Regular mentor resumed. Teen picked the conversation up where it had left off, which the covering mentor had noted as likely."],
+      [112, "care_update", "Goal check-in", "Logged", "Revisited the goals set at the ninety-day mark. Two carried forward unchanged, one dropped by the teen as no longer relevant."],
+      [119, "care_update", "Mentor coaching note", "Logged", "Discussed pacing. The mentor had been covering three topics a call; agreed to follow the teen's lead instead and let a call be about one thing."],
+      [127, "care_summary", "Care summary committed", "Committed", "Steady. The pattern across the period is that the teen raises the difficult thing late in the call, so the mentor has begun leaving room at the end rather than closing early."],
+      [134, "care_update", "Guardian contact logged", "Logged", "Second routine guardian check-in. Guardian asked how the sessions were structured and was given the standard explanation."],
+      [141, "care_update", "Schedule stabilised", "Logged", "Four consecutive weeks at the same time and day. Noted because the first two months had needed a reschedule most weeks."],
+      [149, "care_update", "Supervision review", "Logged", "Six-week review with the mentor. Raised that the teen had twice referred to a friendship group changing; agreed to notice rather than probe."],
+      [157, "care_summary", "Care summary committed", "Committed", "The friendship theme recurs across three check-ins this period. The teen describes it as background rather than as a problem, and the mentor has not pushed."],
+      [164, "care_update", "Activity completed", "Logged", "Teen completed the strengths activity. Their answers were brief but they finished it, which the mentor noted as a change from the previous one."],
+      [172, "care_update", "Mentor coaching note", "Logged", "Coached on closing calls. The mentor had been ending on a summary; agreed to end on a question the teen can answer next time instead."],
+      [180, "care_update", "First guardian contact", "Logged", "Introductory call with the guardian. Explained the mentorship, the cadence and what would prompt an escalation. Contact details confirmed."],
+      [188, "care_summary", "Care summary committed", "Committed", "First full period since matching. Engagement established, calls kept, and the teen has begun answering at more than one word."],
+      [195, "care_update", "Match introduction", "Logged", "Introduction call held. Teen quiet but engaged for the full session. Mentor briefed on the intake themes beforehand."],
+    ];
+    return NOTES.map(([days, type, description, result, providerNote], i) => ({
+      id: `cl-t17-${i + 1}`,
+      occurredAt: ago(now, days),
+      type,
+      description,
+      result,
+      author: { kind: "person", name: "Dr. Amara Patel", role: "Supervisor" } as const,
+      visibility: "all_staff" as const,
+      providerNote,
+    }));
+  }
   if (teenId === "t9") {
     // The INTAKE REVIEW subject. The survey is DONE — that is a completed event
     // and belongs in the record — while the presentation decision is what sits
