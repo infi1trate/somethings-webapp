@@ -54,7 +54,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PillButton } from "@/components/settings/pill-button";
-import { InfoCallout } from "@/components/record/info-callout";
 import { clinicalDate } from "@/components/record/care-presentation";
 import {
   CARE_UPDATE_ASSESSMENT_LABEL,
@@ -639,19 +638,17 @@ export function CareUpdateFields({
     ),
     diagnostic: (
       <>
-      {/* 2 · DIAGNOSTIC SUPPORT STATEMENT.
-          The callout sits ABOVE the field, per spec — it asks the supervisor to
-          read before signing, so it has to arrive before the text does. */}
+      {/* ═══ 2 · DIAGNOSTIC SUPPORT STATEMENT ═══
+          THE BLUE CALLOUT IS GONE, AND FROM BOTH SURFACES. It read "Review this
+          section carefully to ensure it accurately reflects your client's
+          symptoms and your clinical judgement" — which is what the field's own
+          label and helper already say, in fewer words, attached to the thing
+          they describe. A banner repeating them spent a full-width tinted block
+          on a plea, and a plea is what a reader learns to skim first.
+          These fields are shared with the standalone Write/Amend modal, so it
+          leaves that surface too — reported, and the brief's own condition for
+          doing so. No replacement element. */}
       <div>
-        {/* `mb-3` (12px) on the scale, up from an arbitrary 10px. The callout
-            keeps `InfoCallout`'s own `px-3 py-2.5` padding untouched — it is the
-            standard for every callout in the record — and the 24px group gap
-            above it means it no longer sits against the field it follows. */}
-        <InfoCallout className="mb-3">
-          {/* TODO-COPY */}
-          Review this section carefully to ensure it accurately reflects your
-          client&apos;s symptoms and your clinical judgement.
-        </InfoCallout>
         <Field
           id={`${idPrefix}-diagnostic`}
           label={CARE_UPDATE_SECTIONS[1].label}

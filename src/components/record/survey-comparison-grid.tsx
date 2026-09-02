@@ -171,7 +171,32 @@ export function SurveyComparisonGrid({
     return [...m.entries()].sort((a, b) => a[0] - b[0]);
   }, [ordered]);
 
+  /** ═══ SHORT DATES, WITH THE YEAR ONLY WHERE IT EARNS ITS PLACE ═══
+   *  "May 12" rather than "May 12, 2026": four of the header's characters were
+   *  the same year repeated across every column, and the header is the tightest
+   *  space in the table. The full date lives in the column's tooltip.
+   *  THE EXCEPTION IS A COLLISION. Two surveys a year apart land on the same
+   *  month and day, and then the short forms are indistinguishable — so the year
+   *  comes back, on the colliding columns only, rather than on all of them
+   *  forever. */
+  const headerDates = useMemo(() => {
+    const short = columns.map((c) =>
+      new Date(c.survey.at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    );
+    const seen = new Map<string, number>();
+    for (const d of short) seen.set(d, (seen.get(d) ?? 0) + 1);
+    return short.map((d, i) =>
+      (seen.get(d) ?? 0) > 1
+        ? `${d}, ${new Date(columns[i]!.survey.at).getFullYear()}`
+        : d
+    );
+  }, [columns]);
+
   if (ordered.length === 0) return null;
+
 
   const instrument = ordered[0]?.instrument ?? "";
   const max = INSTRUMENT_MAX[instrument as keyof typeof INSTRUMENT_MAX];
@@ -224,20 +249,27 @@ export function SurveyComparisonGrid({
                 {/* TODO-COPY */}
                 Question
               </th>
-              {columns.map((c) => (
+              {columns.map((c, i) => (
                 <th
                   key={c.survey.at}
                   scope="col"
                   className="pb-2 pl-2 align-bottom text-right font-normal"
+                  /* THE FULL DATE, on the column. `title` is the right weight
+                     here: the header is not interactive, the information is a
+                     nicety rather than the content, and the totals row below
+                     already carries the number this column is about. */
+                  title={`${c.survey.instrument} · ${clinicalDate(c.survey.at)}`}
                 >
                   <span className="block text-[12px] leading-[16px] text-[var(--text-muted)]">
-                    {clinicalDate(c.survey.at)}
+                    {headerDates[i]}
                   </span>
-                  <span className="block text-[13px] leading-[18px] text-[var(--text-primary)]">
-                    {totalFor(c.survey)}
-                  </span>
-                  <span className="block truncate text-[11px] leading-[15px] text-[var(--text-muted)]">
-                    {bandLabel(c.survey.severity)}
+                  {/* LINE 2 — total and band together, so the header is two
+                      lines rather than three and the columns stay short. */}
+                  <span className="block truncate text-[13px] leading-[18px] text-[var(--text-primary)]">
+                    {totalFor(c.survey)}{" "}
+                    <span className="text-[var(--text-muted)]">
+                      · {bandLabel(c.survey.severity)}
+                    </span>
                   </span>
                 </th>
               ))}
@@ -259,11 +291,11 @@ export function SurveyComparisonGrid({
                         would otherwise have to grow for itself. */}
                     <Provenance label="Weighted" note={WEIGHTING_NOTE} />
                   </span>
-                  <span className="block text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-                    {weighted!.score}
-                  </span>
-                  <span className="block truncate text-[11px] leading-[15px] text-[var(--text-muted)]">
-                    {bandLabel(weighted!.severity)}
+                  <span className="block truncate text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
+                    {weighted!.score}{" "}
+                    <span className="font-normal text-[var(--text-muted)]">
+                      · {bandLabel(weighted!.severity)}
+                    </span>
                   </span>
                 </th>
               )}
@@ -344,8 +376,18 @@ export function SurveyComparisonGrid({
               rather than merely last: at 200% zoom, or in a short drawer, the
               questions are what scrolls and the totals are what a reader is
               checking them against. */}
-          <tfoot className="sticky bottom-0">
-            <tr className="border-t-2 border-[color:var(--border-contour)] bg-[var(--surface-card)]">
+          {/* ═══ THE TOTALS ARE A ROW, NOT A BAR ═══
+              It used to be `sticky bottom-0` on its own card-coloured fill with
+              a 2px rule — which made it a component sitting under the table
+              rather than the table's last line, and the fill cut across the
+              weighted column's tint so that column visibly stopped short of its
+              own total. Sticky bought nothing either: nine questions never
+              scroll.
+              Now it is a row like the others — same height, the same hairline
+              the question rows use, no fill of its own — and the weighted
+              column's tint runs through it unbroken. */}
+          <tfoot>
+            <tr className="border-t border-[color:var(--border-subtle)]">
               <th
                 scope="row"
                 className={cn(ROW, "pr-3 text-left align-middle font-medium text-[var(--text-muted)]")}
@@ -360,7 +402,7 @@ export function SurveyComparisonGrid({
                   key={c.survey.at}
                   className={cn(
                     ROW,
-                    "pl-2 align-middle text-right text-[13px] leading-[18px] text-[var(--text-primary)]"
+                    "pl-2 align-middle text-right text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]"
                   )}
                 >
                   {totalFor(c.survey)}
@@ -370,7 +412,7 @@ export function SurveyComparisonGrid({
                 <td
                   className={cn(
                     ROW,
-                    "bg-[var(--surface-s1)] px-2 align-middle text-right"
+                    "rounded-b-[var(--radius-inset)] bg-[var(--surface-s1)] px-2 align-middle text-right"
                   )}
                 >
                   <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">

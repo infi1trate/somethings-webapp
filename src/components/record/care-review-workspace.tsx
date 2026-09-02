@@ -20,6 +20,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PillButton } from "@/components/settings/pill-button";
+import { ArrowRight, Check } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Dsm5SearchList } from "@/components/record/dsm5-search";
 import {
   CareUpdateFields,
@@ -54,6 +62,9 @@ export interface CareReviewWorkspaceProps {
   review: PresentationReview;
   /** The code on record — what "confirm" confirms, and the "before" of a change. */
   currentCode: string | null;
+  /** The statement for `currentCode`, so the change delta can name what is being
+   *  replaced rather than only its code. */
+  currentStatement?: string | null;
   teenId: string;
   prefill?: DiagnosticPrefill | null;
   now: number;
@@ -77,6 +88,7 @@ export interface CareReviewWorkspaceProps {
 export function CareReviewWorkspace({
   review,
   currentCode,
+  currentStatement,
   teenId,
   prefill,
   now,
@@ -112,6 +124,8 @@ export function CareReviewWorkspace({
   });
   const [decisionError, setDecisionError] = useState(false);
   const [query, setQuery] = useState("");
+  /** The code picker's own open state — a dialog now, not an inline list. */
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [announce, setAnnounce] = useState("");
@@ -120,6 +134,10 @@ export function CareReviewWorkspace({
   const diagnosticRef = useRef<HTMLTextAreaElement | null>(null);
   const assessmentRef = useRef<HTMLButtonElement | null>(null);
   const firstDecisionRef = useRef<HTMLButtonElement | null>(null);
+  /** The control the picker returns focus to, captured so Radix does not drop a
+   *  keyboard reader on <body> — the same failure the DSM-5 dialog had to fix. */
+  const changeRef = useRef<HTMLButtonElement | null>(null);
+  const pickerInputRef = useRef<HTMLInputElement | null>(null);
   const decisionRef = useRef<HTMLDivElement | null>(null);
 
   /** ═══ FOCUS LANDS ON THE DECISION, NOT ON A FIELD ═══
@@ -316,16 +334,30 @@ export function CareReviewWorkspace({
             {/* TODO-COPY */}
             Decision
           </p>
-          {/* THE PROPOSAL, STATED PLAINLY — and it is a proposal, not a default.
-              Neither control below is preselected. */}
+
+          {/* ═══ A PROMPT, NOT A LABEL ═══
+              "Decision" over a statement told a reader what the section was
+              called and left them to infer that it wanted something from them.
+              The section now asks, in a sentence, and says what happens if they
+              skip it — which is the thing the validation error would otherwise
+              have to teach them after the fact. TODO-COPY. */}
           <p className="mt-1.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {proposesChange
-              ? /* TODO-COPY */ `Change to ${proposed.code} proposed`
-              : /* TODO-COPY */ "No change proposed"}
+            Confirm the code on record, or change it — one is required to submit.
           </p>
 
-          {/* TWO PEERS. Outlined, identical weight, `aria-pressed` so the chosen
-              one is announced as chosen rather than merely tinted. */}
+          {/* THE PROPOSAL, under the prompt. It describes what the model
+              suggested and never changes with the draft. TODO-COPY. */}
+          <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-muted)]">
+            {proposesChange
+              ? `Change to ${proposed.code} proposed`
+              : "No change proposed"}
+          </p>
+
+          {/* ═══ A SINGLE-SELECT PAIR, AND THE CHECK IS NOT DECORATION ═══
+              Selection was carried by a border and a fill alone. A tick beside
+              the chosen label states it in a second channel (SC 1.4.1), and
+              `aria-pressed` states it in a third for anyone not looking at
+              either. Both render unselected until a supervisor chooses. */}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {(
               [
@@ -334,22 +366,27 @@ export function CareReviewWorkspace({
                   label: `Confirm ${currentCode ?? proposed.code}`,
                   on: decision?.kind === "confirm",
                   pick: () => {
+                    /* CHOOSING CONFIRM CLEARS ANY PENDING CHANGE — the code and
+                       statement go with it, so the draft cannot carry a change
+                       nobody is proposing any more. */
                     setDecision({ kind: "confirm" });
                     setDecisionError(false);
                   },
                 },
                 {
                   key: "change",
-                  /* TODO-COPY */
-                  label: "Change code",
+                  /* TODO-COPY — the chosen code rides in the label once there is
+                     one, so the control says what it will do rather than what
+                     kind of thing it does. */
+                  label:
+                    decision?.kind === "change" && decision.code
+                      ? `Change code · ${decision.code}`
+                      : "Change code",
                   on: decision?.kind === "change",
                   pick: () => {
-                    setDecision({
-                      kind: "change",
-                      code: proposesChange ? proposed.code : "",
-                      statement: proposesChange ? proposed.statement : "",
-                    });
+                    setDecision({ kind: "change", code: "", statement: "" });
                     setDecisionError(false);
+                    setPickerOpen(true);
                   },
                 },
               ] as const
@@ -358,11 +395,11 @@ export function CareReviewWorkspace({
                 key={o.key}
                 type="button"
                 /* The focus target on expand — see the effect above. */
-                ref={o.key === "confirm" ? firstDecisionRef : undefined}
+                ref={o.key === "confirm" ? firstDecisionRef : changeRef}
                 aria-pressed={o.on}
                 onClick={o.pick}
                 className={cn(
-                  "min-h-11 rounded-full border px-4 py-2 text-[14px] font-semibold leading-[20px] transition-colors",
+                  "flex min-h-11 items-center justify-center gap-1.5 rounded-full border px-4 py-2 text-[14px] font-semibold leading-[20px] transition-colors",
                   o.on
                     ? "border-[color:var(--text-primary)] bg-[var(--surface-s1)] text-[var(--text-primary)]"
                     : "border-[color:var(--border-contour)] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
@@ -370,7 +407,8 @@ export function CareReviewWorkspace({
                   RING
                 )}
               >
-                {o.label}
+                {o.on && <Check className="size-4 shrink-0" aria-hidden />}
+                <span className="truncate">{o.label}</span>
               </button>
             ))}
           </div>
@@ -378,46 +416,98 @@ export function CareReviewWorkspace({
           {decisionError && (
             <p className="mt-1.5 text-[12.5px] leading-[17px] text-[var(--state-error)]">
               {/* TODO-COPY — plain language, under the thing it is about. */}
-              Choose whether to confirm the code on record or change it.
+              Choose an option above before submitting.
             </p>
           )}
 
-          {/* ═══ THE SELECTOR IS INLINE. NO SECOND SURFACE. ═══
-              `Dsm5SearchList` is the same search the change-presentation dialog
-              and the Tasks billing picker use — extracted from that dialog so
-              this could hold it without a modal on top of a drawer. There is no
-              confirm step in here: this panel's own commit is that step. */}
-          {decision?.kind === "change" && (
-            <div className="mt-3 space-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] p-3">
-              {decision.code && (
-                <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                  {/* TODO-COPY */}
-                  Changing to{" "}
-                  <span className="font-semibold text-[var(--text-primary)]">
-                    {decision.statement}
-                  </span>{" "}
-                  <span className="tabular-nums">({decision.code})</span>
-                </p>
+          {/* ═══ THE DELTA, ON ONE LINE ═══
+              What is on record, struck through AND dimmed — either alone is a
+              single channel, and a strikethrough at full strength reads as
+              emphasis rather than removal — then the arrow, then what it becomes
+              at full weight. Name and code for both, because a code alone is not
+              readable by everyone who reads this record. */}
+          {decision?.kind === "change" && decision.code && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2">
+              {currentCode && (
+                <>
+                  <span className="text-[13px] leading-[18px] text-[var(--text-muted)] line-through decoration-1">
+                    {currentStatement ?? proposed.statement} ({currentCode})
+                  </span>
+                  <ArrowRight
+                    className="size-3.5 shrink-0 text-[var(--text-muted)]"
+                    aria-hidden
+                  />
+                </>
               )}
+              <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
+                {decision.statement}{" "}
+                <span className="tabular-nums">({decision.code})</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className={cn(
+                  "ml-auto shrink-0 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2",
+                  RING
+                )}
+              >
+                {/* TODO-COPY */}
+                Edit
+              </button>
+            </div>
+          )}
+
+          {/* ═══ THE PICKER IS A DIALOG NOW ═══
+              Built from `Dsm5SearchList` inside a plain Bloom dialog rather than
+              reusing `Dsm5SearchDialog`: that component carries a two-step
+              confirm this flow does not want, and it is SHARED with the Tasks
+              billing picker, so changing its steps would have changed a surface
+              outside this brief. The list is the shared part; the chrome is not.
+              Radix gives the focus trap and Escape; picking a row closes it. */}
+          <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+            <DialogContent
+              className="sm:max-w-lg"
+              onOpenAutoFocus={(e) => {
+                e.preventDefault();
+                pickerInputRef.current?.focus();
+              }}
+              onCloseAutoFocus={(e) => {
+                e.preventDefault();
+                // Focus returns to the control that opened it, not to <body>.
+                changeRef.current?.focus();
+              }}
+            >
+              <DialogHeader>
+                {/* TODO-COPY */}
+                <DialogTitle>Find a presentation</DialogTitle>
+                <DialogDescription>
+                  Search by code or by wording. Nothing is saved until you submit
+                  the review.
+                </DialogDescription>
+              </DialogHeader>
               <Dsm5SearchList
                 current={
                   currentCode
-                    ? { code: currentCode, statement: proposed.statement }
+                    ? { code: currentCode, statement: currentStatement ?? proposed.statement }
                     : null
                 }
                 query={query}
                 onQueryChange={setQuery}
-                onPick={(e: Dsm5Entry) =>
+                inputRef={pickerInputRef}
+                onPick={(e: Dsm5Entry) => {
                   setDecision({
                     kind: "change",
                     code: e.code,
                     statement: e.statement,
-                  })
-                }
-                listClassName="max-h-56"
+                  });
+                  // NO CONFIRM STEP. The review's own commit is that step, and a
+                  // second one here would teach people to click through steps.
+                  setPickerOpen(false);
+                }}
+                listClassName="max-h-72"
               />
-            </div>
-          )}
+            </DialogContent>
+          </Dialog>
         </section>
 
         {/* ═══ DOCUMENTATION ═══
@@ -477,11 +567,20 @@ export function CareReviewWorkspace({
               card's Review is a filled pill and this replaces it while open.
               `whitespace-nowrap` and a short label keep it on one line at 200%:
               the longest it gets is "Save and submit". TODO-COPY. */}
+          {/* ═══ THE LABEL FOLLOWS THE DECISION ═══
+              A change is the outcome worth naming in the button that commits it,
+              so once a code is chosen the CTA says which. Everything else —
+              undecided, or confirming the code on record — keeps the neutral
+              label rather than asserting an outcome nobody has picked yet.
+              `whitespace-nowrap` and a 5-6 character code keep it on one line at
+              200%; "Save change to F43.22" is the longest this gets. TODO-COPY. */}
           <PillButton
             onClick={attemptCommit}
             className="h-10 shrink-0 whitespace-nowrap px-5 text-[14px]"
           >
-            Save and submit
+            {decision?.kind === "change" && decision.code
+              ? `Save change to ${decision.code}`
+              : "Save and submit"}
           </PillButton>
         </div>
         {/* The requirement note sits UNDER the buttons now rather than opposite

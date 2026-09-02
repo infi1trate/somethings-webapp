@@ -34,7 +34,7 @@
 // RATIONALE_SOURCE_LABEL.
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, RefreshCw } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 // The dropdown-menu import is gone with the ellipsis it served — see the actions
 // slot below for what that menu contained.
@@ -89,6 +89,7 @@ export function PresentationReviewCard({
   onCollapse,
   workspace,
   hasDraft = false,
+  currentCode = null,
 }: {
   review: PresentationReview;
   /** `currentCode` was here so approving could name what it replaced. The owner
@@ -127,6 +128,9 @@ export function PresentationReviewCard({
   workspace?: React.ReactNode;
   /** A draft exists for this review, so the collapsed band says so. */
   hasDraft?: boolean;
+  /** The code on record, so the band can say whether the proposal is a change.
+   *  The card never decides anything with it — see the chip's note. */
+  currentCode?: string | null;
 }) {
   /** Lifted out of the old Disclosure component: the header must not own the
    *  body's open state, or it re-renders around it. */
@@ -151,6 +155,8 @@ export function PresentationReviewCard({
   }, [expanded]);
   // One flag for the whole acting half of the card.
   const canAct = !!onReviewRequest;
+  /** Whether the PROPOSAL is a change. Nothing to do with the draft. */
+  const proposesChange = currentCode !== review.recommended.code;
 
   /** ONE shape for both variants: the aggregate's weighted score reads in the
    *  same position as a single survey's, which is what makes the two variants
@@ -201,8 +207,43 @@ export function PresentationReviewCard({
                 have edited a component two surfaces away for a chip, so the
                 indicator sits at the other end of the same band instead. Same
                 row, same glance, nothing shared touched. TODO-COPY. */}
+            {/* ═══ THE PROPOSAL CHIP — WHAT THE MODEL SUGGESTED ═══
+                It describes the PROPOSAL and never the draft. A supervisor who
+                selects "change" against a renewal proposal does not rewrite what
+                was proposed, so this chip does not move — the decision row owns
+                draft state, and a band that tracked both would be two sources
+                for one fact.
+                LABEL AND ICON CARRY IT, not the tone (SC 1.4.1): the words
+                differ, and a change gets the swap glyph. Attention band, not the
+                risk ramp — a proposed code change is a thing to look at, not a
+                danger.
+                THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span
+                alone means a narrow band clips "F43.22" before it clips "Change
+                proposed", and `title` carries the whole thing either way. */}
+            {proposesChange ? (
+              <span
+                title={`Change proposed → ${review.recommended.code}`}
+                className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
+              >
+                <ArrowLeftRight className="size-3 shrink-0" aria-hidden />
+                {/* TODO-COPY */}
+                Change proposed
+                <span className="min-w-0 truncate tabular-nums">
+                  → {review.recommended.code}
+                </span>
+              </span>
+            ) : (
+              <span
+                title="Renewal proposed"
+                className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]"
+              >
+                <RefreshCw className="size-3 shrink-0" aria-hidden />
+                {/* TODO-COPY */}
+                Renewal proposed
+              </span>
+            )}
             {hasDraft && !expanded && (
-              <span className="rounded-full bg-[var(--band-sand-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-sand-fg)]">
+              <span className="shrink-0 rounded-full bg-[var(--band-sand-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-sand-fg)]">
                 Draft
               </span>
             )}

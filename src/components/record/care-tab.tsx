@@ -557,6 +557,7 @@ export function CareTab({
     <CareReviewWorkspace
       review={panelReview}
       currentCode={presentation?.code ?? null}
+      currentStatement={presentation?.statement ?? null}
       teenId={teen.id}
       prefill={{
         source: panelReview.rationale.source,
@@ -806,6 +807,7 @@ export function CareTab({
             workspace: workspaceNode,
             /* So an in-progress review is discoverable without expanding it. */
             hasDraft: hasSavedDraft,
+            currentCode: presentation?.code ?? null,
           }}
         />
         </div>
