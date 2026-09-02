@@ -65,3 +65,6 @@ next-env.d.ts
 # Partial a11y sweeps — scratch output. The BASELINE is the tracked artifact
 # and is only ever a full sweep; see the guard in scripts/responsive/axe.mjs.
 docs/responsive/A11Y-PARTIAL.json
+
+# anno-01 dev store (file driver — see docs/anno/GAPS.md)
+/.anno-data/
