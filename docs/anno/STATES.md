@@ -79,14 +79,16 @@ column.
 
 | State | Exists | Evidence | Observed | Pass |
 |---|---|---|---|---|
-| Unresolved | designed | `shot` | Filled `#7b5bd6`, number, 24×24 hit / 20×20 dot | ✅ |
+| Unresolved | designed | `dom` | Filled `#7b5bd6`, number, **30×30 hit / 26×26 dot**, 12px numeral | ✅ |
 | Resolved | designed | `shot` (greyscale) | Ring + check SVG, opacity 0.7 | ✅ |
 | Selected | designed | `dom` | 3-layer boxShadow ring, distinct from the 1px edge | ✅ |
 | Hovered | designed | `dom` | Dot scales 1.1; **hit area unchanged** (scale is on the inner span) | ✅ |
 | Anchor lost | designed | `shot` (anno-06) | `2px dashed`, `aria-label: "Comment 81 — anchor lost"`, deletable | ✅ |
 | Ghost (being placed) | designed | `dom` | opacity 0.6, no number | ✅ |
 | Pending (optimistic echo) | designed | `dom` (anno-04) | Renders as ghost — **was a defect** showing "comment 0" | ✅ |
-| Clustered | **not built** | — | **anno-08 (R17).** Measured evidence it is needed: two pins on the same anchor have a **0px** centre-to-centre gap, so one is unreachable. | ⛔ out of scope |
+| Clustered (collapsed) | built | `dom` | 36×36 badge, count, second disc behind it for a stacked silhouette; contributes **0** pins | ✅ |
+| Clustered (expanded) | built | `dom` | Members fan onto a ring; **min gap 34px** to each other and to the collapse control (24px floor) | ✅ |
+| Drop shadow (all states) | built | `dom` | Hard `0 0 0 1px #6e6b67` contrast ring **first**, then two blurred layers — the 1.4.11 edge is not replaced by the shadow | ✅ |
 
 ---
 

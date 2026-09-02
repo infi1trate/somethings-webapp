@@ -254,3 +254,53 @@ export async function copyLink(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/* ════════════════════ AM I ALREADY LOOKING AT THIS? ════════════════════ */
+
+/** ═══ WHY THE DRAWER ASKS THIS BEFORE FOLLOWING ITS OWN LINK ═══
+ *
+ *  Clicking a comment in the drawer should take you to it. When the comment is on
+ *  a page you are not on, that means a real navigation, and it has to be a FULL
+ *  one — `arrival` is computed at module import (see the note at the top of this
+ *  file), so a client-side push would carry the route and silently drop the role,
+ *  scenario and load state the comment was written in.
+ *
+ *  But when you are ALREADY on that page in that exact state, reloading it to
+ *  arrive where you are is a page flash that throws away scroll position and
+ *  every bit of unsaved harness state for no gain. So the drawer asks this first
+ *  and, if it is true, scrolls and focuses the pin in place instead.
+ *
+ *  ALL FOUR AXES, not just the route: a comment written as a supervisor on the
+ *  `heavy-day` scenario describes a screen a mentor on `— none —` is not looking
+ *  at, even on the same path. If any axis differs, the honest answer is to go
+ *  through the link and let it set the state. */
+export function linkMatchesCurrentState(comment: Comment): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.location.pathname !== comment.context.route) return false;
+
+  let st: ReturnType<typeof useOnboardingStore.getState>;
+  try {
+    st = useOnboardingStore.getState();
+  } catch {
+    // No store, no way to know they match — so take the link, which sets them.
+    return false;
+  }
+
+  if (st.persona !== personaFromAnnoRole(comment.context.role)) return false;
+  if (st.devLoadState !== comment.context.loadState) return false;
+
+  /* The record axis lives in the URL rather than the store — `dev-bar.tsx` reads
+     `?scenario=` directly, so the param IS the state. Same split as
+     `applyFromLocation` above, kept in the same shape so the two cannot drift. */
+  const axis = scenarioAxis(comment.context.route);
+  const current =
+    axis === "activity"
+      ? st.activityScenarioId
+      : axis === "tasks"
+        ? st.tasksScenarioId
+        : axis === "chat"
+          ? st.chatScenarioId
+          : new URLSearchParams(window.location.search).get("scenario");
+
+  return (current ?? "") === (comment.context.scenario ?? "");
+}

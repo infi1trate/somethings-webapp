@@ -62,11 +62,63 @@ export const PIN_STROKE = "#ffffff";
 /** `--text-muted`. See the note above on why this is a mid-tone. */
 export const PIN_EDGE = "#6e6b67";
 
-/** Appendix B geometry. The visual dot is 20px; the hit area is 24×24 (SC 2.5.8)
- *  and is what the element's box measures — the dot is centred inside it, so a
- *  hover scale can never change what is clickable. */
-export const PIN_DOT = 20;
-export const PIN_HIT = 24;
+/** ═══ GEOMETRY ═══
+ *
+ *  The hit area is what the element's box measures; the dot is centred inside it,
+ *  so a hover scale can never change what is clickable.
+ *
+ *  Appendix B specified 20/24 — 24 being the SC 2.5.8 floor exactly, with no
+ *  margin. Enlarged to 26/30 because a pin has to be findable on top of a dense
+ *  console at a glance, and because three-digit numbers were cramped at 20px
+ *  (the prototype's counter is past 100). 30 also gives the criterion some room
+ *  rather than sitting on its edge. */
+export const PIN_DOT = 26;
+export const PIN_HIT = 30;
+
+/** ═══ THE CLUSTER BADGE IS DELIBERATELY BIGGER THAN A PIN ═══
+ *
+ *  A cluster shows a COUNT and a pin shows a comment NUMBER, and both are small
+ *  integers — so "3" is ambiguous between "comment 3" and "three comments" unless
+ *  the two are told apart by something other than the digit. Three things do it,
+ *  and none of them is colour (SC 1.4.1): the badge is larger, it carries a second
+ *  disc behind it so the silhouette is a stack, and its accessible name says
+ *  "3 comments here" in words. */
+export const CLUSTER_DOT = 32;
+export const CLUSTER_HIT = 36;
+
+/** ═══ THE MINIMUM CENTRE-TO-CENTRE GAP FOR EXPANDED CLUSTER MEMBERS ═══
+ *
+ *  SC 2.5.8's floor is 24. `PIN_HIT` is 30, so 24 would still let two discs
+ *  visually overlap by 6px — conformant and confusing. 34 clears the criterion
+ *  AND leaves a 4px gap between the discs, so "these are two separate comments"
+ *  is legible rather than inferred. Passed to `fanOut`, which proves it. */
+export const PIN_SEP = PIN_HIT + 4;
+
+/** Pins whose centres are closer than this are clustered. Set to the pin's own
+ *  size: closer than one pin's width and the discs overlap, which is the
+ *  condition that makes the covered comment unreachable. */
+export const CLUSTER_RADIUS = PIN_HIT;
+
+/** ═══ THE DROP SHADOW IS SEPARATE FROM THE CONTRAST EDGE ═══
+ *
+ *  The hard `0 0 0 1px` ring is the SC 1.4.11 guarantee and a blurred shadow
+ *  cannot replace it — a blur has no measurable boundary, so it cannot be said to
+ *  clear 3:1 against anything. The shadow is therefore ADDITIVE: it lifts the pin
+ *  off the content so it reads as an overlay rather than as part of the
+ *  prototype, and the ring underneath still does the contrast work.
+ *
+ *  Two layers, the same structure as Bloom's `--shadow-card` (a tight contact
+ *  shadow plus a soft ambient one) but scaled for a 26px object rather than a
+ *  card. Deliberately NOT `var(--shadow-card)`: at `0 10px 28px` that shadow is
+ *  wider than the pin itself and reads as a smudge under it.
+ *
+ *  THEME-AGNOSTIC ON PURPOSE. A neutral black-based shadow is correct on a light
+ *  surface and simply does less on a dark one, where the 2px light stroke is
+ *  already carrying the separation. Minting an `--anno-pin-shadow` token pair is
+ *  a design decision, and it is logged in GAPS.md with the hue rather than taken
+ *  here. */
+export const PIN_SHADOW =
+  "0 1px 2px rgb(31 30 29 / 0.24), 0 4px 10px -2px rgb(31 30 29 / 0.30)";
 
 export type PinState =
   | "unresolved"
@@ -162,17 +214,21 @@ export function Pin({
             state === "lost"
               ? `2px dashed ${PIN_FILL}`
               : `2px solid ${filled ? PIN_STROKE : PIN_FILL}`,
+          /* RINGS FIRST, THEN THE BLUR. `box-shadow` paints the first layer on
+             top, so the hard contrast edge stays crisp above the soft one
+             instead of being washed out by it. */
           boxShadow: selected
-            ? `0 0 0 1px ${PIN_EDGE}, 0 0 0 3px ${PIN_FILL_TEXT}, 0 0 0 5px ${PIN_FILL}`
-            : `0 0 0 1px ${PIN_EDGE}`,
+            ? `0 0 0 1px ${PIN_EDGE}, 0 0 0 3px ${PIN_FILL_TEXT}, 0 0 0 5px ${PIN_FILL}, ${PIN_SHADOW}`
+            : `0 0 0 1px ${PIN_EDGE}, ${PIN_SHADOW}`,
           color: filled ? PIN_FILL_TEXT : PIN_FILL,
-          font: "700 11px/1 ui-sans-serif, system-ui, sans-serif",
+          // 12px in a 26px disc leaves room for three digits without clipping.
+          font: "700 12px/1 ui-sans-serif, system-ui, sans-serif",
         }}
       >
         {state === "resolved" ? (
           /* A CHECK, drawn rather than a font glyph so it cannot be affected by
              the page's font loading. `currentColor` so it follows the ring. */
-          <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden>
+          <svg width="13" height="13" viewBox="0 0 12 12" aria-hidden>
             <path
               d="M2.5 6.5l2.5 2.5 4.5-5.5"
               fill="none"
@@ -184,6 +240,126 @@ export function Pin({
           </svg>
         ) : state === "ghost" ? null : (
           number
+        )}
+      </span>
+    </button>
+  );
+}
+
+/* ══════════════════════════ THE CLUSTER BADGE ══════════════════════════ */
+
+/** One control standing for several pins at the same place — R17.
+ *
+ *  ═══ WHY THIS IS NOT DECORATION ═══
+ *
+ *  anno-07 measured two comments on one anchor resolving to a 0px gap: the pin
+ *  painted second covers the first completely, so one comment has no reachable
+ *  area at all and nothing on screen says it exists. This badge is what makes
+ *  that case operable, which is why it is an SC 2.5.8 item rather than polish.
+ *
+ *  ═══ TOLD APART FROM A PIN BY SHAPE AND BY WORDS, NEVER BY COLOUR ═══
+ *
+ *  A larger disc, a second disc behind it, and an accessible name that says
+ *  "3 comments here" rather than a bare digit. All three survive greyscale, a
+ *  monochrome printout, and every form of colour blindness (SC 1.4.1).
+ *
+ *  ═══ COLLAPSED AND EXPANDED ARE THE SAME CONTROL ═══
+ *
+ *  `aria-expanded` on one button, rather than a badge that is replaced by a
+ *  different close control — so focus is never lost on expand, and a keyboard
+ *  reviewer who opens a cluster is still standing on the thing that opens it. */
+export function ClusterPin({
+  count,
+  expanded,
+  onToggle,
+  style,
+}: {
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  style?: React.CSSProperties;
+}) {
+  const label = expanded
+    ? `Collapse ${count} comments`
+    : `${count} comments here — expand to see each one`;
+
+  return (
+    <button
+      type="button"
+      data-anno-cluster={count}
+      data-anno-cluster-expanded={expanded ? "true" : "false"}
+      aria-expanded={expanded}
+      aria-label={label}
+      title={label}
+      onClick={(e) => {
+        // Same reason as the pin: one press must not also hit the product.
+        e.stopPropagation();
+        e.preventDefault();
+        onToggle();
+      }}
+      className={cn(
+        "absolute flex items-center justify-center rounded-full p-0",
+        "pointer-events-auto",
+        "transition-transform duration-150 motion-reduce:transition-none",
+        "group/cluster",
+        RING
+      )}
+      style={{
+        width: CLUSTER_HIT,
+        height: CLUSTER_HIT,
+        transform: "translate(-50%, -50%)",
+        ...style,
+      }}
+    >
+      {/* ── THE DISC BEHIND, which is what makes the silhouette a STACK ──
+          Decorative and `aria-hidden`: the count and the label carry the meaning.
+          Offset down-right so it reads as a card underneath rather than as a
+          second pin beside. It sits outside the hit box by 4px, which is fine —
+          it is not a target, and the button's own box is what a pointer gets. */}
+      <span
+        aria-hidden
+        className="absolute rounded-full"
+        style={{
+          width: CLUSTER_DOT,
+          height: CLUSTER_DOT,
+          transform: "translate(4px, 4px)",
+          background: PIN_FILL,
+          opacity: 0.45,
+          border: `2px solid ${PIN_STROKE}`,
+          boxShadow: `0 0 0 1px ${PIN_EDGE}, ${PIN_SHADOW}`,
+        }}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "relative flex items-center justify-center rounded-full",
+          "transition-transform duration-150 group-hover/cluster:scale-110 motion-reduce:transition-none"
+        )}
+        style={{
+          width: CLUSTER_DOT,
+          height: CLUSTER_DOT,
+          background: PIN_FILL,
+          border: `2px solid ${PIN_STROKE}`,
+          boxShadow: `0 0 0 1px ${PIN_EDGE}, ${PIN_SHADOW}`,
+          color: PIN_FILL_TEXT,
+          font: "700 13px/1 ui-sans-serif, system-ui, sans-serif",
+        }}
+      >
+        {expanded ? (
+          /* AN INWARD CHEVRON PAIR — "bring these back together". Drawn, not a
+             font glyph, for the same reason as the pin's check. */
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+            <path
+              d="M2 2l4 4M6 6H3M6 6V3M12 12l-4-4M8 8h3M8 8v3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : (
+          count
         )}
       </span>
     </button>

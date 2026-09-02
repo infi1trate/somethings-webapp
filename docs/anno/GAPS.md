@@ -1033,3 +1033,126 @@ anno-02's spike measured 3.1% against the old vocabulary; the new regions are
 structural containers rather than leaf content, which should hold or improve it,
 but that is reasoning and not a measurement. Worth re-running the spike after a
 real cycle.
+
+---
+
+## [anno-08] R17 clustering built — and it is the 2.5.8 mitigation, not polish
+
+**Authorised by:** Brandon, with the framing that settled the priority —
+"clustering is the mitigation for [the 24px spacing requirement], so it's an
+accessibility item, not just polish."
+
+**Built:** `src/lib/anno/cluster.ts`, pure, with `cluster.test.ts` (17 tests).
+Pins whose centres are within `CLUSTER_RADIUS` (30px, the pin's own width — closer
+than that and the discs overlap) collapse into one badge; the badge expands to fan
+its members onto a ring.
+
+**The guarantee is arithmetic, not observed.** `fanOut` derives the ring radius
+from the separation the caller requires — for `n` points on a circle the closest
+pair is adjacent at `2·r·sin(π/n)`, so `r ≥ (sep/2)/sin(π/n)`, floored at `sep` to
+keep the centre's collapse control clear. The test sweeps `n` from 2 to 12 at both
+the 34px the layer asks for and the 24px criterion floor. **Three mutations were
+run against it** — removing the radius floor, `sin`→`tan`, and the boundary
+`<=`→`<` — and each was caught, so the tests are guards rather than decoration.
+
+**Measured live**, three comments on `/app/team` expanded: minimum gap **34.0px**
+(badge↔member) and 58.9px (member↔member) against a 24px floor. Collapsed: **0**
+pins and one 36×36 badge, so there is nothing to occlude. The live DOM matched
+`fanOut(3, 34)` exactly.
+
+**Told apart from a pin without colour (SC 1.4.1):** a cluster shows a COUNT and a
+pin shows a NUMBER, and both are small integers — so three non-colour signals
+separate them. The badge is larger (36 vs 30), it carries a second disc behind it
+so the silhouette is a stack, and its accessible name says "3 comments here" in
+words.
+
+**Discovered while testing, worth recording:** you cannot stack a comment on an
+existing pin by clicking. The pin intercepts the hit test, so `elementFromPoint`
+returns the pin, which is untagged, and Place refuses with "Nothing to anchor to
+here". The exact 0px case anno-07 measured therefore arises from *simultaneous*
+placement or from later layout movement, not from clicking twice — and the
+realistic overlap is near-misses inside one pin's width, which is what the radius
+is set to catch.
+
+**Not done:** clusters do not merge across a scroll container boundary, and a
+cluster is not re-derived while a fan is open — expanding, then scrolling, leaves
+the fan at its original centre until the next reposition. Neither was observed to
+matter at review scale; both are cheap to fix if the cycle says otherwise.
+
+---
+
+## [anno-08] The pin got larger and gained a drop shadow
+
+**Asked for by:** Brandon — "more visually appealing, larger, with a drop shadow."
+
+**Geometry:** 20/24 → **26/30** (dot/hit), numeral 11px → 12px, check glyph
+11 → 13. Appendix B specified 24 as the hit area, which sat exactly on the SC
+2.5.8 floor with no margin; 30 gives the criterion room and makes three-digit
+numbers legible, which matters now the prototype's counter is past 100.
+
+**The shadow is additive, and that is the load-bearing detail.** The hard
+`0 0 0 1px #6e6b67` ring is the SC 1.4.11 guarantee and a blur cannot replace it —
+a blurred edge has no measurable boundary, so it cannot be said to clear 3:1
+against anything. Measured after the change, the computed `box-shadow` is:
+
+```
+rgb(110,107,103) 0 0 0 1px,            ← the contrast ring, FIRST
+rgba(31,30,29,0.24) 0 1px 2px,         ← contact
+rgba(31,30,29,0.30) 0 4px 10px -2px    ← ambient
+```
+
+Rings first because `box-shadow` paints the first layer on top, so the crisp edge
+is never washed out by the soft one.
+
+**Deliberately NOT `var(--shadow-card)`:** at `0 10px 28px` that token is wider
+than the pin and reads as a smudge under it. The two-layer *structure* is borrowed;
+the scale is the pin's own.
+
+**Open decision, unchanged from anno-04:** the pin's fill, edge and now its shadow
+are module constants rather than `--anno-pin-*` tokens. Minting them is a design
+call. The shadow is additionally theme-agnostic — a neutral black-based shadow is
+right on a light surface and simply does less on a dark one, where the 2px light
+stroke already carries the separation.
+
+---
+
+## [anno-08] The drawer row is a link to its comment
+
+**Asked for by:** Brandon — "clicking a comment in the comment drawer (the entire
+list item/panel) should direct me straight to the page or view where the comment
+is located."
+
+**Built as a real `<a href>`**, an overlay covering the row — the pattern
+`ui/data-view.tsx` already uses for a navigable row. So middle-click, cmd-click and
+"copy link address" behave the way a link should, and the destination shows in the
+status bar before the reader commits. A `div` with an `onClick` would have none of
+that. `z-[1]` on the link and `z-[2]` on every control means the body text is part
+of the target and the action buttons are not, without either knowing about the
+other.
+
+**The href is `buildCommentLink()`, so a full navigation is correct rather than
+lazy.** `arrival` is computed at module import (R7's ordering requirement), so a
+client-side push would carry the route and silently drop the role, scenario and
+load state — the reviewer would land on the right page in the wrong state, which
+is the failure R13's context capture exists to prevent.
+
+**One interception, for the case where following the link would be worse:**
+`linkMatchesCurrentState()` checks route AND all three harness axes; if they all
+match and the pin is on screen, the click scrolls and focuses it in place instead
+of reloading. Modified clicks are never hijacked.
+
+**Verified both paths.** From `/app/team`, clicking comment 131 — same page, same
+state, but its pin inside a *collapsed cluster*, so no pin element — correctly fell
+through to the link: full navigation, drawer reopened, filter switched to All,
+**cluster auto-expanded**, and pin 131 alone carried the two selection rings. Then
+clicking 132 with its pin now on screen was handled in page: URL unchanged, no
+unload, focus on pin 132, row highlighted.
+
+**The body is no longer a button.** It was one, and what it did — toggle the
+drawer's selection — was invisible and redundant: the chevron beside it already
+discloses the full text, and selection now happens by arriving. `A11Y.md`'s 2.5.8
+table is updated: the row body's 299×28 measurement is retired because it is no
+longer a target, and the row itself measures 351×101.
+
+**Deliberately not navigable:** a comment on a route that no longer exists (nowhere
+to go) and a row inside its delete-undo window (leaving would strand the undo).

@@ -41,7 +41,15 @@ import { getClientId } from "@/lib/anno/identity";
 import { setDrawerOpen, setMode, useAnnoMode, useDrawerOpen } from "@/lib/anno/mode";
 import { arrival, buildCommentLink, copyLink } from "@/lib/anno/deeplink";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { Pin, type PinState } from "@/components/anno/pin";
+import {
+  ClusterPin,
+  Pin,
+  CLUSTER_RADIUS,
+  PIN_HIT,
+  PIN_SEP,
+  type PinState,
+} from "@/components/anno/pin";
+import { clusterByProximity, fanOut } from "@/lib/anno/cluster";
 import { AnnoComposer } from "@/components/anno/anno-composer";
 import { AnnoDrawer } from "@/components/anno/anno-drawer";
 import { cn } from "@/lib/utils";
@@ -103,6 +111,27 @@ export function AnnoLayer() {
    *  boxShadow ring that does not depend on the browser's heuristic, and it
    *  doubles as the reason the pin's Copy-link control is already showing. */
   const [selected, setSelected] = useState<string | null>(arrival.commentId);
+  /** ═══ ONE CLUSTER OPEN AT A TIME ═══
+   *
+   *  Keyed by membership (see `cluster.ts`), not by index — an index would move
+   *  the expansion onto a different group the moment a comment is added or
+   *  resolved. One at a time because two open clusters can fan into each other,
+   *  which would put the layer back in the overlapping state R17 exists to
+   *  remove. */
+  const [expandedCluster, setExpandedCluster] = useState<string | null>(null);
+  /** ═══ WHY A DEEPLINK'S CLUSTER IS DERIVED, NOT SET IN AN EFFECT ═══
+   *
+   *  A link to a comment that happens to be stacked with another must land on a
+   *  VISIBLE pin — a collapsed cluster contributes no pin, so the arrival would
+   *  scroll to, focus and pulse an element that is not in the document.
+   *
+   *  The obvious implementation is an effect that expands it on arrival, and this
+   *  repo forbids that: `react-hooks/set-state-in-effect`. So the open cluster is
+   *  DERIVED — the arrival's cluster is open until the reviewer touches a cluster
+   *  themselves, at which point their choice takes over permanently. One less
+   *  piece of state to get out of sync, and no effect writing state during a
+   *  commit. */
+  const [clusterChosen, setClusterChosen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -122,6 +151,35 @@ export function AnnoLayer() {
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
+
+  /* ═══ CLUSTER, THEN DECIDE WHICH ONE IS OPEN — R17 ═══
+     Derived every render from the pin set. Fed in COMMENT-NUMBER ORDER so the
+     grouping is identical in every browser: greedy clustering is order-dependent,
+     and two reviewers who disagree about which pins are "the cluster of three"
+     cannot talk about it. `pins` arrives number-ascending from the repo's sort. */
+  const clusters = clusterByProximity(
+    pins
+      .filter((p) => p.visible)
+      .map((p) => ({ id: p.comment.id, x: p.x, y: p.y, pin: p })),
+    CLUSTER_RADIUS
+  );
+
+  /** The cluster holding the deeplink target, if it is stacked with anything. */
+  const arrivalCluster = arrival.commentId
+    ? clusters.find(
+        (c) =>
+          c.members.length > 1 &&
+          c.members.some((m) => m.id === arrival.commentId)
+      )
+    : undefined;
+
+  /** What is actually open. The reviewer's choice wins as soon as they make one. */
+  const openCluster = clusterChosen ? expandedCluster : (arrivalCluster?.key ?? null);
+
+  const toggleCluster = (key: string) => {
+    setClusterChosen(true);
+    setExpandedCluster(openCluster === key ? null : key);
+  };
 
   /** ═══ ARRIVAL — STEP 2 AND 3 OF R7 ═══
    *
@@ -174,6 +232,15 @@ export function AnnoLayer() {
         else clearDraft();
         return;
       }
+      /* An expanded cluster is backed out of BEFORE the mode is. Same rule as
+         the draft above: one press never does two things, so a reviewer closing
+         a fan does not also disarm Place as a side effect. */
+      if (openCluster) {
+        e.preventDefault();
+        setClusterChosen(true);
+        setExpandedCluster(null);
+        return;
+      }
       if (mode === "place") {
         e.preventDefault();
         setMode("view");
@@ -181,7 +248,7 @@ export function AnnoLayer() {
     };
     window.addEventListener("keydown", onKey, { capture: true });
     return () => window.removeEventListener("keydown", onKey, { capture: true });
-  }, [mode, confirmDiscard, clearDraft]);
+  }, [mode, confirmDiscard, clearDraft, openCluster]);
 
   /* Load and keep pins positioned. */
   useEffect(() => {
@@ -314,7 +381,10 @@ export function AnnoLayer() {
       ],
       { duration: 800, easing: "cubic-bezier(0.4, 0, 0.2, 1)" }
     );
-  }, [pins]);
+    /* `openCluster` IS a dependency: a deeplinked comment inside a stack has no
+       pin until its cluster opens, so the pulse has to be able to run on the
+       render where that happens rather than only on the one where pins arrive. */
+  }, [pins, openCluster]);
 
   /** A click on the capture surface. */
   const onCapture = (e: React.MouseEvent) => {
@@ -390,6 +460,24 @@ export function AnnoLayer() {
 
   const armed = mode === "place";
 
+  /* Everything that gets a real pin this frame, at the position it is painted:
+     singletons where they resolved, expanded members on their fan. A collapsed
+     cluster contributes NO pins — its badge stands for all of them, which is the
+     whole mechanism. */
+  const painted = clusters.flatMap((c) => {
+    if (c.members.length === 1) {
+      const m = c.members[0];
+      return [{ pin: m.pin, x: m.x, y: m.y }];
+    }
+    if (openCluster !== c.key) return [];
+    const offsets = fanOut(c.members.length, PIN_SEP);
+    return c.members.map((m, i) => ({
+      pin: m.pin,
+      x: c.x + offsets[i].dx,
+      y: c.y + offsets[i].dy,
+    }));
+  });
+
   return (
     <div
       data-anno-layer={mode}
@@ -407,18 +495,31 @@ export function AnnoLayer() {
         />
       )}
 
-      {/* ── PINS ──────────────────────────────────────────────────────── */}
-      {pins.map(
-        (p) =>
-          p.visible && (
-            <Pin
-              key={p.comment.id}
-              id={p.comment.id}
-              number={p.pending ? null : p.comment.number}
-              state={p.state}
-              selected={selected === p.comment.id}
-              onSelect={() => setSelected((s) => (s === p.comment.id ? null : p.comment.id))}
-              style={{ left: p.x, top: p.y }}
+      {/* ── PINS — singletons, plus the members of an expanded cluster ─── */}
+      {painted.map(({ pin: p, x, y }) => (
+        <Pin
+          key={p.comment.id}
+          id={p.comment.id}
+          number={p.pending ? null : p.comment.number}
+          state={p.state}
+          selected={selected === p.comment.id}
+          onSelect={() => setSelected((s) => (s === p.comment.id ? null : p.comment.id))}
+          style={{ left: x, top: y }}
+        />
+      ))}
+
+      {/* ── CLUSTER BADGES ────────────────────────────────────────────────
+          Rendered AFTER the pins so an expanded fan's collapse control sits
+          above its own members where they pass near the centre. */}
+      {clusters.map(
+        (c) =>
+          c.members.length > 1 && (
+            <ClusterPin
+              key={c.key}
+              count={c.members.length}
+              expanded={openCluster === c.key}
+              onToggle={() => toggleCluster(c.key)}
+              style={{ left: c.x, top: c.y }}
             />
           )
       )}
@@ -510,20 +611,23 @@ export function AnnoLayer() {
           Appears only for the selected pin — a control on every pin would be
           24px of chrome per comment on top of the prototype. */}
       {(() => {
-        const sel = pins.find((p) => p.comment.id === selected && p.visible);
+        /* FROM `painted`, not from `pins`. A comment inside a COLLAPSED cluster
+           has no pin on screen, so a chip anchored to its resolved position
+           would float over content with nothing to belong to. */
+        const sel = painted.find(({ pin }) => pin.comment.id === selected);
         if (!sel) return null;
         return (
           <div
             className="pointer-events-auto absolute flex items-center gap-1.5"
-            style={{ left: sel.x + 18, top: sel.y - 12 }}
+            style={{ left: sel.x + PIN_HIT / 2 + 6, top: sel.y - 12 }}
           >
             <button
               type="button"
-              aria-label={`Copy link to comment ${sel.comment.number}`}
-              title={`Copy link to comment ${sel.comment.number}`}
+              aria-label={`Copy link to comment ${sel.pin.comment.number}`}
+              title={`Copy link to comment ${sel.pin.comment.number}`}
               onClick={async (e) => {
                 e.stopPropagation();
-                const ok = await copyLink(buildCommentLink(sel.comment));
+                const ok = await copyLink(buildCommentLink(sel.pin.comment));
                 setCopied(ok ? "ok" : "fail");
                 window.setTimeout(() => setCopied(null), 2200);
               }}

@@ -34,7 +34,12 @@ import { isAnnoError } from "@/lib/anno/errors";
 import type { Comment, Reviewer } from "@/lib/anno/types";
 import { getClientId } from "@/lib/anno/identity";
 import { setDrawerOpen } from "@/lib/anno/mode";
-import { arrival, buildCommentLink, copyLink } from "@/lib/anno/deeplink";
+import {
+  arrival,
+  buildCommentLink,
+  copyLink,
+  linkMatchesCurrentState,
+} from "@/lib/anno/deeplink";
 import { useFocusTrap } from "@/lib/anno/use-focus-trap";
 import { CommentRow, type RowAction } from "@/components/anno/comment-row";
 import { IdentityPopover } from "@/components/anno/identity-popover";
@@ -207,6 +212,38 @@ export function AnnoDrawer({ targetCommentId }: { targetCommentId?: string | nul
        some webviews, and a false "Link copied" is worse than none. */
     setCopied(ok ? c.id : `fail:${c.id}`);
     window.setTimeout(() => setCopied(null), 2200);
+  };
+
+  /** ═══ CLICKING A ROW GOES TO THE COMMENT ═══
+   *
+   *  The row is a real `<a href>` built from `buildCommentLink`, so the default
+   *  behaviour — a full navigation that applies role, scenario and load state on
+   *  import — is already correct. This handler only INTERCEPTS the cases where
+   *  following the link would be worse than not:
+   *
+   *   1. A modified click (cmd, ctrl, shift, middle) is the reader asking for a
+   *      new tab or a copied address. Never hijacked.
+   *   2. Already on that page, in that exact harness state, with the pin on
+   *      screen — reloading would flash the page and throw away scroll position
+   *      to arrive where we already are. Scroll and focus the pin instead.
+   *
+   *  Anything else falls through to the link, INCLUDING a pin that is not in the
+   *  document because its cluster is collapsed: the arrival path expands the
+   *  target's cluster on load, so the link genuinely does something the in-page
+   *  shortcut cannot. */
+  const navigate = (c: Comment, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    if (!linkMatchesCurrentState(c)) return;
+    const pin = document.querySelector<HTMLElement>(`[data-anno-pin-id="${c.id}"]`);
+    if (!pin) return;
+    e.preventDefault();
+    setSelected(c.id);
+    pin.scrollIntoView({ block: "center", inline: "center", behavior: "auto" });
+    /* FOCUS, not just scroll. It is the only thing that marks which pin the
+       reviewer asked for, and it is a real ring rather than a scripted
+       highlight — `.focus()` does not set `:focus-visible`, so the pin's
+       `selected` treatment above is what makes it visible either way. */
+    pin.focus();
   };
 
   const act = async (c: Comment, a: RowAction): Promise<boolean> => {
@@ -523,7 +560,15 @@ export function AnnoDrawer({ targetCommentId }: { targetCommentId?: string | nul
                       removedElsewhere={removedElsewhere.includes(c.id)}
                       busy={busyId === c.id}
                       error={rowError?.id === c.id ? rowError.message : null}
-                      onSelect={() => setSelected((s) => (s === c.id ? null : c.id))}
+                      /* NO LINK for a route that is gone — there is nowhere to
+                         go — or for a row inside its delete-undo window, where
+                         navigating away would strand the undo offer. */
+                      href={
+                        g.gone || pendingDelete.includes(c.id)
+                          ? null
+                          : buildCommentLink(c)
+                      }
+                      onNavigate={(e) => navigate(c, e)}
                       onAction={(a) => act(c, a)}
                       onCopyLink={() => void onCopy(c)}
                       copied={copied === c.id ? "ok" : copied === `fail:${c.id}` ? "fail" : null}
