@@ -103,10 +103,45 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AnnoModeControl } from "@/components/anno/mode-control";
+import { useWordTruncate } from "@/lib/dev/use-word-truncate";
 import { cn } from "@/lib/utils";
 
 /** The bar's height, exported so the body's padding cannot drift from it. */
 export const DEV_BAR_H = 40;
+
+/** ═══ THE ANNOTATION CLUSTER'S RESERVED WIDTH ═══
+ *
+ *  Declaring the width here — rather than letting the cluster size itself — is
+ *  what keeps the other three groups from moving as the cluster's contents change.
+ *
+ *  ═══ THESE NUMBERS WERE MEASURED IN anno-04, NOT ESTIMATED IN anno-03 ═══
+ *
+ *  anno-03 reserved 132/60 from a guess: "two 28px controls, a count badge and
+ *  the gaps". The real cluster is a THREE-option radiogroup (Off · View · Place)
+ *  plus the badge, and it measured 155px expanded and 106px collapsed — so the
+ *  guess was 23px and 46px short, and at 900px the badge visibly overlapped
+ *  group 4's divider.
+ *
+ *  168/120 is the measured content plus headroom for a three-digit count. Changed
+ *  deliberately and recorded, which is the conversation the exports existed to
+ *  force — `devBarSlotWidthsAgree()` is what stops the constants and the literal
+ *  class drifting apart again. */
+export const ANNO_SLOT_W = 168;
+export const ANNO_SLOT_W_ICON = 120;
+
+/** ═══ THE CONSTANTS AND THE CLASS STRING CANNOT BE THE SAME EXPRESSION ═══
+ *
+ *  Tailwind needs a literal, so the slot's width is written as
+ *  `w-[60px] md:w-[132px]` and these numbers are a second copy. Two copies drift.
+ *  This asserts they do not: anno-04's test calls it, and it fails loudly rather
+ *  than the slot quietly resizing under a cluster built to the exported figure. */
+export function devBarSlotWidthsAgree(className: string): boolean {
+  return (
+    className.includes(`w-[${ANNO_SLOT_W_ICON}px]`) &&
+    className.includes(`md:w-[${ANNO_SLOT_W}px]`)
+  );
+}
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -152,6 +187,9 @@ export function DevBar() {
   const router = useRouter();
   const pathname = usePathname();
   const [confirmReset, setConfirmReset] = useState(false);
+  /** Whether the status line is showing its full text. Collapsed by default —
+   *  the bar's job at rest is to be readable at a glance, not complete. */
+  const [statusOpen, setStatusOpen] = useState(false);
 
   /** ═══ THE ACTIVE SCENARIO, WITHOUT `useSearchParams` ═══
    *
@@ -187,6 +225,17 @@ export function DevBar() {
   /** A record route is one where a scenario has something to hold on to. */
   const onRecord = pathname?.startsWith("/admin/person/") ?? false;
   const scenario = scenarioById(scenarioId);
+  /* Disabled while expanded — expansion means "stop cutting", so the measurement
+     would otherwise fight the thing the reader just asked for. */
+  /* DESTRUCTURED at the call site rather than kept as one object. Reading a
+     `.display` field off a hook result in JSX trips `react-hooks/refs` — the rule
+     cannot tell a state field from a ref field on a result that returns both —
+     and plain locals say what each one is anyway. */
+  const {
+    containerRef: statusContainerRef,
+    measureRef: statusMeasureRef,
+    display: statusDisplay,
+  } = useWordTruncate(scenario?.exercises ?? "", !statusOpen);
   const activityScenarioId = useOnboardingStore((s) => s.activityScenarioId);
   const setActivityScenario = useOnboardingStore(
     (s) => s.setActivityScenarioId
@@ -285,6 +334,10 @@ export function DevBar() {
               "text-[12px]"
             )}
           >
+        {/* ══ GROUP 1 · BUILD IDENTITY ══════════════════════════════════
+            What build am I looking at and as whom. Never collapses — if the bar
+            is on screen at all, these two answers are the reason. */}
+        <div className="flex shrink-0 items-center gap-2">
         <span className="shrink-0 font-semibold tracking-[0.08em] text-[var(--text-muted)]">
           DEV
         </span>
@@ -318,8 +371,22 @@ export function DevBar() {
             );
           })}
         </div>
+        </div>
 
         <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-subtle)]" />
+
+        {/* ══ GROUP 2 · SCENARIO STATE ══════════════════════════════════
+            What data is on screen and in what condition. THE ONLY GROUP THAT
+            DEGRADES: the status line goes below 1280, then the labels go below
+            1024, and the controls themselves never do — a reader who cannot see
+            the word "Scenario" can still work out what a select full of scenario
+            names is, but a missing select is a missing capability. */}
+        {/* `flex-1`, so the free space in the bar goes to the STATUS LINE rather
+            than to the margin before group 3. Content-sized, this group left the
+            status 240px at 1440 where the pre-restructure bar gave it 388 — a
+            regression created by the grouping itself. Groups 3 and 4 are
+            `shrink-0`, so growing this one cannot displace them. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
 
         {/* ── AXIS 2 · SCENARIO ─────────────────────────────────────────────
             A native select: twenty entries in a 40px strip, grouped, keyboard
@@ -327,7 +394,8 @@ export function DevBar() {
             instead of eating the bar. */}
         <label className="flex shrink-0 items-center gap-1.5">
           {/* TODO-COPY */}
-          <span className="text-[var(--text-muted)]">Scenario</span>
+          {/* LABEL GOES, CONTROL STAYS — see the group note. */}
+          <span className="hidden text-[var(--text-muted)] lg:inline">Scenario</span>
           <select
             /* ═══ THE VALUE FOLLOWS THE SCREEN, NOT THE LAST CLICK ═══
                One select, two independent axes: the record scenario is derived
@@ -455,8 +523,6 @@ export function DevBar() {
           </select>
         </label>
 
-        <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-subtle)]" />
-
         {/* ── AXIS 3 · LOAD STATE ───────────────────────────────────────────
             Lifted out of the Activity page's panel, where it was `useState` and
             reset on every navigation.
@@ -469,7 +535,7 @@ export function DevBar() {
             somebody's afternoon. design-system-gaps row 317. */}
         <label className="flex shrink-0 items-center gap-1.5">
           {/* TODO-COPY */}
-          <span className="text-[var(--text-muted)]">
+          <span className="hidden text-[var(--text-muted)] lg:inline">
             Load
             <span className="text-[var(--text-muted)]">
               {` (${LOAD_STATE_SCREENS.join(", ")})`}
@@ -492,27 +558,108 @@ export function DevBar() {
           </select>
         </label>
 
-        {/* ── THE ACTIVE SCENARIO, NAMED. A screenshot of this bar says which
-            scenario produced it and whether its data is real, which is the whole
-            point of the label being here rather than in a tooltip. */}
+        {/* ══ THE ACTIVE SCENARIO, NAMED ══════════════════════════════════
+            A screenshot of this bar says which scenario produced it.
+
+            ═══ CUT AT A WORD, AND THE REST IS REACHABLE BY CLICKING ═══
+
+            It used to be `truncate`, which cuts at the CHARACTER — measured in
+            anno-00 rendering "…an open esc" — and the remainder was reachable by
+            nothing at all. Now `useWordTruncate` measures and cuts at the last
+            whole word, and the text is a BUTTON that expands to the full string.
+
+            EXPAND-ON-CLICK RATHER THAN A TOOLTIP, and the reason is that a
+            tooltip fails three of the four ways in. `title` never appears for a
+            keyboard user, never appears on touch, and is not reliably announced
+            by screen readers — leaving it readable only by a mouse user who
+            hovers and waits. Expansion works for all four, and it needs no new
+            visual language: the expanded text simply stops clipping and the
+            bar's own `overflow-x-auto` reveals it, which is chrome that already
+            exists. `title` is set as well, so a hovering mouse user gets the
+            text without a click, but it is the bonus rather than the mechanism.
+
+            THE FULL STRING IS ALSO THE ACCESSIBLE NAME, so a screen reader reads
+            the whole thing regardless of what is painted. */}
         {scenario && (
-          <p className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[var(--text-secondary)]">
-              {scenario.exercises}
-            </span>
-            <span
+          <span
+            ref={statusContainerRef}
+            className={cn(
+              // Hidden below 1280 — the first thing to go, per Appendix B.
+              "hidden xl:block",
+              // Expanded, it takes its natural width and the bar scrolls.
+              statusOpen ? "shrink-0" : "min-w-0 flex-1"
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setStatusOpen((o) => !o)}
+              aria-expanded={statusOpen}
+              aria-label={scenario.exercises}
+              title={scenario.exercises}
               className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.04em]",
-                scenario.data === "real"
-                  ? "bg-[var(--surface-s2)] text-[var(--text-secondary)]"
-                  : "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]"
+                "block max-w-full rounded-sm text-left text-[var(--text-secondary)]",
+                RING
               )}
             >
-              {/* TODO-COPY. Mocked is the one worth flagging, so it is the one
-                  that gets the tint. */}
-              {scenario.data}
-            </span>
-          </p>
+              <span ref={statusMeasureRef} className="block whitespace-nowrap">
+                {statusOpen ? scenario.exercises : statusDisplay}
+              </span>
+            </button>
+          </span>
+        )}
+        </div>
+
+        {/* ══ GROUP 3 · ANNOTATION CLUSTER ═════════════════════════════════
+            EMPTY THIS PHASE, AND RESERVED ANYWAY. anno-04 fills it. The width is
+            declared here so that filling it later cannot push groups 1, 2 and 4
+            sideways — a bar whose controls move when a feature lands is a bar
+            whose muscle memory is worthless.
+
+            `ml-auto` lives here rather than on group 4, so groups 3 and 4 travel
+            together against the right edge. */}
+        <div
+          data-dev-slot="annotation"
+          className={cn(
+            "ml-auto flex shrink-0 items-center justify-end",
+            /* Icon-only below `md` (960px in this theme) — the third degradation
+               step. The count badge anno-04 puts here survives that collapse.
+
+               LITERAL CLASS STRINGS, NOT A TEMPLATE OVER THE CONSTANTS BELOW.
+               Tailwind scans source text for class names, so
+               `w-[${ANNO_SLOT_W}px]` compiles, renders, and silently produces NO
+               RULE — measured at 0px wide before this was caught. `touch-target.ts`
+               documents the same trap for the same reason. The constants are
+               exported for anno-04 to build against; the guard that keeps the two
+               honest is `devBarSlotWidthsAgree()` below. */
+            "w-[120px] md:w-[168px]"
+          )}
+        >
+          {/* anno-04 fills the reservation anno-03 made. Verified not to reflow
+              the other three groups — the widths are the same declaration. */}
+          <AnnoModeControl />
+        </div>
+
+        <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-subtle)]" />
+
+        {/* ══ GROUP 4 · UTILITIES ══════════════════════════════════════════
+            NEVER COLLAPSES. Everything here is either a statement about the data
+            being shown or a way out, and both have to be available at every
+            width — a Reset you cannot reach on a narrow window is how a demo
+            gets stuck. */}
+        <div className="flex shrink-0 items-center gap-1">
+        {scenario && (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.04em]",
+              scenario.data === "real"
+                ? "bg-[var(--surface-s2)] text-[var(--text-secondary)]"
+                : "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]"
+            )}
+          >
+            {/* TODO-COPY. Mocked is the one worth flagging, so it is the one
+                that gets the tint. */}
+            {scenario.data}
+          </span>
         )}
 
         {/* ── HIDE. Not destructive and reversible, so no confirm — but it does
@@ -525,7 +672,7 @@ export function DevBar() {
           aria-label="Hide the dev bar — bring it back from Settings › Dev"
           title="Hide — bring it back from Settings › Dev"
           className={cn(
-            "ml-auto flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            "flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
             RING
           )}
         >
@@ -547,6 +694,7 @@ export function DevBar() {
         >
           <RotateCcw className="size-3.5" aria-hidden />
         </button>
+        </div>
           </div>
           <EdgeFades edges={edges} surface="var(--surface-card)" />
         </div>
