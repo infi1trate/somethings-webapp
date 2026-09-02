@@ -199,7 +199,7 @@ export function CareSummaryCard({
     : null;
 
   return (
-    <section aria-label="Primary presentation" data-record-section="care-summary">
+    <section aria-label="Primary presentation" data-record-section="care-summary" data-anno-ref="care-summary-panel">
       {/* ═══ THE CARD IS A CONTAINER, SO ITS CONTENTS CAN ASK ITS WIDTH ═══
           The metrics row below keyed off the VIEWPORT (`sm:` / `xl:`), which was
           right up to the day something else started taking width off this

@@ -645,6 +645,7 @@ export function TaskPane({
      *  box rather than the body scrolling. */
     <div
       data-slot="task-pane"
+      data-anno-ref="task-pane"
       className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
       {/* ── HEADER — pinned inside the pane. ─────────────────────────────── */}

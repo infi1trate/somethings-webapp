@@ -237,6 +237,7 @@ export function CareSummaryDocCard({
       // silently the first time the layout changes, and then evidences the
       // wrong element while still looking like a screenshot of this one.
       data-record-section="care-summary-doc"
+      data-anno-ref="care-summary-doc"
       className="rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)]"
     >
       {/* ── HEADER + PROVENANCE ────────────────────────────────────────────

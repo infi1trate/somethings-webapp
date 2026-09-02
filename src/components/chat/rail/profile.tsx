@@ -54,7 +54,7 @@ export function ProfilePanel({
   }
 
   return (
-    <div data-slot="profile" className="space-y-5">
+    <div data-slot="profile" data-anno-ref="chat-rail-profile" className="space-y-5">
       {/* ═══ THE BASICS: SHORT, AND ONLY WHAT CANNOT BE INFERRED ═══ */}
       <PanelSection label="The basics">
         <PanelCard>

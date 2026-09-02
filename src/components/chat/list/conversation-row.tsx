@@ -94,6 +94,8 @@ export function ConversationRow({
   return (
     <button
       type="button"
+      // Per-thread, not per-type — see the note in `worklist.tsx`.
+      data-anno-ref={`conversation-row:${thread.id}`}
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
       aria-label={label}

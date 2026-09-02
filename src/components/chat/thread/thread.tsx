@@ -344,6 +344,7 @@ export function Thread({
         ref={scrollRef}
         // `overscroll-contain` so reaching the top of the conversation does not
         // start scrolling the page behind it.
+        data-anno-ref="chat-thread-scroller"
         className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4"
       >
         {entries.length === 0 ? (

@@ -138,6 +138,7 @@ export function AttentionCard({
     <section
       aria-label="Attention"
       data-record-section="attention"
+      data-anno-ref="attention-card"
       className={cn(
         "flex flex-col gap-4 rounded-[var(--radius-elevated)] border px-5 py-4 shadow-[var(--shadow-alert)] sm:flex-row sm:items-center",
         className

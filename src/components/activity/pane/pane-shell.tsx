@@ -66,7 +66,7 @@ export function PaneShell({
       {/* THE ONE SCROLLING REGION. `overscroll-contain` so reaching the end does
           not hand the gesture to the feed behind it — a reader scrolling the
           pane must not lose their place in the list. */}
-      <div className={cn("min-h-0 overflow-y-auto overscroll-contain py-5", PANE_PAD)}>
+      <div data-anno-ref="activity-evidence-scroller" className={cn("min-h-0 overflow-y-auto overscroll-contain py-5", PANE_PAD)}>
         <div className={SECTION_GAP}>{children}</div>
       </div>
 

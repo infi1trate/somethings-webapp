@@ -174,7 +174,7 @@ export function PersonProfileSection({
   const set = (patch: PersonProfile) => setPersonProfile(subject.id, patch);
 
   return (
-    <section aria-label="Profile" data-record-section="profile">
+    <section aria-label="Profile" data-record-section="profile" data-anno-ref="person-profile">
       <h2 className={H}>Match card</h2>
       <p className="mt-1 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
         What teens see when {subject.goesBy ?? subject.name} comes up as a
@@ -402,7 +402,7 @@ export function PersonFirstMomentsSection({
   };
 
   return (
-    <section aria-label="First moments" data-record-section="first-moments">
+    <section aria-label="First moments" data-record-section="first-moments" data-anno-ref="first-moments">
       <FirstMomentsHeader />
       <div className={`mt-3 ${CARD}`}>
         <FirstMomentsRows

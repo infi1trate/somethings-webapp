@@ -105,7 +105,7 @@ function TeamCard({ person }: { person: NetworkPerson }) {
 export function CareNetwork({ team }: { team: NetworkPerson[] }) {
   if (team.length === 0) return null;
   return (
-    <section aria-label="Team" data-record-section="team">
+    <section aria-label="Team" data-record-section="team" data-anno-ref="care-team">
       <h2 className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]">
         Team
       </h2>
