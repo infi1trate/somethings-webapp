@@ -50,9 +50,33 @@ URL fails 15 of 20; dropping the `{result}` unwrap fails 16; numbering from a
 count instead of `incr` fails exactly 1 — the soft-delete case, which is the only
 condition where a count diverges from a counter.
 
-What remains unproven is **Upstash's own production behaviour**, which no local
-test can establish. The residual risk on switching is now their service rather
-than our driver.
+**UPDATE 2 — CLOSED. Provisioned, and exercised against the live service.**
+
+Upstash is provisioned and the preview reports `driver: "upstash"` with both env
+vars visible to the runtime. `/api/anno` now returns a presence-only `env` block
+(booleans, never values) so a future fallback says WHY rather than just that it
+fell back — diagnosing that from outside cost several blind redeploys.
+
+Exercised end-to-end against the real service, not the stub:
+
+| Check | Result |
+|---|---|
+| **6 genuinely concurrent creates** across separate serverless invocations | numbers **1–7 distinct and contiguous** — Upstash's `INCR` holds |
+| Update with a spoofed `number: 999` | patched; **999 ignored**, number preserved |
+| Soft delete → restore | `deletedAt` set then cleared, **number kept** |
+| Reviewer upsert twice | **1 row**, latest name — a rename touches no comment |
+| 1001-char body | **400** · `"A comment can be at most 1000 characters."` |
+
+The concurrency result is the one worth keeping: those were parallel HTTP requests
+that Vercel may have routed to different instances, all sharing one atomic
+counter. That is the guarantee "comment 7" rests on, now measured on the real
+service rather than argued from a stub.
+
+`authorIpHint` also populates for the first time — Vercel supplies
+`x-forwarded-for`, which localhost does not — and it stores truncated to /24 as
+designed.
+
+7 probe comments were retired afterwards; the store is empty and ready.
 
 **Decision needed from:** Brandon / eng — provision Upstash or Vercel KV on the
 project, or accept single-dev-server sharing for the demo cycle.
