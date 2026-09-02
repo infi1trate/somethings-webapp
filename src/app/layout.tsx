@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { DevBar, DEV_BAR_H } from "@/components/dev/dev-bar";
+// The annotation layer. Renders NOTHING in Off mode (the default) — see R11.
+import { AnnoLayer } from "@/components/anno/anno-layer";
 
 // Real Somethings brand type, self-hosted from src/app/fonts.
 // TWK Lausanne = body / UI. Avantt Bold = display (headings, buttons, wordmark).
@@ -77,6 +79,8 @@ export default function RootLayout({
             scenarios. No auth behind it; the gate is that a real deployment
             ships no mock data. See the note in dev-bar.tsx. */}
         <DevBar />
+        {/* Off by default: returns null, so the prototype is unchanged. */}
+        <AnnoLayer />
       </body>
     </html>
   );
