@@ -36,7 +36,7 @@
 //
 // Radix Dialog carries the focus trap and Escape.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogBody,
@@ -573,6 +573,7 @@ export function CareUpdateFields({
   diagnosticRef,
   assessmentRef,
   firstRef,
+  order = ["clinical", "diagnostic", "assessment"],
   className,
 }: {
   idPrefix: string;
@@ -587,12 +588,26 @@ export function CareUpdateFields({
   /** Set by the modal, which moves initial focus into the first field. The
    *  drawer focuses its own header instead, so it passes nothing. */
   firstRef?: React.RefObject<HTMLTextAreaElement | null>;
+  /** Render order. Defaults to the order the standalone modal has always used,
+   *  so that surface is untouched by this. */
+  order?: readonly FieldId[];
   className?: string;
 }) {
   useAutoGrow(clinicalRef, body.clinical);
   useAutoGrow(diagnosticRef, body.diagnostic);
-  return (
-    <div className={cn("space-y-6", className)}>
+  /** ═══ THE THREE BLOCKS, KEYED, SO A CALLER CAN ORDER THEM ═══
+   *  The modal and the in-card review want different orders — the review leads
+   *  with the assessment dropdown, per its own composition — and the fields are
+   *  identical in both. Keyed blocks rather than a second component: two copies
+   *  of three clinical fields are two forms that start the same and drift on the
+   *  day one of them gains a required field.
+   *  THE CALLOUT TRAVELS WITH THE DIAGNOSTIC FIELD, not with a position. It asks
+   *  a supervisor to read before signing THAT statement, so it belongs to that
+   *  block in either order — which also keeps it below Clinical Summary in both,
+   *  since Diagnostic follows Clinical either way. */
+  const BLOCKS: Record<FieldId, React.ReactNode> = {
+    clinical: (
+      <>
       {/* 1 · CLINICAL SUMMARY */}
       <Field
         id={`${idPrefix}-clinical`}
@@ -620,6 +635,10 @@ export function CareUpdateFields({
         />
       </Field>
 
+      </>
+    ),
+    diagnostic: (
+      <>
       {/* 2 · DIAGNOSTIC SUPPORT STATEMENT.
           The callout sits ABOVE the field, per spec — it asks the supervisor to
           read before signing, so it has to arrive before the text does. */}
@@ -659,6 +678,10 @@ export function CareUpdateFields({
         </Field>
       </div>
 
+      </>
+    ),
+    assessment: (
+      <>
       {/* ═══ 3 · ASSESSMENT OF SYMPTOMS — NOW A SELECT (A6) ═══
           This was a `RadioGroup`, and the reasoning for that is worth keeping
           visible because this change overrides it: the segmented control offers
@@ -724,6 +747,15 @@ export function CareUpdateFields({
         </Select>
         <FieldError id={`${idPrefix}-assessment-err`} show={errors.assessment} />
       </div>
+      </>
+    ),
+  };
+
+  return (
+    <div className={cn("space-y-6", className)}>
+      {order.map((id) => (
+        <React.Fragment key={id}>{BLOCKS[id]}</React.Fragment>
+      ))}
     </div>
   );
 }

@@ -33,7 +33,7 @@
 // accepted overstatement, not an oversight. Do not "fix" it; see
 // RATIONALE_SOURCE_LABEL.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 // The dropdown-menu import is gone with the ellipsis it served — see the actions
@@ -85,6 +85,10 @@ export function PresentationReviewCard({
   actor,
   actorRole,
   onReviewRequest,
+  expanded = false,
+  onCollapse,
+  workspace,
+  hasDraft = false,
 }: {
   review: PresentationReview;
   /** `currentCode` was here so approving could name what it replaced. The owner
@@ -111,10 +115,40 @@ export function PresentationReviewCard({
    *  evidence, and simply are not handed the callback, so the action row does not
    *  render at all. There is no disabled Review. */
   onReviewRequest?: () => void;
+  /** ═══ THE CARD IS THE WORKSPACE WHEN IT IS OPEN ═══
+   *  Owned by the page, not by the card: committing and the draft both live
+   *  there, and a card that opened itself would be the only thing on the tab
+   *  that knew whether a review was in progress. */
+  expanded?: boolean;
+  onCollapse?: () => void;
+  /** Rendered inside the card when expanded — the decision, the three fields and
+   *  the commit row. Passed as a node so the card stays a card and does not grow
+   *  a dependency on the review's own commit path. */
+  workspace?: React.ReactNode;
+  /** A draft exists for this review, so the collapsed band says so. */
+  hasDraft?: boolean;
 }) {
   /** Lifted out of the old Disclosure component: the header must not own the
    *  body's open state, or it re-renders around it. */
   const [open, setOpen] = useState(false);
+
+  /** ═══ COLLAPSING HANDS FOCUS BACK TO THE BAND ═══
+   *  Closing the card unmounts nothing a keyboard reader was standing on, so
+   *  without this focus falls to <body> and they are dropped at the top of a long
+   *  clinical page — the same failure the DSM-5 dialog had to fix explicitly.
+   *  Queried out of a wrapper rather than taken as a ref on `PillButton`, which
+   *  does not declare one.
+   *  Guarded on a PREVIOUS value so this only fires on a true → false
+   *  transition: focusing on mount would steal the caret from whatever the reader
+   *  was doing when the card first appeared. */
+  const bandRef = useRef<HTMLSpanElement | null>(null);
+  const wasExpanded = useRef(expanded);
+  useEffect(() => {
+    if (wasExpanded.current && !expanded) {
+      bandRef.current?.querySelector("button")?.focus();
+    }
+    wasExpanded.current = expanded;
+  }, [expanded]);
   // One flag for the whole acting half of the card.
   const canAct = !!onReviewRequest;
 
@@ -159,22 +193,51 @@ export function PresentationReviewCard({
       meta={STAGE_LABEL[review.stage]}
       actions={
         canAct && (
-          /* ═══ THE ELLIPSIS IS GONE, AND IT HELD EXACTLY ONE THING ═══
-             "Change presentation…" was its only item, so removing change from
-             the card emptied the menu entirely — a glyph opening a one-item menu
-             is a control that costs an interaction to reveal nothing. Both the
-             menu and its trigger are deleted rather than left with a remainder
-             surfaced inline; there was no remainder.
-             What survives is a single filled CTA that opens the review. It is
-             the only affordance on this card, which is the point: the card is a
-             statement of what needs review, and the workspace is elsewhere. */
-          <PillButton
-            onClick={() => onReviewRequest?.()}
-            className="h-9 whitespace-nowrap px-5 text-[14px]"
-          >
-            {/* TODO-COPY */}
-            Review
-          </PillButton>
+          <span ref={bandRef} className="flex items-center gap-2">
+            {/* ═══ THE DRAFT CHIP LIVES IN THE ACTIONS CLUSTER ═══
+                The band's label side is `TaskLabel`, whose `qualifier` is typed
+                as a string and which is SHARED with the flag cards on Overview —
+                out of this brief's scope. Widening it for one consumer would
+                have edited a component two surfaces away for a chip, so the
+                indicator sits at the other end of the same band instead. Same
+                row, same glance, nothing shared touched. TODO-COPY. */}
+            {hasDraft && !expanded && (
+              <span className="rounded-full bg-[var(--band-sand-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-sand-fg)]">
+                Draft
+              </span>
+            )}
+            {expanded ? (
+              /* ═══ CLOSE, NOT A GHOSTED REVIEW ═══
+                 The mock ghosts the Review button while the card is open, which
+                 leaves a dead control in the primary position saying nothing
+                 about how to get out. Close is the same position, live, and it
+                 names the way back — the draft is already written, so it costs
+                 nothing. Flagged for design-lead veto. TODO-COPY. */
+              <button
+                type="button"
+                onClick={() => onCollapse?.()}
+                className={cn(
+                  "h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[14px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+                  RING
+                )}
+              >
+                Close
+              </button>
+            ) : (
+              /* ═══ ONE CTA, AND THE ELLIPSIS THAT HELD ONE THING IS GONE ═══
+                 "Change presentation…" was the menu's only item, so removing
+                 change from the card emptied it entirely. Both the menu and its
+                 trigger were deleted rather than left with a remainder; there
+                 was none. */
+              <PillButton
+                onClick={() => onReviewRequest?.()}
+                className="h-9 whitespace-nowrap px-5 text-[14px]"
+              >
+                {/* TODO-COPY */}
+                Review
+              </PillButton>
+            )}
+          </span>
         )
       }
       /* PROVENANCE, same slot as the flag cards'. It answers a real question
@@ -358,6 +421,42 @@ export function PresentationReviewCard({
           </div>
         )}
       </div>
+
+      {/* ═══ THE EXPANSION — A GRID ROW THAT GOES 0fr → 1fr ═══
+          Height is not animatable from `auto`, and there is no motion library
+          here, so the options were a measured `max-height` (a guess that clips
+          the day the content grows) or this: a one-row grid whose track animates
+          between zero and its content size. The browser interpolates the track,
+          the child clips while it is closed, and nothing has to know how tall the
+          form is.
+          `overflow-hidden` is on the INNER wrapper, not the card — the Change
+          selector is an inline list so it is safe, and the assessment dropdown is
+          a Radix popover that portals out.
+          300ms sits inside the 250–350ms the spec asks for; `motion-reduce`
+          drops the transition so the height change lands on one frame. */}
+      {workspace && (
+        <div
+          data-record-section="care-review-expansion"
+          data-expanded={expanded}
+          className={cn(
+            "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none",
+            expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          )}
+        >
+          {/* ═══ `inert` WHILE CLOSED ═══
+              A 0fr grid row clips the form to no height but leaves every control
+              in it focusable — measured: 8 tab stops inside a collapsed card,
+              so a keyboard reader could Tab into a form they cannot see and type
+              into a clinical field with no visible caret. `inert` takes the whole
+              subtree out of the tab order and the accessibility tree without
+              touching layout, so the height still animates. */}
+          <div className="overflow-hidden" inert={!expanded}>
+            <div className="mt-4 border-t border-[color:var(--border-subtle)] pt-4">
+              {workspace}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* THE PROVIDER NOTE USED TO BE SECTION 4 AND IS GONE.
           The card is deliberately short now: recommendation, rationale with its

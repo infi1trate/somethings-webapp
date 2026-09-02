@@ -74,16 +74,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
-import { CareReviewPanel } from "@/components/record/care-review-panel";
+import { CareReviewWorkspace } from "@/components/record/care-review-workspace";
 import {
-  CareReviewSlot,
-  CareSummaryDigest,
-  ReviewDraftBar,
-  type SlotExpanded,
-} from "@/components/record/care-review-slot";
-import { cn } from "@/lib/utils";
-import { useMediaQuery } from "@/lib/use-media-query";
-import { clearReviewDraft, type ReviewDecision } from "@/lib/record/review-draft";
+  clearReviewDraft,
+  readReviewDraft,
+  type ReviewDecision,
+} from "@/lib/record/review-draft";
 import {
   REVIEW_NOUN,
   type PresentationReview,
@@ -210,18 +206,6 @@ export function CareTab({
    *  document-global SVG ids, so two mounts break the visible one (gap row 309).
    *  The rail unmounting is what lets the drawer hold the same node. */
   const [reviewOpen, setReviewOpen] = useState(false);
-  /** ═══ THE SEE-SAW ═══
-   *  Which of the right column's two units holds the space. There is no third
-   *  value and no "both" — see `CareReviewSlot`, whose signature cannot express
-   *  one. Opening a review tips to `review`; closing it tips back to `summary`
-   *  and leaves the draft bar behind. */
-  const [expanded, setExpanded] = useState<SlotExpanded>("review");
-  /** ═══ THE COMMITTED REVIEW, HELD SO IT CAN LEAVE ═══
-   *  Committing writes to the store, `pendingReviewFor` immediately returns null
-   *  and the panel would unmount on the click frame — there is nothing left to
-   *  animate out. So the review is snapshotted here for the length of the exit
-   *  and the panel renders from the snapshot. The RECORD WRITE IS NOT DELAYED:
-   *  it happens on the click, and only the panel's removal waits. */
   const [closingReview, setClosingReview] =
     useState<PresentationReview | null>(null);
   // The column no longer needs a fitted height: the panel is fixed against the
@@ -525,22 +509,34 @@ export function CareTab({
   const panelReview = review ?? closingReview;
   const reviewInProgress = (reviewOpen && !!review) || !!closingReview;
 
-  /** ═══ TIPPING THE SEE-SAW, AND WHERE FOCUS LANDS ═══
+  /** ═══ OPENING THE CARD, AND WHERE FOCUS AND THE PAGE GO ═══
    *
-   *  Every tip is a press on a real control — the digest, the draft bar, or the
-   *  panel's close — so moving focus into whatever just expanded is following
-   *  the reader rather than interrupting them. It happens on the frame AFTER the
-   *  state change, because the thing being focused does not exist until then.
+   *  Focus lands on the decision row's first control — the first thing this flow
+   *  asks anyone to do — via a tick the workspace watches, so no other re-render
+   *  can pull the caret out of a field mid-sentence.
    *
-   *  NOTHING ELSE MOVES FOCUS. The panel's own focus effect keys off
-   *  `panelFocus`, which only this function increments, so a re-render from a
-   *  keystroke or a store write cannot pull the caret out of a field. */
-  const summaryRef = useRef<HTMLElement | null>(null);
-  const [panelFocus, setPanelFocus] = useState(0);
-  const tipTo = (next: SlotExpanded) => {
-    setExpanded(next);
-    if (next === "review") setPanelFocus((n) => n + 1);
-    else requestAnimationFrame(() => summaryRef.current?.focus());
+   *  AND THE PAGE FOLLOWS THE CARD. Expanding adds several hundred pixels below
+   *  the header band, so on anything short of a tall window the form opens under
+   *  the fold and a reader is left looking at a card that visibly did something
+   *  out of sight. One smooth scroll puts the band near the top; `motion-reduce`
+   *  jumps instead, which the spec allows.
+   *  Deferred a frame so the row exists to scroll to. */
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [workspaceFocus, setWorkspaceFocus] = useState(0);
+  const expandCard = () => {
+    setReviewOpen(true);
+    setWorkspaceFocus((n) => n + 1);
+    requestAnimationFrame(() => {
+      const band = cardRef.current?.querySelector(
+        '[data-record-section="care-review-card"]'
+      );
+      band?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "start",
+      });
+    });
   };
 
   /** ═══ THE PANEL, BUILT ONCE ═══
@@ -548,8 +544,17 @@ export function CareTab({
    *  1100px, the sheet below it. One element in one variable rather than two JSX
    *  sites, because two would remount the form on every breakpoint crossing and
    *  take the draft's scroll position with it. */
-  const panelNode = panelReview ? (
-    <CareReviewPanel
+  /** ═══ IS THERE A DRAFT TO ADVERTISE ═══
+   *  Read on each render rather than tracked in state: the workspace writes the
+   *  draft on every keystroke, and a mirrored boolean would be a second source
+   *  for the same fact — wrong for exactly as long as it took to notice. Reading
+   *  session storage is a synchronous string lookup. */
+  const hasSavedDraft = !!(review && !reviewOpen
+    ? readReviewDraft(teen.id, review.id)
+    : null);
+
+  const workspaceNode = panelReview ? (
+    <CareReviewWorkspace
       review={panelReview}
       currentCode={presentation?.code ?? null}
       teenId={teen.id}
@@ -558,13 +563,12 @@ export function CareTab({
         text: panelReview.rationale.text,
       }}
       now={now}
-      focusSignal={panelFocus}
-      closing={!!closingReview}
-      onClose={() => {
-        /* CLOSING TIPS THE SEE-SAW; it does not end the review. The draft bar
-           takes the panel's place, so the work is one press away and nothing is
-           discarded — `review-draft.ts` already has every keystroke. */
-        tipTo("summary");
+      focusSignal={workspaceFocus}
+      onSaveAndClose={() => {
+        /* NOTHING EXTRA IS SAVED HERE. The draft is already written on every
+           keystroke, so this only collapses the card — which is what the label
+           says and all it does. */
+        setReviewOpen(false);
       }}
       onCommit={(decision: ReviewDecision, body, at) => {
         const review = panelReview;
@@ -609,25 +613,29 @@ export function CareTab({
            in reverse for 200ms; only then does it unmount and the card resolve,
            which keeps the sequence the spec asks for and gives the exit
            something to animate rather than vanishing on the click frame. */
+        /* ═══ THE CARD CLOSES ITSELF, THEN RESOLVES ═══
+           One sequence, in order: the expansion collapses under its own 300ms
+           transition while the card is still there, and only when it has closed
+           does the card give way to the confirmation line. Simultaneous reads as
+           the section coming apart — two things moving in two places at once —
+           and 300 + the resolve is inside the 800ms budget. */
         setClosingReview(review);
-        setExpanded("review");
-        /* ═══ ONE BEAT BETWEEN THEM, NOT ONE FRAME ═══
-           `requestAnimationFrame` put the card's confirmation on screen ~16ms
-           after the panel left, which is simultaneous as far as an eye is
-           concerned — two things moving in two places for two reasons. 200ms
-           matches the slot's own transition, so the column has finished settling
-           before the card starts. Total choreography stays well inside the
-           budget: 200 to settle, 200 for the card, then the hold. */
+        setReviewOpen(false);
         window.setTimeout(() => {
-          setReviewOpen(false);
           setClosingReview(null);
           setReviewed({ code, changed: applies });
-        }, 200);
+        }, 300);
       }}
     />
   ) : null;
 
-  const tasks = careTasksFor(review);
+  /** ═══ THE CARD OUTLIVES ITS REVIEW, BRIEFLY ═══
+   *  `panelReview`, not `review`. Committing writes to the store and
+   *  `pendingReviewFor` returns null on the same frame, so keying the card off
+   *  `review` made it vanish instantly — measured at 80ms, gone — and there was
+   *  no card left to "resolve in place". The snapshot keeps it mounted just long
+   *  enough for its own expansion to close. */
+  const tasks = careTasksFor(panelReview);
 
   // `openFlagCount` lived here for the panel's evidence strip. The strip is
   // gone and the digest counts its own from the summary document.
@@ -652,17 +660,6 @@ export function CareTab({
   /** A review is in progress from the moment it is opened until it commits or
    *  is closed. The slot renders both units throughout; `expanded` decides which
    *  one is full. */
-  /** ═══ 1100px, THE BREAKPOINT THIS LAYOUT ALREADY HAD ═══
-   *  Not a new one. It is where the grid gains its second track and where the
-   *  summary already switched to a sheet, so the slot follows the column it
-   *  lives in rather than introducing a third number to keep in sync. R2's
-   *  1240px drawer breakpoint is gone with the drawer.
-   *
-   *  READ IN JS, NOT CSS, AND ONLY FOR THIS. Hiding one copy with `hidden` would
-   *  mean the panel is MOUNTED twice — two `rv-clinical` ids, two draft writers,
-   *  two sets of fields. So the slot is rendered in exactly one place and this
-   *  decides which. */
-  const wide = useMediaQuery("(min-width: 1100px)");
 
 
   // ═══ NOTHING TIME-DERIVED UNTIL MOUNT (standing rule 3, gap row 291) ═══
@@ -723,24 +720,11 @@ export function CareTab({
          thing they had been looking at moved. The right column now time-shares
          its own width between two units (see `CareReviewSlot`), so nothing
          outside that track notices a review at all. */
-      className={cn(
-        "grid grid-cols-1 items-start gap-6",
-        /* ═══ THE ONE WIDTH TRANSITION, AND IT IS CRITERION-GATED ═══
-           The default is that nothing outside this track moves. The spec allows
-           exactly one exception, and the measurement triggered it: at the rail's
-           380px the Clinical summary textarea has a 320px text box, and at
-           14px Lausanne the `ch` advance is 8.51px — 37.6ch, under the ~40ch
-           floor for a field somebody writes a clinical paragraph into. 420px
-           takes it to 42.3ch. Measured in the browser at both widths, not
-           computed from a guess at the font.
-           The main column absorbs the 40px, once, on open, with a transition on
-           the template itself so the two tracks move together rather than the
-           panel appearing and the spine jumping afterwards. */
-        reviewInProgress
-          ? "min-[1100px]:grid-cols-[minmax(560px,1fr)_420px]"
-          : "min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]",
-        "motion-safe:transition-[grid-template-columns] motion-safe:duration-200"
-      )}
+      /* ═══ ONE TEMPLATE, ALWAYS ═══
+         The review used to take this track, then widen it. It happens inside the
+         card now, so the right column is the care summary and nothing else — and
+         the main column has no reason to reflow for a review at all. */
+      className="grid grid-cols-1 items-start gap-6 min-[1100px]:grid-cols-[minmax(560px,1fr)_380px]"
     >
       <div className="min-w-0 space-y-7">
         {/* 1 · CARE SUMMARY — the spine. Leads even with a review pending. */}
@@ -792,6 +776,7 @@ export function CareTab({
           </p>
         )}
 
+        <div ref={cardRef}>
         <CareTaskRegion
           tasks={tasks}
           reviewProps={{
@@ -813,17 +798,18 @@ export function CareTab({
                       document.activeElement as HTMLElement | null;
                     /* Opening always tips to the review — State 1 is the
                        default on Review, per the see-saw spec. */
-                    setExpanded("review");
-                    setPanelFocus((n) => n + 1);
-                    setReviewOpen(true);
-                    /* Below 1100px the slot lives in the sheet, so opening a
-                       review has to open the sheet with it — otherwise the CTA
-                       appears to do nothing. */
-                    if (!wide) setSummaryOverlayOpen(true);
+                    expandCard();
                   }
                 : undefined,
+            /* ═══ THE CARD IS THE WORKSPACE WHEN OPEN ═══ */
+            expanded: reviewInProgress,
+            onCollapse: () => setReviewOpen(false),
+            workspace: workspaceNode,
+            /* So an in-progress review is discoverable without expanding it. */
+            hasDraft: hasSavedDraft,
           }}
         />
+        </div>
 
         {/* 3 · THE ENGAGEMENT READING IS NOT A SECTION HERE. It floated in this
             column once, where it read as unattributed commentary — a reader
@@ -935,50 +921,20 @@ export function CareTab({
           disabled. Nothing in here approves, writes, amends or closes anything,
           and it never authors a record entry — only `approveCareReview` does.
           That is the provenance boundary the two columns exist to draw. */}
-      {/* ═══ THE RIGHT COLUMN — ONE TRACK, TWO UNITS, ONE EXPANDED ═══
-          The track is 380px whether a review is open or not. What changes is
-          which unit inside it holds the height: the care summary, or the review
-          panel. `CareReviewSlot` owns that rule — see its note on why the
-          invariant lives in a signature rather than in a comment.
-          `panelNode` is built once and handed to whichever container is
-          rendering the slot (this one above 1100px, the sheet below it), so the
-          panel is never mounted twice and its fields never remount. */}
-      {summaryNode && !summaryOverlayOpen && wide && (
-        <div className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:flex min-[1100px]:max-h-[calc(100dvh-6rem)] min-[1100px]:flex-col">
-          <CareReviewSlot
-            expanded={expanded}
-            reviewInProgress={reviewInProgress}
-            summaryFull={
-              <aside
-                /* TODO-COPY */
-                aria-label="Care summary"
-                /* -1 so tipping can land focus here without adding the region to
-                   the tab order — a reader arrowing the page should not have to
-                   pass through a container to reach its contents. */
-                ref={summaryRef}
-                tabIndex={-1}
-                className="min-w-0 outline-none"
-              >
-                {summaryNode}
-              </aside>
-            }
-            summaryDigest={
-              <CareSummaryDigest
-                doc={summaryDoc}
-                onExpand={() => tipTo("summary")}
-              />
-            }
-            reviewPanel={panelNode}
-            draftBar={
-              review && (
-                <ReviewDraftBar
-                  reviewNoun={REVIEW_NOUN[review.stage]}
-                  onRestore={() => tipTo("review")}
-                />
-              )
-            }
-          />
-        </div>
+      {/* ═══ THE CARE SUMMARY RAIL — PERMANENT ═══
+          Restored to exactly what it was before any of the review work: one
+          in-flow column, always full, never condensed and never duplicated. The
+          review no longer needs anything from this track, so nothing here has a
+          reason to move — which is the point of putting the workspace inside the
+          card instead. */}
+      {summaryNode && !summaryOverlayOpen && (
+        <aside
+          /* TODO-COPY */
+          aria-label="Care summary"
+          className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:block"
+        >
+          {summaryNode}
+        </aside>
       )}
 
       {/* ── BELOW 1100px: THE SAME NODE, IN AN OVERLAY ────────────────────
@@ -988,18 +944,14 @@ export function CareTab({
           own header and close control either scrolls inside a box already the
           height of the screen or shrinks the strip past reading.
           Radix portals it, so it sits outside the grid and occupies no column. */}
-      {summaryNode && !wide && (
+      {summaryNode && (
         <Dialog open={summaryOverlayOpen} onOpenChange={setSummaryOverlayOpen}>
           <DialogContent variant="side" className="min-[1100px]:hidden">
             <DialogHeader>
               {/* TODO-COPY. A panel over the record has no context around it, so
                   it names what it is showing — and with a review in progress the
                   sheet is holding both units, so it says so. */}
-              <DialogTitle>
-                {reviewInProgress && review
-                  ? `Care summary · ${REVIEW_NOUN[review.stage]}`
-                  : "Care summary"}
-              </DialogTitle>
+              <DialogTitle>Care summary</DialogTitle>
             </DialogHeader>
             {/* ═══ THE SAME SEE-SAW, NOT A SECOND LAYOUT ═══
                 Below 1100px the right column has nowhere to be, so the whole slot
@@ -1007,31 +959,7 @@ export function CareTab({
                 same two units, same tipping. R2 had a separate overlay mode for
                 the drawer with its own dimensions and its own minimize control;
                 that was a second implementation of one idea, and it is gone. */}
-            <DialogBody className="flex min-h-0 flex-col">
-              <CareReviewSlot
-                expanded={expanded}
-                reviewInProgress={reviewInProgress}
-                summaryFull={<div className="min-w-0">{summaryNode}</div>}
-                summaryDigest={
-                  <CareSummaryDigest
-                    doc={summaryDoc}
-                    onExpand={() => tipTo("summary")}
-                  />
-                }
-                reviewPanel={panelNode}
-                draftBar={
-                  review && (
-                    <ReviewDraftBar
-                      reviewNoun={REVIEW_NOUN[review.stage]}
-                      onRestore={() => tipTo("review")}
-                    />
-                  )
-                }
-                /* The sheet IS the overlay — see `float` on the slot. */
-                float={false}
-                className="min-h-0 flex-1"
-              />
-            </DialogBody>
+            <DialogBody>{summaryNode}</DialogBody>
           </DialogContent>
         </Dialog>
       )}

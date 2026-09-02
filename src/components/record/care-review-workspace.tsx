@@ -1,33 +1,24 @@
 "use client";
 
-// THE REVIEW PANEL — where a presentation decision is made and committed.
+// THE REVIEW WORKSPACE — the Action required card, opened.
 //
-// ═══ NON-MODAL, AND THAT IS THE POINT ═══
+// ═══ IT IS NOT A SURFACE OF ITS OWN ═══
 //
-// No scrim, no focus trap. A supervisor deciding a billing code needs to look at
-// History, at the flags, at the conversation behind them — and a modal answers
-// "can I check that first?" with "no". Initial focus moves in, because the reader
-// asked for this surface; everything after that is theirs.
+// This was a drawer, then a floating panel pinned to the viewport. Both put the
+// decision somewhere other than where the card that raised it lives, and both
+// then had to answer "where did the evidence go" — the drawer by collapsing the
+// rail, the panel by growing a copy of it. Neither question exists here: the
+// card grows, its header band stays, and the proposal, rationale and survey
+// strip that were already on it are still above the form. Nothing moves out of
+// the page, nothing is duplicated, and the care summary rail is never touched.
 //
-// The cost is stated: a non-modal panel can be forgotten behind other work. That
-// is what the minimize pill and the draft are for.
-//
-// ═══ CONFIRM AND CHANGE ARE PEERS ═══
-//
-// One decision with two outcomes, not a primary action with an escape hatch. They
-// render as two controls of equal weight, neither preselected. The card that
-// opens this deliberately carries no approval affordance at all, so this is the
-// only place in the record where a presentation decision can be taken.
-//
-// ═══ ONE FILLED BUTTON IN THE WHOLE PANEL ═══
-//
-// The commit. Everything else is outlined, ghost or text — if the decision
-// controls were filled they would compete with the thing that actually writes to
-// the record, and a reader scanning for "what does this screen do" would find
-// three answers.
+// So this file is a BODY, not a container. It renders no card chrome, no header
+// and no close control — those belong to the card, which owns them in both
+// states. What it keeps is everything a decision needs: the two peer outcomes,
+// the inline code search, the three documentation fields, the validation, and
+// the draft that survives all of it.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { Dsm5SearchList } from "@/components/record/dsm5-search";
 import {
@@ -36,7 +27,6 @@ import {
 } from "@/components/record/care-update-compose";
 import {
   emptyCareUpdateBody,
-  REVIEW_NOUN,
   type CareUpdateBody,
   type PresentationReview,
 } from "@/lib/record/care-demo";
@@ -59,15 +49,8 @@ const LABEL_STYLE = {
 
 type FieldId = "clinical" | "diagnostic" | "assessment";
 
-/** TODO-COPY. Title-cased from `REVIEW_NOUN` rather than `STAGE_LABEL` + " review"
- *  — that concatenation produced "90-day review review", which is the bug the two
- *  maps in care-demo exist to keep apart. */
-function reviewTitle(review: PresentationReview) {
-  const noun = REVIEW_NOUN[review.stage];
-  return noun.charAt(0).toUpperCase() + noun.slice(1);
-}
 
-export interface CareReviewPanelProps {
+export interface CareReviewWorkspaceProps {
   review: PresentationReview;
   /** The code on record — what "confirm" confirms, and the "before" of a change. */
   currentCode: string | null;
@@ -75,19 +58,15 @@ export interface CareReviewPanelProps {
   prefill?: DiagnosticPrefill | null;
   now: number;
   /** ═══ A TICK THAT MEANS "TAKE FOCUS" ═══
-   *  The panel stays mounted while the see-saw is tipped away from it, so a
-   *  mount effect can no longer be what moves focus in. The owner increments
-   *  this when the reader tips BACK, and only then — a value rather than a
-   *  callback, so a re-render for any other reason cannot pull focus out of a
-   *  field somebody is typing in. */
+   *  The card owns expansion, so a mount effect is not what should move focus —
+   *  the workspace is mounted and unmounted by the card's own open state, and on
+   *  a restore from a draft it must not steal the caret from a field somebody is
+   *  already typing in. The card increments this when it expands, and only then.
+   *  Focus lands on the DECISION ROW's first control, which is the first thing
+   *  this flow asks anyone to do. */
   focusSignal: number;
-  /** ═══ THE PANEL IS STILL MOUNTED WHILE IT LEAVES ═══
-   *  Set for the length of the exit animation and then dropped by the owner. An
-   *  unmount on click would give the exit nothing to animate, and the commit
-   *  choreography (panel out, then the card resolves) depends on the panel
-   *  actually taking that time rather than vanishing on the frame. */
-  closing?: boolean;
-  onClose: () => void;
+  /** Persists the draft and collapses the card. Distinct from committing. */
+  onSaveAndClose: () => void;
   onCommit: (
     decision: ReviewDecision,
     body: CareUpdateBody,
@@ -95,17 +74,16 @@ export interface CareReviewPanelProps {
   ) => void;
 }
 
-export function CareReviewPanel({
+export function CareReviewWorkspace({
   review,
   currentCode,
   teenId,
   prefill,
   now,
   focusSignal,
-  closing,
-  onClose,
+  onSaveAndClose,
   onCommit,
-}: CareReviewPanelProps) {
+}: CareReviewWorkspaceProps) {
   /** ═══ STATE IS SEEDED FROM THE DRAFT, ONCE ═══
    *  In a lazy initialiser rather than an effect: an effect would render the
    *  empty form first and then replace it, which is a visible flash of a blank
@@ -119,12 +97,14 @@ export function CareReviewPanel({
   const [decision, setDecision] = useState<ReviewDecision | null>(
     restored?.decision ?? null
   );
-  const [body, setBody] = useState<CareUpdateBody>(
+  /** What this opened with — the restored draft, or the AI prefill, or empty. */
+  const [initialBody] = useState<CareUpdateBody>(() =>
     restored?.body ??
-      (prefill
-        ? { ...emptyCareUpdateBody(), diagnostic: prefill.text }
-        : emptyCareUpdateBody())
+    (prefill
+      ? { ...emptyCareUpdateBody(), diagnostic: prefill.text }
+      : emptyCareUpdateBody())
   );
+  const [body, setBody] = useState<CareUpdateBody>(initialBody);
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
     clinical: false,
     diagnostic: false,
@@ -139,22 +119,37 @@ export function CareReviewPanel({
   const clinicalRef = useRef<HTMLTextAreaElement | null>(null);
   const diagnosticRef = useRef<HTMLTextAreaElement | null>(null);
   const assessmentRef = useRef<HTMLButtonElement | null>(null);
-  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const firstDecisionRef = useRef<HTMLButtonElement | null>(null);
   const decisionRef = useRef<HTMLDivElement | null>(null);
 
-  /** INITIAL FOCUS MOVES IN, AND NO FURTHER. The heading takes it (tabIndex -1)
-   *  rather than the first field: landing in a textarea skips the append-only
-   *  warning and the evidence, which is the reading order this panel exists to
-   *  impose. Nothing traps focus afterwards — see the module note. */
+  /** ═══ FOCUS LANDS ON THE DECISION, NOT ON A FIELD ═══
+   *  The first thing this flow asks is "confirm or change", and the fields below
+   *  only make sense after that is answered — so focus goes to the first of the
+   *  two peer controls rather than into a textarea. Nothing is trapped: the card
+   *  is in the page, and Tab leaves it the way it leaves anything else. */
   useEffect(() => {
-    headingRef.current?.focus();
+    if (focusSignal > 0) firstDecisionRef.current?.focus();
   }, [focusSignal]);
 
   /** ═══ EVERY KEYSTROKE AND EVERY DECISION IS PERSISTED ═══
    *  Not on close, not on a timer — on change. Close, minimise, a breakpoint
    *  flip and a tab-away are all just unmounts as far as this panel knows, and a
    *  save-on-unmount would have to be right about all four. */
+  /** ═══ AN UNTOUCHED REVIEW IS NOT A DRAFT ═══
+   *  The workspace is mounted by the card even while the card is collapsed, so
+   *  an unconditional write put a draft in storage — seeded with the AI prefill
+   *  and nothing else — for every review a supervisor merely scrolled past, and
+   *  the collapsed card then advertised a "Draft" chip for work nobody had
+   *  started. Measured, not theorised: opening and immediately closing a review
+   *  left a stored body with an empty clinical field.
+   *  So the write is gated on the content DIFFERING from what this opened with.
+   *  Editing back to the seeded state stops updating the timestamp, which is the
+   *  right behaviour for a draft that no longer contains anything of its own. */
+  const pristine = useRef(
+    JSON.stringify({ decision: restored?.decision ?? null, body: initialBody })
+  );
   useEffect(() => {
+    if (JSON.stringify({ decision, body }) === pristine.current) return;
     writeReviewDraft(teenId, review.id, { decision, body, savedAt: Date.now() });
   }, [teenId, review.id, decision, body]);
 
@@ -217,89 +212,19 @@ export function CareReviewPanel({
     onCommit(decision, body, Date.now());
   };
 
-  const commitLabel =
-    decision === null
-      ? /* TODO-COPY. The two decided labels are specified; this third one is
-           not, and defaulting to either of them would put the answer in the
-           button before the supervisor had chosen — the exact thing removing
-           Approve from the card was for. */
-        "Save review"
-      : decision.kind === "confirm"
-        ? `Approve · no change` // TODO-COPY
-        : `Save change to ${decision.code}`; // TODO-COPY
+  // `commitLabel` is gone: the footer's two buttons are fixed labels now
+  // ("Save & close" / "Save and submit"), and the decision is stated in the
+  // decision row rather than inside the button that commits it.
 
   return (
-    <div
-      data-record-section="care-review-panel"
-      /* ═══ A REGION, NOT A DIALOG ═══
-         No scrim, no focus trap, no `role="dialog"`. The page behind stays
-         readable and scrollable, which is the whole reason the evidence could
-         come OUT of this panel: a supervisor checks the rationale and the survey
-         grid in the main column rather than in a copy of them in here. */
-      role="region"
-      aria-label={reviewTitle(review)}
-      className={cn(
-        "flex min-h-0 flex-col bg-[var(--surface-card)]",
-        /* ═══ A FLOATING CARD, NOT AN EDGE-ATTACHED DRAWER ═══
-           Card radius and elevation, inset from the column's edges, sticky
-           inside the tab's own scroll container — which is NOT the viewport
-           (measured: an inner `overflow-y-auto` div, 16px from the top of the
-           window and 56px from the bottom). So the height is bounded against
-           that container rather than against `100dvh`, and the panel reads as a
-           document lying on the workspace instead of chrome bolted to the
-           window. */
-        /* `--shadow-card`, not `shadow-lg`. The build shipped Tailwind's own
-           default shadow, which is not a Bloom token at all — and of the tokens
-           that exist, `--shadow-panel` is a flat all-round glow used by app
-           chrome, which is the reading this panel is supposed to avoid.
-           `--shadow-card` is the directional lift every other elevated surface
-           on this record uses, and "a card placed on the workspace" is exactly
-           what it is for. */
-        "min-h-0 flex-1 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] shadow-[var(--shadow-card)]",
-        /* See `review-panel-settle` in globals.css. */
-        closing ? "review-panel-exit" : "review-panel-enter"
-      )}
-    >
-      {/* ═══ HEADER ═══ */}
-      <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-4 py-3">
-        <div className="flex items-start gap-2">
-          <h2
-            ref={headingRef}
-            tabIndex={-1}
-            className="min-w-0 flex-1 font-display text-[16px] font-bold leading-[22px] text-[var(--text-primary)] outline-none"
-          >
-            {reviewTitle(review)} ·{" "}
-            <span className="font-normal">{proposed.statement}</span>{" "}
-            <span className="font-normal tabular-nums text-[var(--text-secondary)]">
-              ({proposed.code})
-            </span>
-          </h2>
-          {/* NO MINIMIZE CONTROL. Condensing is the see-saw's job now — closing
-              tips the slot to the care summary and leaves a draft bar behind, so a
-              second way to shrink this would be two controls for one idea. */}
-          <button
-            type="button"
-            onClick={onClose}
-            /* TODO-COPY — says what closing does NOT do, because the whole
-               reason a reader hesitates over an × on a half-written clinical
-               note is not knowing. */
-            aria-label="Close review. Your draft is kept."
-            className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-          >
-            <X className="size-4" aria-hidden />
-          </button>
-        </div>
-        {/* TODO-COPY — stated once, at the top, before anything is typed. */}
-        <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-muted)]">
-          This appends to the record and cannot be edited afterwards.
-        </p>
-      </div>
-
-      {/* ═══ ONE SCROLL CONTEXT — the body. Header and footer are pinned. ═══ */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+    <div data-record-section="care-review-workspace" className="min-w-0">
+      {/* ═══ NO SCROLL CONTEXT IN HERE, AND THAT IS THE POINT ═══
+          The panel had a pinned header, a pinned footer and a scrolling middle,
+          because it was a fixed-height box. A card in the document flow has no
+          height to fight: it grows, the page scrolls, and the standing "one
+          scroll context" rule is satisfied by there being exactly one — the
+          page's own. */}
+      <div>
         {/* DRAFT RESTORED — quiet, one line, and it offers the way out. */}
         {restored && !noticeDismissed && (
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2">
@@ -432,6 +357,8 @@ export function CareReviewPanel({
               <button
                 key={o.key}
                 type="button"
+                /* The focus target on expand — see the effect above. */
+                ref={o.key === "confirm" ? firstDecisionRef : undefined}
                 aria-pressed={o.on}
                 onClick={o.pick}
                 className={cn(
@@ -519,30 +446,51 @@ export function CareReviewPanel({
             clinicalRef={clinicalRef}
             diagnosticRef={diagnosticRef}
             assessmentRef={assessmentRef}
+            /* THE MOCK'S ORDER — assessment first, then the two statements. The
+               modal keeps its own; see `order` on `CareUpdateFields`. */
+            order={["assessment", "clinical", "diagnostic"]}
           />
         </section>
       </div>
 
-      {/* ═══ FOOTER — pinned, requirement left, the one filled button right ═══ */}
-      <div className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 py-3">
+      {/* ═══ FOOTER — in flow, right-aligned, one filled button ═══ */}
+      <div className="mt-6 border-t border-[color:var(--border-subtle)] pt-4">
         <p aria-live="polite" className="sr-only">
           {announce}
         </p>
-        <div className="flex items-center justify-between gap-3">
-          <p className="min-w-0 text-[12px] leading-[16px] text-[var(--text-muted)]">
-            {/* TODO-COPY */}
-            All three fields are required.
-          </p>
-          {/* SINGLE LINE AT 100% AND 200%: `whitespace-nowrap` plus a label that
-              is short in both decided states. The outcome code is 5 characters,
-              so "Save change to F33.1" is the longest this ever gets. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* OUTLINED, so the card still has exactly one filled button. It
+              persists nothing extra — the draft is already written on every
+              keystroke — it simply closes the card, and the name says that
+              rather than implying a second kind of save. TODO-COPY. */}
+          <button
+            type="button"
+            onClick={onSaveAndClose}
+            className={cn(
+              "h-10 shrink-0 whitespace-nowrap rounded-full border border-[color:var(--border-contour)] px-5 text-[14px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+              RING
+            )}
+          >
+            Save &amp; close
+          </button>
+          {/* THE ONE FILLED BUTTON IN THE CARD, in either state — the collapsed
+              card's Review is a filled pill and this replaces it while open.
+              `whitespace-nowrap` and a short label keep it on one line at 200%:
+              the longest it gets is "Save and submit". TODO-COPY. */}
           <PillButton
             onClick={attemptCommit}
             className="h-10 shrink-0 whitespace-nowrap px-5 text-[14px]"
           >
-            {commitLabel}
+            Save and submit
           </PillButton>
         </div>
+        {/* The requirement note sits UNDER the buttons now rather than opposite
+            them: right-aligned actions and a left-aligned sentence on one row
+            read as two unrelated things at card width. */}
+        <p className="mt-2 text-right text-[12px] leading-[16px] text-[var(--text-muted)]">
+          {/* TODO-COPY */}
+          All three fields are required.
+        </p>
       </div>
       {/* `outcomeCode` is read by the owner through the committed decision; it is
           computed here only to keep the label and the commit reading one value. */}
