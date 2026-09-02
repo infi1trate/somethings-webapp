@@ -79,7 +79,6 @@ import {
   CareReviewSlot,
   CareSummaryDigest,
   ReviewDraftBar,
-  useFittedHeight,
   type SlotExpanded,
 } from "@/components/record/care-review-slot";
 import { cn } from "@/lib/utils";
@@ -225,9 +224,9 @@ export function CareTab({
    *  it happens on the click, and only the panel's removal waits. */
   const [closingReview, setClosingReview] =
     useState<PresentationReview | null>(null);
-  /** 40px: the page's own column gutter (`lg:px-10`), so the panel's bottom gap
-   *  matches its right one. */
-  const { ref: columnRef, maxHeight: columnMaxHeight } = useFittedHeight(40);
+  // The column no longer needs a fitted height: the panel is fixed against the
+  // viewport now (see `useViewportAnchor`), so the column only has to hold the
+  // digest or the summary, both of which size themselves.
   /** The post-commit confirmation the attention card compresses into
    *  (Workstream F). Null at rest; set for one render pass after a commit. */
   const [reviewed, setReviewed] = useState<{
@@ -945,13 +944,7 @@ export function CareTab({
           rendering the slot (this one above 1100px, the sheet below it), so the
           panel is never mounted twice and its fields never remount. */}
       {summaryNode && !summaryOverlayOpen && wide && (
-        <div
-          ref={columnRef}
-          /* The measured fit replaces `max-h-[calc(100dvh-6rem)]`, which was
-             only correct once this column was stuck — see `useFittedHeight`. */
-          style={{ maxHeight: columnMaxHeight }}
-          className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:flex min-[1100px]:flex-col"
-        >
+        <div className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:flex min-[1100px]:max-h-[calc(100dvh-6rem)] min-[1100px]:flex-col">
           <CareReviewSlot
             expanded={expanded}
             reviewInProgress={reviewInProgress}
@@ -1034,6 +1027,8 @@ export function CareTab({
                     />
                   )
                 }
+                /* The sheet IS the overlay — see `float` on the slot. */
+                float={false}
                 className="min-h-0 flex-1"
               />
             </DialogBody>

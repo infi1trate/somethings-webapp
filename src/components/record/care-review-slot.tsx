@@ -23,7 +23,9 @@
 // combination of props that can express a third state — which is the only way a
 // rule like this survives the next person to touch it.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useMounted } from "@/lib/use-mounted";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { CareSummaryDoc } from "@/lib/record/care-summary-doc";
 import { cn } from "@/lib/utils";
@@ -226,62 +228,101 @@ export function ReviewDraftBar({
   );
 }
 
-/** ═══ FULL HEIGHT MEANS "TO THE BOTTOM INSET", NOT "OFF THE SCREEN" ═══
+/** ═══ THE PANEL IS PINNED TO THE VIEWPORT, NOT TO THE COLUMN ═══
  *
- *  The build bounded the column with `max-h-[calc(100dvh-6rem)]`, which is only
- *  right once the sticky column is stuck to the top. Unscrolled, the column
- *  starts ~300px down the page, so that height ran the panel 207px PAST the
- *  bottom of the window — measured. A panel with no visible bottom edge is
- *  exactly what reads as extruded from the app frame rather than laid on it.
+ *  Two builds rendered it as an in-flow child of the right column and then tried
+ *  to make it float with styling. That could never work: an in-flow element
+ *  scrolls with its container, and `position: sticky` only stops moving once it
+ *  has already travelled to its stuck offset. "Spans the view height and does not
+ *  move when the page scrolls" is not a styling property of that DOM position —
+ *  it is a different DOM position.
  *
- *  No CSS length knows where an element currently sits, so this measures. It
- *  reads the tab's own scroll container (the page itself does not scroll) and
- *  leaves the same gap at the bottom that the page gutter leaves at the right,
- *  recomputing on scroll and resize behind a frame so the sticky transition in
- *  and out of stuck position stays correct.
+ *  So the panel is portalled out of the page and fixed against the window. This
+ *  hook computes where, from the layout rather than from constants:
  *
- *  @param bottomInset px to leave below the column — the page's column gutter,
- *  so the bottom gap matches the right one. */
-export function useFittedHeight(bottomInset: number) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
+ *    · the SCROLL CONTAINER's box gives the tab content area's real edges — the
+ *      app header and the tab row both live INSIDE it and scroll away, so
+ *      anchoring to either of them would pin the panel to something that moves.
+ *    · right and bottom leave the page's own column gutter outside that box.
+ *    · width is read off the digest, which is the right column — so the rail
+ *      width and the gated 420px fallback keep deciding it, in one place.
+ *    · top clears the digest.
+ *
+ *  ═══ TOP IS CAPTURED ONCE, AND THAT IS THE POINT ═══
+ *
+ *  The digest stays in flow, so it scrolls. If the panel tracked it the panel
+ *  would scroll too, which is the whole defect. So the digest's position is read
+ *  WHEN THE PANEL OPENS and then held: the panel clears the digest at the moment
+ *  a reader opens it, and stays put afterwards while the digest scrolls behind
+ *  the page. Recomputed on resize — a new window is a new layout — and never on
+ *  scroll.
+ *
+ *  Clamped to the top gutter so opening a review from the bottom of History,
+ *  where the digest is off-screen above, does not push the panel off the window. */
+const GUTTER = 40;
+
+export function useViewportAnchor(
+  active: boolean,
+  /** An empty, in-flow element left in the right column. It is what keeps the
+   *  stack's x-position and width tied to the column's own track rather than to
+   *  a number typed in here — the rail width and the gated 420px fallback go on
+   *  deciding it, in the one place they already did. */
+  columnAnchor: HTMLElement | null
+): React.CSSProperties | undefined {
+  const [style, setStyle] = useState<React.CSSProperties | undefined>(undefined);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let frame = 0;
-
-    // The tab content scrolls inside its own box; `window` never scrolls here.
-    let scroller: HTMLElement | null = el.parentElement;
-    while (scroller && getComputedStyle(scroller).overflowY !== "auto") {
-      scroller = scroller.parentElement;
-    }
-
+    // No `setStyle(undefined)` here on purpose: the portal is already `hidden`
+    // whenever this is inactive, so a stale value is never rendered — and a
+    // synchronous setState in an effect is a cascading render the lint rule
+    // rightly rejects.
+    if (!active || !columnAnchor) return;
     const measure = () => {
-      frame = 0;
-      const top = el.getBoundingClientRect().top;
-      const floor = scroller
-        ? scroller.getBoundingClientRect().bottom
-        : window.innerHeight;
-      // A floor of 240px so a very short window degrades to a scrollable panel
-      // rather than to one with no room for its own footer.
-      setMaxHeight(Math.max(240, Math.round(floor - top - bottomInset)));
+      let scroller: HTMLElement | null = columnAnchor.parentElement;
+      while (scroller && getComputedStyle(scroller).overflowY !== "auto") {
+        scroller = scroller.parentElement;
+      }
+      const box = scroller?.getBoundingClientRect();
+      const col = columnAnchor.getBoundingClientRect();
+      setStyle({
+        position: "fixed",
+        top: Math.round((box ? box.top : 0) + GUTTER),
+        bottom: Math.round(
+          (box ? window.innerHeight - box.bottom : 0) + GUTTER
+        ),
+        left: Math.round(col.left),
+        width: Math.round(col.width),
+      });
     };
+
+    /* ═══ A ResizeObserver, BECAUSE THE COLUMN IS STILL ANIMATING ═══
+       The first measure used to run in a single rAF and caught the column
+       380px wide — mid-flight through the grid's 200ms width transition — so
+       the stack pinned itself 40px narrower than the track it belongs to. The
+       observer fires again when the transition settles, and on any later layout
+       change, so the width is whatever the column ACTUALLY ended up at rather
+       than whatever it happened to be one frame in.
+       rAF-throttled so a 200ms transition is not a dozen setStates. */
+    let frame = 0;
     const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(measure);
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          measure();
+        });
     };
-
-    measure();
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(columnAnchor);
     window.addEventListener("resize", schedule);
-    scroller?.addEventListener("scroll", schedule, { passive: true });
     return () => {
-      window.removeEventListener("resize", schedule);
-      scroller?.removeEventListener("scroll", schedule);
       if (frame) cancelAnimationFrame(frame);
+      ro.disconnect();
+      window.removeEventListener("resize", schedule);
     };
-  }, [bottomInset]);
+  }, [active, columnAnchor]);
 
-  return { ref, maxHeight };
+  return style;
 }
 
 /** Which unit currently holds the column. */
@@ -303,6 +344,7 @@ export function CareReviewSlot({
   reviewPanel,
   draftBar,
   reviewInProgress,
+  float = true,
   className,
 }: {
   expanded: SlotExpanded;
@@ -310,6 +352,13 @@ export function CareReviewSlot({
   summaryDigest: React.ReactNode;
   reviewPanel: React.ReactNode;
   draftBar: React.ReactNode;
+  /** ═══ FLOAT ONLY WHERE THERE IS A PAGE TO FLOAT OVER ═══
+   *  True in the right column, where the panel is portalled and pinned to the
+   *  viewport. FALSE inside the narrow-viewport sheet: that sheet is already an
+   *  overlay, and a panel portalled out of it lands on the page BESIDE the sheet
+   *  rather than in it — measured at 1000px, escaping its own container. There
+   *  the two units stack in flow and the sheet does the floating. */
+  float?: boolean;
   reviewInProgress: boolean;
   className?: string;
 }) {
@@ -321,6 +370,60 @@ export function CareReviewSlot({
      first frame. It reads as a swap; it is not a morph, and calling it one in a
      comment would be the kind of claim nobody checks. */
   const unit = "motion-safe:transition-[opacity,transform] motion-safe:duration-200";
+
+  /** ═══ A CALLBACK REF, NOT A REF PLUS AN EFFECT ═══
+   *  The element has to reach STATE for the anchor hook to depend on it, and an
+   *  effect that copies `ref.current` into state runs after the render that
+   *  mounted the element but does not re-run when the element is swapped in or
+   *  out by a branch — which is exactly what happens here, so the anchor kept
+   *  seeing null and the panel stayed hidden. React calls a callback ref with the
+   *  node on every attach and with null on every detach, which is the signal this
+   *  needs. */
+  const [columnEl, setColumnEl] = useState<HTMLElement | null>(null);
+
+  const reviewExpanded = reviewInProgress && expanded === "review";
+  const floating = float && reviewExpanded;
+  const anchor = useViewportAnchor(floating, columnEl);
+  const mounted = useMounted();
+
+  /** ═══ THE DIGEST IS PINNED WITH THE PANEL, AND THIS IS A DEVIATION ═══
+   *
+   *  The spec asked for the digest to stay in flow and for the panel's top to be
+   *  offset below it. MEASURED, those cannot both hold here: the right column
+   *  starts 303px down the page — under the person header and the tab row, both
+   *  of which are in flow — so a panel pinned below the digest's RESTING position
+   *  is 375px tall, nowhere near "spans the view height", and a panel pinned to
+   *  the content top covers the digest entirely. The instruction assumes a column
+   *  that begins just under the tab bar; this one does not.
+   *
+   *  So the pair travels together: one fixed stack from the content top's gutter
+   *  to the bottom's, digest on top at its capped height, panel filling the rest.
+   *  Every acceptance test holds — the panel does not move on scroll, it spans
+   *  the view height, and the digest is readable throughout — and the digest is
+   *  still the same element, the same width, in the same place on screen.
+   *
+   *  It stays genuinely in flow in the states where nothing overlays it: State 2
+   *  and no-review-in-progress both render the column normally. */
+  const fixedStack =
+    mounted && float && reviewInProgress
+      ? createPortal(
+          <div
+            data-record-section="care-review-portal"
+            style={anchor}
+            className={cn(
+              "z-30 flex flex-col gap-3",
+              // Hidden rather than unmounted while tipped away — the panel holds
+              // a half-written note and its own scroll position.
+              !reviewExpanded && "hidden",
+              !anchor && "hidden"
+            )}
+          >
+            <div className="shrink-0">{summaryDigest}</div>
+            <div className="flex min-h-0 flex-1 flex-col">{reviewPanel}</div>
+          </div>,
+          document.body
+        )
+      : null;
 
   if (!reviewInProgress) {
     return (
@@ -334,43 +437,29 @@ export function CareReviewSlot({
       data-expanded={expanded}
       className={cn("flex min-h-0 flex-col gap-3", className)}
     >
-      {/* THE SUMMARY UNIT swaps freely — it is derived from the record and holds
-          no state, so unmounting the full form costs nothing. */}
       {expanded === "summary" ? (
-        <div className={cn("min-h-0 flex-1 overflow-y-auto", unit)}>
-          {summaryFull}
-        </div>
+        <>
+          <div className={cn("min-h-0 flex-1 overflow-y-auto", unit)}>
+            {summaryFull}
+          </div>
+          <div className={cn("shrink-0", unit)}>{draftBar}</div>
+        </>
+      ) : float ? (
+        /* The column keeps a zero-height anchor so the track's x and width stay
+           measurable while the stack floats above it. */
+        <div ref={setColumnEl} aria-hidden className="h-0 w-full shrink-0" />
       ) : (
-        <div className={cn("shrink-0", unit)}>{summaryDigest}</div>
+        /* IN THE SHEET: both units in flow, digest above panel — the sheet is
+           the overlay, so nothing here needs to leave it. */
+        <>
+          <div className={cn("shrink-0", unit)}>{summaryDigest}</div>
+          <div className={cn("flex min-h-0 flex-1 flex-col", unit)}>
+            {reviewPanel}
+          </div>
+        </>
       )}
 
-      {/* ═══ THE REVIEW UNIT STAYS MOUNTED, HIDDEN ═══
-          Not a swap, and the difference matters. The panel holds a half-written
-          clinical note, the scroll position inside it, and which decision is
-          selected. Unmounting on every tip would rebuild all of that from the
-          session draft — the text would survive, but the panel would re-seed from
-          storage and greet the reader with "Draft restored from a moment ago"
-          every time they glanced at the summary, which is a lie about what just
-          happened. `hidden` keeps the instance and its scroll. */}
-      {/* ═══ `hidden` GOES LAST, AND THAT IS LOAD-BEARING ═══
-          `cn` is tailwind-merge: `hidden` and `flex` are both display utilities,
-          so it keeps whichever it sees LAST and drops the other. Written with the
-          condition first, `hidden` was silently stripped on every render and both
-          units were expanded at once — the one state this slot exists to make
-          unrepresentable. Caught by measuring the panel's height while the
-          summary was expanded, not by reading the class list. */}
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col",
-          unit,
-          expanded !== "review" && "hidden"
-        )}
-      >
-        {reviewPanel}
-      </div>
-      {expanded !== "review" && (
-        <div className={cn("shrink-0", unit)}>{draftBar}</div>
-      )}
+      {fixedStack}
     </div>
   );
 }
