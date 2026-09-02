@@ -18,6 +18,24 @@
 //
 // DISPLAY ONLY. R14's "the state you are in does not match the state this was
 // written in" affordance is deliberately NOT built here.
+//
+// ═══ THE WHOLE ROW IS A LINK TO THE COMMENT ═══
+//
+// Clicking anywhere that is not a control takes you to the page and harness state
+// the comment was written in. It is a REAL `<a href>` — an overlay covering the
+// row, which is the pattern `ui/data-view.tsx` already uses for a navigable row —
+// so middle-click, cmd-click and "copy link address" all behave the way a link is
+// supposed to, and the destination is visible in the status bar before you commit
+// to it. A div with an onClick would have none of that.
+//
+// The overlay sits ABOVE the text and BELOW the controls: `z-[1]` on the link,
+// `z-[2]` on anything interactive. So the body text is part of the link's target
+// and the action buttons are not, without either needing to know about the other.
+//
+// The body is therefore no longer a button. It was one, and what it did — toggle
+// the drawer's selection — was both invisible and redundant: the chevron beside
+// it already discloses the full text, and selection now happens by arriving at
+// the comment. One fewer control that did not say what it was for.
 
 import { useState } from "react";
 import { Check, ChevronDown, Link2, Pencil, RotateCcw, Trash2, Undo2 } from "lucide-react";
@@ -57,7 +75,8 @@ export function CommentRow({
   removedElsewhere,
   busy,
   error,
-  onSelect,
+  href,
+  onNavigate,
   onAction,
   onCopyLink,
   copied,
@@ -70,7 +89,13 @@ export function CommentRow({
   removedElsewhere?: boolean;
   busy?: boolean;
   error?: string | null;
-  onSelect: () => void;
+  /** Where this comment lives, as a deeplink. `null` suppresses navigation —
+   *  used for a comment on a route that no longer exists, and for one inside its
+   *  delete-undo window, where leaving the page would strand the undo. */
+  href: string | null;
+  /** Given the chance to handle the click in-page. Calls `preventDefault()` when
+   *  it does; otherwise the link is followed normally. */
+  onNavigate: (e: React.MouseEvent) => void;
   /** ═══ RETURNS WHETHER IT COMMITTED ═══
    *
    *  Not `void`. The anno-05 verification caught what fire-and-forget costs: the
@@ -128,12 +153,26 @@ export function CommentRow({
         pendingDelete ? "pending-delete" : resolved ? "resolved" : "open"
       }
       className={cn(
-        "border-b border-[color:var(--border-subtle)] px-3 py-2.5",
+        "relative border-b border-[color:var(--border-subtle)] px-3 py-2.5",
         selected && "bg-[var(--surface-s1)]",
-        pendingDelete && "opacity-60"
+        pendingDelete && "opacity-60",
+        href && !editing && "hover:bg-[var(--tint-hover)]"
       )}
     >
-      <div className="flex items-start gap-2">
+      {/* ═══ THE ROW LINK ═══
+          Suppressed while editing: navigating away mid-edit would discard the
+          reviewer's text, and this repo has already paid for that once (see the
+          note on `onAction` returning a boolean). */}
+      {href && !editing && (
+        <a
+          href={href}
+          onClick={onNavigate}
+          data-anno-row-link
+          aria-label={`Go to comment ${comment.number} on ${comment.context.route}`}
+          className={cn("absolute inset-0 z-[1] rounded-sm", RING)}
+        />
+      )}
+      <div className="relative flex items-start gap-2">
         {/* ═══ THE NUMBER, AND THE RESOLVED MARK ON THE SAME CHIP ═══
             Fill vs outline plus a check — the same shape language as the pin, so
             the drawer and the layer cannot disagree, and both survive greyscale
@@ -156,7 +195,7 @@ export function CommentRow({
         <div className="min-w-0 flex-1">
           {editing ? (
             <>
-              <label>
+              <label className="relative z-[2] block">
                 <span className="sr-only">Edit comment {comment.number}</span>
                 <textarea
                   autoFocus
@@ -172,7 +211,7 @@ export function CommentRow({
                   style={{ font: "var(--type-body)" }}
                 />
               </label>
-              <div className="mt-1.5 flex justify-end gap-1.5">
+              <div className="relative z-[2] mt-1.5 flex justify-end gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -209,16 +248,18 @@ export function CommentRow({
               </div>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={onSelect}
+            <div
               className={cn(
                 /* `py-1` FOR SC 2.5.8, not for looks. Measured at 299×20 — the
                    line-height alone — which fails the 24×24 minimum. Padding
                    rather than `touchTarget()` because this box's height varies
                    with the clamp (20px for one line, ~80px for four), and the
                    helper's pseudo-element insets are keyed to fixed heights. */
-                "block w-full rounded-sm py-1 text-left text-[var(--text-primary)]",
+                /* `py-1` was here FOR SC 2.5.8 when this was a button measuring
+                   299×20. It is no longer a target, so the padding is now purely
+                   the row's internal rhythm — kept because removing it would
+                   reflow every row for no reason. */
+                "block w-full py-1 text-left text-[var(--text-primary)]",
                 /* ═══ CLAMPED UNTIL EXPANDED ═══
                    A body may be 1000 characters. Unclamped, one of them measured
                    554px — 81% of the drawer's scroller — so a single comment hid
@@ -228,13 +269,12 @@ export function CommentRow({
                    reveals the rest of the body with it, so there is one
                    disclosure control rather than two. */
                 !expanded && "line-clamp-4",
-                resolved && "opacity-70",
-                RING
+                resolved && "opacity-70"
               )}
               style={{ font: "var(--type-body)" }}
             >
               {comment.body}
-            </button>
+            </div>
           )}
 
           {/* ── COMPACT CONTEXT ────────────────────────────────────────── */}
@@ -285,8 +325,12 @@ export function CommentRow({
             </p>
           )}
 
-          {/* ── ACTIONS. Always present, never hover-revealed. ─────────── */}
-          <div className="mt-1.5 flex items-center gap-0.5">
+          {/* ── ACTIONS. Always present, never hover-revealed. ───────────
+              `z-[2]` puts every control above the row link, so a press on Resolve
+              resolves rather than navigating. `w-fit` so the cluster claims only
+              its own width and the empty space beside it still belongs to the
+              link. */}
+          <div className="relative z-[2] mt-1.5 flex w-fit items-center gap-0.5">
             {onCopyLink && (
               <RowButton
                 label={`Copy link to comment ${comment.number}`}
