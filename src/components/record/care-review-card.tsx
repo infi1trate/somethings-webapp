@@ -189,6 +189,49 @@ export function PresentationReviewCard({
   // owner derives it now — see `outcomeFor` in `care-tab.tsx` — because the
   // decision is assembled where the care update's id is known.
 
+  /* THE PROPOSAL CHIP, built once and rendered beside the title below. It
+   *  describes the PROPOSAL and never the draft — a supervisor who changes the
+   *  code does not rewrite what was proposed. */
+  const proposalChip = canAct ? (
+    <>
+            {/* ═══ THE PROPOSAL CHIP — WHAT THE MODEL SUGGESTED ═══
+        It describes the PROPOSAL and never the draft. A supervisor who
+        selects "change" against a renewal proposal does not rewrite what
+        was proposed, so this chip does not move — the decision row owns
+        draft state, and a band that tracked both would be two sources
+        for one fact.
+        LABEL AND ICON CARRY IT, not the tone (SC 1.4.1): the words
+        differ, and a change gets the swap glyph. Attention band, not the
+        risk ramp — a proposed code change is a thing to look at, not a
+        danger.
+        THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span
+        alone means a narrow band clips "F43.22" before it clips "Change
+        proposed", and `title` carries the whole thing either way. */}
+    {proposesChange ? (
+      <span
+        title={`Change proposed → ${review.recommended.code}`}
+        className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
+      >
+        <ArrowLeftRight className="size-3 shrink-0" aria-hidden />
+        {/* TODO-COPY */}
+        Change proposed
+        <span className="min-w-0 truncate tabular-nums">
+          → {review.recommended.code}
+        </span>
+      </span>
+    ) : (
+      <span
+        title="Renewal proposed"
+        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]"
+      >
+        <RefreshCw className="size-3 shrink-0" aria-hidden />
+        {/* TODO-COPY */}
+        Renewal proposed
+      </span>
+    )}
+    </>
+  ) : null;
+
   return (
     <TaskCard
       tone="routine"
@@ -212,43 +255,16 @@ export function PresentationReviewCard({
                 have edited a component two surfaces away for a chip, so the
                 indicator sits at the other end of the same band instead. Same
                 row, same glance, nothing shared touched. TODO-COPY. */}
-            {/* ═══ THE PROPOSAL CHIP — WHAT THE MODEL SUGGESTED ═══
-                It describes the PROPOSAL and never the draft. A supervisor who
-                selects "change" against a renewal proposal does not rewrite what
-                was proposed, so this chip does not move — the decision row owns
-                draft state, and a band that tracked both would be two sources
-                for one fact.
-                LABEL AND ICON CARRY IT, not the tone (SC 1.4.1): the words
-                differ, and a change gets the swap glyph. Attention band, not the
-                risk ramp — a proposed code change is a thing to look at, not a
-                danger.
-                THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span
-                alone means a narrow band clips "F43.22" before it clips "Change
-                proposed", and `title` carries the whole thing either way. */}
-            {proposesChange ? (
-              <span
-                title={`Change proposed → ${review.recommended.code}`}
-                className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
-              >
-                <ArrowLeftRight className="size-3 shrink-0" aria-hidden />
-                {/* TODO-COPY */}
-                Change proposed
-                <span className="min-w-0 truncate tabular-nums">
-                  → {review.recommended.code}
-                </span>
-              </span>
-            ) : (
-              <span
-                title="Renewal proposed"
-                className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]"
-              >
-                <RefreshCw className="size-3 shrink-0" aria-hidden />
-                {/* TODO-COPY */}
-                Renewal proposed
-              </span>
-            )}
+            {/* ═══ R7/D: PLAIN TEXT, NOT A CHIP ═══
+                The band now carries one chip on the left ("Recommended
+                presentation") and the proposal chip has moved to the title. A
+                tinted pill for "Draft" beside a plain Review button made a
+                private, reversible state look like a status the record holds.
+                Secondary text says the same thing at the weight it deserves.
+                SAME VISIBILITY RULE and same accessible name as the chip it
+                replaces — it renders only when a draft exists. TODO-COPY. */}
             {hasDraft && !expanded && (
-              <span className="shrink-0 rounded-full bg-[var(--band-sand-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-sand-fg)]">
+              <span className="shrink-0 text-[12px] leading-[16px] text-[var(--text-secondary)]">
                 Draft
               </span>
             )}
@@ -307,9 +323,26 @@ export function PresentationReviewCard({
         <p className="mb-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
           {review.recommended.code}
         </p>
-        <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
-          {review.recommended.statement}
-        </p>
+        {/* ═══ R7/A: THE PROPOSAL CHIP SITS WITH THE TITLE ═══
+            It was at the far right of the header band, a whole row away from the
+            thing it describes — a reader had to hold "change proposed" in their
+            head while crossing the card to find out change to what. Beside the
+            title it is read in one movement.
+
+            `flex-wrap` WITH THE TITLE ALLOWED TO TAKE THE WHOLE LINE: the title
+            is `min-w-0`-free and the chip is `shrink-0`, so at a narrow container
+            the chip drops to its own line, left-aligned, and the title is never
+            truncated to make room for it. The title is the thing being reviewed;
+            the chip is a note about it.
+
+            `items-baseline` rather than `items-center`: centring a 16px chip on a
+            26px line box floats it above the title's baseline. TODO-COPY. */}
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
+            {review.recommended.statement}
+          </p>
+          {proposalChip}
+        </div>
       </div>
 
       {/* 2 · RATIONALE — only where a human or a model actually wrote one.
