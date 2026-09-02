@@ -60,6 +60,25 @@ export async function GET(req: NextRequest) {
          server rather than an assumption. `file` means single-server-only —
          see GAPS.md (anno-01). */
       driver: driverKind(),
+      /* ═══ WHY PRESENCE, AND ONLY PRESENCE ═══
+       *
+       *  `driver: "file"` says the fallback is running but not WHY, and the two
+       *  causes need opposite fixes: the runtime cannot see the variables (wrong
+       *  Vercel environment scope, misspelled name, no redeploy), or it can see
+       *  them and the driver rejected them (empty string, stray quotes).
+       *  Distinguishing those from outside took three redeploys to guess at, so
+       *  the deployment now answers it directly.
+       *
+       *  BOOLEANS ONLY — never the value, never its length. A token is a
+       *  credential; whether a known variable name is populated is not. This
+       *  endpoint is behind the demo gate, and the names here are already
+       *  documented in `.env.example`. */
+      env: {
+        UPSTASH_REDIS_REST_URL: Boolean(process.env.UPSTASH_REDIS_REST_URL),
+        UPSTASH_REDIS_REST_TOKEN: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN),
+        KV_REST_API_URL: Boolean(process.env.KV_REST_API_URL),
+        KV_REST_API_TOKEN: Boolean(process.env.KV_REST_API_TOKEN),
+      },
     });
   } catch (e) {
     return fail(e);
