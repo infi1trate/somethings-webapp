@@ -19,12 +19,26 @@
 // state. Separated, the eye lands on the chip and the qualifier answers a second
 // question.
 //
-// SEVERITY LIVES HERE AND NOWHERE ELSE. Not on the card, not on a border, not on
-// a button. The chip carries a tonal background and a 6px dot; the band behind it
-// carries a matching wash. Colour never travels further than these two.
+// SEVERITY LIVES HERE AND NOWHERE ELSE. Not on the card, not on a button. The
+// chip carries the family's ink as its text AND as its outline; the band behind
+// it carries a matching wash. Colour never travels further than these two.
 //
 // COLOUR IS NEVER ALONE. Every family pairs with the type name in words, so a
 // monochrome print and a screen reader get the same information.
+//
+// ═══ R6: THE 6px DOT IS GONE, AND THE CHIP IS OUTLINED ═══
+//
+// Per the design lead's Figma composition, decided deliberately as a change to
+// THIS canonical component rather than as a local divergence in the review card.
+// Brandon chose that explicitly ("option 2") after the provenance was reported:
+// `TaskLabel` reaches the record's Care tab AND the risk-flag cards on Overview,
+// so this is a visual change to Overview too, and that was the accepted cost of
+// keeping one label for tasks instead of forking it.
+//
+// SC 1.4.1 IS UNAFFECTED BY DROPPING THE DOT. The dot was documented here as
+// decorative — "the type name carries it" — so the non-colour channel was always
+// the words, and it still is. What the dot did carry was a second *visual* cue of
+// the family, and the outline now does that job at a larger size than 6px.
 
 
 
@@ -67,17 +81,18 @@ export function TaskLabel({
   const ink = taskBandInk(severity);
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      {/* ═══ THE CARD FILL STAYS UNDER THE OUTLINE, ON PURPOSE ═══
+          "Outlined" is the mock's word for the border, not an instruction to go
+          transparent. The fill is load-bearing and its removal is a documented
+          regression: this chip previously took an `--alert-*-bg` tint, sitting on
+          a band of the same family, and "the chip either vanished into the band
+          or fought it". A card-surface fill is what makes it read as lifted at
+          any band alpha; the ink border is what makes it read as outlined. Both,
+          not one. */}
       <span
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--surface-card)] px-2.5 py-1"
-        style={{ color: ink }}
+        className="inline-flex shrink-0 items-center rounded-full border bg-[var(--surface-card)] px-2.5 py-1"
+        style={{ color: ink, borderColor: ink }}
       >
-        {/* 6px dot, in the band's OWN darkened hue — a band never carries a
-            colour its text does not. Decorative; the type name carries it. */}
-        <span
-          aria-hidden
-          className="size-1.5 shrink-0 rounded-full"
-          style={{ backgroundColor: ink }}
-        />
         <span className="text-[12.5px] font-medium leading-[16px]">{type}</span>
       </span>
       {qualifier && (

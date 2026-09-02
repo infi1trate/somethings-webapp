@@ -42,6 +42,9 @@
 
 import {
   careTimelineFor,
+  severityFor,
+  weightedAggregate,
+  type CareAssessment,
   type CareEvent,
   type CareStoreSlice,
 } from "@/lib/record/care-demo";
@@ -113,6 +116,23 @@ export interface PatternMark {
    *  So flags on one day become ONE mark carrying the count. > 1 renders the count
    *  and says so in the label. */
   count: number;
+  /** ═══ THE RECENCY-WEIGHTED SCORE AS OF THIS READING — assessments only ═══
+   *
+   *  The tooltip's third line. `undefined` on the FIRST reading of a series and
+   *  on any mark that is not a plotted assessment, both of which are real
+   *  outcomes rather than missing data: weighting one number is not a weighting,
+   *  and `weightedAggregate` says so by returning null below two comparable
+   *  surveys.
+   *
+   *  ═══ WHY IT IS COMPUTED HERE AND NOT IN THE COMPONENT ═══
+   *
+   *  The brief requires the tooltip to reconcile with the grid's Weighted column.
+   *  The only way to guarantee that rather than hope for it is to call the SAME
+   *  function on the SAME series — `weightedAggregate`, 3:2:1, one instrument —
+   *  so the last point's value is arithmetically identical to the card's. A
+   *  second implementation in the view layer is how two numbers for one judgment
+   *  get onto one page, which is a defect this tab has already paid for once. */
+  weighted?: { score: number; severity: string; count: number };
 }
 
 export interface CarePattern {
@@ -396,6 +416,41 @@ export function carePatternFor(
   const scoreMin = scores.length ? Math.min(...scores) : 0;
   const scoreMax = scores.length ? Math.max(...scores) : 1;
 
+  /** ═══ THE WEIGHTED VALUE AT EACH READING ═══
+   *
+   *  `points` is already chronological and already filtered to the locked
+   *  instrument, which is exactly the precondition `weightedAggregate` needs —
+   *  so this reverses the slice ending at `i` (the function documents newest-first
+   *  as the caller's job) and hands it over untouched.
+   *
+   *  `items` is empty because the aggregate reads `instrument` and `score` only.
+   *  Passing the real items would mean re-summing them here to no effect, and the
+   *  scores on `points` came from `scoreOf` — the same sum the grid uses.
+   *
+   *  Keyed by timestamp rather than index so the lookup below cannot drift if the
+   *  mark loop ever changes order. */
+  const weightedByAt = new Map<number, { score: number; severity: string; count: number }>();
+  points.forEach((_, i) => {
+    const newestFirst: CareAssessment[] = points
+      .slice(0, i + 1)
+      .reverse()
+      .map((p) => ({
+        instrument,
+        at: p.at,
+        score: p.score,
+        severity: severityFor(instrument as "PHQ-9" | "GAD-7", p.score),
+        items: [],
+      }));
+    const agg = weightedAggregate(newestFirst);
+    if (agg) {
+      weightedByAt.set(points[i].at, {
+        score: agg.score,
+        severity: agg.severity,
+        count: agg.surveys.length,
+      });
+    }
+  });
+
   /** Flag categories, per flag, for the theme grouping. Flags in the timeline
    *  carry their categories on the source record rather than on the event, so
    *  they are read back from the teen's flag list by date. */
@@ -468,7 +523,12 @@ export function carePatternFor(
       at: e.occurredAt,
       count: 1,
       ...(cls === "assessment" && e.description === instrument
-        ? { score: scoreOf(e) }
+        ? {
+            score: scoreOf(e),
+            ...(weightedByAt.has(e.occurredAt)
+              ? { weighted: weightedByAt.get(e.occurredAt) }
+              : {}),
+          }
         : {}),
       // TODO-COPY. Type and date. NEVER the description, which can carry content.
       label: `${cls === "assessment" ? "Assessment" : "Presentation change"} · ${dateLabel(e.occurredAt)}`,

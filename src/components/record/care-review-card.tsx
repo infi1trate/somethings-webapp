@@ -194,8 +194,13 @@ export function PresentationReviewCard({
       tone="routine"
       section="care-review-card"
       ariaLabel="Presentation review"
-      /* TODO-COPY */
-      type="Review due"
+      /* ═══ R6: THE STATUS CHIP NAMES WHAT IS ON OFFER, NOT THE CLOCK ═══
+          "Review due" described the timing; the band already carries the timing
+          in the metadata row's Next review cell and in the Action-required
+          region above it. "Recommended presentation" names the thing a supervisor
+          is being asked to look at, which is what the Figma composition puts
+          here. PLACEHOLDER pending copy verification. TODO-COPY. */
+      type="Recommended presentation"
       meta={STAGE_LABEL[review.stage]}
       actions={
         canAct && (
@@ -292,13 +297,18 @@ export function PresentationReviewCard({
           : "Raised by the care cadence"
       }
     >
-      {/* 1 · RECOMMENDATION. ~20px statement, code beneath. */}
+      {/* 1 · RECOMMENDATION. Code ABOVE, statement beneath — same move as the
+          presentation card (R6/B1), and the same reason: below the statement the
+          code competed with it for the eye at the moment the statement is the
+          thing to read. Above, it is the identifier you check over the sentence
+          you read. `font-mono` matches the presentation card's line so the two
+          codes on this tab look like the same kind of object. */}
       <div>
+        <p className="mb-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
+          {review.recommended.code}
+        </p>
         <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
           {review.recommended.statement}
-        </p>
-        <p className="mt-1 text-[13px] leading-[18px] tabular-nums text-[var(--text-secondary)]">
-          {review.recommended.code}
         </p>
       </div>
 
@@ -352,7 +362,17 @@ export function PresentationReviewCard({
       <div className={SECTION}>
         <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
           {/* TODO-COPY */}
-          {review.aggregate ? "Weighted across this period" : "Most recent survey"}
+          {/* ═══ R6/C3: THE LABEL NAMES THE COUNT, AND THE SUB-LINE GOES ═══
+              "Weighted across this period" and the row's own "recency-weighted
+              across 3 surveys" were two statements of one fact, eight pixels
+              apart. The count moves UP into the label — where it answers "across
+              what?" at the moment the reader meets the number — and the sub-line
+              below reverts to naming the instrument and date, which is what it
+              says on a single-survey review and is the thing the aggregate row
+              was otherwise not saying at all. PLACEHOLDER. TODO-COPY. */}
+          {review.aggregate
+            ? `Weighted across ${review.aggregate.surveys.length} surveys`
+            : "Most recent survey"}
         </p>
 
         {evidence && (
@@ -404,8 +424,13 @@ export function PresentationReviewCard({
                 {/* LINE 2 — provenance, muted, beneath. For the aggregate this
                     is the qualifier that explains the number instead. */}
                 <span className="min-w-0 truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
+                  {/* NO LONGER REPEATS THE COUNT — see the label above. For an
+                      aggregate this names the instrument and the span it covers,
+                      which the count alone never said. TODO-COPY. */}
                   {review.aggregate
-                    ? /* TODO-COPY */ `recency-weighted across ${review.aggregate.surveys.length} surveys`
+                    ? `${evidence.instrument} · ${clinicalDate(
+                        review.aggregate.surveys[review.aggregate.surveys.length - 1].at
+                      )} – ${clinicalDate(review.aggregate.surveys[0].at)}`
                     : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
                 </span>
               </span>

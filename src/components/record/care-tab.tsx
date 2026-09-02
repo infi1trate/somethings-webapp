@@ -87,6 +87,7 @@ import {
   careTimelineFor,
   latestCareUpdateFor,
   pendingReviewFor,
+  weightedNowFor,
   presentationFor,
   type CareStoreSlice,
   type CareUpdateBody,
@@ -734,6 +735,14 @@ export function CareTab({
           presentation={presentation}
           cadence={cadence}
           now={now}
+          /* ═══ THE SAME AGGREGATE THE REVIEW CARD SHOWS ═══
+             Sourced HERE, a few lines from `pendingReviewFor` above, so the
+             presentation card's Weighted Avg and the review card's Weighted
+             column are visibly one decision rather than two derivations that
+             happen to agree. `weightedNowFor` runs the same
+             `weightedAggregate`, and works on records with no review pending —
+             which the review's own aggregate cannot. */
+          weighted={weightedNowFor(teen.id, now, store)}
           relationships={{ events: relationshipEvents }}
           onChange={canAct ? () => openDialog(setSearching) : undefined}
           onAssignSurvey={onAssignSurvey}

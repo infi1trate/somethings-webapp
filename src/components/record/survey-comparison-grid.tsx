@@ -427,8 +427,17 @@ export function SurveyComparisonGrid({
 
       {/* ═══ THE LEGEND — the accessible fallback, and the reason cells can be
               bare numbers at all ═══
-          One line, derived from the items on screen. TODO-COPY. */}
-      <p className="mt-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
+          One line, derived from the items on screen. TODO-COPY.
+
+          ═══ R6/C4: A FOOTER STRIP ON THE GRID, NOT A FLOATING CAPTION ═══
+          It was a bare line of muted text sitting on the page below the table,
+          which read as a stray sentence rather than as part of the grid — and at
+          the width of the table it was a very long thin line with nothing holding
+          it. On the grid's own subtle surface, full width, flush to the table
+          above it, it reads as the table's footer: the same object, quietly. No
+          new token — `--surface-s1` is the grid's existing inset surface, and the
+          hairline is the one the table's own rows use. */}
+      <p className="rounded-b-[var(--radius-inset)] border-t border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-3 py-2 text-[12px] leading-[16px] text-[var(--text-muted)]">
         {legend.map(([pts, label], i) => (
           <span key={pts}>
             {i > 0 && <span aria-hidden> · </span>}

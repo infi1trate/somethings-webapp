@@ -32,7 +32,11 @@
 // and gives a 5px target. These get real keyboard semantics, a real ring and a
 // 24px target while the SVG below draws the line they sit on.
 
+import { useCallback, useId, useState } from "react";
 import { plotScoreY } from "@/components/record/score-sparkline";
+import { bandLabel } from "@/components/record/score-chip";
+import { clinicalDate } from "@/components/record/care-presentation";
+import { severityFor } from "@/lib/record/care-demo";
 import type { CarePattern, PatternMark } from "@/lib/record/care-pattern";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +72,11 @@ const SCORE_BOTTOM = 34;
 const FLAG_Y = 58;
 const TICK_TOP = 42;
 const TICK_BOTTOM = 50;
+/** The hairline the dots are positioned against, and the floor the area fill
+ *  fades to. Was written inline as `SCORE_BOTTOM + 3` in two places; the gradient
+ *  is a third, and three copies of a baseline is how a fill stops meeting its
+ *  own axis. */
+const BASELINE = SCORE_BOTTOM + 3;
 
 /** ═══ THE PLOT IS INSET SO EDGE MARKS KEEP THEIR HIT TARGET ═══
  *
@@ -161,6 +170,31 @@ export function CareSparkline({
    *  interaction, and it is a read, not a write. */
   onSelectEvent: (eventId: string) => void;
 }) {
+  /** ═══ ONE TOOLTIP FOR THE WHOLE STRIP, FIXED-POSITIONED ═══
+   *
+   *  Lifted verbatim in shape from `survey-comparison-grid.tsx`, two elements up
+   *  the same tab, for the same two reasons: one node instead of one per point,
+   *  and `position: fixed` so it is not clipped by the rail's own box.
+   *
+   *  It is `aria-hidden`. Every mark already carries the FULL tooltip sentence in
+   *  its own `aria-label`, so a screen reader reads the numbers off the point
+   *  rather than being asked to follow a floating node. That makes the visual
+   *  tooltip a convenience for the pointer AND the keyboard — which is why focus
+   *  opens it too — rather than the only route to the content (1.4.13, and the
+   *  reason this is not `aria-describedby` on a hover-only element). */
+  const [tip, setTip] = useState<{ lines: string[]; x: number; y: number } | null>(
+    null
+  );
+  const show = useCallback((el: HTMLElement, lines: string[]) => {
+    const r = el.getBoundingClientRect();
+    setTip({ lines, x: r.left + r.width / 2, y: r.top });
+  }, []);
+  const hide = useCallback(() => setTip(null), []);
+
+  /** The gradient needs a document-unique id — `useId` rather than a literal, so
+   *  a second strip on one page cannot claim the first one's fill. */
+  const gradientId = useId();
+
   if (!pattern) return null;
 
   const { startAt, endAt, marks, scoreMin, scoreMax, months } = pattern;
@@ -168,15 +202,67 @@ export function CareSparkline({
   const assessments = marks.filter(
     (m) => m.cls === "assessment" && m.score !== undefined
   );
-  const line = assessments
-    .map((m) => {
-      const x = xPct(m.at, startAt, endAt);
-      const y =
-        plotScoreY(m.score!, scoreMin, scoreMax, SCORE_BOTTOM - SCORE_TOP, 4) +
-        SCORE_TOP;
-      return `${x.toFixed(2)},${y.toFixed(1)}`;
-    })
+  const linePts = assessments.map((m) => ({
+    x: xPct(m.at, startAt, endAt),
+    y:
+      plotScoreY(m.score!, scoreMin, scoreMax, SCORE_BOTTOM - SCORE_TOP, 4) +
+      SCORE_TOP,
+  }));
+  const line = linePts
+    .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(1)}`)
     .join(" ");
+
+  /** ═══ THE AREA, CLOSED ONTO THE BASELINE ═══
+   *
+   *  Derived from the SAME `linePts` as the polyline, so the fill's top edge is
+   *  the line by construction rather than by two calculations agreeing. Closed
+   *  down to `BASELINE` — the hairline the dots sit on — so the fill terminates
+   *  exactly at the axis instead of at the lowest point or at the strip's floor,
+   *  either of which would read as a shape rather than as an area under a curve. */
+  const areaPath =
+    linePts.length > 1
+      ? `M ${linePts[0].x.toFixed(2)},${BASELINE} ` +
+        linePts.map((p) => `L ${p.x.toFixed(2)},${p.y.toFixed(1)}`).join(" ") +
+        ` L ${linePts[linePts.length - 1].x.toFixed(2)},${BASELINE} Z`
+      : null;
+
+  /** ═══ THE TOOLTIP'S THREE LINES — one place, two consumers ═══
+   *
+   *  Rendered visually AND joined into the mark's `aria-label`, so the sighted
+   *  tooltip and the accessible name cannot describe the point differently. The
+   *  weighted line is OMITTED rather than faked when there is only one reading
+   *  behind it: `weightedAggregate` returns null below two comparable surveys,
+   *  and "Weighted at this reading: 8" over a single number would be a weighting
+   *  of nothing. TODO-COPY. */
+  const tipLines = (m: PatternMark): string[] => {
+    const lines: string[] = [
+      `${pattern.instrument ?? "Assessment"} · ${clinicalDate(m.at)}`,
+    ];
+    /* ═══ THE RAW BAND IS DERIVED HERE, AND THAT IS DELIBERATE ═══
+       It was briefly carried on the mark instead, and `care-pattern.test.ts`'s
+       standing guard — "the pattern never reads a flag's tier ... no mark carries
+       a tier, so no visual can encode one" — caught it. The guard is structural
+       and blunt on purpose, and an instrument's own band is NOT a grade of the
+       person (it is what `CareAssessment.severity` already means elsewhere on
+       this tab). But weakening a standing rule to admit a value the rule was not
+       written about is the wrong direction, so the mark stays clean and the band
+       comes from `severityFor` — the single exported place the instrument cuts
+       live, which is the same function `weightedAggregate` uses for the line
+       below. One source, two callers, no second copy of the cuts. */
+    if (m.score !== undefined && pattern.instrument) {
+      const band = severityFor(
+        pattern.instrument as "PHQ-9" | "GAD-7",
+        m.score
+      );
+      lines.push(`Score: ${m.score} · ${bandLabel(band)}`);
+    }
+    if (m.weighted) {
+      lines.push(
+        `Weighted at this reading: ${m.weighted.score} · ${bandLabel(m.weighted.severity)}`
+      );
+    }
+    return lines;
+  };
 
   const markY = (m: PatternMark): number => {
     if (m.cls === "assessment" && m.score !== undefined) {
@@ -200,13 +286,42 @@ export function CareSparkline({
           aria-hidden
           className="absolute inset-0"
         >
+          {/* ═══ THE AREA FILL — a documented CHART-ONLY extension ═══
+              Bloom prohibits gradients on surfaces. `--chart-area-fill` is
+              defined once in the token block as the top stop of THIS fill, mixed
+              from the same `--text-muted` the line is stroked with, and is never
+              to be used on a non-chart surface. See the token's own note.
+
+              `userSpaceOnUse` anchors the ramp to the SCORE BAND rather than to
+              the path's bounding box: with `objectBoundingBox` a flat series
+              would have a near-zero-height box and the whole fill would render at
+              the top stop, so the gradient's steepness would change with the
+              data. Anchored to the band, the fade is the same on every record. */}
+          {areaPath && (
+            <>
+              <defs>
+                <linearGradient
+                  id={`care-area-${gradientId}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1="0"
+                  y1={SCORE_TOP}
+                  x2="0"
+                  y2={BASELINE}
+                >
+                  <stop offset="0" stopColor="var(--chart-area-fill)" />
+                  <stop offset="1" stopColor="transparent" />
+                </linearGradient>
+              </defs>
+              <path d={areaPath} fill={`url(#care-area-${gradientId})`} />
+            </>
+          )}
           {/* One hairline for the dots to be positioned against — not a grid.
               A grid would make this a chart, and it is a sparkline. */}
           <line
             x1="0"
             x2="100"
-            y1={SCORE_BOTTOM + 3}
-            y2={SCORE_BOTTOM + 3}
+            y1={BASELINE}
+            y2={BASELINE}
             stroke="var(--border-subtle)"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
@@ -251,13 +366,32 @@ export function CareSparkline({
         ).map((m) => {
           const left = m.x;
           const top = m.y;
+          const lines = m.cls === "assessment" ? tipLines(m) : null;
           return (
             <button
               key={m.eventId}
               type="button"
               onClick={() => onSelectEvent(m.eventId)}
-              /* TODO-COPY. Type and date — never the description. */
-              aria-label={m.label}
+              /* ═══ THE FULL TOOLTIP SENTENCE IS THE ACCESSIBLE NAME ═══
+                  Not `aria-describedby` pointing at the floating tip: the tip is
+                  `aria-hidden` and a screen reader gets instrument, date, score,
+                  band and the weighted reading from the point itself. A merged
+                  mark and a flag keep their existing range/type label, which is
+                  the only honest name for something that is not one reading.
+                  TODO-COPY. */
+              aria-label={lines && !m.mergedFrom ? lines.join(". ") : m.label}
+              onFocus={(e) => lines && show(e.currentTarget, lines)}
+              onBlur={hide}
+              onMouseEnter={(e) => lines && show(e.currentTarget, lines)}
+              onMouseLeave={hide}
+              /* DISMISSIBLE — SC 1.4.13. Stops propagation so Escape closes the
+                 tip without also collapsing whatever contains the strip. */
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && tip) {
+                  e.stopPropagation();
+                  hide();
+                }
+              }}
               style={{ left: `${left}%`, top }}
               className={cn(
                 "absolute -ml-3 -mt-3 flex size-6 items-center justify-center rounded-full",
@@ -297,6 +431,29 @@ export function CareSparkline({
           );
         })}
       </div>
+
+      {/* ── THE TOOLTIP ─────────────────────────────────────────────────
+          `aria-hidden` and `pointer-events-none`: it is a sighted convenience
+          (see the note on the state above), and it must never intercept a click
+          meant for the mark underneath it. `z-50` is the app's overlay floor —
+          the strip sits in a rail that scrolls, and a tip clipped by its own
+          container was the reason the grid's version is fixed too. */}
+      {tip && (
+        <div
+          aria-hidden
+          data-care-sparkline-tip
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-[var(--radius-inset)] bg-[var(--text-primary)] px-2 py-1 text-[12px] leading-[16px] text-[var(--text-inverse)] shadow-md"
+          style={{ left: tip.x, top: tip.y - 6 }}
+        >
+          {tip.lines.map((l) => (
+            /* `whitespace-nowrap` per line — three short lines stacked, never a
+               wrapped paragraph beside a 24px point. */
+            <span key={l} className="block whitespace-nowrap tabular-nums">
+              {l}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="relative mt-1 h-4">
         {months.map((mo) => (

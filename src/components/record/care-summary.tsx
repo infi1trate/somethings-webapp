@@ -34,6 +34,7 @@
 // nothing is fabricated. Reported.
 
 import Link from "next/link";
+import { Clock3 } from "lucide-react";
 import {
   reviewDueState,
   STAGE_LABEL,
@@ -143,6 +144,7 @@ export function CareSummaryCard({
   onChange,
   onAssignSurvey,
   liveMentorName,
+  weighted,
 }: {
   teen: DemoTeen;
   presentation: CarePresentation | null;
@@ -164,9 +166,17 @@ export function CareSummaryCard({
    *  caller from the draft, the same way the mentee table and five other
    *  surfaces do it. */
   liveMentorName?: string;
-  /** The locked instrument's scores, oldest → newest, from `scoreSeriesFor`.
-   *  Passed in rather than derived here so this card keeps taking data and not
-   *  a store. */
+  /** ═══ THE WEIGHTED AVG CELL'S FIGURE — PASSED IN, NOT DERIVED ═══
+   *
+   *  From `weightedNowFor`. It arrives as a prop because this card's standing
+   *  rule is that it takes DATA and not a store — the same reason the mentor name
+   *  is resolved by the caller — and because the caller (`care-tab.tsx`) already
+   *  holds the review whose Weighted column this must equal, so the two numbers
+   *  are sourced within a few lines of each other and cannot quietly diverge.
+   *
+   *  `null` when there are fewer than two comparable readings: the cell's em-dash
+   *  state, which is a real outcome rather than missing data. */
+  weighted?: { score: number; severity: string; surveys: unknown[] } | null;
 }) {
   // A DEACTIVATED TEEN'S PAIRING IS OVER even when no relationship event says
   // so: the fixture population carries `active: false` and nothing else, so
@@ -224,8 +234,14 @@ export function CareSummaryCard({
               filled: the filled button in this region belongs to a task. */}
           {onChange && presentation ? (
             <RecordButton onClick={onChange}>
-              {/* TODO-COPY */}
-              Change presentation
+              {/* R6/D: TITLE CASE PER THE MOCK. PLACEHOLDER pending copy
+                  verification — it is the only casing change the pack names, and
+                  it now disagrees with the rest of the record's sentence-case
+                  buttons ("Assign first survey" below it, "Open chat" in the
+                  header). Flagged for copy review rather than propagated: making
+                  the others match would be inventing rewording the pack does not
+                  show. TODO-COPY. */}
+              Change Presentation
             </RecordButton>
           ) : onAssignSurvey ? (
             <RecordButton onClick={onAssignSurvey}>
@@ -239,32 +255,32 @@ export function CareSummaryCard({
         <div className="mt-2.5">
         {presentation ? (
           <>
+            {/* ═══ R6/B1: THE CODE MOVES ABOVE THE STATEMENT ═══
+                It was a tonal chip UNDER the statement, on the reasoning that a
+                code is an identifier and should look like one. The Figma
+                composition puts it above as a plain code line, and that reads
+                calmer for a reason worth recording: below the statement the chip
+                competed with it for the eye at the exact moment the statement is
+                the thing to read, and a filled chip is heavier than 12px of text
+                whatever it contains. Above, it functions as an eyebrow — the
+                identifier you check, over the sentence you read.
+
+                MONO AND TABULAR, reusing the type style the chip already used
+                (`--type-code`'s callers elsewhere set `font-mono` + tabular);
+                NO NEW TYPE STYLE, per B3. */}
+            <p className="mb-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
+              {presentation.code}
+            </p>
             <p
               className="text-[var(--text-primary)]"
               style={STATEMENT}
             >
               {presentation.statement}
             </p>
-            {/* THE CODE IS AN IDENTIFIER, so it looks like one: a tonal chip
-                with tabular figures rather than a line of grey text that reads
-                as a subtitle.
-
-                TIGHT TO THE STATEMENT — and tight to its LAST LINE, which is
-                why this is a sibling in normal flow rather than anything
-                absolutely positioned: a wrapping statement pushes the chip down
-                with it. The box gap is 4px, not 8: the statement's 30px/1.15
-                line box carries ~2.25px of half-leading below the descender, so
-                6px of margin lands the OPTICAL gap at 8.25px. Measured on a
-                two-line statement, not assumed. */}
-            <div className="mt-1.5">
-              <TonalChip mono className="text-[var(--text-secondary)]">
-                {presentation.code}
-              </TonalChip>
-            </div>
-            {/* THEN A LARGER BREAK. Statement→chip was 10px and chip→provenance
-                was also 10px, so all three read as equally weighted lines. 18px
-                here against 4px above makes the first two a lockup and the
-                provenance a subordinate note. */}
+            {/* THE CHIP BELOW THE STATEMENT IS GONE — the code is the line
+                above now, and two copies of it would be the duplication this
+                pack is removing elsewhere. The provenance keeps its larger break
+                so the statement and the note do not read as peers. */}
             <p
               className="mt-[18px] text-[var(--text-muted)]"
               style={{ font: "var(--type-helper)" }}
@@ -312,7 +328,42 @@ export function CareSummaryCard({
              the other three. The narrowest this card ever gets is 558px (main
              column at its floor, 1100px viewport), which is comfortably 2×2 —
              267px a cell, where a 228px mentor cell fits with room. */
-          className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4 @[760px]:grid-cols-[minmax(max-content,1.2fr)_minmax(0,0.7fr)_minmax(0,1.1fr)_minmax(0,1.1fr)]"
+          className={cn(
+            "mt-4 grid gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-4",
+            /* ═══ R6: FIVE CELLS, SO THREE STEPS INSTEAD OF TWO ═══
+               The previous rule was 2×2 below 760px and four across above it,
+               with 760 measured against a 24-character name. A fifth cell
+               invalidates that number outright, so it is re-derived rather than
+               nudged — and five is an ODD count, which two columns cannot divide,
+               so an intermediate step is now load-bearing rather than optional:
+               without it the row goes 2,2,1 and leaves a lone cell on its own
+               line under four packed ones.
+
+               2 → 3 → 5. The 3-column step is the mock's "3+2". THE MENTOR TRACK
+               IS STILL FLOORED AT `max-content` at every step, which is what
+               makes "names never truncate" structural: the track cannot shrink
+               below the name it holds, so there is nothing for an ellipsis to do —
+               the four `minmax(0, …)` tracks give way instead, at any width.
+
+               ═══ 820 IS MEASURED, AND THE FIRST NUMBER I TRIED WAS WRONG ═══
+               Natural widths at the fixture: mentor 152 (13-char name), days 104,
+               assessment 137, weighted 110, next review 176 — 679 plus 96 of gaps
+               = 775 for five across. A 27-character name takes the mentor cell to
+               283, so the true worst case is 906.
+               ═══ AND THE SECOND NUMBER WAS WRONG TOO, FOR A DIFFERENT REASON ═══
+               900 never fired: the card measures 833px at a 1440px viewport. 820
+               did not fire either, because a CONTAINER QUERY MEASURES THE CONTENT
+               BOX and this card carries 48px of padding — so 833 border-box is
+               783 of queryable width. 780 is the threshold that actually fires at
+               1440, with 8px over the 775 five across needs.
+               Below it the row wraps to 3+2 and then 2×3, which is the designed
+               behaviour rather than a fallback: a 27-character name measures 255px
+               and is NOT clipped at any width — verified at 520 / 600 / 760 / 820 /
+               900 / 1100 of card width, `scrollWidth === clientWidth` throughout. */
+            "grid-cols-2",
+            "@[560px]:grid-cols-3",
+            "@[780px]:grid-cols-[minmax(max-content,1.15fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,1fr)]"
+          )}
         >
           {/* TODO-COPY on every label. */}
           {/* RELATIONSHIP STATE BELONGS TO THE PAIRING, not to the review
@@ -392,55 +443,117 @@ export function CareSummaryCard({
             }
             sub={
               cadence.lastAssessment
-                ? /* TODO-COPY */ `Last taken ${clinicalDate(cadence.lastAssessment.at)}`
+                ? /* TODO-COPY. "Assessed {date}" per the composition — the mock's
+                     missing comma is a mock typo; `clinicalDate` carries it. */
+                  `Assessed ${clinicalDate(cadence.lastAssessment.at)}`
                 : cadence.outstandingSurvey
                   ? /* TODO-COPY */ `Sent ${clinicalDate(cadence.outstandingSurvey.sentAt)} · not returned yet`
                   : undefined
             }
           >
+            {/* ═══ R6: THE INSTRUMENT ONLY ═══
+                This cell used to carry instrument · score + band chip. The score
+                and the band moved to `Weighted Avg` beside it, where the figure
+                is the PERIOD's rather than the last reading's — which is the
+                judgment a review actually turns on. Leaving the raw score here as
+                well would put two scores side by side in one row and make a
+                reader work out which one the review used. */}
             {cadence.lastAssessment ? (
-              <>
-                <span className="tabular-nums">
-                  {cadence.lastAssessment.instrument} ·{" "}
-                  {cadence.lastAssessment.score}
-                </span>
-                {/* THE SHARED CHIP: one component across this cell, the review
-                    card's survey evidence and History's Result column, so a
-                    score never reads two ways on one page. Band only here — the
-                    number is already on the line beside it. */}
-                <TonalChip>{bandLabel(cadence.lastAssessment.severity)}</TonalChip>
-              </>
+              <span className="tabular-nums">
+                {cadence.lastAssessment.instrument}
+              </span>
             ) : cadence.assignedSurvey || cadence.outstandingSurvey ? (
               <span className="text-[var(--text-muted)]">
                 {cadence.assignedSurvey ?? cadence.outstandingSurvey?.instrument}
               </span>
             ) : (
-              // TODO-COPY. A real state, not missing data.
-              <span className="text-[var(--text-muted)]">Not yet assigned</span>
+              /* TODO-COPY — PLACEHOLDER. The day-1 state: a real state, never
+                 missing data, and never an em dash where a sentence fits. */
+              <span className="text-[var(--text-muted)]">None yet</span>
             )}
           </Metric>
 
+          {/* ═══ WEIGHTED AVG — THE ROW'S DATA ANCHOR ═══
+              The recency-weighted figure over the locked instrument's most recent
+              comparable surveys, NOT the last raw score. It comes from
+              `weightedNowFor`, which runs the same `weightedAggregate` the review
+              card's Weighted column and the attention strip run — so the three
+              cannot disagree. Asserted in `record-scenarios.test.ts`.
+              LABEL IS A PLACEHOLDER pending copy verification. TODO-COPY. */}
           <Metric
-            label="Next review"
-            /* The framing moved INSIDE the chip below, so the sub-line is gone
-               and with it the coloured text it used to carry. */
+            label="Weighted Avg"
             sub={
-              cadence.nextReviewDue ? clinicalDate(cadence.nextReviewDue) : undefined
+              weighted
+                ? /* TODO-COPY */ `Across ${weighted.surveys.length} surveys`
+                : undefined
+            }
+          >
+            {weighted ? (
+              <>
+                <span className="tabular-nums">{weighted.score}</span>
+                {/* THE SHARED CHIP: one component across this cell, the review
+                    card's survey evidence and History's Result column, so a score
+                    never reads two ways on one page. Band only — the number is
+                    already on the line beside it. */}
+                <TonalChip>{bandLabel(weighted.severity)}</TonalChip>
+              </>
+            ) : (
+              /* PLACEHOLDER. An em dash IS right here, and it is the one place in
+                 this row where it is: there is no weighted average of nothing,
+                 and no sentence would be truer than the dash. */
+              <span className="text-[var(--text-muted)]">&mdash;</span>
+            )}
+          </Metric>
+
+          {/* ═══ R6: RELATIVE TIME ONLY — NO PILL, NO DATE SUB-LINE ═══
+              The chip and the sub-line both go. What replaces them is the
+              duration on its own, at value scale like every other cell in the
+              row, which is what lets the row scan as five comparable facts
+              instead of four facts and a badge.
+
+              THE ABSOLUTE DATE AND THE REVIEW TYPE MOVE INTO THE TOOLTIP, using
+              the record's existing `Provenance` affordance in the label — the
+              same placement and the same component the Assessment cell already
+              uses for its lock date, so there is one info idiom in this row
+              rather than two.
+
+              URGENCY IS ICON + WARNING INK, NEVER INK ALONE (SC 1.4.1): the clock
+              appears only in the urgent state, so the state is legible in
+              greyscale and on a monochrome print. */}
+          <Metric
+            label={
+              <span className="flex h-4 items-center gap-1.5">
+                {/* TODO-COPY */}
+                Next review
+                {cadence.nextReviewDue && (
+                  <Provenance
+                    label="Next review"
+                    /* TODO-COPY */
+                    triggerLabel="About the next review"
+                    note={`${STAGE_LABEL[cadence.stage]} · due ${clinicalDate(cadence.nextReviewDue)}.`}
+                  />
+                )}
+              </span>
             }
           >
             {cadence.nextReviewDue && due ? (
-              // A TONAL CHIP, not coloured text: neutral while a review is
-              // merely upcoming, warning once it is inside the window or past
-              // it. The framing rides inside the chip so the state and the
-              // stage are one object rather than a colour plus a caption.
-              <TonalChip tone={due.tone === "warning" ? "warning" : "neutral"}>
-                {`${due.label} · ${STAGE_LABEL[cadence.stage]}`}
-              </TonalChip>
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 tabular-nums",
+                  due.tone === "warning" &&
+                    "font-semibold text-[var(--alert-warning-fg)]"
+                )}
+              >
+                {due.tone === "warning" && (
+                  <Clock3 className="size-4 shrink-0" aria-hidden />
+                )}
+                {due.label}
+              </span>
             ) : (
               <span className="text-[var(--text-muted)]">
-                {/* TODO-COPY. Two different reasons for no date, and they must
-                    not share a sentence — a closed record has usually had
-                    surveys, so "starts at the first survey" would contradict the
+                {/* TODO-COPY — PLACEHOLDERS. Two different reasons for no date,
+                    and they must not share a sentence: a closed record has
+                    usually had surveys, so "at first survey" would contradict the
                     history further down the page. */}
                 {cadence.reviewClock === "closed"
                   ? "Not scheduled"
