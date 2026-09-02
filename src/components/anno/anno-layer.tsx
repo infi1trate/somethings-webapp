@@ -31,6 +31,7 @@
 // PRD did not decide it.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { annotationStore } from "@/lib/anno";
 import { isAnnoError } from "@/lib/anno/errors";
 import { annoRoleFromPersona, type Comment } from "@/lib/anno/types";
@@ -68,6 +69,26 @@ type Draft = {
 
 export function AnnoLayer() {
   const mode = useAnnoMode();
+  /** ═══ THE ROUTE COMES FROM THE ROUTER, NOT FROM `window.location` ═══
+   *
+   *  This component is mounted once in the ROOT layout and is not remounted by a
+   *  client-side navigation, so anything it reads imperatively is read once and
+   *  then silently goes stale. `window.location.pathname` inside the projection
+   *  below looked correct — the value is live at the moment it is read — but
+   *  nothing was re-reading it: the effect was keyed on `mode` alone, so a
+   *  navigation ran no projection at all.
+   *
+   *  Measured, before this line existed: four pins written on
+   *  `/admin/person/t13` stayed painted on `/app/mentees` at IDENTICAL viewport
+   *  coordinates (270/341, 360/411, 460/491, 115/89) — not re-anchored to the new
+   *  page, just frozen where they were. A comment about one page floating over
+   *  another is the precise failure R11 exists to prevent: it does not merely look
+   *  wrong, it makes the reviewer distrust every pin they see.
+   *
+   *  `usePathname` re-renders on navigation, which is what turns the route into a
+   *  dependency an effect can actually watch. It is already the layout-level
+   *  idiom here — the sibling `DevBar` reads the route the same way. */
+  const pathname = usePathname();
   const drawerOpen = useDrawerOpen();
   const persona = useOnboardingStore((s) => s.persona);
   const loadState = useOnboardingStore((s) => s.devLoadState);
@@ -173,9 +194,8 @@ export function AnnoLayer() {
     const store = annotationStore();
 
     const project = (comments: Comment[]): Placed[] => {
-      const route = window.location.pathname;
       return comments
-        .filter((c) => !c.deletedAt && c.context.route === route)
+        .filter((c) => !c.deletedAt && c.context.route === pathname)
         .map((c) => {
           const r = resolveAnchor(c.anchor as Anchor);
           /* ═══ AN OPTIMISTIC ECHO IS NOT A NUMBERED COMMENT ═══
@@ -216,8 +236,19 @@ export function AnnoLayer() {
            mode control is what tells the reader, not a pin that isn't there. */
       });
 
+    /* ═══ RE-PROJECT FROM THE STORE, NOT FROM WHAT IS ON SCREEN ═══
+       Narrowing from `prev` made the route filter ONE-WAY. The first reposition
+       after a navigation correctly dropped the previous page's pins — and because
+       every later reposition started from that emptied list, they could never come
+       back. Measured: leaving `/admin/person/t13`, scrolling once, then navigating
+       back showed 0 of its 4 comments, so the one page guaranteed not to display a
+       comment was the page it was written on.
+
+       `snapshot()` is the store's cache read synchronously — no request, which is
+       what the subscribe note below is about — so every reposition re-filters the
+       full set and the filter stays reversible. */
     const reposition = () => {
-      setPins((prev) => project(prev.map((p) => p.comment)));
+      setPins(project(store.snapshot()));
     };
     const handle = observeReposition({ scrollContainers: [], onReposition: reposition });
     const cancelSettle = settleAfter(reposition);
@@ -237,7 +268,7 @@ export function AnnoLayer() {
       cancelSettle();
       unsub();
     };
-  }, [mode]);
+  }, [mode, pathname]);
 
   /** ═══ STEP 3: SCROLL, FOCUS, PULSE ONCE ═══
    *
@@ -326,7 +357,11 @@ export function AnnoLayer() {
         body,
         anchor: d.anchor,
         context: {
-          route: window.location.pathname,
+          /* THE SAME VALUE THE PIN IS FILTERED AGAINST. Storing
+             `window.location.pathname` here while projecting against the router's
+             pathname would let a comment be saved with a route its own page does
+             not match — invisible the moment it is written. */
+          route: pathname,
           role: annoRoleFromPersona(persona),
           scenario: new URLSearchParams(window.location.search).get("scenario") ?? "",
           loadState,

@@ -880,3 +880,72 @@ data table; the composer's five states; the row's deleted-by-someone-else state.
 **Decision needed from:** Brandon — if any of those need visual sign-off before
 the review cycle, they need a human to look at the running app. The states
 themselves are verified; what is missing is the picture.
+
+---
+
+## [anno-mvp-1] FIXED — pins from one page stayed painted on the next
+
+**Found by:** Brandon, first review cycle, on the deployed preview. A comment
+written on `/app/mentees` was visible on `/app/activity`.
+
+**What was wrong:** `AnnoLayer` is mounted once in the ROOT layout and is not
+remounted by a client-side navigation. Its load-and-position effect was keyed on
+`[mode]` alone, and the route was read imperatively inside the projection as
+`window.location.pathname`. That value is live at the moment it is read — but on a
+navigation nothing re-read it, because nothing re-ran.
+
+**Measured before the fix:** four pins written on `/admin/person/t13` stayed
+painted on `/app/mentees` at IDENTICAL viewport coordinates — `270/341`,
+`360/411`, `460/491`, `115/89`. Not re-anchored to the new page; frozen.
+
+**The second half, same root cause:** `reposition` re-projected from `prev` — the
+already-filtered on-screen set — which made the route filter ONE-WAY. The first
+scroll or resize after a navigation correctly dropped the previous page's pins,
+and every later reposition started from that emptied list, so they could never
+come back. Measured: leaving `/admin/person/t13`, scrolling once, then navigating
+back showed **0 of its 4 comments**. The one page guaranteed not to show a comment
+was the page it was written on.
+
+**Fixed:** the route comes from `usePathname()` (already the layout-level idiom —
+the sibling `DevBar` reads it the same way) and is a dependency of the effect;
+`reposition` re-projects from `store.snapshot()`, so the filter is reversible.
+`create` records `route: pathname` too, so the value stored is the same one pins
+are filtered against.
+
+**Verified:** t13 → mentees → tasks → t13 shows 4 → 0 → 0 → 4, returning to the
+identical coordinates; a fresh comment placed on `/app/mentees` stores
+`route: "/app/mentees"`, renders there, and renders nowhere else.
+
+**Still open — no component test covers this.** `vitest.config.ts` is node-only by
+an explicit decision ("a component-testing stack is a separate decision"), so
+there is no DOM to navigate. The bug is a React dependency bug plus a state-
+narrowing bug; a pure `comment.context.route === pathname` predicate test would
+pass against the BROKEN code, so it would be theatre rather than a guard. Adding
+jsdom + testing-library would make this class of bug testable and would cover the
+layer's other DOM-dependent behaviour (Esc ladder, focus trap, capture surface).
+
+**Decision needed from:** Brandon — whether a component-testing stack is in scope
+for anno-08. It is the only way this regression gets a real guard.
+
+---
+
+## [anno-mvp-2] The drawer lists every page's comments — by design, now questioned
+
+**Raised by:** Brandon, same report. The drawer on `/app/activity` shows a
+`/app/mentees` group.
+
+**Current behaviour, deliberate:** the drawer is a cross-page review list, grouped
+by route with the path as a sticky header, live routes alphabetical and
+`Page no longer exists` last. It is also the keyboard-accessible half of the
+feature (SC 2.1.1) and the surface a deeplink lands on, so a comment on a route
+that is not the current one still has to be reachable and readable there.
+
+**What scoping it to the current page would cost:** the `Page no longer exists`
+group becomes unreachable; the `total` count and the filtered-empty copy
+("There are N comments, but the Unresolved filter is hiding them") start counting
+only one page; and a reviewer loses the one view that answers "what has been said
+about this prototype".
+
+**Decision needed from:** Brandon — leave as is, or add a `This page / All pages`
+scope to the filter row. The latter is a feature, so it belongs in anno-08 with
+the rest of the fast-follow set, not in this fix.
