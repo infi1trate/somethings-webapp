@@ -479,6 +479,23 @@
      CVD-safe hue relationships are unchanged. */
   --chart-engagement: #2f6fed;
 
+  /* ═══ CHART-ONLY GRADIENT EXTENSION — the ONE new token in R6 ═══
+     Bloom PROHIBITS GRADIENTS ON SURFACES. This is a documented chart-only
+     extension: it exists solely as the top stop of the area fill under the care
+     trajectory line, and it must never be reused on a non-chart surface. It
+     CONSUMES the existing line token (`--text-muted`, which is what the polyline
+     is stroked with) rather than introducing a colour, so the fill can never
+     disagree with the line above it.
+
+     14% sits in the 12–16% band the brief specifies: enough to read as a filled
+     area, light enough that the risk-flag triangles keep their contrast where
+     they cross it (measured — see docs).
+
+     NO DARK-MODE OVERRIDE IS NEEDED. Custom properties substitute at
+     computed-value time, so `var(--text-muted)` resolves against whichever mode
+     is active and the mix follows it. One token, both modes. */
+  --chart-area-fill: color-mix(in oklab, var(--text-muted) 14%, transparent);
+
   /* Elevated type roles. */
   /* `--type-record-name` moved up into the ramp block above — it is a Headline
      stop, and defining it twice in one file is how two values diverge. */

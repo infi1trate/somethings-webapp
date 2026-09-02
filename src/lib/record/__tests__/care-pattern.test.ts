@@ -17,6 +17,8 @@ import {
 import { SPARKLINE_MIN_POINTS } from "@/components/record/score-sparkline";
 import { RISK_CATEGORIES, recurringThemes, themeOf } from "@/lib/record/risk-taxonomy";
 import { CATEGORY_LABEL, DEMO_TEENS } from "@/lib/record/people-demo";
+import { AGGREGATE_WEIGHTS } from "@/lib/record/care-demo";
+import { pendingReviewFor } from "@/lib/record/care-demo";
 
 const NOW = new Date("2026-08-26T20:05:00.000Z").getTime();
 
@@ -241,5 +243,100 @@ describe("the playbook taxonomy", () => {
 
   it("the clustering threshold is the playbook's own", () => {
     expect(CLUSTER_MIN_FLAGS).toBe(3);
+  });
+});
+
+// ═══ THE PER-POINT WEIGHTED VALUE (R6 · A2) ════════════════════════════════
+//
+// The brief's requirement is not "show a weighted number" — it is that the
+// tooltip's number and the review card's Weighted column RECONCILE. That is a
+// claim about two code paths agreeing, so it is asserted rather than eyeballed.
+
+describe("the weighted value at each reading", () => {
+  /** The plotted assessment marks, chronological — the same set the line is
+   *  drawn through, which is what the tooltip is attached to. */
+  const plotted = (p: NonNullable<ReturnType<typeof carePatternFor>>) =>
+    p.marks
+      .filter((m) => m.cls === "assessment" && m.score !== undefined)
+      .sort((a, b) => a.at - b.at);
+
+  it("gives the FIRST reading no weighted value — one number is not a weighting", () => {
+    for (const { id, p } of rendered()) {
+      const pts = plotted(p);
+      if (pts.length === 0) continue;
+      expect(pts[0].weighted, `${id}: first plotted reading`).toBeUndefined();
+    }
+  });
+
+  it("gives every reading after the first one", () => {
+    for (const { id, p } of rendered()) {
+      const pts = plotted(p);
+      for (let i = 1; i < pts.length; i++) {
+        expect(pts[i].weighted, `${id}: reading ${i + 1} of ${pts.length}`).toBeDefined();
+      }
+    }
+  });
+
+  it("never weights more than the three surveys the ratio has weights for", () => {
+    for (const { id, p } of rendered()) {
+      for (const m of plotted(p)) {
+        if (!m.weighted) continue;
+        expect(m.weighted.count, `${id}`).toBeLessThanOrEqual(AGGREGATE_WEIGHTS.length);
+        expect(m.weighted.count, `${id}`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it("counts up to three as the series lengthens, then holds", () => {
+    for (const { id, p } of rendered()) {
+      const pts = plotted(p);
+      for (let i = 1; i < pts.length; i++) {
+        const expected = Math.min(i + 1, AGGREGATE_WEIGHTS.length);
+        expect(pts[i].weighted?.count, `${id}: reading ${i + 1}`).toBe(expected);
+      }
+    }
+  });
+
+  it("recomputes rather than repeating — a moving series moves the number", () => {
+    // Not every record varies, but at least one must, or the whole feature is
+    // showing a constant and this suite would not notice.
+    const varying = rendered().filter(({ p }) => {
+      const w = plotted(p)
+        .map((m) => m.weighted?.score)
+        .filter((n): n is number => n !== undefined);
+      return new Set(w).size > 1;
+    });
+    expect(varying.length).toBeGreaterThan(0);
+  });
+
+  /** ═══ THE RECONCILIATION — THE POINT OF THE WHOLE THING ═══
+   *
+   *  The last plotted reading's weighted score is, by construction, the aggregate
+   *  over the most recent comparable surveys — which is exactly what the review
+   *  card's Weighted column shows. If these ever diverge, one page is showing two
+   *  numbers for one judgment, which is the defect this tab has already paid for.
+   *
+   *  Compared against `pendingReviewFor` — the CARD's own source — not against a
+   *  re-run of `weightedAggregate`, which would only prove the function equals
+   *  itself. */
+  it("the last reading's weighted score equals the review card's aggregate", () => {
+    let compared = 0;
+    for (const { id, p } of rendered()) {
+      const pending = pendingReviewFor(id, NOW, {});
+      if (!pending?.aggregate) continue;
+      const pts = plotted(p);
+      const last = pts[pts.length - 1];
+      if (!last?.weighted) continue;
+      // Same instrument on both sides, or they are not comparable at all.
+      if (pending.aggregate.surveys[0]?.instrument !== p.instrument) continue;
+      expect(
+        last.weighted.score,
+        `${id}: strip tooltip vs review card Weighted column`
+      ).toBe(pending.aggregate.score);
+      expect(last.weighted.severity, `${id}: band`).toBe(pending.aggregate.severity);
+      compared++;
+    }
+    // A vacuous pass would be worse than a failure — prove the loop ran.
+    expect(compared, "records where both a pattern and an aggregate exist").toBeGreaterThan(0);
   });
 });
