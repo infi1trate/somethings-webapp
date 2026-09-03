@@ -34,7 +34,7 @@
 // RATIONALE_SOURCE_LABEL.
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ArrowRight, ChevronRight, Pencil, RefreshCw, X } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, Pencil, RefreshCw } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 // The dropdown-menu import is gone with the ellipsis it served — see the actions
 // slot below for what that menu contained.
@@ -244,9 +244,20 @@ export function PresentationReviewCard({
   // owner derives it now — see `outcomeFor` in `care-tab.tsx` — because the
   // decision is assembled where the care update's id is known.
 
-  /* THE PROPOSAL CHIP, built once and rendered beside the title below. It
-   *  describes the PROPOSAL and never the draft — a supervisor who changes the
-   *  code does not rewrite what was proposed. */
+  /** ═══ THE PENDING CHANGE, RESOLVED ONCE ═══
+   *  `null` unless a supervisor has picked something in the picker. Everything
+   *  that reflects it below — the code line, the title, the revert link — reads
+   *  this one value, so the header cannot show one presentation while the
+   *  control beside it offers to revert to another. */
+  const pending =
+    expanded && decision?.kind === "change" && decision.code ? decision : null;
+
+  /** WHAT THE HEADER STATES. The recommendation until someone changes it, and
+   *  the change from the moment they do — the header is the presentation this
+   *  review is now about, not a frozen record of what was proposed. */
+  const shown = pending ?? review.recommended;
+
+  /* THE CHIP SLOT — the proposal chip, or the way back out of a change. */
   const proposalChip = canAct ? (
     <>
             {/* ═══ THE PROPOSAL CHIP — WHAT THE MODEL SUGGESTED ═══
@@ -262,7 +273,41 @@ export function PresentationReviewCard({
         THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span
         alone means a narrow band clips "F43.22" before it clips "Change
         proposed", and `title` carries the whole thing either way. */}
-    {proposesChange ? (
+    {pending ? (
+      /* ═══ REVERT REPLACES THE PROPOSAL CHIP ═══
+         "Renewal proposed" stops being true the moment a supervisor picks a
+         different code — nothing is being renewed any more — so the chip's slot
+         carries the way back instead of a label that has gone stale.
+         IT NAMES ITS DESTINATION. "Revert" alone would ask someone to remember
+         what the header said before they changed it; naming the presentation and
+         its code means the link states exactly what pressing it restores, which
+         is the same thing the header will read afterwards.
+         A LINK, NOT A BUTTON PAIR. Re-picking is what "Change code" already
+         does, so the old bar's Edit was a second door to one room. */
+      <button
+        type="button"
+        onClick={() => {
+          onDecisionChange?.(null);
+          // Focus goes to the control that survives this render, not to the
+          // link that is about to unmount.
+          setTimeout(() => changeRef.current?.focus(), 0);
+        }}
+        className={cn(
+          /* `-my-1 py-1` BUYS THE TARGET HEIGHT WITHOUT MOVING ANYTHING.
+             A 12.5px link is a 16px box, and this is now the only way back from
+             a change — too small to be the one control that undoes something.
+             The padding takes it to 24px for SC 2.5.8 while the negative margin
+             hands the row back the four pixels, so the baseline it shares with
+             the title is exactly where it was. */
+          "-my-1 min-w-0 rounded-sm py-1 text-left text-[12.5px] leading-[16px] text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]",
+          RING
+        )}
+      >
+        {/* TODO-COPY — PLACEHOLDER. */}
+        Revert back to {review.recommended.statement} (
+        <span className="tabular-nums">{review.recommended.code}</span>)
+      </button>
+    ) : proposesChange ? (
       <span
         title={`Change proposed → ${review.recommended.code}`}
         className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
@@ -376,7 +421,7 @@ export function PresentationReviewCard({
           codes on this tab look like the same kind of object. */}
       <div>
         <p className="mb-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
-          {review.recommended.code}
+          {shown.code}
         </p>
         {/* ═══ R7/A: THE PROPOSAL CHIP SITS WITH THE TITLE ═══
             It was at the far right of the header band, a whole row away from the
@@ -418,7 +463,7 @@ export function PresentationReviewCard({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="flex min-w-48 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
             <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
-              {review.recommended.statement}
+              {shown.statement}
             </p>
             {proposalChip}
           </span>
@@ -447,71 +492,14 @@ export function PresentationReviewCard({
         </div>
       </div>
 
-      {/* ═══ THE DELTA BAR — PENDING INTENT, NOT RECORD STATE ═══
-          Directly beneath the title block and full width of the body. The title
-          above it goes on showing the code ON RECORD, unaltered, and that is the
-          whole point of the arrangement: the title is what the record says, the
-          bar is what a supervisor is proposing to change it to. Rewriting the
-          title to the new code before commit would make the card assert
-          something that has not happened.
-
-          What is on record, struck AND dimmed — either alone is a single channel,
-          and a strikethrough at full strength reads as emphasis rather than
-          removal — then the arrow, then what it becomes at full weight.
-
-          REMOVE IS NOT IN A MENU. With Confirm gone it is the only path back to
-          no-change, and a supervisor who opened the picker to look would
-          otherwise have to discard the whole draft. */}
-      {expanded && decision?.kind === "change" && decision.code && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2">
-          {currentCode && (
-            <>
-              <span className="text-[13px] leading-[18px] text-[var(--text-muted)] line-through decoration-1">
-                {currentStatement ?? review.recommended.statement} ({currentCode})
-              </span>
-              <ArrowRight
-                className="size-3.5 shrink-0 text-[var(--text-muted)]"
-                aria-hidden
-              />
-            </>
-          )}
-          <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-            {decision.statement}{" "}
-            <span className="tabular-nums">({decision.code})</span>
-          </span>
-          <span className="ml-auto flex shrink-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              className={cn(
-                "rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2",
-                RING
-              )}
-            >
-              {/* TODO-COPY */}
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onDecisionChange?.(null);
-                // Focus returns to the control that will still be there after
-                // this render, not to the button that just unmounted. Same timer
-                // as the picker's close, for the same two reasons.
-                setTimeout(() => changeRef.current?.focus(), 0);
-              }}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-sm text-[13px] text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <X className="size-3.5 shrink-0" aria-hidden />
-              {/* TODO-COPY — PLACEHOLDER. */}
-              Remove
-            </button>
-          </span>
-        </div>
-      )}
+      {/* THE DELTA BAR IS GONE. It stated the change as old-struck → new with
+          Edit and Remove, on the premise that the title had to keep showing the
+          code on record until commit. The product decision is the other one: the
+          HEADER now moves to the new presentation the moment it is picked, and
+          the only thing a supervisor still needs is the way back — which is the
+          revert link in the chip's slot above. A bar restating a change the
+          header already states is the same fact twice, and its Edit was a second
+          door into the picker "Change code" already opens. */}
 
       {/* ═══ THE PICKER ═══
           Moved here with the button that opens it. Built from `Dsm5SearchList`
@@ -856,7 +844,13 @@ export function PresentationReviewCard({
               subtree out of the tab order and the accessibility tree without
               touching layout, so the height still animates. */}
           <div className="overflow-hidden" inert={!expanded}>
-            <div className="mt-4 border-t border-[color:var(--border-subtle)] pt-4">
+            {/* NO RULE HERE. This drew one hairline and the Documentation
+                section below drew a second, four lines apart with nothing
+                between them — the gap the decision row used to fill. The strip
+                above is a FILLED panel, which already separates itself from what
+                follows; a rule immediately under it was drawing a boundary that
+                the surface change had already drawn. */}
+            <div className="mt-6">
               {workspace}
             </div>
           </div>

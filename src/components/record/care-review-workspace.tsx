@@ -269,9 +269,11 @@ export function CareReviewWorkspace({
     onCommit(decision ?? { kind: "confirm" }, body, Date.now());
   };
 
-  // `commitLabel` is gone: the footer's two buttons are fixed labels now
-  // ("Save & close" / "Save and submit"), and the decision is stated in the
-  // decision row rather than inside the button that commits it.
+  // `commitLabel` is gone: the footer's two buttons are FIXED labels — "Save
+  // draft" and "Submit" — and the decision is stated by the card's header, which
+  // now moves to the new presentation as soon as one is picked. A button that
+  // also named the outcome was restating what the header two blocks up already
+  // says, in a place where it made the label grow with the code.
 
   return (
     <div data-record-section="care-review-workspace" className="min-w-0">
@@ -372,7 +374,7 @@ export function CareReviewWorkspace({
         {/* ═══ DOCUMENTATION ═══
             The same three fields the standalone care update uses, from the same
             component — see `CareUpdateFields`. */}
-        <section className="mt-6 border-t border-[color:var(--border-subtle)] pt-5">
+        <section className="mt-0">
           <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
             {/* TODO-COPY */}
             Documentation
@@ -420,42 +422,31 @@ export function CareReviewWorkspace({
               RING
             )}
           >
-            Save &amp; close
+            {/* TODO-COPY */}
+            Save draft
           </button>
           {/* THE ONE FILLED BUTTON IN THE CARD, in either state — the collapsed
               card's Review is a filled pill and this replaces it while open.
-              `whitespace-nowrap` and a short label keep it on one line at 200%:
-              the longest it gets is "Save and submit". TODO-COPY. */}
-          {/* ═══ R7/B: THE LABEL STATES WHICH OF THE TWO IT WILL DO ═══
-              With Confirm gone, the button is the only place the unchanged
-              outcome is named before it happens — so it names it. "Save and
-              submit" alone would leave a supervisor pressing a neutral button
-              and finding out afterwards what it recorded.
-
-              THE UNCHANGED LABEL IS THE SHORT FORM, and that is a measured
-              choice rather than a preference. The brief allows shortening rather
-              than wrapping if the long form does not fit: "Save and submit ·
-              F41.1 unchanged" is 34 characters and overruns the footer beside
-              "Save & close" at panel width — so the shipped string is
-              "Submit · {code} unchanged" (25). One line at 100% and 200%.
-              `whitespace-nowrap` holds it; "Save change to F43.22" is the longest
-              the change form gets. TODO-COPY — both PLACEHOLDERS. */}
+              ONE WORD, AND IT NO LONGER NAMES THE OUTCOME. It read "Submit ·
+              {code} unchanged" / "Save change to {code}", from a time when the
+              header held the code on record whatever the supervisor had picked,
+              so the button was the only place the outcome appeared before it
+              happened. The header moves with the change now, so the label was
+              the same fact a second time — and the version that grew with the
+              code was the one that had to be shortened to fit the footer. */}
           <PillButton
             onClick={attemptCommit}
             className="h-10 shrink-0 whitespace-nowrap px-5 text-[14px]"
           >
-            {decision?.kind === "change" && decision.code
-              ? `Save change to ${decision.code}`
-              : `Submit · ${currentCode ?? proposed.code} unchanged`}
+            {/* TODO-COPY */}
+            Submit
           </PillButton>
         </div>
-        {/* The requirement note sits UNDER the buttons now rather than opposite
-            them: right-aligned actions and a left-aligned sentence on one row
-            read as two unrelated things at card width. */}
-        <p className="mt-2 text-right text-[12px] leading-[16px] text-[var(--text-muted)]">
-          {/* TODO-COPY */}
-          All three fields are required.
-        </p>
+        {/* NO REQUIREMENT NOTE. It stated a rule the form already enforces:
+            submitting with a field empty marks it, moves focus to the first one
+            and announces it on the live region, which tells a supervisor what is
+            missing at the moment it matters rather than warning everyone in
+            advance. */}
       </div>
       {/* `outcomeCode` is read by the owner through the committed decision; it is
           computed here only to keep the label and the commit reading one value. */}
