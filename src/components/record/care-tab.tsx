@@ -822,8 +822,6 @@ export function CareTab({
         <CareTaskRegion
           tasks={tasks}
           reviewProps={{
-            actor: staffName,
-            actorRole: staffActorFor(persona),
             /* ═══ ONE CALLBACK, AND IT OPENS THE WORKSPACE ═══
                `onChangeRequest` and `onApproveRequest` are gone with the ellipsis
                and the Approve button they drove. The card no longer decides

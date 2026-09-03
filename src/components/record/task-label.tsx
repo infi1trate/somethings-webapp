@@ -73,10 +73,23 @@ export function TaskLabel({
   /** Context, outside the chip after a middot: "Intake", "90-day review",
    *  "Open", "Resolved · 48h". */
   qualifier,
+  /** ═══ THE FILLED VARIANT — OPT-IN, AND ONLY THE REVIEW CARD TAKES IT ═══
+   *  The design file draws this chip as a soft FILL in the band's own family
+   *  with no outline, where the default below is a card-surface fill with an ink
+   *  border. Both are deliberate and the note under `variant="outlined"` is why
+   *  the default cannot simply change: on the ALERT families that chip has to
+   *  stay legible against a band of its own colour, and that was solved once
+   *  already. So this is a prop, and the flag cards on Overview keep what they
+   *  have — a restyle nobody asked for is not a free change.
+   *
+   *  It stays inside the same `taskBandInk` family, so a filled chip is still
+   *  the severity's own colour rather than a second palette. */
+  variant = "outlined",
 }: {
   severity: TaskSeverity;
   type: string;
   qualifier?: string;
+  variant?: "outlined" | "filled";
 }) {
   const ink = taskBandInk(severity);
   return (
@@ -90,8 +103,29 @@ export function TaskLabel({
           any band alpha; the ink border is what makes it read as outlined. Both,
           not one. */}
       <span
-        className="inline-flex shrink-0 items-center rounded-full border bg-[var(--surface-card)] px-2.5 py-1"
-        style={{ color: ink, borderColor: ink }}
+        className={
+          variant === "filled"
+            ? "inline-flex h-6 shrink-0 items-center rounded-full px-2.5"
+            : "inline-flex shrink-0 items-center rounded-full border bg-[var(--surface-card)] px-2.5 py-1"
+        }
+        style={
+          variant === "filled"
+            ? {
+                color: ink,
+                /* ═══ LIGHTER THAN THE BAND, NOT DARKER ═══
+                   This was `ink 10%`, and it MEASURED at a 1.00 contrast ratio
+                   against the band behind it — the chip was the band, invisible,
+                   which is the exact regression the note above this component
+                   records from the last time this fill changed.
+                   The design file draws the chip a step LIGHTER than its band
+                   (ivory/50 on ivory/100), so the mix is a trace of the family
+                   over the card surface rather than a wash of it over the band.
+                   The number is measured, not chosen: see the ratio asserted in
+                   the review card's verification. */
+                backgroundColor: `color-mix(in oklab, ${ink} 2%, var(--surface-card))`,
+              }
+            : { color: ink, borderColor: ink }
+        }
       >
         <span className="text-[12.5px] font-medium leading-[16px]">{type}</span>
       </span>
