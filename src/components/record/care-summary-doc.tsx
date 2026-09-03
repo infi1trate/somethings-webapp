@@ -44,6 +44,14 @@ import { ArrowRight } from "lucide-react";
 import { PROVENANCE_NOTE, Provenance } from "@/components/record/provenance";
 import type { CarePattern } from "@/lib/record/care-pattern";
 import type { RiskTier } from "@/lib/record/risk-taxonomy";
+import {
+  contentTag,
+  isKnownTag,
+  tagAlwaysTooltips,
+  tagLabel,
+  tagTooltip,
+  SHORT_LABEL_THRESHOLD,
+} from "@/lib/record/content-tags";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -357,19 +365,23 @@ export function CareSummaryDocCard({
           <>
             <ul className="flex flex-wrap gap-1.5">
               {doc.themes.themes.map((t) => (
-                <li key={t.label}>
-                  <span className={CHIP_THEME}>
-                    {t.label}
-                    {/* NO `opacity-80`. It dropped this to 3.71:1 on the chip
-                        (axe, both widths) — and dimming it was backwards to
-                        begin with: "7/9" is the checkable part of the finding,
-                        the thing a supervisor reads the element FOR. The label
-                        names the theme; the count is the evidence. `tabular-nums`
-                        stays so a column of fractions aligns. */}
-                    <span className="ml-1.5 tabular-nums">
-                      {t.days}/{doc.themes!.conversationDays}
-                    </span>
-                  </span>
+                <li key={t.tagId}>
+                  {/* THE COUNT IS THE TRAILING SLOT, so a long tag truncates
+                      and the "7/9" survives — it is the checkable part of the
+                      finding and the last thing that may be cut.
+                      NO `opacity-80` on it. That dropped it to 3.71:1 on the
+                      chip (axe, both widths), and dimming it was backwards to
+                      begin with: the label names the theme, the count is the
+                      evidence. `tabular-nums` so a column of fractions aligns. */}
+                  <TagChip
+                    id={t.tagId}
+                    className={cn(CHIP_THEME, "max-w-full")}
+                    trailing={
+                      <span className="ml-1.5 shrink-0 tabular-nums">
+                        {t.days}/{doc.themes!.conversationDays}
+                      </span>
+                    }
+                  />
                 </li>
               ))}
             </ul>
@@ -567,6 +579,109 @@ function Refusal({ children }: { children: React.ReactNode }) {
 
 /** A New/Resolved sub-row. Renders "None this cycle" rather than disappearing —
  *  see the inversion note at the top of the file. */
+/* ══════════════════════ THE CONTENT-TAG CHIP ══════════════════════
+ *
+ * One component for both tag surfaces, so a chip cannot render one way in the
+ * frequency element and another in the delta rows.
+ *
+ * ═══ THE THREE REASONS A CHIP CARRIES A TOOLTIP ═══
+ *
+ *  1. AN ANNOTATION — "Appetite change" excludes medication-linked change;
+ *     "Suicidal ideation / self-harm ideation" excludes third-party disclosures.
+ *     A supervisor acting on either has to be able to read the boundary, so
+ *     these tooltip ALWAYS, truncated or not.
+ *  2. A SUB-TAG — the chip shows the leaf, because "Online / cyberbullying" is
+ *     what happened. "Pet" on its own is not a clinical statement, so the
+ *     tooltip carries "{parent} → {leaf}".
+ *  3. TRUNCATION — measured, not guessed: 54 of the 106 canonical labels are
+ *     over 22 characters and several are over 50. A chip that silently cuts
+ *     "Difficulty following through on tasks or instructions" to
+ *     "Difficulty following…" has lost the tag.
+ *
+ * ═══ THE TOOLTIP IS DECIDED BY LABEL LENGTH, NOT BY MEASUREMENT ═══
+ *
+ * This first measured `scrollWidth > clientWidth` in a `ResizeObserver`, which
+ * is the correct instinct and does not work here. MEASURED: a ResizeObserver
+ * created on a fresh element in this document never fires — not on resize, not
+ * even its initial callback. That is the hazard this codebase already documents
+ * ("mutating the DOM inside a ResizeObserver callback makes Chrome silently stop
+ * delivering notifications"): something on this page has already killed delivery
+ * for the document, so any component that depends on RO here fails silently.
+ *
+ * So the rule is static: a chip tooltips when its label is longer than
+ * `SHORT_LABEL_THRESHOLD` — which is the same 22 characters that puts a tag on
+ * the short-label checklist, i.e. exactly the set at risk of truncating. 54 of
+ * the 106 canonical labels qualify. A short label gets no redundant tooltip, a
+ * long one always has its canonical text available, and nothing depends on a
+ * measurement that cannot be taken.
+ *
+ * The label still truncates with an ellipsis in CSS; only the DECISION to offer
+ * the full text stopped being measured.
+ *
+ * ═══ THE DEV GUARD ═══
+ *
+ * An id outside the taxonomy renders an unmissable error chip naming the value.
+ * It does NOT throw: a thrown render error on a clinical record takes the page
+ * down and hides the tags that ARE right. In production the id renders as-is,
+ * because a degraded chip beats a blank record. */
+function TagChip({
+  id,
+  className,
+  trailing,
+}: {
+  id: string;
+  className: string;
+  /** ═══ THE COUNT GOES HERE, NOT AROUND THE CHIP ═══
+   *
+   *  The frequency element first wrapped this component in its own chip and
+   *  passed `display: contents` so the count could sit beside the label. That
+   *  cost the tooltip: an element with `display: contents` HAS NO BOX, so its
+   *  `title` never fires — measured, and it would have silently removed the
+   *  annotation tooltip from an annotated tag in the frequency element, which
+   *  t19 actually carries (`appetite-change`).
+   *
+   *  So the chip owns its own box and takes a trailing slot. The label truncates
+   *  inside it; whatever is passed here is `shrink-0` and survives. */
+  trailing?: React.ReactNode;
+}) {
+  if (!isKnownTag(id)) {
+    if (process.env.NODE_ENV !== "production") {
+      return (
+        <span
+          data-content-tag-error={id}
+          className="inline-flex items-center gap-1 rounded-full bg-[var(--state-error)] px-2.5 py-0.5 text-[12.5px] font-semibold leading-[18px] text-white"
+        >
+          {/* Loud, and it NAMES THE VALUE so it can be found. */}
+          UNKNOWN TAG: {id}
+        </span>
+      );
+    }
+    return <span className={className}>{id}</span>;
+  }
+
+  const tag = contentTag(id)!;
+  const long = tag.label.length > SHORT_LABEL_THRESHOLD;
+  const tip = tagTooltip(id) ?? tag.label;
+  const showTip = tagAlwaysTooltips(id) || long;
+
+  return (
+    <span
+      data-content-tag={id}
+      className={className}
+      /* `title` RATHER THAN A CUSTOM PANEL, deliberately. It is reachable by
+         pointer and by assistive tech without this element becoming a control —
+         and these chips are not controls. Making one focusable to carry a
+         tooltip would put fifteen tab stops into a rail section that has none.
+         The full text is also the accessible name, so nothing depends on hover. */
+      title={showTip ? tip : undefined}
+      aria-label={showTip ? tip : undefined}
+    >
+      <span className="block min-w-0 truncate">{tagLabel(id)}</span>
+      {trailing}
+    </span>
+  );
+}
+
 function DeltaRow({
   label,
   items,
@@ -591,8 +706,8 @@ function DeltaRow({
       {items.length ? (
         <ul className="flex flex-wrap gap-1.5">
           {items.map((i) => (
-            <li key={i}>
-              <span className={chip}>{i}</span>
+            <li key={i} className="min-w-0 max-w-full">
+              <TagChip id={i} className={cn(chip, "max-w-full")} />
             </li>
           ))}
         </ul>

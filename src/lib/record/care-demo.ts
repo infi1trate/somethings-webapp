@@ -26,6 +26,7 @@ import {
   type CareFlagRecord,
 } from "@/lib/record/people-demo";
 import { statementForCode } from "@/lib/record/dsm5";
+import { tagLabel } from "@/lib/record/content-tags";
 
 /** Event classes, v1. Ordered roughly by how often a reader is looking for them.
  *  Adding a class is a data change, not a refactor — the timeline renders any
@@ -2508,7 +2509,10 @@ function summaryCommitToEvent(c: CareSummaryCommit): CareEvent {
       // theme element refused, and then `themes` is empty and this line is gone.
       c.themes.length
         ? `Themes\n${c.themes
-            .map((t) => `${t.label} ${t.days}/${c.conversationDays}`)
+            // THE LABEL IS RESOLVED, NOT STORED. A committed summary holds tag
+            // ids; the canonical label comes from the taxonomy at render, so a
+            // copy change reaches an already-committed summary too.
+            .map((t) => `${tagLabel(t.tagId)} ${t.days}/${c.conversationDays}`)
             .join(" · ")}`
         : null,
       markers.length ? `Flags in window\n${markers.join(" · ")}` : null,

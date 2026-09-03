@@ -28,11 +28,11 @@ const doc = (over: Partial<CareSummaryDoc> = {}): CareSummaryDoc => ({
   themes: {
     conversationDays: 9,
     themes: [
-      { label: "Sleep disturbance", days: 7 },
-      { label: "Low mood", days: 6 },
+      { tagId: "sleep-disturbance", days: 7 },
+      { tagId: "low-mood-hopelessness", days: 6 },
     ],
   },
-  contentDelta: { added: ["Appetite loss"], resolved: [] },
+  contentDelta: { added: ["appetite-change"], resolved: [] },
   flags: [
     {
       eventId: "ce-f-1",
@@ -95,8 +95,8 @@ describe("the frozen entry", () => {
   it("carries every theme WITH its denominator", () => {
     const c = commitFor(doc(), "ce-cs-1", 9_500);
     expect(c.themes).toEqual([
-      { label: "Sleep disturbance", days: 7 },
-      { label: "Low mood", days: 6 },
+      { tagId: "sleep-disturbance", days: 7 },
+      { tagId: "low-mood-hopelessness", days: 6 },
     ]);
     expect(c.conversationDays).toBe(9);
   });
@@ -150,12 +150,12 @@ describe("the freeze holds", () => {
     // The theme objects are COPIES. Aliasing them would put a live fixture
     // object inside a record entry — see the note on the field.
     expect(c.themes[0]).not.toBe(source.themes!.themes[0]);
-    source.themes!.themes[0].label = "EDITED";
+    source.themes!.themes[0].tagId = "EDITED";
     source.themes!.themes[0].days = 99;
-    expect(c.themes[0]).toEqual({ label: "Sleep disturbance", days: 7 });
+    expect(c.themes[0]).toEqual({ tagId: "sleep-disturbance", days: 7 });
 
     // And the array itself.
-    source.themes!.themes.push({ label: "Appeared later", days: 1 });
+    source.themes!.themes.push({ tagId: "appeared-later", days: 1 });
     expect(c.themes).toHaveLength(2);
   });
 
