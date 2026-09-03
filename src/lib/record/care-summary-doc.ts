@@ -273,8 +273,17 @@ export function summaryWindowFor(
 // ─── ELEMENT 2 · THEME FREQUENCY (MOCKED — SEE THE NOTE) ────────────────────
 
 export interface ThemeCount {
-  /** TODO-COPY */
-  label: string;
+  /** ═══ AN ID FROM THE OFFICIAL TAXONOMY, NOT A LABEL ═══
+   *
+   *  This was `label: string`, and that is how "Exam stress", "Worry about
+   *  school" and "Appetite loss" got onto a clinical record: a chip took whatever
+   *  string a fixture handed it, and nothing could tell an invented phrase from a
+   *  canonical one.
+   *
+   *  Now it is an id into `content-tags.ts`. A copy change to a label is not a
+   *  data migration, an unknown id is loud in DEV rather than silent, and the
+   *  retired placeholders are unrepresentable because they have no id. */
+  tagId: string;
   days: number;
 }
 
@@ -302,32 +311,45 @@ const THEME_FIXTURE: Record<
   string,
   { conversationDays: number; themes: ThemeCount[] }
 > = {
+  /* ═══ TAGS CHOSEN FOR THE RECORD'S OWN TRACK ═══
+     A PHQ-9 record draws its content tags from Depression plus whatever SDOH and
+     risk tags the story supports; a GAD-7 record draws from Anxiety. Mixing them
+     would put a GAD-7 item on a depression record and make the tag set disagree
+     with the instrument the card is scored against.
+     "Low mood" became `low-mood-hopelessness` — the canonical label is "Low mood
+     / hopelessness", and the shortened form was itself a placeholder. */
   t17: {
     conversationDays: 9,
     themes: [
-      { label: "Sleep disturbance", days: 7 },
-      { label: "Low mood", days: 6 },
-      { label: "School avoidance", days: 4 },
+      { tagId: "sleep-disturbance", days: 7 },
+      { tagId: "low-mood-hopelessness", days: 6 },
+      { tagId: "school-avoidance", days: 4 },
     ],
   },
+  // GAD-7 TRACK. "Worry about school" → `excessive-worry`, which is the GAD-7
+  // item it was standing in for.
   t18: {
     conversationDays: 11,
     themes: [
-      { label: "Worry about school", days: 8 },
-      { label: "Restlessness", days: 5 },
+      { tagId: "excessive-worry", days: 8 },
+      { tagId: "restlessness", days: 5 },
     ],
   },
+  // PHQ-9 TRACK. "Withdrawal from friends" → `social-isolation`, the SDOH tag
+  // for the thing that phrase described. It is deliberately NOT
+  // `social-avoidance`: avoidance is a fear of judgment, isolation is the state,
+  // and this record's story is the state.
   t19: {
     conversationDays: 8,
     themes: [
-      { label: "Low mood", days: 6 },
-      { label: "Withdrawal from friends", days: 4 },
-      { label: "Appetite change", days: 3 },
+      { tagId: "low-mood-hopelessness", days: 6 },
+      { tagId: "social-isolation", days: 4 },
+      { tagId: "appetite-change", days: 3 },
     ],
   },
   // Two contact days: the fewer-than-three variant, and the reason element 2 and
   // element 5 both have to be able to refuse.
-  t21: { conversationDays: 2, themes: [{ label: "Low mood", days: 2 }] },
+  t21: { conversationDays: 2, themes: [{ tagId: "low-mood-hopelessness", days: 2 }] },
 };
 
 // ─── ELEMENTS 3 & 4 ─────────────────────────────────────────────────────────
@@ -350,9 +372,22 @@ const CONTENT_DELTA_FIXTURE: Record<
   string,
   { added: string[]; resolved: string[] }
 > = {
-  t17: { added: ["Appetite loss", "Friend conflict"], resolved: ["Panic episodes"] },
-  t18: { added: ["Exam stress"], resolved: [] },
-  t19: { added: [], resolved: ["School avoidance"] },
+  /* ═══ t17 EXERCISES ALL THREE TOOLTIP BEHAVIOURS (Workstream C2) ═══
+       · `appetite-change`  — ANNOTATED, so its tooltip renders whatever the width
+       · `peer-difficulty`  — 57 characters, so it TRUNCATES and tooltips
+       · `bullying-online`  — a SUB-TAG, tooltipped as "Bullying → Online /
+         cyberbullying", and clinically coherent beside school avoidance and peer
+         difficulty on this record.
+     "Appetite loss" → `appetite-change` (the canonical tag, which the record's
+     own theme list already used); "Friend conflict" → `peer-difficulty`. */
+  t17: {
+    added: ["appetite-change", "peer-difficulty", "bullying-online"],
+    resolved: ["panic-episodes"],
+  },
+  // "Exam stress" → `anticipatory-fear`, the GAD-7 item it stood in for on a
+  // GAD-7 record.
+  t18: { added: ["anticipatory-fear"], resolved: [] },
+  t19: { added: [], resolved: ["school-avoidance"] },
 };
 
 // ─── THE DOCUMENT ───────────────────────────────────────────────────────────
