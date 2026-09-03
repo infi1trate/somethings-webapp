@@ -34,7 +34,7 @@
 // RATIONALE_SOURCE_LABEL.
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronRight, Pencil, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, FilePlus, Pencil, RefreshCw } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 // The dropdown-menu import is gone with the ellipsis it served — see the actions
 // slot below for what that menu contained.
@@ -210,8 +210,24 @@ export function PresentationReviewCard({
   }, [expanded]);
   // One flag for the whole acting half of the card.
   const canAct = !!onReviewRequest;
-  /** Whether the PROPOSAL is a change. Nothing to do with the draft. */
-  const proposesChange = currentCode !== review.recommended.code;
+  /** ═══ WHAT KIND OF PROPOSAL THIS IS — THREE STATES, NOT TWO ═══
+   *
+   *  It was a boolean, `currentCode !== review.recommended.code`, and a record
+   *  with NOTHING on record satisfies it: `null !== "F43.22"` is true, so t9's
+   *  first-ever review wore "Change proposed → F43.22" beside a header already
+   *  reading F43.22 — a change from nothing to something, with the same code on
+   *  both sides of the arrow.
+   *
+   *  The codebase already models three outcomes here: `outcomeFor` in
+   *  `care-tab.tsx` returns `presentation_assigned` on exactly this
+   *  `currentCode === null` branch, before it ever compares the two codes. The
+   *  chip was the one place that collapsed them to two. */
+  const proposalKind: "assign" | "change" | "renewal" =
+    currentCode === null
+      ? "assign"
+      : currentCode === review.recommended.code
+        ? "renewal"
+        : "change";
 
   /** ONE shape for both variants: the aggregate's weighted score reads in the
    *  same position as a single survey's, which is what makes the two variants
@@ -260,19 +276,24 @@ export function PresentationReviewCard({
   /* THE CHIP SLOT — the proposal chip, or the way back out of a change. */
   const proposalChip = canAct ? (
     <>
-            {/* ═══ THE PROPOSAL CHIP — WHAT THE MODEL SUGGESTED ═══
-        It describes the PROPOSAL and never the draft. A supervisor who
-        selects "change" against a renewal proposal does not rewrite what
-        was proposed, so this chip does not move — the decision row owns
-        draft state, and a band that tracked both would be two sources
-        for one fact.
-        LABEL AND ICON CARRY IT, not the tone (SC 1.4.1): the words
-        differ, and a change gets the swap glyph. Attention band, not the
-        risk ramp — a proposed code change is a thing to look at, not a
-        danger.
-        THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span
-        alone means a narrow band clips "F43.22" before it clips "Change
-        proposed", and `title` carries the whole thing either way. */}
+    {/* ═══ THE PROPOSAL CHIP — WHAT KIND OF PROPOSAL THIS IS ═══
+        THREE KINDS, and which one is on screen is the only thing this slot
+        says: a first assignment, a renewal of the code on record, or a change
+        away from it. It describes the PROPOSAL, never the draft — until a
+        supervisor picks something, at which point the slot hands over entirely
+        to the revert link above, because "Renewal proposed" is false the moment
+        a different code is chosen.
+
+        LABEL AND ICON CARRY IT, not the tone (SC 1.4.1): the words differ and
+        each kind gets its own glyph. Only a CHANGE takes the attention band —
+        an assignment and a renewal are the expected course of a record, and
+        `EVENT_TONE` says the same where the timeline renders their committed
+        forms. Attention, not the risk ramp: a proposed code change is a thing
+        to look at, not a danger.
+
+        THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span alone
+        means a narrow band clips "F43.22" before it clips "Change proposed",
+        and `title` carries the whole thing either way. */}
     {pending ? (
       /* ═══ REVERT REPLACES THE PROPOSAL CHIP ═══
          "Renewal proposed" stops being true the moment a supervisor picks a
@@ -307,7 +328,26 @@ export function PresentationReviewCard({
         Revert back to {review.recommended.statement} (
         <span className="tabular-nums">{review.recommended.code}</span>)
       </button>
-    ) : proposesChange ? (
+    ) : proposalKind === "assign" ? (
+      /* ═══ NOTHING IS ON RECORD, SO NOTHING IS BEING CHANGED ═══
+         The first presentation a record ever gets. NEUTRAL, not the attention
+         band: `EVENT_TONE.presentation_assigned` is already "neutral" where the
+         timeline renders the committed version of this same event, and a first
+         assignment is the expected course of a new record rather than something
+         to look twice at.
+         "PROPOSED", NOT "ASSIGNED", which is the timeline's word. Nothing has
+         been assigned yet — this card is the proposal, and the parallel with
+         the other two chips is what says so. NO ARROW AND NO CODE: there is no
+         second code to point at, and the header states the one there is. */
+      <span
+        title="Presentation proposed"
+        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]"
+      >
+        <FilePlus className="size-3 shrink-0" aria-hidden />
+        {/* TODO-COPY — PLACEHOLDER. */}
+        Presentation proposed
+      </span>
+    ) : proposalKind === "change" ? (
       <span
         title={`Change proposed → ${review.recommended.code}`}
         className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
