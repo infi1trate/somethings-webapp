@@ -297,6 +297,33 @@ export function CareTab({
   // The cadence review task itself is untouched: still raised by the system,
   // still rendered, still requires an action.
   const review = pendingReviewFor(teen.id, now, store);
+  /** ═══ THE PENDING CODE CHANGE, OWNED HERE ═══
+   *
+   *  It used to live in the workspace, which is where the control was. The
+   *  control moved to the card's TITLE BLOCK — the workspace's PARENT — so the
+   *  value moved up to the component that owns the review's lifecycle: this one
+   *  reads the draft, builds the workspace and handles the commit. `null` means
+   *  unchanged. The card sets and displays it; the workspace labels its CTA and
+   *  commits it; both read this one value, so they cannot disagree.
+   *
+   *  ═══ SEEDED FROM THE DRAFT AT MOUNT, NOT ONLY AT OPEN ═══
+   *
+   *  Declared here, BELOW `review`, because the initialiser needs the review's
+   *  id — and it needs to be an initialiser rather than an effect because the
+   *  workspace is MOUNTED WHILE THE CARD IS COLLAPSED. Starting at `null` and
+   *  seeding on open was measured writing `decision: null` over a stored change
+   *  on the very first render after a reload: the workspace's persist effect saw
+   *  a value that differed from its restored pristine snapshot and dutifully
+   *  saved it. A supervisor's pending code change would have been lost by
+   *  loading the page.
+   *
+   *  `readReviewDraft` is a synchronous string read that returns null without a
+   *  window, and `hasSavedDraft` below already makes the same call every render.
+   *  `expandCard` re-seeds on each open, which is what keeps this honest once
+   *  the draft has been discarded or committed. */
+  const [decision, setDecision] = useState<ReviewDecision | null>(() =>
+    review ? (readReviewDraft(teen.id, review.id)?.decision ?? null) : null
+  );
   /** THE EVIDENCE DOCUMENT for this cycle. Window = last code update → now, so
    *  it is cadence-agnostic — see `care-summary-doc.ts`. */
   const summaryDocBase = careSummaryFor(teen.id, now, store);
@@ -525,6 +552,11 @@ export function CareTab({
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState(0);
   const expandCard = () => {
+    /* SEEDED FROM THE DRAFT AT THE MOMENT OF OPENING. The workspace used to do
+       this in its own initialiser; with the value up here, the open is the hook.
+       Reading session storage is a synchronous string lookup — the same read
+       `hasSavedDraft` already makes on every render. */
+    setDecision(review ? (readReviewDraft(teen.id, review.id)?.decision ?? null) : null);
     setReviewOpen(true);
     setWorkspaceFocus((n) => n + 1);
     requestAnimationFrame(() => {
@@ -558,7 +590,8 @@ export function CareTab({
     <CareReviewWorkspace
       review={panelReview}
       currentCode={presentation?.code ?? null}
-      currentStatement={presentation?.statement ?? null}
+      decision={decision}
+      onDecisionChange={setDecision}
       teenId={teen.id}
       prefill={{
         source: panelReview.rationale.source,
@@ -817,6 +850,13 @@ export function CareTab({
             /* So an in-progress review is discoverable without expanding it. */
             hasDraft: hasSavedDraft,
             currentCode: presentation?.code ?? null,
+            /* THE SAME PENDING CHANGE THE WORKSPACE READS. The card owns the
+               control and the delta bar; the workspace owns the CTA that commits
+               it. Both read this one value, so they cannot disagree about what is
+               about to happen. */
+            currentStatement: presentation?.statement ?? null,
+            decision,
+            onDecisionChange: canAct ? setDecision : undefined,
           }}
         />
         </div>

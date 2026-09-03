@@ -20,15 +20,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PillButton } from "@/components/settings/pill-button";
-import { ArrowRight, Pencil, X } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Dsm5SearchList } from "@/components/record/dsm5-search";
 import {
   CareUpdateFields,
   type DiagnosticPrefill,
@@ -38,7 +29,6 @@ import {
   type CareUpdateBody,
   type PresentationReview,
 } from "@/lib/record/care-demo";
-import type { Dsm5Entry } from "@/lib/record/dsm5";
 import {
   clearReviewDraft,
   clearSupersededDrafts,
@@ -63,9 +53,16 @@ export interface CareReviewWorkspaceProps {
   review: PresentationReview;
   /** The code on record — what "confirm" confirms, and the "before" of a change. */
   currentCode: string | null;
-  /** The statement for `currentCode`, so the change delta can name what is being
-   *  replaced rather than only its code. */
-  currentStatement?: string | null;
+  /** ═══ THE PENDING CHANGE, OWNED BY `care-tab` ═══
+   *  `null` means unchanged, which is the outcome an untouched review commits.
+   *  This form reads it for the CTA label and the commit, and writes it into the
+   *  draft; the control that CHANGES it is in the card's title block. */
+  decision: ReviewDecision | null;
+  /** ═══ THE ONE WRITE THIS FORM STILL MAKES TO THE DECISION ═══
+   *  Discarding the draft clears the pending change with it — the two are one
+   *  act, and leaving a change behind after "Discard it?" would be the stale
+   *  draft defect inverted. Every OTHER write comes from the title block. */
+  onDecisionChange: (next: ReviewDecision | null) => void;
   teenId: string;
   prefill?: DiagnosticPrefill | null;
   now: number;
@@ -89,7 +86,8 @@ export interface CareReviewWorkspaceProps {
 export function CareReviewWorkspace({
   review,
   currentCode,
-  currentStatement,
+  decision,
+  onDecisionChange,
   teenId,
   prefill,
   now,
@@ -107,9 +105,15 @@ export function CareReviewWorkspace({
     return readReviewDraft(teenId, review.id);
   }, [teenId, review.id]);
 
-  const [decision, setDecision] = useState<ReviewDecision | null>(
-    restored?.decision ?? null
-  );
+  /* ═══ `decision` IS NOW A PROP, AND THE DRAFT STILL LIVES HERE ═══
+     The control that sets it moved to the card's title block, which is this
+     component's PARENT — so the state moved up to `care-tab`, which owns the
+     review's lifecycle and already reads the draft to decide whether to
+     advertise one.
+     WHAT DID NOT MOVE is draft persistence: this form still writes
+     `{ decision, body }` on every change and still clears on a return to
+     pristine. The brief keeps drafts unchanged, and splitting the write across
+     two components is how a draft ends up half-written. */
   /** What this opened with — the restored draft, or the AI prefill, or empty. */
   const [initialBody] = useState<CareUpdateBody>(() =>
     restored?.body ??
@@ -123,9 +127,7 @@ export function CareReviewWorkspace({
     diagnostic: false,
     assessment: false,
   });
-  const [query, setQuery] = useState("");
   /** The code picker's own open state — a dialog now, not an inline list. */
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [announce, setAnnounce] = useState("");
@@ -133,23 +135,15 @@ export function CareReviewWorkspace({
   const clinicalRef = useRef<HTMLTextAreaElement | null>(null);
   const diagnosticRef = useRef<HTMLTextAreaElement | null>(null);
   const assessmentRef = useRef<HTMLButtonElement | null>(null);
-  /** The control the picker returns focus to, captured so Radix does not drop a
-   *  keyboard reader on <body> — the same failure the DSM-5 dialog had to fix. */
-  const changeRef = useRef<HTMLButtonElement | null>(null);
-  const pickerInputRef = useRef<HTMLInputElement | null>(null);
-  const decisionRef = useRef<HTMLDivElement | null>(null);
 
-  /** ═══ FOCUS LANDS ON "CHANGE CODE", NOT ON A FIELD ═══
-   *  It used to land on the first of the Confirm/Change pair, and that pair is
-   *  gone. The equivalent is the one control that can still alter the outcome:
-   *  a supervisor arriving here either changes the code or fills the fields, and
-   *  the change is the decision the rest of the form is written against.
-   *
-   *  `changeRef` IS ALSO THE PICKER'S RETURN TARGET, which makes this one ref for
-   *  one control rather than two refs racing for the same button. Nothing is
-   *  trapped: the card is in the page, and Tab leaves it as it leaves anything. */
+  /** ═══ FOCUS LANDS ON THE FIRST FIELD NOW ═══
+   *  It landed on "Change code", and that button has moved to the card's title
+   *  block — above this component, and reachable by Tab from here backwards,
+   *  which is the wrong direction to send someone who has just opened a form.
+   *  The first thing this section asks for is the clinical summary, so that is
+   *  where focus goes. Nothing is trapped: the card is in the page. */
   useEffect(() => {
-    if (focusSignal > 0) changeRef.current?.focus();
+    if (focusSignal > 0) clinicalRef.current?.focus();
   }, [focusSignal]);
 
   /** ═══ EVERY KEYSTROKE AND EVERY DECISION IS PERSISTED ═══
@@ -183,9 +177,28 @@ export function CareReviewWorkspace({
    *  still writes nothing, and a draft can no longer outlive the state it
    *  describes. `touched` tracks whether there is anything to clear, so a
    *  scrolled-past review does not issue a pointless removal on every render. */
-  const touched = useRef(restored != null);
+  /** ═══ AND A RESTORED DRAFT IS NOT A RETURN TO PRISTINE ═══
+   *
+   *  `touched` started as `restored != null`, which made the FIRST run of the
+   *  effect — the one on mount, before anyone has typed — clear the very draft
+   *  it had just restored: a restored draft equals its own pristine snapshot by
+   *  construction. Measured on t19: pick a code, reload, and the change is back
+   *  on screen while session storage is empty behind it. Open the card and the
+   *  re-seed reads that empty storage and drops the change.
+   *
+   *  So pristine only means "nothing of its own" when this OPENED with nothing.
+   *  If it opened with a draft, sitting at that draft's state is a reason to
+   *  keep it, not to delete it. The R7 intent survives untouched: a review
+   *  merely scrolled past still writes nothing, and Remove still clears a change
+   *  the supervisor took back — that state DIFFERS from a restored pristine, so
+   *  it is written rather than skipped. */
+  const startedWithDraft = restored != null;
+  const touched = useRef(false);
   useEffect(() => {
-    if (JSON.stringify({ decision, body }) === pristine.current) {
+    if (
+      !startedWithDraft &&
+      JSON.stringify({ decision, body }) === pristine.current
+    ) {
       if (touched.current) {
         clearReviewDraft(teenId, review.id);
         touched.current = false;
@@ -194,7 +207,7 @@ export function CareReviewWorkspace({
     }
     writeReviewDraft(teenId, review.id, { decision, body, savedAt: Date.now() });
     touched.current = true;
-  }, [teenId, review.id, decision, body]);
+  }, [teenId, review.id, decision, body, startedWithDraft]);
 
   const proposed = review.recommended;
 
@@ -288,7 +301,7 @@ export function CareReviewWorkspace({
                 <button
                   type="button"
                   onClick={() => {
-                    setDecision(null);
+                    onDecisionChange(null);
                     setBody(emptyCareUpdateBody());
                     setErrors({
                       clinical: false,
@@ -345,204 +358,16 @@ export function CareReviewWorkspace({
             rationale, and the survey grid behind the card's disclosure) and in
             the digest; this is where the decision gets written. */}
 
-        {/* ═══ R7/B: IMPLICIT CONFIRM ═══
-            The prompt, the Confirm/Change pair and the decision-required
-            validation are GONE. Submitting without a change now records the code
-            on record as reviewed-unchanged — that is the intended model, not a
-            validation gap, and the CTA says which of the two it is about to do.
+        {/* ═══ THE CODE-ON-RECORD ROW AND ITS BUTTON MOVED TO THE TITLE ═══
+            "Change code", the delta bar and the picker dialog now live in the
+            card's title block — where the code on record already is. Keeping the
+            control next to a second copy of the code, two sections down from the
+            title that states it, meant a supervisor read the code twice and acted
+            on it in the further-away place.
 
-            WHAT THAT REMOVES: a supervisor whose answer was "nothing has
-            changed" had to say so twice, once by not changing the code and once
-            by pressing a button that said the same thing. The commit already
-            knows.
-
-            `decision === null` NOW MEANS UNCHANGED rather than unanswered. It is
-            normalised to `{ kind: "confirm" }` at commit, so the owner's commit
-            semantics are untouched — a renewal still records "{code} —
-            unchanged" and a change still carries its amendment linkage. */}
-        <section
-          ref={decisionRef}
-          tabIndex={-1}
-          className="mt-6 outline-none"
-          aria-labelledby="rv-decision-label"
-        >
-          <p
-            id="rv-decision-label"
-            className="text-[var(--text-muted)]"
-            style={LABEL_STYLE}
-          >
-            {/* TODO-COPY — PLACEHOLDER. */}
-            Care update
-          </p>
-
-          {/* ═══ THE CODE ON RECORD, AND ONE WAY TO CHANGE IT ═══
-              Replaces the decision pair. It states what is on record rather than
-              asking a question whose answer is already implied, and the single
-              outlined control is the only thing a supervisor has to press if the
-              answer is not "unchanged". Opens the SAME dialog the pair opened. */}
-          {!(decision?.kind === "change" && decision.code) && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
-              <span className="min-w-0 flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {currentStatement ?? proposed.statement}{" "}
-                <span className="tabular-nums text-[var(--text-secondary)]">
-                  ({currentCode ?? proposed.code})
-                </span>
-              </span>
-              <button
-                type="button"
-                ref={changeRef}
-                onClick={() => {
-                  setDecision({ kind: "change", code: "", statement: "" });
-                  setPickerOpen(true);
-                }}
-                className={cn(
-                  "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 py-1.5",
-                  "text-[13px] font-semibold leading-[18px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-                  RING
-                )}
-              >
-                <Pencil className="size-3.5 shrink-0" aria-hidden />
-                {/* TODO-COPY — PLACEHOLDER. */}
-                Change code
-              </button>
-            </div>
-          )}
-
-          {/* ═══ THE DELTA, ON ONE LINE — AND IT REPLACES THE ROW ABOVE ═══
-              What is on record, struck through AND dimmed — either alone is a
-              single channel, and a strikethrough at full strength reads as
-              emphasis rather than removal — then the arrow, then what it becomes
-              at full weight. Name and code for both, because a code alone is not
-              readable by everyone who reads this record.
-
-              IT REPLACES the code-on-record row rather than sitting under it:
-              two rows both claiming to state the code would make a reader work
-              out which one is current.
-
-              ═══ REMOVE IS NOT OPTIONAL AND IS NOT IN A MENU ═══
-              With Confirm gone, this is the ONLY path back to no-change. A
-              supervisor who opened the picker to look, or picked the wrong row,
-              would otherwise have no way to say "actually, nothing changes"
-              short of discarding the whole draft. */}
-          {decision?.kind === "change" && decision.code && (
-            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2">
-              {currentCode && (
-                <>
-                  <span className="text-[13px] leading-[18px] text-[var(--text-muted)] line-through decoration-1">
-                    {currentStatement ?? proposed.statement} ({currentCode})
-                  </span>
-                  <ArrowRight
-                    className="size-3.5 shrink-0 text-[var(--text-muted)]"
-                    aria-hidden
-                  />
-                </>
-              )}
-              <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-                {decision.statement}{" "}
-                <span className="tabular-nums">({decision.code})</span>
-              </span>
-              <span className="ml-auto flex shrink-0 items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen(true)}
-                  className={cn(
-                    "rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2",
-                    RING
-                  )}
-                >
-                  {/* TODO-COPY */}
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    /* BACK TO NO CHANGE. `null` is the unchanged state now, so
-                       clearing the decision restores the code-on-record row, and
-                       the draft effect below writes the cleared value — the CTA
-                       reverts with it because it reads the same field. */
-                    setDecision(null);
-                    // Focus returns to the control that will be there after this
-                    // render, not to the button that just unmounted.
-                    requestAnimationFrame(() => changeRef.current?.focus());
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-sm text-[13px] text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]",
-                    RING
-                  )}
-                >
-                  <X className="size-3.5 shrink-0" aria-hidden />
-                  {/* TODO-COPY — PLACEHOLDER. */}
-                  Remove
-                </button>
-              </span>
-            </div>
-          )}
-
-          {/* ═══ THE PICKER IS A DIALOG NOW ═══
-              Built from `Dsm5SearchList` inside a plain Bloom dialog rather than
-              reusing `Dsm5SearchDialog`: that component carries a two-step
-              confirm this flow does not want, and it is SHARED with the Tasks
-              billing picker, so changing its steps would have changed a surface
-              outside this brief. The list is the shared part; the chrome is not.
-              Radix gives the focus trap and Escape; picking a row closes it. */}
-          <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-            <DialogContent
-              className="sm:max-w-lg"
-              onOpenAutoFocus={(e) => {
-                e.preventDefault();
-                pickerInputRef.current?.focus();
-              }}
-              onCloseAutoFocus={(e) => {
-                e.preventDefault();
-                // Focus returns to the control that opened it, not to <body>.
-                changeRef.current?.focus();
-              }}
-            >
-              <DialogHeader>
-                {/* TODO-COPY */}
-                <DialogTitle>Find a presentation</DialogTitle>
-                <DialogDescription>
-                  Search by code or by wording. Nothing is saved until you submit
-                  the review.
-                </DialogDescription>
-              </DialogHeader>
-              <Dsm5SearchList
-                current={
-                  currentCode
-                    ? { code: currentCode, statement: currentStatement ?? proposed.statement }
-                    : null
-                }
-                query={query}
-                onQueryChange={setQuery}
-                inputRef={pickerInputRef}
-                onPick={(e: Dsm5Entry) => {
-                  /* ═══ PICKING THE CODE ON RECORD IS NOT A CHANGE ═══
-                     The list marks one row "On record", and picking it used to
-                     produce `{kind:"change", code: <the same code>}` — a delta
-                     bar reading "F41.1 → F41.1" and a CTA offering to save a
-                     change to the code that is already there.
-                     It never mattered while Confirm existed, because that was
-                     the control for this answer. With implicit confirm it is
-                     reachable in one click, so it resolves to the unchanged
-                     state — which is what the reader just asked for. */
-                  if (currentCode && e.code === currentCode) {
-                    setDecision(null);
-                  } else {
-                    setDecision({
-                      kind: "change",
-                      code: e.code,
-                      statement: e.statement,
-                    });
-                  }
-                  // NO CONFIRM STEP. The review's own commit is that step, and a
-                  // second one here would teach people to click through steps.
-                  setPickerOpen(false);
-                }}
-                listClassName="max-h-72"
-              />
-            </DialogContent>
-          </Dialog>
-        </section>
+            THE SECTION LABEL WENT WITH THEM. It said "Care update", and the
+            Documentation block below has always been the care update; a label
+            over a row that is no longer here would be a heading for nothing. */}
 
         {/* ═══ DOCUMENTATION ═══
             The same three fields the standalone care update uses, from the same
