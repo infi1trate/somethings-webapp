@@ -34,10 +34,20 @@
 // RATIONALE_SOURCE_LABEL.
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronRight, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, Pencil, RefreshCw } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 // The dropdown-menu import is gone with the ellipsis it served — see the actions
 // slot below for what that menu contained.
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Dsm5SearchList } from "@/components/record/dsm5-search";
+import type { Dsm5Entry } from "@/lib/record/dsm5";
+import type { ReviewDecision } from "@/lib/record/review-draft";
 import { TaskCard } from "@/components/record/task-card";
 // `decision-footer` is deliberately NOT imported any more. It still exists and
 // the flag review modal still uses `DecisionNote` + `noteReady`; this card simply
@@ -90,6 +100,9 @@ export function PresentationReviewCard({
   workspace,
   hasDraft = false,
   currentCode = null,
+  currentStatement = null,
+  decision = null,
+  onDecisionChange,
 }: {
   review: PresentationReview;
   /** `currentCode` was here so approving could name what it replaced. The owner
@@ -131,6 +144,15 @@ export function PresentationReviewCard({
   /** The code on record, so the band can say whether the proposal is a change.
    *  The card never decides anything with it — see the chip's note. */
   currentCode?: string | null;
+  /** The statement for `currentCode`, so the delta bar can name what is being
+   *  replaced rather than showing a bare code. */
+  currentStatement?: string | null;
+  /** ═══ THE PENDING CHANGE ═══
+   *  Owned by `care-tab`. The title block is where it is SET (the picker) and
+   *  where it is SHOWN (the delta bar); the workspace reads the same value for
+   *  its CTA and its commit. `null` is unchanged. */
+  decision?: ReviewDecision | null;
+  onDecisionChange?: (next: ReviewDecision | null) => void;
 }) {
   /** Lifted out of the old Disclosure component: the header must not own the
    *  body's open state, or it re-renders around it. */
@@ -146,6 +168,39 @@ export function PresentationReviewCard({
    *  transition: focusing on mount would steal the caret from whatever the reader
    *  was doing when the card first appeared. */
   const bandRef = useRef<HTMLSpanElement | null>(null);
+  /** The picker's open state and its search query — moved here with the button
+   *  and the dialog. `changeRef` is the picker's focus-return target AND the
+   *  landing spot after Remove, so it is one ref for one control. */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const changeRef = useRef<HTMLButtonElement | null>(null);
+  const pickerInputRef = useRef<HTMLInputElement | null>(null);
+
+  /** ═══ ONE CLOSE PATH, BECAUSE FOCUS HAS TO COME BACK FROM ALL OF THEM ═══
+   *
+   *  `onOpenChange` fires only when the PRIMITIVE closes itself — Esc, the
+   *  overlay, the close control. Picking a row closes it from our own code, so a
+   *  focus-return hung on `onOpenChange` was measured never running on the one
+   *  path a supervisor actually takes: focus stayed on the search field of a
+   *  dialog that was no longer on screen.
+   *
+   *  The return is done by hand rather than by `onCloseAutoFocus` because every
+   *  dialog in this app stays mounted at `data-state="closed"` — Radix waits on
+   *  an `animate-out` that never reports finishing. Escaping the care summary's
+   *  own "Change Presentation" dialog parks the keyboard in exactly the same
+   *  way, so the defect is app-wide and lives in the shared `ui/dialog` that
+   *  every surface here uses; fixing it THERE is outside this brief.
+   *
+   *  A TIMER RATHER THAN THE TWO-FRAME IDIOM used elsewhere in this file's
+   *  neighbourhood. Radix does its focus work in effects and microtasks, not on
+   *  frames, so a macrotask is both the smaller wait and the correct one — and
+   *  it still runs when the document is hidden, which `requestAnimationFrame`
+   *  does not. Someone who opens the picker and switches tabs still gets the
+   *  keyboard back on the control they left. */
+  const closePicker = () => {
+    setPickerOpen(false);
+    setTimeout(() => changeRef.current?.focus(), 0);
+  };
   const wasExpanded = useRef(expanded);
   useEffect(() => {
     if (wasExpanded.current && !expanded) {
@@ -189,9 +244,20 @@ export function PresentationReviewCard({
   // owner derives it now — see `outcomeFor` in `care-tab.tsx` — because the
   // decision is assembled where the care update's id is known.
 
-  /* THE PROPOSAL CHIP, built once and rendered beside the title below. It
-   *  describes the PROPOSAL and never the draft — a supervisor who changes the
-   *  code does not rewrite what was proposed. */
+  /** ═══ THE PENDING CHANGE, RESOLVED ONCE ═══
+   *  `null` unless a supervisor has picked something in the picker. Everything
+   *  that reflects it below — the code line, the title, the revert link — reads
+   *  this one value, so the header cannot show one presentation while the
+   *  control beside it offers to revert to another. */
+  const pending =
+    expanded && decision?.kind === "change" && decision.code ? decision : null;
+
+  /** WHAT THE HEADER STATES. The recommendation until someone changes it, and
+   *  the change from the moment they do — the header is the presentation this
+   *  review is now about, not a frozen record of what was proposed. */
+  const shown = pending ?? review.recommended;
+
+  /* THE CHIP SLOT — the proposal chip, or the way back out of a change. */
   const proposalChip = canAct ? (
     <>
             {/* ═══ THE PROPOSAL CHIP — WHAT THE MODEL SUGGESTED ═══
@@ -207,7 +273,41 @@ export function PresentationReviewCard({
         THE CODE TRUNCATES, THE WORDS DO NOT. `min-w-0` on the code span
         alone means a narrow band clips "F43.22" before it clips "Change
         proposed", and `title` carries the whole thing either way. */}
-    {proposesChange ? (
+    {pending ? (
+      /* ═══ REVERT REPLACES THE PROPOSAL CHIP ═══
+         "Renewal proposed" stops being true the moment a supervisor picks a
+         different code — nothing is being renewed any more — so the chip's slot
+         carries the way back instead of a label that has gone stale.
+         IT NAMES ITS DESTINATION. "Revert" alone would ask someone to remember
+         what the header said before they changed it; naming the presentation and
+         its code means the link states exactly what pressing it restores, which
+         is the same thing the header will read afterwards.
+         A LINK, NOT A BUTTON PAIR. Re-picking is what "Change code" already
+         does, so the old bar's Edit was a second door to one room. */
+      <button
+        type="button"
+        onClick={() => {
+          onDecisionChange?.(null);
+          // Focus goes to the control that survives this render, not to the
+          // link that is about to unmount.
+          setTimeout(() => changeRef.current?.focus(), 0);
+        }}
+        className={cn(
+          /* `-my-1 py-1` BUYS THE TARGET HEIGHT WITHOUT MOVING ANYTHING.
+             A 12.5px link is a 16px box, and this is now the only way back from
+             a change — too small to be the one control that undoes something.
+             The padding takes it to 24px for SC 2.5.8 while the negative margin
+             hands the row back the four pixels, so the baseline it shares with
+             the title is exactly where it was. */
+          "-my-1 min-w-0 rounded-sm py-1 text-left text-[12.5px] leading-[16px] text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]",
+          RING
+        )}
+      >
+        {/* TODO-COPY — PLACEHOLDER. */}
+        Revert back to {review.recommended.statement} (
+        <span className="tabular-nums">{review.recommended.code}</span>)
+      </button>
+    ) : proposesChange ? (
       <span
         title={`Change proposed → ${review.recommended.code}`}
         className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
@@ -321,7 +421,7 @@ export function PresentationReviewCard({
           codes on this tab look like the same kind of object. */}
       <div>
         <p className="mb-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
-          {review.recommended.code}
+          {shown.code}
         </p>
         {/* ═══ R7/A: THE PROPOSAL CHIP SITS WITH THE TITLE ═══
             It was at the far right of the header band, a whole row away from the
@@ -337,13 +437,149 @@ export function PresentationReviewCard({
 
             `items-baseline` rather than `items-center`: centring a 16px chip on a
             26px line box floats it above the title's baseline. TODO-COPY. */}
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
-            {review.recommended.statement}
-          </p>
-          {proposalChip}
+        {/* ═══ TITLE → CHIP │ CHANGE CODE ═══
+            TWO GROUPS, AND ONLY THE INNER ONE WRAPS. A single `flex-wrap` row
+            put the whole button on its own line as soon as the title got long,
+            which is exactly backwards: the chip is a NOTE about the title and can
+            drop, the button is the row's ACTION and has to stay on the title's
+            line to be found. So title+chip share a wrapping group and the button
+            sits outside it, `shrink-0`.
+
+            The title wraps rather than truncating — it is the thing being
+            reviewed, and half a presentation name is worse than two lines of it.
+
+            AND THE OUTER ROW WRAPS TOO, below a floor. `min-w-48` on the title
+            group is what decides where: with the button and its gap needing
+            ~138px, a card narrower than ~330px cannot seat both, and without the
+            floor the title group simply kept shrinking — measured at 375px as a
+            139px column running the presentation name down FIVE lines beside a
+            button. Past the floor the button takes its own line and the title
+            gets the full width, which is the right trade on a phone: the action
+            is still directly under the thing it acts on.
+
+            THE BUTTON IS EXPANDED-ONLY. A collapsed card keeps Review as its one
+            action; offering a code change from a card nobody has opened would be
+            acting before reading. */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <span className="flex min-w-48 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
+              {shown.statement}
+            </p>
+            {proposalChip}
+          </span>
+          {expanded && canAct && onDecisionChange && (
+            <button
+              type="button"
+              ref={changeRef}
+              /* OPENING THE PICKER DECIDES NOTHING. Seeding a
+                 `{kind:"change", code:""}` here to "start" a change would make a
+                 cancelled look into a pending change with no code — enough to
+                 dirty the draft and to feed an empty string to the workspace's
+                 `outcomeCode`. The decision is made by picking a row. */
+              onClick={() => setPickerOpen(true)}
+              className={cn(
+                "inline-flex min-h-9 shrink-0 items-center gap-1.5 self-center rounded-full",
+                "border border-[color:var(--border-contour)] px-3 py-1.5",
+                "text-[13px] font-semibold leading-[18px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+                RING
+              )}
+            >
+              <Pencil className="size-3.5 shrink-0" aria-hidden />
+              {/* TODO-COPY — PLACEHOLDER. */}
+              Change code
+            </button>
+          )}
         </div>
       </div>
+
+      {/* THE DELTA BAR IS GONE. It stated the change as old-struck → new with
+          Edit and Remove, on the premise that the title had to keep showing the
+          code on record until commit. The product decision is the other one: the
+          HEADER now moves to the new presentation the moment it is picked, and
+          the only thing a supervisor still needs is the way back — which is the
+          revert link in the chip's slot above. A bar restating a change the
+          header already states is the same fact twice, and its Edit was a second
+          door into the picker "Change code" already opens. */}
+
+      {/* ═══ THE PICKER ═══
+          Moved here with the button that opens it. Built from `Dsm5SearchList`
+          inside a plain Bloom dialog rather than reusing `Dsm5SearchDialog`: that
+          component carries a two-step confirm this flow does not want, and it is
+          SHARED with the Tasks billing picker, so changing its steps would change
+          a surface outside this brief. The list is the shared part; the chrome is
+          not. */}
+      {expanded && canAct && onDecisionChange && (
+        <Dialog
+          open={pickerOpen}
+          /* ═══ FOCUS IS PUT BACK BY HAND, NOT LEFT TO THE PRIMITIVE ═══
+             MEASURED, and it is not this picker's doing: every dialog in this
+             app stays mounted at `data-state="closed"` — Radix waits on an
+             `animate-out` that never reports finishing — and focus stays parked
+             inside the invisible panel. Escaping the care summary's own "Change
+             Presentation" dialog leaves the keyboard in exactly the same place,
+             so the defect is app-wide and lives in the shared `ui/dialog`, which
+             every surface in the product uses.
+             Fixing it THERE is out of this brief's scope, so the return is done
+             here instead. Two frames, the idiom this codebase already uses when
+             it has to land after someone else's layout work: the first yields to
+             Radix's own restoration, the second wins. */
+          onOpenChange={(next) => (next ? setPickerOpen(true) : closePicker())}
+        >
+          <DialogContent
+            className="sm:max-w-lg"
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              pickerInputRef.current?.focus();
+            }}
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              // Focus returns to the control that opened it, not to <body>.
+              changeRef.current?.focus();
+            }}
+          >
+            <DialogHeader>
+              {/* TODO-COPY */}
+              <DialogTitle>Find a presentation</DialogTitle>
+              <DialogDescription>
+                Search by code or by wording. Nothing is saved until you submit
+                the review.
+              </DialogDescription>
+            </DialogHeader>
+            <Dsm5SearchList
+              current={
+                currentCode
+                  ? {
+                      code: currentCode,
+                      statement: currentStatement ?? review.recommended.statement,
+                    }
+                  : null
+              }
+              query={query}
+              onQueryChange={setQuery}
+              inputRef={pickerInputRef}
+              onPick={(e: Dsm5Entry) => {
+                /* PICKING THE CODE ON RECORD IS NOT A CHANGE. The list marks one
+                   row "On record"; choosing it resolves to the unchanged state
+                   rather than producing a delta bar reading "F41.1 → F41.1". */
+                if (currentCode && e.code === currentCode) {
+                  onDecisionChange(null);
+                } else {
+                  onDecisionChange({
+                    kind: "change",
+                    code: e.code,
+                    statement: e.statement,
+                  });
+                }
+                // NO CONFIRM STEP. The review's own commit is that step.
+                // Closed through the SAME path Esc and the overlay take, so
+                // picking a code returns the keyboard where dismissing does.
+                closePicker();
+              }}
+              listClassName="max-h-72"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* 2 · RATIONALE — only where a human or a model actually wrote one.
           A `templated` rationale is the intake mapping restating the score it
@@ -422,7 +658,12 @@ export function PresentationReviewCard({
                    stat row is label + value + sub-line, so 92px. It stays FIXED
                    for the original reason — the expanded body is a sibling, and
                    nothing the body does may move anything in this header. */
-                "flex h-[92px] w-full cursor-pointer items-center gap-x-3 px-3.5 text-left",
+                /* MIN-height, not fixed. The fixed height existed so the expanded
+                   body could not move anything in this header — and it still
+                   cannot, because a wrap here is caused by CONTAINER WIDTH, not
+                   by the body opening. Three data need to be able to go to two
+                   lines rather than squeeze a value. */
+                "flex min-h-[92px] w-full cursor-pointer items-center gap-x-3 px-3.5 py-2 text-left",
                 "transition-colors hover:bg-[var(--tint-hover)]",
                 RING
               )}
@@ -440,13 +681,32 @@ export function PresentationReviewCard({
 
                   THE SCORE DROPS 24px → 20px. That is the pattern's size, and
                   matching it is the point of adopting the pattern. */}
-              <span className="flex min-w-0 flex-1 items-start gap-x-8">
+              {/* ═══ THREE DATA, WRAPPING 2+1 BEFORE ANY VALUE TRUNCATES ═══
+                  `flex-wrap` with each datum `shrink-0`: the row would rather go
+                  to two lines than squeeze a value, because a truncated "10 / 21"
+                  is not a score and a truncated date range is not a window. The
+                  instrument leaves the Surveys sub-line and becomes its own
+                  datum, so the sub-line is dates alone. */}
+              <span className="flex min-w-0 flex-1 flex-wrap items-start gap-x-8 gap-y-3">
+                {/* ═══ DATUM 1 — THE INSTRUMENT ═══
+                    It was a prefix on the Surveys sub-line, where it read as part
+                    of the date range rather than as the thing being measured.
+                    TODO-COPY — PLACEHOLDER. */}
+                <span className="flex shrink-0 flex-col gap-y-1">
+                  <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                    Assigned survey
+                  </span>
+                  <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
+                    {evidence.instrument}
+                  </span>
+                </span>
+
                 {/* ═══ DATUM 1 ═══
                     "Weighted score" ONLY when there is a weighting. One reading
                     weighted is not a weighting, and calling it one would be the
                     single-survey lie A5 exists to prevent. TODO-COPY —
                     PLACEHOLDERS. */}
-                <span className="flex min-w-0 flex-col gap-y-1">
+                <span className="flex shrink-0 flex-col gap-y-1">
                   <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
                     {review.aggregate ? "Weighted score" : "Score"}
                   </span>
@@ -470,7 +730,7 @@ export function PresentationReviewCard({
                 {/* ═══ DATUM 2 ═══
                     The count is a value now rather than a clause in the deleted
                     eyebrow, and the window it covers is its sub-line. */}
-                <span className="flex min-w-0 flex-col gap-y-1">
+                <span className="flex shrink-0 flex-col gap-y-1">
                   <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
                     {/* TODO-COPY — PLACEHOLDER. */}
                     Surveys
@@ -478,15 +738,17 @@ export function PresentationReviewCard({
                   <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
                     {review.aggregate ? review.aggregate.surveys.length : 1}
                   </span>
-                  <span className="min-w-0 truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
-                    {/* THE WINDOW, oldest → newest. On one survey it is that
-                        survey's own date and carries no range and no "weighted"
-                        language anywhere. TODO-COPY. */}
+                  <span className="whitespace-nowrap text-[13px] leading-[18px] text-[var(--text-muted)]">
+                    {/* DATES ALONE. The instrument moved to its own datum, so
+                        repeating it here would state one fact twice in one row.
+                        Oldest → newest; on one survey it is that survey's own
+                        date, with no range and no "weighted" language anywhere in
+                        the unit. TODO-COPY. */}
                     {review.aggregate
-                      ? `${evidence.instrument} · ${clinicalDate(
+                      ? `${clinicalDate(
                           review.aggregate.surveys[review.aggregate.surveys.length - 1].at
                         )} – ${clinicalDate(review.aggregate.surveys[0].at)}`
-                      : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
+                      : clinicalDate(evidence.at)}
                   </span>
                 </span>
               </span>
@@ -494,9 +756,18 @@ export function PresentationReviewCard({
               {/* PINNED, and now a LABEL rather than a control. Its own flex
                   child in a fixed-height row, so it cannot move. */}
               <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-                {/* TODO-COPY. Was "Question by question" — this names the thing
-                    the reader gets rather than describing the layout of it. */}
-                Survey answers
+                {/* TODO-COPY — PLACEHOLDER. Was "Survey answers"; "Show results"
+                    names the action rather than the destination, which is what a
+                    disclosure label is for. NO COUNT SUFFIX: the Surveys datum
+                    two columns to the left already carries the number, and a
+                    second copy in the control would be the same fact twice on one
+                    row.
+                    IT TOGGLES, because the old label did not have to. "Survey
+                    answers" was a NOUN — true in both states, with the chevron
+                    carrying the state. An action phrase that never changes says
+                    "Show results" while the results are on screen, which is the
+                    label contradicting the thing it labels. */}
+                {open ? "Hide results" : "Show results"}
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",
@@ -573,7 +844,13 @@ export function PresentationReviewCard({
               subtree out of the tab order and the accessibility tree without
               touching layout, so the height still animates. */}
           <div className="overflow-hidden" inert={!expanded}>
-            <div className="mt-4 border-t border-[color:var(--border-subtle)] pt-4">
+            {/* NO RULE HERE. This drew one hairline and the Documentation
+                section below drew a second, four lines apart with nothing
+                between them — the gap the decision row used to fill. The strip
+                above is a FILLED panel, which already separates itself from what
+                follows; a rule immediately under it was drawing a boundary that
+                the surface change had already drawn. */}
+            <div className="mt-6">
               {workspace}
             </div>
           </div>
