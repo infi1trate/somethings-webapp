@@ -41,7 +41,6 @@ import {
   INSTRUMENT_MAX,
   type CareAssessment,
 } from "@/lib/record/care-demo";
-import { bandLabel } from "@/components/record/score-chip";
 import { Provenance } from "@/components/record/provenance";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { cn } from "@/lib/utils";
@@ -67,23 +66,25 @@ const LABEL_STYLE = {
  *
  *  Each step pairs its own `-fg` with its `-bg`, which is what those token pairs
  *  are for — picking a foreground by hand is how a tint ends up at 3:1. */
-const TINT: Record<number, string> = {
-  2: "bg-[var(--band-sand-bg)] text-[var(--band-sand-fg)]",
-  3: "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]",
-};
 
-/** TODO-COPY. Plain language, not formula soup — see the brief. It says what the
- *  number leans on and what it is for, and stops. */
-const WEIGHTING_NOTE =
-  "The weighted score leans on the most recent survey more than the ones before it, so a single old reading cannot hold the number up or drag it down. It is here to show the direction of a period rather than the result of one day.";
+/** ═══ THE TOTALS NOTE NAMES THE ACTUAL NUMBER ═══
+ *
+ *  A tooltip saying "these are weighted to produce the score above" would leave a
+ *  reader checking which score, on a card that shows several. It is built with
+ *  the aggregate passed in, so it states the figure it derives. TODO-COPY —
+ *  PLACEHOLDER. */
+const totalsNote = (score: number) =>
+  `Each column is that survey's own total. Weighted towards the most recent, they give the ${score} shown above — so a single old reading cannot hold the number up or drag it down.`;
 
 export interface SurveyComparisonGridProps {
   /** NEWEST FIRST — the order `weightedAggregate` and every other surface uses.
    *  Up to three are read; anything beyond is ignored rather than squeezed in. */
   surveys: CareAssessment[];
-  /** The aggregate the card headline shows, so the totals row can reconcile with
-   *  it. Null on a single-survey record, where a weighted column would be the
-   *  mean of one number. */
+  /** The aggregate the strip above shows. It is no longer DISPLAYED in this
+   *  table — the weighted column is gone — but the totals row's ⓘ names it, so
+   *  the explanation of how these totals become that number cites the actual
+   *  figure. Null on a single-survey record, where there is nothing to weight and
+   *  the ⓘ correctly does not render. */
   weighted: { score: number; severity: string } | null;
   className?: string;
 }
@@ -136,31 +137,11 @@ export function SurveyComparisonGrid({
     [ordered]
   );
 
-  /** THE PER-QUESTION WEIGHTED VALUE, by the same rule as the headline score.
-   *  This is the column a reader actually scans: which items carry the
-   *  presentation across the period, not just last Tuesday. */
-  const weightedPoints = useMemo(
-    () =>
-      questions.map((_, qi) => {
-        let total = 0;
-        let divisor = 0;
-        ordered.forEach((s, si) => {
-          const w = AGGREGATE_WEIGHTS[si] ?? 0;
-          const pts = s.items[qi]?.points;
-          if (pts === undefined) return;
-          total += pts * w;
-          divisor += w;
-        });
-        return divisor ? Math.round(total / divisor) : 0;
-      }),
-    [questions, ordered]
-  );
 
   /** SINGLE SURVEY: NO WEIGHTED COLUMN. A recency-weighted mean of one reading is
    *  the reading, and a column that restates its neighbour teaches a reader that
    *  columns here can be noise. The totals row still renders — it is the line
    *  that reconciles with the card's headline. */
-  const showWeighted = !!weighted && ordered.length >= 2;
 
   /** Points → wording, read off the items themselves. See the module note. */
   const legend = useMemo(() => {
@@ -205,6 +186,7 @@ export function SurveyComparisonGrid({
 
   /** 32–36px rows, per the density spec — `h-[34px]` sits in the middle of it
    *  and holds 13px text with room to breathe at 200% zoom. */
+  const TOTALS_NOTE = weighted ? totalsNote(weighted.score) : "";
   const ROW = "h-[34px]";
   const NUMCOL = "w-[58px]";
 
@@ -228,15 +210,20 @@ export function SurveyComparisonGrid({
         <table className="w-full min-w-[300px] border-collapse text-left tabular-nums">
           <caption className="sr-only">
             {/* TODO-COPY */}
-            {instrument} answers by question, one column per survey, oldest
-            first{showWeighted ? ", with the recency-weighted value last" : ""}.
+            {/* ═══ THE CAPTION DESCRIBED A COLUMN THAT NO LONGER EXISTS ═══
+                It ended ", with the recency-weighted value last" whenever there
+                were two or more surveys. That column is gone, so a screen-reader
+                user was being told to expect a column nobody would find — and
+                nothing in the type system or the tests could catch a sentence.
+                Found by reading the rendered text, not the source. TODO-COPY. */}
+            {instrument} answers by question, one column per survey, oldest first,
+            with each survey&apos;s total on the last row.
           </caption>
           <colgroup>
             <col />
             {columns.map((c) => (
               <col key={c.survey.at} className={NUMCOL} />
             ))}
-            {showWeighted && <col className={NUMCOL} />}
           </colgroup>
 
           <thead>
@@ -260,51 +247,25 @@ export function SurveyComparisonGrid({
                      already carries the number this column is about. */
                   title={`${c.survey.instrument} · ${clinicalDate(c.survey.at)}`}
                 >
-                  <span className="block text-[12px] leading-[16px] text-[var(--text-muted)]">
+                  {/* ═══ DATE ONLY ═══
+                      The second line carried the column's total and band, and
+                      both now live where they belong: the total in the totals row
+                      at the foot of the column it belongs to, the band in the
+                      strip above the grid. A header that repeated the last line
+                      of its own column made the table three lines tall at the top
+                      to say something it said again at the bottom.
+                      THE YEAR STAYS IN THE `title`, per the R5 rule — see the
+                      note on the `th` above. */}
+                  <span className="block text-[13px] leading-[18px] text-[var(--text-primary)]">
                     {headerDates[i]}
-                  </span>
-                  {/* LINE 2 — total and band together, so the header is two
-                      lines rather than three and the columns stay short. */}
-                  <span className="block truncate text-[13px] leading-[18px] text-[var(--text-primary)]">
-                    {totalFor(c.survey)}{" "}
-                    <span className="text-[var(--text-muted)]">
-                      · {bandLabel(c.survey.severity)}
-                    </span>
                   </span>
                 </th>
               ))}
-              {showWeighted && (
-                /* THE WEIGHTED COLUMN IS THE ONE WITH A FILL. It is the only
-                   column that is not a survey — it is an interpretation of the
-                   three beside it — so it reads as a different kind of thing
-                   rather than a fourth reading. */
-                <th
-                  scope="col"
-                  className="rounded-t-[var(--radius-inset)] bg-[var(--surface-s1)] pb-2 pl-2 pr-2 align-bottom text-right font-normal"
-                >
-                  <span className="flex items-center justify-end gap-1 text-[12px] leading-[16px] text-[var(--text-muted)]">
-                    {/* TODO-COPY */}
-                    Weighted
-                    {/* THE EXISTING ⓘ, reused with its own note — see
-                        `provenance.tsx`. It is already dismissible, hoverable
-                        and focus-openable, which is the 1.4.13 machinery this
-                        would otherwise have to grow for itself. */}
-                    <Provenance label="Weighted" note={WEIGHTING_NOTE} />
-                  </span>
-                  <span className="block truncate text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-                    {weighted!.score}{" "}
-                    <span className="font-normal text-[var(--text-muted)]">
-                      · {bandLabel(weighted!.severity)}
-                    </span>
-                  </span>
-                </th>
-              )}
             </tr>
           </thead>
 
           <tbody>
             {questions.map((q, qi) => {
-              const wv = weightedPoints[qi] ?? 0;
               return (
                 <tr key={q} className="border-t border-[var(--border-subtle)]">
                   <th
@@ -348,23 +309,6 @@ export function SurveyComparisonGrid({
                     );
                   })}
 
-                  {showWeighted && (
-                    <td
-                      className={cn(
-                        ROW,
-                        "bg-[var(--surface-s1)] px-2 align-middle text-right"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block min-w-[24px] rounded-[var(--radius-inset)] px-1.5 py-0.5 text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]",
-                          TINT[wv]
-                        )}
-                      >
-                        {wv}
-                      </span>
-                    </td>
-                  )}
                 </tr>
               );
             })}
@@ -393,33 +337,65 @@ export function SurveyComparisonGrid({
                 className={cn(ROW, "pr-3 text-left align-middle font-medium text-[var(--text-muted)]")}
                 style={LABEL_STYLE}
               >
-                {/* TODO-COPY — the denominator comes from the instrument, never
-                    a literal, for the reason the card states at length. */}
-                Total{max ? ` / ${max}` : ""}
+                {/* ═══ THE LABEL MUST NOT SAY "WEIGHTED", AND THAT IS A RULE ═══
+                    These are each survey's RAW total. The weighted aggregate is
+                    one number for the whole period and it lives in the strip
+                    above; calling this row weighted would put two different
+                    meanings on one word inside one unit, which is the defect the
+                    weighted column's removal exists to fix rather than move.
+
+                    The ⓘ is where the relationship gets explained — reusing the
+                    record's existing `Provenance`, which is already dismissible,
+                    hoverable and FOCUS-openable (1.4.13). TODO-COPY.
+
+                    The denominator comes from the instrument, never a literal,
+                    for the reason the card states at length. */}
+                <span className="flex items-center gap-1.5">
+                  Total{max ? ` / ${max}` : ""}
+                  {weighted && (
+                    <Provenance
+                      label="Totals"
+                      /* NAMED. Without this the trigger inherits Provenance's
+                         default, "About this generated text" — which is wrong
+                         twice over here: these totals are not generated, and a
+                         screen-reader user would be told the button is about
+                         something it is not. Caught by reading the rendered
+                         `aria-label`, not by reading this call. TODO-COPY. */
+                      triggerLabel="About these totals"
+                      note={TOTALS_NOTE}
+                    />
+                  )}
+                </span>
               </th>
+              {/* ═══ THE CIRCLE TREATMENT MOVES HERE ═══
+                  It belonged to the per-question weighted cells, which are gone.
+                  A column total is now the emphasised number in its column, so
+                  it takes the emphasis.
+
+                  ═══ THE TINT IS NEUTRAL, AND THAT IS A DELIBERATE NARROWING ═══
+                  The deleted cells tinted by VALUE — sand at 2, amber at 3 — on a
+                  0–3 per-question scale. A column total runs 0–21, so that scale
+                  does not transfer, and the obvious substitute is to tint by the
+                  survey's own severity band. That is exactly what `tonal-chip.tsx`
+                  says this product is not doing yet: "SEVERITY BANDS STAY NEUTRAL
+                  FOR NOW ... severity is expressed only through the label-band
+                  pattern". Colouring nine totals by band would settle that
+                  question inside a table, so the circle carries EMPHASIS and the
+                  band is named in words in the strip above. Existing tokens, no
+                  new ones. Flagged in the report. */}
               {columns.map((c) => (
-                <td
-                  key={c.survey.at}
-                  className={cn(
-                    ROW,
-                    "pl-2 align-middle text-right text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]"
-                  )}
-                >
-                  {totalFor(c.survey)}
-                </td>
-              ))}
-              {showWeighted && (
-                <td
-                  className={cn(
-                    ROW,
-                    "rounded-b-[var(--radius-inset)] bg-[var(--surface-s1)] px-2 align-middle text-right"
-                  )}
-                >
-                  <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-                    {weighted!.score}
+                <td key={c.survey.at} className={cn(ROW, "pl-2 align-middle text-right")}>
+                  <span
+                    className={cn(
+                      "inline-block min-w-[26px] rounded-full px-2 py-0.5",
+                      "bg-[var(--surface-s1)] ring-1 ring-inset ring-[color:var(--border-subtle)]",
+                      "text-[13px] font-semibold leading-[18px] tabular-nums text-[var(--text-primary)]"
+                    )}
+                  >
+                    {totalFor(c.survey)}
                   </span>
                 </td>
-              )}
+              ))}
             </tr>
           </tfoot>
         </table>
