@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PillButton } from "@/components/settings/pill-button";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Pencil, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,7 @@ import {
 } from "@/lib/record/care-demo";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
 import {
+  clearReviewDraft,
   clearSupersededDrafts,
   draftAge,
   readReviewDraft,
@@ -122,7 +123,6 @@ export function CareReviewWorkspace({
     diagnostic: false,
     assessment: false,
   });
-  const [decisionError, setDecisionError] = useState(false);
   const [query, setQuery] = useState("");
   /** The code picker's own open state — a dialog now, not an inline list. */
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -133,20 +133,23 @@ export function CareReviewWorkspace({
   const clinicalRef = useRef<HTMLTextAreaElement | null>(null);
   const diagnosticRef = useRef<HTMLTextAreaElement | null>(null);
   const assessmentRef = useRef<HTMLButtonElement | null>(null);
-  const firstDecisionRef = useRef<HTMLButtonElement | null>(null);
   /** The control the picker returns focus to, captured so Radix does not drop a
    *  keyboard reader on <body> — the same failure the DSM-5 dialog had to fix. */
   const changeRef = useRef<HTMLButtonElement | null>(null);
   const pickerInputRef = useRef<HTMLInputElement | null>(null);
   const decisionRef = useRef<HTMLDivElement | null>(null);
 
-  /** ═══ FOCUS LANDS ON THE DECISION, NOT ON A FIELD ═══
-   *  The first thing this flow asks is "confirm or change", and the fields below
-   *  only make sense after that is answered — so focus goes to the first of the
-   *  two peer controls rather than into a textarea. Nothing is trapped: the card
-   *  is in the page, and Tab leaves it the way it leaves anything else. */
+  /** ═══ FOCUS LANDS ON "CHANGE CODE", NOT ON A FIELD ═══
+   *  It used to land on the first of the Confirm/Change pair, and that pair is
+   *  gone. The equivalent is the one control that can still alter the outcome:
+   *  a supervisor arriving here either changes the code or fills the fields, and
+   *  the change is the decision the rest of the form is written against.
+   *
+   *  `changeRef` IS ALSO THE PICKER'S RETURN TARGET, which makes this one ref for
+   *  one control rather than two refs racing for the same button. Nothing is
+   *  trapped: the card is in the page, and Tab leaves it as it leaves anything. */
   useEffect(() => {
-    if (focusSignal > 0) firstDecisionRef.current?.focus();
+    if (focusSignal > 0) changeRef.current?.focus();
   }, [focusSignal]);
 
   /** ═══ EVERY KEYSTROKE AND EVERY DECISION IS PERSISTED ═══
@@ -166,13 +169,34 @@ export function CareReviewWorkspace({
   const pristine = useRef(
     JSON.stringify({ decision: restored?.decision ?? null, body: initialBody })
   );
+  /** ═══ R7: RETURNING TO PRISTINE CLEARS THE DRAFT, IT DOES NOT SKIP ═══
+   *
+   *  The guard above only ever declined to WRITE, which was right while the only
+   *  way back to pristine was never having left it. Remove creates the other
+   *  case, and it was measured as a real defect: change the code, press Remove,
+   *  and the CTA correctly reverted to "unchanged" while the STORED DRAFT still
+   *  held `{kind: "change", code: "F33.0"}`. Reload and the change would come
+   *  back — the collapsed card would advertise a draft for a change the
+   *  supervisor had explicitly removed.
+   *
+   *  So pristine now clears. Both intents survive: a review merely scrolled past
+   *  still writes nothing, and a draft can no longer outlive the state it
+   *  describes. `touched` tracks whether there is anything to clear, so a
+   *  scrolled-past review does not issue a pointless removal on every render. */
+  const touched = useRef(restored != null);
   useEffect(() => {
-    if (JSON.stringify({ decision, body }) === pristine.current) return;
+    if (JSON.stringify({ decision, body }) === pristine.current) {
+      if (touched.current) {
+        clearReviewDraft(teenId, review.id);
+        touched.current = false;
+      }
+      return;
+    }
     writeReviewDraft(teenId, review.id, { decision, body, savedAt: Date.now() });
+    touched.current = true;
   }, [teenId, review.id, decision, body]);
 
   const proposed = review.recommended;
-  const proposesChange = currentCode !== proposed.code;
 
   /** The code this commit would write: the chosen one on a change, the code on
    *  record on a confirm. */
@@ -186,48 +210,50 @@ export function CareReviewWorkspace({
   /** ═══ NO DISABLED COMMIT ═══
    *  The button is always live and validation happens on the attempt, in plain
    *  language under the field that is missing. A disabled primary tells a reader
-   *  the screen is broken and not what to do about it — and on a form where the
-   *  gate is three fields and a decision, "why can't I click this" is a question
-   *  the button itself should answer. */
+   *  the screen is broken and not what to do about it.
+   *
+   *  ═══ R7/B: THE GATE IS THREE FIELDS. THE DECISION IS NO LONGER ONE ═══
+   *  `noDecision` and every state it drove are gone — no `decisionError`, no
+   *  "Choose an option above before submitting", no focus branch to a section
+   *  that no longer asks anything. Not submitting a change IS the decision, and
+   *  it is recorded as reviewed-unchanged. */
   const attemptCommit = () => {
     const gaps: FieldId[] = [];
     if (!body.clinical.trim()) gaps.push("clinical");
     if (!body.diagnostic.trim()) gaps.push("diagnostic");
     if (!body.assessment) gaps.push("assessment");
-    const noDecision = decision === null;
 
-    if (noDecision || gaps.length) {
-      setDecisionError(noDecision);
+    if (gaps.length) {
       setErrors({
         clinical: gaps.includes("clinical"),
         diagnostic: gaps.includes("diagnostic"),
         assessment: gaps.includes("assessment"),
       });
-      const count = gaps.length + (noDecision ? 1 : 0);
       // TODO-COPY — says how many and where focus went, for a reader who cannot
       // see which blocks turned red.
       setAnnounce(
-        count === 1
+        gaps.length === 1
           ? "One thing still needs an answer. Focus moved to it."
-          : `${count} things still need an answer. Focus moved to the first.`
+          : `${gaps.length} things still need an answer. Focus moved to the first.`
       );
-      if (noDecision) {
-        decisionRef.current?.focus();
-      } else {
-        const first = gaps[0];
-        (first === "clinical"
-          ? clinicalRef.current
-          : first === "diagnostic"
-            ? diagnosticRef.current
-            : assessmentRef.current
-        )?.focus();
-      }
+      const first = gaps[0];
+      (first === "clinical"
+        ? clinicalRef.current
+        : first === "diagnostic"
+          ? diagnosticRef.current
+          : assessmentRef.current
+      )?.focus();
       return;
     }
     setAnnounce("");
-    // The moment is stamped HERE, at click time — same rule the care update
-    // form follows, because a timestamp read in render scope moves on re-render.
-    onCommit(decision, body, Date.now());
+    /* ═══ `null` NORMALISES TO CONFIRM AT THE BOUNDARY ═══
+       Inside this form `null` means "no change pending"; to the owner's commit it
+       has always meant "confirm the code on record". Normalising HERE rather than
+       widening the commit's contract keeps renewal semantics — "{code} —
+       unchanged" — exactly as they were.
+       The moment is stamped here, at click time: a timestamp read in render scope
+       moves on re-render. */
+    onCommit(decision ?? { kind: "confirm" }, body, Date.now());
   };
 
   // `commitLabel` is gone: the footer's two buttons are fixed labels now
@@ -319,7 +345,21 @@ export function CareReviewWorkspace({
             rationale, and the survey grid behind the card's disclosure) and in
             the digest; this is where the decision gets written. */}
 
-        {/* ═══ DECISION ═══ */}
+        {/* ═══ R7/B: IMPLICIT CONFIRM ═══
+            The prompt, the Confirm/Change pair and the decision-required
+            validation are GONE. Submitting without a change now records the code
+            on record as reviewed-unchanged — that is the intended model, not a
+            validation gap, and the CTA says which of the two it is about to do.
+
+            WHAT THAT REMOVES: a supervisor whose answer was "nothing has
+            changed" had to say so twice, once by not changing the code and once
+            by pressing a button that said the same thing. The commit already
+            knows.
+
+            `decision === null` NOW MEANS UNCHANGED rather than unanswered. It is
+            normalised to `{ kind: "confirm" }` at commit, so the owner's commit
+            semantics are untouched — a renewal still records "{code} —
+            unchanged" and a change still carries its amendment linkage. */}
         <section
           ref={decisionRef}
           tabIndex={-1}
@@ -331,101 +371,59 @@ export function CareReviewWorkspace({
             className="text-[var(--text-muted)]"
             style={LABEL_STYLE}
           >
-            {/* TODO-COPY */}
-            Decision
+            {/* TODO-COPY — PLACEHOLDER. */}
+            Care update
           </p>
 
-          {/* ═══ A PROMPT, NOT A LABEL ═══
-              "Decision" over a statement told a reader what the section was
-              called and left them to infer that it wanted something from them.
-              The section now asks, in a sentence, and says what happens if they
-              skip it — which is the thing the validation error would otherwise
-              have to teach them after the fact. TODO-COPY. */}
-          <p className="mt-1.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            Confirm the code on record, or change it — one is required to submit.
-          </p>
-
-          {/* THE PROPOSAL, under the prompt. It describes what the model
-              suggested and never changes with the draft. TODO-COPY. */}
-          <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-muted)]">
-            {proposesChange
-              ? `Change to ${proposed.code} proposed`
-              : "No change proposed"}
-          </p>
-
-          {/* ═══ A SINGLE-SELECT PAIR, AND THE CHECK IS NOT DECORATION ═══
-              Selection was carried by a border and a fill alone. A tick beside
-              the chosen label states it in a second channel (SC 1.4.1), and
-              `aria-pressed` states it in a third for anyone not looking at
-              either. Both render unselected until a supervisor chooses. */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {(
-              [
-                {
-                  key: "confirm",
-                  label: `Confirm ${currentCode ?? proposed.code}`,
-                  on: decision?.kind === "confirm",
-                  pick: () => {
-                    /* CHOOSING CONFIRM CLEARS ANY PENDING CHANGE — the code and
-                       statement go with it, so the draft cannot carry a change
-                       nobody is proposing any more. */
-                    setDecision({ kind: "confirm" });
-                    setDecisionError(false);
-                  },
-                },
-                {
-                  key: "change",
-                  /* TODO-COPY — the chosen code rides in the label once there is
-                     one, so the control says what it will do rather than what
-                     kind of thing it does. */
-                  label:
-                    decision?.kind === "change" && decision.code
-                      ? `Change code · ${decision.code}`
-                      : "Change code",
-                  on: decision?.kind === "change",
-                  pick: () => {
-                    setDecision({ kind: "change", code: "", statement: "" });
-                    setDecisionError(false);
-                    setPickerOpen(true);
-                  },
-                },
-              ] as const
-            ).map((o) => (
+          {/* ═══ THE CODE ON RECORD, AND ONE WAY TO CHANGE IT ═══
+              Replaces the decision pair. It states what is on record rather than
+              asking a question whose answer is already implied, and the single
+              outlined control is the only thing a supervisor has to press if the
+              answer is not "unchanged". Opens the SAME dialog the pair opened. */}
+          {!(decision?.kind === "change" && decision.code) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
+              <span className="min-w-0 flex-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                {currentStatement ?? proposed.statement}{" "}
+                <span className="tabular-nums text-[var(--text-secondary)]">
+                  ({currentCode ?? proposed.code})
+                </span>
+              </span>
               <button
-                key={o.key}
                 type="button"
-                /* The focus target on expand — see the effect above. */
-                ref={o.key === "confirm" ? firstDecisionRef : changeRef}
-                aria-pressed={o.on}
-                onClick={o.pick}
+                ref={changeRef}
+                onClick={() => {
+                  setDecision({ kind: "change", code: "", statement: "" });
+                  setPickerOpen(true);
+                }}
                 className={cn(
-                  "flex min-h-11 items-center justify-center gap-1.5 rounded-full border px-4 py-2 text-[14px] font-semibold leading-[20px] transition-colors",
-                  o.on
-                    ? "border-[color:var(--text-primary)] bg-[var(--surface-s1)] text-[var(--text-primary)]"
-                    : "border-[color:var(--border-contour)] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
-                  decisionError && "border-[color:var(--state-error)]",
+                  "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 py-1.5",
+                  "text-[13px] font-semibold leading-[18px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
                   RING
                 )}
               >
-                {o.on && <Check className="size-4 shrink-0" aria-hidden />}
-                <span className="truncate">{o.label}</span>
+                <Pencil className="size-3.5 shrink-0" aria-hidden />
+                {/* TODO-COPY — PLACEHOLDER. */}
+                Change code
               </button>
-            ))}
-          </div>
-
-          {decisionError && (
-            <p className="mt-1.5 text-[12.5px] leading-[17px] text-[var(--state-error)]">
-              {/* TODO-COPY — plain language, under the thing it is about. */}
-              Choose an option above before submitting.
-            </p>
+            </div>
           )}
 
-          {/* ═══ THE DELTA, ON ONE LINE ═══
+          {/* ═══ THE DELTA, ON ONE LINE — AND IT REPLACES THE ROW ABOVE ═══
               What is on record, struck through AND dimmed — either alone is a
               single channel, and a strikethrough at full strength reads as
               emphasis rather than removal — then the arrow, then what it becomes
               at full weight. Name and code for both, because a code alone is not
-              readable by everyone who reads this record. */}
+              readable by everyone who reads this record.
+
+              IT REPLACES the code-on-record row rather than sitting under it:
+              two rows both claiming to state the code would make a reader work
+              out which one is current.
+
+              ═══ REMOVE IS NOT OPTIONAL AND IS NOT IN A MENU ═══
+              With Confirm gone, this is the ONLY path back to no-change. A
+              supervisor who opened the picker to look, or picked the wrong row,
+              would otherwise have no way to say "actually, nothing changes"
+              short of discarding the whole draft. */}
           {decision?.kind === "change" && decision.code && (
             <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2">
               {currentCode && (
@@ -443,17 +441,40 @@ export function CareReviewWorkspace({
                 {decision.statement}{" "}
                 <span className="tabular-nums">({decision.code})</span>
               </span>
-              <button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                className={cn(
-                  "ml-auto shrink-0 rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2",
-                  RING
-                )}
-              >
-                {/* TODO-COPY */}
-                Edit
-              </button>
+              <span className="ml-auto flex shrink-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className={cn(
+                    "rounded-sm text-[13px] font-semibold text-[var(--text-primary)] underline underline-offset-2",
+                    RING
+                  )}
+                >
+                  {/* TODO-COPY */}
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    /* BACK TO NO CHANGE. `null` is the unchanged state now, so
+                       clearing the decision restores the code-on-record row, and
+                       the draft effect below writes the cleared value — the CTA
+                       reverts with it because it reads the same field. */
+                    setDecision(null);
+                    // Focus returns to the control that will be there after this
+                    // render, not to the button that just unmounted.
+                    requestAnimationFrame(() => changeRef.current?.focus());
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-sm text-[13px] text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]",
+                    RING
+                  )}
+                >
+                  <X className="size-3.5 shrink-0" aria-hidden />
+                  {/* TODO-COPY — PLACEHOLDER. */}
+                  Remove
+                </button>
+              </span>
             </div>
           )}
 
@@ -495,11 +516,24 @@ export function CareReviewWorkspace({
                 onQueryChange={setQuery}
                 inputRef={pickerInputRef}
                 onPick={(e: Dsm5Entry) => {
-                  setDecision({
-                    kind: "change",
-                    code: e.code,
-                    statement: e.statement,
-                  });
+                  /* ═══ PICKING THE CODE ON RECORD IS NOT A CHANGE ═══
+                     The list marks one row "On record", and picking it used to
+                     produce `{kind:"change", code: <the same code>}` — a delta
+                     bar reading "F41.1 → F41.1" and a CTA offering to save a
+                     change to the code that is already there.
+                     It never mattered while Confirm existed, because that was
+                     the control for this answer. With implicit confirm it is
+                     reachable in one click, so it resolves to the unchanged
+                     state — which is what the reader just asked for. */
+                  if (currentCode && e.code === currentCode) {
+                    setDecision(null);
+                  } else {
+                    setDecision({
+                      kind: "change",
+                      code: e.code,
+                      statement: e.statement,
+                    });
+                  }
                   // NO CONFIRM STEP. The review's own commit is that step, and a
                   // second one here would teach people to click through steps.
                   setPickerOpen(false);
@@ -567,20 +601,27 @@ export function CareReviewWorkspace({
               card's Review is a filled pill and this replaces it while open.
               `whitespace-nowrap` and a short label keep it on one line at 200%:
               the longest it gets is "Save and submit". TODO-COPY. */}
-          {/* ═══ THE LABEL FOLLOWS THE DECISION ═══
-              A change is the outcome worth naming in the button that commits it,
-              so once a code is chosen the CTA says which. Everything else —
-              undecided, or confirming the code on record — keeps the neutral
-              label rather than asserting an outcome nobody has picked yet.
-              `whitespace-nowrap` and a 5-6 character code keep it on one line at
-              200%; "Save change to F43.22" is the longest this gets. TODO-COPY. */}
+          {/* ═══ R7/B: THE LABEL STATES WHICH OF THE TWO IT WILL DO ═══
+              With Confirm gone, the button is the only place the unchanged
+              outcome is named before it happens — so it names it. "Save and
+              submit" alone would leave a supervisor pressing a neutral button
+              and finding out afterwards what it recorded.
+
+              THE UNCHANGED LABEL IS THE SHORT FORM, and that is a measured
+              choice rather than a preference. The brief allows shortening rather
+              than wrapping if the long form does not fit: "Save and submit ·
+              F41.1 unchanged" is 34 characters and overruns the footer beside
+              "Save & close" at panel width — so the shipped string is
+              "Submit · {code} unchanged" (25). One line at 100% and 200%.
+              `whitespace-nowrap` holds it; "Save change to F43.22" is the longest
+              the change form gets. TODO-COPY — both PLACEHOLDERS. */}
           <PillButton
             onClick={attemptCommit}
             className="h-10 shrink-0 whitespace-nowrap px-5 text-[14px]"
           >
             {decision?.kind === "change" && decision.code
               ? `Save change to ${decision.code}`
-              : "Save and submit"}
+              : `Submit · ${currentCode ?? proposed.code} unchanged`}
           </PillButton>
         </div>
         {/* The requirement note sits UNDER the buttons now rather than opposite
