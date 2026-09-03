@@ -393,21 +393,12 @@ export function PresentationReviewCard({
           the body is its sibling. Nothing in the header can move when the body
           appears, because the body is not in it. */}
       <div className={SECTION}>
-        <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
-          {/* TODO-COPY */}
-          {/* ═══ R6/C3: THE LABEL NAMES THE COUNT, AND THE SUB-LINE GOES ═══
-              "Weighted across this period" and the row's own "recency-weighted
-              across 3 surveys" were two statements of one fact, eight pixels
-              apart. The count moves UP into the label — where it answers "across
-              what?" at the moment the reader meets the number — and the sub-line
-              below reverts to naming the instrument and date, which is what it
-              says on a single-survey review and is the thing the aggregate row
-              was otherwise not saying at all. PLACEHOLDER. TODO-COPY. */}
-          {review.aggregate
-            ? `Weighted across ${review.aggregate.surveys.length} surveys`
-            : "Most recent survey"}
-        </p>
-
+        {/* ═══ THE EYEBROW IS GONE ═══
+            It read "Weighted across {n} surveys" and was doing two jobs badly:
+            naming the unit, and stating a count. The strip below now carries a
+            LABEL PER DATUM, so the count is a value with its own label instead
+            of a clause in a heading — and the heading is not needed to say what
+            the numbers are once each number says so itself. */}
         {evidence && (
           <div className="mt-2 overflow-hidden rounded-[var(--radius-inset)] bg-[var(--surface-s1)]">
             {/* ══ THE HEADER IS THE DISCLOSURE ══════════════════════════════
@@ -427,44 +418,76 @@ export function PresentationReviewCard({
               onClick={() => setOpen((o) => !o)}
               aria-expanded={open}
               className={cn(
-                "flex h-[68px] w-full cursor-pointer items-center gap-x-3 px-3.5 text-left",
+                /* THE HEIGHT IS FIXED AND HAS GROWN. 68px held a two-line lockup; the
+                   stat row is label + value + sub-line, so 92px. It stays FIXED
+                   for the original reason — the expanded body is a sibling, and
+                   nothing the body does may move anything in this header. */
+                "flex h-[92px] w-full cursor-pointer items-center gap-x-3 px-3.5 text-left",
                 "transition-colors hover:bg-[var(--tint-hover)]",
                 RING
               )}
             >
-              <span className="flex min-w-0 flex-1 flex-col gap-y-1">
-                {/* LINE 1 — score, denominator, band. ONE BASELINE via
-                    `items-baseline`, so the 24px numeral and the 14px
-                    denominator sit on the same line rather than centring on
-                    each other's boxes. */}
-                <span className="flex items-baseline gap-x-2.5">
-                  <span className="flex shrink-0 items-baseline gap-x-1">
-                    <span className="text-[24px] font-normal leading-none tabular-nums text-[var(--text-primary)]">
-                      {evidence.score}
-                    </span>
-                    {/* THE DENOMINATOR. A bare "9" has no scale — it could be
-                        anything out of anything. The maximum comes from the
-                        INSTRUMENT DEFINITION (INSTRUMENT_MAX), never a literal
-                        here: a per-card constant is how one surface ends up
-                        saying /21 for a PHQ-9. */}
-                    <span className="text-[14px] leading-none tabular-nums text-[var(--text-muted)]">
-                      / {maxScore}
-                    </span>
+              {/* ═══ TWO DATA, THE PRESENTATION CARD'S PATTERN ═══
+                  Label over value, the metadata row's styles — 12px muted label,
+                  20px tabular value, 13px muted sub-line — so a supervisor
+                  reading down the page meets the same shape twice rather than a
+                  headline number here and a stat row there.
+
+                  BOTH VALUES SHARE A BASELINE by construction: the two data are
+                  `items-start` siblings whose labels are the same style and
+                  therefore the same height, so the value lines begin at the same
+                  y without either being told a height.
+
+                  THE SCORE DROPS 24px → 20px. That is the pattern's size, and
+                  matching it is the point of adopting the pattern. */}
+              <span className="flex min-w-0 flex-1 items-start gap-x-8">
+                {/* ═══ DATUM 1 ═══
+                    "Weighted score" ONLY when there is a weighting. One reading
+                    weighted is not a weighting, and calling it one would be the
+                    single-survey lie A5 exists to prevent. TODO-COPY —
+                    PLACEHOLDERS. */}
+                <span className="flex min-w-0 flex-col gap-y-1">
+                  <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                    {review.aggregate ? "Weighted score" : "Score"}
                   </span>
-                  <BandChip severity={evidence.severity} />
+                  <span className="flex items-baseline gap-x-2">
+                    <span className="flex shrink-0 items-baseline gap-x-1">
+                      <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
+                        {evidence.score}
+                      </span>
+                      {/* THE DENOMINATOR. A bare "9" has no scale. The maximum
+                          comes from the INSTRUMENT DEFINITION, never a literal
+                          here: a per-card constant is how one surface ends up
+                          saying /21 for a PHQ-9. */}
+                      <span className="text-[14px] leading-[26px] tabular-nums text-[var(--text-muted)]">
+                        / {maxScore}
+                      </span>
+                    </span>
+                    <BandChip severity={evidence.severity} />
+                  </span>
                 </span>
 
-                {/* LINE 2 — provenance, muted, beneath. For the aggregate this
-                    is the qualifier that explains the number instead. */}
-                <span className="min-w-0 truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
-                  {/* NO LONGER REPEATS THE COUNT — see the label above. For an
-                      aggregate this names the instrument and the span it covers,
-                      which the count alone never said. TODO-COPY. */}
-                  {review.aggregate
-                    ? `${evidence.instrument} · ${clinicalDate(
-                        review.aggregate.surveys[review.aggregate.surveys.length - 1].at
-                      )} – ${clinicalDate(review.aggregate.surveys[0].at)}`
-                    : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
+                {/* ═══ DATUM 2 ═══
+                    The count is a value now rather than a clause in the deleted
+                    eyebrow, and the window it covers is its sub-line. */}
+                <span className="flex min-w-0 flex-col gap-y-1">
+                  <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                    {/* TODO-COPY — PLACEHOLDER. */}
+                    Surveys
+                  </span>
+                  <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
+                    {review.aggregate ? review.aggregate.surveys.length : 1}
+                  </span>
+                  <span className="min-w-0 truncate text-[13px] leading-[18px] text-[var(--text-muted)]">
+                    {/* THE WINDOW, oldest → newest. On one survey it is that
+                        survey's own date and carries no range and no "weighted"
+                        language anywhere. TODO-COPY. */}
+                    {review.aggregate
+                      ? `${evidence.instrument} · ${clinicalDate(
+                          review.aggregate.surveys[review.aggregate.surveys.length - 1].at
+                        )} – ${clinicalDate(review.aggregate.surveys[0].at)}`
+                      : `${evidence.instrument} · ${clinicalDate(evidence.at)}`}
+                  </span>
                 </span>
               </span>
 
