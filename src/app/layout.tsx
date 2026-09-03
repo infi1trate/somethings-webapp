@@ -42,9 +42,23 @@ export const metadata: Metadata = {
 // it defers the source into Next's `self.__next_s` queue, which the runtime
 // drains after the document parses — i.e. after first paint, which is exactly
 // the flash we are removing. A synchronous inline script in <head> is the only
-// form with a hard ordering guarantee. React 19 logs a dev-only
-// "Encountered a script tag while rendering React component" notice for it;
-// that is cosmetic, and the class it sets is what every later render reads.
+// form with a hard ordering guarantee.
+//
+// ═══ IF YOU SEE "Encountered a script tag while rendering React component" ═══
+//
+// It is NOT this line, and it is not cosmetic — DO NOT silence it. React only
+// renders a Server Component's output on the client when it has to REGENERATE
+// the tree, which is what it does after a hydration mismatch. So that notice is
+// a second symptom of a mismatch somewhere else in the tree, and the fix is
+// there rather than here.
+//
+// Measured, not reasoned about: `dev-bar.tsx` seeded state from
+// `window.location.search` in a lazy initialiser, which never runs during SSR
+// but does run on the client's FIRST render — the one React compares against
+// the server's HTML. Every URL carrying `?scenario=…` failed hydration, React
+// regenerated the tree, the regeneration re-rendered this script element, and
+// the notice appeared pointing at this file. Gating that component on `mounted`
+// removed BOTH, on the same URL, on the same dev server.
 const THEME_SCRIPT = `(function(){try{var c=localStorage.getItem("somethings.theme")||"system";var d=c==="dark"||(c==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})();`;
 
 export default function RootLayout({

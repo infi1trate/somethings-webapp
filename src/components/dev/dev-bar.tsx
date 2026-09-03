@@ -201,7 +201,19 @@ export function DevBar() {
    *
    *  So the URL is read ONCE, on mount, from `window.location` — behind a lazy
    *  initialiser, so it never runs during SSR — and the selection is local state
-   *  from then on. That also makes it reactive for the case a param-only change
+   *  from then on.
+   *
+   *  ═══ AND NOT RUNNING ON THE SERVER IS NOT THE SAME AS MATCHING IT ═══
+   *
+   *  A lazy initialiser still runs on the client's FIRST render, which is the
+   *  render React compares against the server's HTML. On any URL carrying
+   *  `?scenario=…` the server rendered nothing here and the client rendered the
+   *  status line, so hydration failed and React regenerated the whole tree — see
+   *  `mounted` at the two consumers below, which is what actually holds the two
+   *  renders together. The initialiser stays because it means the value is right
+   *  the moment `mounted` flips, with no second paint.
+   *
+   *  Reading it here also makes it reactive for the case a param-only change
    *  would otherwise miss: two scenarios can point at the SAME record (t13 is
    *  both `escalation-crisis` and `escalation-and-review`), so `usePathname`
    *  alone would not re-render when swapping between them.
@@ -224,7 +236,10 @@ export function DevBar() {
   const onChat = pathname.startsWith("/app/chat");
   /** A record route is one where a scenario has something to hold on to. */
   const onRecord = pathname?.startsWith("/admin/person/") ?? false;
-  const scenario = scenarioById(scenarioId);
+  /* GATED ON `mounted`, like `active` above and for the same reason: this is
+     read from the URL on the client only, so the first client render has to
+     agree with the server's — which rendered no scenario at all. */
+  const scenario = mounted ? scenarioById(scenarioId) : null;
   /* Disabled while expanded — expansion means "stop cutting", so the measurement
      would otherwise fight the thing the reader just asked for. */
   /* DESTRUCTURED at the call site rather than kept as one object. Reading a
@@ -407,14 +422,24 @@ export function DevBar() {
                record axis. Selecting a record scenario does NOT clear the
                activity one, and it should not: they apply to different screens
                and both remain true. */
+            /* ═══ `mounted` WRAPS THE WHOLE EXPRESSION, NOT JUST THE URL ARM ═══
+               The record arm reads the URL and the other three read the store,
+               and BOTH are client-only sources — zustand rehydrates from
+               localStorage during module evaluation with no `skipHydration`, so
+               a stored activity/chat/tasks scenario differs from the server's
+               default just as surely as a `?scenario=` param does. That one has
+               not bitten yet only because those defaults happen to equal their
+               initial values. Gating the whole expression closes both. */
             value={
-              pathname.startsWith("/app/activity")
-                ? `${ACTIVITY_PREFIX}${activityScenarioId}`
-                : onChat
-                  ? `${CHAT_PREFIX}${chatScenarioId}`
-                  : pathname.startsWith("/app/tasks")
-                  ? `${TASKS_PREFIX}${tasksScenarioId}`
-                  : scenarioId
+              !mounted
+                ? ""
+                : pathname.startsWith("/app/activity")
+                  ? `${ACTIVITY_PREFIX}${activityScenarioId}`
+                  : onChat
+                    ? `${CHAT_PREFIX}${chatScenarioId}`
+                    : pathname.startsWith("/app/tasks")
+                      ? `${TASKS_PREFIX}${tasksScenarioId}`
+                      : scenarioId
             }
             onChange={(e) => {
               const value = e.target.value;
