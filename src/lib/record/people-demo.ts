@@ -583,6 +583,23 @@ export const DEMO_TEENS: DemoTeen[] = [
         resolvedByRole: "Lead mentor",
         resolutionNote:
           "Agreed a four-week pause with the teen and their parent. Nothing else outstanding.",
+        /* THE `single-flag` SCENARIO IS THIS RECORD, so it is the one a reviewer
+           opens to see a flag expansion at all — and every field in it was an
+           em-dash.
+           A PERSON-RAISED FLAG WITH NO RISK CATEGORY. `categories` stays absent
+           on purpose: a mentor flagging a scheduling request is not a safety
+           classification, and reaching for the nearest taxonomy id to fill the
+           chip would put a risk label on a teen asking about exams. The
+           em-dash on Category is the honest answer, and it is a different
+           absence from t17's `CATEGORY_4`, which is an id the taxonomy does not
+           map. Both paths now exist on real records. */
+        flagDetail: {
+          mediaType: "Message",
+          priority: "medium",
+          detectedAtTime: "8:47 AM",
+          flaggedContent:
+            "can we pause for a bit? exams start in two weeks and i don't think i can do the calls and revise at the same time. not quitting, just want to come back after",
+        },
       },
     ],
   },
@@ -604,8 +621,53 @@ export const DEMO_TEENS: DemoTeen[] = [
     group: "New Jersey", active: true, joinedDaysAgo: 18, mentorId: "m4",
     matchedDaysAgo: 14, mentorLastSentDaysAgo: 1, menteeLastSentDaysAgo: 1,
     videoCount30d: 3,
-    // Names the observable cause, not a prediction about the teen.
-    escalation: { reason: "Asked about changing schools mid-year", daysAgo: 3 },
+    /* ═══ MOVED OFF THE LEGACY `escalation` SHAPE ═══
+       It read `escalation: { reason, daysAgo }`, which `careFlagsFor`
+       synthesises into a record with no raiser, no categories and — the reason
+       this changed — NO `escalationDetail`, because the legacy shape has
+       nowhere to put one. Every field in this record's History expansion was an
+       em-dash, and no fixture could fix that while the shape stayed.
+       `review-day30` is this teen, so that was the empty one on the scenario a
+       reviewer opens to see the first cadence review.
+       The legacy branch in `careFlagsFor` stays for any record still on it.
+       Names the observable cause, not a prediction about the teen. */
+    careFlags: [
+      {
+        id: "cf-t9-1",
+        kind: "escalation",
+        severity: "critical",
+        reason: "Asked about changing schools mid-year",
+        raisedBy: "Sofia Delgado",
+        raisedByRole: "Mentor",
+        daysAgo: 3,
+        source: "person",
+        categories: ["UNSAFE_ENVIRONMENT_BELOW_CPS"],
+        conversationWith: "t9",
+        conversationId: "conv-t9-a",
+        momentSummary: {
+          provenance: "ai",
+          text: "The teen asked about changing schools in two exchanges a day apart, and in the second described avoiding a particular corridor between classes. Nothing earlier this month referred to school.",
+        },
+        /* AN OPEN ESCALATION, TWO WEEKS INTO A MENTORSHIP. No assessment was
+           recorded and nobody has been contacted yet, which is what an
+           escalation looks like three days in — the renderer combines those two
+           into one "Emergency contact and conversations" row rather than
+           printing two dashes about the same absent person. */
+        escalationDetail: {
+          type: "Welfare concern",
+          // suicideRisk: absent — no assessment was recorded at this tier.
+          reasonDetail:
+            "The teen asked their mentor whether changing schools partway through the year was possible and what it would take. On the following call they said they had been taking a longer route between classes to avoid a group of students, and that they had not told anyone at school.",
+          mentorInformation:
+            "Mentor reported the teen raised it themselves and answered every follow-up question. No disclosure of physical harm. Mentor noted the teen has been consistent with calls since matching two weeks ago and has not moved or missed one.",
+          // contactConversations: absent — nobody has been contacted yet.
+          nextSteps:
+            "Supervisor to review within five working days and decide whether the school should be contacted. Mentor to keep the next two calls at their scheduled times and note whether the teen raises the corridor or the group again.",
+          safetyPlan:
+            "Not required at this tier. Teen has the crisis line number from intake and confirmed receiving it.",
+        },
+      },
+    ],
   },
   {
     id: "t10", name: "Ava Mitchell", firstName: "Ava", pronouns: "she/her", phone: "+13125550344",
@@ -657,6 +719,28 @@ export const DEMO_TEENS: DemoTeen[] = [
         // CRISIS-ELEVATED. The label band gains the word "Crisis" and nothing
         // else — no extra chrome, per the brief.
         crisis: { type: "suicidal_ideation" },
+        /* THE CRISIS CASE, FULLY RECORDED AND STILL OPEN — the shape a
+           supervisor opens this expansion to read. `escalation-crisis` and
+           `escalation-and-review` are both this record, so it is the one the
+           demo lands on for the top of the tier.
+           OPEN, so there is no resolution footer: `resolvedBy` is absent and
+           the collapsed row's "Open" carries the state. Every other field is
+           present, because on a crisis at this tier a blank is a finding. */
+        escalationDetail: {
+          type: "Crisis",
+          suicideRisk: "High",
+          emergencyContact: "Marguerite Boileau (mother) · +1 908 555 0173",
+          reasonDetail:
+            "Over four days the teen described sleeping very little and skipping meals since Friday, each message more urgent than the last. In the final exchange they said they had thought about not being here and that they had a way to do it. The mentor escalated within the hour.",
+          mentorInformation:
+            "Mentor reported the teen answered directly and did not withdraw from the conversation. They confirmed they were at home and that a parent was in the house. The teen said they had not acted on the thought and agreed to stay on chat until someone called.",
+          contactConversations:
+            "Reached the mother at 6:05 PM. She confirmed she was at home with the teen and had removed the means described. Crisis line supervisor joined a three-way call at 6:40 PM and completed a risk assessment; no emergency services were dispatched. A welfare call at 9:00 PM confirmed the teen was asleep and the parent was awake with them.",
+          nextSteps:
+            "Daily supervisor check for the next five days. Mentor to hold contact to the scheduled calls and route anything new straight to the supervisor rather than replying. Clinical referral raised the same evening; first appointment offered within 72 hours.",
+          safetyPlan:
+            "Means removed from the house and confirmed by the parent. Crisis line saved on the teen's phone and dialled once together so it is not the first time. Teen named their mother and their older cousin as the two people they will tell. Agreed that a missed scheduled call triggers a call to the parent rather than a wait.",
+        },
       },
     ],
   },
@@ -889,6 +973,24 @@ export const DEMO_TEENS: DemoTeen[] = [
           provenance: "system",
           text: "Three messages in one evening exchange matched two classifier categories. No earlier match exists on this conversation.",
         },
+        /* ═══ ONE SWEEP, ONE DETECTION TIME, FOUR MATCHES ═══
+           All four records below share `detectedAtTime` because they came out of
+           the same pass over the same evening — the grouping's whole premise.
+           Four different times would quietly tell a reviewer they were four
+           separate incidents.
+           THE QUOTED TEXT IS WHAT THE CLASSIFIER MATCHED ON, and it is written
+           to be recognisable as that match WITHOUT reproducing a slur. A fixture
+           is read by everyone who opens this repo; the demo needs a reviewer to
+           see that verbatim content renders and is attributable, which does not
+           require the ugliest possible string to demonstrate. Real data will not
+           have that courtesy, and the component is what has to hold. */
+        flagDetail: {
+          mediaType: "Message",
+          priority: "high",
+          detectedAtTime: "9:14 PM",
+          flaggedContent:
+            "everyone from over there is the same, my cousin says they shouldn't even be allowed at our school",
+        },
       },
       // ── THE GROUPING CASE ────────────────────────────────────────────────
       // ONE moderation sweep of ONE evening's exchange, producing four separate
@@ -913,6 +1015,19 @@ export const DEMO_TEENS: DemoTeen[] = [
         categories: ["CREDIBLE_SPECIFIC_THREAT_TO_HARM_ANOTHER"],
         conversationWith: "t21",
         conversationId: "conv-t21-a",
+        momentSummary: {
+          provenance: "system",
+          text: "One message in the same exchange matched the threat classifier at high confidence. The match names a specific person and a specific place.",
+        },
+        // HIGH, and the only one of the four that is: a named person and a named
+        // place is what separates this from the ideation category.
+        flagDetail: {
+          mediaType: "Message",
+          priority: "high",
+          detectedAtTime: "9:14 PM",
+          flaggedContent:
+            "if he waits by the bus doors again i'm going to make him regret it, i'm not walking away this time",
+        },
       },
       {
         id: "cf-t21-3",
@@ -926,6 +1041,17 @@ export const DEMO_TEENS: DemoTeen[] = [
         categories: ["GROOMING_BEHAVIOR"],
         conversationWith: "t21",
         conversationId: "conv-t21-a",
+        momentSummary: {
+          provenance: "system",
+          text: "A second message in the same exchange matched the grooming-pattern classifier. The pattern is an adult account moving the conversation off-platform.",
+        },
+        flagDetail: {
+          mediaType: "Message",
+          priority: "high",
+          detectedAtTime: "9:14 PM",
+          flaggedContent:
+            "he keeps saying we should talk somewhere else where no one can see it and that i shouldn't tell my mum because she'd take it the wrong way",
+        },
       },
       {
         // UNMAPPED, inside a group — so the expanded list exercises the
@@ -941,6 +1067,19 @@ export const DEMO_TEENS: DemoTeen[] = [
         categories: ["CATEGORY_4"],
         conversationWith: "t21",
         conversationId: "conv-t21-a",
+        momentSummary: {
+          provenance: "system",
+          text: "A fourth message in the same exchange matched a classifier category this build does not map. The match is recorded so the sweep is complete; the category is reported as uncategorised.",
+        },
+        /* MEDIUM, not high — an unmapped category cannot justify the top
+           priority, because nothing here knows what it matched. */
+        flagDetail: {
+          mediaType: "Message",
+          priority: "medium",
+          detectedAtTime: "9:14 PM",
+          flaggedContent:
+            "i've just been staying up all night on my phone because it's easier than lying there",
+        },
       },
     ],
   },
@@ -968,6 +1107,28 @@ export const DEMO_TEENS: DemoTeen[] = [
         resolvedByRole: "Supervisor",
         resolutionNote:
           "Checked in with the parent, agreed a different call time, and the calls resumed the following week.",
+        /* A RESOLVED ESCALATION ON A CLOSED RECORD, which is its own case: the
+           mentorship has since ended, so this expansion is being read as
+           history rather than as a live concern. It carries `resolvedAtTime`,
+           so the footer reads "Resolved by Omar Haddad · {date} at {time}".
+           NO SUICIDE ASSESSMENT, deliberately: none was recorded, and on a
+           welfare concern that is the ordinary case rather than a gap. The
+           em-dash says so. */
+        escalationDetail: {
+          type: "Welfare concern",
+          emergencyContact: "Priya Menon (mother) · +1 908 555 0291",
+          reasonDetail:
+            "The teen told their mentor that an argument at home the night before had left the house tense and that they had taken calls in a stairwell to get away from it. They asked whether the calls could move to a time when fewer people were home.",
+          mentorInformation:
+            "Mentor reported the teen was steady through the call and raised the arrangement themselves rather than being asked. No disclosure of physical harm and none of the standing indicators were present. Mentor noted two calls that month had started late for the same reason.",
+          contactConversations:
+            "Spoke with the mother the following afternoon. She described a disagreement between adults in the household and agreed the evening slot was difficult. No further concern was raised and no external service was contacted.",
+          nextSteps:
+            "Calls moved to 4:30 PM on the same days. Mentor to note whether the teen raises the household again in the next month. No supervisor review scheduled beyond the standard cadence.",
+          safetyPlan:
+            "Not required at this tier. Teen confirmed they had somewhere in the house they could go and had the crisis line number from intake.",
+          resolvedAtTime: "3:18 PM",
+        },
       },
     ],
   },
