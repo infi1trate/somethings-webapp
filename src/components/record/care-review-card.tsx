@@ -581,41 +581,53 @@ export function PresentationReviewCard({
         </Dialog>
       )}
 
-      {/* 2 · RATIONALE — only where a human or a model actually wrote one.
-          A `templated` rationale is the intake mapping restating the score it
-          was just handed; it told a supervisor nothing the survey evidence
-          below does not already show, while a provenance label gave it a
-          clinician's authority. Intake reviews have none, by design. */}
-      {review.rationale.source !== "templated" && (
-        <div className={SECTION}>
-          <p
-            className="flex items-center gap-1.5 text-[var(--text-muted)]"
-            style={LABEL_STYLE}
-          >
-            {/* ═══ THE AI CASE NOW CARRIES THE SHARED PROVENANCE MARK ═══
-                The label used to read "AI-generated from survey history and
-                mentorship signal" — a third wording of the same policy, on a
-                third surface, differing from the summary's by which inputs it
-                happened to name. The badge replaces the sentence and the popover
-                carries the full note, so all three surfaces say one thing.
-                THE OTHER TWO SOURCES KEEP THEIR LABELS, and that distinction is
-                the point: "Selected by a supervisor" is a human attribution and
-                must not wear an AI badge. Only the generated case does. */}
-            {review.rationale.source === "ai" ? (
-              <>
-                {/* TODO-COPY. Names the block, where the badge names the origin. */}
-                <span>Rationale</span>
-                <Provenance />
-              </>
-            ) : (
-              RATIONALE_SOURCE_LABEL[review.rationale.source]
-            )}
-          </p>
-          <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {review.rationale.text}
-          </p>
-        </div>
-      )}
+      {/* 2 · RATIONALE — ON EVERY RECOMMENDATION, WITHOUT EXCEPTION.
+          It was gated on `source !== "templated"`, on the argument that a
+          templated rationale is the intake mapping restating a score the survey
+          evidence below already shows. That gate is removed: it left the 30-day
+          review — the FIRST thing a supervisor ever decides on a record — as the
+          one card in the tab that recommends a code and says nothing about why,
+          jumping from the title straight to the strip.
+
+          And the argument was not quite right. The mapping rationale states
+          something the evidence block cannot: that a score in a given band is
+          what RETURNS this particular code. The strip shows 9 / 21 · Mild; only
+          the rationale says which presentation that maps to and on what basis.
+
+          THE PROVENANCE LABEL IS WHAT KEEPS IT HONEST, and it is why showing it
+          costs nothing: "Templated from intake mapping" claims exactly as much
+          authority as it has, sitting in the same slot where a human rationale
+          reads "Selected by a supervisor" and a generated one wears the shared
+          AI badge. A reader is told which of the three they are looking at
+          before they read a word of it. */}
+      <div className={SECTION}>
+        <p
+          className="flex items-center gap-1.5 text-[var(--text-muted)]"
+          style={LABEL_STYLE}
+        >
+          {/* ═══ THE AI CASE NOW CARRIES THE SHARED PROVENANCE MARK ═══
+              The label used to read "AI-generated from survey history and
+              mentorship signal" — a third wording of the same policy, on a
+              third surface, differing from the summary's by which inputs it
+              happened to name. The badge replaces the sentence and the popover
+              carries the full note, so all three surfaces say one thing.
+              THE OTHER TWO SOURCES KEEP THEIR LABELS, and that distinction is
+              the point: "Selected by a supervisor" is a human attribution and
+              must not wear an AI badge. Only the generated case does. */}
+          {review.rationale.source === "ai" ? (
+            <>
+              {/* TODO-COPY. Names the block, where the badge names the origin. */}
+              <span>Rationale</span>
+              <Provenance />
+            </>
+          ) : (
+            RATIONALE_SOURCE_LABEL[review.rationale.source]
+          )}
+        </p>
+        <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-primary)]">
+          {review.rationale.text}
+        </p>
+      </div>
 
       {/* 3 · SURVEY EVIDENCE — header row and body are SIBLINGS.
           THE OLD STRUCTURE WAS THE BUG. The disclosure lived as the third child
