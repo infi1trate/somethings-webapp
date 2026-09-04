@@ -289,10 +289,32 @@ function Row({
     !!event.diagnosticPrefill ||
     (!!amends && superseded) ||
     !named;
+  /** ═══ THE FIELD SET IS ITS OWN REASON TO OPEN ═══
+   *
+   *  This list never mentioned the flag and escalation field sets, and it needed
+   *  to: the expansion below renders `EscalationDetail` / `FlagDetail` off
+   *  `event.flagRecord`, so a row carrying one has a whole block of content
+   *  behind a control this predicate was deciding not to draw.
+   *
+   *  IT SURVIVED ONLY BY ACCIDENT. Every flag and escalation used to carry a
+   *  `relational` line — "First flag" on the first one — and `demoted` counts
+   *  `relational` as content. Dropping that bare line took the expander with it
+   *  on every record whose flag was its first, which is most of them: t13's
+   *  crisis, t9, t22, t6 and the head of t21's cluster all lost the only way
+   *  into their own detail.
+   *
+   *  So the predicate now names the field set directly. It is stated the same
+   *  way the expansion dispatches on it — `flagRecord` AND the type — so the two
+   *  cannot disagree about which rows have one: a closure entry carries no
+   *  `flagRecord` and still takes the `providerNote` fallback. */
+  const hasFieldSet =
+    !!event.flagRecord &&
+    (event.type === "escalation" || event.type === "risk_flag");
   const expandable =
     !!event.items?.length ||
     !!event.providerNote ||
     borrowsDisclosure ||
+    hasFieldSet ||
     demoted;
 
   return (
