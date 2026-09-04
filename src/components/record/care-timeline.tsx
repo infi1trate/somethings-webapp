@@ -24,8 +24,14 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react
 import Link from "next/link";
 import { ChevronRight, Search, Sparkles, X } from "lucide-react";
 import { QuoteBlock } from "@/components/ui/evidence-primitives";
-import { TonalChip } from "@/components/record/tonal-chip";
-import { riskCategory } from "@/lib/record/risk-taxonomy";
+import { TonalChip, type ChipTone } from "@/components/record/tonal-chip";
+import { HoverNote } from "@/components/record/hover-note";
+import {
+  riskCategory,
+  TIER_ACTION,
+  TIER_LABEL,
+  type RiskTier,
+} from "@/lib/record/risk-taxonomy";
 import { CRISIS_TYPE, type CareFlagRecord } from "@/lib/record/people-demo";
 import { chatThreadHref } from "@/lib/record/chat";
 import {
@@ -1018,6 +1024,48 @@ function EscalationDetail({
   );
 }
 
+/** ═══ THE PRIORITY TIER, AND WHAT IT ASKS FOR ═══
+ *
+ *  The chip was "High risk" / "Medium risk" off a two-value scale this file
+ *  invented. It now carries the playbook's tier — the same three `TIER_LABEL`
+ *  gives the care summary and the commit sentence, so a flag and the document
+ *  that summarises it cannot name the same judgement differently.
+ *
+ *  THE LABEL ALONE DOES NOT SAY WHAT TO DO. "Clinical support" names a tier; it
+ *  does not tell a supervisor that it means before the next session, often
+ *  inside 24 hours. That sentence is the reason the tier exists, so the chip
+ *  reveals it — on hover, on focus and on click, through `HoverNote`, which is
+ *  the only 1.4.13-conformant disclosure on this record.
+ *
+ *  TONE FOLLOWS THE TIER AND NEVER CARRIES IT ALONE (SC 1.4.1): the words
+ *  differ at every level, so greyscale and a screen reader get the same three
+ *  distinctions the colour does. */
+const TIER_TONE: Record<RiskTier, ChipTone> = {
+  imminent: "risk",
+  clinicalReview: "warning",
+  generalMonitoring: "neutral",
+};
+
+function PriorityChip({ tier }: { tier: RiskTier }) {
+  return (
+    <HoverNote
+      align="left"
+      /* NAMES THE TIER, because the panel is about this one — "About the
+         priority" would be the same string on all three. */
+      triggerLabel={`What ${TIER_LABEL[tier]} asks for`}
+      triggerClassName="rounded-full"
+      trigger={<TonalChip tone={TIER_TONE[tier]}>{TIER_LABEL[tier]}</TonalChip>}
+    >
+      <span className="block text-[12px] font-semibold leading-[17px] text-[var(--text-primary)]">
+        {TIER_LABEL[tier]}
+      </span>
+      <span className="mt-1 block text-[12px] leading-[17px] text-[var(--text-secondary)]">
+        {TIER_ACTION[tier]}
+      </span>
+    </HoverNote>
+  );
+}
+
 function FlagDetail({
   record,
   occurredAt,
@@ -1037,13 +1085,7 @@ function FlagDetail({
           {d?.mediaType ? <TonalChip>{d.mediaType}</TonalChip> : EM_DASH}
         </Fact>
         <Fact label="Priority">
-          {d?.priority ? (
-            <TonalChip tone={d.priority === "high" ? "risk" : "warning"}>
-              {d.priority === "high" ? "High risk" : "Medium risk"}
-            </TonalChip>
-          ) : (
-            EM_DASH
-          )}
+          {d?.priority ? <PriorityChip tier={d.priority} /> : EM_DASH}
         </Fact>
         <Fact label="Category">
           {/* THE MAPPED LABEL, never the raw value — an unmapped category is

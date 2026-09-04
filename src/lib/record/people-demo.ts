@@ -14,7 +14,7 @@
 // person.
 
 import type { MentorLifecycleStatus, Story } from "@/lib/types";
-import { RISK_CATEGORIES } from "@/lib/record/risk-taxonomy";
+import { RISK_CATEGORIES, type RiskTier } from "@/lib/record/risk-taxonomy";
 import {
   WEEKDAYS,
   type DaySchedule,
@@ -595,7 +595,9 @@ export const DEMO_TEENS: DemoTeen[] = [
            map. Both paths now exist on real records. */
         flagDetail: {
           mediaType: "Message",
-          priority: "medium",
+          /* No safety category and a scheduling request: the remaining-population
+             tier, which is what "general monitoring" is for. */
+          priority: "generalMonitoring",
           detectedAtTime: "8:47 AM",
           flaggedContent:
             "can we pause for a bit? exams start in two weeks and i don't think i can do the calls and revise at the same time. not quitting, just want to come back after",
@@ -878,7 +880,9 @@ export const DEMO_TEENS: DemoTeen[] = [
         // the label.
         flagDetail: {
           mediaType: "Image",
-          priority: "medium",
+          /* An unmapped category on a missed-calls flag — nothing here argues for
+             a clinician, and pattern tracking is exactly the response. */
+          priority: "generalMonitoring",
           detectedAtTime: "4:12 PM",
         },
       },
@@ -915,7 +919,9 @@ export const DEMO_TEENS: DemoTeen[] = [
         },
         flagDetail: {
           mediaType: "Message",
-          priority: "high",
+          /* PASSIVE_SUICIDAL_IDEATION is a clinical-support category in the
+             playbook, and this is the record that shows that tier. */
+          priority: "clinicalReview",
           detectedAtTime: "11:47 PM",
           // VERBATIM — see the field's own note, and the report. Synthetic.
           flaggedContent:
@@ -988,7 +994,9 @@ export const DEMO_TEENS: DemoTeen[] = [
            have that courtesy, and the component is what has to hold. */
         flagDetail: {
           mediaType: "Message",
-          priority: "high",
+          /* Hate speech alongside a grooming match. Not act-now on its own, but
+             it is not something a mentor is left to coach through either. */
+          priority: "clinicalReview",
           detectedAtTime: "9:14 PM",
           flaggedContent:
             "everyone from over there is the same, my cousin says they shouldn't even be allowed at our school",
@@ -1025,7 +1033,9 @@ export const DEMO_TEENS: DemoTeen[] = [
         // place is what separates this from the ideation category.
         flagDetail: {
           mediaType: "Message",
-          priority: "high",
+          /* A credible threat naming a person and a place. Act now — the one
+             fixture at the top tier, and it has to be a real one. */
+          priority: "imminent",
           detectedAtTime: "9:14 PM",
           flaggedContent:
             "if he waits by the bus doors again i'm going to make him regret it, i'm not walking away this time",
@@ -1049,7 +1059,11 @@ export const DEMO_TEENS: DemoTeen[] = [
         },
         flagDetail: {
           mediaType: "Message",
-          priority: "high",
+          /* An adult moving a minor off-platform and telling them not to tell a
+             parent. `GROOMING_BEHAVIOR` is `"unassigned"` in the taxonomy, which
+             is the gap the note on `priority` describes: derived, this would
+             have come out as general monitoring. */
+          priority: "imminent",
           detectedAtTime: "9:14 PM",
           flaggedContent:
             "he keeps saying we should talk somewhere else where no one can see it and that i shouldn't tell my mum because she'd take it the wrong way",
@@ -1077,7 +1091,9 @@ export const DEMO_TEENS: DemoTeen[] = [
            priority, because nothing here knows what it matched. */
         flagDetail: {
           mediaType: "Message",
-          priority: "medium",
+          /* An unmapped category cannot justify a top tier, because nothing here
+             knows what it matched. */
+          priority: "generalMonitoring",
           detectedAtTime: "9:14 PM",
           flaggedContent:
             "i've just been staying up all night on my phone because it's easier than lying there",
@@ -1447,10 +1463,24 @@ export interface CareFlagRecord {
   flagDetail?: {
     /** Neutral chip. What the flagged item WAS. */
     mediaType: "Message" | "Video" | "Audio" | "Image";
-    /** Risk-family chip. Named separately from `severity` because `severity` is
-     *  what the task region SORTS on and a display priority should not silently
-     *  become a sort key. */
-    priority: "high" | "medium";
+    /** ═══ THE PLAYBOOK'S RESPONSE TIER ═══
+     *
+     *  Was `"high" | "medium"`, which was a severity of its own invention. The
+     *  product already carries the playbook's three tiers in `risk-taxonomy.ts`
+     *  — imminent / clinicalReview / generalMonitoring — and a second scale
+     *  beside them is two vocabularies for one judgement. So this IS that type.
+     *
+     *  STORED, NOT DERIVED FROM `categories`, and that is deliberate. `tierOf()`
+     *  would give this for free, but the taxonomy has real gaps —
+     *  `GROOMING_BEHAVIOR` is `"unassigned"` today — and deriving would silently
+     *  file a safeguarding flag under general monitoring because a lookup
+     *  table has a hole. An explicit field fails loudly instead; the mismatch
+     *  is then a fixture to fix, not a downgrade nobody sees.
+     *
+     *  Still named separately from `severity`, for the original reason:
+     *  `severity` is what the task region SORTS on and a display tier should
+     *  not silently become a sort key. */
+    priority: RiskTier;
     /** Local time of detection, for "{date} · {time}". */
     detectedAtTime?: string;
     /** ═══ THE TEEN'S OWN WORDS, VERBATIM ═══
