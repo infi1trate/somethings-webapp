@@ -147,12 +147,19 @@ function Attribution({ author }: { author: CareEvent["author"] }) {
  *  an entry saying where this one sits in its own sequence, and a link back to the
  *  one before it.
  *
- *  `previous` is ABSENT on a first occurrence, and the copy changes with it —
- *  "First flag", no link. A "previous: none" link would be a dead affordance, and
- *  the first flag in a record is a fact worth stating plainly rather than an
- *  absence to paper over. */
+ *  A FIRST OCCURRENCE GETS NO LINE. This once read "First flag" with no link,
+ *  on the argument that a record's first flag is a fact worth stating plainly.
+ *  Reversed: it stated that the first thing in a sequence is the first thing in
+ *  the sequence, and it did so at the TOP of the block, above the content the
+ *  reader opened. A line whose whole job is to point backwards has nothing to
+ *  do when there is nothing behind it.
+ *
+ *  So `previous` is effectively always present now for flags, and the builder
+ *  emits no entry at all on a first occurrence — which the render's own
+ *  `relational &&` guard already handles. It stays OPTIONAL on the interface
+ *  because presentation changes are built through the same shape. */
 export interface RelationalLine {
-  /** TODO-COPY. "3rd flag" / "First flag" / "Changed from F41.1". */
+  /** TODO-COPY. "3rd flag" / "Changed from F41.1". */
   lead: string;
   /** The entry this one follows, when there is one. */
   previous?: { id: string; at: number };
@@ -1276,11 +1283,24 @@ export function CareTimeline({
     for (const e of oldestFirst) {
       if (e.type !== "risk_flag" && e.type !== "escalation") continue;
       flagN += 1;
-      out.set(e.id, {
-        /* TODO-COPY */
-        lead: flagN === 1 ? "First flag" : `${ordinal(flagN)} flag`,
-        ...(prevFlag ? { previous: { id: prevFlag.id, at: prevFlag.occurredAt } } : {}),
-      });
+      /* ═══ NO LINE ON A FIRST OCCURRENCE ═══
+         It read "First flag" — a bare line with no link, because there is no
+         earlier entry to link to. The relational line exists to say where an
+         entry sits in a chain and to walk back along it; on the first flag
+         there is no chain yet, so the line was left stating that a record's
+         first flag is its first flag, at the top of the block, above the
+         content a reader opened it for.
+         THE ORDINALS AND THE CHAIN ARE UNAFFECTED. `flagN` still counts from
+         this entry and `prevFlag` still advances, so the next flag reads "2nd
+         flag" and links back to this one — dropping the line is a rendering
+         decision, not a change to the sequence. */
+      if (prevFlag) {
+        out.set(e.id, {
+          /* TODO-COPY */
+          lead: `${ordinal(flagN)} flag`,
+          previous: { id: prevFlag.id, at: prevFlag.occurredAt },
+        });
+      }
       prevFlag = e;
     }
 
