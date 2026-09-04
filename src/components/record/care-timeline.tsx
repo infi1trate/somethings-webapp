@@ -927,27 +927,20 @@ function AiBadge() {
  *  attribution row. NOT rendered while open — the collapsed row's "Open" already
  *  carries that state, and a footer saying nothing would be the second place a
  *  reader looks for a status that is one line up. */
-function ResolutionFooter({
-  verb,
-  who,
-  at,
-  time,
-}: {
-  verb: string;
-  who: string;
-  at: number;
-  time?: string;
-}) {
-  return (
-    <p
-      className="border-t border-[color:var(--border-subtle)] pt-2.5 text-[var(--text-muted)]"
-      style={{ font: "var(--type-row-label)" }}
-    >
-      {/* TODO-COPY */}
-      {`${verb} by ${who} · ${dateOf(at)}${time ? ` at ${time}` : ""}`}
-    </p>
-  );
+/** ═══ WHO, AS ONE STRING ═══
+ *  Name and role together, because a name with no role is an audit line that
+ *  does not say what authority the person was acting under. `filter(Boolean)`
+ *  so a record missing the role degrades to the bare name rather than printing
+ *  a trailing separator. */
+function who(name?: string, role?: string): string | null {
+  const parts = [name, role].filter(Boolean);
+  return parts.length ? parts.join(" \u00b7 ") : null;
 }
+
+/* `ResolutionFooter` LIVED HERE and is deleted with its last caller. It set
+   "{verb} by {who} · {date} at {time}" under a hairline at the foot of both
+   field sets; those facts are labelled cells in the grids now, and a component
+   nobody renders is a thing the next reader has to work out is dead. */
 
 /** ═══ THE RESOLUTION DATE IS DERIVED FROM THE ROW, NOT FROM `Date.now()` ═══
  *
@@ -978,6 +971,7 @@ function EscalationDetail({
      open escalation — nobody has been contacted yet — and two dashes about the
      same absent person reads as a form nobody filled in rather than as a fact. */
   const contactsBothEmpty = !d?.emergencyContact && !d?.contactConversations;
+  const resolvedAt = resolvedAtFrom(record, occurredAt);
   const crisisLabel = record.crisis
     ? (CRISIS_TYPE.find((c) => c.id === record.crisis!.type)?.label ?? null)
     : null;
@@ -990,6 +984,31 @@ function EscalationDetail({
         </Fact>
         <Fact label="Crisis sub-type">
           {crisisLabel ? <TonalChip>{crisisLabel}</TonalChip> : EM_DASH}
+        </Fact>
+        {/* ═══ WHO RAISED IT, WHO CLOSED IT, AND WHEN — IN THE RECORD ITSELF ═══
+            None of these four were in the field set. The raiser was on line 2 of
+            the COLLAPSED row and vanished there entirely when the author was not
+            a person; the open date was only the row's own header; and the
+            resolver and resolution date were a sentence in a footer that
+            rendered only once something was resolved — so an open escalation
+            documented neither who was handling it nor when it started.
+            This block is the formal record of the escalation. It has to read on
+            its own, without the row it came out of. */}
+        <Fact label="Raised by">
+          {who(record.raisedBy, record.raisedByRole) ?? EM_DASH}
+        </Fact>
+        <Fact label="Date opened">{dateOf(occurredAt)}</Fact>
+        <Fact label="Date resolved">
+          {/* STILL OPEN IS A FACT, and the em-dash is how this surface states
+              one. The pair below reads "— / —" on an open escalation, which is
+              the honest shape: nobody has closed it and nobody is recorded as
+              having. */}
+          {resolvedAt !== null
+            ? `${dateOf(resolvedAt)}${d?.resolvedAtTime ? ` \u00b7 ${d.resolvedAtTime}` : ""}`
+            : EM_DASH}
+        </Fact>
+        <Fact label="Resolved by">
+          {who(record.resolvedBy, record.resolvedByRole) ?? EM_DASH}
         </Fact>
         {!contactsBothEmpty && (
           <Fact label="Emergency contact">
@@ -1034,14 +1053,13 @@ function EscalationDetail({
       <ProseBlock label="Next steps" body={d?.nextSteps} />
       <ProseBlock label="Safety plan" body={d?.safetyPlan} />
 
-      {record.resolvedBy && resolvedAtFrom(record, occurredAt) !== null && (
-        <ResolutionFooter
-          verb="Resolved"
-          who={record.resolvedBy}
-          at={resolvedAtFrom(record, occurredAt)!}
-          time={d?.resolvedAtTime}
-        />
-      )}
+      {/* THE RESOLUTION FOOTER IS GONE. It read "Resolved by {name} · {date} at
+          {time}" under a hairline — the same two facts the grid above now states
+          as labelled fields, and stating them twice on one card is how a reader
+          starts wondering whether the two refer to different things. The grid is
+          the better home: it is where a reader already goes for the record's
+          facts, and unlike the footer it renders while the escalation is still
+          open. */}
     </div>
   );
 }
@@ -1122,6 +1140,24 @@ function FlagDetail({
         <Fact label="Detected">
           {`${dateOf(occurredAt)}${d?.detectedAtTime ? ` \u00b7 ${d.detectedAtTime}` : ""}`}
         </Fact>
+        {/* ═══ WHO RAISED IT AND WHO LOOKED AT IT ═══
+            Neither was in the field set. The raiser sat on line 2 of the
+            COLLAPSED row and was dropped there whenever the author was not a
+            person — which is every system-detected flag, so t21's whole cluster
+            documented no origin at all. The reviewer was a footer that appeared
+            only once a flag had been reviewed.
+            "RAISED BY", NOT "MENTOR" — on a person-raised flag this is the
+            mentor's name, and on a classifier match it is "Moderation ·
+            Automated review". A label saying "Mentor" over the second would be
+            the field lying about where the flag came from, which on a safety
+            record is the one thing it must not do. The ROLE beside the name is
+            what tells the two apart. */}
+        <Fact label="Raised by">
+          {who(record.raisedBy, record.raisedByRole) ?? EM_DASH}
+        </Fact>
+        <Fact label="Reviewed by">
+          {who(record.resolvedBy, record.resolvedByRole) ?? EM_DASH}
+        </Fact>
       </FactGrid>
 
       <div>
@@ -1172,14 +1208,14 @@ function FlagDetail({
         badge={record.momentSummary?.provenance === "ai" ? <AiBadge /> : undefined}
       />
 
-      {record.resolvedBy && resolvedAtFrom(record, occurredAt) !== null && (
-        <ResolutionFooter
-          verb="Reviewed"
-          who={record.resolvedBy}
-          at={resolvedAtFrom(record, occurredAt)!}
-          time={d?.reviewedAtTime}
-        />
-      )}
+      {/* THE REVIEW FOOTER IS GONE, for the same reason as the escalation's:
+          "Reviewed by {name}" is now a labelled field above, and it renders on
+          an open flag as an em-dash rather than not at all.
+          THE REVIEW DATE DID NOT MOVE WITH IT, deliberately. A flag's field set
+          already carries "Detected", and a second date beside it — one for when
+          it was caught, one for when someone looked — is a pair readers
+          transpose. The escalation grid states both because an escalation's
+          open/closed span IS the thing being audited; a flag's is not. */}
     </div>
   );
 }
