@@ -69,7 +69,10 @@ const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
 const H = 70;
 const SCORE_TOP = 12;
 const SCORE_BOTTOM = 34;
-const FLAG_Y = 58;
+/** ON THE AXIS, not above it. Was 58 — a band of its own between the score
+ *  line and the month labels, which spent 16px of a 70px strip on a row that
+ *  held three marks. The discs now sit centred on the baseline itself. */
+const FLAG_Y = 37;
 const TICK_TOP = 42;
 const TICK_BOTTOM = 50;
 /** ═══ THE AREA FILL'S STOP OPACITIES ═══
@@ -214,6 +217,18 @@ export function CareSparkline({
 
   const { startAt, endAt, marks, scoreMin, scoreMax, months } = pattern;
 
+  /** ═══ THE LAST THREE MONTHS, AS A BOX ═══
+   *  From the first of the last three month marks to the right edge of the
+   *  plot. `null` below three months: a "last three" box over two months would
+   *  be a frame around the whole chart, which says nothing. */
+  const windowBox =
+    months.length >= 3
+      ? (() => {
+          const from = xPct(months[months.length - 3].at, startAt, endAt);
+          return { x: from - 2, w: 100 - (from - 2) };
+        })()
+      : null;
+
   const assessments = marks.filter(
     (m) => m.cls === "assessment" && m.score !== undefined
   );
@@ -301,6 +316,51 @@ export function CareSparkline({
           aria-hidden
           className="absolute inset-0"
         >
+          {/* ═══ THE WEIGHTED WINDOW, DRAWN FIRST SO IT SITS UNDER THE DATA ═══
+              The design file boxes the last three months. That box is not
+              decoration: the review's score is a recency-weighted mean over the
+              last three assessments, and the box is the only thing on this card
+              that says WHICH PART OF THE AXIS that weighting covers. Without it
+              a reader has the weighted number on the card above and no way to
+              see the span it came from.
+              MONTHS, NOT READINGS. The box is drawn from the month scale
+              because that is the axis a reader is looking at; the weighting is
+              over readings, and where a month holds no reading the box simply
+              covers empty axis. Named in the caption below rather than left to
+              be inferred from a grey rectangle. */}
+          {windowBox && (
+            <rect
+              x={windowBox.x}
+              y={0}
+              width={windowBox.w}
+              height={BASELINE + 10}
+              rx="1"
+              className="fill-[var(--surface-s1)] stroke-[color:var(--border-subtle)]"
+              strokeWidth="0.3"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {/* ONE HAIRLINE PER MONTH, so the labels below have something to
+              attach to and the marks have a scale to be read against. Drawn
+              under the line and the fill — a gridline that crosses a data mark
+              is a gridline competing with the data. */}
+          {months.map((mo) => {
+            const x = xPct(mo.at, startAt, endAt);
+            return (
+              <line
+                key={`grid-${mo.at}`}
+                x1={x}
+                x2={x}
+                y1={SCORE_TOP - 6}
+                y2={BASELINE}
+                className="stroke-[color:var(--border-subtle)]"
+                strokeWidth="0.25"
+                vectorEffect="non-scaling-stroke"
+              />
+            );
+          })}
+
           {/* ═══ THE AREA FILL — a documented CHART-ONLY extension ═══
               Bloom prohibits gradients on surfaces. `--chart-area-fill` is
               defined once in the token block as the top stop of THIS fill, mixed
@@ -434,24 +494,54 @@ export function CareSparkline({
                 />
               )}
               {m.cls === "flag" && (
+                /* ═══ A DISC ON THE AXIS, NOT A TRIANGLE ABOVE IT ═══
+                    The design file draws these as filled circles sitting on the
+                    baseline with their count inside, and that is the better
+                    shape here: a triangle floating in the plot competed with the
+                    score line for the same vertical space, where a disc on the
+                    axis reads as an event ON the timeline.
+
+                    COLOUR SPLITS ESCALATION FROM FLAG, and never carries the
+                    distinction alone — the accessible label says "Escalation" or
+                    "Flag" in words, so greyscale, a screen reader and a
+                    monochrome print all get it. This is the event's TYPE, not a
+                    grade of the teen; see the note on `PatternMark.escalation`. */
                 <span
                   aria-hidden
-                  className="relative flex items-center justify-center"
-                >
-                  <span
-                    // A triangle drawn with borders, so it needs no second svg.
-                    className="size-0 border-x-[5px] border-b-[8px] border-x-transparent"
-                    style={{ borderBottomColor: "var(--band-clay-fg)" }}
-                  />
-                  {/* A coalesced mark carries its count — same-day flags become
-                      one mark, or three identical labels stack at one x. The
-                      number is in the accessible label too, so this is a second
-                      channel rather than size-as-meaning. */}
-                  {m.count > 1 && (
-                    <span className="absolute -right-2 -top-1.5 text-[9px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
-                      {m.count}
-                    </span>
+                  className={cn(
+                    "flex items-center justify-center rounded-full text-[8.5px] font-semibold leading-none tabular-nums",
+                    m.count > 1 ? "size-4" : "size-2.5"
                   )}
+                  /* ═══ EACH BAND'S OWN PAIR, NOT TWO FOREGROUNDS ═══
+                     Both discs first took a `-fg` token as their fill, and the
+                     two measured 1.09:1 against EACH OTHER — two dark browns,
+                     indistinguishable at 10px, so the colour split was doing
+                     nothing at all. The words carried it, which is why this was
+                     a design failure rather than an accessibility one.
+                     Now each takes the fill and ink it was designed with: the
+                     escalation is the loud one (clay ink as fill, light text)
+                     and the flag is the quiet one (amber wash, amber ink). That
+                     hierarchy is also true — an escalation IS the louder event —
+                     and the two are separable at a glance without either being
+                     read for its hue alone. */
+                  style={
+                    m.escalation
+                      ? {
+                          backgroundColor: "var(--band-clay-fg)",
+                          color: "var(--band-clay-bg)",
+                        }
+                      : {
+                          backgroundColor: "var(--band-amber-bg)",
+                          color: "var(--band-amber-fg)",
+                        }
+                  }
+                >
+                  {/* THE COUNT ONLY WHEN THERE IS ONE TO STATE. A "1" inside
+                      every disc is a number that never varies, which is noise a
+                      reader has to learn to ignore; the single-flag disc is
+                      simply smaller. Both sizes clear the 24px target because
+                      the BUTTON around them carries it, not the disc. */}
+                  {m.count > 1 ? m.count : null}
                 </span>
               )}
 

@@ -116,10 +116,19 @@ describe("the person is never graded", () => {
 
 describe("no message content", () => {
   it("mark labels are type and date only", () => {
+    /* ═══ THE VOCABULARY GREW BY TWO; THE RULE DID NOT ═══
+       "Escalation" and "N flags including an escalation" were added when the
+       strip started drawing escalations in a different colour from flags. Both
+       are TYPE names — the event's own workflow state, which History renders as
+       a row type — and this guard is about MESSAGE CONTENT reaching a label. It
+       stays exact: anything outside this list still fails, and the date half is
+       untouched.
+       The alternatives are what stops colour carrying the distinction alone: a
+       screen reader and a monochrome print read the noun. */
     for (const { id, p } of rendered()) {
       for (const m of p.marks) {
         expect(m.label, id).toMatch(
-          /^(Assessment|Presentation change|Flag|\d+ flags) · [A-Z][a-z]+ \d{1,2}, \d{4}$/
+          /^(Assessment|Presentation change|Flag|Escalation|\d+ flags|\d+ flags including an escalation) · [A-Z][a-z]+ \d{1,2}, \d{4}$/
         );
       }
     }

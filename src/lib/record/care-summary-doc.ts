@@ -318,12 +318,28 @@ const THEME_FIXTURE: Record<
      with the instrument the card is scored against.
      "Low mood" became `low-mood-hopelessness` — the canonical label is "Low mood
      / hopelessness", and the shortened form was itself a placeholder. */
+  /* ═══ BOTH BUCKETS, BECAUSE THE CARD NOW HAS TWO ═══
+     The rail splits these into Symptoms and Environmental factors on the tag's
+     own `category`, and this record carried only symptom-side tags — so the
+     longitudinal case, which is the one the design file mocks, rendered one
+     heading and left the other unreachable in the demo.
+     The three SDOH ids are the design file's own, and they exist verbatim in
+     the taxonomy: `divorce-separation`, `household-substance-use`,
+     `family-member-illness`. None was invented to fill the section.
+     THE DAYS STILL HAVE TO BE A STORY. They sit under `conversationDays: 9`
+     alongside a household that is coming apart and a family illness, which is
+     the same story the escalations on this record tell — a fixture whose
+     environment tags contradicted its flags would be worse than an empty
+     section. */
   t17: {
     conversationDays: 9,
     themes: [
       { tagId: "sleep-disturbance", days: 7 },
       { tagId: "low-mood-hopelessness", days: 6 },
       { tagId: "school-avoidance", days: 4 },
+      { tagId: "household-substance-use", days: 6 },
+      { tagId: "family-member-illness", days: 4 },
+      { tagId: "divorce-separation", days: 3 },
     ],
   },
   // GAD-7 TRACK. "Worry about school" → `excessive-worry`, which is the GAD-7

@@ -116,6 +116,23 @@ export interface PatternMark {
    *  So flags on one day become ONE mark carrying the count. > 1 renders the count
    *  and says so in the label. */
   count: number;
+  /** ═══ ESCALATION OR RISK FLAG — THE EVENT'S TYPE, NOT A GRADE ═══
+   *
+   *  Both classify as `cls: "flag"` so the strip still reads as three kinds of
+   *  mark, but the design file draws the two in different colours and a reader
+   *  scanning the axis genuinely wants to know which is which.
+   *
+   *  THIS IS NOT THE THING THE STANDING GUARD FORBIDS. That guard — "the pattern
+   *  never reads a flag's tier", asserted structurally in `care-pattern.test.ts`
+   *  — bans `tier` and `severity` on a mark, because those grade the PERSON.
+   *  Whether a concern was escalated is a fact about the WORKFLOW: someone
+   *  raised it to the next tier of response. History already renders that
+   *  distinction as a row type, and the strip pointing at the same rows should
+   *  not be the one surface that hides it.
+   *
+   *  On a coalesced mark it is true when ANY member was an escalation: the
+   *  higher-response event is the one the mark must not lose. */
+  escalation?: boolean;
   /** ═══ THE RECENCY-WEIGHTED SCORE AS OF THIS READING — assessments only ═══
    *
    *  The tooltip's third line. `undefined` on the FIRST reading of a series and
@@ -503,17 +520,24 @@ export function carePatternFor(
       // Only the first flag of the day emits a mark.
       if (!group || group[0].id !== e.id) continue;
       const n = group.length;
+      /* ANY escalation in the group makes the mark an escalation. A day that
+         held one flag and one escalation is a day something was escalated, and
+         a coalesced mark that reported the quieter of the two would be the
+         merge losing the more consequential fact. */
+      const escalated = group.some((g) => g.type === "escalation");
       marks.push({
         eventId: e.id,
         cls,
         at: e.occurredAt,
         count: n,
+        ...(escalated ? { escalation: true } : {}),
         // TODO-COPY. The count is IN the label, so a coalesced mark is
-        // distinguishable by name and not only by size.
+        // distinguishable by name and not only by size. The NOUN carries the
+        // event type for anyone who cannot see the colour that also does.
         label:
           n === 1
-            ? `Flag · ${dateLabel(e.occurredAt)}`
-            : `${n} flags · ${dateLabel(e.occurredAt)}`,
+            ? `${escalated ? "Escalation" : "Flag"} · ${dateLabel(e.occurredAt)}`
+            : `${n} flags${escalated ? " including an escalation" : ""} · ${dateLabel(e.occurredAt)}`,
       });
       continue;
     }

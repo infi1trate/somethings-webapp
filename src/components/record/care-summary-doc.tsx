@@ -40,10 +40,8 @@ import {
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { CareSparkline } from "@/components/record/care-sparkline";
-import { ArrowRight } from "lucide-react";
 import { PROVENANCE_NOTE, Provenance } from "@/components/record/provenance";
 import type { CarePattern } from "@/lib/record/care-pattern";
-import type { RiskTier } from "@/lib/record/risk-taxonomy";
 import {
   contentTag,
   isKnownTag,
@@ -51,11 +49,10 @@ import {
   tagLabel,
   tagTooltip,
   SHORT_LABEL_THRESHOLD,
+  type TagCategory,
 } from "@/lib/record/content-tags";
 import { cn } from "@/lib/utils";
 
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 const LABEL_STYLE = {
   font: "var(--type-field-label)",
@@ -90,10 +87,6 @@ const CHIP_THEME =
  *  visible "New" / "Resolved" label, and every pale bg in this family sits
  *  within 1.25:1 of every other — they are separated by hue, not lightness — so
  *  the tint is a second channel and never the only one (1.4.1). */
-const CHIP_NEW =
-  "inline-flex items-center rounded-full bg-[var(--band-rose-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--band-rose-fg)]";
-const CHIP_RESOLVED =
-  "inline-flex items-center rounded-full bg-[var(--band-sage-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--band-sage-fg)]";
 
 /** TIER TONES REUSE THE FLAG VOCABULARY the timeline already established —
  *  clay for escalation-grade, amber for risk-flag-grade, sand for routine. Not a
@@ -102,13 +95,6 @@ const CHIP_RESOLVED =
  *  in settings-tokens.css: clay 6.84:1, amber 7.24:1, sand 7.38:1.
  *
  *  THE TIER IS A PROPERTY OF THE FLAG, NEVER OF THE TEEN. */
-const TIER_CHIP: Record<RiskTier | "unassigned", string> = {
-  imminent: "bg-[var(--band-clay-bg)] text-[var(--band-clay-fg)]",
-  clinicalReview: "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)]",
-  generalMonitoring: "bg-[var(--band-sand-bg)] text-[var(--band-sand-fg)]",
-  unassigned:
-    "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
-};
 
 
 
@@ -363,8 +349,38 @@ export function CareSummaryDocCard({
       <Element label="Conversation content frequency">
         {doc.themes && doc.themes.themes.length > 0 ? (
           <>
+            {/* ═══ SPLIT ON THE TAG'S OWN CATEGORY ═══
+                One flat wrap of chips put "Sleep disturbance" and "Household
+                substance use" side by side as if they were the same kind of
+                finding. They are not: one is what the teen is experiencing and
+                one is what is happening around them, and a clinician reads the
+                two for different reasons.
+                THE AXIS ALREADY EXISTED. `content-tags.ts` carries `category` on
+                every tag and its own note says it is "the structure a future
+                grouped view needs" — this is that view, so nothing new was
+                invented to build it.
+                RISK JOINS SYMPTOMS. The design file puts "School avoidance"
+                under Symptoms, and `school-avoidance` is a `risk` tag in the
+                taxonomy — so the split is symptom-side versus environment-side,
+                not a one-to-one mapping of category names. Both buckets render
+                only when they have something in them; a heading over nothing
+                would be a section a reader has to rule out. */}
+            {THEME_GROUPS.map(({ label, has }) => {
+              const rows = doc.themes!.themes.filter((t) =>
+                has(contentTag(t.tagId)?.category)
+              );
+              if (!rows.length) return null;
+              return (
+                <div key={label} className="mb-3 last:mb-0">
+                  <p
+                    className="mb-2 text-[var(--text-tertiary)]"
+                    style={{ font: "var(--type-field-label)" }}
+                  >
+                    {/* TODO-COPY */}
+                    {label}
+                  </p>
             <ul className="flex flex-wrap gap-1.5">
-              {doc.themes.themes.map((t) => (
+              {rows.map((t) => (
                 <li key={t.tagId}>
                   {/* THE COUNT IS THE TRAILING SLOT, so a long tag truncates
                       and the "7/9" survives — it is the checkable part of the
@@ -385,6 +401,9 @@ export function CareSummaryDocCard({
                 </li>
               ))}
             </ul>
+                </div>
+              );
+            })}
             <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-[16px] text-[var(--text-muted)]">
               {/* THE DENOMINATOR STAYS — "7/9" is meaningless if a reader cannot
                   tell what nine is, and it is a fact about the window rather
@@ -418,113 +437,18 @@ export function CareSummaryDocCard({
         )}
       </Element>
 
-      {/* ── 3 · NEW OR RESOLVED ─── categories, so chips ────────────────── */}
-      <Element label="New or resolved clinical content">
-        {doc.contentDelta === null ? (
-          <Refusal>
-            {/* TODO-COPY — first cycle: "resolved" has no prior code to be
-                relative to. Stated rather than rendered as an empty row. */}
-            First cycle — there is no prior code for new or resolved content to be
-            measured against.
-          </Refusal>
-        ) : (
-          <div className="space-y-2.5">
-            <DeltaRow
-              label="New"
-              items={doc.contentDelta.added}
-              chip={CHIP_NEW}
-            />
-            <DeltaRow
-              label="Resolved"
-              items={doc.contentDelta.resolved}
-              chip={CHIP_RESOLVED}
-            />
-          </div>
-        )}
-      </Element>
+      {/* ═══ TWO ELEMENTS REMOVED ═══
+          "New or resolved clinical content" and "Risk flags in window" are gone
+          from this card at the product owner's call.
 
-      {/* ── 4 · RISK FLAGS IN WINDOW ───────────────────────────────────── */}
-      <Element label="Risk flags in window">
-        {doc.flags.length === 0 ? (
-          <Refusal>
-            {/* TODO-COPY — never omitted. This card is not a safety mechanism;
-                it reports what the existing pipeline raised and links to it. */}
-            No risk flags triggered this cycle.
-          </Refusal>
-        ) : (
-          /* ═══ ONE LINE, ONE TARGET (C1–C4) ═══
-              Each flag was TWO lines with its own "Open in History →" text link:
-              a repeated link in a list where every row goes to the same place,
-              and at 320px the pair wrapped at a different point per flag
-              ("Imminent risk · Aug 25" / "Open · Open in History", but the next
-              one broke after "Open"), so a reader scanning could not tell which
-              fragment belonged to which flag.
-
-              THE WHOLE ROW IS THE CONTROL NOW. The link text is gone and the
-              arrow is the affordance — `aria-hidden`, because the row's own
-              accessible name says where it goes. `space-y-0.5` rather than
-              `space-y-2`: the rows are their own targets with their own hover, so
-              the gap between them stops carrying the separation. */
-          <ul className="-mx-1.5 space-y-0.5">
-            {doc.flags.map((f) => {
-              const label = `${f.tierLabel} flag, ${clinicalDate(f.at)}, ${f.resolved ? "resolved" : "open"}`;
-              return (
-              <li key={f.eventId}>
-                <button
-                  type="button"
-                  onClick={() => onJumpToEvent?.(f.eventId)}
-                  disabled={!onJumpToEvent}
-                  /* TODO-COPY. The destination is in the name because the arrow
-                     cannot say it, and "Imminent risk, Aug 28, open" alone does
-                     not tell a screen-reader user that activating goes
-                     anywhere. */
-                  aria-label={`${label} — open in History`}
-                  className={cn(
-                    // ≥40px: `min-h-10` plus the row's own padding. SC 2.5.8 asks
-                    // 24px; 40 is the practical bar this product holds elsewhere
-                    // and it is what makes a whole-row target feel like one.
-                    "flex min-h-10 w-full items-center gap-x-2.5 rounded-[var(--radius-control)] px-1.5 text-left",
-                    // SUBTLE SURFACE ON HOVER/FOCUS ONLY — never a resting tint,
-                    // and no left-edge accent bar (the record's standing rule).
-                    "transition-colors enabled:hover:bg-[var(--tint-hover)]",
-                    "disabled:cursor-default",
-                    RING
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px]",
-                      TIER_CHIP[f.tier]
-                    )}
-                  >
-                    {f.tierLabel}
-                  </span>
-                  {/* ═══ THE DATE TRUNCATES BEFORE THE ROW WRAPS (C6) ═══
-                      At 200% zoom on the rail the full "Aug 28, 2026" does not
-                      fit beside a chip, a status and an arrow. `truncate` on the
-                      date's own span means it loses its year rather than the row
-                      gaining a second line — the rule is that these never wrap,
-                      and the year is the least load-bearing part of the string. */}
-                  <span className="min-w-0 truncate text-[13.5px] leading-[19px] text-[var(--text-primary)]">
-                    {clinicalDate(f.at)}
-                  </span>
-                  <span className="shrink-0 text-[13.5px] leading-[19px] text-[var(--text-muted)]">
-                    {/* TODO-COPY */}
-                    {f.resolved ? "Resolved" : "Open"}
-                  </span>
-                  {onJumpToEvent && (
-                    <ArrowRight
-                      aria-hidden
-                      className="ml-auto size-3.5 shrink-0 text-[var(--text-muted)]"
-                    />
-                  )}
-                </button>
-              </li>
-              );
-            })}
-          </ul>
-        )}
-      </Element>
+          THEIR DATA IS NOT. `doc.flags` still feeds `markerCounts` on the
+          COMMITTED summary — the frozen record of a cycle counts its flags by
+          tier — and `doc.contentDelta` is still computed. Deleting the
+          producers would have quietly changed what a commit stores, which is an
+          append-only artifact and a different decision from removing a section
+          from a rail. The flags also still reach the reader: they are rows in
+          History with a field set each, which is a fuller account than the list
+          that was here. */}
 
       {/* ═══ SCORE-VS-CONTENT CONCORDANCE WAS ELEMENT 5, AND IS REMOVED ═══
           It was the card's most consequential section: a deterministic rule
@@ -546,6 +470,26 @@ export function CareSummaryDocCard({
     </section>
   );
 }
+
+/** ═══ THE TWO BUCKETS, IN READING ORDER ═══
+ *
+ *  Symptom-side first: it is what the assessment score above is about, so a
+ *  reader arrives at it already holding the trajectory. Environment second, as
+ *  the context that explains it.
+ *
+ *  `has` takes the category rather than a list of ids, so a tag added to
+ *  `content-tags.ts` lands in the right bucket without being registered twice.
+ *  A tag whose category is missing — an id the taxonomy does not know — falls
+ *  into NEITHER bucket and renders nowhere, which is deliberate: an unmapped
+ *  content tag on a clinical card should be absent and reported, not filed under
+ *  a guess. */
+const THEME_GROUPS: {
+  label: string;
+  has: (c: TagCategory | undefined) => boolean;
+}[] = [
+  { label: "Symptoms", has: (c) => c === "diagnostic" || c === "risk" },
+  { label: "Environmental factors", has: (c) => c === "sdoh" },
+];
 
 /** One element. Hairline above, label, body. NOT a nested card — the house rules
  *  forbid those, and structure here comes from the rule and the spacing. */
@@ -679,45 +623,6 @@ function TagChip({
       <span className="block min-w-0 truncate">{tagLabel(id)}</span>
       {trailing}
     </span>
-  );
-}
-
-function DeltaRow({
-  label,
-  items,
-  chip,
-}: {
-  label: string;
-  items: string[];
-  /** The tint for this group — see CHIP_NEW / CHIP_RESOLVED. Passed rather than
-   *  derived from `label`, so a copy change to the label cannot silently swap
-   *  the colours. */
-  chip: string;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span
-        className="shrink-0 text-[var(--text-muted)]"
-        style={LABEL_STYLE}
-      >
-        {/* TODO-COPY */}
-        {label}
-      </span>
-      {items.length ? (
-        <ul className="flex flex-wrap gap-1.5">
-          {items.map((i) => (
-            <li key={i} className="min-w-0 max-w-full">
-              <TagChip id={i} className={cn(chip, "max-w-full")} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <span className="text-[13.5px] leading-[19px] text-[var(--text-muted)]">
-          {/* TODO-COPY */}
-          None this cycle
-        </span>
-      )}
-    </div>
   );
 }
 
