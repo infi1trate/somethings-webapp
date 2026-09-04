@@ -36,24 +36,17 @@
 // is open, and there is still no prop to suppress it; a generated block cannot
 // render without one. Recorded as design-system-gaps row 335.
 //
-// ═══ 1.4.13 IS THE HARD PART, AND IT IS WHY THIS IS NOT A `title` ═══
+// ═══ THE MECHANICS MOVED TO `HoverNote` ═══
 //
-// Content that appears on hover must be dismissible (Escape), hoverable (the
-// pointer can move onto it without it vanishing), and persistent until
-// dismissed. A `title` attribute fails all three, and a hover-only div fails the
-// second and third. So the popover opens on hover, on focus AND on click, stays
-// while the pointer is inside it, and closes on Escape or on a click outside.
-//
-// KEYBOARD AND TOUCH GET THE SAME THING BY DIFFERENT DOORS: the trigger is a
-// real button, so focus opens it and Enter/Space toggles it; a tap is a click.
-// Nothing here is reachable by hover alone.
+// The pointer timing, the pin-on-click, the Escape and outside-click dismissal
+// and the panel shell — everything that makes this conformant with WCAG 1.4.13
+// — now live in `hover-note.tsx`, because the flag-priority chip needs the same
+// behaviour with different content and a second copy of that code is how one of
+// the two quietly stops being conformant. What stays here is what this component
+// is actually about: the trigger's glyph, and the AI-tagged note it reveals.
 
-import { useEffect, useId, useRef, useState } from "react";
 import { Info, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+import { HoverNote } from "@/components/record/hover-note";
 
 /** THE ONE NOTE, in one place. Every surface that shows generated text on this
  *  record says the same thing, because a second wording is a second policy.
@@ -89,135 +82,31 @@ export function Provenance({
   triggerLabel?: string;
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  /** ═══ CLICK PINS; IT DOES NOT TOGGLE ═══
-   *
-   *  This was `setOpen(v => !v)`, and for a mouse user that made the icon look
-   *  broken: the pointer arriving fires `mouseenter`, which OPENS the panel, so
-   *  the click that follows a moment later closed the thing the reader was
-   *  clicking to see. It then stayed closed until they moved away and came back.
-   *  Found by driving it rather than by reading it — a real click is a hover and
-   *  then a press, and only the second half was being modelled.
-   *
-   *  So a click PINS: the panel stays after the pointer leaves, which is what
-   *  clicking a disclosure means, and a second click unpins and closes it. Touch
-   *  gets the same thing by the same door (a tap is a click, with no hover before
-   *  it); keyboard keeps focus-to-open, and Enter/Space now pins rather than
-   *  fighting the focus that just opened it. */
-  const pinned = useRef(false);
-  /** Hover uses a short close delay so the pointer can cross the gap between
-   *  trigger and panel without the panel disappearing under it — the "hoverable"
-   *  half of 1.4.13. A pinned panel ignores it entirely. */
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wrap = useRef<HTMLSpanElement>(null);
-  const panelId = useId();
-
-  const cancelClose = () => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  };
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimer.current = setTimeout(() => {
-      // A PINNED PANEL SURVIVES THE POINTER LEAVING. Escape, an outside click or
-      // a second click on the trigger are the ways out.
-      if (!pinned.current) setOpen(false);
-    }, 140);
-  };
-
-  useEffect(() => () => cancelClose(), []);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      // DISMISSIBLE. Stops propagation so Escape closes the popover without also
-      // closing a dialog this may be sitting inside — the summary overlay below
-      // `lg` is exactly that case.
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        pinned.current = false;
-        setOpen(false);
-      }
-    };
-    const onDown = (e: MouseEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) {
-        pinned.current = false;
-        setOpen(false);
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    document.addEventListener("mousedown", onDown);
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      document.removeEventListener("mousedown", onDown);
-    };
-  }, [open]);
-
   return (
-    <span
-      ref={wrap}
-      className={cn("relative inline-flex shrink-0 items-center gap-1", className)}
-      onMouseEnter={() => {
-        cancelClose();
-        setOpen(true);
-      }}
-      onMouseLeave={scheduleClose}
+    <HoverNote
+      triggerLabel={triggerLabel}
+      className={className}
+      trigger={<Info className="size-3.5" aria-hidden />}
+      triggerClassName={[
+        "size-5 justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+        // 20px BOX, 44px TARGET. The pseudo-element extends the hit area without
+        // reflowing a line it shares with a heading — the same technique
+        // `touch-target.ts` uses, spelled out here because this component is
+        // inline in running text on one of its call sites.
+        "after:absolute after:-inset-y-3 after:-inset-x-2 after:content-['']",
+      ].join(" ")}
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        // The accessible name has to say what the button reveals; "Info" beside
-        // an AI badge does not. TODO-COPY.
-        aria-label={triggerLabel}
-        onClick={() => {
-          pinned.current = !pinned.current;
-          setOpen(pinned.current);
-        }}
-        onFocus={() => {
-          cancelClose();
-          setOpen(true);
-        }}
-        onBlur={scheduleClose}
-        className={cn(
-          "inline-flex size-5 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-          // 20px BOX, 44px TARGET. The pseudo-element extends the hit area
-          // without reflowing a line it shares with a heading — the same
-          // technique `touch-target.ts` uses, spelled out here because this
-          // component is inline in running text on one of its three call sites.
-          "after:absolute after:-inset-y-3 after:-inset-x-2 after:content-['']",
-          RING
-        )}
-      >
-        <Info className="size-3.5" aria-hidden />
-      </button>
-
-      {open && (
-        <span
-          id={panelId}
-          role="note"
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
-          // ANCHORED RIGHT AND BELOW. `right-0` rather than `left-0` because
-          // every call site sits at the right edge of a header row, where a
-          // left-anchored panel would run off the card.
-          className="absolute right-0 top-full z-30 mt-1.5 w-[min(19rem,calc(100vw-2rem))] rounded-[var(--radius-control)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-3 shadow-[var(--shadow-card)]"
-        >
-          {/* THE TAG, AS THE PANEL'S OWN LABEL. It comes first because it is the
-              subject of the sentence under it: the note explains what "AI" means
-              here, so reading them in the other order asks the reader to hold an
-              explanation before knowing what it explains. */}
-          <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-[var(--surface-s2)] px-1.5 py-0.5 text-[11px] font-semibold leading-[14px] text-[var(--text-secondary)]">
-            <Sparkles className="size-3 shrink-0" aria-hidden />
-            {label}
-          </span>
-          <span className="block text-[12px] leading-[17px] text-[var(--text-secondary)]">
-            {note}
-          </span>
-        </span>
-      )}
-    </span>
+      {/* THE TAG, AS THE PANEL'S OWN LABEL. It comes first because it is the
+          subject of the sentence under it: the note explains what "AI" means
+          here, so reading them in the other order asks the reader to hold an
+          explanation before knowing what it explains. */}
+      <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-[var(--surface-s2)] px-1.5 py-0.5 text-[11px] font-semibold leading-[14px] text-[var(--text-secondary)]">
+        <Sparkles className="size-3 shrink-0" aria-hidden />
+        {label}
+      </span>
+      <span className="block text-[12px] leading-[17px] text-[var(--text-secondary)]">
+        {note}
+      </span>
+    </HoverNote>
   );
 }

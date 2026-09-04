@@ -10,8 +10,9 @@
 // The playbook supplies TWO independent axes, and keeping them independent is the
 // point:
 //
-//   TIER   — how fast a supervisor must respond. Imminent risk / Clinical review
-//            / General monitoring. A property of the FLAG.
+//   TIER   — how fast a supervisor must respond. Imminent risk / Clinical
+//            support / General monitoring. A property of the FLAG, and the
+//            action each one asks for is `TIER_ACTION`.
 //   THEME  — what the flag is clinically about. Self-harm, harm to others,
 //            abuse and environment, substance use, eating and body image,
 //            psychosis, peer harm, assessment. A property of the FLAG.
@@ -60,11 +61,42 @@
  *  percentile — see the module note. */
 export type RiskTier = "imminent" | "clinicalReview" | "generalMonitoring";
 
-/** TODO-COPY. Sentence case, and it describes the staff action. */
+/** TODO-COPY. Sentence case, and it describes the staff action.
+ *
+ *  "CLINICAL SUPPORT", NOT "CLINICAL REVIEW" — the product owner's term, and it
+ *  is the better one: "review" names an act of looking, "support" names what the
+ *  clinician is there to provide. The key stays `clinicalReview` because it is a
+ *  wire value written into fixtures and into `QUALIFYING_TIERS`; renaming it
+ *  would orphan them for a copy change. This label reaches the care summary
+ *  document and the commit sentence as well as the flag chip, which is the point
+ *  of it living here — one term, every surface. */
 export const TIER_LABEL: Record<RiskTier, string> = {
   imminent: "Imminent risk",
-  clinicalReview: "Clinical review",
+  clinicalReview: "Clinical support",
   generalMonitoring: "General monitoring",
+};
+
+/** ═══ WHAT THE TIER ASKS STAFF TO DO ═══
+ *
+ *  The tier label names the response; this is the response. Kept beside the
+ *  labels rather than in the component that shows them, because the same
+ *  sentence has to be available anywhere a tier is explained and a second
+ *  wording is how one policy becomes several.
+ *
+ *  ═══ NO PERCENTILES HERE EITHER ═══
+ *  The playbook defines these bands as "Top 1%" / "Top 5%" / the rest, and that
+ *  is where the definition stops. The module note above says why those names do
+ *  not appear in this product: a percentile attached to a child IS a risk score.
+ *  So the tier is defined by its band and DESCRIBED by its action, and only the
+ *  action is ever rendered.
+ *
+ *  TODO-COPY. */
+export const TIER_ACTION: Record<RiskTier, string> = {
+  imminent: "Act now.",
+  clinicalReview:
+    "Clinician review before the next session — often same-day or within 24 hours.",
+  generalMonitoring:
+    "Mentor coaching, pattern tracking, and non-urgent awareness.",
 };
 
 /** Ordered most urgent first, for anywhere that needs a stable tier order. */

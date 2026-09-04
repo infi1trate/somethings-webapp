@@ -45,7 +45,7 @@ const doc = (over: Partial<CareSummaryDoc> = {}): CareSummaryDoc => ({
     {
       eventId: "ce-f-2",
       tier: "clinicalReview",
-      tierLabel: "Clinical review",
+      tierLabel: "Clinical support",
       categoryLabels: ["Passive suicidal ideation"],
       at: 6_000,
       resolved: true,
@@ -53,7 +53,7 @@ const doc = (over: Partial<CareSummaryDoc> = {}): CareSummaryDoc => ({
     {
       eventId: "ce-f-3",
       tier: "clinicalReview",
-      tierLabel: "Clinical review",
+      tierLabel: "Clinical support",
       categoryLabels: ["Passive suicidal ideation"],
       at: 7_000,
       resolved: false,
