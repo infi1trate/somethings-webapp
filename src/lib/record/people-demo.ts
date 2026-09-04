@@ -728,7 +728,8 @@ export const DEMO_TEENS: DemoTeen[] = [
            present, because on a crisis at this tier a blank is a finding. */
         escalationDetail: {
           type: "Crisis",
-          suicideRisk: "High",
+          suicideRisk:
+            "Asked directly about thoughts of suicide, a plan and access to means. The teen said the thought had been present since Friday and described a specific method available in the house. They said they had not acted on it and did not want to. No previous attempt is recorded and none was disclosed. Assessed as high acute risk on the plan and the access rather than on intent, and the means were removed the same evening.",
           emergencyContact: "Marguerite Boileau (mother) · +1 908 555 0173",
           reasonDetail:
             "Over four days the teen described sleeping very little and skipping meals since Friday, each message more urgent than the last. In the final exchange they said they had thought about not being here and that they had a way to do it. The mentor escalated within the hour.",
@@ -794,7 +795,8 @@ export const DEMO_TEENS: DemoTeen[] = [
         // populated, so the expansion can be judged at its fullest.
         escalationDetail: {
           type: "Crisis",
-          suicideRisk: "Low",
+          suicideRisk:
+            "Asked directly about thoughts of self-harm and suicide during the same call. The teen said no to both and gave direct answers to each follow-up. No plan, no means described and no previous attempt on record. Assessed as low risk; the distress was attributed to the hospital admission and to being alone in the house.",
           emergencyContact: "Denise Okafor (aunt) · +1 704 555 0148",
           reasonDetail:
             "The teen told their mentor during a scheduled call that a family member had been admitted to hospital that morning and that they were at home alone. They described difficulty sleeping and said they had not eaten since the previous day.",
@@ -1409,9 +1411,20 @@ export interface CareFlagRecord {
   escalationDetail?: {
     /** Chip. The kind of escalation raised — "Crisis", "Welfare concern". */
     type: string;
-    /** Chip, risk-tint family. Absent = no assessment was recorded, which is a
-     *  real and common state, not missing data. */
-    suicideRisk?: "Low" | "Moderate" | "High";
+    /** ═══ FREE-FORM PROSE, NOT A SEVERITY LEVEL ═══
+     *
+     *  It was typed `"Low" | "Moderate" | "High"` and rendered as a tonal chip.
+     *  That was wrong about the field: what gets recorded here is an
+     *  ASSESSMENT — what was asked, what was answered, what was concluded — and
+     *  a three-value union cannot hold any of it. Widening the type is the
+     *  point of the change, not a side effect of it: a `string` is what stops
+     *  the next fixture from collapsing an assessment back into one word.
+     *
+     *  Absent = no assessment was recorded, which is a real and common state,
+     *  not missing data — an escalation at the welfare tier routinely has none.
+     *  The renderer prints the label with an em-dash so the absence is on the
+     *  record rather than hidden. */
+    suicideRisk?: string;
     /** Text. Absent = none on file. */
     emergencyContact?: string;
     reasonDetail?: string;

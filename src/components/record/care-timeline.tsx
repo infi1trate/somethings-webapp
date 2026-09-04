@@ -956,17 +956,6 @@ function EscalationDetail({
         <Fact label="Crisis sub-type">
           {crisisLabel ? <TonalChip>{crisisLabel}</TonalChip> : EM_DASH}
         </Fact>
-        <Fact label="Suicide assessment risk">
-          {d?.suicideRisk ? (
-            /* LABEL AND TONE TOGETHER, never tone alone — the chip reads
-               "High risk", so greyscale and a monochrome print carry it. */
-            <TonalChip tone={d.suicideRisk === "High" ? "risk" : "warning"}>
-              {`${d.suicideRisk} risk`}
-            </TonalChip>
-          ) : (
-            EM_DASH
-          )}
-        </Fact>
         {!contactsBothEmpty && (
           <Fact label="Emergency contact">
             {d?.emergencyContact ?? EM_DASH}
@@ -974,6 +963,29 @@ function EscalationDetail({
         )}
       </FactGrid>
 
+      {/* ═══ THE SUICIDE ASSESSMENT IS WRITTEN, NOT PICKED ═══
+          It rendered as a tonal chip reading "High risk" / "Low risk", off a
+          three-value union. That was wrong about the field: what a clinician
+          records here is an ASSESSMENT — what was asked, what was answered, what
+          was concluded — and a chip cannot hold any of it. Worse, it made the
+          shortest possible summary the most prominent thing in the block, and a
+          one-word severity on a suicide assessment is the last place to trade
+          detail for scannability.
+
+          SO IT MOVED OUT OF THE FACT GRID and into the prose. The grid holds the
+          short scannable facts — the escalation's type, its crisis sub-type, the
+          contact — and the prose holds the written record. Grouping by shape is
+          what lets a free-form assessment have the width and the wrapping it
+          needs instead of being squeezed into a half-column cell.
+
+          IT IS THE FIRST PROSE BLOCK, ahead of the reason: within the written
+          half it is the most consequential statement on the record. That does
+          move it after "Emergency contact", which it used to precede — the one
+          ordering change, and the cost of splitting a mixed list by shape.
+
+          The em-dash path is unchanged and still means something: no assessment
+          was recorded, which is a finding rather than a gap. */}
+      <ProseBlock label="Suicide assessment risk" body={d?.suicideRisk} />
       <ProseBlock label="Reason for escalation" body={d?.reasonDetail} />
       <ProseBlock label="Information provided by mentor" body={d?.mentorInformation} />
       {contactsBothEmpty ? (
