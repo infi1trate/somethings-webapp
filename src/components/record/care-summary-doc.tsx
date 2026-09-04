@@ -437,6 +437,44 @@ export function CareSummaryDocCard({
         )}
       </Element>
 
+      {/* ── 3 · CONVERSATION SUMMARY ─── the qualitative read ─────────── */}
+      {/* TODO-COPY on the label. It sits AFTER the frequency element because it
+          reads the same window from the other direction: the chips say how often
+          a theme appeared, this says what the period was like. Counts first,
+          then the account of them. */}
+      <Element label="Conversation summary">
+        {doc.conversationSummary ? (
+          <>
+            <p className="max-w-prose whitespace-pre-line text-[14px] leading-[1.55] text-[var(--text-primary)]">
+              {doc.conversationSummary}
+            </p>
+            {/* ═══ THE BADGE AND THE BASIS TRAVEL WITH THE PROSE ═══
+                This is the most model-written thing on the card — several
+                sentences of qualitative judgement — so it carries the shared
+                provenance mark rather than inheriting one from the header. The
+                note names the three inputs, because "generated" alone does not
+                tell a supervisor whether the sentence about an open escalation
+                came from the flag log or from somewhere softer. */}
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-[16px] text-[var(--text-muted)]">
+              {/* TODO-COPY */}
+              <span>Written from this window</span>
+              <Provenance
+                triggerLabel="About this conversation summary"
+                note="Generated from conversation themes, risk flags and escalations inside the analysis window. It describes patterns and engagement — it is not a clinical determination and states no presentation."
+              />
+            </p>
+          </>
+        ) : (
+          <Refusal>
+            {/* TODO-COPY. The frequency element's voice, deliberately: the two
+                refuse for the same reason on the same window, and two different
+                sentences for one absence would read as two different problems. */}
+            No conversation content is available for this window — a summary is
+            not generated.
+          </Refusal>
+        )}
+      </Element>
+
       {/* ═══ TWO ELEMENTS REMOVED ═══
           "New or resolved clinical content" and "Risk flags in window" are gone
           from this card at the product owner's call.

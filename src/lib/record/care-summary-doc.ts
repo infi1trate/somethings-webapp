@@ -368,6 +368,29 @@ const THEME_FIXTURE: Record<
   t21: { conversationDays: 2, themes: [{ tagId: "low-mood-hopelessness", days: 2 }] },
 };
 
+/** ═══ THE QUALITATIVE READ, PER SCENARIO ═══
+ *
+ *  Written to agree with the record each one sits on — its tags, its flags and
+ *  its escalations. A summary that described a settled mentorship on a record
+ *  carrying an open escalation would be worse than no summary, because a reader
+ *  would have to work out which of the two the card meant.
+ *
+ *  Scanned against the rules on `conversationSummary`: no quotation marks
+ *  anywhere, no presentation names, no code letters, no "patient", and every
+ *  reference to a flag is to the EVENT and its date rather than to what was
+ *  said. A record with no entry here renders the empty state.
+ *
+ *  TODO-COPY, all of it. Synthetic; no real names. */
+const SUMMARY_FIXTURE: Record<string, string> = {
+  // RICH LONGITUDINAL — carries an OPEN escalation, and the summary says so.
+  t17: "Contact has been steady through the window, with the teen initiating most of the scheduled calls and keeping the two that were moved. Sleep and low mood are the themes that recur most, and school avoidance has come up in about half the conversations. The household has been a consistent backdrop rather than an occasional one, with an illness in the family and a separation both referred to across the period. An escalation raised on Sep 1 about access to a phone remains open and is with a supervisor. Engagement itself has not dropped off as the scores have moved.",
+  // STEADY HEALTHY — the quiet case, and it should read as quiet without
+  // reading as empty. No flags to reference.
+  t18: "The mentorship has been consistent across the window, with calls kept at their scheduled times and short exchanges in between. Worry about school is the theme that comes up most often and has stayed at the same level rather than building. Nothing in the period was raised as a flag or an escalation. The teen has been the one to start most conversations, which has held steady since matching.",
+  // 90-DAY REVIEW DUE — thinner contact, one recurring theme, no open events.
+  t19: "Contact has been lighter this window than the last, with two calls moved and both kept. Low mood is the theme that recurs, and the teen has twice described pulling back from friends rather than from the mentorship itself. Appetite came up in a smaller number of conversations. No flags were raised in the period.",
+};
+
 // ─── ELEMENTS 3 & 4 ─────────────────────────────────────────────────────────
 
 export interface WindowFlag {
@@ -419,6 +442,26 @@ export interface CareSummaryDoc {
   trajectory: string | null;
   /** Element 2. Null = no extraction available for this teen. */
   themes: { conversationDays: number; themes: ThemeCount[] } | null;
+  /** ═══ THE QUALITATIVE READ — 3-5 SENTENCES, OR NULL ═══
+   *
+   *  What the numbers above cannot say: how the mentorship is going. Null when
+   *  there is no conversation content in the window, which the rail states
+   *  rather than hides.
+   *
+   *  THREE RULES, ENFORCED IN THE FIXTURES AND BINDING ON THE REAL PIPELINE:
+   *  · NEVER VERBATIM. It describes patterns, engagement and status; a teen's
+   *    own words never appear here, and no quotation marks around teen speech
+   *    ever. This is the rail — the one place verbatim content is allowed on
+   *    this record is a flag's own field set, which is a different surface with
+   *    its own recorded justification.
+   *  · NEVER DIAGNOSTIC. No conclusions, no code suggestions. The review flow
+   *    diagnoses; this observes. A sentence here that named a presentation would
+   *    be a second opinion competing with the one on the card above.
+   *  · EVENTS ARE FAIR GAME AT EVENT LEVEL — "an escalation opened Aug 29
+   *    remains open" — which is what the flag rows in History already say.
+   *
+   *  TODO-DATA: fixture. There is no summarization pipeline. */
+  conversationSummary: string | null;
   /** Element 3. `null` on a first cycle: "resolved" has no referent. */
   contentDelta: { added: string[]; resolved: string[] } | null;
   /** Element 4. Empty array is meaningful and renders explicitly. */
@@ -584,6 +627,14 @@ export function careSummaryFor(
     ],
     trajectory: trajectoryFor(assessments, contactDays),
     themes: contactDays >= SUMMARY_MIN_CONTACT_DAYS ? themes : null,
+    /* GATED ON THE SAME CONTACT FLOOR AS THE THEMES. A qualitative read of a
+       window with almost no conversation in it is the same problem element 1
+       refuses for: prose with no visible confidence marker, indistinguishable
+       from a solid one. One floor, both elements. */
+    conversationSummary:
+      contactDays >= SUMMARY_MIN_CONTACT_DAYS
+        ? (SUMMARY_FIXTURE[teenId] ?? null)
+        : null,
     // FIRST CYCLE: "resolved" has no prior code to be relative to, so the element
     // states that rather than rendering an empty row.
     contentDelta: window.firstCycle

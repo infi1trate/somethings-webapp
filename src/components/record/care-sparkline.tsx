@@ -335,7 +335,24 @@ export function CareSparkline({
               width={windowBox.w}
               height={BASELINE + 10}
               rx="1"
-              className="fill-[var(--surface-s1)] stroke-[color:var(--border-subtle)]"
+              /* ═══ PRESENTATION ATTRIBUTES, NOT UTILITY CLASSES ═══
+                 This shipped as `fill-[var(--surface-s1)]
+                 stroke-[color:var(--border-subtle)]` and rendered as an OPAQUE
+                 BLACK RECTANGLE across the plot. Measured, not guessed: neither
+                 utility generated a rule at all — no matching selector exists in
+                 any stylesheet — so `fill` fell to the SVG default of black and
+                 `stroke` resolved to `none`. The block was the window container
+                 with its paint missing, not the R6 gradient, whose stops verify
+                 healthy at 0.14 -> 0 on the same render.
+                 This is the lesson the gradient below already records about
+                 `stop-opacity`: an SVG paint expressed as a compiled utility can
+                 be compiled away, and a presentation attribute cannot. Both
+                 halves are attributes now, and my own verification of this rect
+                 in the change that introduced it read its geometry attributes
+                 and never its resolved paint — which is how a black box shipped
+                 past a green check. */
+              fill="var(--surface-s1)"
+              stroke="var(--border-subtle)"
               strokeWidth="0.3"
               vectorEffect="non-scaling-stroke"
             />
