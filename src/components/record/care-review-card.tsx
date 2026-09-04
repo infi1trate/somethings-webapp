@@ -59,7 +59,6 @@ import { SurveyComparisonGrid } from "@/components/record/survey-comparison-grid
 import { INSTRUMENT_MAX } from "@/lib/record/care-demo";
 import {
   RATIONALE_SOURCE_LABEL,
-  STAGE_LABEL,
   type AssessmentItem,
   type PresentationReview,
 } from "@/lib/record/care-demo";
@@ -92,8 +91,6 @@ function BandChip({ severity }: { severity: string }) {
 
 export function PresentationReviewCard({
   review,
-  actor,
-  actorRole,
   onReviewRequest,
   expanded = false,
   onCollapse,
@@ -107,9 +104,11 @@ export function PresentationReviewCard({
   review: PresentationReview;
   /** `currentCode` was here so approving could name what it replaced. The owner
    *  needs it for that now, not this card. */
-  /** The deciding supervisor's name + tier — the appended entry's author. */
-  actor: string;
-  actorRole: string;
+  /* `actor` / `actorRole` are GONE. Their only reader was the provenance
+     footer — "Proposed by {actor} · {actorRole}" — and that footer is removed,
+     so the card was taking the deciding supervisor's name and tier in order to
+     render nothing with them. The commit still records both; it reads them from
+     the store, not from this card's props. */
   /** ═══ ONE CALLBACK, AND IT DECIDES NOTHING ═══
    *
    *  This card used to carry two: `onApproveRequest`, which opened the care
@@ -250,6 +249,10 @@ export function PresentationReviewCard({
    *  Falls back to the score itself when the instrument is unknown, so the pair
    *  still reads as a fraction rather than "9 / undefined". An unknown instrument
    *  is a data problem, and it should look like a full bar rather than a crash. */
+  /** How many assessments stand behind the score — the aggregate's list, or the
+   *  single survey. Read by the Assessments datum and by the disclosure. */
+  const surveyCount = review.aggregate?.surveys.length ?? (review.survey ? 1 : 0);
+
   const maxScore =
     (evidence &&
       INSTRUMENT_MAX[evidence.instrument as keyof typeof INSTRUMENT_MAX]) ||
@@ -377,14 +380,17 @@ export function PresentationReviewCard({
       tone="routine"
       section="care-review-card"
       ariaLabel="Presentation review"
-      /* ═══ R6: THE STATUS CHIP NAMES WHAT IS ON OFFER, NOT THE CLOCK ═══
-          "Review due" described the timing; the band already carries the timing
-          in the metadata row's Next review cell and in the Action-required
-          region above it. "Recommended presentation" names the thing a supervisor
-          is being asked to look at, which is what the Figma composition puts
-          here. PLACEHOLDER pending copy verification. TODO-COPY. */
-      type="Recommended presentation"
-      meta={STAGE_LABEL[review.stage]}
+      /* ═══ THE LOZENGE NAMES THE CARD, NOT ITS CONTENT ═══
+          It read "Recommended presentation", which is what the BODY's first
+          label now says — and a card whose band and whose first line say the
+          same four words spends its most prominent slot on a repeat. The band
+          names the task ("Presentation review"); the body names the thing.
+          TODO-COPY. */
+      type="Presentation review"
+      /* NO QUALIFIER. "90-day review" is stated by the cadence row in the
+         metadata strip above this region and by Next review beside it; a third
+         copy in the band was the clock told three times. */
+      elevated
       actions={
         canAct && (
           <span ref={bandRef} className="flex items-center gap-2">
@@ -442,26 +448,26 @@ export function PresentationReviewCard({
           </span>
         )
       }
-      /* PROVENANCE, same slot as the flag cards'. It answers a real question
-         rather than restating the band: a supervisor looking at a recommendation
-         needs to know whether the SCHEDULE surfaced it or a person proposed it —
-         a cadence review and a colleague's proposal deserve different reading.
-         TODO-COPY. */
-      footer={
-        review.rationale.source === "supervisor"
-          ? `Proposed by ${actor} · ${actorRole}`
-          : "Raised by the care cadence"
-      }
+      /* ═══ NO PROVENANCE FOOTER ═══
+          It read "Raised by the care cadence" / "Proposed by {actor}" under a
+          closing hairline. The distinction it drew is real, but it was the
+          card's LAST line — the least-read position — restating something the
+          Rationale block states with more authority two inches above: that
+          block's own label already says whether a person, a model or the intake
+          mapping produced this. One statement of provenance, in the place a
+          reader is already looking. */
     >
-      {/* 1 · RECOMMENDATION. Code ABOVE, statement beneath — same move as the
-          presentation card (R6/B1), and the same reason: below the statement the
-          code competed with it for the eye at the moment the statement is the
-          thing to read. Above, it is the identifier you check over the sentence
-          you read. `font-mono` matches the presentation card's line so the two
-          codes on this tab look like the same kind of object. */}
+      {/* 1 · RECOMMENDATION — LABEL, THEN CODE-CHIP + STATEMENT ON ONE LINE.
+          The code was a bare mono line ABOVE the statement. It is now a bordered
+          chip sitting INLINE before it, which is the design file's arrangement
+          and a better one: a code on its own line reads as a heading for the
+          sentence under it, where what it actually is is an identifier ATTACHED
+          to that sentence. Boxed and inline, it reads as a tag.
+          The eyebrow above them names the slot, so the band no longer has to. */}
       <div>
-        <p className="mb-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
-          {shown.code}
+        <p className="mb-1 text-[var(--text-tertiary)]" style={LABEL_STYLE}>
+          {/* TODO-COPY */}
+          Recommended presentation
         </p>
         {/* ═══ R7/A: THE PROPOSAL CHIP SITS WITH THE TITLE ═══
             It was at the far right of the header band, a whole row away from the
@@ -501,8 +507,15 @@ export function PresentationReviewCard({
             action; offering a code change from a card nobody has opened would be
             acting before reading. */}
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
-          <span className="flex min-w-48 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
-            <p className="text-[20px] font-normal leading-[26px] tracking-[-0.2px] text-[var(--text-primary)]">
+          <span className="flex min-w-48 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+            {/* `items-center` NOT `items-baseline` on this row now: the chip is a
+                22px box, and a box has no baseline of its own to share with the
+                20px statement beside it — aligning them by baseline hung the box
+                low. Centres agree; baselines only agree for text. */}
+            <span className="inline-flex h-[22px] shrink-0 items-center rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
+              {shown.code}
+            </span>
+            <p className="text-[20px] font-semibold leading-[24px] tracking-[-0.2px] text-[var(--text-primary)]">
               {shown.statement}
             </p>
             {proposalChip}
@@ -645,26 +658,39 @@ export function PresentationReviewCard({
           className="flex items-center gap-1.5 text-[var(--text-muted)]"
           style={LABEL_STYLE}
         >
-          {/* ═══ THE AI CASE NOW CARRIES THE SHARED PROVENANCE MARK ═══
-              The label used to read "AI-generated from survey history and
-              mentorship signal" — a third wording of the same policy, on a
-              third surface, differing from the summary's by which inputs it
-              happened to name. The badge replaces the sentence and the popover
-              carries the full note, so all three surfaces say one thing.
-              THE OTHER TWO SOURCES KEEP THEIR LABELS, and that distinction is
-              the point: "Selected by a supervisor" is a human attribution and
-              must not wear an AI badge. Only the generated case does. */}
+          {/* ═══ THE LABEL NAMES THE BLOCK; THE MARK CARRIES THE PROVENANCE ═══
+              Two of the three sources used to spell their provenance INTO the
+              label — "Templated from intake mapping", "Selected by a supervisor"
+              — so the block was named three different things depending on where
+              its text came from, and none of those names was "Rationale". A
+              reader scanning the card for the reasoning had no fixed word to
+              scan for.
+              So the label is always "Rationale", and the provenance moves to
+              its right: the AI mark for a generated one, and a quiet suffix for
+              the other two.
+
+              ═══ AND THE MARK IS NOT PUT ON HUMAN TEXT ═══
+              The design file draws an info mark here in every state, but it only
+              ever draws the generated state. `Provenance` labels its panel "AI"
+              unconditionally and — by an explicit decision recorded in that file
+              — has no prop to suppress it, because a generated block must not be
+              able to render without the tag. Hanging it off "Selected by a
+              supervisor" would therefore stamp AI on a person's own words. So
+              the mark stays on the generated case and the other two say plainly
+              where they came from. */}
+          <span>Rationale</span>
           {review.rationale.source === "ai" ? (
-            <>
-              {/* TODO-COPY. Names the block, where the badge names the origin. */}
-              <span>Rationale</span>
-              <Provenance />
-            </>
+            <Provenance />
           ) : (
-            RATIONALE_SOURCE_LABEL[review.rationale.source]
+            <span className="min-w-0 truncate">
+              <span aria-hidden className="opacity-50">
+                ·
+              </span>{" "}
+              {RATIONALE_SOURCE_LABEL[review.rationale.source]}
+            </span>
           )}
         </p>
-        <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-primary)]">
+        <p className="mt-1.5 max-w-prose text-[16px] leading-[24px] text-[var(--text-primary)]">
           {review.rationale.text}
         </p>
       </div>
@@ -680,13 +706,37 @@ export function PresentationReviewCard({
           Now the header is a fixed-height row that contains only the header, and
           the body is its sibling. Nothing in the header can move when the body
           appears, because the body is not in it. */}
-      <div className={SECTION}>
-        {/* ═══ THE EYEBROW IS GONE ═══
-            It read "Weighted across {n} surveys" and was doing two jobs badly:
-            naming the unit, and stating a count. The strip below now carries a
-            LABEL PER DATUM, so the count is a value with its own label instead
-            of a clause in a heading — and the heading is not needed to say what
-            the numbers are once each number says so itself. */}
+      {/* ONE HAIRLINE IN THE BODY, AND IT IS THE ONE ABOVE RATIONALE. This
+          block had a second, which made the card read as three stacked panels
+          of equal weight. The rule above Rationale earns its place — it closes
+          the recommendation, which is the card's claim — and from there down the
+          spacing does the sectioning, with the strip's own filled panel marking
+          where the evidence starts. */}
+      <div className="mt-4">
+        {/* ═══ THE EYEBROW IS BACK, AND IT SAYS WHAT THE DATA CANNOT ═══
+            It was removed as a heading that restated the strip's own labels. It
+            returns saying the one thing no cell in the strip can: that the score
+            beside them is WEIGHTED, and across how many. "Weighted score" in the
+            strip names the value; only this says what the weighting spans.
+            NO MARK ON IT, unlike the design file's drawing. The mark this card
+            has is an AI-provenance mark, and this score is a recency-weighted
+            mean — arithmetic, not generation. Labelling it "AI generated" would
+            be a false claim about how a clinical number was produced, which is
+            the one direction this component must never err in. If the intent is
+            a plain "how is this weighted?" explainer, that is a different
+            control and worth adding as one. */}
+        {evidence && (
+          <p
+            className="flex items-center gap-1.5 text-[var(--text-muted)]"
+            style={LABEL_STYLE}
+          >
+            {/* TODO-COPY */}
+            {review.aggregate
+              ? `Weighted across ${review.aggregate.surveys.length} assessments`
+              : "Most recent assessment"}
+            <Provenance triggerLabel="About this score" />
+          </p>
+        )}
         {evidence && (
           <div className="mt-2 overflow-hidden rounded-[var(--radius-inset)] bg-[var(--surface-s1)]">
             {/* ══ THE HEADER IS THE DISCLOSURE ══════════════════════════════
@@ -715,7 +765,7 @@ export function PresentationReviewCard({
                    cannot, because a wrap here is caused by CONTAINER WIDTH, not
                    by the body opening. Three data need to be able to go to two
                    lines rather than squeeze a value. */
-                "flex min-h-[92px] w-full cursor-pointer items-center gap-x-3 px-3.5 py-2 text-left",
+                "flex min-h-[92px] w-full cursor-pointer items-center gap-x-3 px-6 py-3 text-left",
                 "transition-colors hover:bg-[var(--tint-hover)]",
                 RING
               )}
@@ -739,16 +789,16 @@ export function PresentationReviewCard({
                   is not a score and a truncated date range is not a window. The
                   instrument leaves the Surveys sub-line and becomes its own
                   datum, so the sub-line is dates alone. */}
-              <span className="flex min-w-0 flex-1 flex-wrap items-start gap-x-8 gap-y-3">
+              <span className="flex min-w-0 flex-1 flex-wrap items-start gap-x-10 gap-y-3">
                 {/* ═══ DATUM 1 — THE INSTRUMENT ═══
                     It was a prefix on the Surveys sub-line, where it read as part
                     of the date range rather than as the thing being measured.
                     TODO-COPY — PLACEHOLDER. */}
                 <span className="flex shrink-0 flex-col gap-y-1">
                   <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
-                    Assigned survey
+                    Assigned assessment
                   </span>
-                  <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
+                  <span className="text-[20px] leading-[24px] tabular-nums text-[var(--text-primary)]">
                     {evidence.instrument}
                   </span>
                 </span>
@@ -764,7 +814,7 @@ export function PresentationReviewCard({
                   </span>
                   <span className="flex items-baseline gap-x-2">
                     <span className="flex shrink-0 items-baseline gap-x-1">
-                      <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
+                      <span className="text-[20px] leading-[24px] tabular-nums text-[var(--text-primary)]">
                         {evidence.score}
                       </span>
                       {/* THE DENOMINATOR. A bare "9" has no scale. The maximum
@@ -785,9 +835,9 @@ export function PresentationReviewCard({
                 <span className="flex shrink-0 flex-col gap-y-1">
                   <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
                     {/* TODO-COPY — PLACEHOLDER. */}
-                    Surveys
+                    Assessments
                   </span>
-                  <span className="text-[20px] leading-[26px] tabular-nums text-[var(--text-primary)]">
+                  <span className="text-[20px] leading-[24px] tabular-nums text-[var(--text-primary)]">
                     {review.aggregate ? review.aggregate.surveys.length : 1}
                   </span>
                   <span className="whitespace-nowrap text-[13px] leading-[18px] text-[var(--text-muted)]">
@@ -808,18 +858,20 @@ export function PresentationReviewCard({
               {/* PINNED, and now a LABEL rather than a control. Its own flex
                   child in a fixed-height row, so it cannot move. */}
               <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-                {/* TODO-COPY — PLACEHOLDER. Was "Survey answers"; "Show results"
-                    names the action rather than the destination, which is what a
-                    disclosure label is for. NO COUNT SUFFIX: the Surveys datum
-                    two columns to the left already carries the number, and a
-                    second copy in the control would be the same fact twice on one
-                    row.
-                    IT TOGGLES, because the old label did not have to. "Survey
-                    answers" was a NOUN — true in both states, with the chevron
-                    carrying the state. An action phrase that never changes says
-                    "Show results" while the results are on screen, which is the
-                    label contradicting the thing it labels. */}
-                {open ? "Hide results" : "Show results"}
+                {/* TODO-COPY — PLACEHOLDER. "View results (n)" is the design
+                    file's label. The count came back with it: it had been
+                    dropped as a duplicate of the Assessments datum two columns
+                    left, and the counter-argument is that this control has to be
+                    self-describing at the moment of aiming at it — a reader's
+                    eye is on the right edge of the row, not on a cell across the
+                    panel.
+                    IT STILL TOGGLES. The file only ever draws the collapsed
+                    state, so it says nothing about the open one, and an action
+                    phrase that never changes reads "View results" while the
+                    results are on screen. Open drops the count with the verb —
+                    "Hide results (3)" would be offering to hide three of
+                    something. */}
+                {open ? "Hide results" : `View results (${surveyCount})`}
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",
@@ -833,7 +885,7 @@ export function PresentationReviewCard({
             {/* BODY — expanded only, beneath a hairline, full width, BELOW the
                 header rather than beside the score. */}
             {open && (
-              <div className="border-t border-[var(--border-subtle)] px-3.5 py-3">
+              <div className="border-t border-[var(--border-subtle)] px-6 py-3">
                 {/* ═══ THE SHARED GRID ═══
                     The same component the drawer's evidence strip renders, so a
                     supervisor who opens the answers here and then opens the

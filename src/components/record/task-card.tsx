@@ -25,9 +25,16 @@
 // global Tasks page will consume. This file is the card that hosts them: one
 // surface, contour hairline, no shadow, no border accent, no nesting.
 //
-// FORBIDDEN HERE AND ANYWHERE: left-edge bars, whole-card tints, shadows, icons
-// larger than 16px in the band. The severity marker is a 6px filled dot inside
-// the label chip, which sidesteps the icon-size question entirely.
+// FORBIDDEN HERE AND ANYWHERE: left-edge bars, whole-card tints, icons larger
+// than 16px in the band. The severity marker is a 6px filled dot inside the
+// label chip, which sidesteps the icon-size question entirely.
+//
+// SHADOWS WERE ON THAT LIST AND ARE NOW AN OPT-IN (`elevated`). The rule was
+// written when every task card sat flush in a column; the care tab's review card
+// is the one that now carries Elevation/4 from the design file. It is a PROP
+// rather than a new default so the flag cards on Overview are untouched — one
+// surface asked for it, and a shadow appearing on a surface nobody asked about
+// is not a free change.
 //
 // COLOUR NEVER CARRIES SEVERITY ALONE. Every tone pairs with a type label in
 // words ("Escalation", "Risk flag", "Review due") and, where it applies, a
@@ -48,6 +55,11 @@ export type TaskTone = TaskSeverity;
 
 export function TaskCard({
   tone,
+  /** Elevation/4 plus the filled band chip — the design file's newer card
+   *  anatomy, taken as ONE opt-in rather than two. They were drawn together and
+   *  a card with the shadow but the outlined chip is a state the file does not
+   *  contain. See the note at the top for why it is not the default. */
+  elevated = false,
   /** The type label — "Escalation", "Risk flag", "Review due". In words, always. */
   type,
   /** The QUALIFIER, outside the chip: "Open", "90-day review", "Resolved · 48h". */
@@ -68,6 +80,7 @@ export function TaskCard({
   footer?: React.ReactNode;
   ariaLabel: string;
   section: string;
+  elevated?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -75,12 +88,20 @@ export function TaskCard({
       aria-label={ariaLabel}
       data-record-section={section}
       data-task-tone={tone}
-      // ONE card. Contour hairline, no shadow, no border accent, no nesting.
-      className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      // ONE card. Contour hairline, no border accent, no nesting.
+      className={cn(
+        "overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
+        elevated && "shadow-[var(--shadow-elevation-4)]"
+      )}
     >
       {/* ── LABEL BAND — canonical label, fixed height, one centre axis. ── */}
       <TaskBand severity={tone} actions={actions}>
-        <TaskLabel severity={tone} type={type} qualifier={meta} />
+        <TaskLabel
+          severity={tone}
+          type={type}
+          qualifier={meta}
+          variant={elevated ? "filled" : "outlined"}
+        />
       </TaskBand>
 
       {/* ── BODY. Sectioned by hairlines and spacing only. ───────────────── */}
