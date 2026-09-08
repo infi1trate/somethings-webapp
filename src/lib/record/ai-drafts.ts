@@ -121,9 +121,44 @@ export function draftBasis(assessments: readonly CareAssessment[]): string {
  *  makes it testable. */
 const FILLER = /^(?:i think|i feel like|it seems like|basically|just|so)\s+/i;
 
+/** ═══ WHEN THE IMPROVE CONTROL IS OFFERED — WORDS, NOT CHARACTERS ═══
+ *
+ *  THE CONTROL'S VISIBILITY MUST NOT DEPEND ON WHETHER THERE IS ANYTHING TO
+ *  IMPROVE, and that is the whole point of this constant existing.
+ *
+ *  It used to: `canImprove` called `improve()` and hid the button whenever the
+ *  result came back null. `improve()` returns null when its output equals its
+ *  input — which becomes true the moment you finish a sentence with a full stop
+ *  and false again as soon as you start the next word. Replayed keystroke by
+ *  keystroke over one ordinary two-sentence draft, the button appeared and
+ *  vanished FOUR times, and it was absent for the whole of the space after each
+ *  full stop. A control that blinks while you type is a control you learn not
+ *  to reach for.
+ *
+ *  So visibility is now a property of the TEXT — three words or more — and never
+ *  of the suggestion. Above the threshold the control is always there; below it,
+ *  never. Nothing else moves it. */
+export const IMPROVE_MIN_WORDS = 3;
+
+/** Whitespace-separated runs. Trailing and repeated spaces contribute nothing,
+ *  which is what makes the count stable while a person is mid-word. */
+export function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Whether the Improve control should be on screen for this text. The ONLY
+ *  input is the word count — see `IMPROVE_MIN_WORDS`. */
+export function canImproveText(text: string): boolean {
+  return wordCount(text) >= IMPROVE_MIN_WORDS;
+}
+
 export function improve(text: string): string | null {
   const clean = text.replace(/\s+/g, " ").trim();
-  if (clean.length < 12) return null;
+  /* THE SAME THRESHOLD THE BUTTON USES, so the two cannot disagree about what
+     is long enough to work on. It was a 12-character floor, which is a
+     different question from the one the control asks and answered it
+     differently for short words. */
+  if (!canImproveText(clean)) return null;
   const sentences = clean
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.replace(FILLER, "").trim())
@@ -131,5 +166,11 @@ export function improve(text: string): string | null {
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .map((s) => (/[.!?]$/.test(s) ? s : `${s}.`));
   const out = sentences.join(" ");
-  return out === clean ? null : out;
+  /* ═══ COMPARED AGAINST THE TRIMMED INPUT, NOT THE NORMALISED ONE ═══
+     `clean` has already had its internal whitespace collapsed, so comparing
+     against it made a doubled space between two words invisible — the function
+     said "nothing to change" about text it would have changed. Trimming only
+     keeps leading and trailing whitespace out of it, which is not something to
+     offer a person a suggestion about while they are still typing. */
+  return out === text.trim() ? null : out;
 }
