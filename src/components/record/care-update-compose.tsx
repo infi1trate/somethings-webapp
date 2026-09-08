@@ -94,11 +94,12 @@ export interface DiagnosticPrefill {
 }
 
 /** TODO-COPY — provenance, stated on the field rather than inferred from tone. */
-const PREFILL_LABEL: Record<CareUpdatePrefill["source"], string> = {
-  ai: "AI-generated draft",
-  templated: "Pre-filled from survey evidence",
-  supervisor: "Pre-filled from the recorded rationale",
-};
+/* `PREFILL_LABEL` LIVED HERE — "AI-generated draft" / "Pre-filled from survey
+   evidence" / "Pre-filled from the recorded rationale" — and labelled the badge
+   over a seeded textarea. Both are gone with the seeding. I first wrote that it
+   "survives for the read surfaces"; it did not. One grep, one consumer, and that
+   consumer was the badge. The read surfaces label a COMMITTED record's
+   provenance and will need their own strings. */
 
 type FieldId = "clinical" | "diagnostic" | "assessment";
 
@@ -187,6 +188,11 @@ export function CareUpdateCompose({
         <ComposeForm
           amending={amending}
           documenting={documenting}
+          /* STILL FORWARDED, even though the fields no longer seed from it: the
+             COMMIT reads it to record `diagnosticPrefill` on the saved update.
+             A blanket removal of the pass-throughs took this one too and would
+             have emptied that field on every save — caught by lint reporting the
+             prop as unused one level up, not by anything looking at the record. */
           prefill={prefill}
           onSave={onSave}
           onOpenChange={onOpenChange}
@@ -229,8 +235,20 @@ function ComposeForm({
   const initial = useMemo<CareUpdateBody>(() => {
     if (amending) return { ...amending.body };
     const base = emptyCareUpdateBody();
-    return prefill ? { ...base, diagnostic: prefill.text } : base;
-  }, [amending, prefill]);
+    /* ═══ THE DIAGNOSTIC FIELD OPENS EMPTY ═══
+       It was seeded with `prefill.text` — an AI draft sitting in the textarea
+       under an "AI-generated draft" badge, so the default state of a clinical
+       record was model prose a supervisor had to notice and delete. Opt-in
+       replaces it: the draft is still available, one disclosure away, and
+       nothing reaches the field until someone puts it there.
+       WHAT THIS CHANGES ABOUT THE RECORD: `diagnosticPrefill.edited` used to
+       mean "the supervisor changed the seeded text". With nothing seeded there
+       is no baseline to diverge from, so that field now describes an insertion
+       the supervisor performed rather than one they inherited — see the
+       provenance work still outstanding. */
+    return base;
+    // `prefill` left the dependency list with the seeding it drove.
+  }, [amending]);
 
   const [body, setBody] = useState<CareUpdateBody>(initial);
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
@@ -353,7 +371,6 @@ function ComposeForm({
           onChange={setBody}
           errors={errors}
           clearError={clearError}
-          prefill={prefill}
           clinicalRef={clinicalRef}
           diagnosticRef={diagnosticRef}
           assessmentRef={assessmentRef}
@@ -567,7 +584,6 @@ export function CareUpdateFields({
   onChange,
   errors,
   clearError,
-  prefill,
   clinicalRef,
   diagnosticRef,
   assessmentRef,
@@ -580,7 +596,10 @@ export function CareUpdateFields({
   onChange: (update: (b: CareUpdateBody) => CareUpdateBody) => void;
   errors: Record<FieldId, boolean>;
   clearError: (id: FieldId) => void;
-  prefill?: DiagnosticPrefill | null;
+  /* `prefill` IS NO LONGER TAKEN HERE. The fields do not seed themselves, so
+     the draft is not theirs to hold; the reveal-and-insert disclosure that will
+     need it is not built yet, and a prop nothing reads is a prop that rots.
+     The two callers still compute the draft for the COMMIT record. */
   clinicalRef: React.RefObject<HTMLTextAreaElement | null>;
   diagnosticRef: React.RefObject<HTMLTextAreaElement | null>;
   assessmentRef: React.RefObject<HTMLButtonElement | null>;
@@ -657,7 +676,9 @@ export function CareUpdateFields({
           // PROVENANCE ON THE FIELD, not in a tooltip: a supervisor is about to
           // sign this sentence, and whether a model wrote the first draft is
           // part of what they are agreeing to.
-          badge={prefill ? PREFILL_LABEL[prefill.source] : undefined}
+          /* NO BADGE. It labelled text the form had put in the field; the field
+             is empty now, so a badge on it would be describing nothing. */
+          badge={undefined}
         >
           <textarea
             id={`${idPrefix}-diagnostic`}

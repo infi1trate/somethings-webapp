@@ -64,7 +64,10 @@ export interface CareReviewWorkspaceProps {
    *  draft defect inverted. Every OTHER write comes from the title block. */
   onDecisionChange: (next: ReviewDecision | null) => void;
   teenId: string;
-  prefill?: DiagnosticPrefill | null;
+  /* `prefill` IS NO LONGER TAKEN. This surface seeded the diagnostic field from
+     it and nothing else read it — the commit builds its provenance in
+     `care-tab`. The reveal-and-insert disclosure that will need the draft is not
+     built yet, and a prop nothing reads is a prop that rots. */
   now: number;
   /** ═══ A TICK THAT MEANS "TAKE FOCUS" ═══
    *  The card owns expansion, so a mount effect is not what should move focus —
@@ -89,7 +92,6 @@ export function CareReviewWorkspace({
   decision,
   onDecisionChange,
   teenId,
-  prefill,
   now,
   focusSignal,
   onSaveAndClose,
@@ -114,12 +116,18 @@ export function CareReviewWorkspace({
      `{ decision, body }` on every change and still clears on a return to
      pristine. The brief keeps drafts unchanged, and splitting the write across
      two components is how a draft ends up half-written. */
-  /** What this opened with — the restored draft, or the AI prefill, or empty. */
-  const [initialBody] = useState<CareUpdateBody>(() =>
-    restored?.body ??
-    (prefill
-      ? { ...emptyCareUpdateBody(), diagnostic: prefill.text }
-      : emptyCareUpdateBody())
+  /** ═══ WHAT THIS OPENED WITH: A RESTORED DRAFT, OR EMPTY ═══
+   *
+   *  The AI prefill is no longer one of the options. This surface seeded the
+   *  diagnostic field INDEPENDENTLY of the shared `CareUpdateFields`, so
+   *  removing the seeding in the modal left the in-card review still opening
+   *  with model prose in the textarea — the same defect on one of two surfaces,
+   *  which is worse than on both because only one of them looks fixed.
+   *
+   *  A RESTORED DRAFT IS STILL RESTORED, and only the user's own text: with
+   *  nothing seeded there is no AI text in a draft to bring back. */
+  const [initialBody] = useState<CareUpdateBody>(
+    () => restored?.body ?? emptyCareUpdateBody()
   );
   const [body, setBody] = useState<CareUpdateBody>(initialBody);
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
@@ -393,7 +401,6 @@ export function CareReviewWorkspace({
             onChange={setBody}
             errors={errors}
             clearError={clearError}
-            prefill={prefill}
             clinicalRef={clinicalRef}
             diagnosticRef={diagnosticRef}
             assessmentRef={assessmentRef}
