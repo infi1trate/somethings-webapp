@@ -586,7 +586,15 @@ export function carePatternFor(
     instrument,
     scoreMin,
     scoreMax,
-    months: monthsBetween(startAt, endAt),
+    /* ═══ EIGHT MONTH BINS, MAXIMUM ═══
+       The design lead's note says 8 and the reference frame draws 7, so 8 is a
+       CEILING rather than a target — a younger mentorship shows fewer, which is
+       what `monthsBetween` already returns. The slice takes the MOST RECENT
+       eight: on a long record the far end of the axis is the part a supervisor
+       is not reading, and compressing twelve columns to fit it costs the recent
+       ones their spacing. Positions still derive from `startAt`/`endAt`, so the
+       kept columns sit where they always did. */
+    months: monthsBetween(startAt, endAt).slice(-8),
     /* BINNED BY CALENDAR MONTH, not by the month marks' positions — an event in
        a month the axis does not show would otherwise be silently dropped rather
        than simply not rendered. `resolved` reads the event's own result, which is

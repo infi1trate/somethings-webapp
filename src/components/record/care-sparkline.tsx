@@ -66,7 +66,13 @@ const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
  *
  *  Row 332 recorded this as unfixable-without-tradeoffs. This is the tradeoff,
  *  taken deliberately and measured: six violations to zero. */
-const H = 70;
+/** ═══ TIGHTENED, AND THE BEFORE/AFTER IS THE POINT ═══
+ *  70 -> 64. The plot lost the six units the month labels used to need below it
+ *  — they sit above now — so the height came down rather than leaving a gap
+ *  where a label row used to be. With the rail's own steps stepping down too
+ *  (`mt-3` -> `mt-2` above the chart, `mt-1.5` -> `mt-1` above the caption) the
+ *  whole unit reads denser without any element losing its own spacing. */
+const H = 64;
 const SCORE_TOP = 12;
 const SCORE_BOTTOM = 34;
 /** ON THE AXIS, not above it. Was 58 — a band of its own between the score
@@ -396,6 +402,26 @@ export function CareSparkline({
 
   return (
     <div className="relative">
+      {/* ═══ MONTH LABELS SIT ABOVE THE PLOT ═══
+          They were below it, under the badge row, which put three stacked rows
+          between the line and its own axis names and made the reader travel
+          past the safety badges to find out which month they were looking at.
+          Above, a column is labelled before it is read.
+          `mb-1` IS THE 4px THE SPEC ASKS FOR between the label's bottom edge and
+          the top of its gridline — the gridlines start at the plot's top edge,
+          which is this row's bottom edge plus that margin. */}
+      <div className="relative mb-1 h-4">
+        {months.map((mo) => (
+          <span
+            key={mo.at}
+            aria-hidden
+            style={{ left: `${xPct(mo.at, startAt, endAt)}%` }}
+            className={cn("absolute -translate-x-1/2 whitespace-nowrap", EYEBROW)}
+          >
+            {mo.label}
+          </span>
+        ))}
+      </div>
       <div className="relative" style={{ height: H }}>
         <svg
           viewBox={`0 0 100 ${H}`}
@@ -461,16 +487,36 @@ export function CareSparkline({
           {months.map((mo) => {
             const x = xPct(mo.at, startAt, endAt);
             return (
-              <line
-                key={`grid-${mo.at}`}
-                x1={x}
-                x2={x}
-                y1={SCORE_TOP - 6}
-                y2={BASELINE}
-                className="stroke-[color:var(--border-subtle)]"
-                strokeWidth="0.25"
-                vectorEffect="non-scaling-stroke"
-              />
+              <g key={`grid-${mo.at}`}>
+                {/* THE GRIDLINE — a hairline rising from the baseline toward the
+                    label. `--border-subtle` is the divider token; 1px held by
+                    `non-scaling-stroke` so it stays a hairline at any width. */}
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={0}
+                  y2={BASELINE}
+                  stroke="var(--border-subtle)"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* THE TICK — a short strong hash ON the baseline, visibly
+                    heavier than the gridline it shares a position with. That
+                    contrast IS the anatomy: the hairline is a reading aid and
+                    the tick is the axis itself, so they cannot be the same
+                    weight. 6 units = 6px here, since the viewBox maps 1:1
+                    vertically; centred on the baseline so it reads as sitting on
+                    it rather than hanging off it. */}
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={BASELINE - 3}
+                  y2={BASELINE + 3}
+                  stroke="var(--text-secondary)"
+                  strokeWidth="1.5"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </g>
             );
           })}
 
@@ -709,18 +755,6 @@ export function CareSparkline({
           })}
       </div>
 
-      <div className="relative mt-1 h-4">
-        {months.map((mo) => (
-          <span
-            key={mo.at}
-            aria-hidden
-            style={{ left: `${xPct(mo.at, startAt, endAt)}%` }}
-            className={cn("absolute -translate-x-1/2 whitespace-nowrap", EYEBROW)}
-          >
-            {mo.label}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

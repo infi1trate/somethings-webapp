@@ -319,7 +319,7 @@ export function CareSummaryDocCard({
         )}
 
         {pattern && (
-          <div className="mt-3">
+          <div className="mt-2">
             <CareSparkline
               pattern={pattern}
               onSelectEvent={onJumpToEvent ?? (() => {})}
@@ -329,7 +329,7 @@ export function CareSummaryDocCard({
                 a reader can land on without having read the header — so the
                 badge travels with it rather than being inherited from six
                 inches up the card. */}
-            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+            <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
               {/* TODO-COPY. Names the axis and the two mark classes, because a
                   strip with no legend needs its shapes named somewhere. */}
               <span>
@@ -415,7 +415,13 @@ export function CareSummaryDocCard({
                   beside it says the content is generated, which is the fact that
                   bears on how the number should be read. TODO-COPY. */}
               <span>
-                Out of {doc.themes.conversationDays} conversation days in the
+                {/* "ENGAGEMENT", NOT "CONVERSATION" — adopted from the mock.
+                    TODO-COPY, and flagged rather than silent: it widens the
+                    denominator's meaning from days that held a conversation to
+                    days the teen engaged at all, which is a different count if
+                    the pipeline ever measures it. The FIELD is still
+                    `conversationDays`; only the label moved. */}
+                Out of {doc.themes.conversationDays} engagement days in the
                 window
               </span>
               <Provenance />
