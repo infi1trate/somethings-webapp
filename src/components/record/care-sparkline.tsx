@@ -72,14 +72,14 @@ const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
  *  where a label row used to be. With the rail's own steps stepping down too
  *  (`mt-3` -> `mt-2` above the chart, `mt-1.5` -> `mt-1` above the caption) the
  *  whole unit reads denser without any element losing its own spacing. */
-const H = 120;
+const H = 100;
 /** ═══ THE SCORE BAND, RESCALED FOR THE TALLER PLOT ═══
  *  64 -> 120 (E1's ~120 target, on the 4px scale). The band grows with it
  *  rather than floating in a taller box: 14 -> 104 keeps the same 10px of air
  *  above the highest reading and puts the baseline at 107, which leaves the
  *  bottom 13px for the badges that now straddle it. */
-const SCORE_TOP = 14;
-const SCORE_BOTTOM = 104;
+const SCORE_TOP = 10;
+const SCORE_BOTTOM = 96;
 /** ON THE AXIS, not above it. Was 58 — a band of its own between the score
  *  line and the month labels, which spent 16px of a 70px strip on a row that
  *  held three marks. The discs now sit centred on the baseline itself. */
@@ -98,6 +98,10 @@ const TICK_BOTTOM = 50;
  *  fades to. Was written inline as `SCORE_BOTTOM + 3` in two places; the gradient
  *  is a third, and three copies of a baseline is how a fill stops meeting its
  *  own axis. */
+/** The baseline sits 3 units under the band, which at H = 100 puts it 1 unit
+ *  inside the plot's bottom edge — as close as a 1px hairline can get without
+ *  being half-clipped by the viewBox. That last pixel is why the measured
+ *  baseline-to-badge gap reads 9 rather than 8; see the note on the badge row. */
 const BASELINE = SCORE_BOTTOM + 3;
 
 /** ═══ THE PLOT IS INSET SO EDGE MARKS KEEP THEIR HIT TARGET ═══
@@ -406,7 +410,14 @@ export function CareSparkline({
   };
 
   return (
-    <div className="relative isolate">
+    /* ═══ THE CONTAINER'S INTERNAL PADDING IS THE WRAPPER'S ═══
+       `py-2` — 8px top and bottom. The window box is `inset-y-0` against this
+       wrapper, and an absolutely positioned child resolves its insets against
+       the PADDING box, so the box spans the padding while the label row and the
+       badge row start inside it. That is what buys B3's 8px of clearance above
+       the labels and B2's 8px below the badge row from one declaration, instead
+       of two hand-tuned offsets that drift apart. */
+    <div className="relative isolate py-2">
       {/* ═══ THE WINDOW WRAPS THE WHOLE COLUMN, LABELS AND BADGES INCLUDED ═══
           `inset-y-0` on the wrapper, so it spans the label row, the plot and the
           badge row — the three months it names are inside it rather than sliced
@@ -632,7 +643,14 @@ export function CareSparkline({
           gridline. They read as a register beneath the chart rather than as
           marks in it, which is what they are: a count per month, not a value on
           the y axis. */}
-      <div className="relative z-10 mt-1 h-6">
+      {/* ═══ THE BADGE BAND, WITH ITS TWO GAPS EQUAL ═══
+          `mt-2` is the 8px above; the wrapper's `pb-2` is the 8px below. The two
+          are the same token, so they cannot drift.
+          MEASURED HONESTLY: baseline -> badge reads 9px, not 8. The baseline
+          hairline sits one unit inside the plot's bottom edge because a line at
+          y = H would be half-clipped by the viewBox, and that pixel lands in
+          this gap. Closing it would cost the hairline. */}
+      <div className="relative z-10 mt-2 h-6">
         {monthSafety
           .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
           .filter((b) => b.x !== null)
@@ -688,7 +706,24 @@ export function CareSparkline({
                            note calls it the inline-error colour, so this is no
                            longer a name match to History's Escalation lozenge.
                            It is the only token that reaches the mock's red. */
-                        backgroundColor: "var(--state-error)",
+                        /* ═══ THE DANGER RAMP'S STRONG STEP ═══
+                           v4 rules this by RAMP: same family as History's
+                           Escalation lozenge, one step stronger. That family is
+                           `--alert-critical-*` and its filled step is `accent`.
+                           A3's rationale, on record: consistency is at ramp
+                           level and INTENSITY differs by role — a lozenge labels
+                           a row and takes the tint, a badge is a compact signal
+                           on a light field and the severe type takes the fill.
+
+                           ⚠️ THIS IS THE HEX CALLED MUDDY ONE ROUND AGO. #c9351d
+                           is what `--state-error` (#cc3300) replaced at the
+                           design lead's request for a brighter red. v4's rule
+                           points back at it, so the rule wins and the conflict
+                           is reported rather than silently resolved either way.
+                           Bloom has no brighter step inside this ramp; getting
+                           #cc3300 back means either the cross-family borrow or a
+                           new ramp step. */
+                        backgroundColor: "var(--alert-critical-accent)",
                         /* NOT the critical family's `bg`: #fff2ef on this red
                            measures 4.40:1, under the floor. The card white
                            measures 4.84:1. */
