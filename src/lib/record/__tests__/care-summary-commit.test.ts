@@ -24,6 +24,10 @@ const doc = (over: Partial<CareSummaryDoc> = {}): CareSummaryDoc => ({
   window: { fromAt: 1_000, toAt: 9_000, firstCycle: false },
   generatedAt: 9_000,
   sources: ["assessments"],
+  // The qualitative read is not part of a COMMIT — `commitFor` does not copy it
+  // — so the builder states it as absent rather than inventing prose the
+  // assertions would then have to ignore.
+  conversationSummary: null,
   trajectory: "Scores held in the moderate band.",
   themes: {
     conversationDays: 9,

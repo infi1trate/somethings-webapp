@@ -75,20 +75,13 @@ const SCORE_BOTTOM = 34;
 const FLAG_Y = 37;
 const TICK_TOP = 42;
 const TICK_BOTTOM = 50;
-/** ═══ THE AREA FILL'S STOP OPACITIES ═══
- *
- *  The 14% used to live inside the token as a `color-mix`, and that shipped
- *  broken on browsers without `color-mix` — the compiler emitted the bare
- *  `--text-muted` as its fallback, i.e. an opaque grey block under the line. An
- *  explicit rgba fallback above the mix was deduped away. See the token's own
- *  note in `settings-tokens.css`.
- *
- *  `stop-opacity` has been in SVG since 1.1, cannot be compiled away, and keeps
- *  the fill deriving from the line's token rather than from a literal. The pair
- *  is one gradient definition: 14% where the fill meets the line, nothing at the
- *  baseline. */
-const AREA_FILL_OPACITY = 0.14;
-const AREA_FADE_OPACITY = 0;
+/* `AREA_FILL_OPACITY` / `AREA_FADE_OPACITY` LIVED HERE and go with the fill they
+   were the stops of. Their note recorded a real lesson worth keeping in view —
+   the 14% was once a `color-mix` inside the token and shipped as an opaque grey
+   block on engines without it, and an explicit rgba fallback was DEDUPED AWAY by
+   the compiler. That is the same class of failure as the window container's
+   missing `fill-[…]` utility: an SVG paint routed through the build can be
+   changed by the build. `--chart-area-fill` is now consumed by nothing. */
 
 /** The hairline the dots are positioned against, and the floor the area fill
  *  fades to. Was written inline as `SCORE_BOTTOM + 3` in two places; the gradient
@@ -211,29 +204,114 @@ export function CareSparkline({
 
   /** The gradient needs a document-unique id — `useId` rather than a literal, so
    *  a second strip on one page cannot claim the first one's fill. */
-  const gradientId = useId();
 
   if (!pattern) return null;
 
   const { startAt, endAt, marks, scoreMin, scoreMax, months } = pattern;
+
+  /** ═══ THE X AXIS IS CATEGORICAL BY MONTH, NOT PROPORTIONAL BY DATE ═══
+   *
+   *  `xPct` maps a timestamp linearly across the plot, which is a true picture
+   *  of elapsed time and the wrong picture for this chart. Measured on t17:
+   *  readings landed at 4.89 / 11.15 / 27.22 / 56.70 / 89.75 while the month
+   *  gridlines sat at 10.5 / 24.3 / … — so no reading touched a gridline and the
+   *  first one rendered LEFT of the first month label, which is most of what
+   *  read as a line starting before the data.
+   *
+   *  So a month is a COLUMN. Every reading and every badge snaps to its month's
+   *  gridline; the exact date stays in the tooltip, where precision belongs and
+   *  where it is already stated. A reader comparing "March to April" is reading
+   *  columns, and a point floating between two of them cannot be assigned to
+   *  either by eye.
+   *
+   *  `snapX` falls back to the proportional position for a mark outside every
+   *  month bin — which should not happen, since `months` is derived from the same
+   *  span, but a mark silently drawn at 0 would be worse than one drawn where it
+   *  used to be. */
+  const monthX = months.map((mo) => ({
+    at: mo.at,
+    x: xPct(mo.at, startAt, endAt),
+  }));
+  const snapX = (at: number): number => {
+    if (!monthX.length) return xPct(at, startAt, endAt);
+    let best = monthX[0];
+    for (const m of monthX) if (m.at <= at) best = m;
+    return best.x;
+  };
 
   /** ═══ THE LAST THREE MONTHS, AS A BOX ═══
    *  From the first of the last three month marks to the right edge of the
    *  plot. `null` below three months: a "last three" box over two months would
    *  be a frame around the whole chart, which says nothing. */
   const windowBox =
-    months.length >= 3
+    monthX.length >= 3
       ? (() => {
-          const from = xPct(months[months.length - 3].at, startAt, endAt);
-          return { x: from - 2, w: 100 - (from - 2) };
+          /* ═══ MONTH-ALIGNED, NOT OFFSET-BY-A-CONSTANT ═══
+             It was `firstInWindow - 2`, a fixed nudge that drifted with the
+             column width. The left edge is now the MIDPOINT between the last
+             out-of-window gridline and the first in-window one, so the boundary
+             falls in the gap between columns rather than beside a line; the
+             right edge is half a column past the last gridline, clamped to the
+             plot's own padding edge. Both are stated in column terms, so the
+             container stays aligned at any width. */
+          const firstIn = monthX[monthX.length - 3].x;
+          const lastOut = monthX[monthX.length - 4]?.x;
+          const half =
+            monthX.length > 1
+              ? (monthX[monthX.length - 1].x - monthX[0].x) /
+                (monthX.length - 1) /
+                2
+              : 4;
+          const left = lastOut !== undefined ? (lastOut + firstIn) / 2 : firstIn - half;
+          const right = Math.min(monthX[monthX.length - 1].x + half, 100 - EDGE_PCT / 2);
+          return { x: left, w: right - left };
         })()
       : null;
 
   const assessments = marks.filter(
     (m) => m.cls === "assessment" && m.score !== undefined
   );
-  const linePts = assessments.map((m) => ({
-    x: xPct(m.at, startAt, endAt),
+  /** ═══ TWO READINGS IN ONE MONTH SPLIT AROUND THE GRIDLINE ═══
+   *
+   *  Snapping to columns creates a collision the proportional axis did not have:
+   *  measured on t17, two readings landed at exactly 10.51 — one point drawn on
+   *  top of another, two buttons at one coordinate, and a line segment of zero
+   *  length between them.
+   *
+   *  So a month's readings fan symmetrically about its gridline at ±10% of the
+   *  column width, chronological left to right. One reading stays centred; two
+   *  straddle; three take -10 / 0 / +10.
+   *
+   *  FOUR OR MORE IS NOT A LAYOUT PROBLEM and is not solved here. The pack calls
+   *  it a fixture pathology and it is: four assessments inside one month is a
+   *  record that needs looking at, not a chart that needs more offsets. The
+   *  spread stops at three and the surplus stacks, which is visible rather than
+   *  silently compressed — and `mergeCrowded` below still coalesces what
+   *  overlaps for SC 2.5.8. Reported rather than absorbed. */
+  const colW =
+    monthX.length > 1
+      ? (monthX[monthX.length - 1].x - monthX[0].x) / (monthX.length - 1)
+      : 100 - EDGE_PCT * 2;
+  const OFFSET_PCT = 0.1;
+  const fanned = (() => {
+    const byX = new Map<number, number[]>();
+    assessments.forEach((m, i) => {
+      const x = snapX(m.at);
+      byX.set(x, [...(byX.get(x) ?? []), i]);
+    });
+    const dx = new Array<number>(assessments.length).fill(0);
+    for (const idx of byX.values()) {
+      if (idx.length < 2) continue;
+      const n = Math.min(idx.length, 3);
+      idx.slice(0, n).forEach((i, k) => {
+        dx[i] = (k - (n - 1) / 2) * (OFFSET_PCT * 2 * colW) / Math.max(1, n - 1);
+      });
+    }
+    return dx;
+  })();
+
+  const linePts = assessments.map((m, i) => ({
+    x: snapX(m.at) + fanned[i],
     y:
       plotScoreY(m.score!, scoreMin, scoreMax, SCORE_BOTTOM - SCORE_TOP, 4) +
       SCORE_TOP,
@@ -242,19 +320,15 @@ export function CareSparkline({
     .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(1)}`)
     .join(" ");
 
-  /** ═══ THE AREA, CLOSED ONTO THE BASELINE ═══
-   *
-   *  Derived from the SAME `linePts` as the polyline, so the fill's top edge is
-   *  the line by construction rather than by two calculations agreeing. Closed
-   *  down to `BASELINE` — the hairline the dots sit on — so the fill terminates
-   *  exactly at the axis instead of at the lowest point or at the strip's floor,
-   *  either of which would read as a shape rather than as an area under a curve. */
-  const areaPath =
-    linePts.length > 1
-      ? `M ${linePts[0].x.toFixed(2)},${BASELINE} ` +
-        linePts.map((p) => `L ${p.x.toFixed(2)},${p.y.toFixed(1)}`).join(" ") +
-        ` L ${linePts[linePts.length - 1].x.toFixed(2)},${BASELINE} Z`
-      : null;
+  /* ═══ THE AREA FILL IS REMOVED ═══
+     It was `M first.x,BASELINE L …points… L last.x,BASELINE Z` under a 14% ->
+     0% gradient, and it is the other half of the phantom-line diagnosis: that
+     first `M` put a vertical run from the baseline up to the first point, which
+     at 14% read as a tail hanging below and left of the data.
+     The window container is the sole background treatment now, which is the
+     better division of labour — one region says "this is the weighted window"
+     and nothing else competes with the line for the same area. Reverses the R6
+     gradient instruction deliberately. */
 
   /** ═══ THE TOOLTIP'S THREE LINES — one place, two consumers ═══
    *
@@ -335,7 +409,24 @@ export function CareSparkline({
               width={windowBox.w}
               height={BASELINE + 10}
               rx="1"
-              className="fill-[var(--surface-s1)] stroke-[color:var(--border-subtle)]"
+              /* ═══ PRESENTATION ATTRIBUTES, NOT UTILITY CLASSES ═══
+                 This shipped as `fill-[var(--surface-s1)]
+                 stroke-[color:var(--border-subtle)]` and rendered as an OPAQUE
+                 BLACK RECTANGLE across the plot. Measured, not guessed: neither
+                 utility generated a rule at all — no matching selector exists in
+                 any stylesheet — so `fill` fell to the SVG default of black and
+                 `stroke` resolved to `none`. The block was the window container
+                 with its paint missing, not the R6 gradient, whose stops verify
+                 healthy at 0.14 -> 0 on the same render.
+                 This is the lesson the gradient below already records about
+                 `stop-opacity`: an SVG paint expressed as a compiled utility can
+                 be compiled away, and a presentation attribute cannot. Both
+                 halves are attributes now, and my own verification of this rect
+                 in the change that introduced it read its geometry attributes
+                 and never its resolved paint — which is how a black box shipped
+                 past a green check. */
+              fill="var(--surface-s1)"
+              stroke="var(--border-subtle)"
               strokeWidth="0.3"
               vectorEffect="non-scaling-stroke"
             />
@@ -361,48 +452,7 @@ export function CareSparkline({
             );
           })}
 
-          {/* ═══ THE AREA FILL — a documented CHART-ONLY extension ═══
-              Bloom prohibits gradients on surfaces. `--chart-area-fill` is
-              defined once in the token block as the top stop of THIS fill, mixed
-              from the same `--text-muted` the line is stroked with, and is never
-              to be used on a non-chart surface. See the token's own note.
 
-              `userSpaceOnUse` anchors the ramp to the SCORE BAND rather than to
-              the path's bounding box: with `objectBoundingBox` a flat series
-              would have a near-zero-height box and the whole fill would render at
-              the top stop, so the gradient's steepness would change with the
-              data. Anchored to the band, the fade is the same on every record. */}
-          {areaPath && (
-            <>
-              <defs>
-                <linearGradient
-                  id={`care-area-${gradientId}`}
-                  gradientUnits="userSpaceOnUse"
-                  x1="0"
-                  y1={SCORE_TOP}
-                  x2="0"
-                  y2={BASELINE}
-                >
-                  {/* ONE COLOUR, TWO OPACITIES — not a colour and a
-                      `transparent`. A `transparent` keyword stop interpolates
-                      through transparent BLACK in some engines, which greys the
-                      fade; an explicit opacity on the same colour interpolates
-                      only the alpha. */}
-                  <stop
-                    offset="0"
-                    stopColor="var(--chart-area-fill)"
-                    stopOpacity={AREA_FILL_OPACITY}
-                  />
-                  <stop
-                    offset="1"
-                    stopColor="var(--chart-area-fill)"
-                    stopOpacity={AREA_FADE_OPACITY}
-                  />
-                </linearGradient>
-              </defs>
-              <path d={areaPath} fill={`url(#care-area-${gradientId})`} />
-            </>
-          )}
           {/* One hairline for the dots to be positioned against — not a grid.
               A grid would make this a chart, and it is a sparkline. */}
           <line
@@ -418,8 +468,16 @@ export function CareSparkline({
             <polyline
               points={line}
               fill="none"
-              stroke="var(--text-muted)"
-              strokeWidth="1.5"
+              /* THE DARKEST INK, NOT THE MUTED ONE. The mock's line is the
+                 chart's foreground; `--text-muted` made it recede behind its own
+                 gridlines. `--text-primary` is the nearest Bloom token to the
+                 mock's near-black — reported as a substitution.
+                 2.5 IS NOT ON A 1px SCALE, so 2 is the nearest with
+                 `non-scaling-stroke` keeping it 2 CSS px at any width — the
+                 substitution, reported. A `polyline` is straight segments by
+                 definition, which is the no-smoothing requirement for free. */
+              stroke="var(--text-primary)"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
@@ -488,9 +546,25 @@ export function CareSparkline({
               )}
             >
               {m.cls === "assessment" && (
+                /* ═══ CORE + RING, IDENTICAL EVERYWHERE ON THE AXIS ═══
+                    The mock draws a dark core with a light grey collar. The core
+                    was already the line's ink; what changes is the ring — it was
+                    `--surface-card`, i.e. the card behind it, which made the
+                    point read as a hole punched in the line rather than as a
+                    marker sitting on it. `--border-subtle` is the nearest Bloom
+                    token to the mock's light grey, reported as a substitution.
+                    SIZES: core `size-2` (8px) for the mock's ~7px and a
+                    `2.5px` ring for its ~3px — both the nearest available step,
+                    and the ring is a `ring-` utility so it grows outward without
+                    changing the point's layout box. The 24px hit target is the
+                    BUTTON around this, unchanged.
+                    NO IN-WINDOW VARIANT. The window container is the only thing
+                    that marks that region; a second treatment on the points
+                    would say the same thing twice and imply the readings differ
+                    in kind. */
                 <span
                   aria-hidden
-                  className="size-2 rounded-full bg-[var(--text-primary)] ring-[1.5px] ring-[color:var(--surface-card)]"
+                  className="size-2 rounded-full bg-[var(--text-primary)] ring-[2.5px] ring-[color:var(--border-subtle)]"
                 />
               )}
               {m.cls === "flag" && (
