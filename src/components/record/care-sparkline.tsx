@@ -292,17 +292,56 @@ export function CareSparkline({
              gridline, so every month keeps the same width. */
           const firstIn = monthX[monthX.length - 3].x;
           const lastIn = monthX[monthX.length - 1].x;
-          const half =
-            monthX.length > 1
-              ? (monthX[monthX.length - 1].x - monthX[0].x) /
-                (monthX.length - 1) /
-                2
-              : 4;
           /** Half a unit of breathing room so the box's own border is never
            *  flush with the plot's edge. */
-          const MARGIN = 0.5;
-          const inset = Math.min(half, 100 - MARGIN - lastIn, firstIn - MARGIN);
-          return { x: firstIn - inset, w: lastIn + inset - (firstIn - inset) };
+          /* `half` and the old clamped `inset` are gone with the % bounds they
+             computed — the box is gridline-to-gridline now and the cushions do
+             the holding-off. Kept the variable out rather than leaving a value
+             nothing reads. */
+          /* ═══ AND A PER-SIDE PIXEL CUSHION FOR WHAT SITS ON THE EDGE ═══
+             Equal gridline insets were measured and equal — 23.1px each side —
+             and the box still read lopsided, because the thing a reader sees is
+             the gap to the BADGE, not to the gridline. A single badge is 24px
+             and overhangs its gridline by 12; a dual-type split pill is 49px and
+             overhangs by 24.5. On t17 that put September's pill 1.4px OUTSIDE
+             the right edge while July's badge had 11.1px of air inside it.
+             So each side gets its own cushion, sized to what actually sits on
+             that edge month, and both come out at the same CONTENT clearance.
+             Gridline-to-edge is consequently NOT equal any more — that rule is
+             what produced the lopsided result, and it is the wrong invariant
+             when the two edge badges are different widths.
+             The widths are known without measuring the DOM: a segment is
+             `min-w-6` at 24px, a pill is two of those plus a 1px divider. */
+          const edgeHalf = (at: number | undefined) => {
+            const bin = at
+              ? monthSafety.find((b) => {
+                  const d = new Date(b.at);
+                  const m = new Date(at);
+                  return (
+                    d.getFullYear() === m.getFullYear() &&
+                    d.getMonth() === m.getMonth()
+                  );
+                })
+              : undefined;
+            if (!bin) return 0;
+            const dual = bin.escalations.length > 0 && bin.flags.length > 0;
+            return dual ? 24.5 : 12;
+          };
+          const PAD = 8;
+          const padL = PAD + edgeHalf(monthX[monthX.length - 3]?.at);
+          const padR = PAD + edgeHalf(monthX[monthX.length - 1]?.at);
+          /* ═══ THE CUSHION REPLACES THE HALF-COLUMN INSET, NOT ADDS TO IT ═══
+             Stacking the two put 31px of air on each side — equal, but the box
+             then reached almost to the out-of-window gridline, which is a
+             different way of being wrong. The box now runs GRIDLINE TO
+             GRIDLINE and the cushions alone hold it off the content, so the
+             padding is exactly `PAD` on both sides whatever sits on the edge
+             months.
+             ON A RECORD WHOSE EDGE MONTHS CARRY NO BADGE the cushion collapses
+             to `PAD` alone and the box hugs its gridlines at 8px. That is a
+             tighter box than the half-column gap, and it is the honest one:
+             with nothing on the edge there is nothing to hold the edge off. */
+          return { x: firstIn, w: lastIn - firstIn, padL, padR };
         })()
       : null;
 
@@ -450,7 +489,10 @@ export function CareSparkline({
         <div
           aria-hidden
           className="absolute inset-y-0 z-0 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--tint-faint)]"
-          style={{ left: `${windowBox.x}%`, width: `${windowBox.w}%` }}
+          style={{
+            left: `calc(${windowBox.x}% - ${windowBox.padL}px)`,
+            width: `calc(${windowBox.w}% + ${windowBox.padL + windowBox.padR}px)`,
+          }}
         />
       )}
       {/* ═══ MONTH LABELS SIT ABOVE THE PLOT ═══
