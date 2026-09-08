@@ -207,7 +207,8 @@ export function CareSparkline({
 
   if (!pattern) return null;
 
-  const { startAt, endAt, marks, scoreMin, scoreMax, months } = pattern;
+  const { startAt, endAt, marks, scoreMin, scoreMax, months, monthSafety } =
+    pattern;
 
   /** ═══ THE X AXIS IS CATEGORICAL BY MONTH, NOT PROPORTIONAL BY DATE ═══
    *
@@ -267,6 +268,20 @@ export function CareSparkline({
           return { x: left, w: right - left };
         })()
       : null;
+
+  /** The month gridline a bin belongs to, or null when that month is outside the
+   *  visible axis — an event in a month the axis does not show is not rendered,
+   *  rather than being pinned to the nearest column it did not happen in. */
+  const nearestMonthX = (at: number): number | null => {
+    const hit = monthX.find((m) => {
+      const d = new Date(m.at);
+      const b = new Date(at);
+      return d.getFullYear() === b.getFullYear() && d.getMonth() === b.getMonth();
+    });
+    return hit ? hit.x : null;
+  };
+  const monthLabel = (at: number) =>
+    new Date(at).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   const assessments = marks.filter(
     (m) => m.cls === "assessment" && m.score !== undefined
@@ -425,7 +440,14 @@ export function CareSparkline({
                  in the change that introduced it read its geometry attributes
                  and never its resolved paint — which is how a black box shipped
                  past a green check. */
-              fill="var(--surface-s1)"
+              /* ═══ THE SUBTLEST STEP, NOT THE TAN ═══
+                 Was `--surface-s1` (#f6f4ef) — a warm beige that read as a
+                 tinted block laid over the chart rather than as a quiet region
+                 behind it. `--tint-faint` is Bloom's barely-there wash, 2% ink
+                 over whatever it sits on, and it is the token this container
+                 wanted: it darkens the card without introducing a hue of its
+                 own, so the hairline border is what draws the edge. */
+              fill="var(--tint-faint)"
               stroke="var(--border-subtle)"
               strokeWidth="0.3"
               vectorEffect="non-scaling-stroke"
@@ -501,14 +523,18 @@ export function CareSparkline({
 
         {/* PRESENTATION MARKS ARE EXCLUDED HERE — they are drawn in the SVG
             above and carry no hit target. See the geometry note. */}
+        {/* ASSESSMENTS ONLY. Flags left this loop when they became per-month
+            badges — see the row after this one — and presentation ticks were
+            never in it. `mergeCrowded` still guards SC 2.5.8 for the case two
+            readings in one month sit ±10% apart. X comes from the same fanned
+            positions the line is drawn through, so a point and its segment
+            cannot disagree. */}
         {mergeCrowded(
-          marks
-            .filter((m) => m.cls !== "presentation")
-            .map((m) => ({
-              ...m,
-              x: xPct(m.at, startAt, endAt),
-              y: markY(m),
-            }))
+          assessments.map((m, i) => ({
+            ...m,
+            x: snapX(m.at) + fanned[i],
+            y: markY(m),
+          }))
         ).map((m) => {
           const left = m.x;
           const top = m.y;
@@ -567,57 +593,12 @@ export function CareSparkline({
                   className="size-2 rounded-full bg-[var(--text-primary)] ring-[2.5px] ring-[color:var(--border-subtle)]"
                 />
               )}
-              {m.cls === "flag" && (
-                /* ═══ A DISC ON THE AXIS, NOT A TRIANGLE ABOVE IT ═══
-                    The design file draws these as filled circles sitting on the
-                    baseline with their count inside, and that is the better
-                    shape here: a triangle floating in the plot competed with the
-                    score line for the same vertical space, where a disc on the
-                    axis reads as an event ON the timeline.
-
-                    COLOUR SPLITS ESCALATION FROM FLAG, and never carries the
-                    distinction alone — the accessible label says "Escalation" or
-                    "Flag" in words, so greyscale, a screen reader and a
-                    monochrome print all get it. This is the event's TYPE, not a
-                    grade of the teen; see the note on `PatternMark.escalation`. */
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex items-center justify-center rounded-full text-[8.5px] font-semibold leading-none tabular-nums",
-                    m.count > 1 ? "size-4" : "size-2.5"
-                  )}
-                  /* ═══ EACH BAND'S OWN PAIR, NOT TWO FOREGROUNDS ═══
-                     Both discs first took a `-fg` token as their fill, and the
-                     two measured 1.09:1 against EACH OTHER — two dark browns,
-                     indistinguishable at 10px, so the colour split was doing
-                     nothing at all. The words carried it, which is why this was
-                     a design failure rather than an accessibility one.
-                     Now each takes the fill and ink it was designed with: the
-                     escalation is the loud one (clay ink as fill, light text)
-                     and the flag is the quiet one (amber wash, amber ink). That
-                     hierarchy is also true — an escalation IS the louder event —
-                     and the two are separable at a glance without either being
-                     read for its hue alone. */
-                  style={
-                    m.escalation
-                      ? {
-                          backgroundColor: "var(--band-clay-fg)",
-                          color: "var(--band-clay-bg)",
-                        }
-                      : {
-                          backgroundColor: "var(--band-amber-bg)",
-                          color: "var(--band-amber-fg)",
-                        }
-                  }
-                >
-                  {/* THE COUNT ONLY WHEN THERE IS ONE TO STATE. A "1" inside
-                      every disc is a number that never varies, which is noise a
-                      reader has to learn to ignore; the single-flag disc is
-                      simply smaller. Both sizes clear the 24px target because
-                      the BUTTON around them carries it, not the disc. */}
-                  {m.count > 1 ? m.count : null}
-                </span>
-              )}
+              {/* THE PER-MARK FLAG DISC IS GONE. Flags are no longer a mark
+                  on this axis at all: they aggregate into PER-MONTH TYPED
+                  COUNTS rendered as one badge (or one split pill) per month,
+                  below. A mark-per-coalesced-day and a badge-per-month are two
+                  groupings of one thing, and keeping both would put two
+                  different counts for the same events on one axis. */}
 
             </button>
           );
@@ -646,6 +627,87 @@ export function CareSparkline({
           ))}
         </div>
       )}
+
+      {/* ═══ PER-MONTH TYPED SAFETY BADGES ═══
+          One badge per month that has safety events, centred on that month's
+          gridline. Escalations and flags are counted SEPARATELY and a month with
+          both renders ONE split pill rather than two badges — two badges for one
+          month would read as two months.
+
+          TYPE IS NEVER HUE ALONE. Three channels carry it: fixed ORDER
+          (escalation always the left segment), TONE (escalation filled and
+          inverse, flag tinted with dark ink) and the accessible NAME, which
+          spells both counts out in words.
+
+          THE TOKENS ARE THE ONES HISTORY'S CHIPS USE — `--status-warn-*` for
+          flags and `--band-clay-*` for escalations, the same pairs `TonalChip`
+          resolves for its `warning` and `risk` tones. The escalation INVERTS its
+          pair (ink as fill, wash as text) to carry the filled-versus-tinted cue
+          the order and tone rule requires; it stays inside the same ramp, so the
+          chart and the chip are the same colour family on both surfaces. */}
+      <div className="relative h-6">
+        {monthSafety
+          .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
+          .filter((b) => b.x !== null)
+          .map((b) => {
+            const e = b.escalations.length;
+            const f = b.flags.length;
+            const label =
+              `${e ? `${e} escalation${e === 1 ? "" : "s"}` : ""}` +
+              `${e && f ? ", " : ""}` +
+              `${f ? `${f} flag${f === 1 ? "" : "s"}` : ""}` +
+              ` · ${monthLabel(b.at)}`;
+            return (
+              <span
+                key={b.at}
+                style={{ left: `${b.x}%` }}
+                className="absolute top-0 -translate-x-1/2"
+              >
+                <span
+                  title={label}
+                  aria-label={label}
+                  tabIndex={0}
+                  role="img"
+                  className={cn(
+                    "flex h-6 items-center overflow-hidden rounded-full text-[10px] font-semibold leading-none tabular-nums",
+                    RING
+                  )}
+                >
+                  {e > 0 && (
+                    <span
+                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                      style={{
+                        backgroundColor: "var(--band-clay-fg)",
+                        color: "var(--band-clay-bg)",
+                      }}
+                    >
+                      {e}
+                    </span>
+                  )}
+                  {e > 0 && f > 0 && (
+                    /* THE INTERNAL DIVIDER, so the capsule reads as two segments
+                       of one object rather than as a colour change. */
+                    <span
+                      aria-hidden
+                      className="h-6 w-px shrink-0 bg-[var(--surface-card)]"
+                    />
+                  )}
+                  {f > 0 && (
+                    <span
+                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                      style={{
+                        backgroundColor: "var(--status-warn-bg)",
+                        color: "var(--status-warn-fg)",
+                      }}
+                    >
+                      {f}
+                    </span>
+                  )}
+                </span>
+              </span>
+            );
+          })}
+      </div>
 
       <div className="relative mt-1 h-4">
         {months.map((mo) => (

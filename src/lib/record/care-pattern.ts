@@ -168,6 +168,22 @@ export interface CarePattern {
   scoreMax: number;
   /** Month boundaries inside the span, for the muted labels. */
   months: { at: number; label: string }[];
+  /** ═══ SAFETY EVENTS AGGREGATED BY MONTH AND BY TYPE ═══
+   *
+   *  The chart's badges are per-month typed COUNTS, so the aggregation has to
+   *  happen where the events are rather than in the view: `PatternMark` already
+   *  coalesces flags BY DAY, which is a different grouping and lossy for this
+   *  purpose — two flags on the 3rd and one on the 19th are one month with three
+   *  flags, and two marks.
+   *
+   *  Escalations and flags stay in separate lists. They are different events
+   *  with different responses, and a single count with a type beside it is the
+   *  shape that produced "3 flags" on a day that contained an escalation. */
+  monthSafety: {
+    at: number;
+    escalations: { at: number; resolved: boolean }[];
+    flags: { at: number; resolved: boolean }[];
+  }[];
 }
 
 // ── Classification ──────────────────────────────────────────────────────────
@@ -571,5 +587,45 @@ export function carePatternFor(
     scoreMin,
     scoreMax,
     months: monthsBetween(startAt, endAt),
+    /* BINNED BY CALENDAR MONTH, not by the month marks' positions — an event in
+       a month the axis does not show would otherwise be silently dropped rather
+       than simply not rendered. `resolved` reads the event's own result, which is
+       what History's rows read; the tooltip states it per event. */
+    monthSafety: (() => {
+      const bins = new Map<
+        string,
+        {
+          at: number;
+          escalations: { at: number; resolved: boolean }[];
+          flags: { at: number; resolved: boolean }[];
+        }
+      >();
+      for (const f of flags) {
+        const d = new Date(f.occurredAt);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        let bin = bins.get(key);
+        if (!bin) {
+          bin = {
+            at: new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
+            escalations: [],
+            flags: [],
+          };
+          bins.set(key, bin);
+        }
+        const entry = {
+          at: f.occurredAt,
+          resolved: /resolved/i.test(String(f.result ?? "")),
+        };
+        if (f.type === "escalation") bin.escalations.push(entry);
+        else bin.flags.push(entry);
+      }
+      return [...bins.values()]
+        .map((b) => ({
+          ...b,
+          escalations: [...b.escalations].sort((x, y) => x.at - y.at),
+          flags: [...b.flags].sort((x, y) => x.at - y.at),
+        }))
+        .sort((a, b) => a.at - b.at);
+    })(),
   };
 }

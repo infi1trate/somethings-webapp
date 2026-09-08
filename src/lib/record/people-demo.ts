@@ -860,6 +860,32 @@ export const DEMO_TEENS: DemoTeen[] = [
         },
       },
       {
+        /* ═══ THE SECOND FLAG IN ONE MONTH ═══
+           Added so the chart's per-month badge has a count above one somewhere
+           in the demo — every other month held exactly one event, so the "3" on
+           a single badge was a state no scenario could reach. 25 days ago puts
+           it in the same calendar month as `cf-t17-2` below (28 days) without
+           sharing a DAY with it, which keeps the two distinct in History while
+           the chart counts them together. */
+        id: "cf-t17-5",
+        kind: "risk_flag",
+        severity: "warning",
+        reason: "Left a scheduled call after a few minutes",
+        raisedBy: "Brandy Forrestor",
+        raisedByRole: "Lead mentor",
+        daysAgo: 25,
+        source: "person",
+        conversationWith: "t17",
+        conversationId: "conv-t17-b",
+        flagDetail: {
+          mediaType: "Message",
+          priority: "generalMonitoring",
+          detectedAtTime: "5:03 PM",
+          flaggedContent:
+            "sorry i have to go, i'll explain next time",
+        },
+      },
+      {
         id: "cf-t17-2",
         kind: "risk_flag",
         severity: "warning",
