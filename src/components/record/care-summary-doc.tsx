@@ -120,8 +120,18 @@ export function summaryProvenanceNote(
   const basis = window.firstCycle
     ? "from intake"
     : "since the last presentation update";
+  /* ═══ THE CHART'S SCOPE MERGED IN FROM ITS OWN CAPTION ═══
+     "Assessment scores and risk flags across the mentorship" was a line with its
+     own mark under the chart. Two provenance marks four inches apart on one card
+     is two things to open to learn one thing, and the chart's was the WEAKER of
+     the pair: it named the axis but not the window the whole card is about.
+     Only the non-duplicated half moved. The rest of that caption's mark was the
+     shared `PROVENANCE_NOTE`, which this note already opens with — so the merge
+     adds one sentence rather than concatenating two notes. */
   return (
     `${PROVENANCE_NOTE} ` +
+    `The trajectory plots assessment scores and risk flags across the whole ` +
+    `mentorship, not only this window. ` +
     `Window: ${clinicalDate(window.fromAt)} – ${clinicalDate(window.toAt)}, ${basis}. ` +
     `Generated ${clinicalDate(generatedAt)}.`
   );
@@ -171,18 +181,35 @@ const DAY_MS = 86_400_000;
 
 export function summaryMetaLine(
   window: { fromAt: number; toAt: number },
-  exchanges: number | null
+  exchanges: number | null,
+  /** Days the teen engaged in the window — the number the under-chart caption
+   *  used to carry. Null where no extraction exists for the record. */
+  engagedDays?: number | null
 ): string {
   const days = Math.max(0, (window.toAt - window.fromAt) / DAY_MS);
-  // TODO-COPY on both forms.
-  const period =
-    days < 7 ? "First week" : `${Math.max(1, Math.round(days / 7))}-week analysis`;
-  // A record with no conversation content yet says nothing about volume rather
-  // than claiming "0 exchanges", which reads as a measurement instead of an
-  // absence.
-  return exchanges && exchanges > 0
-    ? `${period} · ${exchanges} exchanges`
-    : period;
+  /* ═══ "{n} ENGAGED DAYS, {m} EXCHANGES." ═══
+     Was "{N}-week analysis · {M} exchanges". The window's LENGTH moved out of
+     the subtitle and the ENGAGEMENT moved in, which is the more useful pair: a
+     reader wants to know how much contact the period contained, and the period's
+     own bounds are stated in full on the header's provenance mark.
+     THE FACT CAME FROM UNDER THE CHART. "Out of {n} engagement days in the
+     window" was a caption on the trajectory, where it read as a footnote about
+     the chart rather than a property of the whole card. It is the denominator
+     for the content chips too, so the header is where it belongs — and stating
+     it once stops the card from carrying it twice.
+     BOTH WORDS ARE FLAGGED. "engaged days" is the mock's; "exchanges" is this
+     product's and stands where the mock says "messages". TODO-COPY on both.
+     DEGRADES ONE PART AT A TIME. Either half can be absent — a record with no
+     extraction has no engaged-day count, and one with no conversation content
+     has no exchange count — so the line states what it has rather than
+     claiming a zero, which reads as a measurement instead of an absence. */
+  const parts: string[] = [];
+  if (engagedDays != null && engagedDays > 0)
+    parts.push(`${engagedDays} engaged days`);
+  if (exchanges && exchanges > 0) parts.push(`${exchanges} exchanges`);
+  if (parts.length) return `${parts.join(", ")}.`;
+  // Nothing measured yet: fall back to naming the period, which is always true.
+  return days < 7 ? "First week" : `${Math.max(1, Math.round(days / 7))}-week analysis`;
 }
 
 export function CareSummaryDocCard({
@@ -264,7 +291,11 @@ export function CareSummaryDocCard({
                 as a past one. THIS CARD IS ALWAYS THE LIVE CYCLE; the committed
                 one is a History entry with its own frozen window. Gap row 305. */}
             <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              {summaryMetaLine(doc.window, exchanges)}
+              {summaryMetaLine(
+                doc.window,
+                exchanges,
+                doc.themes?.conversationDays ?? null
+              )}
             </p>
           </div>
 
@@ -319,24 +350,18 @@ export function CareSummaryDocCard({
         )}
 
         {pattern && (
-          <div className="mt-3">
+          <div className="mt-2">
             <CareSparkline
               pattern={pattern}
               onSelectEvent={onJumpToEvent ?? (() => {})}
             />
-            {/* THE STRIP CARRIES ITS OWN ATTRIBUTION. It is derived from the
-                same record as everything else here, but it is a separate visual
-                a reader can land on without having read the header — so the
-                badge travels with it rather than being inherited from six
-                inches up the card. */}
-            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-              {/* TODO-COPY. Names the axis and the two mark classes, because a
-                  strip with no legend needs its shapes named somewhere. */}
-              <span>
-                Assessment scores and risk flags across the mentorship
-              </span>
-              <Provenance />
-            </p>
+            {/* ═══ THE CHART'S CAPTION AND ITS MARK ARE GONE ═══
+                It read "Assessment scores and risk flags across the mentorship"
+                beside a second provenance mark. Two marks on one card is two
+                things to open to learn one thing, and this was the weaker: it
+                named the axis but not the window the card is about. The sentence
+                is merged into the header's mark — see `summaryProvenanceNote` —
+                which already carried the shared note this one repeated. */}
           </div>
         )}
       </Element>
@@ -404,22 +429,16 @@ export function CareSummaryDocCard({
                 </div>
               );
             })}
-            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-[16px] text-[var(--text-muted)]">
-              {/* THE DENOMINATOR STAYS — "7/9" is meaningless if a reader cannot
-                  tell what nine is, and it is a fact about the window rather
-                  than a disclaimer. NOT "sessions": this product has none.
-                  "Theme extraction is mocked — no pipeline exists" WAS HERE and
-                  is removed. It was an honest note about implementation state
-                  and the wrong thing to put in a clinical reader's line of
-                  sight: it described the codebase, not the record. The badge
-                  beside it says the content is generated, which is the fact that
-                  bears on how the number should be read. TODO-COPY. */}
-              <span>
-                Out of {doc.themes.conversationDays} conversation days in the
-                window
-              </span>
-              <Provenance />
-            </p>
+            {/* ═══ THE ENGAGEMENT CAPTION IS GONE FROM HERE ═══
+                It read "Out of {n} engagement days in the window ⓘ" under the
+                chips. The fact now leads the card's subtitle, where it is a
+                property of the window rather than a footnote to one section —
+                and it was always the denominator for BOTH the chips above it and
+                the trajectory beside them, so a caption under one of the two was
+                the wrong home for it.
+                NOTHING IS ORPHANED: the window's bounds, its generated date and
+                the basis all live on the card-header mark, which is unchanged.
+                The provenance this caption carried was the same shared note. */}
           </>
         ) : (
           <Refusal>

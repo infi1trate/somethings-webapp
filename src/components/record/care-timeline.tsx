@@ -44,6 +44,7 @@ import {
   type CareFilterId,
 } from "@/lib/record/care-demo";
 import { AssessmentChip } from "@/components/record/care-update-view";
+import { FieldProvenanceNote } from "@/components/record/field-provenance-note";
 import { ScoreLozenge } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +90,62 @@ const CHIP_OFF =
  *  Returns null for every non-assessment row, and for an assessment whose result
  *  carries no parseable number — absence renders no lozenge, which is correct and
  *  better than a lozenge reading "NaN". */
+/** ═══ THE DISCLOSURE BODY — ONE RENDERER, TWO CALL SITES (D) ═══
+ *
+ *  Both sites used to be the same three lines of JSX rendering
+ *  `event.providerNote` as one pre-line block, and both had to grow a per-field
+ *  disclosure. Two copies of that is two places for it to be wrong, and the
+ *  borrowed-documentation path is the one a reader reaches least often — so it
+ *  is the copy that would have been missed.
+ *
+ *  THE FLAT STRING IS STILL THE FALLBACK, and not as a defensive gesture. Risk
+ *  flags, escalations and presentation changes all carry free prose with no
+ *  fields in it — AND SO DO MOST `care_update` ROWS. t17 alone has 19 of them:
+ *  "Guardian contact logged", "Mentor coaching note", "Activity completed" —
+ *  operational log entries that reuse the `care_update` type and have no
+ *  structured body behind them at all, against 2 that do.
+ *
+ *  So this branch is NOT "is this a care update". It is "does this row have the
+ *  three-field clinical form behind it", which is the narrower question and the
+ *  only one that can be answered honestly — a check on `type` would have put
+ *  clinical-form labels and a provenance footnote over a note about a phone
+ *  call. Measured, after a test asserting the type-based version failed.
+ *
+ *  (That two different things share one event type is a real modelling defect,
+ *  and it is not this component's to fix. Reported.) */
+function NoteBody({ event }: { event: CareEvent }) {
+  const NOTE = "whitespace-pre-line text-[var(--text-secondary)]";
+  const FONT = { font: "var(--type-row-label)" } as const;
+
+  if (!event.noteSections?.length)
+    return (
+      <p className={NOTE} style={FONT}>
+        {event.providerNote}
+      </p>
+    );
+
+  return (
+    <div className="space-y-2">
+      {event.noteSections.map((s) => (
+        <div key={s.id}>
+          {/* THE LABEL IS ITS OWN ELEMENT NOW. It used to be a line inside the
+              pre-line string, which rendered identically to the prose under it —
+              a heading only because it happened to be first. Structuring the
+              note was forced by the disclosure; making the label look like a
+              label is what that structure buys. */}
+          <p className="text-[var(--text-muted)]" style={FONT}>
+            {s.label}
+          </p>
+          <p className={NOTE} style={FONT}>
+            {s.text}
+          </p>
+          <FieldProvenanceNote state={s.provenance} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function scoreFor(event: CareEvent): { value: number; band: string } | null {
   if (event.type !== "assessment") return null;
   const n = Number(String(event.result).match(/\d+/)?.[0]);
@@ -137,12 +194,45 @@ function Attribution({ author }: { author: CareEvent["author"] }) {
     );
   }
   if (author.kind === "system") {
-    // TODO-COPY
-    return <span className="text-[var(--text-muted)]">Recorded automatically</span>;
+    /* ═══ "RAISED BY", NOT "LAST EDITED BY" — A FLAGGED DEVIATION ═══
+       The given format is "Last edited by {name}, {role}", and it assumes a
+       human editor. A moderation classifier does not EDIT anything: it raises a
+       match. "Last edited by Moderation" would attribute an editorial act to a
+       process, on a record where who edited what is the thing being audited.
+       So the system variant says what happened instead. Named as a deviation
+       rather than absorbed — it is veto-able. TODO-COPY. */
+    return (
+      <span className="text-[var(--text-muted)]">
+        {/* The system author carries no name in the model — the source IS the
+            system — so the product's own name stands in rather than a blank. */}
+        Raised by Somethings
+      </span>
+    );
   }
+  /* ═══ A SYSTEM SOURCE WEARING A PERSON'S SHAPE ═══
+     `author.kind === "system"` is NOT how the moderation flags arrive. They are
+     built from `raisedBy: "Somethings" / raisedByRole: "System"` and reach here
+     as `kind: "person"`, so the branch above never fires for them — measured,
+     not assumed: the row rendered "Last edited by Somethings, System", which is
+     exactly the sentence B2 forbids.
+     So the source is detected by ROLE. The underlying fix is that a system
+     source should not be modelled as a person at all, which is a data change
+     across `careFlagsFor` and its fixtures; reported rather than done here. */
+  if (author.role === "System") {
+    return (
+      <span className="text-[var(--text-muted)]">
+        {/* TODO-COPY */}
+        Raised by {author.name}
+      </span>
+    );
+  }
+  /* "Last edited by {name}, {role}" — a COMMA between name and role, per the
+     given format, where the rest of this sub-line uses middots. The comma is
+     doing different work: the middot separates independent facts, and the role
+     is not independent of the name it qualifies. TODO-COPY. */
   return (
     <span className="text-[var(--text-muted)]">
-      {author.name} · {author.role}
+      Last edited by {author.name}, {author.role}
     </span>
   );
 }
@@ -263,7 +353,24 @@ function Row({
    *    detail, not scan-level information, and it appeared on a large share of
    *    rows — so it read as furniture while pushing real attributions down.
    *    It renders in the expanded state instead. */
-  const statusText = score ? null : String(event.result || "").trim() || null;
+  /** ═══ THE STATUS MOVED TO THE LOZENGE, AND THE DURATION LEFT THE ROW ═══
+   *
+   *  `event.result` on a flag or escalation reads "Open" or "Resolved · 48h" —
+   *  a status AND a duration in one string, rendered on the sub-line. The status
+   *  is now the lozenge's second half, so rendering it here too would be the
+   *  same word twice on one row.
+   *
+   *  THE DURATION IS DROPPED FROM THE COLLAPSED ROW ENTIRELY, which is what the
+   *  pack asks: how long something stayed open is a fact about the closed
+   *  episode, not a scan-level one, and it belongs with the resolution. It is
+   *  picked up in the expansion — see `EscalationDetail`'s Date resolved cell. */
+  const hasStatus = event.type === "escalation" || event.type === "risk_flag";
+  const rawResult = String(event.result || "").trim();
+  const statusWord = hasStatus
+    ? (rawResult.split("·")[0].trim() || null)
+    : null;
+  const resolved = /resolved/i.test(rawResult);
+  const statusText = score || hasStatus ? null : rawResult || null;
   const named = event.author.kind === "person";
   const line2 =
     statusText || named ? (
@@ -469,13 +576,37 @@ function Row({
             {/* RIGHT-ALIGNED. `ml-auto` rather than `justify-between` so it
                 still sits beside the title when the row is short instead of
                 being pushed to the far edge of a wide table. */}
+            {/* ═══ TYPE AND STATUS IN ONE LOZENGE ═══
+                Only escalations and flags have a status; every other type is
+                unchanged, because appending a status to a statusless type would
+                invent one. "Open" keeps the type's strong tint, which is now
+                RESERVED for open items; "Resolved" goes neutral and recedes on
+                scan. The WORD carries the state and the tone reinforces it —
+                a monochrome print and a screen reader read the same thing.
+
+                TRUNCATION SACRIFICES THE TYPE, NOT THE STATUS. `min-w-0` and
+                `truncate` on the type span alone, so a narrow container clips
+                "Escalation" before it clips "Open" — the status is the
+                scannable payload here, and the type is already implied by the
+                row's own content. `title` carries the whole string. */}
             <span
+              title={statusWord ? `${TYPE_LABEL[event.type]} · ${statusWord}` : undefined}
               className={cn(
-                "ml-auto shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium",
-                TONE_STYLE[TYPE_TONE[event.type]]
+                "ml-auto flex min-w-0 shrink items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium whitespace-nowrap",
+                statusWord && resolved
+                  ? "bg-[var(--status-neutral-bg)] text-[var(--text-secondary)]"
+                  : TONE_STYLE[TYPE_TONE[event.type]]
               )}
             >
-              {TYPE_LABEL[event.type]}
+              <span className="min-w-0 truncate">{TYPE_LABEL[event.type]}</span>
+              {statusWord && (
+                <>
+                  <span aria-hidden className="shrink-0 opacity-50">
+                    ·
+                  </span>
+                  <span className="shrink-0">{statusWord}</span>
+                </>
+              )}
             </span>
           </div>
 
@@ -774,12 +905,12 @@ function Row({
                    committed with it, in the same words, rather than a second
                    copy of the prose or a bare link. */
                 <div className="space-y-2">
-                  <p
-                    className="whitespace-pre-line text-[var(--text-secondary)]"
-                    style={{ font: "var(--type-row-label)" }}
-                  >
-                    {documentedBy.providerNote}
-                  </p>
+                  {/* D. THE DISCLOSURE FOLLOWS THE PROSE WHEREVER THE PROSE
+                      GOES — including here, where a presentation-change row is
+                      showing a care update it did not itself write. A reader
+                      opening the code change is reading that update's words, so
+                      they are owed the same footnote the update carries. */}
+                  <NoteBody event={documentedBy} />
                   {documentedBy.assessment && (
                     <AssessmentChip value={documentedBy.assessment} />
                   )}
@@ -798,12 +929,7 @@ function Row({
                   </button>
                 </div>
               ) : (
-                <p
-                  className="whitespace-pre-line text-[var(--text-secondary)]"
-                  style={{ font: "var(--type-row-label)" }}
-                >
-                  {event.providerNote}
-                </p>
+                <NoteBody event={event} />
               )}
             </div>
           )}
@@ -972,6 +1098,18 @@ function EscalationDetail({
      same absent person reads as a form nobody filled in rather than as a fact. */
   const contactsBothEmpty = !d?.emergencyContact && !d?.contactConversations;
   const resolvedAt = resolvedAtFrom(record, occurredAt);
+  /** How long it stayed open, in the same words the collapsed row used to carry
+   *  — "same day" / "24h" / "48h" / "N days" — derived from the record's own two
+   *  day counts rather than from the string that row built, so the two cannot
+   *  drift now that only one of them renders. */
+  const openSpan = (() => {
+    if (record.resolvedDaysAgo === undefined) return null;
+    const days = record.daysAgo - record.resolvedDaysAgo;
+    if (days <= 0) return "same day";
+    if (days === 1) return "24h";
+    if (days < 3) return `${days * 24}h`;
+    return `${days} days`;
+  })();
   const crisisLabel = record.crisis
     ? (CRISIS_TYPE.find((c) => c.id === record.crisis!.type)?.label ?? null)
     : null;
@@ -1003,8 +1141,20 @@ function EscalationDetail({
               one. The pair below reads "— / —" on an open escalation, which is
               the honest shape: nobody has closed it and nobody is recorded as
               having. */}
+          {/* ═══ THE DURATION LANDS HERE, NOT IN AN ATTRIBUTION FOOTER ═══
+              A4 puts it on "the expansion's attribution footer". That footer
+              does not exist any more — it read "Resolved by {name} · {date}" and
+              was removed two packs ago when its facts became labelled cells in
+              this grid, so re-adding one to hold a duration would restore the
+              duplication that removal fixed.
+              So the duration joins the cell that already states WHEN it was
+              resolved, which is the fact it qualifies: "Jun 2, 2026 · 3:18 PM ·
+              48h after opening". Reported as a deviation from the pack's
+              placement, not from its intent. TODO-COPY. */}
           {resolvedAt !== null
-            ? `${dateOf(resolvedAt)}${d?.resolvedAtTime ? ` \u00b7 ${d.resolvedAtTime}` : ""}`
+            ? `${dateOf(resolvedAt)}${d?.resolvedAtTime ? ` \u00b7 ${d.resolvedAtTime}` : ""}${
+                openSpan ? ` \u00b7 ${openSpan} after opening` : ""
+              }`
             : EM_DASH}
         </Fact>
         <Fact label="Resolved by">

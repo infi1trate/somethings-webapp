@@ -66,9 +66,26 @@ const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
  *
  *  Row 332 recorded this as unfixable-without-tradeoffs. This is the tradeoff,
  *  taken deliberately and measured: six violations to zero. */
-const H = 70;
-const SCORE_TOP = 12;
-const SCORE_BOTTOM = 34;
+/** ═══ TIGHTENED, AND THE BEFORE/AFTER IS THE POINT ═══
+ *  70 -> 64. The plot lost the six units the month labels used to need below it
+ *  — they sit above now — so the height came down rather than leaving a gap
+ *  where a label row used to be. With the rail's own steps stepping down too
+ *  (`mt-3` -> `mt-2` above the chart, `mt-1.5` -> `mt-1` above the caption) the
+ *  whole unit reads denser without any element losing its own spacing. */
+/** 120 -> 100 -> 84. 84 rather than the ~85 asked for: 85 is not on the 4px
+ *  scale and 84 is the nearest step at or under the target, which is the right
+ *  direction to round a height that is being reduced. */
+const H = 84;
+/** ═══ THE SCORE BAND, RESCALED FOR THE TALLER PLOT ═══
+ *  64 -> 120 (E1's ~120 target, on the 4px scale). The band grows with it
+ *  rather than floating in a taller box: 14 -> 104 keeps the same 10px of air
+ *  above the highest reading and puts the baseline at 107, which leaves the
+ *  bottom 13px for the badges that now straddle it. */
+/** Scaled with the plot rather than left floating in a shorter box: the band
+ *  keeps ~8 units of air above the highest reading and the baseline stays one
+ *  unit inside the bottom edge. */
+const SCORE_TOP = 8;
+const SCORE_BOTTOM = 80;
 /** ON THE AXIS, not above it. Was 58 — a band of its own between the score
  *  line and the month labels, which spent 16px of a 70px strip on a row that
  *  held three marks. The discs now sit centred on the baseline itself. */
@@ -87,6 +104,10 @@ const TICK_BOTTOM = 50;
  *  fades to. Was written inline as `SCORE_BOTTOM + 3` in two places; the gradient
  *  is a third, and three copies of a baseline is how a fill stops meeting its
  *  own axis. */
+/** The baseline sits 3 units under the band, which at H = 100 puts it 1 unit
+ *  inside the plot's bottom edge — as close as a 1px hairline can get without
+ *  being half-clipped by the viewBox. That last pixel is why the measured
+ *  baseline-to-badge gap reads 9 rather than 8; see the note on the badge row. */
 const BASELINE = SCORE_BOTTOM + 3;
 
 /** ═══ THE PLOT IS INSET SO EDGE MARKS KEEP THEIR HIT TARGET ═══
@@ -207,7 +228,8 @@ export function CareSparkline({
 
   if (!pattern) return null;
 
-  const { startAt, endAt, marks, scoreMin, scoreMax, months } = pattern;
+  const { startAt, endAt, marks, scoreMin, scoreMax, months, monthSafety } =
+    pattern;
 
   /** ═══ THE X AXIS IS CATEGORICAL BY MONTH, NOT PROPORTIONAL BY DATE ═══
    *
@@ -254,19 +276,88 @@ export function CareSparkline({
              right edge is half a column past the last gridline, clamped to the
              plot's own padding edge. Both are stated in column terms, so the
              container stays aligned at any width. */
+          /* ═══ ONE INSET, USED ON BOTH SIDES ═══
+             Was a midpoint on the left and a half-column on the right — two
+             different rules, so the two edges only matched when the arithmetic
+             happened to agree. They are one number now: the box is
+             `firstIn - inset` to `lastIn + inset`, symmetric by construction
+             rather than by coincidence.
+             THE INSET WANTS TO BE HALF A COLUMN, which is where the old midpoint
+             fell, so the left edge lands in the gap between columns exactly as
+             before. It is CLAMPED by whichever side has less room — the right,
+             whenever the window ends at the final month, which on this chart it
+             always does. Clamping the shared value keeps the two edges equal;
+             clamping one side would be the bug this replaces.
+             COLUMN WIDTHS ARE UNTOUCHED. The clamp moves the box's edge, never a
+             gridline, so every month keeps the same width. */
           const firstIn = monthX[monthX.length - 3].x;
-          const lastOut = monthX[monthX.length - 4]?.x;
-          const half =
-            monthX.length > 1
-              ? (monthX[monthX.length - 1].x - monthX[0].x) /
-                (monthX.length - 1) /
-                2
-              : 4;
-          const left = lastOut !== undefined ? (lastOut + firstIn) / 2 : firstIn - half;
-          const right = Math.min(monthX[monthX.length - 1].x + half, 100 - EDGE_PCT / 2);
-          return { x: left, w: right - left };
+          const lastIn = monthX[monthX.length - 1].x;
+          /** Half a unit of breathing room so the box's own border is never
+           *  flush with the plot's edge. */
+          /* `half` and the old clamped `inset` are gone with the % bounds they
+             computed — the box is gridline-to-gridline now and the cushions do
+             the holding-off. Kept the variable out rather than leaving a value
+             nothing reads. */
+          /* ═══ AND A PER-SIDE PIXEL CUSHION FOR WHAT SITS ON THE EDGE ═══
+             Equal gridline insets were measured and equal — 23.1px each side —
+             and the box still read lopsided, because the thing a reader sees is
+             the gap to the BADGE, not to the gridline. A single badge is 24px
+             and overhangs its gridline by 12; a dual-type split pill is 49px and
+             overhangs by 24.5. On t17 that put September's pill 1.4px OUTSIDE
+             the right edge while July's badge had 11.1px of air inside it.
+             So each side gets its own cushion, sized to what actually sits on
+             that edge month, and both come out at the same CONTENT clearance.
+             Gridline-to-edge is consequently NOT equal any more — that rule is
+             what produced the lopsided result, and it is the wrong invariant
+             when the two edge badges are different widths.
+             The widths are known without measuring the DOM: a segment is
+             `min-w-6` at 24px, a pill is two of those plus a 1px divider. */
+          const edgeHalf = (at: number | undefined) => {
+            const bin = at
+              ? monthSafety.find((b) => {
+                  const d = new Date(b.at);
+                  const m = new Date(at);
+                  return (
+                    d.getFullYear() === m.getFullYear() &&
+                    d.getMonth() === m.getMonth()
+                  );
+                })
+              : undefined;
+            if (!bin) return 0;
+            const dual = bin.escalations.length > 0 && bin.flags.length > 0;
+            return dual ? 24.5 : 12;
+          };
+          const PAD = 8;
+          const padL = PAD + edgeHalf(monthX[monthX.length - 3]?.at);
+          const padR = PAD + edgeHalf(monthX[monthX.length - 1]?.at);
+          /* ═══ THE CUSHION REPLACES THE HALF-COLUMN INSET, NOT ADDS TO IT ═══
+             Stacking the two put 31px of air on each side — equal, but the box
+             then reached almost to the out-of-window gridline, which is a
+             different way of being wrong. The box now runs GRIDLINE TO
+             GRIDLINE and the cushions alone hold it off the content, so the
+             padding is exactly `PAD` on both sides whatever sits on the edge
+             months.
+             ON A RECORD WHOSE EDGE MONTHS CARRY NO BADGE the cushion collapses
+             to `PAD` alone and the box hugs its gridlines at 8px. That is a
+             tighter box than the half-column gap, and it is the honest one:
+             with nothing on the edge there is nothing to hold the edge off. */
+          return { x: firstIn, w: lastIn - firstIn, padL, padR };
         })()
       : null;
+
+  /** The month gridline a bin belongs to, or null when that month is outside the
+   *  visible axis — an event in a month the axis does not show is not rendered,
+   *  rather than being pinned to the nearest column it did not happen in. */
+  const nearestMonthX = (at: number): number | null => {
+    const hit = monthX.find((m) => {
+      const d = new Date(m.at);
+      const b = new Date(at);
+      return d.getFullYear() === b.getFullYear() && d.getMonth() === b.getMonth();
+    });
+    return hit ? hit.x : null;
+  };
+  const monthLabel = (at: number) =>
+    new Date(at).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   const assessments = marks.filter(
     (m) => m.cls === "assessment" && m.score !== undefined
@@ -380,8 +471,51 @@ export function CareSparkline({
   };
 
   return (
-    <div className="relative">
-      <div className="relative" style={{ height: H }}>
+    /* ═══ THE CONTAINER'S INTERNAL PADDING IS THE WRAPPER'S ═══
+       `py-2` — 8px top and bottom. The window box is `inset-y-0` against this
+       wrapper, and an absolutely positioned child resolves its insets against
+       the PADDING box, so the box spans the padding while the label row and the
+       badge row start inside it. That is what buys B3's 8px of clearance above
+       the labels and B2's 8px below the badge row from one declaration, instead
+       of two hand-tuned offsets that drift apart. */
+    <div className="relative isolate py-2">
+      {/* ═══ THE WINDOW WRAPS THE WHOLE COLUMN, LABELS AND BADGES INCLUDED ═══
+          `inset-y-0` on the wrapper, so it spans the label row, the plot and the
+          badge row — the three months it names are inside it rather than sliced
+          through the middle. `z-0` under content that is `relative` or better, so
+          it sits behind the line, the gridlines and the badges without needing a
+          negative index. */}
+      {windowBox && (
+        <div
+          aria-hidden
+          className="absolute inset-y-0 z-0 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--tint-faint)]"
+          style={{
+            left: `calc(${windowBox.x}% - ${windowBox.padL}px)`,
+            width: `calc(${windowBox.w}% + ${windowBox.padL + windowBox.padR}px)`,
+          }}
+        />
+      )}
+      {/* ═══ MONTH LABELS SIT ABOVE THE PLOT ═══
+          They were below it, under the badge row, which put three stacked rows
+          between the line and its own axis names and made the reader travel
+          past the safety badges to find out which month they were looking at.
+          Above, a column is labelled before it is read.
+          `mb-1` IS THE 4px THE SPEC ASKS FOR between the label's bottom edge and
+          the top of its gridline — the gridlines start at the plot's top edge,
+          which is this row's bottom edge plus that margin. */}
+      <div className="relative z-10 mb-1 h-4">
+        {months.map((mo) => (
+          <span
+            key={mo.at}
+            aria-hidden
+            style={{ left: `${xPct(mo.at, startAt, endAt)}%` }}
+            className={cn("absolute -translate-x-1/2 whitespace-nowrap", EYEBROW)}
+          >
+            {mo.label}
+          </span>
+        ))}
+      </div>
+      <div className="relative z-10" style={{ height: H }}>
         <svg
           viewBox={`0 0 100 ${H}`}
           preserveAspectRatio="none"
@@ -402,35 +536,10 @@ export function CareSparkline({
               over readings, and where a month holds no reading the box simply
               covers empty axis. Named in the caption below rather than left to
               be inferred from a grey rectangle. */}
-          {windowBox && (
-            <rect
-              x={windowBox.x}
-              y={0}
-              width={windowBox.w}
-              height={BASELINE + 10}
-              rx="1"
-              /* ═══ PRESENTATION ATTRIBUTES, NOT UTILITY CLASSES ═══
-                 This shipped as `fill-[var(--surface-s1)]
-                 stroke-[color:var(--border-subtle)]` and rendered as an OPAQUE
-                 BLACK RECTANGLE across the plot. Measured, not guessed: neither
-                 utility generated a rule at all — no matching selector exists in
-                 any stylesheet — so `fill` fell to the SVG default of black and
-                 `stroke` resolved to `none`. The block was the window container
-                 with its paint missing, not the R6 gradient, whose stops verify
-                 healthy at 0.14 -> 0 on the same render.
-                 This is the lesson the gradient below already records about
-                 `stop-opacity`: an SVG paint expressed as a compiled utility can
-                 be compiled away, and a presentation attribute cannot. Both
-                 halves are attributes now, and my own verification of this rect
-                 in the change that introduced it read its geometry attributes
-                 and never its resolved paint — which is how a black box shipped
-                 past a green check. */
-              fill="var(--surface-s1)"
-              stroke="var(--border-subtle)"
-              strokeWidth="0.3"
-              vectorEffect="non-scaling-stroke"
-            />
-          )}
+          {/* THE WINDOW BOX LEFT THE SVG. A `<rect>` can only cover the
+              plot, so it cut straight through the month labels above it and the
+              badges below — the three months it names were half inside it. It
+              is an HTML layer behind all three rows now, at the wrapper. */}
 
           {/* ONE HAIRLINE PER MONTH, so the labels below have something to
               attach to and the marks have a scale to be read against. Drawn
@@ -439,16 +548,27 @@ export function CareSparkline({
           {months.map((mo) => {
             const x = xPct(mo.at, startAt, endAt);
             return (
-              <line
-                key={`grid-${mo.at}`}
-                x1={x}
-                x2={x}
-                y1={SCORE_TOP - 6}
-                y2={BASELINE}
-                className="stroke-[color:var(--border-subtle)]"
-                strokeWidth="0.25"
-                vectorEffect="non-scaling-stroke"
-              />
+              <g key={`grid-${mo.at}`}>
+                {/* THE GRIDLINE — a hairline rising from the baseline toward the
+                    label. `--border-subtle` is the divider token; 1px held by
+                    `non-scaling-stroke` so it stays a hairline at any width. */}
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={0}
+                  y2={BASELINE}
+                  stroke="var(--border-subtle)"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* THE MONTH TICK IS RETIRED. v2 added a short strong hash on
+                    the baseline beside each gridline; v3 removes it. With the
+                    gridline running the full plot height the hash added a second
+                    mark saying the same thing at the same x, and four MORE
+                    hashes were already there from the presentation ticks — six
+                    kinds of vertical line on one axis. One gridline per month,
+                    and nothing on the baseline but badges. */}
+              </g>
             );
           })}
 
@@ -483,32 +603,30 @@ export function CareSparkline({
               vectorEffect="non-scaling-stroke"
             />
           )}
-          {marks
-            .filter((m) => m.cls === "presentation")
-            .map((m) => (
-              <line
-                key={m.eventId}
-                x1={xPct(m.at, startAt, endAt)}
-                x2={xPct(m.at, startAt, endAt)}
-                y1={TICK_TOP}
-                y2={TICK_BOTTOM}
-                stroke="var(--text-secondary)"
-                strokeWidth="1.5"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
+          {/* THE PRESENTATION TICKS ARE RETIRED TOO — these were the four
+              stray hashes on the baseline. They were positioned by RAW event
+              date (`xPct`, never month-snapped), so after the axis went
+              categorical they were the only marks left that did not sit on a
+              column: four hashes between the gridlines, pointing at nothing a
+              reader could name. A presentation change is a full row in History
+              with its own date; it does not need a mark here that the axis can
+              no longer place. */}
         </svg>
 
         {/* PRESENTATION MARKS ARE EXCLUDED HERE — they are drawn in the SVG
             above and carry no hit target. See the geometry note. */}
+        {/* ASSESSMENTS ONLY. Flags left this loop when they became per-month
+            badges — see the row after this one — and presentation ticks were
+            never in it. `mergeCrowded` still guards SC 2.5.8 for the case two
+            readings in one month sit ±10% apart. X comes from the same fanned
+            positions the line is drawn through, so a point and its segment
+            cannot disagree. */}
         {mergeCrowded(
-          marks
-            .filter((m) => m.cls !== "presentation")
-            .map((m) => ({
-              ...m,
-              x: xPct(m.at, startAt, endAt),
-              y: markY(m),
-            }))
+          assessments.map((m, i) => ({
+            ...m,
+            x: snapX(m.at) + fanned[i],
+            y: markY(m),
+          }))
         ).map((m) => {
           const left = m.x;
           const top = m.y;
@@ -567,61 +685,153 @@ export function CareSparkline({
                   className="size-2 rounded-full bg-[var(--text-primary)] ring-[2.5px] ring-[color:var(--border-subtle)]"
                 />
               )}
-              {m.cls === "flag" && (
-                /* ═══ A DISC ON THE AXIS, NOT A TRIANGLE ABOVE IT ═══
-                    The design file draws these as filled circles sitting on the
-                    baseline with their count inside, and that is the better
-                    shape here: a triangle floating in the plot competed with the
-                    score line for the same vertical space, where a disc on the
-                    axis reads as an event ON the timeline.
-
-                    COLOUR SPLITS ESCALATION FROM FLAG, and never carries the
-                    distinction alone — the accessible label says "Escalation" or
-                    "Flag" in words, so greyscale, a screen reader and a
-                    monochrome print all get it. This is the event's TYPE, not a
-                    grade of the teen; see the note on `PatternMark.escalation`. */
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex items-center justify-center rounded-full text-[8.5px] font-semibold leading-none tabular-nums",
-                    m.count > 1 ? "size-4" : "size-2.5"
-                  )}
-                  /* ═══ EACH BAND'S OWN PAIR, NOT TWO FOREGROUNDS ═══
-                     Both discs first took a `-fg` token as their fill, and the
-                     two measured 1.09:1 against EACH OTHER — two dark browns,
-                     indistinguishable at 10px, so the colour split was doing
-                     nothing at all. The words carried it, which is why this was
-                     a design failure rather than an accessibility one.
-                     Now each takes the fill and ink it was designed with: the
-                     escalation is the loud one (clay ink as fill, light text)
-                     and the flag is the quiet one (amber wash, amber ink). That
-                     hierarchy is also true — an escalation IS the louder event —
-                     and the two are separable at a glance without either being
-                     read for its hue alone. */
-                  style={
-                    m.escalation
-                      ? {
-                          backgroundColor: "var(--band-clay-fg)",
-                          color: "var(--band-clay-bg)",
-                        }
-                      : {
-                          backgroundColor: "var(--band-amber-bg)",
-                          color: "var(--band-amber-fg)",
-                        }
-                  }
-                >
-                  {/* THE COUNT ONLY WHEN THERE IS ONE TO STATE. A "1" inside
-                      every disc is a number that never varies, which is noise a
-                      reader has to learn to ignore; the single-flag disc is
-                      simply smaller. Both sizes clear the 24px target because
-                      the BUTTON around them carries it, not the disc. */}
-                  {m.count > 1 ? m.count : null}
-                </span>
-              )}
+              {/* THE PER-MARK FLAG DISC IS GONE. Flags are no longer a mark
+                  on this axis at all: they aggregate into PER-MONTH TYPED
+                  COUNTS rendered as one badge (or one split pill) per month,
+                  below. A mark-per-coalesced-day and a badge-per-month are two
+                  groupings of one thing, and keeping both would put two
+                  different counts for the same events on one axis. */}
 
             </button>
           );
         })}
+      </div>
+
+      {/* ═══ BELOW THE AXIS, NOT ON IT ═══
+          v3 put these ON the baseline, centred on the hairline, and that
+          collides with the data: a reading whose score sits at the bottom of the
+          band plots on the baseline too, so a badge and a point compete for one
+          coordinate — and the badge, the larger object, wins and hides the
+          reading. The axis belongs to the line.
+          Their own row 4px under the plot, still centred on each month's
+          gridline. They read as a register beneath the chart rather than as
+          marks in it, which is what they are: a count per month, not a value on
+          the y axis. */}
+      {/* ═══ THE BADGE BAND, WITH ITS TWO GAPS EQUAL ═══
+          `mt-2` is the 8px above; the wrapper's `pb-2` is the 8px below. The two
+          are the same token, so they cannot drift.
+          MEASURED HONESTLY: baseline -> badge reads 9px, not 8. The baseline
+          hairline sits one unit inside the plot's bottom edge because a line at
+          y = H would be half-clipped by the viewBox, and that pixel lands in
+          this gap. Closing it would cost the hairline. */}
+      <div className="relative z-10 mt-2 h-6">
+        {monthSafety
+          .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
+          .filter((b) => b.x !== null)
+          .map((b) => {
+            const e = b.escalations.length;
+            const f = b.flags.length;
+            const label =
+              `${e ? `${e} escalation${e === 1 ? "" : "s"}` : ""}` +
+              `${e && f ? ", " : ""}` +
+              `${f ? `${f} flag${f === 1 ? "" : "s"}` : ""}` +
+              ` · ${monthLabel(b.at)}`;
+            return (
+              <span
+                key={b.at}
+                style={{ left: `${b.x}%` }}
+                className="absolute top-0 -translate-x-1/2"
+              >
+                <span
+                  title={label}
+                  aria-label={label}
+                  tabIndex={0}
+                  role="img"
+                  className={cn(
+                    "flex h-6 items-center overflow-hidden rounded-full text-[10px] font-semibold leading-none tabular-nums",
+                    RING
+                  )}
+                >
+                  {e > 0 && (
+                    <span
+                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                      /* ═══ HISTORY'S ESCALATION TOKENS, NOT A BROWN ═══
+                         Was `--band-clay-fg` on `--band-clay-bg` — the maroon.
+                         History's Escalation lozenge is `TONE_STYLE.critical` =
+                         `--alert-critical-bg` / `--alert-critical-fg`, so this
+                         badge is in that family now.
+                         ONE SUBSTITUTION, REPORTED: the fill is
+                         `--alert-critical-ACCENT`, not `-bg`. The lozenge's `bg`
+                         is a pale tint (#fff2ef) with dark ink, and C/B ask for a
+                         SATURATED fill with INVERSE text — a pale badge with dark
+                         digits is the flag treatment, and the two types would
+                         stop being separable by tone. The accent is the same
+                         family's saturated step (its own note calls it the bright
+                         tangelo an alarm inverts to), and the ink is the
+                         lozenge's `bg` used as the inverse. */
+                      style={{
+                        /* ═══ THE SATURATED RED, NOT THE MUDDY ONE ═══
+                           `--alert-critical-accent` is #c9351d — rgb(201,53,29),
+                           with 29 of blue in it, and that blue is what reads as
+                           muddy at badge size. `--state-error` is #cc3300: same
+                           hue family, blue at zero, the brightest clean red
+                           Bloom has.
+                           REPORTED AS A CROSS-FAMILY BORROW: that token's own
+                           note calls it the inline-error colour, so this is no
+                           longer a name match to History's Escalation lozenge.
+                           It is the only token that reaches the mock's red. */
+                        /* ═══ THE DANGER RAMP'S STRONG STEP ═══
+                           v4 rules this by RAMP: same family as History's
+                           Escalation lozenge, one step stronger. That family is
+                           `--alert-critical-*` and its filled step is `accent`.
+                           A3's rationale, on record: consistency is at ramp
+                           level and INTENSITY differs by role — a lozenge labels
+                           a row and takes the tint, a badge is a compact signal
+                           on a light field and the severe type takes the fill.
+
+                           ⚠️ THIS IS THE HEX CALLED MUDDY ONE ROUND AGO. #c9351d
+                           is what `--state-error` (#cc3300) replaced at the
+                           design lead's request for a brighter red. v4's rule
+                           points back at it, so the rule wins and the conflict
+                           is reported rather than silently resolved either way.
+                           Bloom has no brighter step inside this ramp; getting
+                           #cc3300 back means either the cross-family borrow or a
+                           new ramp step. */
+                        backgroundColor: "var(--alert-critical-accent)",
+                        /* NOT the critical family's `bg`: #fff2ef on this red
+                           measures 4.40:1, under the floor. The card white
+                           measures 4.84:1. */
+                        color: "var(--surface-card)",
+                      }}
+                    >
+                      {e}
+                    </span>
+                  )}
+                  {e > 0 && f > 0 && (
+                    /* THE INTERNAL DIVIDER, so the capsule reads as two segments
+                       of one object rather than as a colour change. */
+                    <span
+                      aria-hidden
+                      className="h-6 w-px shrink-0 bg-[var(--surface-card)]"
+                    />
+                  )}
+                  {f > 0 && (
+                    <span
+                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                      /* HISTORY'S FLAG TOKENS, EXACTLY — `TONE_STYLE.warning` is
+                         `--alert-warning-bg` / `--alert-warning-fg`, which is
+                         also the warm tint and warning ink B2 asks for. No
+                         substitution on this side. */
+                      style={{
+                        /* ═══ ORANGE, WHICH `--alert-warning-*` IS NOT ═══
+                           That pair is #fdf6e2 — a pale cream, not an orange.
+                           The flag indicator has to be orange AND has to match
+                           risk flags elsewhere: `--status-warn-bg` /
+                           `--status-warn-fg` is orange-100 on orange-800, the
+                           pair `TonalChip` resolves for its `warning` tone,
+                           which is what the History tier chips and the rail rows
+                           render. */
+                        backgroundColor: "var(--status-warn-bg)",
+                        color: "var(--status-warn-fg)",
+                      }}
+                    >
+                      {f}
+                    </span>
+                  )}
+                </span>
+              </span>
+            );
+          })}
       </div>
 
       {/* ── THE TOOLTIP ─────────────────────────────────────────────────
@@ -647,18 +857,6 @@ export function CareSparkline({
         </div>
       )}
 
-      <div className="relative mt-1 h-4">
-        {months.map((mo) => (
-          <span
-            key={mo.at}
-            aria-hidden
-            style={{ left: `${xPct(mo.at, startAt, endAt)}%` }}
-            className={cn("absolute -translate-x-1/2 whitespace-nowrap", EYEBROW)}
-          >
-            {mo.label}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

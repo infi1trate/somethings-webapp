@@ -26,6 +26,7 @@
 // more — restoring it into the new one would put last quarter's reasoning under
 // this quarter's scores. Superseded drafts are cleared on open.
 
+import type { FieldProvenanceState } from "@/lib/record/field-provenance";
 import type { CareUpdateBody } from "@/lib/record/care-demo";
 
 const PREFIX = "somethings.review-draft.";
@@ -40,6 +41,24 @@ export type ReviewDecision =
 export interface ReviewDraft {
   decision: ReviewDecision | null;
   body: CareUpdateBody;
+  /** ═══ C3: PROVENANCE TRAVELS WITH THE TEXT ═══
+   *
+   *  A draft that restored the words without the state would silently launder
+   *  provenance: a supervisor inserts a model draft, closes the card, comes
+   *  back, and commits verbatim model prose recorded as `authored`. The whole
+   *  point of the field is that it cannot be lost by a reload.
+   *
+   *  `insertedText` rides along too, because `ai_inserted` is a claim about the
+   *  CURRENT content — without the baseline, a restored draft could not tell an
+   *  unedited insertion from an edited one, and would have to guess.
+   *
+   *  Absent on drafts written before this field existed: they restore as
+   *  `authored`, which is the same defensible default the committed record
+   *  takes. See the known limitation on `field-provenance.ts`. */
+  provenance?: {
+    clinical: FieldProvenanceState;
+    diagnostic: FieldProvenanceState;
+  };
   /** When the draft was last written, for the restore notice. */
   savedAt: number;
 }

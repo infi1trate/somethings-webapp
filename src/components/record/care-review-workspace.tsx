@@ -18,12 +18,20 @@
 // the inline code search, the three documentation fields, the validation, and
 // the draft that survives all of it.
 
+import {
+  AUTHORED,
+  onEdit,
+  onInsert,
+  onRevise,
+  type FieldProvenance,
+  type FieldProvenanceState,
+} from "@/lib/record/field-provenance";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   CareUpdateFields,
-  type DiagnosticPrefill,
 } from "@/components/record/care-update-compose";
+import { aiDraftsFor, draftBasis } from "@/lib/record/ai-drafts";
 import {
   emptyCareUpdateBody,
   type CareUpdateBody,
@@ -64,7 +72,10 @@ export interface CareReviewWorkspaceProps {
    *  draft defect inverted. Every OTHER write comes from the title block. */
   onDecisionChange: (next: ReviewDecision | null) => void;
   teenId: string;
-  prefill?: DiagnosticPrefill | null;
+  /* `prefill` IS NO LONGER TAKEN. This surface seeded the diagnostic field from
+     it and nothing else read it — the commit builds its provenance in
+     `care-tab`. The reveal-and-insert disclosure that will need the draft is not
+     built yet, and a prop nothing reads is a prop that rots. */
   now: number;
   /** ═══ A TICK THAT MEANS "TAKE FOCUS" ═══
    *  The card owns expansion, so a mount effect is not what should move focus —
@@ -79,7 +90,10 @@ export interface CareReviewWorkspaceProps {
   onCommit: (
     decision: ReviewDecision,
     body: CareUpdateBody,
-    at: number
+    at: number,
+    /** C4. Per-field, and required rather than optional: a commit that could
+     *  omit it would be a commit that silently records `authored`. */
+    provenance: { clinical: FieldProvenance; diagnostic: FieldProvenance }
   ) => void;
 }
 
@@ -89,7 +103,6 @@ export function CareReviewWorkspace({
   decision,
   onDecisionChange,
   teenId,
-  prefill,
   now,
   focusSignal,
   onSaveAndClose,
@@ -114,14 +127,75 @@ export function CareReviewWorkspace({
      `{ decision, body }` on every change and still clears on a return to
      pristine. The brief keeps drafts unchanged, and splitting the write across
      two components is how a draft ends up half-written. */
-  /** What this opened with — the restored draft, or the AI prefill, or empty. */
-  const [initialBody] = useState<CareUpdateBody>(() =>
-    restored?.body ??
-    (prefill
-      ? { ...emptyCareUpdateBody(), diagnostic: prefill.text }
-      : emptyCareUpdateBody())
+  /** ═══ WHAT THIS OPENED WITH: A RESTORED DRAFT, OR EMPTY ═══
+   *
+   *  The AI prefill is no longer one of the options. This surface seeded the
+   *  diagnostic field INDEPENDENTLY of the shared `CareUpdateFields`, so
+   *  removing the seeding in the modal left the in-card review still opening
+   *  with model prose in the textarea — the same defect on one of two surfaces,
+   *  which is worse than on both because only one of them looks fixed.
+   *
+   *  A RESTORED DRAFT IS STILL RESTORED, and only the user's own text: with
+   *  nothing seeded there is no AI text in a draft to bring back. */
+  const [initialBody] = useState<CareUpdateBody>(
+    () => restored?.body ?? emptyCareUpdateBody()
   );
   const [body, setBody] = useState<CareUpdateBody>(initialBody);
+  /** ═══ C1/C3: PER-FIELD PROVENANCE, LIVE ═══
+   *
+   *  Seeded from the restored draft so a reload cannot launder it — see the note
+   *  on `ReviewDraft.provenance`. Both fields start `authored`, which is what a
+   *  fresh form is: nothing has been inserted into it.
+   *
+   *  THE TRANSITIONS ARE NOT WRITTEN HERE. `onInsert` / `onEdit` come from
+   *  `field-provenance.ts` and are asserted there, because the value ends up
+   *  immutable on a committed record and a form that got it subtly wrong would
+   *  be invisible in review. */
+  const [prov, setProv] = useState<{
+    clinical: FieldProvenanceState;
+    diagnostic: FieldProvenanceState;
+  }>(() => restored?.provenance ?? { clinical: AUTHORED, diagnostic: AUTHORED });
+
+  /** ═══ B. THE DRAFTS FOR THIS RECORD, AND THE BASIS LINE ═══
+   *  Null for a record with nothing to draft from — the fields hide the
+   *  disclosure entirely on that, rather than offering a control that cannot
+   *  act (B4). The basis names the readings the REVIEW weighs, which is the
+   *  same window the draft claims to be drawn from. */
+  const drafts = useMemo(() => aiDraftsFor(teenId), [teenId]);
+  const basis = useMemo(
+    () => draftBasis(review.aggregate?.surveys ?? (review.survey ? [review.survey] : [])),
+    [review]
+  );
+
+  /** ═══ B2/E2. INSERTION IS THE OWNER'S JOB ═══
+   *
+   *  The fields cannot do this themselves: the text and the provenance state
+   *  have to move together, and the state lives here. Both `setState` calls sit
+   *  in one handler for the same reason the keystroke path does — a commit that
+   *  raced them would persist the new text against the old state.
+   *
+   *  `onInsert` UNCONDITIONALLY, on both the empty-field insert and the
+   *  replace: taking model text over your own is still taking model text, and
+   *  the state machine's `ai_inserted` means exactly "what is in this field is
+   *  the draft, unedited". The first keystroke after either moves it to
+   *  `ai_assisted` through `onEdit`. */
+  function insertField(
+    field: "clinical" | "diagnostic",
+    text: string,
+    /** WHICH CLAIM TO RECORD. A draft taken whole is `ai_inserted` — "this is a
+     *  model's paragraph, unedited". A revision of the supervisor's own text is
+     *  `ai_assisted`, because the content is theirs and calling it an unedited
+     *  model draft would be a false statement on a clinical record. The two
+     *  transitions live in `field-provenance.ts` and are asserted there. */
+    mode: "draft" | "revision"
+  ) {
+    setBody((b) => ({ ...b, [field]: text }));
+    setProv((prev) => ({
+      ...prev,
+      [field]: mode === "draft" ? onInsert(text) : onRevise(prev[field]),
+    }));
+    clearError(field);
+  }
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
     clinical: false,
     diagnostic: false,
@@ -205,8 +279,18 @@ export function CareReviewWorkspace({
       }
       return;
     }
-    writeReviewDraft(teenId, review.id, { decision, body, savedAt: Date.now() });
+    writeReviewDraft(teenId, review.id, {
+      decision,
+      body,
+      provenance: prov,
+      savedAt: Date.now(),
+    });
     touched.current = true;
+    // `prov` is deliberately NOT a dependency: it only ever changes on the same
+    // `setBody` that changes the text, so the text is the trigger and reading
+    // the state here cannot miss an update. Adding it would write the draft
+    // twice per keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teenId, review.id, decision, body, startedWithDraft]);
 
   const proposed = review.recommended;
@@ -266,7 +350,12 @@ export function CareReviewWorkspace({
        unchanged" — exactly as they were.
        The moment is stamped here, at click time: a timestamp read in render scope
        moves on re-render. */
-    onCommit(decision ?? { kind: "confirm" }, body, Date.now());
+    /* PROVENANCE GOES WITH THE BODY, in the same call, so the record cannot be
+       written with one and not the other. */
+    onCommit(decision ?? { kind: "confirm" }, body, Date.now(), {
+      clinical: prov.clinical.state,
+      diagnostic: prov.diagnostic.state,
+    });
   };
 
   // `commitLabel` is gone: the footer's two buttons are FIXED labels — "Save
@@ -390,16 +479,42 @@ export function CareReviewWorkspace({
             className="mt-3"
             idPrefix="rv"
             body={body}
-            onChange={setBody}
+            /* ═══ ONE CALL CHANGES BOTH THE TEXT AND THE STATE ═══
+               The provenance transition has to happen on the SAME update as the
+               keystroke, or a commit racing a re-render could persist the text
+               with the previous state. `onEdit` is a no-op on `authored` and on
+               a change that does not change the string, so this is safe to run
+               on every keystroke of both fields. */
+            onChange={(update) =>
+              setBody((b) => {
+                const next = update(b);
+                setProv((p) => ({
+                  clinical: onEdit(p.clinical, next.clinical),
+                  diagnostic: onEdit(p.diagnostic, next.diagnostic),
+                }));
+                return next;
+              })
+            }
             errors={errors}
             clearError={clearError}
-            prefill={prefill}
+            /* ═══ B. THE DRAFTS, AND THE BASIS FOR THEM ═══
+               `aiDraftsFor` returns null for a record with nothing to draft
+               from, and the fields then render no disclosure at all — B4's
+               hidden-not-disabled rule lives in the fields, on this value. */
+            drafts={drafts}
+            draftBasis={basis}
+            onInsertField={insertField}
             clinicalRef={clinicalRef}
             diagnosticRef={diagnosticRef}
             assessmentRef={assessmentRef}
             /* THE MOCK'S ORDER — assessment first, then the two statements. The
                modal keeps its own; see `order` on `CareUpdateFields`. */
             order={["assessment", "clinical", "diagnostic"]}
+            /* C3's chip reads this; the fields never transition it. */
+            provenance={{
+              clinical: prov.clinical.state,
+              diagnostic: prov.diagnostic.state,
+            }}
           />
         </section>
       </div>
@@ -451,6 +566,23 @@ export function CareReviewWorkspace({
       {/* `outcomeCode` is read by the owner through the committed decision; it is
           computed here only to keep the label and the commit reading one value. */}
       <span className="sr-only" data-outcome-code={outcomeCode} />
+      {/* ═══ THE PROVENANCE STATE, READABLE FROM THE DOM ═══
+          There is no way to observe this from outside otherwise: the value is
+          form state that lands on a committed record, and the walk that has to
+          be proven — insert, verify, edit, verify, commit, verify — needs a
+          handle on the middle two. `sr-only` and no text, so it is inert to
+          readers and to screen readers alike; it exists for the same reason
+          `data-outcome-code` above it does. */}
+      <span
+        className="sr-only"
+        data-provenance-clinical={prov.clinical.state}
+        data-provenance-diagnostic={prov.diagnostic.state}
+        /* THE TEMPORARY `__insert` REF IS GONE. It existed so the transition
+           could be walked before B's button existed; the button exists now, so
+           `insertField` above is reachable by clicking the thing a supervisor
+           clicks. The two data attributes stay — they are the only way to
+           observe a state that is form state on its way to a record. */
+      />
     </div>
   );
 }

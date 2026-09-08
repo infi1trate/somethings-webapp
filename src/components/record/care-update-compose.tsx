@@ -53,6 +53,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sparkles } from "lucide-react";
+import { AiDraftPanel } from "@/components/record/ai-draft-panel";
+import { improve, type AiDrafts } from "@/lib/record/ai-drafts";
+import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { PillButton } from "@/components/settings/pill-button";
 import { clinicalDate } from "@/components/record/care-presentation";
 import {
@@ -94,11 +98,12 @@ export interface DiagnosticPrefill {
 }
 
 /** TODO-COPY — provenance, stated on the field rather than inferred from tone. */
-const PREFILL_LABEL: Record<CareUpdatePrefill["source"], string> = {
-  ai: "AI-generated draft",
-  templated: "Pre-filled from survey evidence",
-  supervisor: "Pre-filled from the recorded rationale",
-};
+/* `PREFILL_LABEL` LIVED HERE — "AI-generated draft" / "Pre-filled from survey
+   evidence" / "Pre-filled from the recorded rationale" — and labelled the badge
+   over a seeded textarea. Both are gone with the seeding. I first wrote that it
+   "survives for the read surfaces"; it did not. One grep, one consumer, and that
+   consumer was the badge. The read surfaces label a COMMITTED record's
+   provenance and will need their own strings. */
 
 type FieldId = "clinical" | "diagnostic" | "assessment";
 
@@ -187,6 +192,11 @@ export function CareUpdateCompose({
         <ComposeForm
           amending={amending}
           documenting={documenting}
+          /* STILL FORWARDED, even though the fields no longer seed from it: the
+             COMMIT reads it to record `diagnosticPrefill` on the saved update.
+             A blanket removal of the pass-throughs took this one too and would
+             have emptied that field on every save — caught by lint reporting the
+             prop as unused one level up, not by anything looking at the record. */
           prefill={prefill}
           onSave={onSave}
           onOpenChange={onOpenChange}
@@ -229,8 +239,20 @@ function ComposeForm({
   const initial = useMemo<CareUpdateBody>(() => {
     if (amending) return { ...amending.body };
     const base = emptyCareUpdateBody();
-    return prefill ? { ...base, diagnostic: prefill.text } : base;
-  }, [amending, prefill]);
+    /* ═══ THE DIAGNOSTIC FIELD OPENS EMPTY ═══
+       It was seeded with `prefill.text` — an AI draft sitting in the textarea
+       under an "AI-generated draft" badge, so the default state of a clinical
+       record was model prose a supervisor had to notice and delete. Opt-in
+       replaces it: the draft is still available, one disclosure away, and
+       nothing reaches the field until someone puts it there.
+       WHAT THIS CHANGES ABOUT THE RECORD: `diagnosticPrefill.edited` used to
+       mean "the supervisor changed the seeded text". With nothing seeded there
+       is no baseline to diverge from, so that field now describes an insertion
+       the supervisor performed rather than one they inherited — see the
+       provenance work still outstanding. */
+    return base;
+    // `prefill` left the dependency list with the seeding it drove.
+  }, [amending]);
 
   const [body, setBody] = useState<CareUpdateBody>(initial);
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
@@ -353,7 +375,6 @@ function ComposeForm({
           onChange={setBody}
           errors={errors}
           clearError={clearError}
-          prefill={prefill}
           clinicalRef={clinicalRef}
           diagnosticRef={diagnosticRef}
           assessmentRef={assessmentRef}
@@ -489,7 +510,11 @@ function Field({
   label: string;
   helper: string;
   error: boolean;
-  badge?: string;
+  /** WAS `string`, WRAPPED IN A NEUTRAL PILL by this component. It is a node
+   *  now and renders bare: the pill existed for the "AI-generated draft" label
+   *  on a seeded field, and what goes here today is C3's quiet inline chip,
+   *  which is deliberately not a pill. A caller that wants a pill brings one. */
+  badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -505,14 +530,7 @@ function Field({
         >
           {label}
         </label>
-        {badge && (
-          // Neutral tone deliberately: this states provenance, it does not grade
-          // it. An amber "AI-generated" badge would read as a warning about the
-          // teen rather than a fact about the text.
-          <span className="rounded-full bg-[var(--status-neutral-bg)] px-2 py-0.5 text-[11.5px] leading-[16px] font-medium text-[var(--status-neutral-fg)]">
-            {badge}
-          </span>
-        )}
+        {badge}
       </div>
       <p
         id={`${id}-help`}
@@ -561,18 +579,165 @@ function FieldError({ id, show }: { id: string; show: boolean }) {
  *  non-modal, so a supervisor can open it and then open the standalone Write
  *  form behind it; two `id="cu-clinical"` in one document would point every
  *  `htmlFor` and `aria-describedby` at whichever rendered first. */
+/** ═══ C3: THE EPHEMERAL "INSERTED" CHIP ═══
+ *
+ *  Shown only while a field is `ai_inserted` — verbatim model text nobody has
+ *  touched — and it CLEARS on the first edit, because from that moment the
+ *  paragraph is a person's. It is a working indicator, not a record: the record
+ *  is the committed `*_provenance` field, and this exists so a supervisor can
+ *  see at a glance which of the two fields still needs their pass.
+ *
+ *  QUIET BY CONSTRUCTION. Secondary ink, no fill, no border — the field's own
+ *  label is what a reader is scanning for and this sits after it. */
+function InsertedChip({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+      <Sparkles className="size-3 shrink-0" aria-hidden />
+      {/* TODO-COPY */}
+      AI draft inserted
+    </span>
+  );
+}
+
+/** ═══ THE PER-FIELD AI CONTROLS (B1, B3, B4 and E1) ═══
+ *
+ *  One row under the textarea holding at most two ghost actions, and the
+ *  reference container when either is open.
+ *
+ *  B4 · NO DRAFT MEANS NO CONTROL. The disclosure is absent rather than
+ *  disabled: a control that cannot act is a question a reader has to answer
+ *  before moving on, where an absent one asks nothing.
+ *
+ *  E1 · IMPROVE IS SUPPRESSED WHILE THE FIELD IS `ai_inserted`. Unedited model
+ *  text needs a human pass, not a second model pass, and offering one there
+ *  would invite a supervisor to launder a draft through two models without
+ *  reading either.
+ *
+ *  B3 · OPEN STATE IS PER FIELD AND LIVES IN THIS COMPONENT, so it survives
+ *  typing and re-renders but not a fresh mount — which is exactly "collapsed by
+ *  default on every fresh open, remembered within the session". */
+function FieldAiControls({
+  fieldId,
+  draft,
+  basis,
+  value,
+  provenance,
+  onTake,
+}: {
+  fieldId: string;
+  draft?: string;
+  basis: string;
+  value: string;
+  provenance?: FieldProvenance;
+  /** UNDEFINED WHEN THE OWNER CANNOT PERFORM AN INSERTION, and the whole row
+   *  then renders nothing. The standalone Write/Amend modal shares these fields
+   *  but holds no provenance state, so it passes no handler — and a "Insert
+   *  into field" button that silently does nothing is a worse version of the
+   *  disabled control B4 already rejects. See the report. */
+  onTake?: (text: string, mode: "draft" | "revision") => void;
+}) {
+  const [open, setOpen] = useState<null | "draft" | "revision">(null);
+  const [revision, setRevision] = useState<string | null>(null);
+  const panelId = `${fieldId}-ai-panel`;
+  const hasText = value.trim().length > 0;
+  const canImprove =
+    hasText && provenance !== "ai_inserted" && improve(value) !== null;
+
+  if (!onTake) return null;
+  if (!draft && !canImprove) return null;
+
+  return (
+    <>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {draft && (
+          <button
+            type="button"
+            aria-expanded={open === "draft"}
+            aria-controls={open === "draft" ? panelId : undefined}
+            onClick={() => setOpen((o) => (o === "draft" ? null : "draft"))}
+            className={cn(
+              /* SEE ai-draft-panel.tsx — 25px of target, given back to the
+                 row by the negative margin so the 6px gap under the textarea
+                 that was measured stays 6px. */
+              "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+            {/* TODO-COPY */}
+            {open === "draft" ? "Hide AI draft" : "View AI draft"}
+          </button>
+        )}
+        {canImprove && (
+          <button
+            type="button"
+            aria-expanded={open === "revision"}
+            aria-controls={open === "revision" ? panelId : undefined}
+            onClick={() => {
+              if (open === "revision") return setOpen(null);
+              setRevision(improve(value));
+              setOpen("revision");
+            }}
+            className={cn(
+              /* SEE ai-draft-panel.tsx — 25px of target, given back to the
+                 row by the negative margin so the 6px gap under the textarea
+                 that was measured stays 6px. */
+              "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+            {/* TODO-COPY */}
+            {open === "revision" ? "Hide suggestion" : "Improve my draft"}
+          </button>
+        )}
+      </div>
+      {open === "draft" && draft && (
+        <AiDraftPanel
+          id={panelId}
+          /* TODO-COPY */
+          label="AI draft"
+          text={draft}
+          basis={basis}
+          fieldHasText={hasText}
+          onTake={() => onTake(draft, "draft")}
+        />
+      )}
+      {open === "revision" && revision && (
+        <AiDraftPanel
+          id={panelId}
+          /* TODO-COPY */
+          label="Suggested revision"
+          text={revision}
+          /* THE BASIS IS THE USER'S OWN TEXT, and saying so is the point: this
+             is a revision, not a second draft. */
+          basis="Rewritten from what you have written in this field. It preserves your clinical facts and adds nothing that is not already there."
+          fieldHasText
+          /* "revision", NOT "draft" — the owner records a weaker and more
+             accurate claim for text derived from the supervisor's own. */
+          onTake={() => onTake(revision, "revision")}
+        />
+      )}
+    </>
+  );
+}
+
 export function CareUpdateFields({
   idPrefix,
   body,
   onChange,
   errors,
   clearError,
-  prefill,
   clinicalRef,
   diagnosticRef,
   assessmentRef,
   firstRef,
   order = ["clinical", "diagnostic", "assessment"],
+  provenance,
+  drafts,
+  draftBasis: basis,
+  onInsertField,
   className,
 }: {
   idPrefix: string;
@@ -580,7 +745,10 @@ export function CareUpdateFields({
   onChange: (update: (b: CareUpdateBody) => CareUpdateBody) => void;
   errors: Record<FieldId, boolean>;
   clearError: (id: FieldId) => void;
-  prefill?: DiagnosticPrefill | null;
+  /* `prefill` IS NO LONGER TAKEN HERE. The fields do not seed themselves, so
+     the draft is not theirs to hold; the reveal-and-insert disclosure that will
+     need it is not built yet, and a prop nothing reads is a prop that rots.
+     The two callers still compute the draft for the COMMIT record. */
   clinicalRef: React.RefObject<HTMLTextAreaElement | null>;
   diagnosticRef: React.RefObject<HTMLTextAreaElement | null>;
   assessmentRef: React.RefObject<HTMLButtonElement | null>;
@@ -590,6 +758,22 @@ export function CareUpdateFields({
   /** Render order. Defaults to the order the standalone modal has always used,
    *  so that surface is untouched by this. */
   order?: readonly FieldId[];
+  /** C3. Per-field live state, for the ephemeral chip only — the fields never
+   *  transition it themselves; the owner does, through `onChange`. */
+  provenance?: { clinical: FieldProvenance; diagnostic: FieldProvenance };
+  /** B. Per-field AI drafts for this window; absent fields hide their
+   *  disclosure. */
+  drafts?: AiDrafts | null;
+  /** What the container's ⓘ says. */
+  draftBasis?: string;
+  /** B2/E2. The owner performs the insertion, because it owns the provenance
+   *  transition — the fields cannot set their own state without two sources for
+   *  it. */
+  onInsertField?: (
+    field: "clinical" | "diagnostic",
+    text: string,
+    mode: "draft" | "revision"
+  ) => void;
   className?: string;
 }) {
   useAutoGrow(clinicalRef, body.clinical);
@@ -607,12 +791,20 @@ export function CareUpdateFields({
   const BLOCKS: Record<FieldId, React.ReactNode> = {
     clinical: (
       <>
-      {/* 1 · CLINICAL SUMMARY */}
+      {/* 1 · CLINICAL SUMMARY
+          THE WRAPPER IS LOAD-BEARING, and matches the diagnostic block's. The
+          container is `space-y-6` — a full step BETWEEN field groups — so a
+          control row left as a bare sibling of its own `Field` gets that same
+          24px, which puts the field's own control as far from it as the next
+          field is. Wrapped, the row sits 6px under the textarea it belongs to.
+          Measured both ways: 24px unwrapped, 6px wrapped. */}
+      <div>
       <Field
         id={`${idPrefix}-clinical`}
         label={CARE_UPDATE_SECTIONS[0].label}
         helper={CARE_UPDATE_SECTIONS[0].helper}
         error={errors.clinical}
+        badge={<InsertedChip show={provenance?.clinical === "ai_inserted"} />}
       >
         <textarea
           id={`${idPrefix}-clinical`}
@@ -633,7 +825,23 @@ export function CareUpdateFields({
           className={textareaClass(errors.clinical)}
         />
       </Field>
-
+      {/* THE CONTROLS SIT OUTSIDE `Field`, not among its children, so the
+          required-field error stays the element immediately after the textarea
+          for a screen reader moving through the form. `FieldError` is
+          `hidden` when clear, so there is no visual gap either way. */}
+      <FieldAiControls
+        fieldId={`${idPrefix}-clinical`}
+        draft={drafts?.clinical}
+        basis={basis ?? ""}
+        value={body.clinical}
+        provenance={provenance?.clinical}
+        onTake={
+          onInsertField &&
+          ((text: string, mode: "draft" | "revision") =>
+            onInsertField("clinical", text, mode))
+        }
+      />
+      </div>
       </>
     ),
     diagnostic: (
@@ -657,7 +865,9 @@ export function CareUpdateFields({
           // PROVENANCE ON THE FIELD, not in a tooltip: a supervisor is about to
           // sign this sentence, and whether a model wrote the first draft is
           // part of what they are agreeing to.
-          badge={prefill ? PREFILL_LABEL[prefill.source] : undefined}
+          /* C3's chip, not the old prefill label — that labelled text the form
+             had put in the field, and the field opens empty now. */
+          badge={<InsertedChip show={provenance?.diagnostic === "ai_inserted"} />}
         >
           <textarea
             id={`${idPrefix}-diagnostic`}
@@ -673,6 +883,18 @@ export function CareUpdateFields({
             className={textareaClass(errors.diagnostic)}
           />
         </Field>
+        <FieldAiControls
+          fieldId={`${idPrefix}-diagnostic`}
+          draft={drafts?.diagnostic}
+          basis={basis ?? ""}
+          value={body.diagnostic}
+          provenance={provenance?.diagnostic}
+          onTake={
+          onInsertField &&
+          ((text: string, mode: "draft" | "revision") =>
+            onInsertField("diagnostic", text, mode))
+        }
+        />
       </div>
 
       </>

@@ -116,6 +116,20 @@ export interface CareEvent {
    *  travels in `providerNote`; this does not, because it is a value and not a
    *  paragraph. */
   assessment?: CareUpdateAssessment;
+  /** ═══ care_update ROWS — THE SAME PROSE, STRUCTURED (D) ═══
+   *
+   *  `providerNote` is one pre-line string with the labels baked into it, and
+   *  History has always rendered it as such. That is fine for prose and useless
+   *  for a PER-FIELD disclosure, which needs to know where each field ends.
+   *
+   *  SO THE STRUCTURE TRAVELS ALONGSIDE rather than replacing it: `providerNote`
+   *  still carries every word, because it is the care-update contribution to
+   *  the timeline's SEARCH HAYSTACK, and a reader typing a phrase from a
+   *  clinical summary must still find the row. Two representations of one
+   *  string is a real cost; the alternative was either an unsearchable row or
+   *  parsing the labels back out of the joined text, and parsing a string we
+   *  had just built is the worse of the three. */
+  noteSections?: CareEventNoteSection[];
   /** ═══ risk_flag / escalation rows — THE SOURCE RECORD ITSELF ═══
    *
    *  The History expansion renders a field set (escalation type, suicide-risk
@@ -131,6 +145,7 @@ export interface CareEvent {
 
 import type { CareSummaryCommit, ConcordanceResult } from "@/lib/record/care-summary-doc";
 import { TIER_LABEL, type RiskTier } from "@/lib/record/risk-taxonomy";
+import type { FieldProvenance } from "@/lib/record/field-provenance";
 
 const DAY = 86_400_000;
 /** Fixtures are relative to a fixed reference so they never drift; the caller
@@ -741,6 +756,11 @@ interface ProfileUpdate {
   assessment: CareUpdateAssessment;
   /** Index into this profile's own `updates`, for an amendment chain. */
   amendsIndex?: number;
+  /** ═══ D's FIXTURE COVERAGE — PER FIELD, AND OMITTED MEANS `authored` ═══
+   *  Both absent is a fully human-authored record, which is the case that must
+   *  render NOTHING and is therefore the one worth having most of. */
+  clinicalProvenance?: FieldProvenance;
+  diagnosticProvenance?: FieldProvenance;
 }
 
 interface CareProfile {
@@ -870,6 +890,14 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         diagnostic:
           "A return of mood symptoms after two quarters at a lower severity is the pattern a recurrent framing describes, and the single-episode code on record does not account for the earlier remission. One reading is not yet a trend, so this states the evidence rather than concluding on it.",
         assessment: "escalated",
+        /* ═══ THE MIRROR OF t17, AND THAT IS WHY IT IS HERE ═══
+           t17 discloses on `diagnostic` with `clinical` clean. This record does
+           the opposite. Without both, a disclosure wired to the wrong section —
+           keyed to the last field rendered, or to the first — would render
+           correctly on every fixture in the roster and be wrong in production.
+           Two fixtures that disagree about WHICH field is marked is the cheapest
+           possible guard against that, and it costs one line. */
+        clinicalProvenance: "ai_assisted",
       },
     ],
   },
@@ -943,6 +971,16 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         diagnostic:
           "Movement between bands across five readings, with return to a lower severity in between, is the recurrent course the code on record describes rather than a single episode. The shortening interval supports that reading rather than contradicting it.",
         assessment: "maintained",
+        /* ═══ THE ORIGINAL: A DRAFT TAKEN WHOLE ON THE HARDER FIELD ═══
+           The clinical summary is the supervisor's own; the diagnostic
+           statement is a model's draft they read and signed without changing.
+           That combination is the point of a PER-FIELD disclosure — a record
+           where one claim is authored and the next one down is not, which a
+           single record-level badge could only describe by picking a side.
+           It is also the honest failure mode of the feature: the field a
+           supervisor is least sure about is the field they are most likely to
+           accept as drafted. */
+        diagnosticProvenance: "ai_inserted",
       },
       {
         daysAgo: 14,
@@ -954,6 +992,17 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         diagnostic:
           "The recurrent course still fits, and the weighted severity across the last three readings remains in the moderate band, so the code on record is confirmed rather than changed. What is new is the direction: three consecutive falls, which the earlier statement did not have.",
         assessment: "improved",
+        /* ═══ THE AMENDMENT: THE SAME FIELD, ONE STATE WEAKER ═══
+           Eighty-two days later the same supervisor amends the same field, and
+           this time they edited what they were given. So the chain reads
+           `ai_inserted` → `ai_assisted` on `diagnostic` while `clinical` stays
+           authored throughout, and both entries keep rendering — which is the
+           whole reason an amendment does not overwrite.
+           WHY THIS IS THE FIXTURE THAT MATTERS: the disclosure is per RECORD
+           VERSION, not per record. A reader looking at the current statement
+           must not be told how the superseded one came to exist, and a reader
+           who opens the superseded one must still be told the truth about it. */
+        diagnosticProvenance: "ai_assisted",
       },
     ],
   },
@@ -1143,6 +1192,13 @@ export function fixtureCareUpdatesFor(
         u.amendsIndex === undefined
           ? undefined
           : `cgu-${teenId}-${u.amendsIndex}`,
+      /* PASSED THROUGH, NOT DEFAULTED TO `"authored"`. The record's own comment
+         says absent = authored, and writing the default in would make every
+         legacy record indistinguishable from one that was explicitly marked
+         human — which is a difference the read surfaces do not need but a
+         future migration would. */
+      clinicalProvenance: u.clinicalProvenance,
+      diagnosticProvenance: u.diagnosticProvenance,
     };
   });
 }
@@ -2215,6 +2271,46 @@ export function emptyCareUpdateBody(): CareUpdateBody {
  *  `source` mirrors `PresentationReview.rationale.source`, so the provenance
  *  label on the field and on the history row is DERIVED from the same value that
  *  labelled the rationale — never a second string that could drift from it. */
+/** ═══ PER-FIELD PROVENANCE ON THE COMMITTED RECORD (C4) ═══
+ *
+ *  Immutable once written. An amendment is its own record and carries its OWN
+ *  provenance for its OWN text — it does not inherit the original's, because a
+ *  supervisor rewriting a paragraph by hand over an AI-assisted one has authored
+ *  the correction whatever the thing it corrects was.
+ *
+ *  ═══ THE BACKEND CONTRACT ═══
+ *
+ *  The wire names are `clinical_summary_provenance` and
+ *  `diagnostic_support_provenance`, each one of `authored | ai_inserted |
+ *  ai_assisted`, written at commit and never updated. The TS fields below are
+ *  camelCase per this codebase; the mapping is 1:1 and there is no third state
+ *  to add later — `authored` is the absence of AI, not a fourth kind of it.
+ *
+ *  ABSENT MEANS AUTHORED, and that is deliberate rather than lazy: every record
+ *  written before this field existed was written with a prefilled AI draft that
+ *  nobody attributed, so a missing value cannot honestly be read as "no AI".
+ *  It is read as `authored` because that is the state this schema can defend —
+ *  see the known limitation on `field-provenance.ts`, which applies to the
+ *  stored value exactly as it applies to the live one.
+ *
+ *  THE OLD `diagnosticPrefill` IS NOT REPLACED YET. It records a different
+ *  thing (which source seeded the field, and whether the seed was edited) and
+ *  is still written by the standalone modal. The two overlap and the older one
+ *  should go once the read surfaces consume these; noted rather than removed
+ *  mid-flight. */
+export interface CareEventNoteSection {
+  id: CareUpdateSectionId;
+  label: string;
+  text: string;
+  /** Absent = `authored`, and nothing renders. */
+  provenance?: FieldProvenance;
+}
+
+export interface CareUpdateProvenance {
+  clinicalProvenance?: FieldProvenance;
+  diagnosticProvenance?: FieldProvenance;
+}
+
 export interface CareUpdatePrefill {
   source: "templated" | "ai" | "supervisor";
   /** True when the supervisor changed the pre-filled text before saving. */
@@ -2240,6 +2336,9 @@ export interface CareUpdateRecord {
   documents?: string;
   /** Present only when the diagnostic field arrived pre-filled. */
   diagnosticPrefill?: CareUpdatePrefill;
+  /** C4. Absent = `authored`; see `CareUpdateProvenance`. */
+  clinicalProvenance?: FieldProvenance;
+  diagnosticProvenance?: FieldProvenance;
 }
 
 /** One body field, or "" when the stored record has no such key.
@@ -2307,6 +2406,20 @@ function careUpdateToEvent(u: CareUpdateRecord): CareEvent {
     providerNote: filled
       .map((s) => `${s.label}\n${sectionText(u, s.id)}`)
       .join("\n\n"),
+    /* THE SAME `filled` LIST, so the two representations cannot disagree about
+       which fields the row has. Provenance is attached per field, from the
+       record — never inferred from the text. */
+    noteSections: filled.map((s) => ({
+      id: s.id,
+      label: s.label,
+      text: sectionText(u, s.id),
+      provenance:
+        s.id === "clinical"
+          ? u.clinicalProvenance
+          : s.id === "diagnostic"
+            ? u.diagnosticProvenance
+            : undefined,
+    })),
     documents: u.documents,
     diagnosticPrefill: u.diagnosticPrefill,
     assessment: u.body.assessment ?? undefined,
