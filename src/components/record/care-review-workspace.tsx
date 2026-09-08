@@ -29,7 +29,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PillButton } from "@/components/settings/pill-button";
 import {
   CareUpdateFields,
-  type DiagnosticPrefill,
 } from "@/components/record/care-update-compose";
 import {
   emptyCareUpdateBody,
