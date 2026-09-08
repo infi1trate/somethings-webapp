@@ -72,14 +72,20 @@ const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
  *  where a label row used to be. With the rail's own steps stepping down too
  *  (`mt-3` -> `mt-2` above the chart, `mt-1.5` -> `mt-1` above the caption) the
  *  whole unit reads denser without any element losing its own spacing. */
-const H = 100;
+/** 120 -> 100 -> 84. 84 rather than the ~85 asked for: 85 is not on the 4px
+ *  scale and 84 is the nearest step at or under the target, which is the right
+ *  direction to round a height that is being reduced. */
+const H = 84;
 /** ═══ THE SCORE BAND, RESCALED FOR THE TALLER PLOT ═══
  *  64 -> 120 (E1's ~120 target, on the 4px scale). The band grows with it
  *  rather than floating in a taller box: 14 -> 104 keeps the same 10px of air
  *  above the highest reading and puts the baseline at 107, which leaves the
  *  bottom 13px for the badges that now straddle it. */
-const SCORE_TOP = 10;
-const SCORE_BOTTOM = 96;
+/** Scaled with the plot rather than left floating in a shorter box: the band
+ *  keeps ~8 units of air above the highest reading and the baseline stays one
+ *  unit inside the bottom edge. */
+const SCORE_TOP = 8;
+const SCORE_BOTTOM = 80;
 /** ON THE AXIS, not above it. Was 58 — a band of its own between the score
  *  line and the month labels, which spent 16px of a 70px strip on a row that
  *  held three marks. The discs now sit centred on the baseline itself. */
@@ -270,17 +276,33 @@ export function CareSparkline({
              right edge is half a column past the last gridline, clamped to the
              plot's own padding edge. Both are stated in column terms, so the
              container stays aligned at any width. */
+          /* ═══ ONE INSET, USED ON BOTH SIDES ═══
+             Was a midpoint on the left and a half-column on the right — two
+             different rules, so the two edges only matched when the arithmetic
+             happened to agree. They are one number now: the box is
+             `firstIn - inset` to `lastIn + inset`, symmetric by construction
+             rather than by coincidence.
+             THE INSET WANTS TO BE HALF A COLUMN, which is where the old midpoint
+             fell, so the left edge lands in the gap between columns exactly as
+             before. It is CLAMPED by whichever side has less room — the right,
+             whenever the window ends at the final month, which on this chart it
+             always does. Clamping the shared value keeps the two edges equal;
+             clamping one side would be the bug this replaces.
+             COLUMN WIDTHS ARE UNTOUCHED. The clamp moves the box's edge, never a
+             gridline, so every month keeps the same width. */
           const firstIn = monthX[monthX.length - 3].x;
-          const lastOut = monthX[monthX.length - 4]?.x;
+          const lastIn = monthX[monthX.length - 1].x;
           const half =
             monthX.length > 1
               ? (monthX[monthX.length - 1].x - monthX[0].x) /
                 (monthX.length - 1) /
                 2
               : 4;
-          const left = lastOut !== undefined ? (lastOut + firstIn) / 2 : firstIn - half;
-          const right = Math.min(monthX[monthX.length - 1].x + half, 100 - EDGE_PCT / 2);
-          return { x: left, w: right - left };
+          /** Half a unit of breathing room so the box's own border is never
+           *  flush with the plot's edge. */
+          const MARGIN = 0.5;
+          const inset = Math.min(half, 100 - MARGIN - lastIn, firstIn - MARGIN);
+          return { x: firstIn - inset, w: lastIn + inset - (firstIn - inset) };
         })()
       : null;
 
