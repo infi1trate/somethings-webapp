@@ -54,6 +54,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sparkles } from "lucide-react";
+import { AiDraftPanel } from "@/components/record/ai-draft-panel";
+import { improve, type AiDrafts } from "@/lib/record/ai-drafts";
 import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { PillButton } from "@/components/settings/pill-button";
 import { clinicalDate } from "@/components/record/care-presentation";
@@ -598,6 +600,129 @@ function InsertedChip({ show }: { show: boolean }) {
   );
 }
 
+/** ═══ THE PER-FIELD AI CONTROLS (B1, B3, B4 and E1) ═══
+ *
+ *  One row under the textarea holding at most two ghost actions, and the
+ *  reference container when either is open.
+ *
+ *  B4 · NO DRAFT MEANS NO CONTROL. The disclosure is absent rather than
+ *  disabled: a control that cannot act is a question a reader has to answer
+ *  before moving on, where an absent one asks nothing.
+ *
+ *  E1 · IMPROVE IS SUPPRESSED WHILE THE FIELD IS `ai_inserted`. Unedited model
+ *  text needs a human pass, not a second model pass, and offering one there
+ *  would invite a supervisor to launder a draft through two models without
+ *  reading either.
+ *
+ *  B3 · OPEN STATE IS PER FIELD AND LIVES IN THIS COMPONENT, so it survives
+ *  typing and re-renders but not a fresh mount — which is exactly "collapsed by
+ *  default on every fresh open, remembered within the session". */
+function FieldAiControls({
+  fieldId,
+  draft,
+  basis,
+  value,
+  provenance,
+  onTake,
+}: {
+  fieldId: string;
+  draft?: string;
+  basis: string;
+  value: string;
+  provenance?: FieldProvenance;
+  /** UNDEFINED WHEN THE OWNER CANNOT PERFORM AN INSERTION, and the whole row
+   *  then renders nothing. The standalone Write/Amend modal shares these fields
+   *  but holds no provenance state, so it passes no handler — and a "Insert
+   *  into field" button that silently does nothing is a worse version of the
+   *  disabled control B4 already rejects. See the report. */
+  onTake?: (text: string, mode: "draft" | "revision") => void;
+}) {
+  const [open, setOpen] = useState<null | "draft" | "revision">(null);
+  const [revision, setRevision] = useState<string | null>(null);
+  const panelId = `${fieldId}-ai-panel`;
+  const hasText = value.trim().length > 0;
+  const canImprove =
+    hasText && provenance !== "ai_inserted" && improve(value) !== null;
+
+  if (!onTake) return null;
+  if (!draft && !canImprove) return null;
+
+  return (
+    <>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {draft && (
+          <button
+            type="button"
+            aria-expanded={open === "draft"}
+            aria-controls={open === "draft" ? panelId : undefined}
+            onClick={() => setOpen((o) => (o === "draft" ? null : "draft"))}
+            className={cn(
+              /* SEE ai-draft-panel.tsx — 25px of target, given back to the
+                 row by the negative margin so the 6px gap under the textarea
+                 that was measured stays 6px. */
+              "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+            {/* TODO-COPY */}
+            {open === "draft" ? "Hide AI draft" : "View AI draft"}
+          </button>
+        )}
+        {canImprove && (
+          <button
+            type="button"
+            aria-expanded={open === "revision"}
+            aria-controls={open === "revision" ? panelId : undefined}
+            onClick={() => {
+              if (open === "revision") return setOpen(null);
+              setRevision(improve(value));
+              setOpen("revision");
+            }}
+            className={cn(
+              /* SEE ai-draft-panel.tsx — 25px of target, given back to the
+                 row by the negative margin so the 6px gap under the textarea
+                 that was measured stays 6px. */
+              "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+            {/* TODO-COPY */}
+            {open === "revision" ? "Hide suggestion" : "Improve my draft"}
+          </button>
+        )}
+      </div>
+      {open === "draft" && draft && (
+        <AiDraftPanel
+          id={panelId}
+          /* TODO-COPY */
+          label="AI draft"
+          text={draft}
+          basis={basis}
+          fieldHasText={hasText}
+          onTake={() => onTake(draft, "draft")}
+        />
+      )}
+      {open === "revision" && revision && (
+        <AiDraftPanel
+          id={panelId}
+          /* TODO-COPY */
+          label="Suggested revision"
+          text={revision}
+          /* THE BASIS IS THE USER'S OWN TEXT, and saying so is the point: this
+             is a revision, not a second draft. */
+          basis="Rewritten from what you have written in this field. It preserves your clinical facts and adds nothing that is not already there."
+          fieldHasText
+          /* "revision", NOT "draft" — the owner records a weaker and more
+             accurate claim for text derived from the supervisor's own. */
+          onTake={() => onTake(revision, "revision")}
+        />
+      )}
+    </>
+  );
+}
+
 export function CareUpdateFields({
   idPrefix,
   body,
@@ -610,6 +735,9 @@ export function CareUpdateFields({
   firstRef,
   order = ["clinical", "diagnostic", "assessment"],
   provenance,
+  drafts,
+  draftBasis: basis,
+  onInsertField,
   className,
 }: {
   idPrefix: string;
@@ -633,6 +761,19 @@ export function CareUpdateFields({
   /** C3. Per-field live state, for the ephemeral chip only — the fields never
    *  transition it themselves; the owner does, through `onChange`. */
   provenance?: { clinical: FieldProvenance; diagnostic: FieldProvenance };
+  /** B. Per-field AI drafts for this window; absent fields hide their
+   *  disclosure. */
+  drafts?: AiDrafts | null;
+  /** What the container's ⓘ says. */
+  draftBasis?: string;
+  /** B2/E2. The owner performs the insertion, because it owns the provenance
+   *  transition — the fields cannot set their own state without two sources for
+   *  it. */
+  onInsertField?: (
+    field: "clinical" | "diagnostic",
+    text: string,
+    mode: "draft" | "revision"
+  ) => void;
   className?: string;
 }) {
   useAutoGrow(clinicalRef, body.clinical);
@@ -650,7 +791,14 @@ export function CareUpdateFields({
   const BLOCKS: Record<FieldId, React.ReactNode> = {
     clinical: (
       <>
-      {/* 1 · CLINICAL SUMMARY */}
+      {/* 1 · CLINICAL SUMMARY
+          THE WRAPPER IS LOAD-BEARING, and matches the diagnostic block's. The
+          container is `space-y-6` — a full step BETWEEN field groups — so a
+          control row left as a bare sibling of its own `Field` gets that same
+          24px, which puts the field's own control as far from it as the next
+          field is. Wrapped, the row sits 6px under the textarea it belongs to.
+          Measured both ways: 24px unwrapped, 6px wrapped. */}
+      <div>
       <Field
         id={`${idPrefix}-clinical`}
         label={CARE_UPDATE_SECTIONS[0].label}
@@ -677,7 +825,23 @@ export function CareUpdateFields({
           className={textareaClass(errors.clinical)}
         />
       </Field>
-
+      {/* THE CONTROLS SIT OUTSIDE `Field`, not among its children, so the
+          required-field error stays the element immediately after the textarea
+          for a screen reader moving through the form. `FieldError` is
+          `hidden` when clear, so there is no visual gap either way. */}
+      <FieldAiControls
+        fieldId={`${idPrefix}-clinical`}
+        draft={drafts?.clinical}
+        basis={basis ?? ""}
+        value={body.clinical}
+        provenance={provenance?.clinical}
+        onTake={
+          onInsertField &&
+          ((text: string, mode: "draft" | "revision") =>
+            onInsertField("clinical", text, mode))
+        }
+      />
+      </div>
       </>
     ),
     diagnostic: (
@@ -719,6 +883,18 @@ export function CareUpdateFields({
             className={textareaClass(errors.diagnostic)}
           />
         </Field>
+        <FieldAiControls
+          fieldId={`${idPrefix}-diagnostic`}
+          draft={drafts?.diagnostic}
+          basis={basis ?? ""}
+          value={body.diagnostic}
+          provenance={provenance?.diagnostic}
+          onTake={
+          onInsertField &&
+          ((text: string, mode: "draft" | "revision") =>
+            onInsertField("diagnostic", text, mode))
+        }
+        />
       </div>
 
       </>

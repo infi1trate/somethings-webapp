@@ -22,6 +22,7 @@ import {
   AUTHORED,
   onEdit,
   onInsert,
+  onRevise,
   type FieldProvenance,
   type FieldProvenanceState,
 } from "@/lib/record/field-provenance";
@@ -30,6 +31,7 @@ import { PillButton } from "@/components/settings/pill-button";
 import {
   CareUpdateFields,
 } from "@/components/record/care-update-compose";
+import { aiDraftsFor, draftBasis } from "@/lib/record/ai-drafts";
 import {
   emptyCareUpdateBody,
   type CareUpdateBody,
@@ -153,6 +155,47 @@ export function CareReviewWorkspace({
     clinical: FieldProvenanceState;
     diagnostic: FieldProvenanceState;
   }>(() => restored?.provenance ?? { clinical: AUTHORED, diagnostic: AUTHORED });
+
+  /** ═══ B. THE DRAFTS FOR THIS RECORD, AND THE BASIS LINE ═══
+   *  Null for a record with nothing to draft from — the fields hide the
+   *  disclosure entirely on that, rather than offering a control that cannot
+   *  act (B4). The basis names the readings the REVIEW weighs, which is the
+   *  same window the draft claims to be drawn from. */
+  const drafts = useMemo(() => aiDraftsFor(teenId), [teenId]);
+  const basis = useMemo(
+    () => draftBasis(review.aggregate?.surveys ?? (review.survey ? [review.survey] : [])),
+    [review]
+  );
+
+  /** ═══ B2/E2. INSERTION IS THE OWNER'S JOB ═══
+   *
+   *  The fields cannot do this themselves: the text and the provenance state
+   *  have to move together, and the state lives here. Both `setState` calls sit
+   *  in one handler for the same reason the keystroke path does — a commit that
+   *  raced them would persist the new text against the old state.
+   *
+   *  `onInsert` UNCONDITIONALLY, on both the empty-field insert and the
+   *  replace: taking model text over your own is still taking model text, and
+   *  the state machine's `ai_inserted` means exactly "what is in this field is
+   *  the draft, unedited". The first keystroke after either moves it to
+   *  `ai_assisted` through `onEdit`. */
+  function insertField(
+    field: "clinical" | "diagnostic",
+    text: string,
+    /** WHICH CLAIM TO RECORD. A draft taken whole is `ai_inserted` — "this is a
+     *  model's paragraph, unedited". A revision of the supervisor's own text is
+     *  `ai_assisted`, because the content is theirs and calling it an unedited
+     *  model draft would be a false statement on a clinical record. The two
+     *  transitions live in `field-provenance.ts` and are asserted there. */
+    mode: "draft" | "revision"
+  ) {
+    setBody((b) => ({ ...b, [field]: text }));
+    setProv((prev) => ({
+      ...prev,
+      [field]: mode === "draft" ? onInsert(text) : onRevise(prev[field]),
+    }));
+    clearError(field);
+  }
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
     clinical: false,
     diagnostic: false,
@@ -454,6 +497,13 @@ export function CareReviewWorkspace({
             }
             errors={errors}
             clearError={clearError}
+            /* ═══ B. THE DRAFTS, AND THE BASIS FOR THEM ═══
+               `aiDraftsFor` returns null for a record with nothing to draft
+               from, and the fields then render no disclosure at all — B4's
+               hidden-not-disabled rule lives in the fields, on this value. */
+            drafts={drafts}
+            draftBasis={basis}
+            onInsertField={insertField}
             clinicalRef={clinicalRef}
             diagnosticRef={diagnosticRef}
             assessmentRef={assessmentRef}
@@ -527,25 +577,11 @@ export function CareReviewWorkspace({
         className="sr-only"
         data-provenance-clinical={prov.clinical.state}
         data-provenance-diagnostic={prov.diagnostic.state}
-        /* ═══ THE INSERT ENTRY POINT, EXPOSED BEFORE ITS BUTTON EXISTS ═══
-           Workstream B owns the "Insert into field" / "Replace field text"
-           control; this is the function that control will call. It is attached
-           here so the transition it drives can be walked end to end NOW —
-           insert, verify, edit, verify, commit, verify — rather than shipping a
-           state machine whose only proof is its unit tests.
-           `ref` rather than a global: it hangs off a node inside this component,
-           so it cannot outlive the form or be called against a stale closure. */
-        ref={(el) => {
-          if (el)
-            (
-              el as HTMLSpanElement & {
-                __insert?: (f: "clinical" | "diagnostic", text: string) => void;
-              }
-            ).__insert = (field, text) => {
-              setBody((b) => ({ ...b, [field]: text }));
-              setProv((prev) => ({ ...prev, [field]: onInsert(text) }));
-            };
-        }}
+        /* THE TEMPORARY `__insert` REF IS GONE. It existed so the transition
+           could be walked before B's button existed; the button exists now, so
+           `insertField` above is reachable by clicking the thing a supervisor
+           clicks. The two data attributes stay — they are the only way to
+           observe a state that is form state on its way to a record. */
       />
     </div>
   );
