@@ -120,8 +120,18 @@ export function summaryProvenanceNote(
   const basis = window.firstCycle
     ? "from intake"
     : "since the last presentation update";
+  /* ═══ THE CHART'S SCOPE MERGED IN FROM ITS OWN CAPTION ═══
+     "Assessment scores and risk flags across the mentorship" was a line with its
+     own mark under the chart. Two provenance marks four inches apart on one card
+     is two things to open to learn one thing, and the chart's was the WEAKER of
+     the pair: it named the axis but not the window the whole card is about.
+     Only the non-duplicated half moved. The rest of that caption's mark was the
+     shared `PROVENANCE_NOTE`, which this note already opens with — so the merge
+     adds one sentence rather than concatenating two notes. */
   return (
     `${PROVENANCE_NOTE} ` +
+    `The trajectory plots assessment scores and risk flags across the whole ` +
+    `mentorship, not only this window. ` +
     `Window: ${clinicalDate(window.fromAt)} – ${clinicalDate(window.toAt)}, ${basis}. ` +
     `Generated ${clinicalDate(generatedAt)}.`
   );
@@ -345,19 +355,13 @@ export function CareSummaryDocCard({
               pattern={pattern}
               onSelectEvent={onJumpToEvent ?? (() => {})}
             />
-            {/* THE STRIP CARRIES ITS OWN ATTRIBUTION. It is derived from the
-                same record as everything else here, but it is a separate visual
-                a reader can land on without having read the header — so the
-                badge travels with it rather than being inherited from six
-                inches up the card. */}
-            <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-              {/* TODO-COPY. Names the axis and the two mark classes, because a
-                  strip with no legend needs its shapes named somewhere. */}
-              <span>
-                Assessment scores and risk flags across the mentorship
-              </span>
-              <Provenance />
-            </p>
+            {/* ═══ THE CHART'S CAPTION AND ITS MARK ARE GONE ═══
+                It read "Assessment scores and risk flags across the mentorship"
+                beside a second provenance mark. Two marks on one card is two
+                things to open to learn one thing, and this was the weaker: it
+                named the axis but not the window the card is about. The sentence
+                is merged into the header's mark — see `summaryProvenanceNote` —
+                which already carried the shared note this one repeated. */}
           </div>
         )}
       </Element>

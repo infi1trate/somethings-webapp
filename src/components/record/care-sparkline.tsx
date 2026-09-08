@@ -406,7 +406,20 @@ export function CareSparkline({
   };
 
   return (
-    <div className="relative">
+    <div className="relative isolate">
+      {/* ═══ THE WINDOW WRAPS THE WHOLE COLUMN, LABELS AND BADGES INCLUDED ═══
+          `inset-y-0` on the wrapper, so it spans the label row, the plot and the
+          badge row — the three months it names are inside it rather than sliced
+          through the middle. `z-0` under content that is `relative` or better, so
+          it sits behind the line, the gridlines and the badges without needing a
+          negative index. */}
+      {windowBox && (
+        <div
+          aria-hidden
+          className="absolute inset-y-0 z-0 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--tint-faint)]"
+          style={{ left: `${windowBox.x}%`, width: `${windowBox.w}%` }}
+        />
+      )}
       {/* ═══ MONTH LABELS SIT ABOVE THE PLOT ═══
           They were below it, under the badge row, which put three stacked rows
           between the line and its own axis names and made the reader travel
@@ -415,7 +428,7 @@ export function CareSparkline({
           `mb-1` IS THE 4px THE SPEC ASKS FOR between the label's bottom edge and
           the top of its gridline — the gridlines start at the plot's top edge,
           which is this row's bottom edge plus that margin. */}
-      <div className="relative mb-1 h-4">
+      <div className="relative z-10 mb-1 h-4">
         {months.map((mo) => (
           <span
             key={mo.at}
@@ -427,7 +440,7 @@ export function CareSparkline({
           </span>
         ))}
       </div>
-      <div className="relative" style={{ height: H }}>
+      <div className="relative z-10" style={{ height: H }}>
         <svg
           viewBox={`0 0 100 ${H}`}
           preserveAspectRatio="none"
@@ -448,42 +461,10 @@ export function CareSparkline({
               over readings, and where a month holds no reading the box simply
               covers empty axis. Named in the caption below rather than left to
               be inferred from a grey rectangle. */}
-          {windowBox && (
-            <rect
-              x={windowBox.x}
-              y={0}
-              width={windowBox.w}
-              height={BASELINE + 10}
-              rx="1"
-              /* ═══ PRESENTATION ATTRIBUTES, NOT UTILITY CLASSES ═══
-                 This shipped as `fill-[var(--surface-s1)]
-                 stroke-[color:var(--border-subtle)]` and rendered as an OPAQUE
-                 BLACK RECTANGLE across the plot. Measured, not guessed: neither
-                 utility generated a rule at all — no matching selector exists in
-                 any stylesheet — so `fill` fell to the SVG default of black and
-                 `stroke` resolved to `none`. The block was the window container
-                 with its paint missing, not the R6 gradient, whose stops verify
-                 healthy at 0.14 -> 0 on the same render.
-                 This is the lesson the gradient below already records about
-                 `stop-opacity`: an SVG paint expressed as a compiled utility can
-                 be compiled away, and a presentation attribute cannot. Both
-                 halves are attributes now, and my own verification of this rect
-                 in the change that introduced it read its geometry attributes
-                 and never its resolved paint — which is how a black box shipped
-                 past a green check. */
-              /* ═══ THE SUBTLEST STEP, NOT THE TAN ═══
-                 Was `--surface-s1` (#f6f4ef) — a warm beige that read as a
-                 tinted block laid over the chart rather than as a quiet region
-                 behind it. `--tint-faint` is Bloom's barely-there wash, 2% ink
-                 over whatever it sits on, and it is the token this container
-                 wanted: it darkens the card without introducing a hue of its
-                 own, so the hairline border is what draws the edge. */
-              fill="var(--tint-faint)"
-              stroke="var(--border-subtle)"
-              strokeWidth="0.3"
-              vectorEffect="non-scaling-stroke"
-            />
-          )}
+          {/* THE WINDOW BOX LEFT THE SVG. A `<rect>` can only cover the
+              plot, so it cut straight through the month labels above it and the
+              badges below — the three months it names were half inside it. It
+              is an HTML layer behind all three rows now, at the wrapper. */}
 
           {/* ONE HAIRLINE PER MONTH, so the labels below have something to
               attach to and the marks have a scale to be read against. Drawn
@@ -639,96 +620,119 @@ export function CareSparkline({
             </button>
           );
         })}
-        {/* ═══ ON THE BASELINE, NOT IN A ROW UNDER IT ═══
-            The badges were a sibling row below the plot, which read as a legend
-            strip rather than as events on the axis. They are absolutely positioned
-            INSIDE the plot now, centred on the baseline hairline — the badge's
-            vertical centre on the line — so a badge and the month it belongs to
-            share both coordinates. */}
-        <div
-          className="pointer-events-none absolute inset-x-0"
-          style={{ top: `${(BASELINE / H) * 100}%` }}
-        >
-          {monthSafety
-            .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
-            .filter((b) => b.x !== null)
-            .map((b) => {
-              const e = b.escalations.length;
-              const f = b.flags.length;
-              const label =
-                `${e ? `${e} escalation${e === 1 ? "" : "s"}` : ""}` +
-                `${e && f ? ", " : ""}` +
-                `${f ? `${f} flag${f === 1 ? "" : "s"}` : ""}` +
-                ` · ${monthLabel(b.at)}`;
-              return (
+      </div>
+
+      {/* ═══ BELOW THE AXIS, NOT ON IT ═══
+          v3 put these ON the baseline, centred on the hairline, and that
+          collides with the data: a reading whose score sits at the bottom of the
+          band plots on the baseline too, so a badge and a point compete for one
+          coordinate — and the badge, the larger object, wins and hides the
+          reading. The axis belongs to the line.
+          Their own row 4px under the plot, still centred on each month's
+          gridline. They read as a register beneath the chart rather than as
+          marks in it, which is what they are: a count per month, not a value on
+          the y axis. */}
+      <div className="relative z-10 mt-1 h-6">
+        {monthSafety
+          .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
+          .filter((b) => b.x !== null)
+          .map((b) => {
+            const e = b.escalations.length;
+            const f = b.flags.length;
+            const label =
+              `${e ? `${e} escalation${e === 1 ? "" : "s"}` : ""}` +
+              `${e && f ? ", " : ""}` +
+              `${f ? `${f} flag${f === 1 ? "" : "s"}` : ""}` +
+              ` · ${monthLabel(b.at)}`;
+            return (
+              <span
+                key={b.at}
+                style={{ left: `${b.x}%` }}
+                className="absolute top-0 -translate-x-1/2"
+              >
                 <span
-                  key={b.at}
-                  style={{ left: `${b.x}%` }}
-                  className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2"
+                  title={label}
+                  aria-label={label}
+                  tabIndex={0}
+                  role="img"
+                  className={cn(
+                    "flex h-6 items-center overflow-hidden rounded-full text-[10px] font-semibold leading-none tabular-nums",
+                    RING
+                  )}
                 >
-                  <span
-                    title={label}
-                    aria-label={label}
-                    tabIndex={0}
-                    role="img"
-                    className={cn(
-                      "flex h-6 items-center overflow-hidden rounded-full text-[10px] font-semibold leading-none tabular-nums",
-                      RING
-                    )}
-                  >
-                    {e > 0 && (
-                      <span
-                        className="flex h-6 min-w-6 items-center justify-center px-1.5"
-                        /* ═══ HISTORY'S ESCALATION TOKENS, NOT A BROWN ═══
-                           Was `--band-clay-fg` on `--band-clay-bg` — the maroon.
-                           History's Escalation lozenge is `TONE_STYLE.critical` =
-                           `--alert-critical-bg` / `--alert-critical-fg`, so this
-                           badge is in that family now.
-                           ONE SUBSTITUTION, REPORTED: the fill is
-                           `--alert-critical-ACCENT`, not `-bg`. The lozenge's `bg`
-                           is a pale tint (#fff2ef) with dark ink, and C/B ask for a
-                           SATURATED fill with INVERSE text — a pale badge with dark
-                           digits is the flag treatment, and the two types would
-                           stop being separable by tone. The accent is the same
-                           family's saturated step (its own note calls it the bright
-                           tangelo an alarm inverts to), and the ink is the
-                           lozenge's `bg` used as the inverse. */
-                        style={{
-                          backgroundColor: "var(--alert-critical-accent)",
-                          color: "var(--alert-critical-bg)",
-                        }}
-                      >
-                        {e}
-                      </span>
-                    )}
-                    {e > 0 && f > 0 && (
-                      /* THE INTERNAL DIVIDER, so the capsule reads as two segments
-                         of one object rather than as a colour change. */
-                      <span
-                        aria-hidden
-                        className="h-6 w-px shrink-0 bg-[var(--surface-card)]"
-                      />
-                    )}
-                    {f > 0 && (
-                      <span
-                        className="flex h-6 min-w-6 items-center justify-center px-1.5"
-                        /* HISTORY'S FLAG TOKENS, EXACTLY — `TONE_STYLE.warning` is
-                           `--alert-warning-bg` / `--alert-warning-fg`, which is
-                           also the warm tint and warning ink B2 asks for. No
-                           substitution on this side. */
-                        style={{
-                          backgroundColor: "var(--alert-warning-bg)",
-                          color: "var(--alert-warning-fg)",
-                        }}
-                      >
-                        {f}
-                      </span>
-                    )}
-                  </span>
+                  {e > 0 && (
+                    <span
+                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                      /* ═══ HISTORY'S ESCALATION TOKENS, NOT A BROWN ═══
+                         Was `--band-clay-fg` on `--band-clay-bg` — the maroon.
+                         History's Escalation lozenge is `TONE_STYLE.critical` =
+                         `--alert-critical-bg` / `--alert-critical-fg`, so this
+                         badge is in that family now.
+                         ONE SUBSTITUTION, REPORTED: the fill is
+                         `--alert-critical-ACCENT`, not `-bg`. The lozenge's `bg`
+                         is a pale tint (#fff2ef) with dark ink, and C/B ask for a
+                         SATURATED fill with INVERSE text — a pale badge with dark
+                         digits is the flag treatment, and the two types would
+                         stop being separable by tone. The accent is the same
+                         family's saturated step (its own note calls it the bright
+                         tangelo an alarm inverts to), and the ink is the
+                         lozenge's `bg` used as the inverse. */
+                      style={{
+                        /* ═══ THE SATURATED RED, NOT THE MUDDY ONE ═══
+                           `--alert-critical-accent` is #c9351d — rgb(201,53,29),
+                           with 29 of blue in it, and that blue is what reads as
+                           muddy at badge size. `--state-error` is #cc3300: same
+                           hue family, blue at zero, the brightest clean red
+                           Bloom has.
+                           REPORTED AS A CROSS-FAMILY BORROW: that token's own
+                           note calls it the inline-error colour, so this is no
+                           longer a name match to History's Escalation lozenge.
+                           It is the only token that reaches the mock's red. */
+                        backgroundColor: "var(--state-error)",
+                        /* NOT the critical family's `bg`: #fff2ef on this red
+                           measures 4.40:1, under the floor. The card white
+                           measures 4.84:1. */
+                        color: "var(--surface-card)",
+                      }}
+                    >
+                      {e}
+                    </span>
+                  )}
+                  {e > 0 && f > 0 && (
+                    /* THE INTERNAL DIVIDER, so the capsule reads as two segments
+                       of one object rather than as a colour change. */
+                    <span
+                      aria-hidden
+                      className="h-6 w-px shrink-0 bg-[var(--surface-card)]"
+                    />
+                  )}
+                  {f > 0 && (
+                    <span
+                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                      /* HISTORY'S FLAG TOKENS, EXACTLY — `TONE_STYLE.warning` is
+                         `--alert-warning-bg` / `--alert-warning-fg`, which is
+                         also the warm tint and warning ink B2 asks for. No
+                         substitution on this side. */
+                      style={{
+                        /* ═══ ORANGE, WHICH `--alert-warning-*` IS NOT ═══
+                           That pair is #fdf6e2 — a pale cream, not an orange.
+                           The flag indicator has to be orange AND has to match
+                           risk flags elsewhere: `--status-warn-bg` /
+                           `--status-warn-fg` is orange-100 on orange-800, the
+                           pair `TonalChip` resolves for its `warning` tone,
+                           which is what the History tier chips and the rail rows
+                           render. */
+                        backgroundColor: "var(--status-warn-bg)",
+                        color: "var(--status-warn-fg)",
+                      }}
+                    >
+                      {f}
+                    </span>
+                  )}
                 </span>
-              );
-            })}
-        </div>
+              </span>
+            );
+          })}
       </div>
 
       {/* ── THE TOOLTIP ─────────────────────────────────────────────────
