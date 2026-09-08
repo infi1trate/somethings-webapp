@@ -510,7 +510,15 @@
      SVG 1.1. The gradient owns its own stop opacities (0.14 -> 0), which is one
      gradient definition rather than two, and this token owns the hue. No
      `@supports`, no fallback, nothing to rot. */
-  --chart-area-fill: var(--text-muted);
+  /* `--chart-area-fill` IS RETIRED. It existed as the top stop of the
+     trajectory chart's gradient area fill, which is removed — the window
+     container is that chart's only background treatment now. Verified nothing
+     else consumed it before deleting: one grep, one consumer, and that
+     consumer is gone. Its own note recorded that the 14% alpha had to move OUT
+     of this token because a `color-mix` here shipped opaque on engines without
+     it and a hand-written rgba fallback was deduped away by the compiler; that
+     lesson is preserved in `care-sparkline.tsx`, which is where the next SVG
+     paint will be written. */
 
   /* Elevated type roles. */
   /* `--type-record-name` moved up into the ramp block above — it is a Headline
