@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Sparkles } from "lucide-react";
 import { AiDraftPanel } from "@/components/record/ai-draft-panel";
-import { improve, type AiDrafts } from "@/lib/record/ai-drafts";
+import { canImproveText, improve, type AiDrafts } from "@/lib/record/ai-drafts";
 import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { PillButton } from "@/components/settings/pill-button";
 import { clinicalDate } from "@/components/record/care-presentation";
@@ -638,11 +638,21 @@ function FieldAiControls({
   onTake?: (text: string, mode: "draft" | "revision") => void;
 }) {
   const [open, setOpen] = useState<null | "draft" | "revision">(null);
+  /** `null` MEANS "OPENED AND THERE WAS NOTHING TO CHANGE" — a real answer the
+   *  control now has to be able to give. It could not before, because it hid
+   *  itself in exactly that case; see `IMPROVE_MIN_WORDS`. */
   const [revision, setRevision] = useState<string | null>(null);
   const panelId = `${fieldId}-ai-panel`;
   const hasText = value.trim().length > 0;
+  /* ═══ WORD COUNT AND PROVENANCE. NOTHING ELSE. ═══
+     This deliberately does NOT consult `improve()`. Asking "would the
+     suggestion differ from what is written" is a question whose answer changes
+     on almost every keystroke — it flips at every full stop — and wiring
+     visibility to it made the control blink four times over one two-sentence
+     draft. Above three words the control is present; below, absent. Whether it
+     has anything to say is answered when it is opened, not before. */
   const canImprove =
-    hasText && provenance !== "ai_inserted" && improve(value) !== null;
+    provenance !== "ai_inserted" && canImproveText(value);
 
   if (!onTake) return null;
   if (!draft && !canImprove) return null;
@@ -676,6 +686,7 @@ function FieldAiControls({
             aria-controls={open === "revision" ? panelId : undefined}
             onClick={() => {
               if (open === "revision") return setOpen(null);
+              // Computed ON OPEN, against the text as it stands right now.
               setRevision(improve(value));
               setOpen("revision");
             }}
@@ -703,6 +714,18 @@ function FieldAiControls({
           fieldHasText={hasText}
           onTake={() => onTake(draft, "draft")}
         />
+      )}
+      {/* ═══ OPENED, AND THERE IS NOTHING TO TIGHTEN ═══
+          The honest answer, in one line, rather than a reference container
+          holding a copy of what the person already wrote — which would invite
+          them to "replace" their text with itself. A stable control has to be
+          able to say "no change needed"; the old one avoided the sentence by
+          disappearing, which said the same thing far less clearly. */}
+      {open === "revision" && !revision && (
+        <p className="mt-2 text-[12px] leading-[17px] text-[var(--text-secondary)]">
+          {/* TODO-COPY */}
+          This already reads cleanly — there is nothing to tighten.
+        </p>
       )}
       {open === "revision" && revision && (
         <AiDraftPanel
