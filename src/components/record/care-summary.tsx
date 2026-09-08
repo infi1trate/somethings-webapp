@@ -37,14 +37,17 @@ import Link from "next/link";
 import { Clock3 } from "lucide-react";
 import {
   reviewDueState,
-  STAGE_LABEL,
   type CareCadence,
   type CarePresentation,
 } from "@/lib/record/care-demo";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { bandLabel } from "@/components/record/score-chip";
 import { TonalChip } from "@/components/record/tonal-chip";
-import { Provenance } from "@/components/record/provenance";
+/* `Provenance` IS NO LONGER IMPORTED HERE. Both of this row's info triggers are
+   gone; the component itself stays, with three consumers left — the review
+   card, the summary document and the survey comparison grid. (The AI draft
+   panel looks similar but is not one of them: it builds on `HoverNote`, which
+   is what `Provenance` was refactored onto.) */
 // `ScoreSparkline` is no longer imported here: trajectory belongs to the care
 // summary rail, which renders the same series legibly instead of squeezing a
 // 5-point copy of it beside a score chip.
@@ -408,38 +411,28 @@ export function CareSummaryCard({
               reader comparing them had to notice they agreed. Merged: the
               instrument, the score and the band on one line, when it was taken
               underneath.
-              THE LOCK DATE MOVED TO THE ⓘ. It answers "why this instrument and
-              not another", which is a question about the record's history rather
-              than about the current reading, and it was costing a whole line of
-              a four-line cell to say so.
+              THE LOCK DATE IS GONE FROM THIS CELL ENTIRELY. It first moved out
+              of a sub-line and into an ⓘ, on the reasoning that it answers "why
+              this instrument and not another" — a question about the record's
+              history rather than about the current reading. The icon has now
+              gone too, on the product owner's call: five metric cells carrying
+              two info triggers between them read as a row with footnotes, and
+              the row's job is to be five comparable facts read at a glance.
+              WHAT LEFT THE SCREEN WITH IT: `surveyLockedAt` is rendered NOWHERE
+              else in the app — checked, not assumed. If the lock date needs to
+              be reachable, it needs a home, not this icon back.
               THE SPARKLINE IS GONE from this row. Trajectory is the care summary
               rail's job — it renders the same series at a size you can actually
               read, with its own sentence — and a 5-point sparkline squeezed
               beside a score chip was the smallest, least legible copy of it. */}
           <Metric
+            /* THE 16px LABEL BOX IS GONE WITH THE ICON. It existed only to stop
+               `Provenance`'s 20px trigger pushing this cell's value 4px below
+               the other three; with no trigger there is nothing to make room
+               for, and a plain string is what the other cells pass. */
             label={
-              /* ═══ THE LABEL BOX STAYS 16px ═══
-                 `Provenance`'s trigger is a 20px circle, and a 20px child in a
-                 16px label line pushed this cell's value 4px below the other
-                 three — measured, and visible as soon as you look along the row.
-                 A fixed 16px height lets the icon overflow its box by 2px either
-                 side without moving anything; nothing clips, because nothing here
-                 hides overflow. */
-              <span className="flex h-4 items-center gap-1.5">
-                {/* TODO-COPY */}
-                Assessment
-                {cadence.surveyLockedAt && cadence.assignedSurvey && (
-                  /* The record's one focus-triggerable info affordance — hover,
-                     focus AND click, Escape to dismiss, hoverable panel. Reused
-                     rather than reinvented; see `provenance.tsx`. TODO-COPY. */
-                  <Provenance
-                    label="Survey"
-                    /* TODO-COPY */
-                    triggerLabel="About the assigned survey"
-                    note={`${cadence.assignedSurvey} assigned and locked ${clinicalDate(cadence.surveyLockedAt)}.`}
-                  />
-                )}
-              </span>
+              /* TODO-COPY */
+              "Assessment"
             }
             sub={
               cadence.lastAssessment
@@ -511,30 +504,23 @@ export function CareSummaryCard({
               row, which is what lets the row scan as five comparable facts
               instead of four facts and a badge.
 
-              THE ABSOLUTE DATE AND THE REVIEW TYPE MOVE INTO THE TOOLTIP, using
-              the record's existing `Provenance` affordance in the label — the
-              same placement and the same component the Assessment cell already
-              uses for its lock date, so there is one info idiom in this row
-              rather than two.
+              THE ABSOLUTE DATE AND THE REVIEW TYPE ARE NO LONGER ON THIS ROW.
+              They moved into an ⓘ here when the chip and sub-line went; the icon
+              has now gone as well, with the Assessment cell's, so the row
+              carries no info triggers at all.
+              WHAT LEFT THE SCREEN WITH IT, stated because it is not nothing:
+              `STAGE_LABEL[cadence.stage]` and the absolute `nextReviewDue` date
+              are rendered NOWHERE else in the app — checked. The cell keeps the
+              relative countdown, which is the thing a reader acts on; the stage
+              is still named on the review card in the action region when a
+              review is actually due, and the date is not on the tab at all.
 
               URGENCY IS ICON + WARNING INK, NEVER INK ALONE (SC 1.4.1): the clock
               appears only in the urgent state, so the state is legible in
               greyscale and on a monochrome print. */}
           <Metric
-            label={
-              <span className="flex h-4 items-center gap-1.5">
-                {/* TODO-COPY */}
-                Next review
-                {cadence.nextReviewDue && (
-                  <Provenance
-                    label="Next review"
-                    /* TODO-COPY */
-                    triggerLabel="About the next review"
-                    note={`${STAGE_LABEL[cadence.stage]} · due ${clinicalDate(cadence.nextReviewDue)}.`}
-                  />
-                )}
-              </span>
-            }
+            /* TODO-COPY */
+            label="Next review"
           >
             {cadence.nextReviewDue && due ? (
               <span
