@@ -72,9 +72,14 @@ const EYEBROW = "text-[11.5px] leading-[16px] text-[var(--text-muted)]";
  *  where a label row used to be. With the rail's own steps stepping down too
  *  (`mt-3` -> `mt-2` above the chart, `mt-1.5` -> `mt-1` above the caption) the
  *  whole unit reads denser without any element losing its own spacing. */
-const H = 64;
-const SCORE_TOP = 12;
-const SCORE_BOTTOM = 34;
+const H = 120;
+/** ═══ THE SCORE BAND, RESCALED FOR THE TALLER PLOT ═══
+ *  64 -> 120 (E1's ~120 target, on the 4px scale). The band grows with it
+ *  rather than floating in a taller box: 14 -> 104 keeps the same 10px of air
+ *  above the highest reading and puts the baseline at 107, which leaves the
+ *  bottom 13px for the badges that now straddle it. */
+const SCORE_TOP = 14;
+const SCORE_BOTTOM = 104;
 /** ON THE AXIS, not above it. Was 58 — a band of its own between the score
  *  line and the month labels, which spent 16px of a 70px strip on a row that
  *  held three marks. The discs now sit centred on the baseline itself. */
@@ -500,22 +505,13 @@ export function CareSparkline({
                   strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                 />
-                {/* THE TICK — a short strong hash ON the baseline, visibly
-                    heavier than the gridline it shares a position with. That
-                    contrast IS the anatomy: the hairline is a reading aid and
-                    the tick is the axis itself, so they cannot be the same
-                    weight. 6 units = 6px here, since the viewBox maps 1:1
-                    vertically; centred on the baseline so it reads as sitting on
-                    it rather than hanging off it. */}
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={BASELINE - 3}
-                  y2={BASELINE + 3}
-                  stroke="var(--text-secondary)"
-                  strokeWidth="1.5"
-                  vectorEffect="non-scaling-stroke"
-                />
+                {/* THE MONTH TICK IS RETIRED. v2 added a short strong hash on
+                    the baseline beside each gridline; v3 removes it. With the
+                    gridline running the full plot height the hash added a second
+                    mark saying the same thing at the same x, and four MORE
+                    hashes were already there from the presentation ticks — six
+                    kinds of vertical line on one axis. One gridline per month,
+                    and nothing on the baseline but badges. */}
               </g>
             );
           })}
@@ -551,20 +547,14 @@ export function CareSparkline({
               vectorEffect="non-scaling-stroke"
             />
           )}
-          {marks
-            .filter((m) => m.cls === "presentation")
-            .map((m) => (
-              <line
-                key={m.eventId}
-                x1={xPct(m.at, startAt, endAt)}
-                x2={xPct(m.at, startAt, endAt)}
-                y1={TICK_TOP}
-                y2={TICK_BOTTOM}
-                stroke="var(--text-secondary)"
-                strokeWidth="1.5"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
+          {/* THE PRESENTATION TICKS ARE RETIRED TOO — these were the four
+              stray hashes on the baseline. They were positioned by RAW event
+              date (`xPct`, never month-snapped), so after the axis went
+              categorical they were the only marks left that did not sit on a
+              column: four hashes between the gridlines, pointing at nothing a
+              reader could name. A presentation change is a full row in History
+              with its own date; it does not need a mark here that the axis can
+              no longer place. */}
         </svg>
 
         {/* PRESENTATION MARKS ARE EXCLUDED HERE — they are drawn in the SVG
@@ -649,6 +639,96 @@ export function CareSparkline({
             </button>
           );
         })}
+        {/* ═══ ON THE BASELINE, NOT IN A ROW UNDER IT ═══
+            The badges were a sibling row below the plot, which read as a legend
+            strip rather than as events on the axis. They are absolutely positioned
+            INSIDE the plot now, centred on the baseline hairline — the badge's
+            vertical centre on the line — so a badge and the month it belongs to
+            share both coordinates. */}
+        <div
+          className="pointer-events-none absolute inset-x-0"
+          style={{ top: `${(BASELINE / H) * 100}%` }}
+        >
+          {monthSafety
+            .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
+            .filter((b) => b.x !== null)
+            .map((b) => {
+              const e = b.escalations.length;
+              const f = b.flags.length;
+              const label =
+                `${e ? `${e} escalation${e === 1 ? "" : "s"}` : ""}` +
+                `${e && f ? ", " : ""}` +
+                `${f ? `${f} flag${f === 1 ? "" : "s"}` : ""}` +
+                ` · ${monthLabel(b.at)}`;
+              return (
+                <span
+                  key={b.at}
+                  style={{ left: `${b.x}%` }}
+                  className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2"
+                >
+                  <span
+                    title={label}
+                    aria-label={label}
+                    tabIndex={0}
+                    role="img"
+                    className={cn(
+                      "flex h-6 items-center overflow-hidden rounded-full text-[10px] font-semibold leading-none tabular-nums",
+                      RING
+                    )}
+                  >
+                    {e > 0 && (
+                      <span
+                        className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                        /* ═══ HISTORY'S ESCALATION TOKENS, NOT A BROWN ═══
+                           Was `--band-clay-fg` on `--band-clay-bg` — the maroon.
+                           History's Escalation lozenge is `TONE_STYLE.critical` =
+                           `--alert-critical-bg` / `--alert-critical-fg`, so this
+                           badge is in that family now.
+                           ONE SUBSTITUTION, REPORTED: the fill is
+                           `--alert-critical-ACCENT`, not `-bg`. The lozenge's `bg`
+                           is a pale tint (#fff2ef) with dark ink, and C/B ask for a
+                           SATURATED fill with INVERSE text — a pale badge with dark
+                           digits is the flag treatment, and the two types would
+                           stop being separable by tone. The accent is the same
+                           family's saturated step (its own note calls it the bright
+                           tangelo an alarm inverts to), and the ink is the
+                           lozenge's `bg` used as the inverse. */
+                        style={{
+                          backgroundColor: "var(--alert-critical-accent)",
+                          color: "var(--alert-critical-bg)",
+                        }}
+                      >
+                        {e}
+                      </span>
+                    )}
+                    {e > 0 && f > 0 && (
+                      /* THE INTERNAL DIVIDER, so the capsule reads as two segments
+                         of one object rather than as a colour change. */
+                      <span
+                        aria-hidden
+                        className="h-6 w-px shrink-0 bg-[var(--surface-card)]"
+                      />
+                    )}
+                    {f > 0 && (
+                      <span
+                        className="flex h-6 min-w-6 items-center justify-center px-1.5"
+                        /* HISTORY'S FLAG TOKENS, EXACTLY — `TONE_STYLE.warning` is
+                           `--alert-warning-bg` / `--alert-warning-fg`, which is
+                           also the warm tint and warning ink B2 asks for. No
+                           substitution on this side. */
+                        style={{
+                          backgroundColor: "var(--alert-warning-bg)",
+                          color: "var(--alert-warning-fg)",
+                        }}
+                      >
+                        {f}
+                      </span>
+                    )}
+                  </span>
+                </span>
+              );
+            })}
+        </div>
       </div>
 
       {/* ── THE TOOLTIP ─────────────────────────────────────────────────
@@ -673,87 +753,6 @@ export function CareSparkline({
           ))}
         </div>
       )}
-
-      {/* ═══ PER-MONTH TYPED SAFETY BADGES ═══
-          One badge per month that has safety events, centred on that month's
-          gridline. Escalations and flags are counted SEPARATELY and a month with
-          both renders ONE split pill rather than two badges — two badges for one
-          month would read as two months.
-
-          TYPE IS NEVER HUE ALONE. Three channels carry it: fixed ORDER
-          (escalation always the left segment), TONE (escalation filled and
-          inverse, flag tinted with dark ink) and the accessible NAME, which
-          spells both counts out in words.
-
-          THE TOKENS ARE THE ONES HISTORY'S CHIPS USE — `--status-warn-*` for
-          flags and `--band-clay-*` for escalations, the same pairs `TonalChip`
-          resolves for its `warning` and `risk` tones. The escalation INVERTS its
-          pair (ink as fill, wash as text) to carry the filled-versus-tinted cue
-          the order and tone rule requires; it stays inside the same ramp, so the
-          chart and the chip are the same colour family on both surfaces. */}
-      <div className="relative h-6">
-        {monthSafety
-          .map((b) => ({ ...b, x: nearestMonthX(b.at) }))
-          .filter((b) => b.x !== null)
-          .map((b) => {
-            const e = b.escalations.length;
-            const f = b.flags.length;
-            const label =
-              `${e ? `${e} escalation${e === 1 ? "" : "s"}` : ""}` +
-              `${e && f ? ", " : ""}` +
-              `${f ? `${f} flag${f === 1 ? "" : "s"}` : ""}` +
-              ` · ${monthLabel(b.at)}`;
-            return (
-              <span
-                key={b.at}
-                style={{ left: `${b.x}%` }}
-                className="absolute top-0 -translate-x-1/2"
-              >
-                <span
-                  title={label}
-                  aria-label={label}
-                  tabIndex={0}
-                  role="img"
-                  className={cn(
-                    "flex h-6 items-center overflow-hidden rounded-full text-[10px] font-semibold leading-none tabular-nums",
-                    RING
-                  )}
-                >
-                  {e > 0 && (
-                    <span
-                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
-                      style={{
-                        backgroundColor: "var(--band-clay-fg)",
-                        color: "var(--band-clay-bg)",
-                      }}
-                    >
-                      {e}
-                    </span>
-                  )}
-                  {e > 0 && f > 0 && (
-                    /* THE INTERNAL DIVIDER, so the capsule reads as two segments
-                       of one object rather than as a colour change. */
-                    <span
-                      aria-hidden
-                      className="h-6 w-px shrink-0 bg-[var(--surface-card)]"
-                    />
-                  )}
-                  {f > 0 && (
-                    <span
-                      className="flex h-6 min-w-6 items-center justify-center px-1.5"
-                      style={{
-                        backgroundColor: "var(--status-warn-bg)",
-                        color: "var(--status-warn-fg)",
-                      }}
-                    >
-                      {f}
-                    </span>
-                  )}
-                </span>
-              </span>
-            );
-          })}
-      </div>
 
     </div>
   );
