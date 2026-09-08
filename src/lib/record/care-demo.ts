@@ -131,6 +131,7 @@ export interface CareEvent {
 
 import type { CareSummaryCommit, ConcordanceResult } from "@/lib/record/care-summary-doc";
 import { TIER_LABEL, type RiskTier } from "@/lib/record/risk-taxonomy";
+import type { FieldProvenance } from "@/lib/record/field-provenance";
 
 const DAY = 86_400_000;
 /** Fixtures are relative to a fixed reference so they never drift; the caller
@@ -2215,6 +2216,38 @@ export function emptyCareUpdateBody(): CareUpdateBody {
  *  `source` mirrors `PresentationReview.rationale.source`, so the provenance
  *  label on the field and on the history row is DERIVED from the same value that
  *  labelled the rationale — never a second string that could drift from it. */
+/** ═══ PER-FIELD PROVENANCE ON THE COMMITTED RECORD (C4) ═══
+ *
+ *  Immutable once written. An amendment is its own record and carries its OWN
+ *  provenance for its OWN text — it does not inherit the original's, because a
+ *  supervisor rewriting a paragraph by hand over an AI-assisted one has authored
+ *  the correction whatever the thing it corrects was.
+ *
+ *  ═══ THE BACKEND CONTRACT ═══
+ *
+ *  The wire names are `clinical_summary_provenance` and
+ *  `diagnostic_support_provenance`, each one of `authored | ai_inserted |
+ *  ai_assisted`, written at commit and never updated. The TS fields below are
+ *  camelCase per this codebase; the mapping is 1:1 and there is no third state
+ *  to add later — `authored` is the absence of AI, not a fourth kind of it.
+ *
+ *  ABSENT MEANS AUTHORED, and that is deliberate rather than lazy: every record
+ *  written before this field existed was written with a prefilled AI draft that
+ *  nobody attributed, so a missing value cannot honestly be read as "no AI".
+ *  It is read as `authored` because that is the state this schema can defend —
+ *  see the known limitation on `field-provenance.ts`, which applies to the
+ *  stored value exactly as it applies to the live one.
+ *
+ *  THE OLD `diagnosticPrefill` IS NOT REPLACED YET. It records a different
+ *  thing (which source seeded the field, and whether the seed was edited) and
+ *  is still written by the standalone modal. The two overlap and the older one
+ *  should go once the read surfaces consume these; noted rather than removed
+ *  mid-flight. */
+export interface CareUpdateProvenance {
+  clinicalProvenance?: FieldProvenance;
+  diagnosticProvenance?: FieldProvenance;
+}
+
 export interface CareUpdatePrefill {
   source: "templated" | "ai" | "supervisor";
   /** True when the supervisor changed the pre-filled text before saving. */
@@ -2240,6 +2273,9 @@ export interface CareUpdateRecord {
   documents?: string;
   /** Present only when the diagnostic field arrived pre-filled. */
   diagnosticPrefill?: CareUpdatePrefill;
+  /** C4. Absent = `authored`; see `CareUpdateProvenance`. */
+  clinicalProvenance?: FieldProvenance;
+  diagnosticProvenance?: FieldProvenance;
 }
 
 /** One body field, or "" when the stored record has no such key.

@@ -53,6 +53,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sparkles } from "lucide-react";
+import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { PillButton } from "@/components/settings/pill-button";
 import { clinicalDate } from "@/components/record/care-presentation";
 import {
@@ -506,7 +508,11 @@ function Field({
   label: string;
   helper: string;
   error: boolean;
-  badge?: string;
+  /** WAS `string`, WRAPPED IN A NEUTRAL PILL by this component. It is a node
+   *  now and renders bare: the pill existed for the "AI-generated draft" label
+   *  on a seeded field, and what goes here today is C3's quiet inline chip,
+   *  which is deliberately not a pill. A caller that wants a pill brings one. */
+  badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -522,14 +528,7 @@ function Field({
         >
           {label}
         </label>
-        {badge && (
-          // Neutral tone deliberately: this states provenance, it does not grade
-          // it. An amber "AI-generated" badge would read as a warning about the
-          // teen rather than a fact about the text.
-          <span className="rounded-full bg-[var(--status-neutral-bg)] px-2 py-0.5 text-[11.5px] leading-[16px] font-medium text-[var(--status-neutral-fg)]">
-            {badge}
-          </span>
-        )}
+        {badge}
       </div>
       <p
         id={`${id}-help`}
@@ -578,6 +577,27 @@ function FieldError({ id, show }: { id: string; show: boolean }) {
  *  non-modal, so a supervisor can open it and then open the standalone Write
  *  form behind it; two `id="cu-clinical"` in one document would point every
  *  `htmlFor` and `aria-describedby` at whichever rendered first. */
+/** ═══ C3: THE EPHEMERAL "INSERTED" CHIP ═══
+ *
+ *  Shown only while a field is `ai_inserted` — verbatim model text nobody has
+ *  touched — and it CLEARS on the first edit, because from that moment the
+ *  paragraph is a person's. It is a working indicator, not a record: the record
+ *  is the committed `*_provenance` field, and this exists so a supervisor can
+ *  see at a glance which of the two fields still needs their pass.
+ *
+ *  QUIET BY CONSTRUCTION. Secondary ink, no fill, no border — the field's own
+ *  label is what a reader is scanning for and this sits after it. */
+function InsertedChip({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
+      <Sparkles className="size-3 shrink-0" aria-hidden />
+      {/* TODO-COPY */}
+      AI draft inserted
+    </span>
+  );
+}
+
 export function CareUpdateFields({
   idPrefix,
   body,
@@ -589,6 +609,7 @@ export function CareUpdateFields({
   assessmentRef,
   firstRef,
   order = ["clinical", "diagnostic", "assessment"],
+  provenance,
   className,
 }: {
   idPrefix: string;
@@ -609,6 +630,9 @@ export function CareUpdateFields({
   /** Render order. Defaults to the order the standalone modal has always used,
    *  so that surface is untouched by this. */
   order?: readonly FieldId[];
+  /** C3. Per-field live state, for the ephemeral chip only — the fields never
+   *  transition it themselves; the owner does, through `onChange`. */
+  provenance?: { clinical: FieldProvenance; diagnostic: FieldProvenance };
   className?: string;
 }) {
   useAutoGrow(clinicalRef, body.clinical);
@@ -632,6 +656,7 @@ export function CareUpdateFields({
         label={CARE_UPDATE_SECTIONS[0].label}
         helper={CARE_UPDATE_SECTIONS[0].helper}
         error={errors.clinical}
+        badge={<InsertedChip show={provenance?.clinical === "ai_inserted"} />}
       >
         <textarea
           id={`${idPrefix}-clinical`}
@@ -676,9 +701,9 @@ export function CareUpdateFields({
           // PROVENANCE ON THE FIELD, not in a tooltip: a supervisor is about to
           // sign this sentence, and whether a model wrote the first draft is
           // part of what they are agreeing to.
-          /* NO BADGE. It labelled text the form had put in the field; the field
-             is empty now, so a badge on it would be describing nothing. */
-          badge={undefined}
+          /* C3's chip, not the old prefill label — that labelled text the form
+             had put in the field, and the field opens empty now. */
+          badge={<InsertedChip show={provenance?.diagnostic === "ai_inserted"} />}
         >
           <textarea
             id={`${idPrefix}-diagnostic`}

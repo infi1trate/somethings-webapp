@@ -18,6 +18,13 @@
 // the inline code search, the three documentation fields, the validation, and
 // the draft that survives all of it.
 
+import {
+  AUTHORED,
+  onEdit,
+  onInsert,
+  type FieldProvenance,
+  type FieldProvenanceState,
+} from "@/lib/record/field-provenance";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PillButton } from "@/components/settings/pill-button";
 import {
@@ -82,7 +89,10 @@ export interface CareReviewWorkspaceProps {
   onCommit: (
     decision: ReviewDecision,
     body: CareUpdateBody,
-    at: number
+    at: number,
+    /** C4. Per-field, and required rather than optional: a commit that could
+     *  omit it would be a commit that silently records `authored`. */
+    provenance: { clinical: FieldProvenance; diagnostic: FieldProvenance }
   ) => void;
 }
 
@@ -130,6 +140,20 @@ export function CareReviewWorkspace({
     () => restored?.body ?? emptyCareUpdateBody()
   );
   const [body, setBody] = useState<CareUpdateBody>(initialBody);
+  /** ═══ C1/C3: PER-FIELD PROVENANCE, LIVE ═══
+   *
+   *  Seeded from the restored draft so a reload cannot launder it — see the note
+   *  on `ReviewDraft.provenance`. Both fields start `authored`, which is what a
+   *  fresh form is: nothing has been inserted into it.
+   *
+   *  THE TRANSITIONS ARE NOT WRITTEN HERE. `onInsert` / `onEdit` come from
+   *  `field-provenance.ts` and are asserted there, because the value ends up
+   *  immutable on a committed record and a form that got it subtly wrong would
+   *  be invisible in review. */
+  const [prov, setProv] = useState<{
+    clinical: FieldProvenanceState;
+    diagnostic: FieldProvenanceState;
+  }>(() => restored?.provenance ?? { clinical: AUTHORED, diagnostic: AUTHORED });
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
     clinical: false,
     diagnostic: false,
@@ -213,8 +237,18 @@ export function CareReviewWorkspace({
       }
       return;
     }
-    writeReviewDraft(teenId, review.id, { decision, body, savedAt: Date.now() });
+    writeReviewDraft(teenId, review.id, {
+      decision,
+      body,
+      provenance: prov,
+      savedAt: Date.now(),
+    });
     touched.current = true;
+    // `prov` is deliberately NOT a dependency: it only ever changes on the same
+    // `setBody` that changes the text, so the text is the trigger and reading
+    // the state here cannot miss an update. Adding it would write the draft
+    // twice per keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teenId, review.id, decision, body, startedWithDraft]);
 
   const proposed = review.recommended;
@@ -274,7 +308,12 @@ export function CareReviewWorkspace({
        unchanged" — exactly as they were.
        The moment is stamped here, at click time: a timestamp read in render scope
        moves on re-render. */
-    onCommit(decision ?? { kind: "confirm" }, body, Date.now());
+    /* PROVENANCE GOES WITH THE BODY, in the same call, so the record cannot be
+       written with one and not the other. */
+    onCommit(decision ?? { kind: "confirm" }, body, Date.now(), {
+      clinical: prov.clinical.state,
+      diagnostic: prov.diagnostic.state,
+    });
   };
 
   // `commitLabel` is gone: the footer's two buttons are FIXED labels — "Save
@@ -398,7 +437,22 @@ export function CareReviewWorkspace({
             className="mt-3"
             idPrefix="rv"
             body={body}
-            onChange={setBody}
+            /* ═══ ONE CALL CHANGES BOTH THE TEXT AND THE STATE ═══
+               The provenance transition has to happen on the SAME update as the
+               keystroke, or a commit racing a re-render could persist the text
+               with the previous state. `onEdit` is a no-op on `authored` and on
+               a change that does not change the string, so this is safe to run
+               on every keystroke of both fields. */
+            onChange={(update) =>
+              setBody((b) => {
+                const next = update(b);
+                setProv((p) => ({
+                  clinical: onEdit(p.clinical, next.clinical),
+                  diagnostic: onEdit(p.diagnostic, next.diagnostic),
+                }));
+                return next;
+              })
+            }
             errors={errors}
             clearError={clearError}
             clinicalRef={clinicalRef}
@@ -407,6 +461,11 @@ export function CareReviewWorkspace({
             /* THE MOCK'S ORDER — assessment first, then the two statements. The
                modal keeps its own; see `order` on `CareUpdateFields`. */
             order={["assessment", "clinical", "diagnostic"]}
+            /* C3's chip reads this; the fields never transition it. */
+            provenance={{
+              clinical: prov.clinical.state,
+              diagnostic: prov.diagnostic.state,
+            }}
           />
         </section>
       </div>
@@ -458,6 +517,37 @@ export function CareReviewWorkspace({
       {/* `outcomeCode` is read by the owner through the committed decision; it is
           computed here only to keep the label and the commit reading one value. */}
       <span className="sr-only" data-outcome-code={outcomeCode} />
+      {/* ═══ THE PROVENANCE STATE, READABLE FROM THE DOM ═══
+          There is no way to observe this from outside otherwise: the value is
+          form state that lands on a committed record, and the walk that has to
+          be proven — insert, verify, edit, verify, commit, verify — needs a
+          handle on the middle two. `sr-only` and no text, so it is inert to
+          readers and to screen readers alike; it exists for the same reason
+          `data-outcome-code` above it does. */}
+      <span
+        className="sr-only"
+        data-provenance-clinical={prov.clinical.state}
+        data-provenance-diagnostic={prov.diagnostic.state}
+        /* ═══ THE INSERT ENTRY POINT, EXPOSED BEFORE ITS BUTTON EXISTS ═══
+           Workstream B owns the "Insert into field" / "Replace field text"
+           control; this is the function that control will call. It is attached
+           here so the transition it drives can be walked end to end NOW —
+           insert, verify, edit, verify, commit, verify — rather than shipping a
+           state machine whose only proof is its unit tests.
+           `ref` rather than a global: it hangs off a node inside this component,
+           so it cannot outlive the form or be called against a stale closure. */
+        ref={(el) => {
+          if (el)
+            (
+              el as HTMLSpanElement & {
+                __insert?: (f: "clinical" | "diagnostic", text: string) => void;
+              }
+            ).__insert = (field, text) => {
+              setBody((b) => ({ ...b, [field]: text }));
+              setProv((prev) => ({ ...prev, [field]: onInsert(text) }));
+            };
+        }}
+      />
     </div>
   );
 }

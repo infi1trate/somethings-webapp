@@ -41,6 +41,7 @@
 // cadence says it starts at the first survey, the AI summary says there isn't
 // enough data yet, and the timeline shows its designed empty state.
 
+import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { useEffect, useRef, useState } from "react";
 import {
   CareTimeline,
@@ -388,6 +389,10 @@ export function CareTab({
       at: number;
       amends?: string;
       diagnosticPrefill?: CareUpdatePrefill;
+      /** C4. Written straight onto the committed record; see
+       *  `CareUpdateProvenance`. */
+      clinicalProvenance?: FieldProvenance;
+      diagnosticProvenance?: FieldProvenance;
     },
     /** ═══ THE DRAWER PASSES ITS COMMIT IN ═══
      *  The modal path leaves this undefined and the commit is read from state,
@@ -412,6 +417,8 @@ export function CareTab({
       amends: meta.amends,
       documents: commit ? `ce-dec-${commit.decisionId}` : undefined,
       diagnosticPrefill: meta.diagnosticPrefill,
+      clinicalProvenance: meta.clinicalProvenance,
+      diagnosticProvenance: meta.diagnosticProvenance,
     });
 
     /** ═══ THE SUCCESS MOMENT (Workstream D) ═══
@@ -601,7 +608,7 @@ export function CareTab({
            says and all it does. */
         setReviewOpen(false);
       }}
-      onCommit={(decision: ReviewDecision, body, at) => {
+      onCommit={(decision: ReviewDecision, body, at, provenance) => {
         const review = panelReview;
         if (!review) return;
         const code =
@@ -617,6 +624,9 @@ export function CareTab({
           body,
           {
             at,
+            /* C4 · PER-FIELD, FROM THE FORM'S OWN STATE MACHINE. */
+            clinicalProvenance: provenance.clinical,
+            diagnosticProvenance: provenance.diagnostic,
             /* ═══ NO PREFILL PROVENANCE, BECAUSE NO PREFILL HAPPENED ═══
                This recorded `{ source: <the rationale's>, edited: <text differs
                from the rationale> }`. With the field no longer seeded, `edited`
