@@ -107,7 +107,14 @@ export function onRevise(prev: FieldProvenanceState): FieldProvenanceState {
 /** Whether the record should disclose anything at all. `authored` discloses
  *  NOTHING — there is no "human-written" badge, because absence is the default
  *  state and a badge on it would imply the others are exceptions. */
-export function discloses(state: FieldProvenance): boolean {
+/** A TYPE PREDICATE, not a bare boolean — so a caller that has checked this can
+ *  then index a record keyed only on the two disclosing states without a cast.
+ *  The `PROVENANCE_DETAIL` map in `field-provenance-note.tsx` is exactly that
+ *  caller, and a cast there would have been a cast that silently survives a
+ *  fourth state being added. */
+export function discloses(
+  state: FieldProvenance
+): state is Exclude<FieldProvenance, "authored"> {
   return state !== "authored";
 }
 

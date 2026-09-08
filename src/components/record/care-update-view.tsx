@@ -30,6 +30,7 @@ import {
   CARE_UPDATE_SECTIONS,
   type CareUpdateRecord,
 } from "@/lib/record/care-demo";
+import { FieldProvenanceNote } from "@/components/record/field-provenance-note";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { RecordAvatar } from "@/components/record/record-avatar";
 
@@ -37,6 +38,19 @@ const LABEL_STYLE = {
   font: "var(--type-field-label)",
   letterSpacing: "var(--type-field-label-tracking)",
 } as const;
+
+/** Which record field carries each section's provenance. `assessment` is absent
+ *  on purpose — it is a structured value chosen from three, not prose, and there
+ *  is nothing for a model to have drafted. */
+const PROVENANCE_OF: Partial<
+  Record<
+    (typeof CARE_UPDATE_SECTIONS)[number]["id"],
+    (u: CareUpdateRecord) => CareUpdateRecord["clinicalProvenance"]
+  >
+> = {
+  clinical: (u) => u.clinicalProvenance,
+  diagnostic: (u) => u.diagnosticProvenance,
+};
 
 export function CareUpdateBodyView({
   update,
@@ -65,6 +79,15 @@ export function CareUpdateBodyView({
             {s.label}
           </p>
           <p className={prose}>{update.body[s.id].trim()}</p>
+          {/* ═══ D. THE DISCLOSURE, PER FIELD ═══
+              Under the prose it describes, not beside the label: the claim is
+              about how THIS text came to exist. `authored` — and every record
+              written before the field existed — renders nothing at all.
+              A LOOKUP KEYED ON THE SECTION ID, so a third prose section added
+              to `CARE_UPDATE_SECTIONS` gets no disclosure by accident: it would
+              have to be given one here, deliberately, alongside a field on the
+              record to carry it. */}
+          <FieldProvenanceNote state={PROVENANCE_OF[s.id]?.(update)} />
         </div>
       ))}
 

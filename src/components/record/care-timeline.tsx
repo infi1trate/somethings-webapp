@@ -44,6 +44,7 @@ import {
   type CareFilterId,
 } from "@/lib/record/care-demo";
 import { AssessmentChip } from "@/components/record/care-update-view";
+import { FieldProvenanceNote } from "@/components/record/field-provenance-note";
 import { ScoreLozenge } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +90,62 @@ const CHIP_OFF =
  *  Returns null for every non-assessment row, and for an assessment whose result
  *  carries no parseable number — absence renders no lozenge, which is correct and
  *  better than a lozenge reading "NaN". */
+/** ═══ THE DISCLOSURE BODY — ONE RENDERER, TWO CALL SITES (D) ═══
+ *
+ *  Both sites used to be the same three lines of JSX rendering
+ *  `event.providerNote` as one pre-line block, and both had to grow a per-field
+ *  disclosure. Two copies of that is two places for it to be wrong, and the
+ *  borrowed-documentation path is the one a reader reaches least often — so it
+ *  is the copy that would have been missed.
+ *
+ *  THE FLAT STRING IS STILL THE FALLBACK, and not as a defensive gesture. Risk
+ *  flags, escalations and presentation changes all carry free prose with no
+ *  fields in it — AND SO DO MOST `care_update` ROWS. t17 alone has 19 of them:
+ *  "Guardian contact logged", "Mentor coaching note", "Activity completed" —
+ *  operational log entries that reuse the `care_update` type and have no
+ *  structured body behind them at all, against 2 that do.
+ *
+ *  So this branch is NOT "is this a care update". It is "does this row have the
+ *  three-field clinical form behind it", which is the narrower question and the
+ *  only one that can be answered honestly — a check on `type` would have put
+ *  clinical-form labels and a provenance footnote over a note about a phone
+ *  call. Measured, after a test asserting the type-based version failed.
+ *
+ *  (That two different things share one event type is a real modelling defect,
+ *  and it is not this component's to fix. Reported.) */
+function NoteBody({ event }: { event: CareEvent }) {
+  const NOTE = "whitespace-pre-line text-[var(--text-secondary)]";
+  const FONT = { font: "var(--type-row-label)" } as const;
+
+  if (!event.noteSections?.length)
+    return (
+      <p className={NOTE} style={FONT}>
+        {event.providerNote}
+      </p>
+    );
+
+  return (
+    <div className="space-y-2">
+      {event.noteSections.map((s) => (
+        <div key={s.id}>
+          {/* THE LABEL IS ITS OWN ELEMENT NOW. It used to be a line inside the
+              pre-line string, which rendered identically to the prose under it —
+              a heading only because it happened to be first. Structuring the
+              note was forced by the disclosure; making the label look like a
+              label is what that structure buys. */}
+          <p className="text-[var(--text-muted)]" style={FONT}>
+            {s.label}
+          </p>
+          <p className={NOTE} style={FONT}>
+            {s.text}
+          </p>
+          <FieldProvenanceNote state={s.provenance} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function scoreFor(event: CareEvent): { value: number; band: string } | null {
   if (event.type !== "assessment") return null;
   const n = Number(String(event.result).match(/\d+/)?.[0]);
@@ -848,12 +905,12 @@ function Row({
                    committed with it, in the same words, rather than a second
                    copy of the prose or a bare link. */
                 <div className="space-y-2">
-                  <p
-                    className="whitespace-pre-line text-[var(--text-secondary)]"
-                    style={{ font: "var(--type-row-label)" }}
-                  >
-                    {documentedBy.providerNote}
-                  </p>
+                  {/* D. THE DISCLOSURE FOLLOWS THE PROSE WHEREVER THE PROSE
+                      GOES — including here, where a presentation-change row is
+                      showing a care update it did not itself write. A reader
+                      opening the code change is reading that update's words, so
+                      they are owed the same footnote the update carries. */}
+                  <NoteBody event={documentedBy} />
                   {documentedBy.assessment && (
                     <AssessmentChip value={documentedBy.assessment} />
                   )}
@@ -872,12 +929,7 @@ function Row({
                   </button>
                 </div>
               ) : (
-                <p
-                  className="whitespace-pre-line text-[var(--text-secondary)]"
-                  style={{ font: "var(--type-row-label)" }}
-                >
-                  {event.providerNote}
-                </p>
+                <NoteBody event={event} />
               )}
             </div>
           )}
