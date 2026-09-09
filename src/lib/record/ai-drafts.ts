@@ -1,30 +1,53 @@
-// THE AI DRAFTS AND THE SUGGESTED REVISIONS — fixtures, and deliberately so.
+// THE AI NOTES — fixtures, and deliberately so.
 //
-// ═══ THE PIPELINE CONSTRAINT, STATED VERBATIM ═══
+// ═══ NOTES, NOT A DRAFT, AND THE WORD CHANGED FOR A REASON ═══
 //
-// "The real improvement model must preserve clinical facts and must not
-// introduce claims absent from the user's text — revision, not generation."
+// This panel used to offer a paragraph called an "AI draft": prose shaped to be
+// taken whole into a clinical field. It offers 3–5 BULLETS called "AI notes"
+// now, and the two are different products of the same data.
 //
-// That is a constraint on the SERVICE, not on this file, and it is written here
-// because this file is what a reader finds when they go looking for how the
-// improvement works. The mock below cannot violate it — it only rewraps what it
-// is given — and the moment a real model sits behind `improve()` the constraint
-// becomes the acceptance test for it.
+// A draft invites acceptance — it is already the shape of the thing you were
+// about to write, so the cheapest action is to take it and the expensive one is
+// to disagree with it. Notes invite use: a reader takes the observation they
+// agree with, leaves the rest, and writes the sentence themselves. On a surface
+// whose output is a clinical determination that is the better default, and it is
+// why each bullet is separately copyable rather than the body being copyable as
+// a block. The unit a supervisor reasons about is the observation, so that is
+// the unit the interface hands them.
 //
-// ═══ WHY THE DRAFTS ARE AUTHORED PER SCENARIO ═══
+// ═══ "IMPROVE MY DRAFT" IS GONE ═══
 //
-// There is no summarization pipeline. A generic draft would be a lorem-ipsum
-// with clinical vocabulary, and every screenshot of this feature would show a
-// paragraph that does not match the record it sits on — which is exactly the
-// defect the rail's summaries were written to avoid. So each one agrees with
-// its scenario's assessments, tags and flags.
+// It took a supervisor's own sentences and returned a model's version of them.
+// Removed at the product owner's call, and the removal is consistent with the
+// rename: a surface that offers reference notes should not also offer to rewrite
+// the reader's clinical prose. `improve()`, its word-count threshold and the
+// `onRevise` provenance transition all went with it — see the note in
+// `field-provenance.ts` for what that leaves behind.
+//
+// ═══ WHY THE NOTES ARE AUTHORED PER SCENARIO ═══
+//
+// There is no summarization pipeline. Generic bullets would be lorem-ipsum with
+// clinical vocabulary, and every screenshot of this feature would show notes
+// that do not match the record they sit on — which is exactly the defect the
+// rail's summaries were written to avoid. So each set agrees with its scenario's
+// assessments, tags and flags.
 
 import type { CareAssessment } from "@/lib/record/care-demo";
 
-export interface AiDrafts {
-  clinical?: string;
-  diagnostic?: string;
+/** ═══ 3–5 BULLETS PER FIELD ═══
+ *  A `readonly string[]` rather than one string with newlines in it: the bullets
+ *  are the unit that is rendered, hovered and copied, so they are the unit the
+ *  data carries. Splitting a paragraph on newlines at render time would put the
+ *  count out of the fixture's control and make "3 to 5" unenforceable. */
+export interface AiNotes {
+  clinical?: readonly string[];
+  diagnostic?: readonly string[];
 }
+
+/** How many bullets a set may hold. Asserted, because "a few notes" degrades
+ *  into a paragraph in list clothing one bullet at a time. */
+export const NOTES_MIN = 3;
+export const NOTES_MAX = 5;
 
 /** TODO-COPY, all of it. Synthetic; no real names; events at event level and
  *  never a teen's own words.
@@ -36,33 +59,62 @@ export interface AiDrafts {
  *  mount no form at all. The entry stays because the day t18 comes due is the
  *  day this file would otherwise need a draft written from scratch to match a
  *  record whose assessments have moved on. */
-const DRAFTS: Record<string, AiDrafts> = {
+const NOTES: Record<string, AiNotes> = {
   // RICH LONGITUDINAL — an open escalation and a household story.
   t17: {
-    clinical:
-      "Contact has held through the window, with the teen keeping most scheduled calls and rescheduling the two they moved. Sleep disturbance and low mood recur across the period, and school avoidance appears in about half the conversations. An escalation raised earlier this month remains open with a supervisor.",
-    diagnostic:
-      "Across the last three PHQ-9 results the recency-weighted score is 10, in the moderate band. The mood and sleep items carry the movement; the somatic items have not shifted. The presentation on record continues to fit the item pattern.",
+    clinical: [
+      "Kept most scheduled calls; rescheduled two and attended both.",
+      "Sleep disturbance recurs across the window — 7 of 9 engaged days.",
+      "Low mood recurs; school avoidance in about half the conversations.",
+      "Escalation raised earlier this month is still open with a supervisor.",
+      "Household illness and a separation are referred to throughout.",
+    ],
+    diagnostic: [
+      "Recency-weighted PHQ-9 across the last three results is 10 — moderate band.",
+      "Mood and sleep items carry the movement.",
+      "Somatic items have not shifted across the period.",
+      "Item pattern continues to fit the presentation on record.",
+    ],
   },
   // 90-DAY REVIEW DUE — the GAD-7 track.
   t23: {
-    clinical:
-      "Contact has been steady since the last review, with short exchanges between scheduled calls. Worry about school is the theme that recurs and has stayed level rather than building. No flags were raised in the window.",
-    diagnostic:
-      "Across the last two GAD-7 results the recency-weighted score is 10, in the moderate band. The worry and restlessness items account for most of the total. Generalized anxiety disorder still fits the item pattern on file.",
+    clinical: [
+      "Contact steady since the last review, including short exchanges between calls.",
+      "Worry about school is the recurring theme.",
+      "Theme has stayed level rather than building.",
+      "No flags were raised in this window.",
+    ],
+    diagnostic: [
+      "Recency-weighted GAD-7 across the last two results is 10 — moderate band.",
+      "Worry and restlessness items account for most of the total.",
+      "Generalized anxiety disorder still fits the item pattern on file.",
+    ],
   },
   // REVIEW OVERDUE — thinner contact, one recurring theme.
   t19: {
-    clinical:
-      "Contact has been lighter than the previous window, with two calls moved and both kept. Low mood recurs, and the teen has twice described pulling back from friends rather than from the mentorship. No flags were raised in the period.",
-    diagnostic:
-      "Across the last three PHQ-9 results the recency-weighted score is 10, in the moderate band. The mood items carry the score and the appetite items appear in a smaller number of conversations.",
+    clinical: [
+      "Contact lighter than the previous window; two calls moved and both kept.",
+      "Low mood recurs across the period.",
+      "Teen has twice described pulling back from friends, not from the mentorship.",
+      "No flags were raised in the period.",
+    ],
+    diagnostic: [
+      "Recency-weighted PHQ-9 across the last three results is 10 — moderate band.",
+      "Mood items carry the score.",
+      "Appetite items appear in a smaller number of conversations.",
+    ],
   },
   t18: {
-    clinical:
-      "The mentorship has been consistent across the window, with calls kept at their scheduled times. Worry about school recurs at a steady level. Nothing in the period was raised as a flag or an escalation.",
-    diagnostic:
-      "Across the last two GAD-7 results the recency-weighted score sits in the mild band. The worry items carry most of the total and the somatic items are minimal.",
+    clinical: [
+      "Mentorship consistent across the window; calls kept at their scheduled times.",
+      "Worry about school recurs at a steady level.",
+      "Nothing in the period was raised as a flag or an escalation.",
+    ],
+    diagnostic: [
+      "Recency-weighted GAD-7 across the last two results sits in the mild band.",
+      "Worry items carry most of the total.",
+      "Somatic items are minimal.",
+    ],
   },
 };
 
@@ -72,10 +124,10 @@ const DRAFTS: Record<string, AiDrafts> = {
  *  then HIDDEN rather than disabled — a control that cannot do anything is a
  *  question a reader has to answer before moving on, where an absent one asks
  *  nothing. B4. */
-export function aiDraftsFor(teenId: string): AiDrafts | null {
-  const d = DRAFTS[teenId];
-  if (!d) return null;
-  return d.clinical || d.diagnostic ? d : null;
+export function aiNotesFor(teenId: string): AiNotes | null {
+  const n = NOTES[teenId];
+  if (!n) return null;
+  return n.clinical?.length || n.diagnostic?.length ? n : null;
 }
 
 /** ═══ WHAT THE ⓘ ON THE REFERENCE CONTAINER SAYS ═══
@@ -104,73 +156,4 @@ export function draftBasis(assessments: readonly CareAssessment[]): string {
     `${assessments.length === 1 ? "" : "s"} in this analysis window` +
     tail
   );
-}
-
-/** ═══ THE IMPROVE MOCK — DETERMINISTIC, AND A REWRAP RATHER THAN A REWRITE ═══
- *
- *  A canned per-scenario revision would not be a revision OF the user's text —
- *  it would be a second draft, and taking it would replace what they wrote with
- *  something that never referred to it. That is the failure the pipeline
- *  constraint above forbids, and a mock that models the forbidden behaviour
- *  teaches the wrong thing about the feature.
- *
- *  So this transforms the INPUT: it normalises whitespace, splits into
- *  sentences, trims filler openers, and joins them tightly. Every clinical noun
- *  the user wrote survives, because nothing is added and nothing is dropped
- *  except padding. Same input, same output, every time — which is also what
- *  makes it testable. */
-const FILLER = /^(?:i think|i feel like|it seems like|basically|just|so)\s+/i;
-
-/** ═══ WHEN THE IMPROVE CONTROL IS OFFERED — WORDS, NOT CHARACTERS ═══
- *
- *  THE CONTROL'S VISIBILITY MUST NOT DEPEND ON WHETHER THERE IS ANYTHING TO
- *  IMPROVE, and that is the whole point of this constant existing.
- *
- *  It used to: `canImprove` called `improve()` and hid the button whenever the
- *  result came back null. `improve()` returns null when its output equals its
- *  input — which becomes true the moment you finish a sentence with a full stop
- *  and false again as soon as you start the next word. Replayed keystroke by
- *  keystroke over one ordinary two-sentence draft, the button appeared and
- *  vanished FOUR times, and it was absent for the whole of the space after each
- *  full stop. A control that blinks while you type is a control you learn not
- *  to reach for.
- *
- *  So visibility is now a property of the TEXT — three words or more — and never
- *  of the suggestion. Above the threshold the control is always there; below it,
- *  never. Nothing else moves it. */
-export const IMPROVE_MIN_WORDS = 3;
-
-/** Whitespace-separated runs. Trailing and repeated spaces contribute nothing,
- *  which is what makes the count stable while a person is mid-word. */
-export function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-/** Whether the Improve control should be on screen for this text. The ONLY
- *  input is the word count — see `IMPROVE_MIN_WORDS`. */
-export function canImproveText(text: string): boolean {
-  return wordCount(text) >= IMPROVE_MIN_WORDS;
-}
-
-export function improve(text: string): string | null {
-  const clean = text.replace(/\s+/g, " ").trim();
-  /* THE SAME THRESHOLD THE BUTTON USES, so the two cannot disagree about what
-     is long enough to work on. It was a 12-character floor, which is a
-     different question from the one the control asks and answered it
-     differently for short words. */
-  if (!canImproveText(clean)) return null;
-  const sentences = clean
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.replace(FILLER, "").trim())
-    .filter(Boolean)
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-    .map((s) => (/[.!?]$/.test(s) ? s : `${s}.`));
-  const out = sentences.join(" ");
-  /* ═══ COMPARED AGAINST THE TRIMMED INPUT, NOT THE NORMALISED ONE ═══
-     `clean` has already had its internal whitespace collapsed, so comparing
-     against it made a doubled space between two words invisible — the function
-     said "nothing to change" about text it would have changed. Trimming only
-     keeps leading and trailing whitespace out of it, which is not something to
-     offer a person a suggestion about while they are still typing. */
-  return out === text.trim() ? null : out;
 }

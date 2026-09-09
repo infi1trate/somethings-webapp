@@ -79,30 +79,17 @@ export function onEdit(
   return { state: "ai_assisted", insertedText: prev.insertedText };
 }
 
-/** ═══ TAKING AN AI REVISION OF YOUR OWN TEXT (E) ═══
- *
- *  `ai_assisted`, NOT `ai_inserted`, AND THAT DISTINCTION IS THE WHOLE POINT.
- *  `ai_inserted` means "what is in this field is a model's draft, unedited" —
- *  and that is a false statement about a revision of the supervisor's own
- *  sentences. The content came from them; a model tightened it. "Written with
- *  AI assistance" is exactly what happened, so that is what the record says.
- *
- *  UNCONDITIONAL, and it is the only transition that is. `authored` moves here
- *  (a revision of your own prose is assistance), `ai_assisted` stays here, and
- *  `ai_inserted` cannot reach here at all because the Improve control is
- *  suppressed while a field holds an untouched draft — a supervisor should not
- *  be able to launder a model draft through a second model without reading it.
- *  Should that suppression ever be lifted, this still degrades honestly:
- *  `ai_inserted` → `ai_assisted` is a weaker claim, not a stronger one.
- *
- *  `insertedText` IS CARRIED THROUGH UNCHANGED rather than set to the revision.
- *  It exists to answer one question — "is what is in the field still the draft
- *  a model wrote?" — and a revision is not that draft. Overwriting it here
- *  would make the next `onEdit` compare against text the supervisor never
- *  received as a draft. */
-export function onRevise(prev: FieldProvenanceState): FieldProvenanceState {
-  return { state: "ai_assisted", insertedText: prev.insertedText };
-}
+/* ═══ `onRevise` IS GONE, WITH "IMPROVE MY DRAFT" ═══
+   It was the third transition: taking a model's revision of your OWN sentences
+   recorded `ai_assisted` rather than `ai_inserted`, because the content was the
+   author's and calling it an unedited model draft would have been a false
+   statement on a clinical record. That distinction mattered only while a control
+   existed to produce a revision, and it does not any more.
+   WHAT REMAINS REACHABLE: `authored` → `ai_inserted` (notes taken into the
+   field) → `ai_assisted` (the author edits them). `ai_assisted` therefore now
+   means exactly one thing — model text a person revised — where it used to mean
+   that OR the author's text a model revised. The read surfaces say "written with
+   AI assistance", which is true of both, so no copy changed. */
 
 /** Whether the record should disclose anything at all. `authored` discloses
  *  NOTHING — there is no "human-written" badge, because absence is the default
@@ -122,6 +109,6 @@ export function discloses(
  *  renders for it, and a string here would invite one to. */
 export const PROVENANCE_PHRASE: Record<FieldProvenance, string> = {
   authored: "",
-  ai_inserted: "AI draft inserted, unedited",
+  ai_inserted: "AI notes inserted, unedited",
   ai_assisted: "written with AI assistance",
 };
