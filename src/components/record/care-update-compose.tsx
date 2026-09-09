@@ -368,7 +368,21 @@ function ComposeForm({
           Each group is label / helper / input, so the gap between groups has to
           beat the gap inside one or the helper text reads as belonging to the
           field below it. */}
-      <DialogBody className="px-0.5">
+      {/* ═══ ROOM FOR THE FOCUS RING, TAKEN BACK BY THE MARGIN ═══
+          `DialogBody` is `overflow-y-auto`, and CSS computes `overflow-x` to
+          `auto` whenever the other axis is not `visible` — so a vertically
+          scrolling body clips HORIZONTALLY at its padding box too. The fields
+          are `w-full` and the ring is `outline-2 outline-offset-2`, which
+          reaches 4px past the border box, so all 4px of it was cut on the left
+          and the right. Measured: the body's padding box was 418..1022 and the
+          textarea was 418..1022 — identical, with the ring wanting 414..1026.
+          THE RELATIONSHIP IS SIMPLE: for a `w-full` child, SLACK = PADDING
+          MINUS THE RING'S REACH. The body had 2px and the ring reaches 4, so it
+          was short by 2 and the whole ring went. `px-2 -mx-1.5` takes the
+          padding to 8px for 4px of slack and pulls the box back by the 6px it
+          grew, so the content sits exactly where it did. Reported as inputs
+          being masked left and right. */}
+      <DialogBody className="-mx-1.5 px-2">
         <CareUpdateFields
           idPrefix="cu"
           body={body}

@@ -738,7 +738,12 @@ export function PresentationReviewCard({
           </p>
         )}
         {evidence && (
-          <div className="mt-2 overflow-hidden rounded-[var(--radius-inset)] bg-[var(--surface-s1)]">
+          /* Same ring room. The rounded corners need the clip, so the clip edge
+             moves rather than the rule. A PLAIN BLOCK COMMENT, not `{/* … *\/}`:
+             this position is inside `cond && ( … )`, which takes one expression
+             — a JSX comment is only valid in children position, and putting one
+             here is a parse error. */
+          <div className="-mx-1.5 mt-2 overflow-hidden rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-1.5">
             {/* ══ THE HEADER IS THE DISCLOSURE ══════════════════════════════
                 THE WHOLE ROW IS THE TARGET, not the caret. A 14px chevron is a
                 ~14px hit area next to a 200px row that looks pressable and is
@@ -947,7 +952,16 @@ export function PresentationReviewCard({
               into a clinical field with no visible caret. `inert` takes the whole
               subtree out of the tab order and the accessibility tree without
               touching layout, so the height still animates. */}
-          <div className="overflow-hidden" inert={!expanded}>
+          {/* `px-1 -mx-1` — THE SAME RING ROOM AS THE COMPOSE MODAL. This
+              `overflow-hidden` is load-bearing: it is what clips the form while
+              the grid row is at 0fr, so it cannot simply go. Padding moves the
+              clip edge out, the negative margin puts the box back, and the
+              focused textarea inside keeps its whole ring.
+              THE NUMBER IS NOT ARBITRARY: for a `w-full` child, SLACK = PADDING
+              MINUS THE RING'S REACH, and the ring reaches 4px. `px-1` gave
+              exactly 0 — flush with the clip edge and one antialiased pixel
+              from clipping again — so it is 6px, for 2px of slack. */}
+          <div className="-mx-1.5 overflow-hidden px-1.5" inert={!expanded}>
             {/* NO RULE HERE. This drew one hairline and the Documentation
                 section below drew a second, four lines apart with nothing
                 between them — the gap the decision row used to fill. The strip
