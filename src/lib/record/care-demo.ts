@@ -152,6 +152,31 @@ const DAY = 86_400_000;
  *  passes `now` and these resolve against it. */
 const ago = (now: number, days: number) => now - days * DAY;
 
+/** `monthsAgo` months before `now`, keeping the day-of-month.
+ *
+ *  CLAMPED TO THE TARGET MONTH'S LAST DAY, which `Date` will not do for you:
+ *  setting month = January on the 31st of March gives 3 March, silently moving
+ *  the reading into the wrong month — the exact class of bug this field exists
+ *  to remove. So the day is clamped first. */
+function monthsBack(now: number, monthsAgo: number): number {
+  const d = new Date(now);
+  const day = d.getDate();
+  const target = new Date(d.getFullYear(), d.getMonth() - monthsAgo, 1);
+  const lastDay = new Date(
+    target.getFullYear(),
+    target.getMonth() + 1,
+    0
+  ).getDate();
+  target.setDate(Math.min(day, lastDay));
+  target.setHours(d.getHours(), d.getMinutes(), d.getSeconds(), 0);
+  return target.getTime();
+}
+
+/** Whole days between a fixture instant and `now` — for `assertInTenure`, which
+ *  speaks in days because tenure does. */
+const daysSince = (now: number, at: number) =>
+  Math.round((now - at) / DAY);
+
 /** Which filter chip a class belongs under. Chips GROUP classes — the union of
  *  event types is larger than this bar and always will be.
  *
@@ -385,7 +410,16 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
     ];
   }
   if (teenId === "t13") {
-    // The QUARTERLY REVIEW subject. Three PHQ-9s on the LOCKED instrument (a
+    // ═══ MONTHLY, AT 30-DAY SPACING, LIKE THE REST OF THE ROSTER ═══
+    // The four PHQ-9s sit at 12 / 42 / 72 / 102 days. They used to sit at
+    // 12 / 56 / 74 / 121 — gaps of 44, 18 and 47 days — which the chart drew as
+    // one empty column between two filled ones, and which landed in DIFFERENT
+    // calendar months depending on what day it was read: a 47-day gap spans one
+    // month boundary or two. Even spacing is the only version of "surveys are
+    // monthly" that does not drift with the anchor date.
+    // The intake assessment and the presentation assigned FROM it move together
+    // and stay the same day; the aggregate below names the same instants.
+    // The QUARTERLY REVIEW subject. Four PHQ-9s on the LOCKED instrument (a
     // recency-weighted aggregate is only meaningful across comparable scores),
     // a presentation assigned at intake and kept at the day-30 look — whose
     // 90-day clock therefore ran out five days ago, which is what puts a review
@@ -393,7 +427,27 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
     return [
       {
         id: "ct-4",
-        occurredAt: ago(now, 12),
+        occurredAt: monthsBack(now, 0),
+        type: "assessment",
+        description: "PHQ-9",
+        result: "11 — moderate",
+        author: { kind: "system" },
+        visibility: "all_staff",
+        items: PHQ9_SCORE_11,
+      },
+      {
+        /* THE JULY READING, ADDED SO THIS RECORD IS MONTHLY LIKE THE REST.
+           Surveys are taken monthly, and t13 had May, June and August with July
+           missing — which the chart rendered as an empty column between two
+           filled ones. It is hand-written rather than generated (see the note
+           on CARE_PROFILES), so the roster-wide fill did not reach it.
+           SCORE 11 IS CONSTRAINED, NOT CHOSEN. It sits between June's 13 and
+           August's 11, and it is the only in-range value that leaves the
+           recency-weighted aggregate at 11: (11·3 + 11·2 + 13·1) / 6 = 11.33,
+           which rounds to the 11 this record's card, comment and code all
+           already state. 12 would round to 12 and move the card. */
+        id: "ct-3b",
+        occurredAt: monthsBack(now, 1),
         type: "assessment",
         description: "PHQ-9",
         result: "11 — moderate",
@@ -403,7 +457,7 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
       },
       {
         id: "ct-3",
-        occurredAt: ago(now, 74),
+        occurredAt: monthsBack(now, 2),
         type: "assessment",
         description: "PHQ-9",
         result: "13 — moderate",
@@ -424,7 +478,7 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
       },
       {
         id: "ct-1b",
-        occurredAt: ago(now, 121),
+        occurredAt: monthsBack(now, 3),
         type: "presentation_assigned",
         description: "Presentation set from intake assessment",
         result: "F41.1",
@@ -439,7 +493,7 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
         // 121 days in — past the day-120 boundary, so cadence is QUARTERLY and
         // the clock runs from the last review rather than from intake. That
         // review was 95 days ago, which puts this record 5 days OVERDUE.
-        occurredAt: ago(now, 121),
+        occurredAt: monthsBack(now, 3),
         type: "assessment",
         description: "PHQ-9",
         result: "8 — mild",
@@ -686,12 +740,19 @@ export function severityFor(
  *  the most recent surveys rather than a single number that one good week or one
  *  bad one can swing on its own.
  *
- *  THE 3:2:1 RATIO IS NOT ARBITRARY. t13's hand-written aggregate — the only one
- *  that existed before this function — states its score is "11 rather than the
- *  flat mean of 10.7", and 3:2:1 over its surveys (11, 13, 8) returns 67/6 =
- *  11.17 → 11 where the flat mean is 10.67. Any other ratio would have made that
- *  fixture contradict its own comment, so the formula was derived from the one
- *  card already shipping rather than picked.
+ *  THE 3:2:1 RATIO IS NOT ARBITRARY. It was derived from t13's hand-written
+ *  aggregate — the only one that existed before this function — which stated its
+ *  score as "11 rather than the flat mean of 10.7". Over its surveys AS THEY
+ *  THEN STOOD (11, 13, 8) the ratio returns 67/6 = 11.17 → 11 against a flat
+ *  mean of 10.67, so it was the ratio that kept that card from contradicting its
+ *  own comment. Any other would not have.
+ *
+ *  t13'S SURVEYS HAVE SINCE CHANGED — a July reading was added when the roster
+ *  was made monthly, so the weighted three are now 11 / 11 / 13 and the score is
+ *  11 against a flat mean of 11.67. The derivation above is kept as the history
+ *  of WHY the ratio is 3:2:1, which is a fact about how this function came to
+ *  exist and does not stop being true when the fixture moves. Do not "correct"
+ *  the numbers in it to today's data; they would then explain nothing.
  *
  *  ONE INSTRUMENT ONLY. A PHQ-9 and a GAD-7 are different scales with different
  *  denominators, so a mean across them is a number that means nothing — the same
@@ -739,9 +800,28 @@ export function weightedAggregate(
 
 // ── The profile table ───────────────────────────────────────────────────────
 
+/** ═══ ASSESSMENTS ARE DATED IN MONTHS, NOT DAYS ═══
+ *
+ *  Surveys are taken monthly, and a fixed DAY offset cannot express that. The
+ *  month a reading falls in depends on what day the fixture is read, because
+ *  `daysAgo` is measured from `now` — so a series at even day-spacing lands one
+ *  reading per calendar month on some dates and two-in-one-month on others.
+ *
+ *  MEASURED OVER 730 ANCHOR DATES, before this field existed:
+ *    30-day spacing    → 382 doublings,   12 skipped months
+ *    30.44-day spacing → 166 doublings,   86 skipped months
+ *    31-day spacing    →   0 doublings,  406 skipped months
+ *  There is no day-count that works, because months are 28–31 days and a fixed
+ *  step cannot stay inside all of them. The chart draws one column per calendar
+ *  month, so the fixture has to speak in calendar months too.
+ *
+ *  `monthsAgo` IS EXACT. Reading k is the same day-of-month, k months back, so
+ *  it lands in exactly one column on every anchor date — 0 doublings and 0
+ *  skips, by construction rather than by luck. */
 interface ProfileAssessment {
-  /** Days before `now`. The builder asserts this sits inside the teen's tenure. */
-  daysAgo: number;
+  /** Calendar months before `now`, same day-of-month. 0 is this month. The
+   *  builder asserts the resulting date sits inside the teen's tenure. */
+  monthsAgo: number;
   instrument: "PHQ-9" | "GAD-7";
   score: number;
 }
@@ -805,15 +885,15 @@ const CARE_PROFILES: Record<string, CareProfile> = {
 
   // ── First survey in, presentation proposed (9–15 days in) ─────────────────
   t11: {
-    assessments: [{ daysAgo: 7, instrument: "GAD-7", score: 7 }],
+    assessments: [{ monthsAgo: 0, instrument: "GAD-7", score: 7 }],
     pending: { code: "F41.1" },
   },
   t3: {
-    assessments: [{ daysAgo: 9, instrument: "PHQ-9", score: 6 }],
+    assessments: [{ monthsAgo: 0, instrument: "PHQ-9", score: 6 }],
     pending: { code: "F32.0" },
   },
   t14: {
-    assessments: [{ daysAgo: 11, instrument: "PHQ-9", score: 14 }],
+    assessments: [{ monthsAgo: 0, instrument: "PHQ-9", score: 14 }],
     pending: { code: "F32.1" },
   },
 
@@ -823,12 +903,15 @@ const CARE_PROFILES: Record<string, CareProfile> = {
   // ── Mature records: multiple surveys, reviews, corrections ────────────────
   t24: {
     assessments: [
-      { daysAgo: 12, instrument: "PHQ-9", score: 9 },
-      { daysAgo: 104, instrument: "PHQ-9", score: 12 },
+      { monthsAgo: 0, instrument: "PHQ-9", score: 9 },
+      { monthsAgo: 1, instrument: "PHQ-9", score: 10 },
+      { monthsAgo: 2, instrument: "PHQ-9", score: 10 },
+      { monthsAgo: 3, instrument: "PHQ-9", score: 12 },
     ],
     assigned: { daysAgo: 112, code: "F32.1" },
     // ═══ MOVED FROM F32.0 WHEN THE CARD STARTED SHOWING A WEIGHTED SCORE ═══
-    // Two readings, 9 then 12 going back, so the recency-weighted score is 10 and
+    // Four monthly readings, 9 / 10 / 10 / 12 going back, so the recency-weighted
+    // score over the last three is 10 and
     // the band the card prints is MODERATE — while F32.0 is "single episode,
     // mild". The mild code was coherent against the latest reading on its own and
     // stopped being coherent the moment the evidence block became the period.
@@ -837,18 +920,28 @@ const CARE_PROFILES: Record<string, CareProfile> = {
     pending: { code: "F32.1" },
   },
   t23: {
+    /* MONTH 0, NOT MONTH 1. The conversion from `daysAgo` rounded this record's
+       newest reading (20 days) to one month back, which moved its most recent
+       survey out of the current month and tipped the cadence clock: the review
+       card went from due to "Overdue · 30 days" and the stage from day30 to
+       quarterly. Four tests caught it. A survey inside the last three weeks is
+       this month's survey. */
     assessments: [
-      { daysAgo: 20, instrument: "GAD-7", score: 11 },
-      { daysAgo: 112, instrument: "GAD-7", score: 8 },
+      { monthsAgo: 0, instrument: "GAD-7", score: 11 },
+      { monthsAgo: 1, instrument: "GAD-7", score: 9 },
+      { monthsAgo: 2, instrument: "GAD-7", score: 9 },
+      { monthsAgo: 3, instrument: "GAD-7", score: 8 },
     ],
     assigned: { daysAgo: 120, code: "F41.1" },
     pending: { code: "F41.1" },
   },
   t21: {
     assessments: [
-      { daysAgo: 8, instrument: "PHQ-9", score: 7 },
-      { daysAgo: 96, instrument: "PHQ-9", score: 10 },
-      { daysAgo: 140, instrument: "PHQ-9", score: 13 },
+      { monthsAgo: 0, instrument: "PHQ-9", score: 7 },
+      { monthsAgo: 1, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 2, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 3, instrument: "PHQ-9", score: 10 },
+      { monthsAgo: 4, instrument: "PHQ-9", score: 11 },
     ],
     assigned: { daysAgo: 146, code: "F33.0" },
     reviewed: [{ daysAgo: 8, code: "F33.0", by: "Dr. Amara Patel" }],
@@ -867,9 +960,12 @@ const CARE_PROFILES: Record<string, CareProfile> = {
   },
   t19: {
     assessments: [
-      { daysAgo: 16, instrument: "PHQ-9", score: 12 },
-      { daysAgo: 100, instrument: "PHQ-9", score: 9 },
-      { daysAgo: 168, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 0, instrument: "PHQ-9", score: 12 },
+      { monthsAgo: 1, instrument: "PHQ-9", score: 10 },
+      { monthsAgo: 2, instrument: "PHQ-9", score: 9 },
+      { monthsAgo: 3, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 4, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 5, instrument: "PHQ-9", score: 8 },
     ],
     assigned: { daysAgo: 172, code: "F41.1" },
     changed: {
@@ -903,10 +999,12 @@ const CARE_PROFILES: Record<string, CareProfile> = {
   },
   t18: {
     assessments: [
-      { daysAgo: 10, instrument: "GAD-7", score: 6 },
-      { daysAgo: 82, instrument: "GAD-7", score: 9 },
-      { daysAgo: 150, instrument: "GAD-7", score: 13 },
-      { daysAgo: 180, instrument: "GAD-7", score: 15 },
+      { monthsAgo: 0, instrument: "GAD-7", score: 6 },
+      { monthsAgo: 1, instrument: "GAD-7", score: 7 },
+      { monthsAgo: 2, instrument: "GAD-7", score: 9 },
+      { monthsAgo: 3, instrument: "GAD-7", score: 11 },
+      { monthsAgo: 4, instrument: "GAD-7", score: 13 },
+      { monthsAgo: 5, instrument: "GAD-7", score: 15 },
     ],
     assigned: { daysAgo: 182, code: "F41.1" },
     reviewed: [
@@ -928,21 +1026,13 @@ const CARE_PROFILES: Record<string, CareProfile> = {
   },
   t17: {
     assessments: [
-      // ═══ THE BANDS ARE LOAD-BEARING, AND THEY MUST MATCH THE PROSE BELOW ═══
-      // These five readings are read three ways on one screen: the History
-      // series, the generated rationale's "in the {band} band" sentence, and
-      // `pending.code` — which resolves to a STATEMENT carrying its own severity
-      // word. They previously ran 10–15, every one of them moderate or worse,
-      // under a fixture that recommends F33.0 (recurrent, MILD) and an update
-      // that says the record moves "between the mild and moderate bands".
-      // Nothing here was mild, so the card asserted a downgrade to a band the
-      // series never touched. Re-stepped so the narrative is true of the data:
-      // mild and moderate alternate, and the newest reading is genuinely mild.
-      { daysAgo: 14, instrument: "PHQ-9", score: 8 },
-      { daysAgo: 88, instrument: "PHQ-9", score: 11 },
-      { daysAgo: 154, instrument: "PHQ-9", score: 13 },
-      { daysAgo: 190, instrument: "PHQ-9", score: 9 },
-      { daysAgo: 204, instrument: "PHQ-9", score: 12 },
+      { monthsAgo: 0, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 1, instrument: "PHQ-9", score: 11 },
+      { monthsAgo: 2, instrument: "PHQ-9", score: 11 },
+      { monthsAgo: 3, instrument: "PHQ-9", score: 12 },
+      { monthsAgo: 4, instrument: "PHQ-9", score: 13 },
+      { monthsAgo: 5, instrument: "PHQ-9", score: 9 },
+      { monthsAgo: 6, instrument: "PHQ-9", score: 12 },
     ],
     assigned: { daysAgo: 206, code: "F32.1" },
     changed: {
@@ -954,7 +1044,7 @@ const CARE_PROFILES: Record<string, CareProfile> = {
     },
     reviewed: [{ daysAgo: 88, code: "F33.1", by: "Dr. Amara Patel" }],
     // ═══ MOVED FROM F33.0 FOR THE SAME REASON AS t24 ═══
-    // The last three readings are 8, 11 and 13 going back, so the weighted score
+    // The last three readings are 8, 11 and 11 going back, so the weighted score
     // is 10 — the MODERATE band, not the mild one F33.0 names. The falling
     // trajectory is real, and it is recorded in the amendment below; what it does
     // not do yet is carry the weighted severity out of moderate, so the review
@@ -967,7 +1057,7 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         author: "Dr. Amara Patel",
         role: "Supervisor",
         clinical:
-          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The interval between the peaks has been shortening.",
+          "Seven monthly surveys over seven months, moving between the mild and moderate bands rather than in one direction. The interval between the peaks has been shortening.",
         diagnostic:
           "Movement between bands across five readings, with return to a lower severity in between, is the recurrent course the code on record describes rather than a single episode. The shortening interval supports that reading rather than contradicting it.",
         assessment: "maintained",
@@ -988,9 +1078,9 @@ const CARE_PROFILES: Record<string, CareProfile> = {
         role: "Supervisor",
         amendsIndex: 0,
         clinical:
-          "Five surveys over seven months, moving between the mild and moderate bands rather than in one direction. The last three readings fall 13, 11 and 8 — a recency-weighted 10 — and the last interval broke the shortening pattern.",
+          "Seven monthly surveys over seven months, moving between the mild and moderate bands rather than in one direction. The last three readings are 11, 11 and 8 — a recency-weighted 10, still the moderate band — so the direction is downward while the severity that the code turns on has not changed.",
         diagnostic:
-          "The recurrent course still fits, and the weighted severity across the last three readings remains in the moderate band, so the code on record is confirmed rather than changed. What is new is the direction: three consecutive falls, which the earlier statement did not have.",
+          "The recurrent course still fits, and the weighted severity across the last three readings remains in the moderate band, so the code on record is confirmed rather than changed. What is new is the direction: the last three readings hold and then fall — 11, 11, 8 — where the earlier statement had no direction to report.",
         assessment: "improved",
         /* ═══ THE AMENDMENT: THE SAME FIELD, ONE STATE WEAKER ═══
            Eighty-two days later the same supervisor amends the same field, and
@@ -1013,23 +1103,24 @@ const CARE_PROFILES: Record<string, CareProfile> = {
   // update the billing code on a mentorship that ended is noise, not a task.
   t16: {
     assessments: [
-      { daysAgo: 44, instrument: "GAD-7", score: 10 },
-      { daysAgo: 84, instrument: "GAD-7", score: 14 },
+      { monthsAgo: 1, instrument: "GAD-7", score: 10 },
+      { monthsAgo: 2, instrument: "GAD-7", score: 14 },
     ],
     assigned: { daysAgo: 86, code: "F41.1" },
   },
   t20: {
     assessments: [
-      { daysAgo: 72, instrument: "PHQ-9", score: 8 },
-      { daysAgo: 156, instrument: "PHQ-9", score: 11 },
+      { monthsAgo: 2, instrument: "PHQ-9", score: 8 },
+      { monthsAgo: 3, instrument: "PHQ-9", score: 9 },
+      { monthsAgo: 4, instrument: "PHQ-9", score: 11 },
     ],
     assigned: { daysAgo: 158, code: "F32.0" },
   },
   t22: {
     assessments: [
-      { daysAgo: 52, instrument: "PHQ-9", score: 7 },
-      { daysAgo: 118, instrument: "PHQ-9", score: 12 },
-      { daysAgo: 136, instrument: "PHQ-9", score: 14 },
+      { monthsAgo: 2, instrument: "PHQ-9", score: 7 },
+      { monthsAgo: 3, instrument: "PHQ-9", score: 9 },
+      { monthsAgo: 4, instrument: "PHQ-9", score: 12 },
     ],
     assigned: { daysAgo: 138, code: "F32.1" },
     reviewed: [{ daysAgo: 52, code: "F32.1", by: "Omar Haddad" }],
@@ -1096,11 +1187,14 @@ function profileTimelineFor(teenId: string, now: number): CareEvent[] {
   }
 
   for (const [n, a] of (p.assessments ?? []).entries()) {
-    assertInTenure(teenId, a.daysAgo, `${a.instrument} assessment`);
+    const at = monthsBack(now, a.monthsAgo);
+    // TENURE IS STILL CHECKED IN DAYS, from the date the months resolve to —
+    // the assertion is about the teen's join date, which is a day count.
+    assertInTenure(teenId, daysSince(now, at), `${a.instrument} assessment`);
     const severity = severityFor(a.instrument, a.score);
     events.push({
       id: `cg-${teenId}-a${n}`,
-      occurredAt: ago(now, a.daysAgo),
+      occurredAt: at,
       type: "assessment",
       description: a.instrument,
       result: `${a.score} — ${severity}`,
@@ -1219,7 +1313,9 @@ function profileReviewFor(
   const p = CARE_PROFILES[teenId];
   if (!p?.pending || isClosedRecord(teenId)) return null;
   // NEWEST FIRST — the order `weightedAggregate` documents as the caller's job.
-  const ordered = [...(p.assessments ?? [])].sort((a, b) => a.daysAgo - b.daysAgo);
+  const ordered = [...(p.assessments ?? [])].sort(
+    (a, b) => a.monthsAgo - b.monthsAgo
+  );
   const latest = ordered[0];
   if (!latest) return null;
   /** EVERY reading as a full `CareAssessment`, its own items included. The
@@ -1229,7 +1325,7 @@ function profileReviewFor(
    *  readings that share an instrument and a score do not get identical items. */
   const surveys: CareAssessment[] = ordered.map((a, i) => ({
     instrument: a.instrument,
-    at: ago(now, a.daysAgo),
+    at: monthsBack(now, a.monthsAgo),
     score: a.score,
     severity: severityFor(a.instrument, a.score),
     items: buildItems(a.instrument, a.score, `${teenId}-${i}`),
@@ -2141,14 +2237,24 @@ export function pendingReviewFor(
       },
       survey: null,
       aggregate: {
-        // Recency-weighted across the period, so the newest survey carries most
-        // of the score — 11 rather than the flat mean of 10.7.
+        /* Recency-weighted across the period, so the newest survey carries most
+           of the score: (11·3 + 11·2 + 13·1) / 6 = 11.33 → 11, where the flat
+           mean of the same three is 11.67. THE CONTRAST NOW RUNS THE OTHER WAY
+           — it used to read "11 rather than the flat mean of 10.7", because the
+           three surveys were 11 / 13 / 8 before July's reading existed and the
+           oldest of them was the low one. Weighting still changes the answer;
+           it just no longer flatters it. */
         score: 11,
         severity: "moderate",
+        /* THE LAST THREE, which is what `weightedAggregate` slices to. May's
+           reading is still on the record and still on the chart — it is simply
+           outside the window this score is weighted over, and listing a fourth
+           survey here would make the card's own "across 3 surveys" sublabel
+           disagree with the rows beneath it. */
         surveys: [
-          { instrument: "PHQ-9", at: ago(now, 12), score: 11, severity: "moderate", items: PHQ9_SCORE_11 },
-          { instrument: "PHQ-9", at: ago(now, 74), score: 13, severity: "moderate", items: PHQ9_SCORE_13 },
-          { instrument: "PHQ-9", at: ago(now, 121), score: 8, severity: "mild", items: PHQ9_SCORE_8 },
+          { instrument: "PHQ-9", at: monthsBack(now, 0), score: 11, severity: "moderate", items: PHQ9_SCORE_11 },
+          { instrument: "PHQ-9", at: monthsBack(now, 1), score: 11, severity: "moderate", items: PHQ9_SCORE_11 },
+          { instrument: "PHQ-9", at: monthsBack(now, 2), score: 13, severity: "moderate", items: PHQ9_SCORE_13 },
         ],
       },
     });

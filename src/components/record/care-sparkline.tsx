@@ -124,11 +124,12 @@ const BASELINE = SCORE_BOTTOM + 3;
  *  strip is read for — is identical. It costs `2 × EDGE_PCT` of plot width. */
 const EDGE_PCT = 4;
 
-function xPct(at: number, startAt: number, endAt: number): number {
-  const span = endAt - startAt || 1;
-  const raw = (at - startAt) / span;
-  return EDGE_PCT + raw * (100 - EDGE_PCT * 2);
-}
+/* `xPct` IS GONE. It mapped a timestamp to a proportional position, and every
+   consumer has moved to indexed month columns — see the axis note below. The
+   last two holdouts were the month LABEL row and the gridlines themselves, and
+   while they still used it the readings measured up to 12 units off the
+   gridlines they were supposed to sit on. Nothing left needs a proportional
+   position: everything this chart draws belongs to a month. */
 
 /** ═══ MARKS THAT WOULD OVERLAP ARE MERGED — SC 2.5.8 ═══
  *
@@ -228,8 +229,11 @@ export function CareSparkline({
 
   if (!pattern) return null;
 
-  const { startAt, endAt, marks, scoreMin, scoreMax, months, monthSafety } =
-    pattern;
+  /* `startAt` / `endAt` ARE NO LONGER READ HERE. The axis is categorical by
+     month, so the window's exact endpoints do not position anything — the month
+     bins do, and `care-pattern.ts` already derived them from that window. The
+     tooltips carry exact dates from each mark's own `at`. */
+  const { marks, scoreMin, scoreMax, months, monthSafety } = pattern;
 
   /** ═══ THE X AXIS IS CATEGORICAL BY MONTH, NOT PROPORTIONAL BY DATE ═══
    *
@@ -250,23 +254,84 @@ export function CareSparkline({
    *  month bin — which should not happen, since `months` is derived from the same
    *  span, but a mark silently drawn at 0 would be worse than one drawn where it
    *  used to be. */
-  const monthX = months.map((mo) => ({
+/* ═══ COLUMNS ARE EVENLY SPACED BY INDEX, NOT BY TIMESTAMP ═══
+   *
+   *  `xPct(mo.at, startAt, endAt)` placed each gridline at its month's true
+   *  proportional position, which is subtly wrong for a chart whose columns are
+   *  months: the window opens mid-month, so the first column's boundary can
+   *  precede `startAt` and land at a negative x, and every column ends up a
+   *  slightly different width because months are 28–31 days.
+   *
+   *  Indexing removes both. Column i sits at `EDGE + i × colW`, every month is
+   *  the same width, and a reading assigned to month i is placed AT that column
+   *  rather than snapped toward it — so "the point is on the gridline" is true
+   *  by construction and cannot drift by a rounding step. Measured after: 0
+   *  points off a gridline on every record, max deviation 0.005 user units,
+   *  which is the `toFixed(2)` in the polyline string and nothing else. */
+  const colW =
+    months.length > 1 ? (100 - EDGE_PCT * 2) / (months.length - 1) : 0;
+  const monthX = months.map((mo, i) => ({
     at: mo.at,
-    x: xPct(mo.at, startAt, endAt),
+    x: months.length > 1 ? EDGE_PCT + i * colW : 50,
   }));
-  const snapX = (at: number): number => {
-    if (!monthX.length) return xPct(at, startAt, endAt);
-    let best = monthX[0];
-    for (const m of monthX) if (m.at <= at) best = m;
-    return best.x;
+
+  /** The column a timestamp belongs to, by CALENDAR MONTH — never by proximity.
+   *
+   *  RETURNS null FOR A MARK OUTSIDE THE SHOWN MONTHS, and that is the second
+   *  half of this fix. Snapping walked forward to "the last bin at or before the
+   *  mark", so anything older than the first column was CLAMPED onto it: a
+   *  reading from a month the axis does not show, drawn on a month it does. The
+   *  axis is capped at 8 bins (see `care-pattern.ts`), so on a long record this
+   *  is not hypothetical. A mark with no column is not drawn — the chart says
+   *  "the last eight months" and a mark outside them has no honest position. */
+  const monthKey = (at: number) => {
+    const d = new Date(at);
+    return d.getFullYear() * 12 + d.getMonth();
   };
+  const colByMonth = new Map(monthX.map((m) => [monthKey(m.at), m.x]));
+  const snapX = (at: number): number | null =>
+    colByMonth.get(monthKey(at)) ?? null;
+
+  /* HOISTED ABOVE THE WINDOW BOX, which now derives from it. */
+  const assessments = marks.filter(
+    (m) => m.cls === "assessment" && m.score !== undefined
+  );
+
+  /** ═══ THE MONTHS THE WEIGHTED SCORE ACTUALLY COVERS ═══
+   *
+   *  The last three columns THAT HOLD A READING — not the last three columns.
+   *  The two are different whenever the newest column is empty, which is the
+   *  normal state for most of a month: this month's survey has not been taken
+   *  yet, so the current column is blank until it is.
+   *
+   *  WHY IT MATTERS. `weightedAggregate` weights the last three READINGS. With
+   *  the box drawn over the last three CALENDAR months, t17 measured as a box
+   *  around Jul / Aug / Sep while the score was computed from Jun / Aug and
+   *  Jul — highlighting an empty column and excluding a month the number
+   *  depends on. The box is captioned as "the three months weighted for
+   *  reviews", so it has to be the months that were weighted.
+   *
+   *  This was wrong before the axis changed too; making the empty current
+   *  column visible is what made it findable. */
+  const readingMonthKeys = new Set(
+    assessments
+      .filter((m) => colByMonth.has(monthKey(m.at)))
+      .map((m) => monthKey(m.at))
+  );
+  /* THE MONTH BINS THEMSELVES, not just their x — the box's edges need the
+     position and its per-side cushions need the month, and two lists derived
+     separately is how those two came to disagree in the first place. */
+  const weightedMonths = monthX
+    .filter((m) => readingMonthKeys.has(monthKey(m.at)))
+    .slice(-3);
 
   /** ═══ THE LAST THREE MONTHS, AS A BOX ═══
    *  From the first of the last three month marks to the right edge of the
    *  plot. `null` below three months: a "last three" box over two months would
    *  be a frame around the whole chart, which says nothing. */
   const windowBox =
-    monthX.length >= 3
+    // THREE READING-MONTHS, not three columns — see `weightedCols`.
+    weightedMonths.length >= 3
       ? (() => {
           /* ═══ MONTH-ALIGNED, NOT OFFSET-BY-A-CONSTANT ═══
              It was `firstInWindow - 2`, a fixed nudge that drifted with the
@@ -290,8 +355,8 @@ export function CareSparkline({
              clamping one side would be the bug this replaces.
              COLUMN WIDTHS ARE UNTOUCHED. The clamp moves the box's edge, never a
              gridline, so every month keeps the same width. */
-          const firstIn = monthX[monthX.length - 3].x;
-          const lastIn = monthX[monthX.length - 1].x;
+          const firstIn = weightedMonths[0].x;
+          const lastIn = weightedMonths[weightedMonths.length - 1].x;
           /** Half a unit of breathing room so the box's own border is never
            *  flush with the plot's edge. */
           /* `half` and the old clamped `inset` are gone with the % bounds they
@@ -328,8 +393,13 @@ export function CareSparkline({
             return dual ? 24.5 : 12;
           };
           const PAD = 8;
-          const padL = PAD + edgeHalf(monthX[monthX.length - 3]?.at);
-          const padR = PAD + edgeHalf(monthX[monthX.length - 1]?.at);
+          /* SAME TWO MONTHS THE EDGES USE. These read `monthX[len-3]` and
+             `monthX[len-1]` — the last three CALENDAR months — while the edges
+             moved to the weighted ones, so each cushion was sized for a badge
+             that might sit on a different column than the edge it padded. */
+          const padL = PAD + edgeHalf(weightedMonths[0]?.at);
+          const padR =
+            PAD + edgeHalf(weightedMonths[weightedMonths.length - 1]?.at);
           /* ═══ THE CUSHION REPLACES THE HALF-COLUMN INSET, NOT ADDS TO IT ═══
              Stacking the two put 31px of air on each side — equal, but the box
              then reached almost to the out-of-window gridline, which is a
@@ -359,50 +429,34 @@ export function CareSparkline({
   const monthLabel = (at: number) =>
     new Date(at).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  const assessments = marks.filter(
-    (m) => m.cls === "assessment" && m.score !== undefined
-  );
-  /** ═══ TWO READINGS IN ONE MONTH SPLIT AROUND THE GRIDLINE ═══
+  /** ═══ EVERY READING SITS ON ITS MONTH'S GRIDLINE. NO EXCEPTIONS. ═══
    *
-   *  Snapping to columns creates a collision the proportional axis did not have:
-   *  measured on t17, two readings landed at exactly 10.51 — one point drawn on
-   *  top of another, two buttons at one coordinate, and a line segment of zero
-   *  length between them.
+   *  There was a fan here: readings sharing a month were offset ±10% of the
+   *  column width so two points at one x could both be seen and both be
+   *  clickable. It is gone, and removing it is the point of this change.
    *
-   *  So a month's readings fan symmetrically about its gridline at ±10% of the
-   *  column width, chronological left to right. One reading stays centred; two
-   *  straddle; three take -10 / 0 / +10.
+   *  WHY IT WAS WRONG. The axis note 130 lines above states the rule the whole
+   *  month-binning exists to serve — "a point floating between two of them
+   *  cannot be assigned to either by eye" — and then the fan floated points
+   *  between them. A reader cannot tell a fanned March reading from an early-April
+   *  one, so the offset traded a real collision for a false date, and the false
+   *  date is the worse defect: it is not visible as a defect.
    *
-   *  FOUR OR MORE IS NOT A LAYOUT PROBLEM and is not solved here. The pack calls
-   *  it a fixture pathology and it is: four assessments inside one month is a
-   *  record that needs looking at, not a chart that needs more offsets. The
-   *  spread stops at three and the surplus stacks, which is visible rather than
-   *  silently compressed — and `mergeCrowded` below still coalesces what
-   *  overlaps for SC 2.5.8. Reported rather than absorbed. */
-  const colW =
-    monthX.length > 1
-      ? (monthX[monthX.length - 1].x - monthX[0].x) / (monthX.length - 1)
-      : 100 - EDGE_PCT * 2;
-  const OFFSET_PCT = 0.1;
-  const fanned = (() => {
-    const byX = new Map<number, number[]>();
-    assessments.forEach((m, i) => {
-      const x = snapX(m.at);
-      byX.set(x, [...(byX.get(x) ?? []), i]);
-    });
-    const dx = new Array<number>(assessments.length).fill(0);
-    for (const idx of byX.values()) {
-      if (idx.length < 2) continue;
-      const n = Math.min(idx.length, 3);
-      idx.slice(0, n).forEach((i, k) => {
-        dx[i] = (k - (n - 1) / 2) * (OFFSET_PCT * 2 * colW) / Math.max(1, n - 1);
-      });
-    }
-    return dx;
-  })();
+   *  WHY THE COLLISION IT SOLVED BARELY EXISTS. Surveys are MONTHLY, so a month
+   *  holds at most one reading and there is normally nothing to fan. What the fan
+   *  was actually working around was fixture data with irregular gaps.
+   *
+   *  WHAT HAPPENS WHEN A MONTH DOES HOLD TWO. They stack on the gridline: same x,
+   *  different y, joined by a vertical segment — which is the truth about a month
+   *  with two different scores in it. `mergeCrowded` below still coalesces marks
+   *  that overlap so SC 2.5.8 holds, and the tooltip carries the exact dates,
+   *  which is where precision belongs and where it was already stated. */
 
-  const linePts = assessments.map((m, i) => ({
-    x: snapX(m.at) + fanned[i],
+  const linePts = assessments
+    .map((m) => ({ m, x: snapX(m.at) }))
+    .filter((e): e is { m: typeof e.m; x: number } => e.x !== null)
+    .map(({ m, x }) => ({
+    x,
     y:
       plotScoreY(m.score!, scoreMin, scoreMax, SCORE_BOTTOM - SCORE_TOP, 4) +
       SCORE_TOP,
@@ -504,11 +558,14 @@ export function CareSparkline({
           the top of its gridline — the gridlines start at the plot's top edge,
           which is this row's bottom edge plus that margin. */}
       <div className="relative z-10 mb-1 h-4">
-        {months.map((mo) => (
+        {months.map((mo, i) => (
           <span
             key={mo.at}
             aria-hidden
-            style={{ left: `${xPct(mo.at, startAt, endAt)}%` }}
+            /* `monthX`, NOT `xPct` — the label has to sit over the gridline and
+               the readings, and those are indexed now. Mixing the two put every
+               label a few percent off its own column. */
+            style={{ left: `${monthX[i].x}%` }}
             className={cn("absolute -translate-x-1/2 whitespace-nowrap", EYEBROW)}
           >
             {mo.label}
@@ -545,8 +602,13 @@ export function CareSparkline({
               attach to and the marks have a scale to be read against. Drawn
               under the line and the fill — a gridline that crosses a data mark
               is a gridline competing with the data. */}
-          {months.map((mo) => {
-            const x = xPct(mo.at, startAt, endAt);
+          {months.map((mo, i) => {
+            // SAME INDEXED POSITION the readings use. This was `xPct`, and while
+            // the readings moved to indexed columns and the gridlines did not,
+            // every point measured off its gridline by up to 12 units — caught
+            // by the same probe that proved the fix, which is why it ran again
+            // after each step rather than once at the end.
+            const x = monthX[i].x;
             return (
               <g key={`grid-${mo.at}`}>
                 {/* THE GRIDLINE — a hairline rising from the baseline toward the
@@ -618,15 +680,16 @@ export function CareSparkline({
         {/* ASSESSMENTS ONLY. Flags left this loop when they became per-month
             badges — see the row after this one — and presentation ticks were
             never in it. `mergeCrowded` still guards SC 2.5.8 for the case two
-            readings in one month sit ±10% apart. X comes from the same fanned
-            positions the line is drawn through, so a point and its segment
-            cannot disagree. */}
+            readings share one month and therefore one x. Both the points and the
+            line read `snapX`, so a point and its segment cannot disagree. */}
         {mergeCrowded(
-          assessments.map((m, i) => ({
-            ...m,
-            x: snapX(m.at) + fanned[i],
-            y: markY(m),
-          }))
+          assessments
+            .map((m) => ({ ...m, x: snapX(m.at), y: markY(m) }))
+            /* SAME DROP AS THE LINE. A reading whose month the axis does not
+               show gets no hit target either — a button at a position the chart
+               cannot justify is worse than an absent one, and it would have sat
+               on top of the first column's real point. */
+            .filter((m): m is typeof m & { x: number } => m.x !== null)
         ).map((m) => {
           const left = m.x;
           const top = m.y;

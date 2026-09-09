@@ -211,15 +211,26 @@ const monthLabel = (at: number) =>
 
 /** Month starts inside the span, so the strip's labels land on real boundaries
  *  rather than at even pixel intervals. */
+/** ═══ EVERY MONTH THE WINDOW TOUCHES, INCLUDING THE ONE IT OPENS IN ═══
+ *
+ *  It used to skip that one. The rule was "first boundary AT OR AFTER the span's
+ *  start", so a window opening on 17 February produced its first column on
+ *  1 March — while February's reading still existed and still had to be drawn
+ *  somewhere. `snapX` put it on the March gridline, because snapping walks
+ *  forward to the last month at or before a mark and February had no bin to
+ *  find. The result was measurable on every multi-reading record in the roster:
+ *  one column holding two points and one column holding none, on a chart whose
+ *  whole premise is one column per month.
+ *
+ *  So the first bin is now the 1st of the month CONTAINING `startAt`. That
+ *  boundary can precede the window start — which is exactly why the sparkline
+ *  positions marks against the month bins themselves rather than against
+ *  `startAt`; see the axis note there. A partial first month is a true thing
+ *  about a window that began mid-month, and a column is how the chart says it. */
 function monthsBetween(startAt: number, endAt: number) {
   const out: { at: number; label: string }[] = [];
   const d = new Date(startAt);
   let cur = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-  // First boundary at or after the span's start.
-  if (cur < startAt) {
-    const n = new Date(startAt);
-    cur = new Date(n.getFullYear(), n.getMonth() + 1, 1).getTime();
-  }
   while (cur <= endAt) {
     out.push({ at: cur, label: monthLabel(cur) });
     const n = new Date(cur);
