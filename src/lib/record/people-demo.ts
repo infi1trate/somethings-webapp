@@ -237,6 +237,40 @@ export const DEMO_STAFF: DemoMentorRow[] = [
     pronouns: "he/him",
     assignedDaysAgo: 180,
   },
+  /** ═══ THE CLINICAL AUTHORITY, ADDED FOR THE CARE TAB'S AUTHORITY LINE ═══
+   *
+   *  The Care tab has always named "Dr. Nissan" as the final decision-maker on
+   *  clinical determinations, and the name has always linked to the Team page —
+   *  which did not list them. The link went somewhere real and told the reader
+   *  nothing. This fixture makes the destination answer the question the link
+   *  asks, and gives the module an address to write to.
+   *
+   *  THE EMAIL IS RFC 2606 RESERVED (`example.com`), like every other fixture
+   *  here, and is NOT on a domain anyone owns. It must never become a real
+   *  address in demo data.
+   *
+   *  `role: "supervisor"` IS THE CLOSEST TRUTH THE TYPE CAN HOLD, and it is not
+   *  the whole truth. "Final clinical decision-maker" is a distinct authority
+   *  from supervising mentors, and `PersonRole` has no value for it — adding one
+   *  would ripple through two exhaustive `Record<PersonRole, …>` maps and the
+   *  persona logic for the sake of one fixture's label. So the person is a
+   *  supervisor in the type system and a clinical authority in the copy.
+   *  Reported rather than papered over.
+   *
+   *  NAME MATCHES THE LINK TEXT EXACTLY. The Care tab's sentence is verbatim
+   *  copy reading "Dr. Nissan"; a fixture named "Dr. A. Nissan" would put a
+   *  different string on the page the link lands on. */
+  {
+    id: "s-nissan",
+    name: "Dr. Nissan",
+    phone: "+13125550164",
+    email: "dr.nissan@example.com",
+    group: "All regions",
+    status: "active",
+    capacity: 0,
+    role: "supervisor",
+    // No pronouns on file — and nothing renders a guess for an absent value.
+  },
   {
     id: "s-stephen",
     name: "Stephen Rowe",

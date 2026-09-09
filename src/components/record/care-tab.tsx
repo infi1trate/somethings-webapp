@@ -47,6 +47,7 @@ import {
   CareTimeline,
   type CareTimelineHandle,
 } from "@/components/record/care-timeline";
+import { RecordAuthorityNote } from "@/components/record/record-authority-note";
 import { CareSummaryCard } from "@/components/record/care-summary";
 import { RecordButton } from "@/components/record/record-button";
 import {
@@ -102,7 +103,6 @@ import {
 } from "@/lib/record/people-demo";
 import { canActOnCare, staffActorFor } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
-import Link from "next/link";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { toast } from "sonner";
 
@@ -949,28 +949,14 @@ export function CareTab({
           </div>
         </section>
 
-        {/* Prompt B Phase 4 — required compliance copy (PRD P0). A quiet
-            STANDING line at the foot of the column, visible to EVERY tier.
-            Deliberately NOT inside the action slot: it is true whether or not a
-            review is pending, and putting it in a supervisor-only surface would
-            hide it from the mentors who read this page most often. */}
-        <p className="border-t border-[var(--border-subtle)] pt-4 text-[13px] leading-[18px] text-[var(--text-muted)]">
-          {/* TODO-COPY — exact wording pending clinical sign-off. */}
-          {/* ═══ THE NAME LINKS TO TEAM, NOT TO A PROFILE ═══
-              A staff self-profile route does not exist — that work is deferred —
-              so this goes to the Team page, which is where a reader can actually
-              find them today. NOT a dead link and NOT a link to nothing: the
-              eventual destination is a staff profile, recorded as
-              design-system-gaps row 314 so the redirect is replaced rather than
-              rediscovered. */}
-          <Link
-            href="/app/team"
-            className="rounded-sm underline underline-offset-2 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-          >
-            Dr. Nissan
-          </Link>
-          {" is the final decision-maker on all clinical notes and determinations on this page."}
-        </p>
+        {/* ═══ THE COMPLIANCE FOOTER IS GONE FROM HERE (A4) ═══
+            It was a bare line above a `border-t` at the foot of this column, and
+            it now lives in `RecordAuthorityNote` beneath the Care summary, with
+            a label, a container and the AI caveat beside it.
+            NOTHING ELSE RENDERED IT. The sentence appeared exactly once in the
+            codebase — inline JSX here, never a component — so there is no other
+            tab to leave untouched and no sharing to report. Established by a
+            full-text search for the sentence itself, not inferred. */}
       </div>
 
 
@@ -997,8 +983,26 @@ export function CareTab({
           className="hidden min-w-0 min-[1100px]:sticky min-[1100px]:top-6 min-[1100px]:block"
         >
           {summaryNode}
+          {/* A1. DIRECTLY BENEATH THE SUMMARY CARD, in the same stack, at the
+              rhythm the rail already uses between units. */}
+          <RecordAuthorityNote className="mt-4" />
         </aside>
       )}
+
+      {/* ═══ BELOW 1100px THE RAIL DOES NOT EXIST, AND THIS COPY STILL MUST ═══
+          A5 says authority and caveat are unconditional. The rail is
+          `min-[1100px]` only — below that its contents move into an overlay a
+          reader has to OPEN — so a module placed solely in the rail would be
+          absent from the page at every narrow width, reachable only by opening a
+          panel. The line it replaces rendered in the main column at EVERY width,
+          and its original comment was explicit that it must be visible to every
+          tier whether or not a review is pending.
+          So the module renders here too, and the two placements are mutually
+          exclusive by breakpoint — the same see-saw the summary itself uses.
+          This is an ADDITION to the brief's placement, made because following
+          that placement alone would have dropped required compliance copy on
+          every viewport under 1100px. Reported rather than quietly accepted. */}
+      <RecordAuthorityNote className="mt-8 min-[1100px]:hidden" />
 
       {/* ── BELOW 1100px: THE SAME NODE, IN AN OVERLAY ────────────────────
           A right-edge panel rather than a bottom sheet, for the reason the
