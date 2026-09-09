@@ -183,7 +183,28 @@ function personName(author: CareEvent["author"]): string {
   return author.kind === "person" ? author.name : "a supervisor"; // TODO-COPY
 }
 
-function Attribution({ author }: { author: CareEvent["author"] }) {
+/** The attribution verb a row wants. One switch rather than the ternary at each
+ *  call site, because there are two call sites and they must not diverge. */
+function verbFor(event: CareEvent): string | undefined {
+  // TODO-COPY. "Changed by" completes the row rather than repeating it: the
+  // description already says WHICH change, so the verb only has to say that a
+  // person made it.
+  return event.type === "account_update" ? "Changed by" : undefined;
+}
+
+function Attribution({
+  author,
+  verb = "Last edited by",
+}: {
+  author: CareEvent["author"];
+  /** ═══ WHAT THIS PERSON DID, and it is not always editing ═══
+   *  "Last edited by Omar Haddad" on an account pause credits an editorial act
+   *  to a decision: Omar paused the account, he did not edit a paused account.
+   *  The default keeps every existing caller unchanged; `account_update` passes
+   *  its own. Same reasoning as the system branch below, which already refused
+   *  "Last edited by" for a process. TODO-COPY. */
+  verb?: string;
+}) {
   if (author.kind === "ai") {
     return (
       <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
@@ -232,7 +253,7 @@ function Attribution({ author }: { author: CareEvent["author"] }) {
      is not independent of the name it qualifies. TODO-COPY. */
   return (
     <span className="text-[var(--text-muted)]">
-      Last edited by {author.name}, {author.role}
+      {verb} {author.name}, {author.role}
     </span>
   );
 }
@@ -381,7 +402,9 @@ function Row({
             ·
           </span>
         )}
-        {named && <Attribution author={event.author} />}
+        {named && (
+          <Attribution author={event.author} verb={verbFor(event)} />
+        )}
       </>
     ) : null;
 
@@ -728,7 +751,7 @@ function Row({
                       down the row. */}
                   {event.author.kind !== "person" && (
                     <p>
-                      <Attribution author={event.author} />
+                      <Attribution author={event.author} verb={verbFor(event)} />
                     </p>
                   )}
 
