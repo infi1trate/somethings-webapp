@@ -50,8 +50,22 @@ export type CareEventType =
   | "care_summary"
   | "escalation"
   | "risk_flag"
-  | "pause"
-  | "return";
+  /** ═══ AN ACCOUNT LIFECYCLE CHANGE — closed, deactivated, activated, paused ═══
+   *
+   *  THIS REPLACES `pause` AND `return`, which were two event types for two of
+   *  the four transitions of one concept. Four types for four transitions would
+   *  have been four rows a reader has to learn, four entries in each of the three
+   *  exhaustive maps below, and a filter that can show a pause but not a
+   *  reactivation. The transition is a PROPERTY of the event, carried in
+   *  `accountChange`, and the row's own description names it.
+   *
+   *  WHY IT IS ON THE CARE PAGE AT ALL. A gap in a trajectory, a review clock
+   *  that stopped, an escalation that went quiet — each has an innocent
+   *  explanation if the account was paused, and no explanation at all if the
+   *  history does not say so. Ten records in this roster currently carry a
+   *  paused or deactivated status with nothing in their history accounting for
+   *  it. */
+  | "account_update";
 
 /** WHO wrote this. Provenance is REQUIRED and always rendered: a reader must
  *  never have to infer whether a rationale was written by a clinician,
@@ -130,6 +144,12 @@ export interface CareEvent {
    *  parsing the labels back out of the joined text, and parsing a string we
    *  had just built is the worse of the three. */
   noteSections?: CareEventNoteSection[];
+  /** ═══ account_update ROWS — WHICH TRANSITION ═══
+   *  Carried as a value rather than parsed back out of `description`, for the
+   *  same reason `code` is its own field: a reader of this data should not have
+   *  to match prose to learn what happened. It is what lets a test assert the
+   *  last change on a record agrees with the status the roster reports. */
+  accountChange?: AccountChangeKind;
   /** ═══ risk_flag / escalation rows — THE SOURCE RECORD ITSELF ═══
    *
    *  The History expansion renders a field set (escalation type, suicide-risk
@@ -172,7 +192,22 @@ export const CARE_FILTERS = [
 ] as const;
 export type CareFilterId = (typeof CARE_FILTERS)[number]["id"];
 
-const FILTER_OF: Record<CareEventType, Exclude<CareFilterId, "all">> = {
+/** ═══ `null` MEANS "REACHABLE UNDER ALL, AND NO CHIP OF ITS OWN" ═══
+ *
+ *  Still exhaustive — a new event type must state its answer here rather than
+ *  defaulting into one — but the answer may now be "none of the chips".
+ *
+ *  WHY `account_update` TAKES IT. `pause` and `return` were mapped to `care`,
+ *  which made the "Care updates" filter show rows that are not care updates. The
+ *  honest alternatives were a seventh chip or no chip: the chip row renders every
+ *  chip regardless of matches, so a seventh would be permanent chrome on every
+ *  record to isolate the one or two rows a record has. Under "All" they are
+ *  where a reader scanning the history will meet them anyway. A chip is a
+ *  one-line change here if it turns out to be wanted. */
+const FILTER_OF: Record<
+  CareEventType,
+  Exclude<CareFilterId, "all"> | null
+> = {
   survey_assigned: "assessments",
   assessment: "assessments",
   presentation_assigned: "presentation",
@@ -182,8 +217,7 @@ const FILTER_OF: Record<CareEventType, Exclude<CareFilterId, "all">> = {
   care_summary: "summary",
   escalation: "flags",
   risk_flag: "flags",
-  pause: "care",
-  return: "care",
+  account_update: null,
 };
 
 export function matchesFilter(t: CareEventType, f: CareFilterId): boolean {
@@ -193,6 +227,31 @@ export function matchesFilter(t: CareEventType, f: CareFilterId): boolean {
 /** Row pill copy per class (TODO-COPY). `presentation_changed` reads distinctly
  *  from `presentation_reviewed` — a change is a different event than a review
  *  that kept the code, and the two must never look alike. */
+/** ═══ WHICH TRANSITION AN `account_update` ROW RECORDS ═══
+ *
+ *  `deactivated` AND `closed` ARE NOT THE SAME EVENT, and the app does not yet
+ *  tell them apart: `defaultMenteeStatus` has three states and both of these
+ *  land on "deactivated". So a record whose last change is `closed` reads as
+ *  deactivated everywhere else, which is why both values can coexist without
+ *  contradicting anything — and why the DISTINCTION lives only in this history
+ *  until the account model grows a closed state. Reported rather than collapsed:
+ *  a mentorship ending and an account being closed are different facts and a
+ *  reader of the record is entitled to both. */
+export type AccountChangeKind =
+  | "paused"
+  | "activated"
+  | "deactivated"
+  | "closed";
+
+/** TODO-COPY, all four. Each names the transition, never the person's state —
+ *  "Account paused", not "Inactive teen". */
+export const ACCOUNT_CHANGE_LABEL: Record<AccountChangeKind, string> = {
+  paused: "Account paused",
+  activated: "Account reactivated",
+  deactivated: "Account deactivated",
+  closed: "Account closed",
+};
+
 export const TYPE_LABEL: Record<CareEventType, string> = {
   /* TODO-COPY — names the event, not the wait. "Survey overdue" would be a
      judgement, and a teen who hasn't answered in two days isn't late. */
@@ -207,8 +266,9 @@ export const TYPE_LABEL: Record<CareEventType, string> = {
   care_summary: "Care summary",
   escalation: "Escalation",
   risk_flag: "Flag",
-  pause: "Paused",
-  return: "Returned",
+  /* TODO-COPY. The PILL names the class; the row's `description` names which
+     of the four transitions it was. */
+  account_update: "Account update",
 };
 
 /** Pill tone per class, from the semantic families — no raw hex, and NOT the
@@ -229,8 +289,15 @@ export const TYPE_TONE: Record<CareEventType, "neutral" | "warm" | "warning" | "
   care_summary: "neutral",
   escalation: "critical",
   risk_flag: "warning",
-  pause: "warning",
-  return: "neutral",
+  /* ═══ NEUTRAL, AND `pause` LOSES ITS WARNING TINT ═══
+     The tone is per TYPE, not per row, so one tint has to cover a pause and a
+     reactivation — and a warning-tinted reactivation would be a warning about
+     good news. Neutral is also the right answer on its own terms: an account
+     change is a fact of record, not a risk finding, and the same reasoning
+     already keeps a DIVERGED care summary neutral two entries up. What a reader
+     needs is that the change is FINDABLE, which is the row's job, not the
+     tint's. Defaults whisper. */
+  account_update: "neutral",
 };
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -367,18 +434,30 @@ function fixtureTimelineFor(teenId: string, now: number): CareEvent[] {
       {
         id: "ce-2",
         occurredAt: ago(now, 42),
-        type: "return",
-        description: "Came back after a paused match",
-        result: "Matched with Brandon",
-        author: { kind: "system" },
+        type: "account_update",
+        accountChange: "activated",
+        /* THE DESCRIPTION IS THE TRANSITION, so every account row reads the same
+           way; what used to be the description — "Came back after a paused
+           match" — is the circumstance, and it moves to `result`. */
+        description: ACCOUNT_CHANGE_LABEL.activated,
+        result: "Came back after a paused match · matched with Brandon",
+        author: { kind: "person", name: "Omar Haddad", role: "Lead mentor" },
         visibility: "all_staff",
       },
       {
+        /* ═══ THIS PAUSE PREDATES THE CURRENT MATCH, AND THAT IS CORRECT ═══
+           t15 joined 44 days ago and this event is 68 days old. The row above
+           says why: Riley came back after a paused match, so `joinedDaysAgo`
+           measures THIS match while the account is older than it. Account
+           lifecycle is therefore NOT bounded by tenure the way an assessment
+           is — which is why `accountEventsFor` does not call `assertInTenure`,
+           and why that is a deliberate omission rather than a missing check. */
         id: "ce-1",
         occurredAt: ago(now, 68),
-        type: "pause",
-        description: "Match paused at the family's request",
-        result: "Paused 4 weeks",
+        type: "account_update",
+        accountChange: "paused",
+        description: ACCOUNT_CHANGE_LABEL.paused,
+        result: "At the family's request · paused 4 weeks",
         author: { kind: "person", name: "Omar Haddad", role: "Lead mentor" },
         visibility: "all_staff",
       },
@@ -1369,6 +1448,104 @@ function decisionToEvent(d: CareReviewDecision): CareEvent {
  *  a hardcoded `result: "Supervisor looped in"` and a `system` author — so the
  *  record never said who raised it and could not say whether it was still open.
  *  Both now come off the record itself. */
+/** ═══ ACCOUNT LIFECYCLE, PER RECORD ═══
+ *
+ *  WHY THIS IS A FIXTURE AND NOT DERIVED. The roster records a teen's CURRENT
+ *  standing (`menteeState`, `active`) and nothing about when it changed or who
+ *  changed it. Ten records carry a paused or deactivated status with no history
+ *  accounting for it, and there is no way to infer the date of a transition from
+ *  a boolean. So the transitions are stated, and a test asserts that each
+ *  record's LAST transition agrees with the standing the roster reports — which
+ *  is the invariant a derived version would have given for free and a fixture
+ *  can silently break.
+ *
+ *  NOT BOUNDED BY TENURE. An account outlives a match: t15's pause belongs to a
+ *  previous one and legitimately predates `joinedDaysAgo`. See the note on that
+ *  fixture.
+ *
+ *  t4 / t25 / t26 ARE DELIBERATELY ABSENT. They are deactivated and have no care
+ *  record at all — the roster's "it ended before care ever started" case — and
+ *  giving them a lone account row would turn the one genuinely empty Care
+ *  history into a one-row history. Their standing is true and unexplained here,
+ *  which is a data gap worth keeping visible rather than papering over with the
+ *  only row the page could show. */
+const ACCOUNT_CHANGES: Record<
+  string,
+  { daysAgo: number; to: AccountChangeKind; why: string; by?: CareAuthor }[]
+> = {
+  // ── Paused, and recently: each of these joined inside the last month ──────
+  t11: [{ daysAgo: 3, to: "paused", why: "Guardian asked to hold sessions for two weeks" }],
+  t3: [{ daysAgo: 4, to: "paused", why: "Teen away from home for the school holidays" }],
+  t14: [{ daysAgo: 5, to: "paused", why: "Awaiting a guardian consent form" }],
+  t6: [
+    {
+      daysAgo: 8,
+      to: "paused",
+      why: "Mentor unavailable and no cover arranged yet",
+      by: { kind: "person", name: "Brandy Forrestor", role: "Lead mentor" },
+    },
+  ],
+
+  // ── Ended mentorships. The dates sit after each record's last survey, which
+  //    is what makes the trajectory stopping where it does legible. ──────────
+  t16: [
+    {
+      daysAgo: 6,
+      to: "deactivated",
+      why: "At the end of the agreed term",
+      by: { kind: "person", name: "Omar Haddad", role: "Lead mentor" },
+    },
+  ],
+  t20: [
+    {
+      daysAgo: 20,
+      to: "deactivated",
+      why: "Teen moved out of the region",
+      by: { kind: "person", name: "Brandy Forrestor", role: "Lead mentor" },
+    },
+  ],
+  /* THE ONLY `closed` IN THE ROSTER, and it follows a deactivation rather than
+     replacing one — which is the sequence the two words describe: the
+     mentorship ended in July, the account was closed a month later. Both read
+     as "deactivated" everywhere else in the app; see `AccountChangeKind`. */
+  t22: [
+    {
+      daysAgo: 12,
+      to: "closed",
+      why: "At the family's request",
+      by: { kind: "person", name: "Stephen Rowe", role: "Supervisor" },
+    },
+    {
+      daysAgo: 40,
+      to: "deactivated",
+      why: "After the ninety-day review",
+      by: { kind: "person", name: "Omar Haddad", role: "Lead mentor" },
+    },
+  ],
+};
+
+/** The account rows for one record, newest first. */
+function accountEventsFor(teenId: string, now: number): CareEvent[] {
+  return (ACCOUNT_CHANGES[teenId] ?? []).map((c, n) => ({
+    id: `ca-${teenId}-${n}`,
+    occurredAt: ago(now, c.daysAgo),
+    type: "account_update",
+    accountChange: c.to,
+    description: ACCOUNT_CHANGE_LABEL[c.to],
+    /* THE REASON IS THE RESULT COLUMN, not a note behind a disclosure. It is one
+       short clause and it is the whole content of the row — putting it behind an
+       expander would hide the only thing the row has to say. */
+    result: c.why,
+    /* ═══ EVERY ACCOUNT CHANGE HAS A NAMED ACTOR ═══
+       There is no automatic path to any of these four transitions in this
+       product, so a `system` author here would be a false attribution — and it
+       renders as "Raised by Somethings", which is a moderation flag's sentence.
+       The fallback is the lead who owns the roster rather than a process. */
+    author: c.by ?? { kind: "person", name: "Brandy Forrestor", role: "Lead mentor" },
+    visibility: "all_staff",
+  }));
+}
+
 function flagEventsFor(teenId: string, now: number): CareEvent[] {
   const teen = DEMO_TEENS.find((t) => t.id === teenId);
   if (!teen) return [];
@@ -1498,6 +1675,7 @@ export function careTimelineFor(
     ...profileTimelineFor(teenId, now),
     ...pendingDemoTimeline(teenId, now),
     ...flagEventsFor(teenId, now),
+    ...accountEventsFor(teenId, now),
     ...(store.decisions ?? [])
       .filter((d) => d.teenId === teenId)
       .map(decisionToEvent),
