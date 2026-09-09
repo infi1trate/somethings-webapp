@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTHORED,
-  onRevise,
   discloses,
   onEdit,
   onInsert,
@@ -91,42 +90,5 @@ describe("disclosure", () => {
     expect(PROVENANCE_PHRASE.ai_inserted).toMatch(/unedited/);
     // Nothing renders for authored, so nothing is written for it.
     expect(PROVENANCE_PHRASE.authored).toBe("");
-  });
-});
-
-// ── TAKING AN AI REVISION (E) ───────────────────────────────────────────────
-// The claim under test is a NARROWER one than insertion makes, and these
-// assertions exist because the tempting implementation — reuse `onInsert` —
-// would put "AI draft inserted, unedited" on a field holding the supervisor's
-// own revised sentences.
-
-describe("onRevise", () => {
-  it("lands ai_assisted from authored — never ai_inserted", () => {
-    const p = onRevise(AUTHORED);
-    expect(p.state).toBe("ai_assisted");
-    // The precise defect this guards: the phrase that would otherwise be
-    // recorded is a factual claim about text the supervisor wrote.
-    expect(PROVENANCE_PHRASE[p.state]).not.toMatch(/unedited/);
-  });
-
-  it("is idempotent on ai_assisted", () => {
-    const once = onRevise(AUTHORED);
-    expect(onRevise(once).state).toBe("ai_assisted");
-  });
-
-  it("carries insertedText through rather than adopting the revision", () => {
-    const inserted = onInsert("the model's paragraph");
-    const revised = onRevise(inserted);
-    expect(revised.insertedText).toBe("the model's paragraph");
-    // And so a later edit still compares against the draft that was received,
-    // which is the only thing `insertedText` is for.
-    expect(onEdit(revised, "anything at all").state).toBe("ai_assisted");
-  });
-
-  it("degrades honestly if Improve is ever offered on an untouched draft", () => {
-    // The UI suppresses this path (E1). If that suppression is lifted, the
-    // transition must weaken the claim, not strengthen it.
-    expect(onRevise(onInsert("draft")).state).toBe("ai_assisted");
-    expect(discloses(onRevise(onInsert("draft")).state)).toBe(true);
   });
 });

@@ -22,7 +22,6 @@ import {
   AUTHORED,
   onEdit,
   onInsert,
-  onRevise,
   type FieldProvenance,
   type FieldProvenanceState,
 } from "@/lib/record/field-provenance";
@@ -31,7 +30,7 @@ import { PillButton } from "@/components/settings/pill-button";
 import {
   CareUpdateFields,
 } from "@/components/record/care-update-compose";
-import { aiDraftsFor, draftBasis } from "@/lib/record/ai-drafts";
+import { aiNotesFor, draftBasis } from "@/lib/record/ai-drafts";
 import {
   emptyCareUpdateBody,
   type CareUpdateBody,
@@ -156,12 +155,12 @@ export function CareReviewWorkspace({
     diagnostic: FieldProvenanceState;
   }>(() => restored?.provenance ?? { clinical: AUTHORED, diagnostic: AUTHORED });
 
-  /** ═══ B. THE DRAFTS FOR THIS RECORD, AND THE BASIS LINE ═══
-   *  Null for a record with nothing to draft from — the fields hide the
+  /** ═══ THE AI NOTES FOR THIS RECORD, AND THE BASIS LINE ═══
+   *  Null for a record with nothing to draw notes from — the fields hide the
    *  disclosure entirely on that, rather than offering a control that cannot
-   *  act (B4). The basis names the readings the REVIEW weighs, which is the
-   *  same window the draft claims to be drawn from. */
-  const drafts = useMemo(() => aiDraftsFor(teenId), [teenId]);
+   *  act. The basis names the readings the REVIEW weighs, which is the same
+   *  window the notes claim to be drawn from. */
+  const notes = useMemo(() => aiNotesFor(teenId), [teenId]);
   const basis = useMemo(
     () => draftBasis(review.aggregate?.surveys ?? (review.survey ? [review.survey] : [])),
     [review]
@@ -179,21 +178,20 @@ export function CareReviewWorkspace({
    *  the state machine's `ai_inserted` means exactly "what is in this field is
    *  the draft, unedited". The first keystroke after either moves it to
    *  `ai_assisted` through `onEdit`. */
-  function insertField(
-    field: "clinical" | "diagnostic",
-    text: string,
-    /** WHICH CLAIM TO RECORD. A draft taken whole is `ai_inserted` — "this is a
-     *  model's paragraph, unedited". A revision of the supervisor's own text is
-     *  `ai_assisted`, because the content is theirs and calling it an unedited
-     *  model draft would be a false statement on a clinical record. The two
-     *  transitions live in `field-provenance.ts` and are asserted there. */
-    mode: "draft" | "revision"
-  ) {
+  /** ═══ INSERTION IS THE OWNER'S JOB ═══
+   *
+   *  The fields cannot do this themselves: the text and the provenance state
+   *  have to move together, and the state lives here.
+   *
+   *  ONE MODE NOW. There used to be two — a draft taken whole recorded
+   *  `ai_inserted`, and a revision of the supervisor's own prose recorded the
+   *  weaker `ai_assisted` — and the second went with "Improve my draft". What
+   *  arrives here is always model text the author did not write, so it is always
+   *  `ai_inserted`, and the first keystroke after moves it to `ai_assisted`
+   *  through `onEdit`. */
+  function insertField(field: "clinical" | "diagnostic", text: string) {
     setBody((b) => ({ ...b, [field]: text }));
-    setProv((prev) => ({
-      ...prev,
-      [field]: mode === "draft" ? onInsert(text) : onRevise(prev[field]),
-    }));
+    setProv((prev) => ({ ...prev, [field]: onInsert(text) }));
     clearError(field);
   }
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
@@ -498,10 +496,10 @@ export function CareReviewWorkspace({
             errors={errors}
             clearError={clearError}
             /* ═══ B. THE DRAFTS, AND THE BASIS FOR THEM ═══
-               `aiDraftsFor` returns null for a record with nothing to draft
+               `aiNotesFor` returns null for a record with nothing to draw
                from, and the fields then render no disclosure at all — B4's
                hidden-not-disabled rule lives in the fields, on this value. */
-            drafts={drafts}
+            notes={notes}
             draftBasis={basis}
             onInsertField={insertField}
             clinicalRef={clinicalRef}

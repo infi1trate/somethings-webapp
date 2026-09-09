@@ -46,9 +46,13 @@ const PROVENANCE_DETAIL: Record<
   string
 > = {
   ai_inserted:
-    "A model drafted this text from the record and the author placed it here without changing a word. It has been read and signed off, but not revised — weigh it as you would any unedited draft.",
+    "This text came from the AI notes generated for the record, and the author placed it here without changing a word. It has been read and signed off, but not rewritten — weigh it as you would any unedited machine output.",
+  /* NARROWED WITH THE REMOVAL OF "IMPROVE MY DRAFT". This used to cover two
+     cases — model text a person edited, and a person's text a model revised.
+     Only the first is reachable now, so the note says the first rather than
+     hedging across both. */
   ai_assisted:
-    "A model drafted or revised this text and the author edited it before signing. The wording is the author's; a model helped produce it.",
+    "This text came from the AI notes generated for the record, and the author edited it before signing. The wording is theirs; the starting point was not.",
 };
 
 /** The per-field suffix. Renders nothing for `authored`.

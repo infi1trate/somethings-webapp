@@ -54,8 +54,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sparkles } from "lucide-react";
-import { AiDraftPanel } from "@/components/record/ai-draft-panel";
-import { canImproveText, improve, type AiDrafts } from "@/lib/record/ai-drafts";
+import { AiNotesPanel } from "@/components/record/ai-notes-panel";
+import { type AiNotes } from "@/lib/record/ai-drafts";
 import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { PillButton } from "@/components/settings/pill-button";
 import { clinicalDate } from "@/components/record/care-presentation";
@@ -595,151 +595,85 @@ function InsertedChip({ show }: { show: boolean }) {
     <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
       <Sparkles className="size-3 shrink-0" aria-hidden />
       {/* TODO-COPY */}
-      AI draft inserted
+      AI notes inserted
     </span>
   );
 }
 
-/** ═══ THE PER-FIELD AI CONTROLS (B1, B3, B4 and E1) ═══
+/** ═══ THE PER-FIELD AI DISCLOSURE ═══
  *
- *  One row under the textarea holding at most two ghost actions, and the
- *  reference container when either is open.
+ *  One ghost action under the textarea, and the notes container when it is open.
  *
- *  B4 · NO DRAFT MEANS NO CONTROL. The disclosure is absent rather than
- *  disabled: a control that cannot act is a question a reader has to answer
- *  before moving on, where an absent one asks nothing.
+ *  "IMPROVE MY DRAFT" USED TO SIT BESIDE IT and is gone — removed at the product
+ *  owner's call. What that takes with it: the word-count threshold that decided
+ *  when it could appear, the no-change line it needed when it had nothing to
+ *  say, and the second panel state. This component held all three, and the row
+ *  is a single control again.
  *
- *  E1 · IMPROVE IS SUPPRESSED WHILE THE FIELD IS `ai_inserted`. Unedited model
- *  text needs a human pass, not a second model pass, and offering one there
- *  would invite a supervisor to launder a draft through two models without
- *  reading either.
+ *  NO NOTES MEANS NO CONTROL. The disclosure is absent rather than disabled: a
+ *  control that cannot act is a question a reader has to answer before moving
+ *  on, where an absent one asks nothing.
  *
- *  B3 · OPEN STATE IS PER FIELD AND LIVES IN THIS COMPONENT, so it survives
- *  typing and re-renders but not a fresh mount — which is exactly "collapsed by
- *  default on every fresh open, remembered within the session". */
+ *  OPEN STATE IS PER FIELD AND LIVES HERE, so it survives typing and re-renders
+ *  but not a fresh mount — which is exactly "collapsed by default on every fresh
+ *  open, remembered within the session". */
 function FieldAiControls({
   fieldId,
-  draft,
+  notes,
   basis,
   value,
-  provenance,
   onTake,
 }: {
   fieldId: string;
-  draft?: string;
+  notes?: readonly string[];
   basis: string;
   value: string;
-  provenance?: FieldProvenance;
-  /** UNDEFINED WHEN THE OWNER CANNOT PERFORM AN INSERTION, and the whole row
-   *  then renders nothing. The standalone Write/Amend modal shares these fields
-   *  but holds no provenance state, so it passes no handler — and a "Insert
-   *  into field" button that silently does nothing is a worse version of the
-   *  disabled control B4 already rejects. See the report. */
-  onTake?: (text: string, mode: "draft" | "revision") => void;
+  /** UNDEFINED WHEN THE OWNER CANNOT PERFORM AN INSERTION, and the row then
+   *  renders nothing. The standalone Write/Amend modal shares these fields but
+   *  holds no provenance state, so it passes no handler — and an "Insert" button
+   *  that silently does nothing is a worse version of the disabled control this
+   *  component already rejects. See the report. */
+  onTake?: (text: string) => void;
 }) {
-  const [open, setOpen] = useState<null | "draft" | "revision">(null);
-  /** `null` MEANS "OPENED AND THERE WAS NOTHING TO CHANGE" — a real answer the
-   *  control now has to be able to give. It could not before, because it hid
-   *  itself in exactly that case; see `IMPROVE_MIN_WORDS`. */
-  const [revision, setRevision] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const panelId = `${fieldId}-ai-panel`;
   const hasText = value.trim().length > 0;
-  /* ═══ WORD COUNT AND PROVENANCE. NOTHING ELSE. ═══
-     This deliberately does NOT consult `improve()`. Asking "would the
-     suggestion differ from what is written" is a question whose answer changes
-     on almost every keystroke — it flips at every full stop — and wiring
-     visibility to it made the control blink four times over one two-sentence
-     draft. Above three words the control is present; below, absent. Whether it
-     has anything to say is answered when it is opened, not before. */
-  const canImprove =
-    provenance !== "ai_inserted" && canImproveText(value);
 
-  if (!onTake) return null;
-  if (!draft && !canImprove) return null;
+  if (!onTake || !notes?.length) return null;
 
   return (
     <>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
-        {draft && (
-          <button
-            type="button"
-            aria-expanded={open === "draft"}
-            aria-controls={open === "draft" ? panelId : undefined}
-            onClick={() => setOpen((o) => (o === "draft" ? null : "draft"))}
-            className={cn(
-              /* SEE ai-draft-panel.tsx — 25px of target, given back to the
-                 row by the negative margin so the 6px gap under the textarea
-                 that was measured stays 6px. */
-              "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
-              RING
-            )}
-          >
-            <Sparkles className="size-3.5 shrink-0" aria-hidden />
-            {/* TODO-COPY */}
-            {open === "draft" ? "Hide AI draft" : "View AI draft"}
-          </button>
-        )}
-        {canImprove && (
-          <button
-            type="button"
-            aria-expanded={open === "revision"}
-            aria-controls={open === "revision" ? panelId : undefined}
-            onClick={() => {
-              if (open === "revision") return setOpen(null);
-              // Computed ON OPEN, against the text as it stands right now.
-              setRevision(improve(value));
-              setOpen("revision");
-            }}
-            className={cn(
-              /* SEE ai-draft-panel.tsx — 25px of target, given back to the
-                 row by the negative margin so the 6px gap under the textarea
-                 that was measured stays 6px. */
-              "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
-              RING
-            )}
-          >
-            <Sparkles className="size-3.5 shrink-0" aria-hidden />
-            {/* TODO-COPY */}
-            {open === "revision" ? "Hide suggestion" : "Improve my draft"}
-          </button>
-        )}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? panelId : undefined}
+          onClick={() => setOpen((o) => !o)}
+          className={cn(
+            /* 25px of target given back to the row by the negative margin, so
+               the measured 6px gap under the textarea stays 6px. WCAG 2.2
+               §2.5.8 wants 24px and a 17px text button clears it only on the
+               spacing exception. */
+            "-my-1 inline-flex items-center gap-1 rounded-sm py-1 text-[12px] leading-[17px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          <Sparkles className="size-3.5 shrink-0" aria-hidden />
+          {/* TODO-COPY */}
+          {open ? "Hide AI notes" : "View AI notes"}
+        </button>
       </div>
-      {open === "draft" && draft && (
-        <AiDraftPanel
+      {open && (
+        <AiNotesPanel
           id={panelId}
           /* TODO-COPY */
-          label="AI draft"
-          text={draft}
+          label="AI notes"
+          notes={notes}
           basis={basis}
           fieldHasText={hasText}
-          onTake={() => onTake(draft, "draft")}
-        />
-      )}
-      {/* ═══ OPENED, AND THERE IS NOTHING TO TIGHTEN ═══
-          The honest answer, in one line, rather than a reference container
-          holding a copy of what the person already wrote — which would invite
-          them to "replace" their text with itself. A stable control has to be
-          able to say "no change needed"; the old one avoided the sentence by
-          disappearing, which said the same thing far less clearly. */}
-      {open === "revision" && !revision && (
-        <p className="mt-2 text-[12px] leading-[17px] text-[var(--text-secondary)]">
-          {/* TODO-COPY */}
-          This already reads cleanly — there is nothing to tighten.
-        </p>
-      )}
-      {open === "revision" && revision && (
-        <AiDraftPanel
-          id={panelId}
-          /* TODO-COPY */
-          label="Suggested revision"
-          text={revision}
-          /* THE BASIS IS THE USER'S OWN TEXT, and saying so is the point: this
-             is a revision, not a second draft. */
-          basis="Rewritten from what you have written in this field. It preserves your clinical facts and adds nothing that is not already there."
-          fieldHasText
-          /* "revision", NOT "draft" — the owner records a weaker and more
-             accurate claim for text derived from the supervisor's own. */
-          onTake={() => onTake(revision, "revision")}
+          /* THE WHOLE SET, JOINED AS LINES. Per-bullet copy is the path these
+             notes are shaped for; this is the take-everything escape hatch. */
+          onTake={() => onTake(notes.join("\n"))}
         />
       )}
     </>
@@ -758,7 +692,7 @@ export function CareUpdateFields({
   firstRef,
   order = ["clinical", "diagnostic", "assessment"],
   provenance,
-  drafts,
+  notes,
   draftBasis: basis,
   onInsertField,
   className,
@@ -784,19 +718,17 @@ export function CareUpdateFields({
   /** C3. Per-field live state, for the ephemeral chip only — the fields never
    *  transition it themselves; the owner does, through `onChange`. */
   provenance?: { clinical: FieldProvenance; diagnostic: FieldProvenance };
-  /** B. Per-field AI drafts for this window; absent fields hide their
-   *  disclosure. */
-  drafts?: AiDrafts | null;
+  /** Per-field AI notes for this window; absent fields hide their disclosure. */
+  notes?: AiNotes | null;
   /** What the container's ⓘ says. */
   draftBasis?: string;
   /** B2/E2. The owner performs the insertion, because it owns the provenance
    *  transition — the fields cannot set their own state without two sources for
    *  it. */
-  onInsertField?: (
-    field: "clinical" | "diagnostic",
-    text: string,
-    mode: "draft" | "revision"
-  ) => void;
+  /** THE `mode` PARAMETER IS GONE with "Improve my draft": there was a second
+   *  kind of take — a revision of the supervisor's own prose — which recorded a
+   *  weaker provenance claim. Taking notes is the only take now. */
+  onInsertField?: (field: "clinical" | "diagnostic", text: string) => void;
   className?: string;
 }) {
   useAutoGrow(clinicalRef, body.clinical);
@@ -854,14 +786,11 @@ export function CareUpdateFields({
           `hidden` when clear, so there is no visual gap either way. */}
       <FieldAiControls
         fieldId={`${idPrefix}-clinical`}
-        draft={drafts?.clinical}
+        notes={notes?.clinical}
         basis={basis ?? ""}
         value={body.clinical}
-        provenance={provenance?.clinical}
         onTake={
-          onInsertField &&
-          ((text: string, mode: "draft" | "revision") =>
-            onInsertField("clinical", text, mode))
+          onInsertField && ((text: string) => onInsertField("clinical", text))
         }
       />
       </div>
@@ -908,14 +837,11 @@ export function CareUpdateFields({
         </Field>
         <FieldAiControls
           fieldId={`${idPrefix}-diagnostic`}
-          draft={drafts?.diagnostic}
+          notes={notes?.diagnostic}
           basis={basis ?? ""}
           value={body.diagnostic}
-          provenance={provenance?.diagnostic}
-          onTake={
-          onInsertField &&
-          ((text: string, mode: "draft" | "revision") =>
-            onInsertField("diagnostic", text, mode))
+            onTake={
+          onInsertField && ((text: string) => onInsertField("diagnostic", text))
         }
         />
       </div>
