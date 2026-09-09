@@ -349,3 +349,95 @@ describe("the weighted value at each reading", () => {
     expect(compared, "records where both a pattern and an aggregate exist").toBeGreaterThan(0);
   });
 });
+
+// ── ONE COLUMN PER MONTH, AND EVERY READING IN ITS OWN ─────────────────────
+//
+// Two defects were reported together: readings sitting between gridlines rather
+// than on them, and months with no point on a chart whose premise is monthly
+// surveys. Both had the same root — the axis skipped the month its window opened
+// in, so the oldest reading had no bin and was CLAMPED onto the first one. That
+// produced a doubled column and an empty one on every multi-reading record in
+// the roster at once.
+//
+// THE GEOMETRY IS ASSERTED IN THE COMPONENT'S OWN TERMS ELSEWHERE (measured in
+// the browser: 0 points off a gridline, equal column widths). What is checkable
+// here is the DATA CONTRACT the geometry rests on: every reading the chart will
+// draw has a month bin to be drawn in, and no bin holds two.
+
+describe("the month axis can place every reading it is given", () => {
+  it("has a bin for every assessment inside the axis span", () => {
+    const monthKey = (at: number) => {
+      const d = new Date(at);
+      return d.getFullYear() * 12 + d.getMonth();
+    };
+    let checked = 0;
+    for (const { id, p } of rendered()) {
+      const bins = new Set(p.months.map((m) => monthKey(m.at)));
+      const readings = p.marks.filter(
+        (m) => m.cls === "assessment" && m.score !== undefined
+      );
+      // Every reading between the first and last bin must HAVE a bin. A reading
+      // outside the shown span is legitimately not drawn; one inside it with no
+      // bin is the clamping defect.
+      const first = Math.min(...p.months.map((m) => monthKey(m.at)));
+      const last = Math.max(...p.months.map((m) => monthKey(m.at)));
+      for (const r of readings) {
+        const k = monthKey(r.at);
+        if (k < first || k > last) continue;
+        expect(bins.has(k), `${id}: reading in month ${k} has no column`).toBe(true);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it("gives an active record one reading per month, the current month aside", () => {
+    // THE REPORTED RULE: surveys are monthly, so an active teen has a point for
+    // every month they were active. The current month is exempt — this month's
+    // survey has not been taken yet — and so is any month after a mentorship
+    // ended.
+    const monthKey = (at: number) => {
+      const d = new Date(at);
+      return d.getFullYear() * 12 + d.getMonth();
+    };
+    const nowKey = monthKey(NOW);
+    let checked = 0;
+    for (const { id, p } of rendered()) {
+      const readings = p.marks.filter(
+        (m) => m.cls === "assessment" && m.score !== undefined
+      );
+      if (readings.length < 2) continue;
+      const keys = readings.map((r) => monthKey(r.at));
+      const first = Math.min(...keys);
+      const lastReading = Math.max(...keys);
+      // No month between the first and last reading may be empty…
+      for (let k = first; k <= lastReading; k++) {
+        expect(
+          keys.includes(k),
+          `${id}: month ${k} has no reading, between ${first} and ${lastReading}`
+        ).toBe(true);
+        checked++;
+      }
+      // …and no month may hold two.
+      for (const k of new Set(keys))
+        expect(
+          keys.filter((x) => x === k),
+          `${id}: month ${k} holds more than one reading`
+        ).toHaveLength(1);
+      /* THE GAP TO THE CURRENT MONTH, but only where a review clock is still
+         running. This assertion first ran against every record and failed on
+         t20 and t22 at two months — correctly: their mentorships ended, their
+         surveys stopped with them, and demanding a recent reading from a closed
+         record would be demanding a survey nobody sent. `pendingReviewFor`
+         returns null on a closed record, which is exactly the distinction. */
+      if (pendingReviewFor(id, NOW)) {
+        expect(
+          nowKey - lastReading,
+          `${id}: newest reading is ${nowKey - lastReading} months back`
+        ).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+});
+
