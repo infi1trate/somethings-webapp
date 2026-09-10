@@ -631,6 +631,34 @@ export interface CareSummaryDoc {
   currentCode: string | null;
 }
 
+/** ═══ THE CONTACT FLOOR IS PROPORTIONAL INSIDE A BLOCK ═══
+ *
+ *  `SUMMARY_MIN_CONTACT_DAYS` is 3, and it was calibrated for a CADENCE window —
+ *  a whole review cycle, where three engaged days really is almost no
+ *  conversation. Applied unchanged to a 7-day block it is far too strict:
+ *  measured on t23, whose Recent block has 2 engaged days out of 7, the floor
+ *  gated off both the chips and the summary and the block rendered as though
+ *  nothing had happened that week. Two days in seven is real engagement; two in
+ *  ninety is not, and one number cannot mean both.
+ *
+ *  So the floor is `min(3, ceil(25% of the block))`: 2 for the 7-day block, 3
+ *  everywhere else — the cadence behaviour is unchanged for every existing
+ *  caller, because a cadence window is always long enough for the 3 to bind. A
+ *  proportion rather than a table, so a future block length gets an answer
+ *  without an edit.
+ *
+ *  EXPORTED SO A TEST CAN BIND TO IT rather than restate it. What the floor
+ *  decides is not only whether the chips render: it is also the reason a
+ *  rendered engaged-day count can never be 1, which is a claim about the copy
+ *  the card is able to show. A test that recomputed `min(3, ceil(…))` locally
+ *  would keep passing after this formula changed. */
+export function contactFloorFor(block?: CareTimeBlockId): number {
+  const blockDays = block ? blockById(block).days : null;
+  return blockDays
+    ? Math.min(SUMMARY_MIN_CONTACT_DAYS, Math.ceil(blockDays * 0.25))
+    : SUMMARY_MIN_CONTACT_DAYS;
+}
+
 /** ═══ WHY ELEMENT 1 REFUSES UNDER INSUFFICIENT DATA ═══
  *
  *  Element 1 is a claim about DIRECTION OF CHANGE, and direction needs two
@@ -786,25 +814,8 @@ export function careSummaryFor(
     : (THEME_FIXTURE[teenId] ?? null);
   const contactDays = themes?.conversationDays ?? 0;
 
-  /** ═══ THE CONTACT FLOOR IS PROPORTIONAL INSIDE A BLOCK ═══
-   *
-   *  `SUMMARY_MIN_CONTACT_DAYS` is 3, and it was calibrated for a CADENCE
-   *  window — a whole review cycle, where three engaged days really is almost no
-   *  conversation. Applied unchanged to a 7-day block it is far too strict:
-   *  measured on t23, whose Recent block has 2 engaged days out of 7, the floor
-   *  gated off both the chips and the summary and the block rendered as though
-   *  nothing had happened that week. Two days in seven is real engagement; two
-   *  in ninety is not, and one number cannot mean both.
-   *
-   *  So the floor is `min(3, ceil(25% of the block))`: 2 for the 7-day block, 3
-   *  everywhere else — the cadence behaviour is unchanged for every existing
-   *  caller, because a cadence window is always long enough for the 3 to bind.
-   *  A proportion rather than a table, so a future block length gets an answer
-   *  without an edit. */
-  const blockDays = block ? blockById(block).days : null;
-  const contactFloor = blockDays
-    ? Math.min(SUMMARY_MIN_CONTACT_DAYS, Math.ceil(blockDays * 0.25))
-    : SUMMARY_MIN_CONTACT_DAYS;
+  /* The floor, per block — see `contactFloorFor`. */
+  const contactFloor = contactFloorFor(block);
   const presentation = presentationFor(teenId, now, store);
   const currentCode = presentation?.code ?? null;
 

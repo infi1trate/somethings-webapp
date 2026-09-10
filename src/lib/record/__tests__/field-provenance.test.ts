@@ -2,6 +2,7 @@
 // committed clinical record and wrong in either direction is invisible in
 // review.
 
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   AUTHORED,
@@ -90,5 +91,45 @@ describe("disclosure", () => {
     expect(PROVENANCE_PHRASE.ai_inserted).toMatch(/unedited/);
     // Nothing renders for authored, so nothing is written for it.
     expect(PROVENANCE_PHRASE.authored).toBe("");
+  });
+
+  it("holds the two specced strings exactly, as ONE vocabulary", () => {
+    /* ═══ WHY THE EXACT STRING AND NOT A PATTERN ═══
+       These are the words a reader sees on a clinical record, specced verbatim,
+       and the failure this guards against is DRIFT rather than absence: the
+       compose modal had grown its own "AI notes inserted" beside this map's "AI
+       notes inserted, unedited", two phrasings of one state on two surfaces of
+       one record. A `/inserted/` pattern passes for every variant of that.
+       So the assertion is the string. It is meant to fail when the copy changes
+       — that is a copy decision, and this is where it gets made once. */
+    expect(PROVENANCE_PHRASE.ai_inserted).toBe("AI draft inserted, unedited");
+    expect(PROVENANCE_PHRASE.ai_assisted).toBe("Written with AI assistance");
+    // Both open a line, so both are sentence-capped. A lowercase phrase read as
+    // a fragment continuing text that was not there.
+    for (const s of [PROVENANCE_PHRASE.ai_inserted, PROVENANCE_PHRASE.ai_assisted])
+      expect(s[0]).toBe(s[0].toUpperCase());
+    // And neither is a sentence: they are suffixes on someone else's prose.
+    for (const s of Object.values(PROVENANCE_PHRASE)) expect(s).not.toMatch(/\.$/);
+  });
+
+  it("is the only place a read surface gets the words", () => {
+    // THE STRUCTURAL HALF OF THE SAME CLAIM. Normalizing the two strings does
+    // nothing if a surface can still write its own — so no component may carry
+    // one of these phrases as a literal. Checked against the source, because it
+    // is a claim about where the copy LIVES rather than what it says.
+    const dir = "src/components/record";
+    const offenders: string[] = [];
+    for (const f of readdirSync(dir)) {
+      if (!f.endsWith(".tsx")) continue;
+      const src = readFileSync(`${dir}/${f}`, "utf8");
+      // Strip comments: this file's own history is discussed in prose above the
+      // chip, and a comment quoting the old string is documentation, not copy.
+      const code = src
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      for (const phrase of ["AI draft inserted", "Written with AI assistance", "AI notes inserted"])
+        if (code.includes(phrase)) offenders.push(`${f}: "${phrase}"`);
+    }
+    expect(offenders).toEqual([]);
   });
 });

@@ -105,10 +105,34 @@ export function discloses(
   return state !== "authored";
 }
 
-/** TODO-COPY, all three. The `authored` entry is deliberately empty: nothing
+/** ═══ THE READ-VIEW VOCABULARY — ONE SET, LISTED FOR VERIFICATION (C) ═══
+ *
+ *  These two strings are the ONLY words a read surface uses for AI provenance,
+ *  and every surface reads them from here — the Care update card and History
+ *  both render `FieldProvenanceNote`, which indexes this map. A surface writing
+ *  its own phrasing is the drift this map exists to prevent, and one had
+ *  appeared: the compose modal's working chip said "AI notes inserted" while
+ *  this said "AI notes inserted, unedited". Both are now the specced strings.
+ *
+ *  WHAT NORMALIZED, AND WHAT IT COST:
+ *    · "AI notes inserted, unedited" → "AI draft inserted, unedited"
+ *    · "written with AI assistance"  → "Written with AI assistance"
+ *
+ *  BOTH ARE SENTENCE-CAPPED NOW, because both start a line: the note renders the
+ *  phrase as the first thing in its own block, so a lowercase opening read as a
+ *  fragment continuing text that was not there.
+ *
+ *  ═══ A COLLISION TO SETTLE IN COPY REVIEW ═══
+ *  "AI draft" is the specced noun here, while the panel these words describe is
+ *  labelled "AI Notes" — renamed from "AI Draft" at an earlier explicit request.
+ *  So the record now says a draft was inserted and the surface it came from is
+ *  called notes. Shipped as specced because it is stated verbatim in the brief
+ *  and flagged as one word to settle across both, not silently reconciled here.
+ *
+ *  TODO-COPY, all three. The `authored` entry is deliberately empty: nothing
  *  renders for it, and a string here would invite one to. */
 export const PROVENANCE_PHRASE: Record<FieldProvenance, string> = {
   authored: "",
-  ai_inserted: "AI notes inserted, unedited",
-  ai_assisted: "written with AI assistance",
+  ai_inserted: "AI draft inserted, unedited",
+  ai_assisted: "Written with AI assistance",
 };

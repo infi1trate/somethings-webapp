@@ -1,0 +1,921 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "record": "t17",
+      "block": "7d",
+      "range": "Sep 3 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Sep"
+      ],
+      "bin": [
+        302.3,
+        338
+      ],
+      "box": [
+        292,
+        357
+      ],
+      "boxW": 65,
+      "inline": {
+        "left": "min(89.4286%, 96% - 32.5px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(89.4286%, 96% - 32.5px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": {
+        "left": 8,
+        "right": 8
+      },
+      "clearsBadges": true,
+      "crossesOutOfScopeBadge": [
+        {
+          "badge": [
+            255.5,
+            304.5
+          ],
+          "into": 12.5
+        }
+      ]
+    },
+    {
+      "record": "t17",
+      "block": "30d",
+      "range": "Aug 11 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        257.8,
+        338
+      ],
+      "box": [
+        247.5,
+        357
+      ],
+      "boxW": 109.4,
+      "inline": {
+        "left": "min(76.2857%, 82.8571% - 32.5px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(76.2857%, 82.8571% - 32.5px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": {
+        "left": 8,
+        "right": 8
+      },
+      "clearsBadges": true,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t17",
+      "block": "90d",
+      "range": "Jun 12 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        169,
+        338
+      ],
+      "box": [
+        169,
+        357
+      ],
+      "boxW": 188,
+      "inline": {
+        "left": "min(50%, 56.5714% - 8px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(50%, 56.5714% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": {
+        "left": 86.5,
+        "right": 8
+      },
+      "clearsBadges": true,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t17",
+      "block": "All",
+      "range": "Feb 12 – Sep 10, 2026 · full mentorship",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        0,
+        338
+      ],
+      "box": [
+        3.6,
+        353.4
+      ],
+      "boxW": 349.8,
+      "inline": {
+        "left": "min(0%, 4% - 8px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(0%, 4% - 8px))"
+      },
+      "opacity": 0,
+      "scale": "0.98",
+      "coversBins": null,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": null
+    },
+    {
+      "record": "t23",
+      "block": "7d",
+      "range": "Sep 3 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "Sep"
+      ],
+      "bin": [
+        285.6,
+        338
+      ],
+      "box": [
+        285.6,
+        338
+      ],
+      "boxW": 52.4,
+      "inline": {
+        "left": "min(84.5%, 96% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(84.5%, 96% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t23",
+      "block": "30d",
+      "range": "Aug 11 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        207.79999999999998,
+        338
+      ],
+      "box": [
+        207.9,
+        338
+      ],
+      "boxW": 130.1,
+      "inline": {
+        "left": "min(61.5%, 73% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(61.5%, 73% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t23",
+      "block": "90d",
+      "range": "Jun 12 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        52.4,
+        338
+      ],
+      "box": [
+        52.4,
+        338
+      ],
+      "boxW": 285.6,
+      "inline": {
+        "left": "min(15.5%, 27% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(15.5%, 27% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t23",
+      "block": "All",
+      "range": "Apr 29 – Sep 10, 2026 · full mentorship",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        0,
+        338
+      ],
+      "box": [
+        3.4,
+        334.6
+      ],
+      "boxW": 331.2,
+      "inline": {
+        "left": "min(0%, 4% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(0%, 4% - 8px))"
+      },
+      "opacity": 0,
+      "scale": "0.98",
+      "coversBins": null,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": null
+    },
+    {
+      "record": "t1",
+      "block": "7d",
+      "skip": "no scope container"
+    },
+    {
+      "record": "t1",
+      "block": "30d",
+      "skip": "no scope container"
+    },
+    {
+      "record": "t1",
+      "block": "90d",
+      "skip": "no scope container"
+    },
+    {
+      "record": "t1",
+      "block": "All",
+      "skip": "no scope container"
+    }
+  ],
+  "stack": [
+    {
+      "record": "t17",
+      "block": "7d",
+      "caption": "Sep 3 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 115.3,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "3",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "7",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"3\"",
+        "14px w400 lausanne — \"Three engaged days this \"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Sep 3 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w500 lausanne — \"7d\"",
+        "11px w400 lausanne — \"30d\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Sep 3 – Sep 10, 2026 3 engaged days, 7 exchanges."
+    },
+    {
+      "record": "t17",
+      "block": "30d",
+      "caption": "Aug 11 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 119.6,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "9",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "22",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"9\"",
+        "14px w400 lausanne — \"Contact has been steady \"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Aug 11 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"30d\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Aug 11 – Sep 10, 2026 9 engaged days, 22 exchanges."
+    },
+    {
+      "record": "t17",
+      "block": "90d",
+      "caption": "Jun 12 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 118.8,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "24",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "61",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"24\"",
+        "14px w400 lausanne — \"PHQ-9 has come down from\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Jun 12 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"90d\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Jun 12 – Sep 10, 2026 24 engaged days, 61 exchanges."
+    },
+    {
+      "record": "t17",
+      "block": "All",
+      "caption": "Feb 12 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 208,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "58",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "149",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"58\"",
+        "14px w400 lausanne — \"PHQ-9 has come down from\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Feb 12 – Sep 10, 2026 · \"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"All\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Feb 12 – Sep 10, 2026 · full mentorship 58 engaged days, 149 exchanges."
+    },
+    {
+      "record": "t23",
+      "block": "7d",
+      "caption": "Sep 3 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 115.3,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "2",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "5",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"2\"",
+        "14px w400 lausanne — \"Two engaged days this we\"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Sep 3 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w500 lausanne — \"7d\"",
+        "11px w400 lausanne — \"30d\""
+      ],
+      "utterance": "Sep 3 – Sep 10, 2026 2 engaged days, 5 exchanges."
+    },
+    {
+      "record": "t23",
+      "block": "30d",
+      "caption": "Aug 11 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 119.6,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "7",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "18",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"7\"",
+        "14px w400 lausanne — \"Contact has been steady \"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Aug 11 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"30d\""
+      ],
+      "utterance": "Aug 11 – Sep 10, 2026 7 engaged days, 18 exchanges."
+    },
+    {
+      "record": "t23",
+      "block": "90d",
+      "caption": "Jun 12 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 118.8,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "19",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "44",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"19\"",
+        "14px w400 lausanne — \"GAD-7 has risen from the\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Jun 12 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"90d\""
+      ],
+      "utterance": "Jun 12 – Sep 10, 2026 19 engaged days, 44 exchanges."
+    },
+    {
+      "record": "t23",
+      "block": "All",
+      "caption": "Apr 29 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 209.2,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "26",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "61",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"26\"",
+        "14px w400 lausanne — \"GAD-7 has risen from the\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Apr 29 – Sep 10, 2026 · \"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"All\""
+      ],
+      "utterance": "Apr 29 – Sep 10, 2026 · full mentorship 26 engaged days, 61 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "7d",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w500 lausanne — \"7d\"",
+        "11px w400 lausanne — \"30d\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "30d",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"30d\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "90d",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"90d\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "All",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"All\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    }
+  ],
+  "failures": [],
+  "tween": {
+    "running": [
+      "left",
+      "width"
+    ],
+    "from": {
+      "l": 247.5,
+      "w": 109.4
+    },
+    "to": {
+      "l": 169,
+      "w": 188
+    },
+    "at": {
+      "30": {
+        "dt": 57,
+        "l": 247.5,
+        "w": 109.4
+      },
+      "60": {
+        "dt": 62,
+        "l": 247.4,
+        "w": 109.5
+      },
+      "150": {
+        "dt": 151,
+        "l": 211.6,
+        "w": 145.3
+      },
+      "300": {
+        "dt": 301,
+        "l": 170.3,
+        "w": 186.7
+      }
+    },
+    "interpolates": true,
+    "reducedMotion": {
+      "property": "none",
+      "from": {
+        "l": 247.5,
+        "w": 109.4
+      },
+      "firstFrame": {
+        "l": 169,
+        "w": 188
+      },
+      "instant": true
+    }
+  }
+}
