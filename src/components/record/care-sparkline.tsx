@@ -194,8 +194,25 @@ function mergeCrowded(
 
 export function CareSparkline({
   pattern,
+  scope,
   onSelectEvent,
 }: {
+  /** ═══ THE BOX IS THE SCOPE INDICATOR NOW ═══
+   *
+   *  It used to frame "the three months the weighted score covers" — a fact
+   *  about the REVIEW. The rail's time-block control took that job over: the box
+   *  marks the period the card's numbers describe, which is the question a
+   *  reader of this chart is actually asking once the numbers above it can
+   *  change.
+   *
+   *  THE PLOT IS UNAFFECTED, ALWAYS. Every reading on the record stays drawn
+   *  whatever the block — a chart that dropped points would make a 7-day view
+   *  look like a 7-day record, and the trajectory's whole value is the shape
+   *  behind the current number. Only the box moves.
+   *
+   *  `null` MEANS NO BOX, which is the `all` block: a frame around the entire
+   *  plot says nothing that the absence of a frame does not say more quietly. */
+  scope: { fromAt: number; toAt: number } | null;
   /** Null means there is nothing to plot — the caller renders nothing. Kept in
    *  the signature so a caller cannot forget null is a designed outcome. */
   pattern: CarePattern | null;
@@ -313,25 +330,45 @@ export function CareSparkline({
    *
    *  This was wrong before the axis changed too; making the empty current
    *  column visible is what made it findable. */
-  const readingMonthKeys = new Set(
-    assessments
-      .filter((m) => colByMonth.has(monthKey(m.at)))
-      .map((m) => monthKey(m.at))
-  );
-  /* THE MONTH BINS THEMSELVES, not just their x — the box's edges need the
-     position and its per-side cushions need the month, and two lists derived
-     separately is how those two came to disagree in the first place. */
-  const weightedMonths = monthX
-    .filter((m) => readingMonthKeys.has(monthKey(m.at)))
-    .slice(-3);
 
   /** ═══ THE LAST THREE MONTHS, AS A BOX ═══
    *  From the first of the last three month marks to the right edge of the
    *  plot. `null` below three months: a "last three" box over two months would
    *  be a frame around the whole chart, which says nothing. */
+  /** ═══ THE COLUMNS THE BLOCK TOUCHES ═══
+   *
+   *  A MONTH-BINNED AXIS CANNOT DRAW A SUB-MONTH BOX, AND THIS DOES NOT PRETEND
+   *  TO. The x axis is one column per calendar month, so a 7-day block lives
+   *  inside a single column — two when the week crosses a month boundary — and
+   *  the box highlights the column(s) the block OVERLAPS rather than the seven
+   *  days themselves.
+   *
+   *  It is an approximation and deliberately the coarse one: a box at true
+   *  sub-column width would sit between gridlines and imply a precision the axis
+   *  does not have, on a chart whose own rule is that nothing floats between
+   *  columns. The EXACT DATES are on the range line one row above the chart,
+   *  which is what makes the approximation safe — the precise answer is already
+   *  on screen and this is the visual index into it.
+   *
+   *  OVERLAP, NOT CONTAINMENT: a block covering any part of a month touches
+   *  that column. Containment would leave a 7-day block mid-month matching
+   *  nothing at all. */
+  const scopeMonths = scope
+    ? monthX.filter((m) => {
+        const d = new Date(m.at);
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        const monthEnd =
+          new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1;
+        return monthStart <= scope.toAt && monthEnd >= scope.fromAt;
+      })
+    : [];
+
   const windowBox =
-    // THREE READING-MONTHS, not three columns — see `weightedCols`.
-    weightedMonths.length >= 3
+    /* ONE COLUMN IS ENOUGH NOW. The old box needed three, because "the last
+       three months" over two months was a frame around the whole chart; a SCOPE
+       box over one month is a scope box over one month, which is exactly what a
+       7-day block is. `all` passes no scope and gets no box. */
+    scopeMonths.length >= 1
       ? (() => {
           /* ═══ MONTH-ALIGNED, NOT OFFSET-BY-A-CONSTANT ═══
              It was `firstInWindow - 2`, a fixed nudge that drifted with the
@@ -355,8 +392,8 @@ export function CareSparkline({
              clamping one side would be the bug this replaces.
              COLUMN WIDTHS ARE UNTOUCHED. The clamp moves the box's edge, never a
              gridline, so every month keeps the same width. */
-          const firstIn = weightedMonths[0].x;
-          const lastIn = weightedMonths[weightedMonths.length - 1].x;
+          const firstIn = scopeMonths[0].x;
+          const lastIn = scopeMonths[scopeMonths.length - 1].x;
           /** Half a unit of breathing room so the box's own border is never
            *  flush with the plot's edge. */
           /* `half` and the old clamped `inset` are gone with the % bounds they
@@ -397,9 +434,8 @@ export function CareSparkline({
              `monthX[len-1]` — the last three CALENDAR months — while the edges
              moved to the weighted ones, so each cushion was sized for a badge
              that might sit on a different column than the edge it padded. */
-          const padL = PAD + edgeHalf(weightedMonths[0]?.at);
-          const padR =
-            PAD + edgeHalf(weightedMonths[weightedMonths.length - 1]?.at);
+          const padL = PAD + edgeHalf(scopeMonths[0]?.at);
+          const padR = PAD + edgeHalf(scopeMonths[scopeMonths.length - 1]?.at);
           /* ═══ THE CUSHION REPLACES THE HALF-COLUMN INSET, NOT ADDS TO IT ═══
              Stacking the two put 31px of air on each side — equal, but the box
              then reached almost to the out-of-window gridline, which is a

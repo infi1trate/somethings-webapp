@@ -41,6 +41,11 @@ import {
   type CareEvent,
   type CareStoreSlice,
 } from "@/lib/record/care-demo";
+import {
+  blockById,
+  blockWindowFor,
+  type CareTimeBlockId,
+} from "@/lib/record/care-time-block";
 import { categoryLabel, DEMO_TEENS } from "@/lib/record/people-demo";
 import {
   CLINICAL_REVIEW_THRESHOLD,
@@ -381,6 +386,152 @@ const THEME_FIXTURE: Record<
  *  said. A record with no entry here renders the empty state.
  *
  *  TODO-COPY, all of it. Synthetic; no real names. */
+/** ═══ PER-BLOCK CONVERSATION DATA — WHAT COULD NOT BE COMPUTED ═══
+ *
+ *  Phase 0's feasibility split, recorded so the next reader does not re-derive
+ *  it. Given the block's date range:
+ *
+ *    COMPUTABLE from existing fixtures, because the source events are DATED:
+ *      · assessments in the block, and therefore the trajectory sentence
+ *      · risk flags in the block
+ *      · the chart's plot and its month bins
+ *
+ *    NOT COMPUTABLE, because the source has counts but no dates:
+ *      · engaged days and exchanges — `THEME_FIXTURE.conversationDays` is one
+ *        number for the whole record and `careReadingFor` is unwindowed
+ *      · chip counts — a theme carries `days: 7` with no dates behind it
+ *      · the conversation summary — prose, and there is no pipeline
+ *
+ *  So the three uncomputable ones are stated per block for the two scenarios the
+ *  pack names, and every other record degrades to the existing empty states
+ *  rather than showing another block's numbers. STALE TEXT IS THE FAILURE MODE
+ *  THIS SHAPE EXISTS TO PREVENT: a 7-day view carrying the all-time summary
+ *  would be a sentence about seven days that describes two hundred.
+ *
+ *  THE NUMBERS ARE MONOTONE BY CONSTRUCTION — a shorter block can never report
+ *  more engaged days, more exchanges, or a higher chip count than a longer one
+ *  containing it. Asserted in the tests, because a hand-written table is exactly
+ *  where that stops being true. */
+const BLOCK_CONVERSATION: Record<
+  string,
+  Partial<
+    Record<
+      CareTimeBlockId,
+      {
+        conversationDays: number;
+        exchanges: number;
+        themes: ThemeCount[];
+        summary: string | null;
+      }
+    >
+  >
+> = {
+  /* ═══ RICH LONGITUDINAL — VISIBLY DIFFERENT ACROSS THREE BLOCKS ═══
+     The chip SET changes, not only the counts: `divorce-separation` and
+     `family-member-illness` are household threads that ran earlier in the
+     mentorship and do not appear in the last seven days, so they drop out of
+     Recent entirely. That is the toggle demonstrably changing the data rather
+     than rescaling one set of numbers. */
+  t17: {
+    recent: {
+      conversationDays: 3,
+      exchanges: 7,
+      themes: [
+        { tagId: "sleep-disturbance", days: 3 },
+        { tagId: "low-mood-hopelessness", days: 2 },
+        { tagId: "household-substance-use", days: 1 },
+      ],
+      summary:
+        "Three engaged days this week, all teen-initiated. Sleep has come up on each of them and low mood on two. The escalation raised on Sep 1 about access to a phone is still open and with a supervisor.",
+    },
+    d30: {
+      conversationDays: 9,
+      exchanges: 22,
+      themes: [
+        { tagId: "sleep-disturbance", days: 7 },
+        { tagId: "low-mood-hopelessness", days: 6 },
+        { tagId: "school-avoidance", days: 4 },
+        { tagId: "household-substance-use", days: 6 },
+        { tagId: "family-member-illness", days: 4 },
+        { tagId: "divorce-separation", days: 3 },
+      ],
+      summary:
+        "Contact has been steady through the month, with the teen initiating most of the scheduled calls and keeping the two that were moved. Sleep and low mood are the themes that recur most, and school avoidance has come up in about half the conversations. An escalation raised on Sep 1 about access to a phone remains open.",
+    },
+    d90: {
+      conversationDays: 24,
+      exchanges: 61,
+      themes: [
+        { tagId: "sleep-disturbance", days: 18 },
+        { tagId: "low-mood-hopelessness", days: 15 },
+        { tagId: "school-avoidance", days: 11 },
+        { tagId: "household-substance-use", days: 14 },
+        { tagId: "family-member-illness", days: 9 },
+        { tagId: "divorce-separation", days: 7 },
+      ],
+      summary:
+        "Across the quarter the pattern has been consistent engagement against a household that keeps reappearing in the conversations. Sleep is the most persistent theme and low mood tracks alongside it. School avoidance surfaced in the middle of the period and has not settled. Two escalations were raised in the quarter and one remains open.",
+    },
+    all: {
+      conversationDays: 58,
+      exchanges: 149,
+      themes: [
+        { tagId: "sleep-disturbance", days: 41 },
+        { tagId: "low-mood-hopelessness", days: 36 },
+        { tagId: "school-avoidance", days: 22 },
+        { tagId: "household-substance-use", days: 31 },
+        { tagId: "family-member-illness", days: 18 },
+        { tagId: "divorce-separation", days: 14 },
+      ],
+      summary:
+        "Across the whole mentorship the record reads as sustained engagement through an unsettled home. Sleep and low mood have been present from the first month and have moved together. The household threads — a separation, a family illness, substance use at home — recur across the period rather than clustering in it. Engagement has not dropped off as the scores have moved, which is the most consistent feature of the record.",
+    },
+  },
+
+  /* ═══ 90-DAY REVIEW DUE — the GAD-7 track, thinner contact ═══ */
+  t23: {
+    recent: {
+      conversationDays: 2,
+      exchanges: 5,
+      themes: [{ tagId: "excessive-worry", days: 2 }],
+      summary:
+        "Two engaged days this week, both short exchanges between scheduled calls. Worry about school was the only theme raised.",
+    },
+    d30: {
+      conversationDays: 7,
+      exchanges: 18,
+      themes: [
+        { tagId: "excessive-worry", days: 6 },
+        { tagId: "restlessness", days: 3 },
+      ],
+      summary:
+        "Contact has been steady across the month, with short exchanges between the scheduled calls. Worry about school is the theme that recurs and has stayed level rather than building. No flags were raised.",
+    },
+    d90: {
+      conversationDays: 19,
+      exchanges: 44,
+      themes: [
+        { tagId: "excessive-worry", days: 15 },
+        { tagId: "restlessness", days: 8 },
+        { tagId: "school-avoidance", days: 4 },
+      ],
+      summary:
+        "Over the quarter worry about school has been the constant, present in most engaged days and at a steady level. Restlessness appears alongside it in about half. School avoidance came up a few times early in the period and has not recurred.",
+    },
+    all: {
+      conversationDays: 26,
+      exchanges: 61,
+      themes: [
+        { tagId: "excessive-worry", days: 20 },
+        { tagId: "restlessness", days: 11 },
+        { tagId: "school-avoidance", days: 5 },
+      ],
+      summary:
+        "The mentorship has been consistent since matching, with worry about school present from the start and holding at the same level rather than building. Restlessness tracks with it. Nothing in the record has been raised as a flag or an escalation.",
+    },
+  },
+};
+
 const SUMMARY_FIXTURE: Record<string, string> = {
   // RICH LONGITUDINAL — carries an OPEN escalation, and the summary says so.
   t17: "Contact has been steady through the window, with the teen initiating most of the scheduled calls and keeping the two that were moved. Sleep and low mood are the themes that recur most, and school avoidance has come up in about half the conversations. The household has been a consistent backdrop rather than an occasional one, with an illness in the family and a separation both referred to across the period. An escalation raised on Sep 1 about access to a phone remains open and is with a supervisor. Engagement itself has not dropped off as the scores have moved.",
@@ -469,6 +620,14 @@ export interface CareSummaryDoc {
   /** Element 5. */
   concordance: ConcordanceCall;
   contactDays: number;
+  /** How many assessments fall inside the window. The card needs the COUNT, not
+   *  just "fewer than two": a block with one reading and a block with none are
+   *  different facts, and one refusal sentence for both said "no new assessment"
+   *  over a period that had one. */
+  assessmentsInWindow: number;
+  /** Exchanges in the window. Null outside a block — the cadence-window caller
+   *  has never had a windowed count and the card falls back to its own prop. */
+  exchanges: number | null;
   currentCode: string | null;
 }
 
@@ -533,10 +692,31 @@ function scoreOf(e: CareEvent): number {
 export function careSummaryFor(
   teenId: string,
   now: number,
-  store: CareStoreSlice = {}
+  store: CareStoreSlice = {},
+  /** ═══ THE VIEWING BLOCK, AND WHAT IT DOES NOT TOUCH ═══
+   *
+   *  Rail time-block is a viewing control; clinical review windows are
+   *  cadence-anchored and independent.
+   *
+   *  Omitted means the cadence window — last code update → now — which is what
+   *  every caller wanted before this parameter existed and what the COMMITTED
+   *  summary must keep using: a frozen document's window is the period its
+   *  decision rested on, not a period someone later chose to look at.
+   *
+   *  `commitFor` therefore never passes a block, and `pendingReviewFor` never
+   *  reads this function at all. */
+  block?: CareTimeBlockId
 ): CareSummaryDoc | null {
   const teen = DEMO_TEENS.find((t) => t.id === teenId);
-  const window = summaryWindowFor(teenId, now, store);
+  /** THE CADENCE WINDOW, KEPT EVEN WHEN A BLOCK IS SET. One thing still needs
+   *  it: `firstCycle` means "there is no prior code to be relative to", which is
+   *  a fact about the record's history and not about the period being viewed. A
+   *  7-day block on a record with three code changes is not a first cycle. */
+  const cadence = summaryWindowFor(teenId, now, store);
+  const blockWindow = block ? blockWindowFor(teenId, now, block) : null;
+  const window: SummaryWindow | null = blockWindow
+    ? { fromAt: blockWindow.fromAt, toAt: blockWindow.toAt, firstCycle: cadence?.firstCycle ?? true }
+    : cadence;
   if (!teen || !window) return null;
 
   const inWindow = (at: number) => at >= window.fromAt && at <= window.toAt;
@@ -593,8 +773,38 @@ export function careSummaryFor(
     };
   });
 
-  const themes = THEME_FIXTURE[teenId] ?? null;
+  /* ═══ THE PER-BLOCK TABLE WINS WHEN A BLOCK IS SET, AND ITS ABSENCE IS AN
+        EMPTY STATE RATHER THAN A FALLBACK ═══
+     `?? null`, NOT `?? THEME_FIXTURE[teenId]`. Falling back to the unwindowed
+     fixture is precisely the stale-text failure: a record with no 7-day entry
+     would render its all-time chips under a line that says "Sep 3 – Sep 10".
+     A block with no data degrades to the existing empty state, which is honest
+     and is what the pack asks for. */
+  const perBlock = block ? (BLOCK_CONVERSATION[teenId]?.[block] ?? null) : null;
+  const themes = block
+    ? (perBlock ? { conversationDays: perBlock.conversationDays, themes: perBlock.themes } : null)
+    : (THEME_FIXTURE[teenId] ?? null);
   const contactDays = themes?.conversationDays ?? 0;
+
+  /** ═══ THE CONTACT FLOOR IS PROPORTIONAL INSIDE A BLOCK ═══
+   *
+   *  `SUMMARY_MIN_CONTACT_DAYS` is 3, and it was calibrated for a CADENCE
+   *  window — a whole review cycle, where three engaged days really is almost no
+   *  conversation. Applied unchanged to a 7-day block it is far too strict:
+   *  measured on t23, whose Recent block has 2 engaged days out of 7, the floor
+   *  gated off both the chips and the summary and the block rendered as though
+   *  nothing had happened that week. Two days in seven is real engagement; two
+   *  in ninety is not, and one number cannot mean both.
+   *
+   *  So the floor is `min(3, ceil(25% of the block))`: 2 for the 7-day block, 3
+   *  everywhere else — the cadence behaviour is unchanged for every existing
+   *  caller, because a cadence window is always long enough for the 3 to bind.
+   *  A proportion rather than a table, so a future block length gets an answer
+   *  without an edit. */
+  const blockDays = block ? blockById(block).days : null;
+  const contactFloor = blockDays
+    ? Math.min(SUMMARY_MIN_CONTACT_DAYS, Math.ceil(blockDays * 0.25))
+    : SUMMARY_MIN_CONTACT_DAYS;
   const presentation = presentationFor(teenId, now, store);
   const currentCode = presentation?.code ?? null;
 
@@ -626,14 +836,16 @@ export function careSummaryFor(
       "Theme extraction (mocked — no pipeline)",
     ],
     trajectory: trajectoryFor(assessments, contactDays),
-    themes: contactDays >= SUMMARY_MIN_CONTACT_DAYS ? themes : null,
+    themes: contactDays >= contactFloor ? themes : null,
     /* GATED ON THE SAME CONTACT FLOOR AS THE THEMES. A qualitative read of a
        window with almost no conversation in it is the same problem element 1
        refuses for: prose with no visible confidence marker, indistinguishable
        from a solid one. One floor, both elements. */
     conversationSummary:
-      contactDays >= SUMMARY_MIN_CONTACT_DAYS
-        ? (SUMMARY_FIXTURE[teenId] ?? null)
+      contactDays >= contactFloor
+        ? block
+          ? (perBlock?.summary ?? null)
+          : (SUMMARY_FIXTURE[teenId] ?? null)
         : null,
     // FIRST CYCLE: "resolved" has no prior code to be relative to, so the element
     // states that rather than rendering an empty row.
@@ -643,6 +855,16 @@ export function careSummaryFor(
     flags,
     concordance,
     contactDays,
+    /** ═══ EXCHANGES MOVED ONTO THE DOCUMENT ═══
+     *  The card used to be HANDED this by `care-tab`, from `careReadingFor`,
+     *  which is unwindowed — the comment there records the bug it caused, a
+     *  subtitle reading "21 exchanges" beside a line naming a shorter period.
+     *  With a block control that mismatch stops being a one-off and becomes the
+     *  normal case, so the count now comes from the same place as the days it
+     *  sits beside. Null when the block has no entry, and the subtitle then
+     *  reports days alone. */
+    assessmentsInWindow: assessments.length,
+    exchanges: block ? (perBlock?.exchanges ?? null) : null,
     currentCode,
   };
 }

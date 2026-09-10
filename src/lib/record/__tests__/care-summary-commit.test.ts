@@ -24,6 +24,11 @@ const doc = (over: Partial<CareSummaryDoc> = {}): CareSummaryDoc => ({
   window: { fromAt: 1_000, toAt: 9_000, firstCycle: false },
   generatedAt: 9_000,
   sources: ["assessments"],
+  /* Absent, like `conversationSummary` below: a COMMIT does not copy the
+     exchange count either, so the builder states it rather than inventing a
+     number the assertions would have to ignore. */
+  exchanges: null,
+  assessmentsInWindow: 0,
   // The qualitative read is not part of a COMMIT — `commitFor` does not copy it
   // — so the builder states it as absent rather than inventing prose the
   // assertions would then have to ignore.

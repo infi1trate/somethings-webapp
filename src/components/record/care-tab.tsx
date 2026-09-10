@@ -42,6 +42,12 @@
 // enough data yet, and the timeline shows its designed empty state.
 
 import { aiNotesFor, draftBasis } from "@/lib/record/ai-drafts";
+import {
+  DEFAULT_CARE_BLOCK,
+  blockRangeLine,
+  blockWindowFor,
+  type CareTimeBlockId,
+} from "@/lib/record/care-time-block";
 import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -328,7 +334,23 @@ export function CareTab({
   );
   /** THE EVIDENCE DOCUMENT for this cycle. Window = last code update → now, so
    *  it is cadence-agnostic — see `care-summary-doc.ts`. */
-  const summaryDocBase = careSummaryFor(teen.id, now, store);
+  /** ═══ THE RAIL'S VIEWING BLOCK ═══
+   *
+   *  Rail time-block is a viewing control; clinical review windows are
+   *  cadence-anchored and independent. This state reaches exactly one place —
+   *  `careSummaryFor` below — and nothing else on the tab reads it. The review
+   *  card derives its own window from cadence (`pendingReviewFor`), the
+   *  presentation row reads the record, and History is the whole record; none
+   *  of the three is passed this value, and a test asserts they do not move.
+   *
+   *  NOT PERSISTED. Every fresh open is `DEFAULT_CARE_BLOCK` — see the note
+   *  there on why a remembered scope is a scope the next reader inherits
+   *  without being able to see that they did. */
+  const [block, setBlock] = useState<CareTimeBlockId>(DEFAULT_CARE_BLOCK);
+  const blockWindow = blockWindowFor(teen.id, now, block);
+  const rangeLine = blockWindow ? blockRangeLine(blockWindow, block) : "";
+
+  const summaryDocBase = careSummaryFor(teen.id, now, store, block);
   /** THE GENERATED LINE MUST NAME THE LAST REFRESH, not this render. `now` is
    *  fixed at mount, so without this a summary refreshed ten minutes ago would
    *  claim it was generated at page load — a timestamp that reads as fresher
@@ -525,6 +547,9 @@ export function CareTab({
   const summaryNode = summaryDoc ? (
     <CareSummaryDocCard
       doc={summaryDoc}
+      block={block}
+      onBlockChange={setBlock}
+      rangeLine={rangeLine}
       pattern={pattern}
       /* THE COUNT, NOT A SENTENCE (B1). The card composes the meta line from its
          own window; handing it a pre-formatted string was how a windowed period

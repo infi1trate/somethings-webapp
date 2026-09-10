@@ -40,6 +40,11 @@ import {
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { CareSparkline } from "@/components/record/care-sparkline";
+import { SegmentedControl } from "@/components/record/segmented-control";
+import {
+  CARE_TIME_BLOCKS,
+  type CareTimeBlockId,
+} from "@/lib/record/care-time-block";
 import { PROVENANCE_NOTE, Provenance } from "@/components/record/provenance";
 import type { CarePattern } from "@/lib/record/care-pattern";
 import {
@@ -214,6 +219,9 @@ export function summaryMetaLine(
 
 export function CareSummaryDocCard({
   doc,
+  block,
+  onBlockChange,
+  rangeLine,
   /** Supervisor tier. Gates the refresh control — element 5, which it also used
    *  to gate, is removed. */
   pattern,
@@ -227,6 +235,19 @@ export function CareSummaryDocCard({
    *  props. Null is a designed outcome — most records have no pattern — and the
    *  strip then renders nothing while the trajectory sentence stands alone. */
   pattern: CarePattern | null;
+  /** ═══ THE BLOCK IS OWNED BY THE TAB, NOT BY THIS CARD ═══
+   *  The card renders the control and reports changes; the tab holds the state
+   *  and re-derives the document. That is the only arrangement in which the
+   *  DOCUMENT and the CONTROL cannot disagree — a card holding its own block
+   *  would be one render away from showing 30-day data under a "Recent" thumb.
+   *  `onBlockChange` absent renders NO CONTROL, which is what the committed
+   *  summary's read-only view wants: a frozen document has one window and
+   *  offering to re-scope it would imply the freeze is negotiable. */
+  block: CareTimeBlockId;
+  onBlockChange?: (b: CareTimeBlockId) => void;
+  /** The resolved range, from `blockRangeLine`. Passed rather than computed so
+   *  the card cannot state a period the document was not built for. */
+  rangeLine: string;
   /** ONE MUTED LINE, AND IT MUST NAME ITS OWN SCOPE.
    *
    *  `careReadingFor` is UNWINDOWED — it describes the whole mentorship, not
@@ -266,6 +287,8 @@ export function CareSummaryDocCard({
           without scrolling, and a reader who has to scroll to learn a document is
           AI-generated has already read it as authored. */}
       <header className="border-b border-[color:var(--border-subtle)] px-5 py-4">
+        {/* THE TIME BLOCK CONTROL IS RENDERED AT THE END OF THIS HEADER — see
+            below the title row. */}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="min-w-0">
             <h2
@@ -293,12 +316,25 @@ export function CareSummaryDocCard({
             <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               {summaryMetaLine(
                 doc.window,
-                exchanges,
+                /* ═══ NO FALLBACK TO THE UNWINDOWED PROP INSIDE A BLOCK ═══
+                   This was `doc.exchanges ?? exchanges`, and the `??` was the
+                   bug: `exchanges` is `careReadingFor`, which describes the
+                   whole mentorship. On t1 — one day old, no per-block entry —
+                   that rendered "22 exchanges" under a range line reading
+                   "Sep 9 – Sep 10". A count from a different period than the
+                   line above it is the exact defect this control exists to end,
+                   and a fallback is how it comes back.
+                   So inside a block the count is the block's or absent, and the
+                   subtitle reports days alone. Outside a block (the committed
+                   summary's read-only view) the prop still stands. */
+                onBlockChange ? doc.exchanges : (doc.exchanges ?? exchanges),
                 doc.themes?.conversationDays ?? null
               )}
             </p>
           </div>
 
+          {/* THE CONTROL SITS BELOW THIS ROW, not in it — see after the
+              closing div. */}
           {/* ═══ REFRESH IS GONE (B2) ═══
               It re-stamped the Generated date and showed a toast saying
               regeneration was not wired — a control whose honest label was "this
@@ -321,6 +357,55 @@ export function CareSummaryDocCard({
           <Provenance note={summaryProvenanceNote(doc.window, doc.generatedAt)} />
         </div>
 
+        {/* ══ THE TIME BLOCK CONTROL, AND THE ONE SCOPE DECLARATION ══════════
+            Rail time-block is a viewing control; clinical review windows are
+            cadence-anchored and independent. Nothing below this card responds
+            to it — see `care-time-block.ts` and the boundary test.
+
+            `semantics="group"`, NOT `"tabs"`. Tabs semantics needs
+            `aria-controls` pointing at a panel the segment reveals, and these
+            segments reveal nothing: they re-scope the data already on screen.
+            `aria-pressed` on a button group is what that is.
+            THE COST, REPORTED: the shared control wires ArrowLeft/Right only
+            for `tabs` (`if (!isTabs) return` in its `onKeyDown`), so this group
+            is Tab-and-Enter operable rather than arrow-steppable. Adding arrow
+            keys to group mode is a change to a component with six other
+            consumers, so it is reported rather than made.
+
+            `fullWidth` — four segments at the rail's 380px. Measured: they fit
+            with the labels at their natural width and no truncation. */}
+        {onBlockChange && (
+          <div className="mt-3">
+            <SegmentedControl
+              options={CARE_TIME_BLOCKS.map((b) => ({
+                value: b.id,
+                label: b.label,
+              }))}
+              value={block}
+              onChange={onBlockChange}
+              size="sm"
+              semantics="group"
+              fullWidth
+              /* TODO-COPY */
+              ariaLabel="Care summary time period"
+            />
+            {/* ═══ ONE LINE, AND IT IS THE ONLY SCOPE LABEL ON THE CARD ═══
+                Every section below is scoped by the block and none of them says
+                so. Per-section labels would repeat this five times and still
+                leave a reader checking whether any section disagreed.
+                `aria-live="polite"` ANNOUNCES THE RANGE, NOT THE BLOCK. A
+                screen-reader user pressing the control already hears the segment
+                they activated; what they cannot hear is which dates that
+                resolved to — and on a short record "30d" resolves to something
+                other than thirty days. */}
+            <p
+              aria-live="polite"
+              className="mt-2 text-[12px] leading-[17px] text-[var(--text-secondary)]"
+            >
+              {rangeLine}
+            </p>
+          </div>
+        )}
       </header>
 
       {/* ── 1 · SYMPTOM TRAJECTORY ─── one sentence, then one strip ─────── */}
@@ -341,11 +426,26 @@ export function CareSummaryDocCard({
           </p>
         ) : (
           <Refusal>
-            {/* TODO-COPY — element 1 refuses rather than hedging. Direction of
-                change needs two comparable readings, and prose carries no
-                confidence marker, so a thin sentence is indistinguishable from a
-                solid one. */}
-            Not enough comparable readings in this window to state a direction.
+            {/* ═══ TWO DIFFERENT REFUSALS, BECAUSE THEY MEAN DIFFERENT THINGS ═══
+                Element 1 refuses rather than hedging: direction of change needs
+                two comparable readings, and prose carries no confidence marker,
+                so a thin sentence is indistinguishable from a solid one.
+                BUT INSIDE A SHORT BLOCK THE ORIGINAL WORDING LIED BY IMPLICATION.
+                Surveys are monthly, so a 7-day block contains at most one — and
+                "not enough comparable readings" sat directly above a chart
+                showing EIGHT of them. A reader gets a full trajectory and a
+                sentence denying there is one. Seen in the rendered card, not in
+                the diff.
+                So a block that simply has no second reading says that, and a
+                record that genuinely lacks readings still says the original. The
+                chart is whole-record on purpose — see its `scope` prop — and this
+                is the sentence that stops the pairing reading as a contradiction.
+                TODO-COPY, both. */}
+            {onBlockChange && block !== "all" && (pattern?.marks?.length ?? 0) > 1
+              ? doc.assessmentsInWindow === 1
+                ? "One assessment in this period — a direction needs two. The chart shows the whole record."
+                : "No assessment in this period — the chart shows the whole record."
+              : "Not enough comparable readings in this window to state a direction."}
           </Refusal>
         )}
 
@@ -353,6 +453,9 @@ export function CareSummaryDocCard({
           <div className="mt-2">
             <CareSparkline
               pattern={pattern}
+              /* THE BOX MARKS THE BLOCK, and `all` gets none — see the note on
+                 the `scope` prop. The plot itself is never filtered. */
+              scope={block === "all" ? null : doc.window}
               onSelectEvent={onJumpToEvent ?? (() => {})}
             />
             {/* ═══ THE CHART'S CAPTION AND ITS MARK ARE GONE ═══
