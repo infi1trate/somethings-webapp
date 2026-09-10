@@ -32,7 +32,7 @@
 // and gives a 5px target. These get real keyboard semantics, a real ring and a
 // 24px target while the SVG below draws the line they sit on.
 
-import { useCallback, useId, useState } from "react";
+import { useCallback, useState } from "react";
 import { plotScoreY } from "@/components/record/score-sparkline";
 import { bandLabel } from "@/components/record/score-chip";
 import { clinicalDate } from "@/components/record/care-presentation";
@@ -194,8 +194,25 @@ function mergeCrowded(
 
 export function CareSparkline({
   pattern,
+  scope,
   onSelectEvent,
 }: {
+  /** ═══ THE BOX IS THE SCOPE INDICATOR NOW ═══
+   *
+   *  It used to frame "the three months the weighted score covers" — a fact
+   *  about the REVIEW. The rail's time-block control took that job over: the box
+   *  marks the period the card's numbers describe, which is the question a
+   *  reader of this chart is actually asking once the numbers above it can
+   *  change.
+   *
+   *  THE PLOT IS UNAFFECTED, ALWAYS. Every reading on the record stays drawn
+   *  whatever the block — a chart that dropped points would make a 7-day view
+   *  look like a 7-day record, and the trajectory's whole value is the shape
+   *  behind the current number. Only the box moves.
+   *
+   *  `null` MEANS NO BOX, which is the `all` block: a frame around the entire
+   *  plot says nothing that the absence of a frame does not say more quietly. */
+  scope: { fromAt: number; toAt: number } | null;
   /** Null means there is nothing to plot — the caller renders nothing. Kept in
    *  the signature so a caller cannot forget null is a designed outcome. */
   pattern: CarePattern | null;
@@ -313,25 +330,57 @@ export function CareSparkline({
    *
    *  This was wrong before the axis changed too; making the empty current
    *  column visible is what made it findable. */
-  const readingMonthKeys = new Set(
-    assessments
-      .filter((m) => colByMonth.has(monthKey(m.at)))
-      .map((m) => monthKey(m.at))
-  );
-  /* THE MONTH BINS THEMSELVES, not just their x — the box's edges need the
-     position and its per-side cushions need the month, and two lists derived
-     separately is how those two came to disagree in the first place. */
-  const weightedMonths = monthX
-    .filter((m) => readingMonthKeys.has(monthKey(m.at)))
-    .slice(-3);
 
   /** ═══ THE LAST THREE MONTHS, AS A BOX ═══
    *  From the first of the last three month marks to the right edge of the
    *  plot. `null` below three months: a "last three" box over two months would
    *  be a frame around the whole chart, which says nothing. */
+  /** ═══ THE COLUMNS THE BLOCK TOUCHES ═══
+   *
+   *  A MONTH-BINNED AXIS CANNOT DRAW A SUB-MONTH BOX, AND THIS DOES NOT PRETEND
+   *  TO. The x axis is one column per calendar month, so a 7-day block lives
+   *  inside a single column — two when the week crosses a month boundary — and
+   *  the box highlights the column(s) the block OVERLAPS rather than the seven
+   *  days themselves.
+   *
+   *  It is an approximation and deliberately the coarse one: a box at true
+   *  sub-column width would sit between gridlines and imply a precision the axis
+   *  does not have, on a chart whose own rule is that nothing floats between
+   *  columns. The EXACT DATES are on the range line one row above the chart,
+   *  which is what makes the approximation safe — the precise answer is already
+   *  on screen and this is the visual index into it.
+   *
+   *  OVERLAP, NOT CONTAINMENT: a block covering any part of a month touches
+   *  that column. Containment would leave a 7-day block mid-month matching
+   *  nothing at all. */
+  /** ═══ THE ALL-TIME BLOCK STILL HAS GEOMETRY — IT IS JUST INVISIBLE ═══
+   *
+   *  A fade needs something to fade FROM, and the first attempt at that
+   *  remembered the previous box in a ref. Two things were wrong with it and
+   *  lint caught both: the hook sat after this component's `if (!pattern)`
+   *  early return, and it wrote the ref during render.
+   *
+   *  Neither was necessary. On the all-time block the honest geometry is the
+   *  WHOLE SPAN — every month is in scope — so the box is computed over all the
+   *  columns and rendered at `opacity: 0`. Fading a full-width frame out is also
+   *  the right reading of what that block means: the scope indicator is being
+   *  lifted off, not swept to one side. Derived, not remembered. */
+  const scopeMonths = scope
+    ? monthX.filter((m) => {
+        const d = new Date(m.at);
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        const monthEnd =
+          new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1;
+        return monthStart <= scope.toAt && monthEnd >= scope.fromAt;
+      })
+    : monthX;
+
   const windowBox =
-    // THREE READING-MONTHS, not three columns — see `weightedCols`.
-    weightedMonths.length >= 3
+    /* ONE COLUMN IS ENOUGH NOW. The old box needed three, because "the last
+       three months" over two months was a frame around the whole chart; a SCOPE
+       box over one month is a scope box over one month, which is exactly what a
+       7-day block is. `all` passes no scope and gets no box. */
+    scopeMonths.length >= 1
       ? (() => {
           /* ═══ MONTH-ALIGNED, NOT OFFSET-BY-A-CONSTANT ═══
              It was `firstInWindow - 2`, a fixed nudge that drifted with the
@@ -355,8 +404,8 @@ export function CareSparkline({
              clamping one side would be the bug this replaces.
              COLUMN WIDTHS ARE UNTOUCHED. The clamp moves the box's edge, never a
              gridline, so every month keeps the same width. */
-          const firstIn = weightedMonths[0].x;
-          const lastIn = weightedMonths[weightedMonths.length - 1].x;
+          const firstIn = scopeMonths[0].x;
+          const lastIn = scopeMonths[scopeMonths.length - 1].x;
           /** Half a unit of breathing room so the box's own border is never
            *  flush with the plot's edge. */
           /* `half` and the old clamped `inset` are gone with the % bounds they
@@ -397,9 +446,8 @@ export function CareSparkline({
              `monthX[len-1]` — the last three CALENDAR months — while the edges
              moved to the weighted ones, so each cushion was sized for a badge
              that might sit on a different column than the edge it padded. */
-          const padL = PAD + edgeHalf(weightedMonths[0]?.at);
-          const padR =
-            PAD + edgeHalf(weightedMonths[weightedMonths.length - 1]?.at);
+          const padL = PAD + edgeHalf(scopeMonths[0]?.at);
+          const padR = PAD + edgeHalf(scopeMonths[scopeMonths.length - 1]?.at);
           /* ═══ THE CUSHION REPLACES THE HALF-COLUMN INSET, NOT ADDS TO IT ═══
              Stacking the two put 31px of air on each side — equal, but the box
              then reached almost to the out-of-window gridline, which is a
@@ -539,16 +587,58 @@ export function CareSparkline({
           through the middle. `z-0` under content that is `relative` or better, so
           it sits behind the line, the gridlines and the badges without needing a
           negative index. */}
-      {windowBox && (
-        <div
-          aria-hidden
-          className="absolute inset-y-0 z-0 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--tint-faint)]"
-          style={{
-            left: `calc(${windowBox.x}% - ${windowBox.padL}px)`,
-            width: `calc(${windowBox.w}% + ${windowBox.padL + windowBox.padR}px)`,
-          }}
-        />
-      )}
+      {/* ══ THE SCOPE CONTAINER, AND IT TWEENS (B) ═════════════════════════
+          ALWAYS MOUNTED, never conditionally rendered. That is the whole
+          mechanism: a box that unmounts on the all-time block cannot fade out —
+          it vanishes on the frame the state changes, and the box that replaces
+          it on the way back pops in at its final size. Mounted with
+          `opacity: 0` and `scale(0.98)` instead, so both directions are the same
+          transition running backwards.
+          WIDTH AND X TWEEN TOGETHER between blocks. `left` and `width` are the
+          two properties the geometry is expressed in, so they are the two the
+          transition names — animating `transform` instead would scale the
+          border and the radius with the box.
+          `aria-hidden` AND `pointer-events-none`: it is a backdrop, and now that
+          it is always in the DOM it must not become a target that a pointer or a
+          screen reader can find on the block where it is invisible.
+
+          ═══ NO BLOOM MOTION TOKENS EXIST ═══
+          Checked both token files: there is no `--motion-*`, `--duration-*` or
+          `--ease-*` anywhere in this system. The codebase's own convention is
+          Tailwind's utilities — `duration-300` and `ease-out` appear throughout
+          — so this uses `duration-300 ease-in-out`, inside the 250–300ms the
+          pack asks for. Reported rather than inventing a token, which the
+          zero-new-tokens rule forbids anyway.
+
+          THE LINE, POINTS AND BADGES DO NOT MOVE, and nothing here makes them:
+          they are all-time constants drawn in the SVG above this layer, and the
+          transition names only `left`, `width`, `opacity` and `transform`. */}
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 z-0 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--tint-faint)]",
+          /* `scale`, NOT `transform`. Tailwind v4's `scale-*` sets the standalone
+             `scale` property — measured: `scale: 0.98` with `transform: none` —
+             so a transition naming `transform` left the scale snapping while the
+             opacity faded. Caught by reading the wrong computed property first
+             and getting `transform: none` on both states. */
+          "transition-[left,width,opacity,scale] duration-300 ease-in-out",
+          /* `prefers-reduced-motion`: instant swap, no tween (B3). */
+          "motion-reduce:transition-none",
+          /* `scope === null` IS THE ALL-TIME BLOCK. The box keeps its full-span
+             geometry and only its opacity and scale change, so both directions
+             are one transition run backwards. */
+          scope ? "scale-100 opacity-100" : "scale-[0.98] opacity-0"
+        )}
+        style={
+          windowBox
+            ? {
+                left: `calc(${windowBox.x}% - ${windowBox.padL}px)`,
+                width: `calc(${windowBox.w}% + ${windowBox.padL + windowBox.padR}px)`,
+              }
+            : undefined
+        }
+      />
       {/* ═══ MONTH LABELS SIT ABOVE THE PLOT ═══
           They were below it, under the badge row, which put three stacked rows
           between the line and its own axis names and made the reader travel

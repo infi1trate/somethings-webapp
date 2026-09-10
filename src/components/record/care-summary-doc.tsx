@@ -40,6 +40,11 @@ import {
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { CareSparkline } from "@/components/record/care-sparkline";
+import { SegmentedControl } from "@/components/record/segmented-control";
+import {
+  CARE_TIME_BLOCKS,
+  type CareTimeBlockId,
+} from "@/lib/record/care-time-block";
 import { PROVENANCE_NOTE, Provenance } from "@/components/record/provenance";
 import type { CarePattern } from "@/lib/record/care-pattern";
 import {
@@ -207,13 +212,42 @@ export function summaryMetaLine(
   if (engagedDays != null && engagedDays > 0)
     parts.push(`${engagedDays} engaged days`);
   if (exchanges && exchanges > 0) parts.push(`${exchanges} exchanges`);
-  if (parts.length) return `${parts.join(", ")}.`;
+  /* ═══ NO TERMINAL PERIOD (C2) ═══
+     "7 engaged days, 18 exchanges" is a metadata FRAGMENT, not a sentence, and
+     it is now a clause inside the scope line — "Aug 11 – Sep 10, 2026 · 7
+     engaged days, 18 exchanges." would put a full stop on a label. The rail's
+     full sentences keep theirs: the trajectory sentence, the conversation
+     summary and the AI caveat are all prose and all unchanged. */
+  if (parts.length) return parts.join(", ");
   // Nothing measured yet: fall back to naming the period, which is always true.
   return days < 7 ? "First week" : `${Math.max(1, Math.round(days / 7))}-week analysis`;
 }
 
+/** ═══ THE MERGED SCOPE LINE (A2) ═══
+ *
+ *  `{range} · {counts}`, and on the all-time block the range already carries
+ *  its own "· full mentorship" suffix — so the counts land AFTER it, which is
+ *  the order the pack asks for and the order that reads: the period, what makes
+ *  it that period, then what happened inside it.
+ *
+ *  A MIDDOT JOINS THE TWO because they are independent facts. The comma inside
+ *  the counts joins two halves of one fact, which is why the two separators are
+ *  different characters rather than one repeated.
+ *
+ *  THE RANGE ALONE IS THE FALLBACK. A record with nothing measured yet gets
+ *  "First week" from `summaryMetaLine`, and pairing that with the dates it
+ *  restates would read as a stutter — so a fallback count is dropped and the
+ *  dates stand on their own. */
+export function summaryScopeLine(rangeLine: string, counts: string): string {
+  const measured = /\d/.test(counts) && !/^First week$|-week analysis$/.test(counts);
+  return measured ? `${rangeLine} · ${counts}` : rangeLine;
+}
+
 export function CareSummaryDocCard({
   doc,
+  block,
+  onBlockChange,
+  rangeLine,
   /** Supervisor tier. Gates the refresh control — element 5, which it also used
    *  to gate, is removed. */
   pattern,
@@ -227,6 +261,19 @@ export function CareSummaryDocCard({
    *  props. Null is a designed outcome — most records have no pattern — and the
    *  strip then renders nothing while the trajectory sentence stands alone. */
   pattern: CarePattern | null;
+  /** ═══ THE BLOCK IS OWNED BY THE TAB, NOT BY THIS CARD ═══
+   *  The card renders the control and reports changes; the tab holds the state
+   *  and re-derives the document. That is the only arrangement in which the
+   *  DOCUMENT and the CONTROL cannot disagree — a card holding its own block
+   *  would be one render away from showing 30-day data under a "Recent" thumb.
+   *  `onBlockChange` absent renders NO CONTROL, which is what the committed
+   *  summary's read-only view wants: a frozen document has one window and
+   *  offering to re-scope it would imply the freeze is negotiable. */
+  block: CareTimeBlockId;
+  onBlockChange?: (b: CareTimeBlockId) => void;
+  /** The resolved range, from `blockRangeLine`. Passed rather than computed so
+   *  the card cannot state a period the document was not built for. */
+  rangeLine: string;
   /** ONE MUTED LINE, AND IT MUST NAME ITS OWN SCOPE.
    *
    *  `careReadingFor` is UNWINDOWED — it describes the whole mentorship, not
@@ -248,6 +295,15 @@ export function CareSummaryDocCard({
   onJumpToEvent?: (eventId: string) => void;
 }) {
   const thin = doc.contactDays < SUMMARY_MIN_CONTACT_DAYS;
+  /* A2. The period and what happened in it, as one secondary line. */
+  const scopeLine = summaryScopeLine(
+    rangeLine,
+    summaryMetaLine(
+      doc.window,
+      onBlockChange ? doc.exchanges : (doc.exchanges ?? exchanges),
+      doc.themes?.conversationDays ?? null
+    )
+  );
 
   return (
     <section
@@ -266,6 +322,8 @@ export function CareSummaryDocCard({
           without scrolling, and a reader who has to scroll to learn a document is
           AI-generated has already read it as authored. */}
       <header className="border-b border-[color:var(--border-subtle)] px-5 py-4">
+        {/* THE TIME BLOCK CONTROL IS RENDERED AT THE END OF THIS HEADER — see
+            below the title row. */}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="min-w-0">
             <h2
@@ -275,29 +333,19 @@ export function CareSummaryDocCard({
               {/* TODO-COPY */}
               Care summary
             </h2>
-            {/* ═══ ONE LINE (B1) ═══
-                `--text-secondary` at 13px, the same token the two-line block
-                used — measured 7.63:1 on `--surface-card`, well clear of 4.5:1,
-                so demoting the prose costs nothing in legibility.
-
-                THERE IS NO "PREVIOUS CYCLE" STATE HERE, AND CANNOT BE. A
-                "· previous cycle" label used to sit in this block for a frozen
-                summary. The two ideas are mutually exclusive by construction: the
-                window is the interval SINCE THE LAST CODE UPDATE, and
-                `presentation_reviewed` is a code event — so approving a review
-                opens a new window in the same act that commits the old one.
-                Driving the flow proved it: after an approval the header read
-                "Aug 28 – Aug 28 · previous cycle", a zero-length window labelled
-                as a past one. THIS CARD IS ALWAYS THE LIVE CYCLE; the committed
-                one is a History entry with its own frozen window. Gap row 305. */}
-            <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              {summaryMetaLine(
-                doc.window,
-                exchanges,
-                doc.themes?.conversationDays ?? null
-              )}
-            </p>
+            {/* ═══ THE SUBTITLE LEFT THIS ROW (A1/A2) ═══
+                It sat here, above the control, and the stack then read
+                title → counts → control → range: two secondary lines with the
+                control wedged between them, and a reader had to hold the counts
+                in mind across it to learn which period they described.
+                The counts and the range are ONE FACT — "this many days, in this
+                period" — so they are one line now, below the control that sets
+                the period. See `scopeLine` below the group.
+                THE ⓘ DOES NOT MOVE. It stays top-right on the title row, which
+                is where a reader looking for provenance already looks, and it
+                describes the document rather than the block. */}
           </div>
+
 
           {/* ═══ REFRESH IS GONE (B2) ═══
               It re-stamped the Generated date and showed a toast saying
@@ -321,6 +369,76 @@ export function CareSummaryDocCard({
           <Provenance note={summaryProvenanceNote(doc.window, doc.generatedAt)} />
         </div>
 
+        {/* ══ THE TIME BLOCK CONTROL, AND THE ONE SCOPE DECLARATION ══════════
+            Rail time-block is a viewing control; clinical review windows are
+            cadence-anchored and independent. Nothing below this card responds
+            to it — see `care-time-block.ts` and the boundary test.
+
+            `semantics="group"`, NOT `"tabs"`. Tabs semantics needs
+            `aria-controls` pointing at a panel the segment reveals, and these
+            segments reveal nothing: they re-scope the data already on screen.
+            `aria-pressed` on a button group is what that is.
+            THE COST, REPORTED: the shared control wires ArrowLeft/Right only
+            for `tabs` (`if (!isTabs) return` in its `onKeyDown`), so this group
+            is Tab-and-Enter operable rather than arrow-steppable. Adding arrow
+            keys to group mode is a change to a component with six other
+            consumers, so it is reported rather than made.
+
+            `fullWidth` — four segments at the rail's 380px. Measured: they fit
+            with the labels at their natural width and no truncation. */}
+        {onBlockChange && (
+          /* ═══ THE STACK RHYTHM (A3), IN NEAREST SPACING TOKENS ═══
+             title → 8px → control → 8px → scope line → 16px → divider.
+             `mt-2` is 8px and the header's own `py-4` supplies the 16px to the
+             divider, so the shipped values are the asked-for ones with no
+             off-scale number: measured 8 / 8 / 16.
+             It was 4 / 12 / 8 / 17 before — a 4px gap under the title that read
+             as a typographic accident and a 12px one that made the control look
+             like it belonged to the subtitle above it rather than the line
+             below. */
+          <div className="mt-2">
+            <SegmentedControl
+              options={CARE_TIME_BLOCKS.map((b) => ({
+                value: b.id,
+                label: b.label,
+              }))}
+              value={block}
+              onChange={onBlockChange}
+              size="sm"
+              semantics="group"
+              fullWidth
+              /* TODO-COPY */
+              ariaLabel="Care summary time period"
+            />
+            {/* ═══ ONE LINE, AND IT IS THE ONLY SCOPE LABEL ON THE CARD ═══
+                Every section below is scoped by the block and none of them says
+                so. Per-section labels would repeat this five times and still
+                leave a reader checking whether any section disagreed.
+                `aria-live="polite"` ANNOUNCES THE RANGE, NOT THE BLOCK. A
+                screen-reader user pressing the control already hears the segment
+                they activated; what they cannot hear is which dates that
+                resolved to — and on a short record "30d" resolves to something
+                other than thirty days. */}
+            {/* ═══ ONE SECONDARY LINE: THE PERIOD AND WHAT HAPPENED IN IT ═══
+                `{range} · {engaged} engaged days, {exchanges} exchanges`.
+                Still the card's ONLY scope declaration — every section below is
+                scoped by the block and none of them says so.
+                `aria-live` UNCHANGED, and it now announces the merged line: a
+                screen-reader user pressing a segment already heard which one, so
+                what they need is the period AND the counts it resolved to. That
+                is one announcement rather than two, which is also why merging
+                these was worth doing for them and not only visually.
+                13px, NOT 12px — it is the same secondary line the subtitle was,
+                and it took `13px/18px` there. Shrinking it on the way down the
+                stack would have demoted a line that gained content. */}
+            <p
+              aria-live="polite"
+              className="mt-2 text-[13px] leading-[18px] text-[var(--text-secondary)]"
+            >
+              {scopeLine}
+            </p>
+          </div>
+        )}
       </header>
 
       {/* ── 1 · SYMPTOM TRAJECTORY ─── one sentence, then one strip ─────── */}
@@ -341,11 +459,26 @@ export function CareSummaryDocCard({
           </p>
         ) : (
           <Refusal>
-            {/* TODO-COPY — element 1 refuses rather than hedging. Direction of
-                change needs two comparable readings, and prose carries no
-                confidence marker, so a thin sentence is indistinguishable from a
-                solid one. */}
-            Not enough comparable readings in this window to state a direction.
+            {/* ═══ TWO DIFFERENT REFUSALS, BECAUSE THEY MEAN DIFFERENT THINGS ═══
+                Element 1 refuses rather than hedging: direction of change needs
+                two comparable readings, and prose carries no confidence marker,
+                so a thin sentence is indistinguishable from a solid one.
+                BUT INSIDE A SHORT BLOCK THE ORIGINAL WORDING LIED BY IMPLICATION.
+                Surveys are monthly, so a 7-day block contains at most one — and
+                "not enough comparable readings" sat directly above a chart
+                showing EIGHT of them. A reader gets a full trajectory and a
+                sentence denying there is one. Seen in the rendered card, not in
+                the diff.
+                So a block that simply has no second reading says that, and a
+                record that genuinely lacks readings still says the original. The
+                chart is whole-record on purpose — see its `scope` prop — and this
+                is the sentence that stops the pairing reading as a contradiction.
+                TODO-COPY, both. */}
+            {onBlockChange && block !== "all" && (pattern?.marks?.length ?? 0) > 1
+              ? doc.assessmentsInWindow === 1
+                ? "One assessment in this period — a direction needs two. The chart shows the whole record."
+                : "No assessment in this period — the chart shows the whole record."
+              : "Not enough comparable readings in this window to state a direction."}
           </Refusal>
         )}
 
@@ -353,6 +486,9 @@ export function CareSummaryDocCard({
           <div className="mt-2">
             <CareSparkline
               pattern={pattern}
+              /* THE BOX MARKS THE BLOCK, and `all` gets none — see the note on
+                 the `scope` prop. The plot itself is never filtered. */
+              scope={block === "all" ? null : doc.window}
               onSelectEvent={onJumpToEvent ?? (() => {})}
             />
             {/* ═══ THE CHART'S CAPTION AND ITS MARK ARE GONE ═══
