@@ -58,6 +58,7 @@ import { AiNotesPanel } from "@/components/record/ai-notes-panel";
 import { type AiNotes } from "@/lib/record/ai-drafts";
 import {
   AUTHORED,
+  PROVENANCE_PHRASE,
   onEdit,
   onInsert,
   type FieldProvenance,
@@ -681,8 +682,17 @@ function InsertedChip({ show }: { show: boolean }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
       <Sparkles className="size-3 shrink-0" aria-hidden />
-      {/* TODO-COPY */}
-      AI notes inserted
+      {/* ═══ THE PHRASE COMES FROM THE MAP, NOT FROM HERE (C) ═══
+          It read "AI notes inserted" — hand-written here, one noun off the
+          read-view vocabulary and missing the clause that makes the claim
+          checkable. This chip means exactly `ai_inserted`, which is the state
+          it is rendered for, so it says what that state says everywhere else
+          and cannot drift from it again.
+          THE FULL STRING, INCLUDING ", unedited". The chip clears on the first
+          keystroke, so "unedited" is precisely what it is asserting — dropping
+          it to keep the chip short would have invented a third variant of a
+          vocabulary this change exists to reduce to one. */}
+      {PROVENANCE_PHRASE.ai_inserted}
     </span>
   );
 }

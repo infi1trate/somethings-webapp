@@ -1,0 +1,549 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "record": "t17",
+      "block": "7d",
+      "range": "Sep 3 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Sep"
+      ],
+      "bin": [
+        302.3,
+        338
+      ],
+      "box": [
+        292,
+        357
+      ],
+      "boxW": 65,
+      "inline": {
+        "left": "min(89.4286%, 96% - 32.5px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(89.4286%, 96% - 32.5px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": {
+        "left": 8,
+        "right": 8
+      },
+      "clearsBadges": true,
+      "crossesOutOfScopeBadge": [
+        {
+          "badge": [
+            255.5,
+            304.5
+          ],
+          "into": 12.5
+        }
+      ]
+    },
+    {
+      "record": "t17",
+      "block": "30d",
+      "range": "Aug 11 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        257.8,
+        338
+      ],
+      "box": [
+        247.5,
+        357
+      ],
+      "boxW": 109.4,
+      "inline": {
+        "left": "min(76.2857%, 82.8571% - 32.5px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(76.2857%, 82.8571% - 32.5px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": {
+        "left": 8,
+        "right": 8
+      },
+      "clearsBadges": true,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t17",
+      "block": "90d",
+      "range": "Jun 12 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        169,
+        338
+      ],
+      "box": [
+        169,
+        357
+      ],
+      "boxW": 188,
+      "inline": {
+        "left": "min(50%, 56.5714% - 8px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(50%, 56.5714% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": {
+        "left": 86.5,
+        "right": 8
+      },
+      "clearsBadges": true,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t17",
+      "block": "All",
+      "range": "Feb 12 – Sep 10, 2026 · full mentorship",
+      "plotW": 338,
+      "colW": 44.4,
+      "touched": [
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        0,
+        338
+      ],
+      "box": [
+        3.6,
+        353.4
+      ],
+      "boxW": 349.8,
+      "inline": {
+        "left": "min(0%, 4% - 8px)",
+        "width": "calc(max(100%, 96% + 32.5px) - min(0%, 4% - 8px))"
+      },
+      "opacity": 0,
+      "scale": "0.98",
+      "coversBins": null,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": null
+    },
+    {
+      "record": "t23",
+      "block": "7d",
+      "range": "Sep 3 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "Sep"
+      ],
+      "bin": [
+        285.6,
+        338
+      ],
+      "box": [
+        285.6,
+        338
+      ],
+      "boxW": 52.4,
+      "inline": {
+        "left": "min(84.5%, 96% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(84.5%, 96% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t23",
+      "block": "30d",
+      "range": "Aug 11 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        207.79999999999998,
+        338
+      ],
+      "box": [
+        207.9,
+        338
+      ],
+      "boxW": 130.1,
+      "inline": {
+        "left": "min(61.5%, 73% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(61.5%, 73% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t23",
+      "block": "90d",
+      "range": "Jun 12 – Sep 10, 2026",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        52.4,
+        338
+      ],
+      "box": [
+        52.4,
+        338
+      ],
+      "boxW": 285.6,
+      "inline": {
+        "left": "min(15.5%, 27% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(15.5%, 27% - 8px))"
+      },
+      "opacity": 1,
+      "scale": "1",
+      "coversBins": true,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": []
+    },
+    {
+      "record": "t23",
+      "block": "All",
+      "range": "Apr 29 – Sep 10, 2026 · full mentorship",
+      "plotW": 338,
+      "colW": 77.8,
+      "touched": [
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep"
+      ],
+      "bin": [
+        0,
+        338
+      ],
+      "box": [
+        3.4,
+        334.6
+      ],
+      "boxW": 331.2,
+      "inline": {
+        "left": "min(0%, 4% - 8px)",
+        "width": "calc(max(100%, 96% + 8px) - min(0%, 4% - 8px))"
+      },
+      "opacity": 0,
+      "scale": "0.98",
+      "coversBins": null,
+      "badgeClearance": null,
+      "clearsBadges": null,
+      "crossesOutOfScopeBadge": null
+    }
+  ],
+  "stack": [
+    {
+      "record": "t17",
+      "block": "7d",
+      "lines": [
+        {
+          "text": "Sep 3 – Sep 10, 2026",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 115.3,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "3 engaged days, 7 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 189.7,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Sep 3 – Sep 10, 2026 ⏎ 3 engaged days, 7 exchanges"
+    },
+    {
+      "record": "t17",
+      "block": "30d",
+      "lines": [
+        {
+          "text": "Aug 11 – Sep 10, 2026",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 119.6,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "9 engaged days, 22 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 198.4,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Aug 11 – Sep 10, 2026 ⏎ 9 engaged days, 22 exchanges"
+    },
+    {
+      "record": "t17",
+      "block": "90d",
+      "lines": [
+        {
+          "text": "Jun 12 – Sep 10, 2026",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 118.8,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "24 engaged days, 61 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 207.2,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Jun 12 – Sep 10, 2026 ⏎ 24 engaged days, 61 exchanges"
+    },
+    {
+      "record": "t17",
+      "block": "All",
+      "lines": [
+        {
+          "text": "Feb 12 – Sep 10, 2026 · full mentorship",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 208,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "58 engaged days, 149 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 215.9,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Feb 12 – Sep 10, 2026 · full mentorship ⏎ 58 engaged days, 149 exchanges"
+    },
+    {
+      "record": "t23",
+      "block": "7d",
+      "lines": [
+        {
+          "text": "Sep 3 – Sep 10, 2026",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 115.3,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "2 engaged days, 5 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 189.7,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Sep 3 – Sep 10, 2026 ⏎ 2 engaged days, 5 exchanges"
+    },
+    {
+      "record": "t23",
+      "block": "30d",
+      "lines": [
+        {
+          "text": "Aug 11 – Sep 10, 2026",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 119.6,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "7 engaged days, 18 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 198.4,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Aug 11 – Sep 10, 2026 ⏎ 7 engaged days, 18 exchanges"
+    },
+    {
+      "record": "t23",
+      "block": "90d",
+      "lines": [
+        {
+          "text": "Jun 12 – Sep 10, 2026",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 118.8,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "19 engaged days, 44 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 207.2,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Jun 12 – Sep 10, 2026 ⏎ 19 engaged days, 44 exchanges"
+    },
+    {
+      "record": "t23",
+      "block": "All",
+      "lines": [
+        {
+          "text": "Apr 29 – Sep 10, 2026 · full mentorship",
+          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(110, 107, 103)",
+          "textW": 209.2,
+          "avail": 338,
+          "lineBoxes": 1
+        },
+        {
+          "text": "26 engaged days, 61 exchanges",
+          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
+          "color": "rgb(88, 83, 75)",
+          "textW": 207.2,
+          "avail": 338,
+          "lineBoxes": 1
+        }
+      ],
+      "gaps": {
+        "controlToLine1": 8,
+        "line1ToLine2": 2,
+        "lastLineToDivider": 16
+      },
+      "utterance": "Apr 29 – Sep 10, 2026 · full mentorship ⏎ 26 engaged days, 61 exchanges"
+    }
+  ],
+  "failures": [],
+  "tween": {
+    "running": [
+      "left",
+      "width"
+    ],
+    "from": {
+      "l": 247.5,
+      "w": 109.4
+    },
+    "to": {
+      "l": 169,
+      "w": 188
+    },
+    "at": {
+      "30": {
+        "dt": 36,
+        "l": 247.5,
+        "w": 109.4
+      },
+      "60": {
+        "dt": 58,
+        "l": 246.2,
+        "w": 110.8
+      },
+      "150": {
+        "dt": 150,
+        "l": 201.2,
+        "w": 155.8
+      },
+      "300": {
+        "dt": 300,
+        "l": 169.5,
+        "w": 187.4
+      }
+    },
+    "interpolates": true,
+    "reducedMotion": {
+      "property": "none",
+      "from": {
+        "l": 247.5,
+        "w": 109.4
+      },
+      "firstFrame": {
+        "l": 169,
+        "w": 188
+      },
+      "instant": true
+    }
+  }
+}

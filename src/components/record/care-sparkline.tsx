@@ -382,50 +382,65 @@ export function CareSparkline({
        7-day block is. `all` passes no scope and gets no box. */
     scopeMonths.length >= 1
       ? (() => {
-          /* ═══ MONTH-ALIGNED, NOT OFFSET-BY-A-CONSTANT ═══
-             It was `firstInWindow - 2`, a fixed nudge that drifted with the
-             column width. The left edge is now the MIDPOINT between the last
-             out-of-window gridline and the first in-window one, so the boundary
-             falls in the gap between columns rather than beside a line; the
-             right edge is half a column past the last gridline, clamped to the
-             plot's own padding edge. Both are stated in column terms, so the
-             container stays aligned at any width. */
-          /* ═══ ONE INSET, USED ON BOTH SIDES ═══
-             Was a midpoint on the left and a half-column on the right — two
-             different rules, so the two edges only matched when the arithmetic
-             happened to agree. They are one number now: the box is
-             `firstIn - inset` to `lastIn + inset`, symmetric by construction
-             rather than by coincidence.
-             THE INSET WANTS TO BE HALF A COLUMN, which is where the old midpoint
-             fell, so the left edge lands in the gap between columns exactly as
-             before. It is CLAMPED by whichever side has less room — the right,
-             whenever the window ends at the final month, which on this chart it
-             always does. Clamping the shared value keeps the two edges equal;
-             clamping one side would be the bug this replaces.
-             COLUMN WIDTHS ARE UNTOUCHED. The clamp moves the box's edge, never a
-             gridline, so every month keeps the same width. */
-          const firstIn = scopeMonths[0].x;
-          const lastIn = scopeMonths[scopeMonths.length - 1].x;
-          /** Half a unit of breathing room so the box's own border is never
-           *  flush with the plot's edge. */
-          /* `half` and the old clamped `inset` are gone with the % bounds they
-             computed — the box is gridline-to-gridline now and the cushions do
-             the holding-off. Kept the variable out rather than leaving a value
-             nothing reads. */
-          /* ═══ AND A PER-SIDE PIXEL CUSHION FOR WHAT SITS ON THE EDGE ═══
-             Equal gridline insets were measured and equal — 23.1px each side —
-             and the box still read lopsided, because the thing a reader sees is
-             the gap to the BADGE, not to the gridline. A single badge is 24px
-             and overhangs its gridline by 12; a dual-type split pill is 49px and
-             overhangs by 24.5. On t17 that put September's pill 1.4px OUTSIDE
-             the right edge while July's badge had 11.1px of air inside it.
-             So each side gets its own cushion, sized to what actually sits on
-             that edge month, and both come out at the same CONTENT clearance.
-             Gridline-to-edge is consequently NOT equal any more — that rule is
-             what produced the lopsided result, and it is the wrong invariant
-             when the two edge badges are different widths.
-             The widths are known without measuring the DOM: a segment is
-             `min-w-6` at 24px, a pill is two of those plus a 1px divider. */
+          /* ═══ THE BOX SPANS THE BINS, NOT THE GRIDLINES (B1) ═══
+             THE DEFECT THIS REPLACES, NAMED PRECISELY. The box was
+             `x: firstIn, w: lastIn - firstIn` — gridline CENTRE to gridline
+             CENTRE. On every multi-bin block that reads as a span, so the bug
+             was invisible there; on a SINGLE-bin block `firstIn === lastIn`, the
+             width collapsed to `0%`, and what rendered was the two pixel
+             cushions alone. MEASURED on the 7-day block: 16px against a 77.8px
+             column on the record whose last month carries no badge, because
+             there the cushion is `PAD` alone — that is the sliver at the chart
+             edge. On the record whose last month carries a dual-type pill the
+             same collapse produced 65px against a 44.4px column, wider than the
+             column it was marking. Neither was the bin, and neither was
+             date-proportional: the % term was zero and the px term was all of
+             it, so the box's size was a fact about badge widths.
+             The positioning path is therefore GONE, not patched. A gridline is a
+             point and a month is an interval, and a scope indicator over an
+             interval axis has to be expressed in the axis's own intervals. The
+             bin is the column: half a step either side of its gridline.
+             MULTI-BIN BLOCKS MOVE TOO, which the old comment here denied by
+             describing a "midpoint" rule that the cushions had already replaced.
+             Measured: the 90-day box's left edge was 14.2px INSIDE the first
+             bin it claimed to cover on one record and 30.9px inside it on the
+             other. It lands on the bin bound now.
+
+             A SINGLE-MONTH AXIS has no step to halve (`colW` is 0, the lone
+             column sits at 50%), so the bin is the whole plot. */
+          const halfBin = months.length > 1 ? colW / 2 : 50;
+          const first = scopeMonths[0].x;
+          const last = scopeMonths[scopeMonths.length - 1].x;
+          /* CLAMPED TO THE PLOT. The final month's bin always overruns 100% —
+             the axis's own edge inset is 4% and half a column is more — and
+             there is no chart out there to highlight. Clamped per side, so the
+             whole VISIBLE bin stays inside the box; clamping a shared symmetric
+             inset instead would pull the opposite edge in by the same amount and
+             leave part of a bin outside its own box. */
+          const binL = Math.max(0, first - halfBin);
+          const binR = Math.min(100, last + halfBin);
+
+          /* ═══ THE PIXEL CUSHION SURVIVES, AS A FLOOR RATHER THAN THE RULE ═══
+             It was the rule: `gridline ± cushion` was the whole geometry, which
+             is why the box's relationship to the bins was whatever the edge
+             month's badge width happened to make it. The bins are the rule now
+             and the cushion is a MINIMUM — because a badge can extend past its
+             own bin, and past the plot: a dual-type split pill is 49px on a
+             44.4px column, so its 24.5px overhang clears the 22.2px half-bin and
+             lands 11px outside the plot itself, drawn into the card's padding.
+             A box clamped to the plot would crop it.
+             So each side takes whichever bound is further out — the bin, or the
+             badge plus its 8px of air. MEASURED, both ways round: on the
+             wide-column record (77.8px) the BIN wins on both sides and the box
+             is exactly the visible bin; on the narrow-column one (44.4px) with a
+             pill on the last month the CUSHION wins on both sides and the box is
+             the geometry the polish pass measured and approved, unchanged. Which
+             bound wins is therefore a property of the record, not of the side —
+             one expression rather than a branch that would need a plot width to
+             evaluate.
+             A segment is `min-w-6` at 24px and overhangs its gridline by 12; a
+             pill is two of those plus a 1px divider, so 24.5. Known without
+             measuring the DOM. */
           const edgeHalf = (at: number | undefined) => {
             const bin = at
               ? monthSafety.find((b) => {
@@ -442,24 +457,20 @@ export function CareSparkline({
             return dual ? 24.5 : 12;
           };
           const PAD = 8;
-          /* SAME TWO MONTHS THE EDGES USE. These read `monthX[len-3]` and
-             `monthX[len-1]` — the last three CALENDAR months — while the edges
-             moved to the weighted ones, so each cushion was sized for a badge
-             that might sit on a different column than the edge it padded. */
           const padL = PAD + edgeHalf(scopeMonths[0]?.at);
           const padR = PAD + edgeHalf(scopeMonths[scopeMonths.length - 1]?.at);
-          /* ═══ THE CUSHION REPLACES THE HALF-COLUMN INSET, NOT ADDS TO IT ═══
-             Stacking the two put 31px of air on each side — equal, but the box
-             then reached almost to the out-of-window gridline, which is a
-             different way of being wrong. The box now runs GRIDLINE TO
-             GRIDLINE and the cushions alone hold it off the content, so the
-             padding is exactly `PAD` on both sides whatever sits on the edge
-             months.
-             ON A RECORD WHOSE EDGE MONTHS CARRY NO BADGE the cushion collapses
-             to `PAD` alone and the box hugs its gridlines at 8px. That is a
-             tighter box than the half-column gap, and it is the honest one:
-             with nothing on the edge there is nothing to hold the edge off. */
-          return { x: firstIn, w: lastIn - firstIn, padL, padR };
+          /* ═══ % AND px COMPARED IN CSS, BECAUSE ONLY CSS KNOWS THE PLOT WIDTH ═══
+             "The bin, or the badge's cushion, whichever reaches further" is a
+             comparison between a percentage and a pixel count, and this
+             component deliberately measures nothing: there is no ref, no
+             ResizeObserver and no layout read anywhere in it. `min()` and
+             `max()` resolve exactly that comparison at layout time, where the
+             plot's width is known — so the rule ships as written instead of as
+             an approximation of itself. The tween across the two forms is
+             measured in `care-scope-block.mjs`. */
+          const leftEdge = `min(${binL}%, calc(${first}% - ${padL}px))`;
+          const rightEdge = `max(${binR}%, calc(${last}% + ${padR}px))`;
+          return { left: leftEdge, width: `calc(${rightEdge} - ${leftEdge})` };
         })()
       : null;
 
@@ -632,10 +643,7 @@ export function CareSparkline({
         )}
         style={
           windowBox
-            ? {
-                left: `calc(${windowBox.x}% - ${windowBox.padL}px)`,
-                width: `calc(${windowBox.w}% + ${windowBox.padL + windowBox.padR}px)`,
-              }
+            ? { left: windowBox.left, width: windowBox.width }
             : undefined
         }
       />
