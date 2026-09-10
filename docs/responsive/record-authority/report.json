@@ -1,0 +1,276 @@
+{
+  "base": "http://localhost:3000",
+  "failures": [],
+  "card": {
+    "mounts": 2,
+    "headingIds": [
+      "_r_g_",
+      "_r_i_"
+    ],
+    "card": {
+      "bg": "rgb(255, 255, 255)",
+      "overflow": "hidden",
+      "radius": "16px"
+    },
+    "band": {
+      "bg": "rgb(229, 224, 210)",
+      "family": "avantt",
+      "weight": "700",
+      "size": "13px",
+      "color": "rgb(31, 30, 29)",
+      "padding": "10px 16px",
+      "borderBottom": "1px rgb(223, 221, 216)",
+      "text": "About this Record"
+    },
+    "sections": [
+      {
+        "label": "Clinical Advisor",
+        "padding": "12px 16px",
+        "borderTop": "0px"
+      },
+      {
+        "label": "AI Usage",
+        "padding": "12px 16px",
+        "borderTop": "1px"
+      }
+    ],
+    "email": {
+      "family": "avantt",
+      "weight": "700",
+      "underline": "underline"
+    },
+    "aiSentence": "AI is used in parts of this page. Always review AI generated content for accuracy"
+  },
+  "flow": [
+    {
+      "step": "idle",
+      "visible": {
+        "pressed": [
+          "false",
+          "false"
+        ],
+        "live": "",
+        "form": false,
+        "fills": [
+          "none",
+          "none"
+        ]
+      },
+      "hidden": {
+        "pressed": [
+          "false",
+          "false"
+        ],
+        "live": "",
+        "form": false,
+        "fills": [
+          "none",
+          "none"
+        ]
+      },
+      "focusInTextarea": false,
+      "submitDisabled": null,
+      "stored": {},
+      "persisted": true,
+      "storedVersion": 43
+    },
+    {
+      "step": "thumbs up",
+      "visible": {
+        "pressed": [
+          "true",
+          "false"
+        ],
+        "live": "Thanks",
+        "form": false,
+        "fills": [
+          "rgb(31, 30, 29)",
+          "none"
+        ]
+      },
+      "hidden": {
+        "pressed": [
+          "true",
+          "false"
+        ],
+        "live": "Thanks",
+        "form": false,
+        "fills": [
+          "rgb(31, 30, 29)",
+          "none"
+        ]
+      },
+      "focusInTextarea": false,
+      "submitDisabled": null,
+      "stored": {
+        "t17": {
+          "rating": "up",
+          "note": null,
+          "at": 1789073413768
+        }
+      },
+      "persisted": true,
+      "storedVersion": 43
+    },
+    {
+      "step": "thumbs down",
+      "visible": {
+        "pressed": [
+          "false",
+          "true"
+        ],
+        "live": "",
+        "form": true,
+        "fills": [
+          "none",
+          "rgb(31, 30, 29)"
+        ]
+      },
+      "hidden": {
+        "pressed": [
+          "false",
+          "true"
+        ],
+        "live": "",
+        "form": true,
+        "fills": [
+          "none",
+          "rgb(31, 30, 29)"
+        ]
+      },
+      "focusInTextarea": true,
+      "submitDisabled": true,
+      "stored": {
+        "t17": {
+          "rating": "down",
+          "note": null,
+          "at": 1789073414023
+        }
+      },
+      "persisted": true,
+      "storedVersion": 43
+    },
+    {
+      "step": "typed",
+      "visible": {
+        "pressed": [
+          "false",
+          "true"
+        ],
+        "live": "",
+        "form": true,
+        "fills": [
+          "none",
+          "rgb(31, 30, 29)"
+        ]
+      },
+      "hidden": {
+        "pressed": [
+          "false",
+          "true"
+        ],
+        "live": "",
+        "form": true,
+        "fills": [
+          "none",
+          "rgb(31, 30, 29)"
+        ]
+      },
+      "focusInTextarea": true,
+      "submitDisabled": false,
+      "stored": {
+        "t17": {
+          "rating": "down",
+          "note": null,
+          "at": 1789073414023
+        }
+      },
+      "persisted": true,
+      "storedVersion": 43
+    },
+    {
+      "step": "submitted",
+      "visible": {
+        "pressed": [
+          "false",
+          "true"
+        ],
+        "live": "Noted",
+        "form": false,
+        "fills": [
+          "none",
+          "rgb(31, 30, 29)"
+        ]
+      },
+      "hidden": {
+        "pressed": [
+          "false",
+          "true"
+        ],
+        "live": "Noted",
+        "form": false,
+        "fills": [
+          "none",
+          "rgb(31, 30, 29)"
+        ]
+      },
+      "focusInTextarea": false,
+      "submitDisabled": null,
+      "stored": {
+        "t17": {
+          "rating": "down",
+          "note": "The trajectory sentence contradicted the chart.",
+          "at": 1789073414539
+        }
+      },
+      "persisted": true,
+      "storedVersion": 43
+    },
+    {
+      "step": "switched back to up",
+      "visible": {
+        "pressed": [
+          "true",
+          "false"
+        ],
+        "live": "Thanks",
+        "form": false,
+        "fills": [
+          "rgb(31, 30, 29)",
+          "none"
+        ]
+      },
+      "hidden": {
+        "pressed": [
+          "true",
+          "false"
+        ],
+        "live": "Thanks",
+        "form": false,
+        "fills": [
+          "rgb(31, 30, 29)",
+          "none"
+        ]
+      },
+      "focusInTextarea": false,
+      "submitDisabled": null,
+      "stored": {
+        "t17": {
+          "rating": "up",
+          "note": null,
+          "at": 1789073414793
+        }
+      },
+      "persisted": true,
+      "storedVersion": 43
+    }
+  ],
+  "contrast": {
+    "bandHeading": 12.62,
+    "prompt": 5.3,
+    "thumbIdle": 5.3,
+    "pressedGlyph": 15.27,
+    "pressedTintVsCard": 1.09,
+    "targetPx": "24x24"
+  }
+}

@@ -192,6 +192,32 @@ interface OnboardingState {
    *  region because the record now holds its resolution — not because anything
    *  was deleted. */
   careFlagClosures: Record<string, CareFlagClosure>;
+  /** ═══ THUMBS ON THE AI-USAGE CAVEAT, PER RECORD ═══
+   *
+   *  PER RECORD, not global. The caveat says "AI is used in parts of THIS page",
+   *  so the opinion is about what a reader just read; a global key would let one
+   *  thumbs-down on one teen silence the control on every other record.
+   *
+   *  IT HAS TO BE IN THE STORE AT ALL because the module is MOUNTED TWICE — once
+   *  in the rail and once, `min-[1100px]:hidden`, for narrow viewports. Both are
+   *  in the DOM at every width. Component state would give them one rating each
+   *  and they would disagree the moment either was used.
+   *
+   *  NO SCHEMA VERSION. `merge` spreads `...current` before `...persisted`, so a
+   *  payload written before this field existed keeps the `{}` default and needs
+   *  no backfill — the version log's entries are for fields whose stored SHAPE
+   *  could be wrong, not merely absent. Verified against a live v43 payload.
+   *
+   *  ═══ TODO-DATA — NOTHING CONSUMES THIS ═══
+   *  There is no feedback pipeline. The rating and the note are written here and
+   *  here is where they stop: no endpoint, no aggregate, nobody reading them. So
+   *  the acknowledgement says the note was NOTED, never that it was sent — a
+   *  control claiming to have delivered something it did not is worse than no
+   *  control at all. */
+  aiUsageFeedback: Record<
+    string,
+    { rating: "up" | "down"; note: string | null; at: number }
+  >;
   /** APPEND-ONLY log of committed care summaries, keyed by teen id (v40).
    *
    *  AN ARRAY PER TEEN, not one entry per teen: every cycle commits its own
@@ -487,6 +513,11 @@ interface OnboardingState {
     summary?: CareSummaryCommit
   ) => void;
   /** Appends a flag closure. No counterpart reopens one — see the field. */
+  setAiUsageFeedback: (
+    teenId: string,
+    rating: "up" | "down",
+    note?: string | null
+  ) => void;
   closeCareFlag: (closure: CareFlagClosure) => void;
   setDevBarHidden: (hidden: boolean) => void;
   /** Append a care update. No update/delete counterpart, on purpose. */
@@ -550,6 +581,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       menteeStatus: {},
       careReviews: {},
       careFlagClosures: {},
+      aiUsageFeedback: {},
       careSummaryCommits: {},
       devBarHidden: false,
       activityRead: {},
@@ -1012,6 +1044,17 @@ export const useOnboardingStore = create<OnboardingState>()(
             scope,
             eventId
           ),
+        })),
+      /** ONE ACTION FOR BOTH HALVES. A rating replaces whatever was there and
+       *  clears any note with it — changing your mind from down to up must not
+       *  leave the complaint attached to a thumbs-up. Passing a note is the
+       *  submit path; omitting it sets the rating and writes no note. */
+      setAiUsageFeedback: (teenId, rating, note) =>
+        set((state) => ({
+          aiUsageFeedback: {
+            ...state.aiUsageFeedback,
+            [teenId]: { rating, note: note ?? null, at: Date.now() },
+          },
         })),
       closeCareFlag: (closure) =>
         set((state) => ({
@@ -2054,6 +2097,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         menteeStatus: state.menteeStatus,
         careReviews: state.careReviews,
         careFlagClosures: state.careFlagClosures,
+        aiUsageFeedback: state.aiUsageFeedback,
         careSummaryCommits: state.careSummaryCommits,
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
