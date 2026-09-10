@@ -41,6 +41,7 @@
 // cadence says it starts at the first survey, the AI summary says there isn't
 // enough data yet, and the timeline shows its designed empty state.
 
+import { aiNotesFor, draftBasis } from "@/lib/record/ai-drafts";
 import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -593,8 +594,54 @@ export function CareTab({
     ? readReviewDraft(teen.id, review.id)
     : null);
 
+  /** ═══ THE AI NOTES, DERIVED ONCE FROM THE DOCUMENT THE RAIL RENDERS ═══
+   *
+   *  Here rather than in the workspace or the modal, because `summaryDoc` is
+   *  already built on this component for the rail. Deriving it in each consumer
+   *  would mean a second `careSummaryFor` call per render and a second chance
+   *  for the notes to disagree with the rail they restate.
+   *
+   *  BOTH SURFACES GET THE SAME OBJECT — the in-card review and the standalone
+   *  Write/Amend modal. They were asking a supervisor to write the same two
+   *  clinical fields, and only one of them offered the notes for it. */
+  /* NOT MEMOIZED, DELIBERATELY. `summaryDoc` above is a conditional literal
+     rebuilt each render, so a memo keyed on it would never hit — and wrapping
+     the doc to fix that made the React Compiler skip optimizing this entire
+     component, which is the worse trade. The derivation is a handful of string
+     joins over arrays that are already in memory. */
+  const aiNotes = aiNotesFor(
+    summaryDoc,
+    /* THE AGGREGATE WHEN THERE IS ONE, THE SINGLE SURVEY OTHERWISE. A day-30
+       review has one intake result rather than a weighted period, and passing
+       nothing there was what left its notes a bullet short of the floor. */
+    panelReview?.aggregate
+      ? {
+          score: panelReview.aggregate.score,
+          severity: panelReview.aggregate.severity,
+          count: panelReview.aggregate.surveys.length,
+          instrument: panelReview.aggregate.surveys[0]?.instrument,
+        }
+      : panelReview?.survey
+        ? {
+            score: panelReview.survey.score,
+            severity: panelReview.survey.severity,
+            count: 1,
+            instrument: panelReview.survey.instrument,
+          }
+        : null
+  );
+
+  /** The ⓘ line, from the same readings the notes are drawn from. On the modal
+   *  there is no review to weigh, so it falls back to the document's own
+   *  window rather than naming a count nothing computed. */
+  const aiNotesBasis = draftBasis(
+    panelReview?.aggregate?.surveys ??
+      (panelReview?.survey ? [panelReview.survey] : [])
+  );
+
   const workspaceNode = panelReview ? (
     <CareReviewWorkspace
+      notes={aiNotes}
       review={panelReview}
       currentCode={presentation?.code ?? null}
       decision={decision}
@@ -1035,6 +1082,11 @@ export function CareTab({
       {canAct && (
         <>
           <CareUpdateCompose
+            /* THE SAME NOTES THE IN-CARD REVIEW GETS. Two surfaces asking for
+               the same two clinical fields should not differ on whether the
+               notes for them exist. */
+            notes={aiNotes}
+            notesBasis={aiNotesBasis}
             open={composing}
             onOpenChange={(o) => {
               setComposing(o);

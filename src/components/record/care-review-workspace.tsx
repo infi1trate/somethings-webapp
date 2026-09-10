@@ -30,7 +30,7 @@ import { PillButton } from "@/components/settings/pill-button";
 import {
   CareUpdateFields,
 } from "@/components/record/care-update-compose";
-import { aiNotesFor, draftBasis } from "@/lib/record/ai-drafts";
+import { draftBasis, type AiNotes } from "@/lib/record/ai-drafts";
 import {
   emptyCareUpdateBody,
   type CareUpdateBody,
@@ -84,6 +84,13 @@ export interface CareReviewWorkspaceProps {
    *  Focus lands on the DECISION ROW's first control, which is the first thing
    *  this flow asks anyone to do. */
   focusSignal: number;
+  /** ═══ DERIVED BY THE OWNER, NOT HERE ═══
+   *  The notes come from the care summary document, and `care-tab` already
+   *  builds that for the rail. Computing it a second time in here would be a
+   *  second `careSummaryFor` call per render and a second chance for the notes
+   *  to disagree with the rail they restate. Null on a record with no summary,
+   *  and the fields then render no disclosure at all. */
+  notes: AiNotes | null;
   /** Persists the draft and collapses the card. Distinct from committing. */
   onSaveAndClose: () => void;
   onCommit: (
@@ -104,6 +111,7 @@ export function CareReviewWorkspace({
   teenId,
   now,
   focusSignal,
+  notes,
   onSaveAndClose,
   onCommit,
 }: CareReviewWorkspaceProps) {
@@ -155,12 +163,8 @@ export function CareReviewWorkspace({
     diagnostic: FieldProvenanceState;
   }>(() => restored?.provenance ?? { clinical: AUTHORED, diagnostic: AUTHORED });
 
-  /** ═══ THE AI NOTES FOR THIS RECORD, AND THE BASIS LINE ═══
-   *  Null for a record with nothing to draw notes from — the fields hide the
-   *  disclosure entirely on that, rather than offering a control that cannot
-   *  act. The basis names the readings the REVIEW weighs, which is the same
-   *  window the notes claim to be drawn from. */
-  const notes = useMemo(() => aiNotesFor(teenId), [teenId]);
+  /** THE BASIS LINE names the readings the REVIEW weighs, which is the same
+   *  window the notes are drawn from. */
   const basis = useMemo(
     () => draftBasis(review.aggregate?.surveys ?? (review.survey ? [review.survey] : [])),
     [review]

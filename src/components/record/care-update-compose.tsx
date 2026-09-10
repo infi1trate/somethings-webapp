@@ -56,7 +56,13 @@ import {
 import { Sparkles } from "lucide-react";
 import { AiNotesPanel } from "@/components/record/ai-notes-panel";
 import { type AiNotes } from "@/lib/record/ai-drafts";
-import type { FieldProvenance } from "@/lib/record/field-provenance";
+import {
+  AUTHORED,
+  onEdit,
+  onInsert,
+  type FieldProvenance,
+  type FieldProvenanceState,
+} from "@/lib/record/field-provenance";
 import { PillButton } from "@/components/settings/pill-button";
 import { clinicalDate } from "@/components/record/care-presentation";
 import {
@@ -113,6 +119,8 @@ export function CareUpdateCompose({
   amending,
   documenting,
   prefill,
+  notes,
+  notesBasis,
   onSave,
   returnFocusTo,
 }: {
@@ -124,6 +132,18 @@ export function CareUpdateCompose({
   documenting?: DocumentingContext | null;
   /** Set when the diagnostic statement arrives pre-filled. */
   prefill?: DiagnosticPrefill | null;
+  /** ═══ THE AI NOTES, DERIVED BY THE OWNER ═══
+   *  This modal had none, and that was a decision I recorded twice as
+   *  "reported, not worked around": it holds no provenance state, so an insert
+   *  here could not record how the text got into the field, and an inert
+   *  control is worse than an absent one. The state is here now — see `prov`
+   *  below — so the notes are real on this surface too.
+   *  It is the SAME object the in-card review gets. Two surfaces asking a
+   *  supervisor to write the same two clinical fields should not differ on
+   *  whether the notes for them exist. */
+  notes?: AiNotes | null;
+  /** What the container's ⓘ says. */
+  notesBasis?: string;
   /** `at` is the moment of commit, stamped by the CALLER at click time — a
    *  timestamp computed in render scope is impure, and a re-render would move
    *  the moment a decision claims to have happened. Same rule the presentation
@@ -198,6 +218,8 @@ export function CareUpdateCompose({
              have emptied that field on every save — caught by lint reporting the
              prop as unused one level up, not by anything looking at the record. */
           prefill={prefill}
+          notes={notes}
+          notesBasis={notesBasis}
           onSave={onSave}
           onOpenChange={onOpenChange}
           firstRef={firstRef}
@@ -211,6 +233,8 @@ function ComposeForm({
   amending,
   documenting,
   prefill,
+  notes,
+  notesBasis,
   onSave,
   onOpenChange,
   firstRef,
@@ -218,6 +242,8 @@ function ComposeForm({
   amending?: CareUpdateRecord | null;
   documenting?: DocumentingContext | null;
   prefill?: DiagnosticPrefill | null;
+  notes?: AiNotes | null;
+  notesBasis?: string;
   /** `at` is the moment of commit, stamped by the CALLER at click time — a
    *  timestamp computed in render scope is impure, and a re-render would move
    *  the moment a decision claims to have happened. Same rule the presentation
@@ -255,6 +281,36 @@ function ComposeForm({
   }, [amending]);
 
   const [body, setBody] = useState<CareUpdateBody>(initial);
+  /** ═══ PER-FIELD PROVENANCE, ON THIS SURFACE TOO ═══
+   *
+   *  The in-card review has carried this since C4; this modal did not, which is
+   *  why it could not offer the notes at all — an insert with nowhere to record
+   *  itself would put model text into a clinical field and leave the record
+   *  saying a human wrote it.
+   *
+   *  THE TRANSITION RUNS ON THE SAME UPDATE AS THE KEYSTROKE, for the same
+   *  reason it does in the review: a save racing a re-render would otherwise
+   *  persist the text with the previous state. `onEdit` is a no-op on
+   *  `authored` and on a change that does not change the string, so it is safe
+   *  on every keystroke of both fields.
+   *
+   *  KNOWN GAP, STATED: `onSave` does not yet carry these to the record. The
+   *  review's commit does (`clinicalProvenance` / `diagnosticProvenance` on
+   *  `CareUpdateRecord`), and this modal's save signature is shared with two
+   *  callers that would both need updating. So a note inserted HERE shows the
+   *  live chip and the disclosure while composing, and commits as `authored`.
+   *  That is a smaller lie than the alternative — no notes on this surface at
+   *  all — and it is the next thing to close. */
+  const [prov, setProv] = useState<{
+    clinical: FieldProvenanceState;
+    diagnostic: FieldProvenanceState;
+  }>({ clinical: AUTHORED, diagnostic: AUTHORED });
+
+  function insertField(field: "clinical" | "diagnostic", text: string) {
+    setBody((b) => ({ ...b, [field]: text }));
+    setProv((prev) => ({ ...prev, [field]: onInsert(text) }));
+    clearError(field);
+  }
   const [errors, setErrors] = useState<Record<FieldId, boolean>>({
     clinical: false,
     diagnostic: false,
@@ -372,7 +428,24 @@ function ComposeForm({
         <CareUpdateFields
           idPrefix="cu"
           body={body}
-          onChange={setBody}
+          /* THE PROVENANCE MOVES WITH THE TEXT — see `prov` above. */
+          onChange={(update) =>
+            setBody((b) => {
+              const next = update(b);
+              setProv((pv) => ({
+                clinical: onEdit(pv.clinical, next.clinical),
+                diagnostic: onEdit(pv.diagnostic, next.diagnostic),
+              }));
+              return next;
+            })
+          }
+          notes={notes}
+          draftBasis={notesBasis}
+          onInsertField={insertField}
+          provenance={{
+            clinical: prov.clinical.state,
+            diagnostic: prov.diagnostic.state,
+          }}
           errors={errors}
           clearError={clearError}
           clinicalRef={clinicalRef}
