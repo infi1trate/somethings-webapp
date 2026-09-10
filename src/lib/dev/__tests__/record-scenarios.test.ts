@@ -91,6 +91,19 @@ const DECLARED_SHARED_SUBJECTS: ReadonlyArray<readonly [string, string]> = [
   // Admin is a ROLE, not a person — there is no separate admin staff record to point
   // at, which is why `admin` is marked mocked.
   ["supervisor", "admin"],
+  /* ═══ ONE RECORD, TWO GENUINELY DIFFERENT CAPTURES ═══
+     `attention-only` is about the WORKLIST tier and is explicitly to be viewed
+     AS A MENTOR — the same item is action-tier for a supervisor and attention
+     for a mentor, and that role dependency is the whole scenario.
+     `mentor-change` is about a HISTORY ROW on the record itself, at supervisor.
+     Different surface, different role, different screenshot.
+     WHY t12 AND NOT SOMEWHERE ELSE: a mentor-change row derives both names from
+     the roster, so it can only exist on a record whose roster already says the
+     mentor changed. Five teens carry `pastMentors`; of those, two have the
+     store-backed "live" mentor as their current one (whose name is not a
+     fixture), one has no care record at all, and one is deactivated. t12 is the
+     only candidate — see the fixture note in `care-demo.ts`. */
+  ["attention-only", "mentor-change"],
 ];
 
 describe("the record scenario registry", () => {

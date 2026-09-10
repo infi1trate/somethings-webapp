@@ -171,6 +171,23 @@ export const TEEN_SCENARIOS: RecordScenario[] = [
     data: "real",
   },
   {
+    /* ═══ THE MENTOR-CHANGE HISTORY ROW ═══
+       ADDED SO THE VARIANT IS REACHABLE. Without an entry here the only way to
+       see this row is to know the record id, and t12 is otherwise an unremarkable
+       active record that nothing else points at.
+       `data: "real"` — the two names are DERIVED from the roster (`mentorId` and
+       `pastMentors[0]`), so the row cannot name a mentor the directory does not
+       have. Its date and its actor are fixtures, which is true of all five
+       account-change kinds. */
+    id: "mentor-change",
+    label: "Mentor reassigned",
+    kind: "teen",
+    subjectId: "t12",
+    exercises:
+      "The account-update history row for a mentor change: Aisha Bello \u2192 Priya Nair, both resolved from the roster, on a two-line row with no expander \u2014 the pair of names is the whole content, so there is nothing behind a disclosure. The only standing-neutral account event: t12 stays active across it.",
+    data: "real",
+  },
+  {
     id: "single-flag",
     label: "Single open risk flag",
     kind: "teen",
