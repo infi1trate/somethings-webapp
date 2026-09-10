@@ -39,8 +39,6 @@ import {
   type CareSummaryDoc,
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
-// The stat pattern's own styles — see the note on `STAT_LABEL` there.
-import { STAT_LABEL, STAT_VALUE_INK } from "@/components/record/care-review-card";
 import { CareSparkline } from "@/components/record/care-sparkline";
 import { SegmentedControl } from "@/components/record/segmented-control";
 import {
@@ -230,10 +228,15 @@ export function summaryStats(
   engagedDays?: number | null
 ): [SummaryStat, SummaryStat] {
   return [
-    /* TODO-COPY */
-    { label: "Engaged days", value: engagedDays ?? 0 },
-    /* TODO-COPY */
-    { label: "Exchanges", value: exchanges ?? 0 },
+    /* TODO-COPY — the frame's strings, lowercase and unabbreviated. */
+    { label: "engaged days", value: engagedDays ?? 0 },
+    /* "messages sent", NOT "exchanges". The frame names the artefact a reader
+       can count in a transcript rather than this product's word for a
+       back-and-forth — and it is the mock's copy, so it ships. Worth noting for
+       copy review that the two are not synonyms: an exchange is a pair, a
+       message is one side of it, so the same conversation yields a bigger number
+       under this label. The underlying fixture is unchanged. */
+    { label: "messages sent", value: exchanges ?? 0 },
   ];
 }
 
@@ -329,7 +332,9 @@ export function CareSummaryDocCard({
           Provenance sits HERE, not in a footer: guardrail 6 requires it visible
           without scrolling, and a reader who has to scroll to learn a document is
           AI-generated has already read it as authored. */}
-      <header className="border-b border-[color:var(--border-subtle)] px-5 py-4">
+      {/* `pb-0`: THE STAT ROW OWNS THE BOTTOM PADDING so the vertical rule
+          between the two cells can reach this border. See the row. */}
+      <header className="border-b border-[color:var(--border-subtle)] px-5 pt-4 pb-0">
         {/* THE TIME BLOCK CONTROL IS RENDERED AT THE END OF THIS HEADER — see
             below the title row. */}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -410,33 +415,37 @@ export function CareSummaryDocCard({
               }))}
               value={block}
               onChange={onBlockChange}
-              size="sm"
+              /* `md` (32px, 14px labels), NOT `sm` (28px, 11px) — the frame
+                 draws a taller control with readable labels, and the three
+                 spelled-out segments have the room at the rail width. A prop,
+                 not a change to the shared control. */
+              size="md"
               semantics="group"
               fullWidth
               /* TODO-COPY */
               ariaLabel="Care summary time period"
             />
             {/* ═══ THE CONTROL'S OUTPUT, THEN THE CARD'S TWO DATA ═══
-                Was a two-line text stack — a quiet range over a louder count
-                line — and both lines were sentences. The counts are DATA, and
-                the card already has a pattern for data: the review's weighted
-                strip puts a 12px muted label over a 20px tabular value, three
-                of them on one baseline. A reader who meets that shape in the
-                action region and a sentence in the rail has to learn two ways
-                to read the same kind of fact.
+                From the design frame. Two changes from the row this replaces,
+                and both invert something recorded here as a decision — so both
+                are named rather than quietly swapped.
 
-                SO THE COUNTS BECOME A STAT ROW and the range stays a caption.
-                The split is not stylistic: the caption is the CONTROL'S OUTPUT
-                — "you asked for 7 days, here are the dates that resolved to" —
-                and the stats are the DOCUMENT'S CONTENT. Which is why the
-                caption sits 8px under the control and the stats 12px under the
-                caption: the tighter gap binds the caption to the thing that
-                produced it.
+                THE VALUE IS NOW ABOVE THE LABEL. Label-over-value came from the
+                review's weighted strip, where a reader meets three data in a
+                row and needs to know what each one IS before reading it. Here
+                there are two, they are named in the frame, and the number is
+                what a reader came for — so the number leads and the label
+                answers "of what". The strip is unchanged; the two patterns now
+                differ, which is the frame's call.
 
-                STILL THE CARD'S ONLY SCOPE DECLARATION. Every section below is
-                scoped by the block and none of them says so; per-section labels
-                would repeat this five times and still leave a reader checking
-                whether any section disagreed.
+                AND THE PAIR IS JUSTIFIED, not left-aligned. The previous pack
+                asked for a left-aligned pair on the argument that two data
+                pushed to opposite ends of a 380px rail read as a header bar
+                with a value in each corner. The frame answers that with the
+                RULE: an equal two-column grid with a hairline down the middle
+                is not two corners, it is two cells, and the rule is what makes
+                the second column's left edge meaningful. `grid-cols-2` puts it
+                at the exact midpoint of the content box.
 
                 ═══ ONE LIVE REGION OVER CAPTION AND STATS, NOT ONE EACH ═══
                 On a block change both dates and both numbers change. Two live
@@ -446,66 +455,107 @@ export function CareSummaryDocCard({
                 carries the 8px rather than the caption, because the gap belongs
                 to the group. */}
             <div aria-live="polite" className="mt-2">
-              {/* ── THE RANGE CAPTION ────────────────────────────────────────
-                  `--type-meta` is the token whose own comment reads "header
-                  meta line", which is exactly this line's job — 12px/16px, and
-                  a real ramp step rather than the 13px arbitrary value the
-                  merged line used. `--text-muted` measures 5.30:1 on
-                  `--surface-card` and 4.71:1 in dark, both AA — measured
-                  rendered, not taken from the token file's note. */}
-              <p
-                className="text-[var(--text-muted)]"
-                style={{ font: "var(--type-meta)" }}
-              >
-                {rangeLine}
+              {/* ── THE REPORTING-PERIOD CAPTION ─────────────────────────────
+                  `Reporting Period : {dates}` — a labelled value rather than a
+                  bare range. The label carries what the dates ARE, which the
+                  dates alone could not say: a reader landing on this card sees
+                  a period and has to work out whether it is the review window,
+                  the mentorship, or the block they just chose.
+
+                  TWO INKS, TWO FACES, ONE SIZE. The label is Lausanne 400 in
+                  `--text-muted`; the dates are Avantt Bold in `--text-primary`,
+                  which is the only way this app can set bold text — Lausanne
+                  ships 400 only, so `font-bold` on it renders nothing (measured:
+                  identical advance at 400, 500, 600 and 700). `font-display` is
+                  the existing utility for exactly this, already used by two page
+                  headers.
+
+                  14px AVANTT IS OFF THE RAMP, and that is the one place this
+                  header leaves it. Bloom's Avantt stops are 16px
+                  (`--type-title-sm`, `--type-card-title`), 24px and 32px; the
+                  frame sets these dates at the same optical size as the label
+                  beside them, which is 14px. Taking the 16px token instead would
+                  make the dates as large as the CARD TITLE. So the size is the
+                  frame's and the face is the system's, written the way the two
+                  page headers already write it. Flagged for the design lead:
+                  either a 14px Avantt step exists in Bloom and is not tokenised
+                  here, or this line wants 16px.
+
+                  THE SPACE BEFORE THE COLON IS THE FRAME'S. "Reporting Period :"
+                  reads as French spacing and is unusual in English typography;
+                  it is reproduced exactly as drawn and flagged rather than
+                  silently corrected, since "copy the mock exactly" is the
+                  instruction and a stray space is precisely the kind of thing a
+                  reviewer should get to decide about. */}
+              <p className="text-[14px] leading-[20px] text-[var(--text-muted)]">
+                {/* TODO-COPY */}
+                Reporting Period :{" "}
+                <span className="font-display font-bold text-[var(--text-primary)]">
+                  {rangeLine}
+                </span>
               </p>
 
               {/* ── THE STAT ROW ─────────────────────────────────────────────
-                  `STAT_LABEL` and `STAT_VALUE_INK` are IMPORTED from
-                  `care-review-card`, where the weighted strip defines this
-                  pattern. Nothing about the label or the figures is re-declared
-                  here: the same `--type-field-label` at the same tracking, the
-                  same `--text-muted`, the same `tabular-nums` on the same
-                  `--text-primary`, the same `gap-y-1` between label and value
-                  and the same `gap-x-10` between data.
+                  ═══ THE VALUE IS THE ONLY AVANTT-BOLD NUMBER IN THE CARD ═══
+                  `--type-display` is 700 24px/32px Avantt — an exact Bloom step,
+                  not an arbitrary size. It makes the values the largest text in
+                  the card, ABOVE the 16px title, which reverses the scale rule
+                  the previous pack set ("largest after the title, step down if
+                  they compete"). The frame draws them at roughly 1.5x the title
+                  and the reversal is deliberate there: on a card whose job is to
+                  answer "how much contact was there", the counts outranking the
+                  card's own name is a reasonable hierarchy. Recorded because a
+                  reviewer who remembers the old rule will notice it broken.
 
-                  ═══ ONE PROPERTY DIFFERS: 20px → 16px ═══
-                  The strip's value size would make these numerals the LARGEST
-                  TEXT IN THIS CARD. Measured, every size the card renders: the
-                  title is 16px/24px Avantt 700, prose is 14px, and everything
-                  else is 13.5px or smaller — so a 20px value would outrank the
-                  title it sits under. Stepped down one ramp stop to 16px/24px,
-                  which is a real Bloom step (`--type-title-sm` and
-                  `--type-message` both sit there) and leaves the title dominant
-                  by weight and face while keeping the values clear of the 14px
-                  body. Written as arbitrary px to mirror the strip's own
-                  construction exactly, one size smaller; no token is added.
+                  `tabular-nums` so the two columns hold their positions as the
+                  block changes — a proportional "1" is ~40% the width of a "9",
+                  and both cuts carry real tabular figures.
 
-                  BOTH VALUES SHARE A BASELINE BY CONSTRUCTION, not by a height:
-                  the two data are `items-start` siblings whose labels are the
-                  same style and therefore the same height, so the value lines
-                  begin at the same y. Verified rendered rather than assumed.
+                  BOTH VALUES SHARE A BASELINE BY CONSTRUCTION: the two cells are
+                  grid siblings whose first child is the same style, so the value
+                  lines begin at the same y without either being told a height.
 
-                  LEFT-ALIGNED, NOT JUSTIFIED. Two data pushed to opposite ends
-                  of a 338px rail would read as a header bar with a value in
-                  each corner, and the gap between them would carry no meaning
-                  while changing with the rail's width. `gap-x-10` is the strip's
-                  own step, so the pair holds the same rhythm in both places.
+                  ═══ THE RULE REACHES THE HEADER'S OWN DIVIDER ═══
+                  `divide-x` draws it on the second cell's left edge, at the grid
+                  midpoint. For it to meet the horizontal divider the way the
+                  frame draws it, the cells have to own the header's bottom
+                  padding — so the header is `pt-4 pb-0` and this row carries the
+                  `pb-4`. A rule that stopped 16px short would read as a mark
+                  beside the numbers rather than as the line between two cells.
 
                   ARIA-HIDDEN, AND ANNOUNCED IN WORDS INSTEAD. Read as laid out
-                  this says "Engaged days 3 Exchanges 7". See
-                  `summaryStatsSpoken`. */}
+                  this says "10 engaged days 50 messages sent" with no separator
+                  between the two data. See `summaryStatsSpoken`. */}
               <div
                 aria-hidden
-                className="mt-3 flex flex-wrap items-start gap-x-10 gap-y-3"
+                className="mt-3 grid grid-cols-2 divide-x divide-[color:var(--border-subtle)] pb-4"
               >
-                {stats.map((stat) => (
-                  <div key={stat.label} className="flex shrink-0 flex-col gap-y-1">
-                    <span className="text-[var(--text-muted)]" style={STAT_LABEL}>
-                      {stat.label}
-                    </span>
-                    <span className={cn("text-[16px] leading-[24px]", STAT_VALUE_INK)}>
+                {stats.map((stat, i) => (
+                  <div
+                    key={stat.label}
+                    className={cn("flex min-w-0 flex-col", i > 0 && "pl-4")}
+                  >
+                    <span
+                      className="text-[var(--text-primary)]"
+                      /* ═══ `fontVariantNumeric` IS SET HERE, NOT AS A CLASS ═══
+                         The `font` SHORTHAND resets every font longhand it does
+                         not name, `font-variant-numeric` included — and an
+                         inline style outranks a utility class, so
+                         `className="tabular-nums"` beside `style={{ font }}`
+                         silently rendered proportional figures. Measured:
+                         `font-variant-numeric: normal` on the shipped span,
+                         which is how the probe found it.
+                         So the longhand goes in the same style object, after the
+                         shorthand, where it wins by order. */
+                      style={{
+                        font: "var(--type-display)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
                       {stat.value}
+                    </span>
+                    <span className="text-[14px] leading-[20px] text-[var(--text-muted)]">
+                      {stat.label}
                     </span>
                   </div>
                 ))}

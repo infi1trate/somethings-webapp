@@ -36,8 +36,8 @@ describe("the row always has two data", () => {
     // columns are positional, so a swap here silently moves a number under the
     // wrong label — the one defect in this component a reader cannot detect.
     expect(summaryStats(22, 9).map((s) => s.label)).toEqual([
-      "Engaged days",
-      "Exchanges",
+      "engaged days",
+      "messages sent",
     ]);
   });
 
@@ -101,25 +101,32 @@ describe("the labels are categorical", () => {
     for (const n of [0, 1, 2, 11, 149]) expect(labelsAt(n), `at ${n}`).toEqual(base);
   });
 
-  it("carries no digits, no punctuation and no leading lowercase", () => {
+  it("carries no digits and no punctuation", () => {
     for (const s of summaryStats(1, 1)) {
       expect(s.label).not.toMatch(/\d/);
       expect(s.label).not.toMatch(/[.,;:]/);
-      expect(s.label[0]).toBe(s.label[0].toUpperCase());
     }
+  });
+
+  it("is lowercase, because the VALUE opens the pair now", () => {
+    // THIS INVERTED WITH THE FRAME. The labels were sentence-capped while they
+    // sat ABOVE their values and read as column headings. The value leads now,
+    // so the label is the continuation — "10 / engaged days" — and a capital
+    // there would start a second sentence under the first.
+    for (const s of summaryStats(1, 1)) expect(s.label).toBe(s.label.toLowerCase());
   });
 });
 
 describe("what a screen reader hears", () => {
   it("speaks the numbers with their nouns, in row order", () => {
-    expect(summaryStatsSpoken(summaryStats(7, 3))).toBe(
-      "3 engaged days, 7 exchanges."
+    expect(summaryStatsSpoken(summaryStats(50, 10))).toBe(
+      "10 engaged days, 50 messages sent."
     );
   });
 
   it("speaks zeros rather than omitting them", () => {
     expect(summaryStatsSpoken(summaryStats(null, null))).toBe(
-      "0 engaged days, 0 exchanges."
+      "0 engaged days, 0 messages sent."
     );
   });
 
@@ -136,15 +143,17 @@ describe("what a screen reader hears", () => {
 describe("what the rail can actually show", () => {
   it("still recomputes per block, unchanged", () => {
     // The stat row is a presentation change; the numbers behind it are the same
-    // per-block values. Four blocks, four different pairs on the rich record.
+    // per-block values. THREE blocks now — the 30-day pair ("9/22") went with
+    // the block and its fixtures, so this list is also the check that nothing
+    // still reaches for it.
     const pairs = CARE_TIME_BLOCKS.map((b) => {
       const doc = careSummaryFor("t17", NOW, undefined, b.id)!;
       return summaryStats(doc.exchanges, doc.themes?.conversationDays ?? null)
         .map((s) => s.value)
         .join("/");
     });
-    expect(new Set(pairs).size).toBe(4);
-    expect(pairs).toEqual(["3/7", "9/22", "24/61", "58/149"]);
+    expect(new Set(pairs).size).toBe(3);
+    expect(pairs).toEqual(["3/7", "24/61", "58/149"]);
   });
 
   it("never renders a one-day count, because the floor is two", () => {

@@ -426,12 +426,17 @@ const BLOCK_CONVERSATION: Record<
     >
   >
 > = {
-  /* ═══ RICH LONGITUDINAL — VISIBLY DIFFERENT ACROSS THREE BLOCKS ═══
+  /* ═══ RICH LONGITUDINAL — VISIBLY DIFFERENT IN EVERY BLOCK ═══
      The chip SET changes, not only the counts: `divorce-separation` and
      `family-member-illness` are household threads that ran earlier in the
      mentorship and do not appear in the last seven days, so they drop out of
-     Recent entirely. That is the toggle demonstrably changing the data rather
-     than rescaling one set of numbers. */
+     the 7-day block entirely. That is the toggle demonstrably changing the data
+     rather than rescaling one set of numbers.
+     THE 30-DAY ENTRIES WERE DELETED WITH THE BLOCK. Both records carried a full
+     `d30` fixture — nine engaged days and a month's summary on this one — and it
+     became unreachable data the moment the segment was dropped. Removed rather
+     than left for a block that no longer exists; the jump from 7 to 90 in this
+     table is the product's, not a gap in the fixtures. */
   t17: {
     recent: {
       conversationDays: 3,
@@ -443,20 +448,6 @@ const BLOCK_CONVERSATION: Record<
       ],
       summary:
         "Three engaged days this week, all teen-initiated. Sleep has come up on each of them and low mood on two. The escalation raised on Sep 1 about access to a phone is still open and with a supervisor.",
-    },
-    d30: {
-      conversationDays: 9,
-      exchanges: 22,
-      themes: [
-        { tagId: "sleep-disturbance", days: 7 },
-        { tagId: "low-mood-hopelessness", days: 6 },
-        { tagId: "school-avoidance", days: 4 },
-        { tagId: "household-substance-use", days: 6 },
-        { tagId: "family-member-illness", days: 4 },
-        { tagId: "divorce-separation", days: 3 },
-      ],
-      summary:
-        "Contact has been steady through the month, with the teen initiating most of the scheduled calls and keeping the two that were moved. Sleep and low mood are the themes that recur most, and school avoidance has come up in about half the conversations. An escalation raised on Sep 1 about access to a phone remains open.",
     },
     d90: {
       conversationDays: 24,
@@ -496,16 +487,6 @@ const BLOCK_CONVERSATION: Record<
       themes: [{ tagId: "excessive-worry", days: 2 }],
       summary:
         "Two engaged days this week, both short exchanges between scheduled calls. Worry about school was the only theme raised.",
-    },
-    d30: {
-      conversationDays: 7,
-      exchanges: 18,
-      themes: [
-        { tagId: "excessive-worry", days: 6 },
-        { tagId: "restlessness", days: 3 },
-      ],
-      summary:
-        "Contact has been steady across the month, with short exchanges between the scheduled calls. Worry about school is the theme that recurs and has stayed level rather than building. No flags were raised.",
     },
     d90: {
       conversationDays: 19,

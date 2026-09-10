@@ -18,14 +18,7 @@
 // mentorship is not 3650 days long, and a window that overshot the join date
 // would report engaged days against a period the teen did not exist in.
 //
-// ═══ THE DEFAULT IS 30 DAYS, AND IT IS A DECISION SOMEONE CAN VETO ═══
-//
-// Not "All" — which would make the rail's numbers describe a 200-day record on
-// first read, and the review it sits beside is a 30- or 90-day judgment. Not
-// "Recent" either: seven days of a paused record is mostly zeroes, and an
-// opening state that reads as empty teaches a reader the card has nothing.
-// Thirty is the shortest block that carries data on most records. Flagged as
-// the design lead's call rather than absorbed as an obvious truth.
+// THE DEFAULT AND ITS COST ARE RECORDED ON `DEFAULT_CARE_BLOCK` BELOW.
 //
 // NO CROSS-SESSION PERSISTENCE. Every fresh open is 30 days. A remembered block
 // means the next reader inherits a scope they did not choose and cannot see
@@ -36,7 +29,7 @@ import { DEMO_TEENS } from "@/lib/record/people-demo";
 
 const DAY = 86_400_000;
 
-export type CareTimeBlockId = "recent" | "d30" | "d90" | "all";
+export type CareTimeBlockId = "recent" | "d90" | "all";
 
 export interface CareTimeBlock {
   id: CareTimeBlockId;
@@ -47,26 +40,47 @@ export interface CareTimeBlock {
 }
 
 export const CARE_TIME_BLOCKS: readonly CareTimeBlock[] = [
-  /* ═══ "7d", NOT "Recent" (C3) — AND THIS IS AN OPEN COPY QUESTION ═══
-     The four labels are a parallel set now: three day-counts and an "All". A
-     mixed set ("Recent · 30d · 90d · All") made the first segment the only one
-     naming a FEELING rather than a length, and a reader comparing it to "30d"
-     has to work out whether "Recent" is shorter or just vaguer.
-     THE COST, FLAGGED: "7d" is precise and colder, and "Recent" carried the
-     idea that this is the block you reach for by default when you want "what
-     just happened". Either way the scope line beneath resolves it to real dates,
-     which is why the label can afford to be terse. Copy verification pending. */
-  { id: "recent", label: "7d", days: 7 },
-  { id: "d30", label: "30d", days: 30 },
-  { id: "d90", label: "90d", days: 90 },
+  /* ═══ "7 day" / "90 day" / "All" — FROM THE DESIGN FRAME ═══
+     Was "7d · 30d · 90d · All". Two changes, both from the mock:
+
+     THE ABBREVIATION IS SPELLED OUT. "7d" is the shortest possible label and it
+     is also the one a reader has to decode; "7 day" is read rather than parsed.
+     The segments have the room at `size="md"` — measured, no truncation and no
+     wrap at the rail's 380px.
+
+     THE 30-DAY BLOCK IS GONE, on instruction, and it is worth recording what
+     that costs: 7 → 90 is now a 13× jump, so a reader who wants "the last
+     month" has to choose between a week and a quarter. The cadence windows a
+     review is judged on are untouched by this — they never read these blocks —
+     so what is lost is a viewing option, not a clinical period. */
+  { id: "recent", label: "7 day", days: 7 },
+  { id: "d90", label: "90 day", days: 90 },
   { id: "all", label: "All", days: null },
 ];
 
-/** See the note above — a flagged decision, not a default nobody chose. */
-export const DEFAULT_CARE_BLOCK: CareTimeBlockId = "d30";
+/** ═══ THE DEFAULT IS THE 7-DAY BLOCK NOW, BECAUSE 30 NO LONGER EXISTS ═══
+ *
+ *  It was `d30`, chosen as the shortest block carrying data on most records —
+ *  not "All", which would make the rail's numbers describe a 200-day record on
+ *  first read, and not "Recent", because seven days of a paused record is mostly
+ *  zeroes and an opening state that reads as empty teaches a reader the card has
+ *  nothing.
+ *
+ *  WITH 30 DROPPED THAT ARGUMENT HAS NO CANDIDATE LEFT. Of the two survivors the
+ *  frame shows 7 day selected, and the zero state is no longer the problem it
+ *  was when that reasoning was written: the stat row renders `0` under a
+ *  standing label and the sections below say in words that no content exists for
+ *  the window. An empty 7-day view now reads as "nothing this week" rather than
+ *  as a broken card. Flagged as the design lead's call either way. */
+export const DEFAULT_CARE_BLOCK: CareTimeBlockId = "recent";
 
+/** BY ID, WITH THE DEFAULT AS THE FALLBACK — not `CARE_TIME_BLOCKS[1]`, which
+ *  is what this was. A positional fallback silently re-points whenever the list
+ *  changes: dropping the 30-day block moved index 1 from `d30` to `d90`, turning
+ *  an unknown id into a quarter's worth of window. */
 export const blockById = (id: CareTimeBlockId): CareTimeBlock =>
-  CARE_TIME_BLOCKS.find((b) => b.id === id) ?? CARE_TIME_BLOCKS[1];
+  CARE_TIME_BLOCKS.find((b) => b.id === id) ??
+  CARE_TIME_BLOCKS.find((b) => b.id === DEFAULT_CARE_BLOCK)!;
 
 /** ═══ THE RESOLVED WINDOW FOR A BLOCK ═══
  *
@@ -118,11 +132,28 @@ const short = (at: number) => {
  *
  *  AN EN DASH, not a hyphen: it is a range. TODO-COPY.
  *
- *  "FULL MENTORSHIP" ONLY ON `all`. On a trailing block the dates are the
- *  statement; on `all` the dates alone would look like an arbitrary window, so
- *  the suffix names what makes them the endpoints. A CLAMPED trailing block says
- *  so too — "30d" over a 12-day record prints the 12 days and marks them as the
- *  whole mentorship, because that is what they are. */
+ *  THE SUFFIX ONLY ON `all`. On a trailing block the dates are the statement; on
+ *  `all` the dates alone would look like an arbitrary window, so the suffix names
+ *  what makes them the endpoints. A CLAMPED trailing block says so too — "90 day"
+ *  over a 12-day record prints the 12 days and marks them as all the time there
+ *  is, because that is what they are.
+ *
+ *  ═══ "· all time", NOT "· full mentorship" — SHORTENED TO STOP A FOLD ═══
+ *
+ *  The caption gained a `Reporting Period : ` label from the design frame, and
+ *  that prefix costs ~106px of a 338px rail. MEASURED at the shipped styles:
+ *  `Reporting Period : Feb 12 – Sep 10, 2026 · full mentorship` is 353px and
+ *  wrapped onto a second line on every record carrying the suffix — the All block
+ *  everywhere, and every block on a record too short to fill one. Setting the
+ *  suffix in the muted label style instead of the bold date style saved 2.4px
+ *  (350.6px) and still folded.
+ *  "· all time" measures 302.9px, which clears the rail with ~35px in hand at
+ *  the widest caption on file. It also reads with the segment above it, which is
+ *  labelled "All" — and on a clamped trailing block "all time" is still true:
+ *  the seven days asked for resolved to all the time that exists.
+ *  WHAT IS LOST: "mentorship" named WHICH span the dates covered. The label now
+ *  carries that job ("Reporting Period"), so the suffix only has to say the span
+ *  is complete. TODO-COPY. */
 export function blockRangeLine(
   window: { fromAt: number; toAt: number; clamped: boolean },
   block: CareTimeBlockId
@@ -130,6 +161,6 @@ export function blockRangeLine(
   const year = new Date(window.toAt).getFullYear();
   const range = `${short(window.fromAt)} – ${short(window.toAt)}, ${year}`;
   const whole = block === "all" || window.clamped;
-  /* TODO-COPY */
-  return whole ? `${range} · full mentorship` : range;
+  /* TODO-COPY — see the note above on why this is not "full mentorship". */
+  return whole ? `${range} · all time` : range;
 }
