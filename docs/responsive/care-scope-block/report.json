@@ -268,232 +268,604 @@
       "badgeClearance": null,
       "clearsBadges": null,
       "crossesOutOfScopeBadge": null
+    },
+    {
+      "record": "t1",
+      "block": "7d",
+      "skip": "no scope container"
+    },
+    {
+      "record": "t1",
+      "block": "30d",
+      "skip": "no scope container"
+    },
+    {
+      "record": "t1",
+      "block": "90d",
+      "skip": "no scope container"
+    },
+    {
+      "record": "t1",
+      "block": "All",
+      "skip": "no scope container"
     }
   ],
   "stack": [
     {
       "record": "t17",
       "block": "7d",
-      "lines": [
+      "caption": "Sep 3 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 115.3,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Sep 3 – Sep 10, 2026",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 115.3,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "3",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "3 engaged days, 7 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 189.7,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "7",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Sep 3 – Sep 10, 2026 ⏎ 3 engaged days, 7 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"3\"",
+        "14px w400 lausanne — \"Three engaged days this \"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Sep 3 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w500 lausanne — \"7d\"",
+        "11px w400 lausanne — \"30d\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Sep 3 – Sep 10, 2026 3 engaged days, 7 exchanges."
     },
     {
       "record": "t17",
       "block": "30d",
-      "lines": [
+      "caption": "Aug 11 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 119.6,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Aug 11 – Sep 10, 2026",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 119.6,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "9",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "9 engaged days, 22 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 198.4,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "22",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Aug 11 – Sep 10, 2026 ⏎ 9 engaged days, 22 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"9\"",
+        "14px w400 lausanne — \"Contact has been steady \"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Aug 11 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"30d\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Aug 11 – Sep 10, 2026 9 engaged days, 22 exchanges."
     },
     {
       "record": "t17",
       "block": "90d",
-      "lines": [
+      "caption": "Jun 12 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 118.8,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Jun 12 – Sep 10, 2026",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 118.8,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "24",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "24 engaged days, 61 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 207.2,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "61",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Jun 12 – Sep 10, 2026 ⏎ 24 engaged days, 61 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"24\"",
+        "14px w400 lausanne — \"PHQ-9 has come down from\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Jun 12 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"90d\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Jun 12 – Sep 10, 2026 24 engaged days, 61 exchanges."
     },
     {
       "record": "t17",
       "block": "All",
-      "lines": [
+      "caption": "Feb 12 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 208,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Feb 12 – Sep 10, 2026 · full mentorship",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 208,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "58",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "58 engaged days, 149 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 215.9,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "149",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Feb 12 – Sep 10, 2026 · full mentorship ⏎ 58 engaged days, 149 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"58\"",
+        "14px w400 lausanne — \"PHQ-9 has come down from\"",
+        "12.5px w500 lausanne — \"Sleep disturbance\"",
+        "12px w400 lausanne — \"Feb 12 – Sep 10, 2026 · \"",
+        "11.5px w400 lausanne — \"Feb\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"All\"",
+        "10px w600 lausanne — \"1\""
+      ],
+      "utterance": "Feb 12 – Sep 10, 2026 · full mentorship 58 engaged days, 149 exchanges."
     },
     {
       "record": "t23",
       "block": "7d",
-      "lines": [
+      "caption": "Sep 3 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 115.3,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Sep 3 – Sep 10, 2026",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 115.3,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "2",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "2 engaged days, 5 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 189.7,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "5",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Sep 3 – Sep 10, 2026 ⏎ 2 engaged days, 5 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"2\"",
+        "14px w400 lausanne — \"Two engaged days this we\"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Sep 3 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w500 lausanne — \"7d\"",
+        "11px w400 lausanne — \"30d\""
+      ],
+      "utterance": "Sep 3 – Sep 10, 2026 2 engaged days, 5 exchanges."
     },
     {
       "record": "t23",
       "block": "30d",
-      "lines": [
+      "caption": "Aug 11 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 119.6,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Aug 11 – Sep 10, 2026",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 119.6,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "7",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "7 engaged days, 18 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 198.4,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "18",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Aug 11 – Sep 10, 2026 ⏎ 7 engaged days, 18 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"7\"",
+        "14px w400 lausanne — \"Contact has been steady \"",
+        "13.5px w400 lausanne — \"One assessment in this p\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Aug 11 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"30d\""
+      ],
+      "utterance": "Aug 11 – Sep 10, 2026 7 engaged days, 18 exchanges."
     },
     {
       "record": "t23",
       "block": "90d",
-      "lines": [
+      "caption": "Jun 12 – Sep 10, 2026",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 118.8,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Jun 12 – Sep 10, 2026",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 118.8,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "19",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "19 engaged days, 44 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 207.2,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "44",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Jun 12 – Sep 10, 2026 ⏎ 19 engaged days, 44 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"19\"",
+        "14px w400 lausanne — \"GAD-7 has risen from the\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Jun 12 – Sep 10, 2026\"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"90d\""
+      ],
+      "utterance": "Jun 12 – Sep 10, 2026 19 engaged days, 44 exchanges."
     },
     {
       "record": "t23",
       "block": "All",
-      "lines": [
+      "caption": "Apr 29 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 209.2,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
         {
-          "text": "Apr 29 – Sep 10, 2026 · full mentorship",
-          "font": "12px / 16px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(110, 107, 103)",
-          "textW": 209.2,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Engaged days",
+          "value": "26",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
         },
         {
-          "text": "26 engaged days, 61 exchanges",
-          "font": "14px / 20px lausanne, \"lausanne Fallback\"",
-          "color": "rgb(88, 83, 75)",
-          "textW": 207.2,
-          "avail": 338,
-          "lineBoxes": 1
+          "label": "Exchanges",
+          "value": "61",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
         }
       ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
       "gaps": {
-        "controlToLine1": 8,
-        "line1ToLine2": 2,
-        "lastLineToDivider": 16
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
       },
-      "utterance": "Apr 29 – Sep 10, 2026 · full mentorship ⏎ 26 engaged days, 61 exchanges"
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"26\"",
+        "14px w400 lausanne — \"GAD-7 has risen from the\"",
+        "12.5px w500 lausanne — \"Excessive worry\"",
+        "12px w400 lausanne — \"Apr 29 – Sep 10, 2026 · \"",
+        "11.5px w400 lausanne — \"May\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"All\""
+      ],
+      "utterance": "Apr 29 – Sep 10, 2026 · full mentorship 26 engaged days, 61 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "7d",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w500 lausanne — \"7d\"",
+        "11px w400 lausanne — \"30d\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "30d",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"30d\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "90d",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"90d\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
+    },
+    {
+      "record": "t1",
+      "block": "All",
+      "caption": "Sep 9 – Sep 10, 2026 · full mentorship",
+      "captionCss": "12px/16px rgb(110, 107, 103)",
+      "captionW": 204,
+      "captionAvail": 338,
+      "captionLineBoxes": 1,
+      "data": [
+        {
+          "label": "Engaged days",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 865
+        },
+        {
+          "label": "Exchanges",
+          "value": "0",
+          "labelCss": "12px/16px normal rgb(110, 107, 103)",
+          "valueCss": "16px/24px tabular-nums rgb(31, 30, 29)",
+          "baseline": 452.8,
+          "labelTop": 420,
+          "left": 982.3
+        }
+      ],
+      "rowGap": "40px",
+      "rowJustify": "normal",
+      "gaps": {
+        "controlToCaption": 8,
+        "captionToRow": 12,
+        "rowToDivider": 16
+      },
+      "titleSize": 16,
+      "ramp": [
+        "16px w700 avantt — \"Care summary\"",
+        "16px w400 lausanne — \"0\"",
+        "13.5px w400 lausanne — \"Not enough comparable re\"",
+        "12px w400 lausanne — \"Sep 9 – Sep 10, 2026 · f\"",
+        "11px w400 lausanne — \"7d\"",
+        "11px w500 lausanne — \"All\""
+      ],
+      "utterance": "Sep 9 – Sep 10, 2026 · full mentorship 0 engaged days, 0 exchanges."
     }
   ],
   "failures": [],
@@ -512,24 +884,24 @@
     },
     "at": {
       "30": {
-        "dt": 36,
+        "dt": 57,
         "l": 247.5,
         "w": 109.4
       },
       "60": {
-        "dt": 58,
-        "l": 246.2,
-        "w": 110.8
+        "dt": 62,
+        "l": 247.4,
+        "w": 109.5
       },
       "150": {
-        "dt": 150,
-        "l": 201.2,
-        "w": 155.8
+        "dt": 151,
+        "l": 211.6,
+        "w": 145.3
       },
       "300": {
-        "dt": 300,
-        "l": 169.5,
-        "w": 187.4
+        "dt": 301,
+        "l": 170.3,
+        "w": 186.7
       }
     },
     "interpolates": true,

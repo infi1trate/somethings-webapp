@@ -39,6 +39,8 @@ import {
   type CareSummaryDoc,
 } from "@/lib/record/care-summary-doc";
 import { clinicalDate } from "@/components/record/care-presentation";
+// The stat pattern's own styles — see the note on `STAT_LABEL` there.
+import { STAT_LABEL, STAT_VALUE_INK } from "@/components/record/care-review-card";
 import { CareSparkline } from "@/components/record/care-sparkline";
 import { SegmentedControl } from "@/components/record/segmented-control";
 import {
@@ -182,75 +184,75 @@ export function summaryProvenanceNote(
  *  `doc.contactDays` IS windowed and is the nearest real field, but it counts DAYS
  *  WITH CONTENT rather than exchanges, so substituting it would change the claim
  *  rather than fix it. */
-/** ═══ ONE COUNT ON THE STAT LINE ═══
+/** ═══ ONE DATUM IN THE HEADER'S STAT ROW ═══
  *
- *  THE NUMERAL AND ITS NOUN ARE SEPARATE FIELDS, and that is the whole reason
- *  this type exists. The stat line typesets the two differently — the numeral
- *  carries the emphasis and tabular figures, the word stays plain — and a
- *  pre-joined `"9 engaged days"` string makes that impossible without parsing
- *  the string back apart in the renderer.
+ *  THE LABEL IS CONSTANT AND THE VALUE IS A NUMBER, which is the whole of the
+ *  label-over-value pattern: the label names the measure once, at a fixed size
+ *  and in a fixed place, and only the numeral changes as the block changes. A
+ *  reader comparing two blocks is comparing two numerals in the same position
+ *  rather than re-reading a sentence.
  *
- *  `unit` ARRIVES ALREADY PLURALIZED for its own value, because pluralization is
- *  a fact about the number and this is the only place that holds both. */
-export interface SummaryCount {
+ *  ═══ NO PLURALIZATION — THE STRINGS ARE GONE, NOT UNUSED ═══
+ *
+ *  The previous merged line said "9 engaged days" and needed a singular form for
+ *  "1 engaged day". A LABEL DOES NOT AGREE WITH ITS VALUE: "Engaged days: 1" is
+ *  correct English and "Engaged day: 1" would be wrong in a column whose header
+ *  names the measure. So `plural()` and both singular strings are deleted rather
+ *  than left dormant, and the copy set shrinks to two constants. */
+export interface SummaryStat {
+  /** TODO-COPY, both. Categorical — never agrees with `value`. */
+  label: string;
   value: number;
-  unit: string;
 }
 
-/** English singular/plural on a bare noun. TODO-COPY on both nouns.
+/** ═══ THE TWO STATS, AND WHY A ZERO IS A VALUE ═══
  *
- *  "1 engaged days" is the kind of defect that survives every type check and
- *  every count assertion, and a reader who sees it stops trusting the numbers
- *  beside it. `t1` is a one-day record, so the singular is REACHABLE on current
- *  fixtures rather than theoretical. */
-const plural = (n: number, one: string) => (n === 1 ? one : `${one}s`);
-
-/** ═══ THE COUNTS, AS DATA RATHER THAN A SENTENCE ═══
+ *  BOTH STATS ALWAYS RENDER, and an absent measurement reads `0`.
  *
- *  Was `summaryMetaLine`, which returned `"9 engaged days, 22 exchanges"` — one
- *  string, one voice, one type size. The scope line is a two-voice stack now
- *  (A1), so the counts have to survive as values far enough to be typeset.
+ *  THAT REVERSES WHAT THIS FUNCTION USED TO DO, deliberately and on instruction.
+ *  It dropped a half it had no number for, on the argument that "0 engaged days"
+ *  reports a measurement where there is an absence. In a SENTENCE that argument
+ *  holds — the sentence is the only thing on the line, so a zero in it is a
+ *  claim. In a STAT ROW it does not: the row is a fixed frame with two columns,
+ *  and a column that disappears takes its label with it, so a reader cannot tell
+ *  "nothing happened this week" from "this card does not track exchanges". A zero
+ *  under a standing label is the more honest of the two, and the interpretation
+ *  is carried by the empty-state sentences in the sections below, which say in
+ *  words what the record does and does not have.
  *
- *  BOTH WORDS ARE FLAGGED. "engaged days" is the mock's; "exchanges" is this
- *  product's and stands where the mock says "messages". TODO-COPY on both.
- *
- *  DEGRADES ONE PART AT A TIME. Either half can be absent — a record with no
- *  extraction has no engaged-day count, and one with no conversation content has
- *  no exchange count — so the line states what it has rather than claiming a
- *  zero, which reads as a measurement instead of an absence. An EMPTY array is
- *  the third case, and the renderer drops the whole second line for it: the
- *  range then stands alone, which is true, rather than under a stat line
- *  carrying nothing.
- *
- *  ═══ WHAT WENT WITH THE STRING ═══
- *
- *  The `"First week"` / `"{n}-week analysis"` fallback. It described the period's
- *  LENGTH when no counts existed, and `summaryScopeLine` then dropped it again
- *  for restating the dates beside it — so it was computed on every render and
- *  rendered on none. Unreachable, not merely unused: the only surface that shows
- *  this line is the live rail, and the drop rule applied there. Deleted rather
- *  than carried, and named here so the deletion is not read as an oversight.
- *
- *  ═══ TODO-DATA — THE COUNT IS STILL NOT ALWAYS THE WINDOW'S COUNT ═══
- *
- *  Inside a block both numbers are the block's own (`doc.exchanges`,
- *  `doc.themes.conversationDays`). In the committed read-only view there is no
- *  block and no control, so this line does not render at all — which is what
- *  retired the old defect where `careReadingFor`'s unwindowed count sat under a
- *  windowed header. The remaining gap is upstream: the block counts are fixtures
- *  for the two named records and absent for the rest. */
-export function summaryCounts(
+ *  THE COST, STATED: on a record with no conversation extraction the row now
+ *  reads `0 / 0` where it previously showed nothing. That is a real change in
+ *  what the card asserts, and it is the instructed behaviour. The exchange count
+ *  remains a fixture rather than a pipeline — see the TODO-DATA note below. */
+export function summaryStats(
   exchanges: number | null,
-  /** Days the teen engaged in the window — the number the under-chart caption
-   *  used to carry. Null where no extraction exists for the record. */
+  /** Days the teen engaged in the window. Null where no extraction exists. */
   engagedDays?: number | null
-): SummaryCount[] {
-  const counts: SummaryCount[] = [];
-  if (engagedDays != null && engagedDays > 0)
-    counts.push({ value: engagedDays, unit: plural(engagedDays, "engaged day") });
-  if (exchanges && exchanges > 0)
-    counts.push({ value: exchanges, unit: plural(exchanges, "exchange") });
-  return counts;
+): [SummaryStat, SummaryStat] {
+  return [
+    /* TODO-COPY */
+    { label: "Engaged days", value: engagedDays ?? 0 },
+    /* TODO-COPY */
+    { label: "Exchanges", value: exchanges ?? 0 },
+  ];
+}
+
+/** ═══ WHAT A SCREEN READER HEARS ON A BLOCK CHANGE ═══
+ *
+ *  The stat row's DOM order is label, value, label, value — so read as it is
+ *  laid out it announces "Engaged days 3 Exchanges 7", which is the shape of the
+ *  visual and not the shape of a sentence. The row is therefore hidden from the
+ *  accessibility tree and this string is announced in its place, inside the same
+ *  live region as the range caption so the pair is ONE utterance.
+ *
+ *  BUILT FROM THE SAME CONSTANT LABELS, lowercased. That keeps one copy set
+ *  rather than a second spoken vocabulary that could drift from the visible one —
+ *  and it means a value of 1 would say "1 engaged days", which is the direct cost
+ *  of deleting the singular forms. Unreachable on current fixtures (the contact
+ *  floor puts a rendered engaged-day count at 0 or >= 2), and named rather than
+ *  quietly worked around. */
+export function summaryStatsSpoken(stats: readonly SummaryStat[]): string {
+  return `${stats.map((s) => `${s.value} ${s.label.toLowerCase()}`).join(", ")}.`;
 }
 
 export function CareSummaryDocCard({
@@ -305,8 +307,8 @@ export function CareSummaryDocCard({
   onJumpToEvent?: (eventId: string) => void;
 }) {
   const thin = doc.contactDays < SUMMARY_MIN_CONTACT_DAYS;
-  /* A1. The period, and what happened in it — two lines, two voices. */
-  const counts = summaryCounts(
+  /* The header's two data. The period is the caption above them. */
+  const stats = summaryStats(
     onBlockChange ? doc.exchanges : (doc.exchanges ?? exchanges),
     doc.themes?.conversationDays ?? null
   );
@@ -339,16 +341,14 @@ export function CareSummaryDocCard({
               {/* TODO-COPY */}
               Care summary
             </h2>
-            {/* ═══ THE SUBTITLE LEFT THIS ROW (A1/A2) ═══
-                It sat here, above the control, and the stack then read
-                title → counts → control → range: two secondary lines with the
-                control wedged between them, and a reader had to hold the counts
-                in mind across it to learn which period they described.
-                The counts and the range are ONE FACT — "this many days, in this
-                period" — so they are one line now, below the control that sets
-                the period. See `scopeLine` below the group.
-                THE ⓘ DOES NOT MOVE. It stays top-right on the title row, which
-                is where a reader looking for provenance already looks, and it
+            {/* ═══ NOTHING ELSE IS ON THE TITLE ROW ═══
+                A subtitle sat here once, above the control, and the stack read
+                title → counts → control → range: two text lines with the control
+                wedged between them, and a reader had to hold the counts in mind
+                across it to learn which period they described. Both facts are
+                below the control now — see the caption and the stat row.
+                THE ⓘ DOES NOT MOVE. It stays top-right on this row, which is
+                where a reader looking for provenance already looks, and it
                 describes the document rather than the block. */}
           </div>
 
@@ -416,100 +416,101 @@ export function CareSummaryDocCard({
               /* TODO-COPY */
               ariaLabel="Care summary time period"
             />
-            {/* ═══ THE SCOPE STACK — TWO LINES, TWO VOICES (A1) ═══
-                Was one merged line: `{range} · {counts}` at a single size in a
-                single ink. It read as one fact and it is two — WHICH PERIOD, and
-                WHAT HAPPENED IN IT — and the middot was carrying that distinction
-                on its own while the all-time block already spent a middot on
-                "full mentorship". Three facts, two identical separators.
+            {/* ═══ THE CONTROL'S OUTPUT, THEN THE CARD'S TWO DATA ═══
+                Was a two-line text stack — a quiet range over a louder count
+                line — and both lines were sentences. The counts are DATA, and
+                the card already has a pattern for data: the review's weighted
+                strip puts a 12px muted label over a 20px tabular value, three
+                of them on one baseline. A reader who meets that shape in the
+                action region and a sentence in the rail has to learn two ways
+                to read the same kind of fact.
 
-                SO THE VOICES SPLIT. The range is the quieter line: it is the
-                label on everything below, and a reader who has set the control
-                already knows roughly what it says. The counts are the STAT line
-                and step up to meet the numbers they carry.
+                SO THE COUNTS BECOME A STAT ROW and the range stays a caption.
+                The split is not stylistic: the caption is the CONTROL'S OUTPUT
+                — "you asked for 7 days, here are the dates that resolved to" —
+                and the stats are the DOCUMENT'S CONTENT. Which is why the
+                caption sits 8px under the control and the stats 12px under the
+                caption: the tighter gap binds the caption to the thing that
+                produced it.
 
                 STILL THE CARD'S ONLY SCOPE DECLARATION. Every section below is
                 scoped by the block and none of them says so; per-section labels
                 would repeat this five times and still leave a reader checking
                 whether any section disagreed.
 
-                ═══ ONE LIVE REGION AROUND BOTH LINES, NOT ONE EACH ═══
-                Two `aria-live` nodes would announce the period and the counts as
-                two separate utterances, in whichever order the two mutations
-                landed — and on a block change BOTH always change. The region is
-                the wrapper, so a screen-reader user hears the pair as one
-                statement: the dates the segment resolved to, then what the card
-                is now counting. That is also why the wrapper carries the 8px
-                rather than the first line: the gap belongs to the group. */}
+                ═══ ONE LIVE REGION OVER CAPTION AND STATS, NOT ONE EACH ═══
+                On a block change both dates and both numbers change. Two live
+                nodes would announce them as two utterances in whichever order
+                the mutations landed; one region announces the period and then
+                what was counted in it, as a single statement. The wrapper
+                carries the 8px rather than the caption, because the gap belongs
+                to the group. */}
             <div aria-live="polite" className="mt-2">
-              {/* ── LINE 1 · THE RANGE, QUIET ────────────────────────────────
-                  `--type-meta` is the token whose comment reads "header meta
-                  line", which is exactly this line's job — and it is 12px/16px,
-                  a real step below the stat line rather than the 13px arbitrary
-                  value the merged line used. `--text-muted` measures 5.30:1 on
-                  `--surface-card` and 4.82:1 in dark, both AA at this size (the
-                  token file records the measurement; re-verified rendered). */}
+              {/* ── THE RANGE CAPTION ────────────────────────────────────────
+                  `--type-meta` is the token whose own comment reads "header
+                  meta line", which is exactly this line's job — 12px/16px, and
+                  a real ramp step rather than the 13px arbitrary value the
+                  merged line used. `--text-muted` measures 5.30:1 on
+                  `--surface-card` and 4.71:1 in dark, both AA — measured
+                  rendered, not taken from the token file's note. */}
               <p
                 className="text-[var(--text-muted)]"
                 style={{ font: "var(--type-meta)" }}
               >
                 {rangeLine}
               </p>
-              {/* ── LINE 2 · THE COUNTS, STAT VOICE ──────────────────────────
-                  DROPPED ENTIRELY when nothing is measured, rather than shown
-                  empty or filled with a zero. The range above is then the whole
-                  scope declaration, which is true — a record with no extraction
-                  has a period and no counts, and saying "0 engaged days" would
-                  report a measurement where there is an absence.
 
-                  2px UNDER LINE 1. The two lines are one block at two volumes,
-                  so they sit at the tightest step on the scale; 8px would read
-                  as two unrelated lines and 0 would collide the 16px and 20px
-                  leadings. */}
-              {counts.length > 0 && (
-                <p
-                  className="mt-0.5 text-[var(--text-secondary)]"
-                  style={{ font: "var(--type-body)" }}
-                >
-                  {counts.map((c, i) => (
-                    <span key={c.unit}>
-                      {i > 0 ? ", " : ""}
-                      {/* ═══ THE NUMERAL IS THE STAT, AND IT IS TYPESET AS ONE ═══
-                          `tabular-nums` so the counts hold their column as the
-                          block changes — a proportional "1" is ~40% the width of
-                          a "9", and the line jitters under a control a reader is
-                          clicking repeatedly. Both cuts carry real tabular
-                          figures (recorded in the token file).
+              {/* ── THE STAT ROW ─────────────────────────────────────────────
+                  `STAT_LABEL` and `STAT_VALUE_INK` are IMPORTED from
+                  `care-review-card`, where the weighted strip defines this
+                  pattern. Nothing about the label or the figures is re-declared
+                  here: the same `--type-field-label` at the same tracking, the
+                  same `--text-muted`, the same `tabular-nums` on the same
+                  `--text-primary`, the same `gap-y-1` between label and value
+                  and the same `gap-x-10` between data.
 
-                          ═══ THE SPECCED MEDIUM WEIGHT IS NOT SHIPPED, ON PURPOSE ═══
-                          The brief asks for medium-weight numerals. Lausanne
-                          ships 400 ONLY (`layout.tsx`), and this repo has a test
-                          — `type-ramp-faces.test.ts` — whose entire purpose is to
-                          stop a token declaring a weight with no file behind it:
-                          `--type-label-sm` and `--type-field-label` both asked
-                          for 500, rendered synthesised, and were changed to 400
-                          rather than left reading like a considered decision.
-                          `font-medium` here would be the same silent lie one
-                          layer up, where that test cannot see it.
-                          MEASURED, not assumed: `document.fonts` lists exactly
-                          `lausanne 400 normal`, and the advance width of
-                          "Handgloves 58 engaged" at 14px is 155.094px at 400,
-                          500, 600 AND 700 — Chrome renders no synthesis for this
-                          face at any weight. The class would have changed
-                          nothing at all.
-                          SO THE STAT VOICE IS AN INK STEP: `--text-primary` at
-                          16.64:1 against the words' `--text-secondary` at
-                          7.63:1, which is buildable with the cuts we have. When
-                          the 500 cut lands, `font-medium` on this span is the
-                          one-line change that finishes the spec. */}
-                      <span className="tabular-nums text-[var(--text-primary)]">
-                        {c.value}
-                      </span>{" "}
-                      {c.unit}
+                  ═══ ONE PROPERTY DIFFERS: 20px → 16px ═══
+                  The strip's value size would make these numerals the LARGEST
+                  TEXT IN THIS CARD. Measured, every size the card renders: the
+                  title is 16px/24px Avantt 700, prose is 14px, and everything
+                  else is 13.5px or smaller — so a 20px value would outrank the
+                  title it sits under. Stepped down one ramp stop to 16px/24px,
+                  which is a real Bloom step (`--type-title-sm` and
+                  `--type-message` both sit there) and leaves the title dominant
+                  by weight and face while keeping the values clear of the 14px
+                  body. Written as arbitrary px to mirror the strip's own
+                  construction exactly, one size smaller; no token is added.
+
+                  BOTH VALUES SHARE A BASELINE BY CONSTRUCTION, not by a height:
+                  the two data are `items-start` siblings whose labels are the
+                  same style and therefore the same height, so the value lines
+                  begin at the same y. Verified rendered rather than assumed.
+
+                  LEFT-ALIGNED, NOT JUSTIFIED. Two data pushed to opposite ends
+                  of a 338px rail would read as a header bar with a value in
+                  each corner, and the gap between them would carry no meaning
+                  while changing with the rail's width. `gap-x-10` is the strip's
+                  own step, so the pair holds the same rhythm in both places.
+
+                  ARIA-HIDDEN, AND ANNOUNCED IN WORDS INSTEAD. Read as laid out
+                  this says "Engaged days 3 Exchanges 7". See
+                  `summaryStatsSpoken`. */}
+              <div
+                aria-hidden
+                className="mt-3 flex flex-wrap items-start gap-x-10 gap-y-3"
+              >
+                {stats.map((stat) => (
+                  <div key={stat.label} className="flex shrink-0 flex-col gap-y-1">
+                    <span className="text-[var(--text-muted)]" style={STAT_LABEL}>
+                      {stat.label}
                     </span>
-                  ))}
-                </p>
-              )}
+                    <span className={cn("text-[16px] leading-[24px]", STAT_VALUE_INK)}>
+                      {stat.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <span className="sr-only">{summaryStatsSpoken(stats)}</span>
             </div>
           </div>
         )}

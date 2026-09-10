@@ -27,6 +27,10 @@ const BLOCKS = ["7d", "30d", "90d", "All"];
 const RECORDS = [
   { id: "t17", note: "rich longitudinal — 8 months, dual-type badges on Aug and Sep" },
   { id: "t23", note: "day-30 cadence, shorter span" },
+  // THE ZERO STATE. A day-one record has no conversation extraction, so both
+  // stats read 0 — and no pattern, so no chart and no scope container. It is
+  // here for the header, and the box rows correctly report `skip`.
+  { id: "t1", note: "day one — zero stats, no chart" },
 ];
 /** The cushion the box holds off edge content by — mirrors `PAD` in the strip. */
 const PAD = 8;
@@ -102,10 +106,15 @@ for (const rec of RECORDS) {
       };
     });
 
-    if (m.skip) { report.rows.push({ record: rec.id, block, skip: m.skip }); continue; }
+    // NOT `continue` ON A SKIP. The header exists whether or not the chart
+    // does — a day-one record has no pattern and therefore no scope container,
+    // and its stat row is exactly the zero state this probe needs to see.
+    const noBox = Boolean(m.skip);
+    if (noBox) report.rows.push({ record: rec.id, block, skip: m.skip });
 
     // ── WHICH BINS THE BLOCK TOUCHES, from the range line the card itself prints.
     const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    if (!noBox) {
     const dates = [...m.rangeLine.matchAll(/([A-Z][a-z]{2}) (\d{1,2})/g)].map((x) => x[1]);
     const fromI = MON.indexOf(dates[0]), toI = MON.indexOf(dates[dates.length - 1]);
     const touched = m.months.filter((mo) => {
@@ -171,42 +180,111 @@ for (const rec of RECORDS) {
     report.rows.push(row);
     if (covers === false) report.failures.push(`${rec.id}/${block}: box [${m.box.l}, ${m.box.r}] does not cover bins [${binL}, ${binR}]`);
     if (clears === false) report.failures.push(`${rec.id}/${block}: badge clearance ${JSON.stringify(clearance)} < ${PAD}px`);
+    }
 
-    // ── THE SCOPE STACK: gaps, wrap, ink.
+    // ── THE HEADER STACK: rhythm, baselines, scale, utterance.
+    //
+    //    THE SCALE CHECK IS THE INTERESTING ONE. The stat pattern this row
+    //    adopts sets its value at 20px, and this card's title is 16px — so the
+    //    claim "the numerals are the largest text after the title" is a claim
+    //    about every size the card renders, not just about the two in the
+    //    header. Measured by walking the card.
     const stack = await page.evaluate(() => {
       const sec = document.querySelector('[data-record-section="care-summary-doc"]');
-      const live = sec.querySelector('[aria-live]');
-      const ps = [...live.querySelectorAll("p")];
+      const live = sec.querySelector("[aria-live]");
+      const caption = live.querySelector("p");
+      const row = live.querySelector("[aria-hidden]");
+      const data = [...row.children].map((d) => {
+        const [label, value] = d.children;
+        const lc = getComputedStyle(label), vc = getComputedStyle(value);
+        return {
+          label: label.textContent,
+          value: value.textContent,
+          labelCss: `${lc.fontSize}/${lc.lineHeight} ${lc.letterSpacing} ${lc.color}`,
+          valueCss: `${vc.fontSize}/${vc.lineHeight} ${vc.fontVariantNumeric} ${vc.color}`,
+          // The BASELINE, not the box top: a taller value box with the same
+          // baseline is correct, and comparing tops would call it a defect.
+          baseline: +(value.getBoundingClientRect().top + parseFloat(vc.fontSize) * 0.8).toFixed(1),
+          labelTop: +label.getBoundingClientRect().top.toFixed(1),
+          left: +value.getBoundingClientRect().left.toFixed(1),
+        };
+      });
       const ctl = sec.querySelector('[aria-label="Care summary time period"]');
       const hdr = sec.querySelector("header");
       const r = (el) => el.getBoundingClientRect();
-      const line = (p) => {
-        const rg = document.createRange(); rg.selectNodeContents(p);
-        const rects = [...rg.getClientRects()].filter((x) => x.width > 0);
-        const tops = new Set(rects.map((x) => Math.round(x.top)));
-        return {
-          text: p.textContent,
-          font: getComputedStyle(p).font,
-          color: getComputedStyle(p).color,
-          textW: +(Math.max(...rects.map((x) => x.right)) - Math.min(...rects.map((x) => x.left))).toFixed(1),
-          avail: +r(p).width.toFixed(1),
-          lineBoxes: tops.size,
-        };
-      };
-      const pb = parseFloat(getComputedStyle(hdr).paddingBottom);
+
+      // Wrap: a Range yields one client rect per line box; a <p>'s own
+      // getClientRects() is one rect whether its text wrapped or not.
+      const rg = document.createRange(); rg.selectNodeContents(caption);
+      const rects = [...rg.getClientRects()].filter((x) => x.width > 0);
+      const capW = +(Math.max(...rects.map((x) => x.right)) - Math.min(...rects.map((x) => x.left))).toFixed(1);
+
+      // Every text size the card renders, largest first.
+      const sizes = new Map();
+      for (const el of sec.querySelectorAll("*")) {
+        const t = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!t.length) continue;
+        const c = getComputedStyle(el);
+        const key = `${parseFloat(c.fontSize)}px w${c.fontWeight} ${c.fontFamily.split(",")[0]}`;
+        if (!sizes.has(key)) sizes.set(key, t[0].textContent.trim().slice(0, 24));
+      }
+      const ramp = [...sizes.entries()]
+        .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+        .map(([k, eg]) => `${k} — "${eg}"`);
+
       return {
-        lines: ps.map(line),
+        caption: caption.textContent,
+        captionCss: `${getComputedStyle(caption).fontSize}/${getComputedStyle(caption).lineHeight} ${getComputedStyle(caption).color}`,
+        captionW: capW,
+        captionAvail: +r(caption).width.toFixed(1),
+        captionLineBoxes: new Set(rects.map((x) => Math.round(x.top))).size,
+        data,
+        rowGap: getComputedStyle(row).columnGap,
+        rowJustify: getComputedStyle(row).justifyContent,
         gaps: {
-          controlToLine1: +(r(ps[0]).top - r(ctl).bottom).toFixed(1),
-          line1ToLine2: ps[1] ? +(r(ps[1]).top - r(ps[0]).bottom).toFixed(1) : null,
-          lastLineToDivider: +pb.toFixed(1),
+          controlToCaption: +(r(caption).top - r(ctl).bottom).toFixed(1),
+          captionToRow: +(r(row).top - r(caption).bottom).toFixed(1),
+          rowToDivider: +parseFloat(getComputedStyle(hdr).paddingBottom).toFixed(1),
         },
-        utterance: ps.map((p) => p.textContent).join(" ⏎ "),
+        titleSize: parseFloat(getComputedStyle(sec.querySelector("h2")).fontSize),
+        ramp,
+        utterance: [...live.childNodes]
+          .map((n) => (n.getAttribute && n.getAttribute("aria-hidden") !== null ? "" : n.textContent))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim(),
       };
     });
+    for (const l of [{ text: stack.caption, lineBoxes: stack.captionLineBoxes }])
+      if (l.lineBoxes > 1) report.failures.push(`${rec.id}/${block}: caption "${l.text}" wrapped onto ${l.lineBoxes} lines`);
+    // THE TWO CLAIMS ON THE ROW.
+    const bases = new Set(stack.data.map((d) => d.baseline));
+    if (bases.size > 1) report.failures.push(`${rec.id}/${block}: values do not share a baseline (${[...bases].join(", ")})`);
+    /* ═══ THE SCALE CLAIM, AS THREE MEASURABLE PARTS ═══
+       "The largest text in the card after the title" cannot be asserted as
+       "exactly one size is larger": the shipped value TIES the title at 16px
+       rather than sitting below it, because the ramp offers nothing between the
+       title's 16px and the body's 14px. So the claim is:
+         · nothing in the card is LARGER than the value — it leads the card,
+         · the title is not OUTRANKED by it in size — a tie is the ceiling, and
+           the title keeps the lead by weight (700 vs 400) and face (Avantt vs
+           Lausanne), which size alone cannot express,
+         · the value is above body size — otherwise the pattern has failed and
+           this is just body text under a small label.
+       All three together are what item 8 asks for, and stating them separately
+       is what makes the tie a recorded decision rather than a near-miss. */
+    const valueSize = parseFloat(stack.data[0].valueCss);
+    const larger = stack.ramp.filter((r) => parseFloat(r) > valueSize);
+    if (larger.length)
+      report.failures.push(`${rec.id}/${block}: text larger than the ${valueSize}px stat value — ${larger.join(" | ")}`);
+    if (valueSize > stack.titleSize)
+      report.failures.push(`${rec.id}/${block}: the stat value (${valueSize}px) outranks the title (${stack.titleSize}px)`);
+    if (valueSize <= 14)
+      report.failures.push(`${rec.id}/${block}: the stat value at ${valueSize}px reads as body text`);
+    if (stack.gaps.controlToCaption !== 8 || stack.gaps.captionToRow !== 12 || stack.gaps.rowToDivider !== 16)
+      report.failures.push(`${rec.id}/${block}: rhythm ${JSON.stringify(stack.gaps)} is not 8 / 12 / 16`);
+
     report.stack.push({ record: rec.id, block, ...stack });
-    for (const l of stack.lines)
-      if (l.lineBoxes > 1) report.failures.push(`${rec.id}/${block}: "${l.text}" wrapped onto ${l.lineBoxes} lines`);
 
     // ── THE PICTURE. Clipped to the card so the box and the axis are both legible.
     const card = await page.$('[data-record-section="care-summary-doc"]');
@@ -217,14 +295,19 @@ for (const rec of RECORDS) {
     //    card's padding, and the box has to reach it — so clipping to the plot
     //    cuts off the very edge the claim is about. Clip the plot's rect plus
     //    28px each side, which is inside the card.
-    const clip = await page.evaluate(() => {
-      const plot = document
-        .querySelector('[data-record-section="care-summary-doc"] div[aria-hidden][class*="inset-y-0"]')
-        .parentElement;
-      const r = plot.getBoundingClientRect();
-      return { x: Math.max(0, r.left - 28), y: r.top - 4, width: r.width + 56, height: r.height + 8 };
-    });
-    await page.screenshot({ path: `${OUT}/${rec.id}-${block}-chart.png`, clip });
+    // NO CHART ON A RECORD WITH NO PATTERN — the card shot above is the whole
+    // evidence there, and asking for a clip of an element that does not exist
+    // is how a probe dies on the one scenario it was extended to cover.
+    const clip = noBox
+      ? null
+      : await page.evaluate(() => {
+          const plot = document
+            .querySelector('[data-record-section="care-summary-doc"] div[aria-hidden][class*="inset-y-0"]')
+            .parentElement;
+          const r = plot.getBoundingClientRect();
+          return { x: Math.max(0, r.left - 28), y: r.top - 4, width: r.width + 56, height: r.height + 8 };
+        });
+    if (clip) await page.screenshot({ path: `${OUT}/${rec.id}-${block}-chart.png`, clip });
   }
   // ══ THE TWEEN, ACROSS THE NEW GEOMETRY ═══════════════════════════════════
   //
