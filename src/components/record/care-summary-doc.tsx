@@ -212,9 +212,35 @@ export function summaryMetaLine(
   if (engagedDays != null && engagedDays > 0)
     parts.push(`${engagedDays} engaged days`);
   if (exchanges && exchanges > 0) parts.push(`${exchanges} exchanges`);
-  if (parts.length) return `${parts.join(", ")}.`;
+  /* ═══ NO TERMINAL PERIOD (C2) ═══
+     "7 engaged days, 18 exchanges" is a metadata FRAGMENT, not a sentence, and
+     it is now a clause inside the scope line — "Aug 11 – Sep 10, 2026 · 7
+     engaged days, 18 exchanges." would put a full stop on a label. The rail's
+     full sentences keep theirs: the trajectory sentence, the conversation
+     summary and the AI caveat are all prose and all unchanged. */
+  if (parts.length) return parts.join(", ");
   // Nothing measured yet: fall back to naming the period, which is always true.
   return days < 7 ? "First week" : `${Math.max(1, Math.round(days / 7))}-week analysis`;
+}
+
+/** ═══ THE MERGED SCOPE LINE (A2) ═══
+ *
+ *  `{range} · {counts}`, and on the all-time block the range already carries
+ *  its own "· full mentorship" suffix — so the counts land AFTER it, which is
+ *  the order the pack asks for and the order that reads: the period, what makes
+ *  it that period, then what happened inside it.
+ *
+ *  A MIDDOT JOINS THE TWO because they are independent facts. The comma inside
+ *  the counts joins two halves of one fact, which is why the two separators are
+ *  different characters rather than one repeated.
+ *
+ *  THE RANGE ALONE IS THE FALLBACK. A record with nothing measured yet gets
+ *  "First week" from `summaryMetaLine`, and pairing that with the dates it
+ *  restates would read as a stutter — so a fallback count is dropped and the
+ *  dates stand on their own. */
+export function summaryScopeLine(rangeLine: string, counts: string): string {
+  const measured = /\d/.test(counts) && !/^First week$|-week analysis$/.test(counts);
+  return measured ? `${rangeLine} · ${counts}` : rangeLine;
 }
 
 export function CareSummaryDocCard({
@@ -269,6 +295,15 @@ export function CareSummaryDocCard({
   onJumpToEvent?: (eventId: string) => void;
 }) {
   const thin = doc.contactDays < SUMMARY_MIN_CONTACT_DAYS;
+  /* A2. The period and what happened in it, as one secondary line. */
+  const scopeLine = summaryScopeLine(
+    rangeLine,
+    summaryMetaLine(
+      doc.window,
+      onBlockChange ? doc.exchanges : (doc.exchanges ?? exchanges),
+      doc.themes?.conversationDays ?? null
+    )
+  );
 
   return (
     <section
@@ -298,43 +333,20 @@ export function CareSummaryDocCard({
               {/* TODO-COPY */}
               Care summary
             </h2>
-            {/* ═══ ONE LINE (B1) ═══
-                `--text-secondary` at 13px, the same token the two-line block
-                used — measured 7.63:1 on `--surface-card`, well clear of 4.5:1,
-                so demoting the prose costs nothing in legibility.
-
-                THERE IS NO "PREVIOUS CYCLE" STATE HERE, AND CANNOT BE. A
-                "· previous cycle" label used to sit in this block for a frozen
-                summary. The two ideas are mutually exclusive by construction: the
-                window is the interval SINCE THE LAST CODE UPDATE, and
-                `presentation_reviewed` is a code event — so approving a review
-                opens a new window in the same act that commits the old one.
-                Driving the flow proved it: after an approval the header read
-                "Aug 28 – Aug 28 · previous cycle", a zero-length window labelled
-                as a past one. THIS CARD IS ALWAYS THE LIVE CYCLE; the committed
-                one is a History entry with its own frozen window. Gap row 305. */}
-            <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              {summaryMetaLine(
-                doc.window,
-                /* ═══ NO FALLBACK TO THE UNWINDOWED PROP INSIDE A BLOCK ═══
-                   This was `doc.exchanges ?? exchanges`, and the `??` was the
-                   bug: `exchanges` is `careReadingFor`, which describes the
-                   whole mentorship. On t1 — one day old, no per-block entry —
-                   that rendered "22 exchanges" under a range line reading
-                   "Sep 9 – Sep 10". A count from a different period than the
-                   line above it is the exact defect this control exists to end,
-                   and a fallback is how it comes back.
-                   So inside a block the count is the block's or absent, and the
-                   subtitle reports days alone. Outside a block (the committed
-                   summary's read-only view) the prop still stands. */
-                onBlockChange ? doc.exchanges : (doc.exchanges ?? exchanges),
-                doc.themes?.conversationDays ?? null
-              )}
-            </p>
+            {/* ═══ THE SUBTITLE LEFT THIS ROW (A1/A2) ═══
+                It sat here, above the control, and the stack then read
+                title → counts → control → range: two secondary lines with the
+                control wedged between them, and a reader had to hold the counts
+                in mind across it to learn which period they described.
+                The counts and the range are ONE FACT — "this many days, in this
+                period" — so they are one line now, below the control that sets
+                the period. See `scopeLine` below the group.
+                THE ⓘ DOES NOT MOVE. It stays top-right on the title row, which
+                is where a reader looking for provenance already looks, and it
+                describes the document rather than the block. */}
           </div>
 
-          {/* THE CONTROL SITS BELOW THIS ROW, not in it — see after the
-              closing div. */}
+
           {/* ═══ REFRESH IS GONE (B2) ═══
               It re-stamped the Generated date and showed a toast saying
               regeneration was not wired — a control whose honest label was "this
@@ -375,7 +387,16 @@ export function CareSummaryDocCard({
             `fullWidth` — four segments at the rail's 380px. Measured: they fit
             with the labels at their natural width and no truncation. */}
         {onBlockChange && (
-          <div className="mt-3">
+          /* ═══ THE STACK RHYTHM (A3), IN NEAREST SPACING TOKENS ═══
+             title → 8px → control → 8px → scope line → 16px → divider.
+             `mt-2` is 8px and the header's own `py-4` supplies the 16px to the
+             divider, so the shipped values are the asked-for ones with no
+             off-scale number: measured 8 / 8 / 16.
+             It was 4 / 12 / 8 / 17 before — a 4px gap under the title that read
+             as a typographic accident and a 12px one that made the control look
+             like it belonged to the subtitle above it rather than the line
+             below. */
+          <div className="mt-2">
             <SegmentedControl
               options={CARE_TIME_BLOCKS.map((b) => ({
                 value: b.id,
@@ -398,11 +419,23 @@ export function CareSummaryDocCard({
                 they activated; what they cannot hear is which dates that
                 resolved to — and on a short record "30d" resolves to something
                 other than thirty days. */}
+            {/* ═══ ONE SECONDARY LINE: THE PERIOD AND WHAT HAPPENED IN IT ═══
+                `{range} · {engaged} engaged days, {exchanges} exchanges`.
+                Still the card's ONLY scope declaration — every section below is
+                scoped by the block and none of them says so.
+                `aria-live` UNCHANGED, and it now announces the merged line: a
+                screen-reader user pressing a segment already heard which one, so
+                what they need is the period AND the counts it resolved to. That
+                is one announcement rather than two, which is also why merging
+                these was worth doing for them and not only visually.
+                13px, NOT 12px — it is the same secondary line the subtitle was,
+                and it took `13px/18px` there. Shrinking it on the way down the
+                stack would have demoted a line that gained content. */}
             <p
               aria-live="polite"
-              className="mt-2 text-[12px] leading-[17px] text-[var(--text-secondary)]"
+              className="mt-2 text-[13px] leading-[18px] text-[var(--text-secondary)]"
             >
-              {rangeLine}
+              {scopeLine}
             </p>
           </div>
         )}

@@ -109,9 +109,25 @@ export function RecordAuthorityNote({ className }: { className?: string }) {
           `--surface-s2` IS THE APP GROUND, one step darker than this card's
           white and darker than the `--surface-s1` the rail sits on, which is
           what makes the band read as a band. */}
+      {/* ═══ THE FILLED BAND IS GONE (C1) ═══
+          It was `--surface-s2` — the app ground — with a bottom border, and it
+          worked exactly as intended: the card announced itself. That was the
+          problem. This module's own rule is that the rail must read Care summary
+          first and the module must be findable without competing, and a filled
+          band on the second card in the stack is the loudest element in a column
+          whose primary card has none.
+          A PLAIN QUIET LABEL, back to the module's original spec: field-label
+          scale, muted ink, no fill, no divider under it. It is still a real
+          `<h2>` — the semantics were never the problem — so the rail still reads
+          as two labelled sections to a screen reader.
+          Squint check re-run after the change; result in the report. */}
       <h2
         id="record-authority-heading"
-        className="border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-4 py-2.5 text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]"
+        className="px-4 pt-3 text-[var(--text-muted)]"
+        style={{
+          font: "var(--type-field-label)",
+          letterSpacing: "var(--type-field-label-tracking)",
+        }}
       >
         {/* TODO-COPY */}
         About this Record
@@ -122,7 +138,10 @@ export function RecordAuthorityNote({ className }: { className?: string }) {
           of the column; only its container changed. Do not reword it here — it
           is pending clinical sign-off, and this is not the surface that decides
           what it says. */}
-      <div className="px-4 py-3">
+      {/* `pt-2` RATHER THAN `py-3`: the label above is no longer a banded row
+          with its own padding, so the gap between it and the first section's own
+          label was doubling up. */}
+      <div className="px-4 pb-3 pt-2">
         {/* TODO-COPY */}
         <SectionLabel icon={Mail}>Clinical Advisor</SectionLabel>
         <p className={BODY} style={BODY_STYLE}>

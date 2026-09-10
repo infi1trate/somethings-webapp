@@ -47,7 +47,16 @@ export interface CareTimeBlock {
 }
 
 export const CARE_TIME_BLOCKS: readonly CareTimeBlock[] = [
-  { id: "recent", label: "Recent", days: 7 },
+  /* ═══ "7d", NOT "Recent" (C3) — AND THIS IS AN OPEN COPY QUESTION ═══
+     The four labels are a parallel set now: three day-counts and an "All". A
+     mixed set ("Recent · 30d · 90d · All") made the first segment the only one
+     naming a FEELING rather than a length, and a reader comparing it to "30d"
+     has to work out whether "Recent" is shorter or just vaguer.
+     THE COST, FLAGGED: "7d" is precise and colder, and "Recent" carried the
+     idea that this is the block you reach for by default when you want "what
+     just happened". Either way the scope line beneath resolves it to real dates,
+     which is why the label can afford to be terse. Copy verification pending. */
+  { id: "recent", label: "7d", days: 7 },
   { id: "d30", label: "30d", days: 30 },
   { id: "d90", label: "90d", days: 90 },
   { id: "all", label: "All", days: null },
