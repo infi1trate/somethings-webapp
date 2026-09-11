@@ -53,6 +53,10 @@ import {
 const SHORTCUTS: Array<{ keys: string[]; what: string }> = [
   { keys: ["↑", "↓"], what: "Move through the list" },
   { keys: ["j", "k"], what: "Move through the list" },
+  /* TODO-COPY. Listed with the modifier spelled out rather than as a glyph pair,
+     because this sheet is read on both platforms and `⌘` alone would be wrong on
+     one of them. */
+  { keys: ["⌘/Ctrl", "↵"], what: "Submit the open review" },
   { keys: ["→", "←"], what: "Expand or collapse a group" },
   { keys: ["y"], what: "Flagged correctly — resolve" },
   { keys: ["n"], what: "Not flagged correctly — resolve" },
@@ -67,8 +71,20 @@ const SHORTCUTS: Array<{ keys: string[]; what: string }> = [
  *
  *  THIS IS THE GUARD THAT MATTERS. Without it, typing a teen's name into a filter
  *  fires `u` and `1`–`4` on the way through. */
+/** ═══ A DIALOG OWNS THE KEYBOARD, WHOEVER IS TYPING ═══
+ *
+ *  Split out of `keyboardIsBusy` because the two halves of that guard are not
+ *  wanted together any more. `⌘/Ctrl+Enter` submits the billing review and MUST
+ *  work while the caret is in one of its textareas — that is the whole point of
+ *  the shortcut — but must NOT fire while the DSM-5 picker is open over the top
+ *  of it. So the dialog half is its own predicate and the typing half stays
+ *  behind `keyboardIsBusy`. */
+export function dialogIsOpen(): boolean {
+  return Boolean(document.querySelector('[role="dialog"]'));
+}
+
 export function keyboardIsBusy(target: EventTarget | null): boolean {
-  if (document.querySelector('[role="dialog"]')) return true;
+  if (dialogIsOpen()) return true;
   const el = target as HTMLElement | null;
   if (!el) return false;
   const tag = el.tagName;
@@ -85,6 +101,7 @@ export function useTaskShortcuts({
   onFocusPane,
   onAnswer,
   onEnter,
+  onSubmit,
   onUndo,
   onHelp,
 }: {
@@ -93,14 +110,39 @@ export function useTaskShortcuts({
   /** "Was this flagged correctly?" — the footer's two buttons, as keys. A no-op
    *  when the selected item is not a flag. */
   onAnswer: (correct: boolean) => void;
-  /** Returns true if it consumed the key — i.e. there was a billing code to
-   *  confirm. False falls through to focusing the pane. */
+  /** Returns true if it consumed the key. False falls through to focusing the
+   *  pane.
+   *
+   *  IT NO LONGER COMMITS A BILLING CODE. It used to: Enter on a list row
+   *  confirmed the code outright, which was the fastest route through the
+   *  undocumented commit this build removes. Billing now returns false here and
+   *  the key does what it does for every other domain — moves the keyboard into
+   *  the pane, where the review is. */
   onEnter: () => boolean;
+  /** `⌘/Ctrl+Enter` — submit the open review. Runs the same three-field gate the
+   *  footer's button runs, so a keyboard commit cannot skip it. */
+  onSubmit?: () => void;
   onUndo: () => void;
   onHelp: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      /* ═══ THE ONE MODIFIED COMBO, HANDLED BEFORE THE MODIFIER BAIL ═══
+         Everything else in this layer is a bare key and bails on modifiers, so
+         `⌘/Ctrl+Enter` would never have reached it. It deliberately does NOT go
+         through `keyboardIsBusy`: submitting from inside the textarea you have
+         just filled in is the point of the shortcut. It does respect
+         `dialogIsOpen`, because the DSM-5 picker sits over the review and Enter
+         in a search field belongs to the search.
+         NO BARE-ENTER EQUIVALENT, by decision: the consequence is a code on a
+         minor's billing record, and the textareas own Enter. */
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        if (dialogIsOpen()) return;
+        if (!onSubmit) return;
+        e.preventDefault();
+        onSubmit();
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (keyboardIsBusy(e.target)) return;
 
@@ -142,7 +184,7 @@ export function useTaskShortcuts({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onTab, onFocusPane, onAnswer, onEnter, onUndo, onHelp]);
+  }, [onTab, onFocusPane, onAnswer, onEnter, onSubmit, onUndo, onHelp]);
 }
 
 export function ShortcutSheet({
