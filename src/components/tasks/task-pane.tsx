@@ -23,10 +23,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
+import { PresentationDiff } from "@/components/record/presentation-diff";
 import { BreachChip } from "@/components/tasks/domain-tabs";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 // Still used by the BILLING pane's AI-summary link — a different block from the
@@ -168,53 +169,18 @@ function RiskFlagBody({
   );
 }
 
-/** ═══ ONE SIDE OF THE CHANGE ═══
- *
- *  A statement and its code. `tinted` softly fills the element that DIFFERS —
- *  the words when the presentation changed, the code when the code changed, and
- *  they do not always move together: R45.89 → F41.1 is both, while a code that
- *  stays put under a re-worded statement is only one.
- *
- *  The tint is a band fill, never a border. A bordered box inside a bordered
- *  container reads as a second card; a tint reads as "this is the part that
- *  moved", which is the only thing it has to say. */
-function ChangeSide({
-  label,
-  statement,
-  code,
-  statementChanged,
-  codeChanged,
-}: {
-  label: string;
-  statement: string;
-  code: string;
-  statementChanged?: boolean;
-  codeChanged?: boolean;
-}) {
-  const tint = "rounded-[6px] bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]";
-  return (
-    <div className="min-w-0">
-      <p className={LABEL}>{label}</p>
-      <p
-        className={cn(
-          "mt-1.5 text-[15px] leading-[22px] text-[var(--text-primary)]",
-          statementChanged && cn(tint, "-mx-1 px-1")
-        )}
-      >
-        {statement}
-      </p>
-      <p
-        className={cn(
-          "mt-1 inline-block text-[13.5px] text-[var(--text-secondary)]",
-          codeChanged && cn(tint, "px-1.5")
-        )}
-        style={{ fontFamily: "var(--font-mono)" }}
-      >
-        {code}
-      </p>
-    </div>
-  );
-}
+/* ═══ `ChangeSide` IS GONE — THE DIFF IS SHARED NOW ═══
+   It lived here and the Care page had its own single-column presentation block,
+   so the same clinical comparison was drawn two ways on the two surfaces that
+   commit it. This one was the better of the two and became canonical:
+   `record/presentation-diff.tsx` holds the framing, the three proposal kinds and
+   the chip, and the Care review card renders the same component.
+   ONE THING CHANGED IN THE MOVE, and it is a correctness fix rather than a
+   restyle: the tint on the changed elements was `--band-sage-*`, which is
+   emerald/100. Green is this product's committed-and-confirmed colour, and a
+   proposal is the state before that — so the old tint said "done" on the one
+   screen whose entire question is "should this happen?". It is `--band-sand-*`
+   now, the warm neutral the system reserves for routine/review-due. */
 
 function BillingBody({
   payload,
@@ -227,9 +193,10 @@ function BillingBody({
   recommended: { code: string; statement: string };
   onChangeCode: (trigger: HTMLElement) => void;
 }) {
+  /* THE TWO `changed` COMPARISONS MOVED INTO THE DIFF, which derives them from
+     the pair it is given — one place, and it cannot disagree with the framing it
+     chooses on the same comparison. */
   const current = payload.current;
-  const codeChanged = !!current && current.code !== recommended.code;
-  const statementChanged = !!current && current.statement !== recommended.statement;
 
   /* THE SURVEY'S BAND, RE-DERIVED FROM THE INSTRUMENT'S OWN THRESHOLDS rather
      than carried on the payload. Same rule the record's History follows: if a
@@ -263,53 +230,26 @@ function BillingBody({
           things between them — so the actual question ("what is moving, and is
           that right?") was answered by scrolling up and holding two sentences in
           your head. Side by side with an arrow between them, the change is a
-          single glance, and the parts that differ are the parts that are tinted. */}
-      <div className="rounded-[var(--radius-inset)] border border-[color:var(--border-contour)] px-3.5 py-3">
-        {current ? (
-          <div className="grid items-start gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-            {/* TODO-COPY */}
-            <ChangeSide label="Current" statement={current.statement} code={current.code} />
-            {/* THE ARROW TURNS WITH THE LAYOUT. Below `sm` the two sides stack,
-                and a right-pointing arrow between two stacked boxes points at
-                nothing. `aria-hidden` because the two labels already say which
-                is which — an arrow read aloud adds a symbol, not a fact. */}
-            <ArrowRight
-              aria-hidden
-              className="mt-6 size-4 shrink-0 justify-self-center rotate-90 text-[var(--text-muted)] sm:rotate-0"
-            />
-            <ChangeSide
-              /* TODO-COPY */
-              label="Recommended"
-              statement={recommended.statement}
-              code={recommended.code}
-              statementChanged={statementChanged}
-              codeChanged={codeChanged}
-            />
-          </div>
-        ) : (
-          /* ═══ AN INTAKE IS NOT A CHANGE ═══
-             There is nothing on record, which is the reason the review exists —
-             so there is nothing to put in a left column, and an empty box beside
-             an arrow saying "None on record" is a diagram of an absence. One
-             column, named for what it is. */
-          <ChangeSide
-            /* TODO-COPY */
-            label="First assignment"
-            statement={recommended.statement}
-            code={recommended.code}
-          />
-        )}
+          single glance, and the parts that differ are the parts that are tinted.
 
-        <div className="mt-3 flex justify-end">
+          THE COMPONENT IS SHARED WITH THE CARE PAGE and owns the three proposal
+          kinds, so a renewal gets one column and the chip that says so rather
+          than a two-column diff printing one sentence twice. `Change…` rides in
+          its `action` slot — the modifier belongs next to its object, not in the
+          footer with the commit. */}
+      <PresentationDiff
+        current={current}
+        recommended={recommended}
+        action={
           <RecordButton
             onClick={(e) => onChangeCode(e.currentTarget)}
-            className="min-h-8 px-3 text-[12.5px]"
+            className="min-h-8 shrink-0 px-3 text-[12.5px]"
           >
             {/* TODO-COPY — the ellipsis says a picker opens. */}
             Change…
           </RecordButton>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
