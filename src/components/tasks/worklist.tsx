@@ -52,6 +52,11 @@ import {
   type TierBand,
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
+import {
+  PROPOSAL_LABEL,
+  PROPOSAL_SHORT,
+  proposalKindFor,
+} from "@/components/record/presentation-diff";
 import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem, type TaskType } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
@@ -133,9 +138,21 @@ function OverdueChip() {
 
 /** 911 / non-911 — a real differentiator between escalation rows. Tonal, NOT
  *  filled red: the alarm budget reserves that for the Respond strip. */
-function Chip({ children }: { children: React.ReactNode }) {
+function Chip({
+  children,
+  /** The unabbreviated form, for a chip whose visible label is a short one.
+   *  Pointer-only by nature, which is why the long form is ALSO in the row's
+   *  `aria-label` rather than left to this. */
+  title,
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s2)] px-1.5 py-0.5 text-[11px] font-semibold leading-[14px] text-[var(--text-secondary)]">
+    <span
+      title={title}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s2)] px-1.5 py-0.5 text-[11px] font-semibold leading-[14px] text-[var(--text-secondary)]"
+    >
       {children}
     </span>
   );
@@ -158,6 +175,37 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
           <Phone className="size-2.5 shrink-0" aria-hidden />
           {/* TODO-COPY */}
           {p.is911 ? "911" : "No 911"}
+        </Chip>
+      )}
+      {/* ═══ WHICH KIND OF BILLING PROPOSAL (A7) ═══
+          A renewal, a change and a first presentation are three different
+          decisions wearing one row, and a supervisor could not tell them apart
+          without opening each — which is the opposite of what a queue is for.
+          The chip is here so a run of renewals can be worked as a run.
+
+          ALL THREE SPEAK, unlike the in-review chip below. That rule — "only the
+          exception speaks" — holds when there is a default and an exception; here
+          there are three peers and no default, so silence on one would make it
+          the unmarked case and read as "nothing to say about this one".
+
+          NEUTRAL, AND DELIBERATELY NOT THE PANE'S CHIP. The pane tints a change
+          with the attention band, because there it is the one proposal indicator
+          on a surface with nothing else competing. On a row it would be a fourth
+          colour beside the overdue chip and the tier signals, and a coloured chip
+          that is not a severity is exactly how an alarm budget gets spent. The
+          shared `Chip` primitive, same as 911 and In review.
+
+          THE KIND COMES FROM `proposalKindFor`, the function the pane's own chip
+          and framing read — so a row saying "Renewal" cannot open onto a
+          two-column diff. It reads the PAYLOAD's recommended code, not the pane's
+          override: the row describes the item as the queue holds it, and an
+          uncommitted pick in the pane is not a fact about the queue. */}
+      {p.kind === "billing" && (
+        <Chip
+          title={PROPOSAL_LABEL[proposalKindFor(p.current?.code ?? null, p.recommended.code)]}
+        >
+          {/* TODO-COPY — see `PROPOSAL_SHORT` on the third string. */}
+          {PROPOSAL_SHORT[proposalKindFor(p.current?.code ?? null, p.recommended.code)]}
         </Chip>
       )}
       {/* UNREVIEWED / IN-REVIEW. Only the exception speaks: an untouched item says
@@ -210,6 +258,17 @@ function Row({
         : "no 911"
       : null,
     item.status === "inProgress" ? "in review" : null,
+    /* THE LONG FORM, SPOKEN. The chip shows "Renewal" to fit the row; a screen
+       reader gets "renewal proposed", which is the sentence the pane will show
+       when the row is opened. */
+    item.payload.kind === "billing"
+      ? PROPOSAL_LABEL[
+          proposalKindFor(
+            item.payload.current?.code ?? null,
+            item.payload.recommended.code
+          )
+        ].toLowerCase()
+      : null,
     // A CHILD IS IDENTIFIED BY ITS TIME, a parent by its age — see
     // childTimeLabel.
     indent

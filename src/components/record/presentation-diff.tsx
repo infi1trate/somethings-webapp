@@ -90,6 +90,29 @@ export const PROPOSAL_LABEL: Record<ProposalKind, string> = {
   renewal: "Renewal proposed",
 };
 
+/** ═══ THE SAME THREE KINDS, IN A WORD ═══
+ *
+ *  For places too dense to carry `PROPOSAL_LABEL` — the worklist row, where the
+ *  chip sits beside an age and a coalesce count and shares its line with a name
+ *  that has to stay readable. "Presentation proposed" measures ~110px at the
+ *  chip's 11px; the row's whole name column is a `flex-1` that truncates, so a
+ *  long chip is paid for by the teen's name.
+ *
+ *  THE NOUN IS THE SAME NOUN, which is the point of it living here. "Change /
+ *  Renewal / Presentation" are the heads of the three full labels above, so the
+ *  row and the pane cannot end up calling one case two things. A caller that
+ *  shortens should still SPEAK the long form — the row puts the full label in
+ *  `title` and in its accessible name, so only the pixels are abbreviated.
+ *
+ *  TODO-COPY, all three, and the third is the one to look at: "Presentation"
+ *  alone does not obviously mean "the first one". "New" would read better and
+ *  is not a word this vocabulary has; raising it rather than minting it. */
+export const PROPOSAL_SHORT: Record<ProposalKind, string> = {
+  assign: "Presentation",
+  change: "Change",
+  renewal: "Renewal",
+};
+
 const CHIP_BASE =
   "flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] leading-[16px]";
 
