@@ -27,11 +27,16 @@ import { AlertTriangle } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
-import { PresentationDiff } from "@/components/record/presentation-diff";
+import {
+  BillingReview,
+  type BillingCommitDetail,
+  type BillingSubmitHandle,
+} from "@/components/tasks/billing-review";
 import { BreachChip } from "@/components/tasks/domain-tabs";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
-// Still used by the BILLING pane's AI-summary link — a different block from the
-// risk-flag excerpt, and unaffected by Part 1.
+// Still used by the BILLING pane's Notes link — a different block from the
+// risk-flag excerpt. (It read "AI-summary link" until that block's label became
+// "Notes"; the link itself is unchanged.)
 import { chatHrefFor } from "@/lib/record/chat";
 import {
   buildConversation,
@@ -182,111 +187,119 @@ function RiskFlagBody({
    screen whose entire question is "should this happen?". It is `--band-sand-*`
    now, the warm neutral the system reserves for routine/review-due. */
 
+/** ═══ THE BILLING BODY — NOW A WRAPPER AROUND THE REVIEW ═══
+ *
+ *  What it still owns: the generated rationale block and the two survey /
+ *  mentorship facts, because both are statements about THIS pane's payload and
+ *  neither is part of the decision form. What it handed over: the diff, the
+ *  documentation fields, the validation and the commit, all of which are now
+ *  `BillingReview` — see the note on that module for why a code no longer
+ *  commits without documentation. */
 function BillingBody({
   payload,
   teenId,
+  item,
   recommended,
   onChangeCode,
+  onCommit,
+  handleRef,
 }: {
   payload: BillingPayload;
   teenId: string;
+  item: TaskItem;
   recommended: { code: string; statement: string };
   onChangeCode: (trigger: HTMLElement) => void;
+  onCommit: (detail: BillingCommitDetail) => void;
+  handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
 }) {
-  /* THE TWO `changed` COMPARISONS MOVED INTO THE DIFF, which derives them from
-     the pair it is given — one place, and it cannot disagree with the framing it
-     chooses on the same comparison. */
-  const current = payload.current;
-
   /* THE SURVEY'S BAND, RE-DERIVED FROM THE INSTRUMENT'S OWN THRESHOLDS rather
      than carried on the payload. Same rule the record's History follows: if a
-     stored band and a computed one ever disagree, the instrument wins. Instruments
-     outside the two this codebase has cut-offs for render the number with no band,
-     which is honest — a lozenge asserting a severity nobody defined would not be. */
+     stored band and a computed one ever disagree, the instrument wins.
+     Instruments outside the two this codebase has cut-offs for render the number
+     with no band, which is honest — a lozenge asserting a severity nobody
+     defined would not be. */
   const scored =
     payload.survey.instrument === "PHQ-9" || payload.survey.instrument === "GAD-7"
       ? severityFor(payload.survey.instrument, payload.survey.score)
       : null;
 
   return (
-    <div className="space-y-4">
-      {/* ═══ THE SUMMARY COMES FIRST (Part 4) ═══
-          It was buried between the mentorship stats and the recommendation, which
-          is the wrong order for the only paragraph on the pane that explains WHY
-          the recommendation is what it is. A supervisor reads the reasoning, then
-          the change, then confirms — so the pane is now in that order. */}
-      <SystemBlock
-        /* TODO-COPY. A BADGE, NOT A HEADER: the sentence leads and the
-           provenance qualifies it. See SystemBlock's `attribution`. */
-        label="AI summary"
-        attribution="badge"
-        link={{ href: chatHrefFor(teenId), label: "View conversation" }}
-      >
-        {payload.aiSummary}
-      </SystemBlock>
+    <BillingReview
+      item={item}
+      payload={payload}
+      recommended={recommended}
+      onChangeCode={onChangeCode}
+      onCommit={onCommit}
+      handleRef={handleRef}
+      rationale={
+        <>
+          {/* ═══ THE RATIONALE COMES FIRST ═══
+              It was buried between the mentorship stats and the recommendation,
+              which is the wrong order for the only paragraph on the pane that
+              explains WHY the recommendation is what it is. A supervisor reads
+              the reasoning, then the change, then documents it.
 
-      {/* ═══ ONE CHANGE, IN ONE CONTAINER ═══
-          Current and recommended used to be two separate blocks with four other
-          things between them — so the actual question ("what is moving, and is
-          that right?") was answered by scrolling up and holding two sentences in
-          your head. Side by side with an arrow between them, the change is a
-          single glance, and the parts that differ are the parts that are tinted.
-
-          THE COMPONENT IS SHARED WITH THE CARE PAGE and owns the three proposal
-          kinds, so a renewal gets one column and the chip that says so rather
-          than a two-column diff printing one sentence twice. `Change…` rides in
-          its `action` slot — the modifier belongs next to its object, not in the
-          footer with the commit. */}
-      <PresentationDiff
-        current={current}
-        recommended={recommended}
-        action={
-          <RecordButton
-            onClick={(e) => onChangeCode(e.currentTarget)}
-            className="min-h-8 shrink-0 px-3 text-[12.5px]"
+              ═══ THE LABEL IS "Notes", NOT "AI summary" (A3) ═══
+              Two reasons, and the second is the load-bearing one. It matched the
+              record's own panel, which was renamed from "AI Draft" to "AI Notes"
+              at an earlier request — so this surface was the last place still
+              calling the same kind of generated prose a summary. And "AI" in the
+              label duplicated the provenance badge sitting beside it: the badge
+              is the attribution, and a label that repeats it spends the reader's
+              first glance saying the same thing twice.
+              THE BADGE STILL CARRIES THE PROVENANCE. Nothing about the
+              attribution weakened — `attribution="badge"` is unchanged, and it
+              is what says a model wrote this. */}
+          <SystemBlock
+            /* TODO-COPY */
+            label="Notes"
+            attribution="badge"
+            link={{ href: chatHrefFor(teenId), label: "View conversation" }}
           >
-            {/* TODO-COPY — the ellipsis says a picker opens. */}
-            Change…
-          </RecordButton>
-        }
-      />
+            {payload.aiSummary}
+          </SystemBlock>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}Assigned survey</p>
-          {/* THE RECORD'S OWN SCORE LOZENGE, not a second way of showing a
-              reading. A supervisor sees "14 · Moderate" in the same shape here
-              and in the teen's History, so the two are obviously the same fact. */}
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {payload.survey.instrument}
-            {scored ? (
-              <ScoreLozenge value={payload.survey.score} band={scored} />
-            ) : (
-              <span className="tabular-nums text-[var(--text-secondary)]">
-                {payload.survey.score} / {payload.survey.max}
-              </span>
-            )}
-          </p>
-        </div>
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}Mentorship</p>
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {/* A NAMED PLATFORM METRIC keeps its own unit — "140 days", never
-                "4 months". */}
-            <span className="tabular-nums">
-              {payload.mentorStats.daysInMentorship} days
-            </span>{" "}
-            ·{" "}
-            <span className="tabular-nums">
-              {payload.mentorStats.messagesLast30}
-            </span>{" "}
-            messages ·{" "}
-            <span className="tabular-nums">{payload.mentorStats.videoLast30}</span>{" "}
-            video
-          </p>
-        </div>
-      </div>
-    </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className={LABEL}>{/* TODO-COPY */}Assigned survey</p>
+              {/* THE RECORD'S OWN SCORE LOZENGE, not a second way of showing a
+                  reading. A supervisor sees "14 · Moderate" in the same shape
+                  here and in the teen's History, so the two are obviously the
+                  same fact. */}
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                {payload.survey.instrument}
+                {scored ? (
+                  <ScoreLozenge value={payload.survey.score} band={scored} />
+                ) : (
+                  <span className="tabular-nums text-[var(--text-secondary)]">
+                    {payload.survey.score} / {payload.survey.max}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <p className={LABEL}>{/* TODO-COPY */}Mentorship</p>
+              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
+                {/* A NAMED PLATFORM METRIC keeps its own unit — "140 days",
+                    never "4 months". */}
+                <span className="tabular-nums">
+                  {payload.mentorStats.daysInMentorship} days
+                </span>{" "}
+                ·{" "}
+                <span className="tabular-nums">
+                  {payload.mentorStats.messagesLast30}
+                </span>{" "}
+                messages ·{" "}
+                <span className="tabular-nums">
+                  {payload.mentorStats.videoLast30}
+                </span>{" "}
+                video
+              </p>
+            </div>
+          </div>
+        </>
+      }
+    />
   );
 }
 
@@ -460,6 +473,14 @@ export function TaskPane({
       ? { code: override.code, statement: override.statement }
       : null;
   const pickerTrigger = useRef<HTMLElement | null>(null);
+  /** ═══ WHERE THE REVIEW PUBLISHES ITS GATE ═══
+   *  The footer's Submit and the keyboard's ⌘/Ctrl+Enter both have to run the
+   *  SAME three-field validation, and the state it validates lives inside the
+   *  review. So the action comes up into this ref rather than the form's state
+   *  going down — the same trade the `override` fix made, for the same reason:
+   *  the action is the smaller thing to move. Null whenever the mounted body is
+   *  not a billing review, which is what the footer checks. */
+  const billingHandle = useRef<BillingSubmitHandle | null>(null);
 
   /* ═══ THE AUTO-ADVANCE CROSSFADE (Part 5) ═══
      Resolving replaces the pane's ENTIRE contents in one frame — new name, new
@@ -543,14 +564,18 @@ export function TaskPane({
         payload.kind === "riskFlag"
           ? (correct: boolean) => onResolve(item, { flaggedCorrectly: correct })
           : undefined,
+      /* ═══ IT RUNS THE GATE NOW, AND IT IS NOT REACHED BY BARE ENTER ═══
+         This used to call `onResolve` directly with the code and nothing else —
+         the one-click commit, reachable from a list row with a single keypress.
+         It now presses the review's published submit, which validates the three
+         documentation fields first and refuses with focus and a live-region
+         sentence when they are empty.
+         Bare Enter no longer routes here: `onEnter` returns false for billing so
+         the key moves the keyboard into the pane instead. `⌘/Ctrl+Enter` is what
+         reaches this. */
       confirm:
-        payload.kind === "billing" && confirmCode
-          ? () =>
-              onResolve(item, {
-                outcome: "confirmed",
-                code: confirmCode.code,
-                changed: confirmCode.code !== payload.recommended.code,
-              })
+        payload.kind === "billing"
+          ? () => billingHandle.current?.submit()
           : undefined,
     };
   }, [actionsRef, item, payload, confirmCode, onResolve]);
@@ -657,11 +682,14 @@ export function TaskPane({
           <BillingBody
             payload={p}
             teenId={item.teenId}
+            item={item}
             recommended={recommended}
             onChangeCode={(trigger) => {
               pickerTrigger.current = trigger;
               setPickerOpen(true);
             }}
+            onCommit={(detail) => onResolve(item, detail)}
+            handleRef={billingHandle}
           />
         )}
         {(p.kind === "escalation" || p.kind === "documentation") && (
@@ -716,44 +744,70 @@ export function TaskPane({
         )}
 
         {p.kind === "billing" && recommended && (
+          /* ═══ TWO BUTTONS, AND NEITHER NAMES THE CODE ANY MORE ═══
+             It was `Confirm unchanged` (tonal, re-reviews only) and
+             `Confirm {code}` (primary), and the second named its object for a
+             good reason: the code on screen is not the model's suggestion once a
+             supervisor has picked from the DSM-5 dialog, so a label reading
+             `Confirm F41.1` beside a chosen F33.1 catches a mistake nothing
+             further up the pane would.
+
+             THE CARE PAGE'S PARADIGM REPLACES BOTH, on the product owner's call
+             — `Save draft` and `Submit`. That page dropped its own
+             outcome-naming label ("Submit · {code} unchanged") once the region
+             above it started moving with the decision, on the grounds that the
+             button was then stating the same fact a second time.
+
+             THAT PRECONDITION IS WHY THIS IS SAFE HERE, and it is imported with
+             the label rather than assumed: the diff above renders the
+             override-aware `recommended`, so picking a different code re-tints
+             the changed elements and flips the chip to "Change proposed → F33.1"
+             in the same frame. The outcome is stated beside the evidence and it
+             moves when the decision moves. A bare `Submit` without that would
+             re-open exactly the defect the old label was added to close.
+
+             AND THE TWO OUTCOMES COLLAPSED INTO ONE BUTTON. `unchanged` versus
+             `confirmed` was a choice a supervisor made with a button; it is now
+             DERIVED from what the diff is showing — a renewal submits as
+             `unchanged`, a change as `confirmed`. Two buttons that commit the
+             same three documented fields with different outcome strings was an
+             invitation to press the wrong one. */
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {/* RE-REVIEWS GET A SECOND, TONAL ACTION (§5): confirming that nothing
-                changed is a different decision from confirming a new code, and an
-                intake has no "unchanged" to confirm. */}
-            {p.isReReview && (
-              <RecordButton
-                onClick={() =>
-                  onResolve(item, {
-                    outcome: "unchanged",
-                    code: p.current?.code ?? null,
-                  })
-                }
-              >
-                {/* TODO-COPY */}
-                Confirm unchanged
-              </RecordButton>
-            )}
+            <RecordButton
+              onClick={() => {
+                billingHandle.current?.saveAndClose();
+                /* ═══ IT HANDS THE KEYBOARD BACK, which is this pane's version
+                   of the Care card closing ═══
+                   On the Care page `Save draft` closes the card, and the draft is
+                   already on disk by then — so the button's real effect is
+                   "leave this review". This pane never closes: selecting another
+                   item is how you leave it, and a `Save draft` that only
+                   re-saved an already-saved draft would be a control that does
+                   nothing. The codebase has removed one of those before (the
+                   care summary's Refresh, whose honest label was "this does
+                   almost nothing").
+                   THE SELECTED ROW IS THE TARGET, found by its own semantics
+                   rather than through a new prop: the worklist is a `role="tree"`
+                   and exactly one `treeitem` carries `aria-selected="true"`.
+                   That is the same element `onFocusPane` moves focus AWAY from,
+                   so this is its inverse and needs nothing wired through the
+                   page. */
+                document
+                  .querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
+                  ?.focus();
+              }}
+            >
+              {/* TODO-COPY. IT PERSISTS NOTHING EXTRA — the draft is written on
+                  every keystroke — so the name says what it does: leave this
+                  review without committing, and hand the keyboard back. */}
+              Save draft
+            </RecordButton>
             <PillButton
-              onClick={() =>
-                onResolve(item, {
-                  outcome: "confirmed",
-                  code: recommended.code,
-                  changed: recommended.code !== p.recommended.code,
-                })
-              }
+              onClick={() => billingHandle.current?.submit()}
               className="h-9 px-5 text-[14px]"
             >
-              {/* ═══ THE BUTTON NAMES WHAT IT WILL DO (Part 4) ═══
-                  "Confirm code" is the same words whether the code on screen is
-                  the model's suggestion or one the supervisor just picked from
-                  the DSM-5 dialog — so the last check before writing to a minor's
-                  billing record was a button that could not be wrong. Naming the
-                  code makes the button re-readable: it changes when the code
-                  changes, and a supervisor who picked F33.1 and sees "Confirm
-                  F41.1" has caught a mistake that no amount of care further up
-                  the pane would have caught.
-                  TODO-COPY. */}
-              Confirm {recommended.code}
+              {/* TODO-COPY */}
+              Submit
             </PillButton>
           </div>
         )}

@@ -488,12 +488,18 @@ export function TasksPage() {
     onAnswer: (correct) => paneActions.current.answer?.(correct),
     /* Enter confirms when there is a code to confirm, and reports whether it
        did — the hook falls through to focusing the pane when it did not. */
-    onEnter: () => {
-      const confirm = paneActions.current.confirm;
-      if (!confirm) return false;
-      confirm();
-      return true;
-    },
+    /* ═══ BARE ENTER NO LONGER COMMITS ═══
+       It used to press the pane's `confirm`, which for billing wrote a code with
+       no documentation — the fastest route through the gap this build closes. A
+       billing review is submitted from the pane, with `⌘/Ctrl+Enter` or the
+       footer, so Enter on a list row falls through to focusing the pane for
+       every domain. The overload is gone and the hook's own note on it stands:
+       false means "I did not consume this".
+       THE OTHER DOMAINS NEVER USED IT — `confirm` is billing-only, so this
+       returns false for all four now and the branch is kept only to keep the
+       hook's contract explicit rather than silently always-false. */
+    onEnter: () => false,
+    onSubmit: () => paneActions.current.confirm?.(),
     onFocusPane: () => {
       // BELOW `xl` THE PANE IS `display:none` UNTIL IT TAKES OVER, and the
       // browser refuses `focus()` on a zero-size element outright — silently, so
