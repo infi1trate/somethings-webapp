@@ -106,7 +106,7 @@
         "t17": {
           "rating": "up",
           "note": null,
-          "at": 1789140296799
+          "at": 1789073413768
         }
       },
       "persisted": true,
@@ -144,7 +144,7 @@
         "t17": {
           "rating": "down",
           "note": null,
-          "at": 1789140297059
+          "at": 1789073414023
         }
       },
       "persisted": true,
@@ -182,7 +182,7 @@
         "t17": {
           "rating": "down",
           "note": null,
-          "at": 1789140297059
+          "at": 1789073414023
         }
       },
       "persisted": true,
@@ -220,7 +220,7 @@
         "t17": {
           "rating": "down",
           "note": "The trajectory sentence contradicted the chart.",
-          "at": 1789140297724
+          "at": 1789073414539
         }
       },
       "persisted": true,
@@ -258,7 +258,7 @@
         "t17": {
           "rating": "up",
           "note": null,
-          "at": 1789140297985
+          "at": 1789073414793
         }
       },
       "persisted": true,

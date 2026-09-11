@@ -2,12 +2,27 @@
 
 // ═══ CURRENT → RECOMMENDED, AND THE THREE KINDS OF PROPOSAL ═══
 //
-// SHARED BY THE CARE PAGE AND THE TASKS BILLING PANE. Both surfaces commit the
-// same clinical decision — an ICD code onto a minor's record — and both used to
-// draw it their own way: Tasks had a two-column diff with an arrow, Care had a
-// single code chip beside a statement with the code on record stated nowhere in
-// the region making the proposal. Extracted from Tasks, which had the better
-// one, and graduated onto Care.
+// THE TASKS BILLING PANE'S DIFF, MOVED OUT OF IT. It renders on exactly one
+// surface today: the billing review pane. It lives in `record/` rather than
+// `tasks/` because what it draws is a record-domain fact — a presentation and
+// its code — and because the Care page's review card is where the vocabulary and
+// the framing were settled.
+//
+// ═══ THE CARE PAGE INFLUENCED THIS AND WAS NOT CHANGED BY IT ═══
+//
+// An earlier pass graduated this component onto the Care review card too,
+// replacing its single code-chip-beside-a-statement block. THAT WAS REVERTED at
+// the product owner's instruction: the Care page is the reference standard for
+// the billing queue, not a surface to be edited in the course of raising the
+// queue to it. So the Care card is untouched and still draws its own
+// presentation block, and what it contributed here is the part that travels —
+// the three proposal kinds, their vocabulary, and the code-chip-inline-before-
+// the-statement arrangement.
+//
+// WHAT THAT COSTS, STATED: the Care card states the code on record nowhere in
+// the region making the proposal — a reader carries it down from the metadata
+// strip above. That is a real observation from the recon pass and it is not this
+// file's business to fix.
 //
 // ═══ WHAT THIS OWNS, AND WHY IT IS ONE COMPONENT AND NOT TWO ═══
 //
@@ -64,9 +79,11 @@ export function proposalKindFor(
 
 /** TODO-COPY, all three. THE CARE PAGE'S VOCABULARY IS CANONICAL — it is the
  *  more refined of the two and the product owner's call. Tasks said "First
- *  assignment" for the `assign` case; "Presentation proposed" is what ships on
- *  both now, and it is the better string: it names what the card IS (a proposal)
- *  rather than where the record is in its life. */
+ *  assignment" for the `assign` case and these three strings replace it: they
+ *  name what the card IS (a proposal) rather than where the record is in its
+ *  life. The Care card holds its own copies of the same three strings, which is
+ *  the one duplication this file's reversion leaves behind — flagged rather than
+ *  resolved, because resolving it means editing the Care card. */
 export const PROPOSAL_LABEL: Record<ProposalKind, string> = {
   assign: "Presentation proposed",
   change: "Change proposed",
@@ -186,52 +203,46 @@ function Side({
 
 /** ═══ THE DIFF ═══
  *
- *  `pending` IS THE SUPERVISOR'S OWN PICK, and when it exists it is what the
- *  RECOMMENDED side shows — the region states the presentation this review is
- *  now about, not a frozen record of what the model proposed. That is also what
- *  makes a footer button safe to read "Submit" rather than "Confirm {code}": the
- *  outcome is stated here, beside the evidence, and it moves when the decision
- *  moves. Import the short label without the moving proposal and the last check
- *  before writing to a minor's billing record becomes a button that cannot be
- *  wrong.
- *
- *  `chip` REPLACES THE PROPOSAL CHIP when the caller has something better to put
- *  in that slot — the Care page passes a "Revert back to …" link once a change is
- *  pending, because "Renewal proposed" is false the moment a different code is
- *  chosen and the slot is more useful carrying the way back.
+ *  `recommended` IS WHATEVER IS NOW PROPOSED, not a frozen record of what the
+ *  model suggested: the billing pane passes its override-aware value, so picking
+ *  a different code from the picker turns a renewal into a change and re-tints
+ *  the elements that moved. That is also what would make a footer button safe to
+ *  read "Submit" rather than "Confirm {code}" — the outcome is stated here,
+ *  beside the evidence, and it moves when the decision moves.
  *
  *  `action` IS THE MODIFIER, NEXT TO ITS OBJECT. `Change…` belongs with the thing
- *  it changes, not in the footer with the commit. */
+ *  it changes, not in the footer with the commit.
+ *
+ *  TWO PROPS LEFT WITH THE CARE CONSUMER. There were a `pending` (the
+ *  supervisor's pick, held apart from the model's proposal) and a `chip` slot
+ *  (which the Care card filled with a "Revert back to …" link once a change was
+ *  pending). Both existed for that caller and nothing passes them now, so they
+ *  are removed rather than kept as speculative surface — the billing pane gets
+ *  the same moves-with-the-decision behaviour by passing the override as
+ *  `recommended`. If a revert affordance is wanted here, it arrives with its
+ *  consumer. */
 export function PresentationDiff({
   current,
   recommended,
-  pending,
-  chip,
   action,
   className,
 }: {
   /** The code on record, or null when nothing has been assigned yet. */
   current: PresentationSide | null;
-  /** What this review proposes. */
+  /** What is now proposed — the caller's override-aware value, not the model's
+   *  original suggestion. See the note above. */
   recommended: PresentationSide;
-  /** What the supervisor picked instead, if they have. */
-  pending?: PresentationSide | null;
-  /** Overrides the proposal chip. Pass `null` to render no chip at all. */
-  chip?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
 }) {
-  const shown = pending ?? recommended;
-  /* THE KIND FOLLOWS WHAT IS ON SCREEN, not what was proposed: picking a
-     different code turns a renewal into a change, and a chip still reading
-     "Renewal proposed" beside a changed code is the one wrong thing this region
-     could say. */
-  const kind = proposalKindFor(current?.code ?? null, shown.code);
-  const codeChanged = !!current && current.code !== shown.code;
-  const statementChanged = !!current && current.statement !== shown.statement;
-
-  const chipNode =
-    chip !== undefined ? chip : <ProposalChip kind={kind} code={shown.code} />;
+  /* THE KIND FOLLOWS WHAT IS ON SCREEN, not what was originally proposed:
+     picking a different code turns a renewal into a change, and a chip still
+     reading "Renewal proposed" beside a changed code is the one wrong thing this
+     region could say. `recommended` IS what is on screen — see the note above on
+     why there is no second `pending` prop holding the two apart. */
+  const kind = proposalKindFor(current?.code ?? null, recommended.code);
+  const codeChanged = !!current && current.code !== recommended.code;
+  const statementChanged = !!current && current.statement !== recommended.statement;
 
   return (
     <div
@@ -260,7 +271,7 @@ export function PresentationDiff({
           <Side
             /* TODO-COPY */
             label="Recommended"
-            side={shown}
+            side={recommended}
             statementChanged={statementChanged}
             codeChanged={codeChanged}
           />
@@ -277,18 +288,14 @@ export function PresentationDiff({
           /* TODO-COPY. "Presentation" rather than "Recommended" — there is
              nothing to recommend it against. */
           label="Presentation"
-          side={shown}
+          side={recommended}
         />
       )}
 
-      {(chipNode || action) && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <span className="flex min-w-0 flex-wrap items-center gap-2">
-            {chipNode}
-          </span>
-          {action}
-        </div>
-      )}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <ProposalChip kind={kind} code={recommended.code} />
+        {action}
+      </div>
     </div>
   );
 }

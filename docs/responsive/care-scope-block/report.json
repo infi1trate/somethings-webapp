@@ -4,7 +4,7 @@
     {
       "record": "t17",
       "block": "7 day",
-      "range": "Reporting Period : Sep 4 – Sep 11, 2026",
+      "range": "Reporting Period : Sep 3 – Sep 10, 2026",
       "plotW": 338,
       "colW": 44.4,
       "touched": [
@@ -44,7 +44,7 @@
     {
       "record": "t17",
       "block": "90 day",
-      "range": "Reporting Period : Jun 13 – Sep 11, 2026",
+      "range": "Reporting Period : Jun 12 – Sep 10, 2026",
       "plotW": 338,
       "colW": 44.4,
       "touched": [
@@ -79,7 +79,7 @@
     {
       "record": "t17",
       "block": "All",
-      "range": "Reporting Period : Feb 13 – Sep 11, 2026 · all time",
+      "range": "Reporting Period : Feb 12 – Sep 10, 2026 · all time",
       "plotW": 338,
       "colW": 44.4,
       "touched": [
@@ -115,7 +115,7 @@
     {
       "record": "t23",
       "block": "7 day",
-      "range": "Reporting Period : Sep 4 – Sep 11, 2026",
+      "range": "Reporting Period : Sep 3 – Sep 10, 2026",
       "plotW": 338,
       "colW": 77.8,
       "touched": [
@@ -144,7 +144,7 @@
     {
       "record": "t23",
       "block": "90 day",
-      "range": "Reporting Period : Jun 13 – Sep 11, 2026",
+      "range": "Reporting Period : Jun 12 – Sep 10, 2026",
       "plotW": 338,
       "colW": 77.8,
       "touched": [
@@ -176,7 +176,7 @@
     {
       "record": "t23",
       "block": "All",
-      "range": "Reporting Period : Apr 30 – Sep 11, 2026 · all time",
+      "range": "Reporting Period : Apr 29 – Sep 10, 2026 · all time",
       "plotW": 338,
       "colW": 77.8,
       "touched": [
@@ -226,9 +226,9 @@
     {
       "record": "t17",
       "block": "7 day",
-      "caption": "Reporting Period : Sep 4 – Sep 11, 2026",
+      "caption": "Reporting Period : Sep 3 – Sep 10, 2026",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 240.6,
+      "captionW": 244.1,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -282,21 +282,21 @@
         "16px w400 lausanne — \"3 engaged days, 7 messag\"",
         "14px w500 lausanne — \"7 day\"",
         "14px w400 lausanne — \"90 day\"",
-        "14px w700 avantt — \"Sep 4 – Sep 11, 2026\"",
+        "14px w700 avantt — \"Sep 3 – Sep 10, 2026\"",
         "13.5px w400 lausanne — \"One assessment in this p\"",
         "12.5px w500 lausanne — \"Sleep disturbance\"",
         "12px w400 lausanne — \"Symptom trajectory\"",
         "11.5px w400 lausanne — \"Feb\"",
         "10px w600 lausanne — \"1\""
       ],
-      "utterance": "Reporting Period : Sep 4 – Sep 11, 2026 3 engaged days, 7 messages sent."
+      "utterance": "Reporting Period : Sep 3 – Sep 10, 2026 3 engaged days, 7 messages sent."
     },
     {
       "record": "t17",
       "block": "90 day",
-      "caption": "Reporting Period : Jun 13 – Sep 11, 2026",
+      "caption": "Reporting Period : Jun 12 – Sep 10, 2026",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 241.9,
+      "captionW": 245.6,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -350,20 +350,20 @@
         "16px w400 lausanne — \"24 engaged days, 61 mess\"",
         "14px w400 lausanne — \"7 day\"",
         "14px w500 lausanne — \"90 day\"",
-        "14px w700 avantt — \"Jun 13 – Sep 11, 2026\"",
+        "14px w700 avantt — \"Jun 12 – Sep 10, 2026\"",
         "12.5px w500 lausanne — \"Sleep disturbance\"",
         "12px w400 lausanne — \"Symptom trajectory\"",
         "11.5px w400 lausanne — \"Feb\"",
         "10px w600 lausanne — \"1\""
       ],
-      "utterance": "Reporting Period : Jun 13 – Sep 11, 2026 24 engaged days, 61 messages sent."
+      "utterance": "Reporting Period : Jun 12 – Sep 10, 2026 24 engaged days, 61 messages sent."
     },
     {
       "record": "t17",
       "block": "All",
-      "caption": "Reporting Period : Feb 13 – Sep 11, 2026 · all time",
+      "caption": "Reporting Period : Feb 12 – Sep 10, 2026 · all time",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 299.3,
+      "captionW": 303,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -417,20 +417,20 @@
         "16px w400 lausanne — \"58 engaged days, 149 mes\"",
         "14px w400 lausanne — \"7 day\"",
         "14px w500 lausanne — \"All\"",
-        "14px w700 avantt — \"Feb 13 – Sep 11, 2026 · \"",
+        "14px w700 avantt — \"Feb 12 – Sep 10, 2026 · \"",
         "12.5px w500 lausanne — \"Sleep disturbance\"",
         "12px w400 lausanne — \"Symptom trajectory\"",
         "11.5px w400 lausanne — \"Feb\"",
         "10px w600 lausanne — \"1\""
       ],
-      "utterance": "Reporting Period : Feb 13 – Sep 11, 2026 · all time 58 engaged days, 149 messages sent."
+      "utterance": "Reporting Period : Feb 12 – Sep 10, 2026 · all time 58 engaged days, 149 messages sent."
     },
     {
       "record": "t23",
       "block": "7 day",
-      "caption": "Reporting Period : Sep 4 – Sep 11, 2026",
+      "caption": "Reporting Period : Sep 3 – Sep 10, 2026",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 240.6,
+      "captionW": 244.1,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -484,20 +484,20 @@
         "16px w400 lausanne — \"2 engaged days, 5 messag\"",
         "14px w500 lausanne — \"7 day\"",
         "14px w400 lausanne — \"90 day\"",
-        "14px w700 avantt — \"Sep 4 – Sep 11, 2026\"",
+        "14px w700 avantt — \"Sep 3 – Sep 10, 2026\"",
         "13.5px w400 lausanne — \"One assessment in this p\"",
         "12.5px w500 lausanne — \"Excessive worry\"",
         "12px w400 lausanne — \"Symptom trajectory\"",
         "11.5px w400 lausanne — \"May\""
       ],
-      "utterance": "Reporting Period : Sep 4 – Sep 11, 2026 2 engaged days, 5 messages sent."
+      "utterance": "Reporting Period : Sep 3 – Sep 10, 2026 2 engaged days, 5 messages sent."
     },
     {
       "record": "t23",
       "block": "90 day",
-      "caption": "Reporting Period : Jun 13 – Sep 11, 2026",
+      "caption": "Reporting Period : Jun 12 – Sep 10, 2026",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 241.9,
+      "captionW": 245.6,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -551,19 +551,19 @@
         "16px w400 lausanne — \"19 engaged days, 44 mess\"",
         "14px w400 lausanne — \"7 day\"",
         "14px w500 lausanne — \"90 day\"",
-        "14px w700 avantt — \"Jun 13 – Sep 11, 2026\"",
+        "14px w700 avantt — \"Jun 12 – Sep 10, 2026\"",
         "12.5px w500 lausanne — \"Excessive worry\"",
         "12px w400 lausanne — \"Symptom trajectory\"",
         "11.5px w400 lausanne — \"May\""
       ],
-      "utterance": "Reporting Period : Jun 13 – Sep 11, 2026 19 engaged days, 44 messages sent."
+      "utterance": "Reporting Period : Jun 12 – Sep 10, 2026 19 engaged days, 44 messages sent."
     },
     {
       "record": "t23",
       "block": "All",
-      "caption": "Reporting Period : Apr 30 – Sep 11, 2026 · all time",
+      "caption": "Reporting Period : Apr 29 – Sep 10, 2026 · all time",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 302.7,
+      "captionW": 305.6,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -617,19 +617,19 @@
         "16px w400 lausanne — \"26 engaged days, 61 mess\"",
         "14px w400 lausanne — \"7 day\"",
         "14px w500 lausanne — \"All\"",
-        "14px w700 avantt — \"Apr 30 – Sep 11, 2026 · \"",
+        "14px w700 avantt — \"Apr 29 – Sep 10, 2026 · \"",
         "12.5px w500 lausanne — \"Excessive worry\"",
         "12px w400 lausanne — \"Symptom trajectory\"",
         "11.5px w400 lausanne — \"May\""
       ],
-      "utterance": "Reporting Period : Apr 30 – Sep 11, 2026 · all time 26 engaged days, 61 messages sent."
+      "utterance": "Reporting Period : Apr 29 – Sep 10, 2026 · all time 26 engaged days, 61 messages sent."
     },
     {
       "record": "t1",
       "block": "7 day",
-      "caption": "Reporting Period : Sep 10 – Sep 11, 2026 · all time",
+      "caption": "Reporting Period : Sep 9 – Sep 10, 2026 · all time",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 301.6,
+      "captionW": 299.7,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -683,18 +683,18 @@
         "16px w400 lausanne — \"0 engaged days, 0 messag\"",
         "14px w500 lausanne — \"7 day\"",
         "14px w400 lausanne — \"90 day\"",
-        "14px w700 avantt — \"Sep 10 – Sep 11, 2026 · \"",
+        "14px w700 avantt — \"Sep 9 – Sep 10, 2026 · a\"",
         "13.5px w400 lausanne — \"Not enough comparable re\"",
         "12px w400 lausanne — \"Symptom trajectory\""
       ],
-      "utterance": "Reporting Period : Sep 10 – Sep 11, 2026 · all time 0 engaged days, 0 messages sent."
+      "utterance": "Reporting Period : Sep 9 – Sep 10, 2026 · all time 0 engaged days, 0 messages sent."
     },
     {
       "record": "t1",
       "block": "90 day",
-      "caption": "Reporting Period : Sep 10 – Sep 11, 2026 · all time",
+      "caption": "Reporting Period : Sep 9 – Sep 10, 2026 · all time",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 301.6,
+      "captionW": 299.7,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -748,18 +748,18 @@
         "16px w400 lausanne — \"0 engaged days, 0 messag\"",
         "14px w400 lausanne — \"7 day\"",
         "14px w500 lausanne — \"90 day\"",
-        "14px w700 avantt — \"Sep 10 – Sep 11, 2026 · \"",
+        "14px w700 avantt — \"Sep 9 – Sep 10, 2026 · a\"",
         "13.5px w400 lausanne — \"Not enough comparable re\"",
         "12px w400 lausanne — \"Symptom trajectory\""
       ],
-      "utterance": "Reporting Period : Sep 10 – Sep 11, 2026 · all time 0 engaged days, 0 messages sent."
+      "utterance": "Reporting Period : Sep 9 – Sep 10, 2026 · all time 0 engaged days, 0 messages sent."
     },
     {
       "record": "t1",
       "block": "All",
-      "caption": "Reporting Period : Sep 10 – Sep 11, 2026 · all time",
+      "caption": "Reporting Period : Sep 9 – Sep 10, 2026 · all time",
       "captionCss": "14px/20px rgb(110, 107, 103)",
-      "captionW": 301.6,
+      "captionW": 299.7,
       "captionAvail": 338,
       "captionLineBoxes": 1,
       "captionClientH": 21,
@@ -813,11 +813,11 @@
         "16px w400 lausanne — \"0 engaged days, 0 messag\"",
         "14px w400 lausanne — \"7 day\"",
         "14px w500 lausanne — \"All\"",
-        "14px w700 avantt — \"Sep 10 – Sep 11, 2026 · \"",
+        "14px w700 avantt — \"Sep 9 – Sep 10, 2026 · a\"",
         "13.5px w400 lausanne — \"Not enough comparable re\"",
         "12px w400 lausanne — \"Symptom trajectory\""
       ],
-      "utterance": "Reporting Period : Sep 10 – Sep 11, 2026 · all time 0 engaged days, 0 messages sent."
+      "utterance": "Reporting Period : Sep 9 – Sep 10, 2026 · all time 0 engaged days, 0 messages sent."
     }
   ],
   "failures": [],
@@ -836,22 +836,22 @@
     },
     "at": {
       "30": {
-        "dt": 49,
+        "dt": 44,
         "l": 292,
         "w": 65
       },
       "60": {
-        "dt": 59,
-        "l": 291.2,
-        "w": 65.8
+        "dt": 58,
+        "l": 291.1,
+        "w": 65.9
       },
       "150": {
-        "dt": 151,
-        "l": 227.1,
-        "w": 129.8
+        "dt": 150,
+        "l": 227.3,
+        "w": 129.7
       },
       "300": {
-        "dt": 302,
+        "dt": 300,
         "l": 170.4,
         "w": 186.6
       }

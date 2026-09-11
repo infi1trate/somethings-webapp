@@ -34,7 +34,7 @@
 // RATIONALE_SOURCE_LABEL.
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, FilePlus, Pencil, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, FilePlus, Pencil, RefreshCw } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 // The dropdown-menu import is gone with the ellipsis it served — see the actions
 // slot below for what that menu contained.
@@ -46,8 +46,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Dsm5SearchList } from "@/components/record/dsm5-search";
-import { PresentationDiff } from "@/components/record/presentation-diff";
-import { WeightedScoreModule } from "@/components/record/weighted-score-module";
 import type { Dsm5Entry } from "@/lib/record/dsm5";
 import type { ReviewDecision } from "@/lib/record/review-draft";
 import { TaskCard } from "@/components/record/task-card";
@@ -55,6 +53,10 @@ import { TaskCard } from "@/components/record/task-card";
 // the flag review modal still uses `DecisionNote` + `noteReady`; this card simply
 // stopped being a consumer when the provider note was retired. Leaving the
 // component alone is what keeps that out-of-scope surface from shifting.
+import { clinicalDate } from "@/components/record/care-presentation";
+import { bandLabel } from "@/components/record/score-chip";
+import { SurveyComparisonGrid } from "@/components/record/survey-comparison-grid";
+import { INSTRUMENT_MAX } from "@/lib/record/care-demo";
 import {
   RATIONALE_SOURCE_LABEL,
   type AssessmentItem,
@@ -70,11 +72,35 @@ const LABEL_STYLE = {
   letterSpacing: "var(--type-field-label-tracking)",
 } as const;
 
-/* `STAT_VALUE` AND `BandChip` LEFT WITH THE STRIP. Both were only ever read by
-   the weighted-score block, which is now `weighted-score-module.tsx`; the brief
-   exported them from here for the rail to import and that export is gone with
-   the reason for it — the rail renders the module, not its pieces. */
+/** ═══ THE WEIGHTED STRIP'S VALUE STYLE, IN ONE PLACE ═══
+ *
+ *  Three data in the strip below wear this and it was written out three times.
+ *
+ *  IT WAS BRIEFLY EXPORTED, and it is not any more. The care summary rail showed
+ *  two data in this same label-over-value shape and imported these styles so the
+ *  pattern could not fork; the design frame has since inverted that row to
+ *  value-over-label at 24px Avantt, so the rail no longer wears this pattern and
+ *  there is no consumer left to keep the export honest. Un-exported rather than
+ *  left as public surface with a comment describing an importer that does not
+ *  exist. The de-duplication is the part worth keeping. */
+const STAT_VALUE = "text-[20px] leading-[24px] tabular-nums text-[var(--text-primary)]";
+/** The hairline that does the sectioning a nested card used to do. */
 const SECTION = "mt-4 border-t border-[var(--border-subtle)] pt-4";
+
+/** The band name beside the score, on ONE baseline with it — 12px, card tone,
+ *  hairline ring. Neutral: severity lives in the task label band, and a second
+ *  coloured chip inside the card would be a second severity signal. */
+function BandChip({ severity }: { severity: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)] ring-1 ring-inset ring-[color:var(--border-subtle)]">
+      {bandLabel(severity)}
+    </span>
+  );
+}
+
+/** `ItemTable` lived here — one survey, three columns, answer text in every
+ *  cell. `SurveyComparisonGrid` replaced it: the question a supervisor is
+ *  answering is comparative, and a table of one survey cannot answer it. */
 
 export function PresentationReviewCard({
   review,
@@ -140,9 +166,9 @@ export function PresentationReviewCard({
   decision?: ReviewDecision | null;
   onDecisionChange?: (next: ReviewDecision | null) => void;
 }) {
-  /* THE DISCLOSURE STATE WENT WITH THE STRIP. It was lifted out of an old
-     Disclosure component so the header could not own the body's open state; the
-     module owns both now, which is the same fix at one level down. */
+  /** Lifted out of the old Disclosure component: the header must not own the
+   *  body's open state, or it re-renders around it. */
+  const [open, setOpen] = useState(false);
 
   /** ═══ COLLAPSING HANDS FOCUS BACK TO THE BAND ═══
    *  Closing the card unmounts nothing a keyboard reader was standing on, so
@@ -236,7 +262,15 @@ export function PresentationReviewCard({
    *  Falls back to the score itself when the instrument is unknown, so the pair
    *  still reads as a fraction rather than "9 / undefined". An unknown instrument
    *  is a data problem, and it should look like a full bar rather than a crash. */
+  /** How many assessments stand behind the score — the aggregate's list, or the
+   *  single survey. Read by the Assessments datum and by the disclosure. */
+  const surveyCount = review.aggregate?.surveys.length ?? (review.survey ? 1 : 0);
 
+  const maxScore =
+    (evidence &&
+      INSTRUMENT_MAX[evidence.instrument as keyof typeof INSTRUMENT_MAX]) ||
+    evidence?.score ||
+    0;
 
   // `outcome` used to be computed here, for the decision this card built. The
   // owner derives it now — see `outcomeFor` in `care-tab.tsx` — because the
@@ -250,6 +284,10 @@ export function PresentationReviewCard({
   const pending =
     expanded && decision?.kind === "change" && decision.code ? decision : null;
 
+  /** WHAT THE HEADER STATES. The recommendation until someone changes it, and
+   *  the change from the moment they do — the header is the presentation this
+   *  review is now about, not a frozen record of what was proposed. */
+  const shown = pending ?? review.recommended;
 
   /* THE CHIP SLOT — the proposal chip, or the way back out of a change. */
   const proposalChip = canAct ? (
@@ -432,35 +470,70 @@ export function PresentationReviewCard({
           mapping produced this. One statement of provenance, in the place a
           reader is already looking. */
     >
-      {/* ═══ 1 · THE PROPOSAL, AS A DIFF ═══
-          IT WAS AN IMPLICIT CURRENT-CODE PRESENTATION: one code chip beside one
-          statement, showing whatever is now proposed — and the code ON RECORD,
-          the thing the proposal is a proposal to change, appeared nowhere in the
-          region making it. A reader had to carry it down from the metadata strip
-          above. The Tasks billing pane drew the comparison properly, so its
-          version is the shared one and this is where it graduates to.
+      {/* 1 · RECOMMENDATION — LABEL, THEN CODE-CHIP + STATEMENT ON ONE LINE.
+          The code was a bare mono line ABOVE the statement. It is now a bordered
+          chip sitting INLINE before it, which is the design file's arrangement
+          and a better one: a code on its own line reads as a heading for the
+          sentence under it, where what it actually is is an identifier ATTACHED
+          to that sentence. Boxed and inline, it reads as a tag.
+          The eyebrow above them names the slot, so the band no longer has to. */}
+      <div>
+        <p className="mb-1 text-[var(--text-tertiary)]" style={LABEL_STYLE}>
+          {/* TODO-COPY */}
+          Recommended presentation
+        </p>
+        {/* ═══ R7/A: THE PROPOSAL CHIP SITS WITH THE TITLE ═══
+            It was at the far right of the header band, a whole row away from the
+            thing it describes — a reader had to hold "change proposed" in their
+            head while crossing the card to find out change to what. Beside the
+            title it is read in one movement.
 
-          THE CHIP SLOT STILL CARRIES THE WAY BACK. Once a supervisor picks a
-          different code, "Renewal proposed" is false — nothing is being renewed
-          any more — so the slot hands over to a revert link that names its
-          destination. Passing it in rather than teaching the diff about drafts:
-          the diff knows which of the three kinds it is drawing, and nothing
-          about whose decision is pending.
+            `flex-wrap` WITH THE TITLE ALLOWED TO TAKE THE WHOLE LINE: the title
+            is `min-w-0`-free and the chip is `shrink-0`, so at a narrow container
+            the chip drops to its own line, left-aligned, and the title is never
+            truncated to make room for it. The title is the thing being reviewed;
+            the chip is a note about it.
 
-          `Change code` RIDES IN THE `action` SLOT, expanded-only. A collapsed
-          card keeps Review as its one action; offering a code change from a card
-          nobody has opened would be acting before reading. */}
-      <PresentationDiff
-        current={
-          currentCode
-            ? { code: currentCode, statement: currentStatement ?? "" }
-            : null
-        }
-        recommended={review.recommended}
-        pending={pending}
-        chip={proposalChip}
-        action={
-          expanded && canAct && onDecisionChange ? (
+            `items-baseline` rather than `items-center`: centring a 16px chip on a
+            26px line box floats it above the title's baseline. TODO-COPY. */}
+        {/* ═══ TITLE → CHIP │ CHANGE CODE ═══
+            TWO GROUPS, AND ONLY THE INNER ONE WRAPS. A single `flex-wrap` row
+            put the whole button on its own line as soon as the title got long,
+            which is exactly backwards: the chip is a NOTE about the title and can
+            drop, the button is the row's ACTION and has to stay on the title's
+            line to be found. So title+chip share a wrapping group and the button
+            sits outside it, `shrink-0`.
+
+            The title wraps rather than truncating — it is the thing being
+            reviewed, and half a presentation name is worse than two lines of it.
+
+            AND THE OUTER ROW WRAPS TOO, below a floor. `min-w-48` on the title
+            group is what decides where: with the button and its gap needing
+            ~138px, a card narrower than ~330px cannot seat both, and without the
+            floor the title group simply kept shrinking — measured at 375px as a
+            139px column running the presentation name down FIVE lines beside a
+            button. Past the floor the button takes its own line and the title
+            gets the full width, which is the right trade on a phone: the action
+            is still directly under the thing it acts on.
+
+            THE BUTTON IS EXPANDED-ONLY. A collapsed card keeps Review as its one
+            action; offering a code change from a card nobody has opened would be
+            acting before reading. */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <span className="flex min-w-48 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+            {/* `items-center` NOT `items-baseline` on this row now: the chip is a
+                22px box, and a box has no baseline of its own to share with the
+                20px statement beside it — aligning them by baseline hung the box
+                low. Centres agree; baselines only agree for text. */}
+            <span className="inline-flex h-[22px] shrink-0 items-center rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
+              {shown.code}
+            </span>
+            <p className="text-[20px] font-semibold leading-[24px] tracking-[-0.2px] text-[var(--text-primary)]">
+              {shown.statement}
+            </p>
+            {proposalChip}
+          </span>
+          {expanded && canAct && onDecisionChange && (
             <button
               type="button"
               ref={changeRef}
@@ -471,7 +544,7 @@ export function PresentationReviewCard({
                  `outcomeCode`. The decision is made by picking a row. */
               onClick={() => setPickerOpen(true)}
               className={cn(
-                "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full",
+                "inline-flex min-h-9 shrink-0 items-center gap-1.5 self-center rounded-full",
                 "border border-[color:var(--border-contour)] px-3 py-1.5",
                 "text-[13px] font-semibold leading-[18px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
                 RING
@@ -481,10 +554,18 @@ export function PresentationReviewCard({
               {/* TODO-COPY — PLACEHOLDER. */}
               Change code
             </button>
-          ) : null
-        }
-      />
+          )}
+        </div>
+      </div>
 
+      {/* THE DELTA BAR IS GONE. It stated the change as old-struck → new with
+          Edit and Remove, on the premise that the title had to keep showing the
+          code on record until commit. The product decision is the other one: the
+          HEADER now moves to the new presentation the moment it is picked, and
+          the only thing a supervisor still needs is the way back — which is the
+          revert link in the chip's slot above. A bar restating a change the
+          header already states is the same fact twice, and its Edit was a second
+          door into the picker "Change code" already opens. */}
 
       {/* ═══ THE PICKER ═══
           Moved here with the button that opens it. Built from `Dsm5SearchList`
@@ -669,20 +750,190 @@ export function PresentationReviewCard({
             <Provenance triggerLabel="About this score" />
           </p>
         )}
-        {/* ═══ EXTRACTED, AND THE TASKS PANE RENDERS THE SAME ONE ═══
-            The strip and its comparison grid were ~190 lines inline here. The
-            billing queue commits the same decision from the same evidence and
-            had no weighted score at all — one survey, no items, no date range —
-            so the block moved out whole rather than being copied. Nothing about
-            the treatment changed in the move; an extraction that also restyles is
-            two changes reviewed as one.
-            A PLAIN BLOCK COMMENT, not `{/* … *\/}`: the position below is inside
-            `cond && ( … )`, which takes one expression — a JSX comment is only
-            valid in children position, and putting one there is a parse error. */}
         {evidence && (
-          /* `mt-2` RIDES ON THE MODULE rather than inside it: the gap belongs to
-             this card's rhythm, not to the component. */
-          <WeightedScoreModule review={review} className="mt-2" />
+          /* Same ring room. The rounded corners need the clip, so the clip edge
+             moves rather than the rule. A PLAIN BLOCK COMMENT, not `{/* … *\/}`:
+             this position is inside `cond && ( … )`, which takes one expression
+             — a JSX comment is only valid in children position, and putting one
+             here is a parse error. */
+          <div className="-mx-1.5 mt-2 overflow-hidden rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-1.5">
+            {/* ══ THE HEADER IS THE DISCLOSURE ══════════════════════════════
+                THE WHOLE ROW IS THE TARGET, not the caret. A 14px chevron is a
+                ~14px hit area next to a 200px row that looks pressable and is
+                not; readers aim at the number and nothing happens. It is a real
+                <button> spanning the panel, so Enter and Space come free, focus
+                is native, and the caret drops to what it should always have been
+                — a state indicator with `aria-hidden`.
+
+                FIXED HEIGHT, PIXEL-IDENTICAL IN BOTH STATES. 68px, holding two
+                lines: the score lockup on one baseline, the provenance beneath.
+                The expanded body is a SIBLING of this button, never a child, so
+                nothing the body does can move anything in here. */}
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              className={cn(
+                /* THE HEIGHT IS FIXED AND HAS GROWN. 68px held a two-line lockup; the
+                   stat row is label + value + sub-line, so 92px. It stays FIXED
+                   for the original reason — the expanded body is a sibling, and
+                   nothing the body does may move anything in this header. */
+                /* MIN-height, not fixed. The fixed height existed so the expanded
+                   body could not move anything in this header — and it still
+                   cannot, because a wrap here is caused by CONTAINER WIDTH, not
+                   by the body opening. Three data need to be able to go to two
+                   lines rather than squeeze a value. */
+                "flex min-h-[92px] w-full cursor-pointer items-center gap-x-3 px-6 py-3 text-left",
+                "transition-colors hover:bg-[var(--tint-hover)]",
+                RING
+              )}
+            >
+              {/* ═══ TWO DATA, THE PRESENTATION CARD'S PATTERN ═══
+                  Label over value, the metadata row's styles — 12px muted label,
+                  20px tabular value, 13px muted sub-line — so a supervisor
+                  reading down the page meets the same shape twice rather than a
+                  headline number here and a stat row there.
+
+                  BOTH VALUES SHARE A BASELINE by construction: the two data are
+                  `items-start` siblings whose labels are the same style and
+                  therefore the same height, so the value lines begin at the same
+                  y without either being told a height.
+
+                  THE SCORE DROPS 24px → 20px. That is the pattern's size, and
+                  matching it is the point of adopting the pattern. */}
+              {/* ═══ THREE DATA, WRAPPING 2+1 BEFORE ANY VALUE TRUNCATES ═══
+                  `flex-wrap` with each datum `shrink-0`: the row would rather go
+                  to two lines than squeeze a value, because a truncated "10 / 21"
+                  is not a score and a truncated date range is not a window. The
+                  instrument leaves the Surveys sub-line and becomes its own
+                  datum, so the sub-line is dates alone. */}
+              <span className="flex min-w-0 flex-1 flex-wrap items-start gap-x-10 gap-y-3">
+                {/* ═══ DATUM 1 — THE INSTRUMENT ═══
+                    It was a prefix on the Surveys sub-line, where it read as part
+                    of the date range rather than as the thing being measured.
+                    TODO-COPY — PLACEHOLDER. */}
+                <span className="flex shrink-0 flex-col gap-y-1">
+                  <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                    Assigned assessment
+                  </span>
+                  <span className={STAT_VALUE}>
+                    {evidence.instrument}
+                  </span>
+                </span>
+
+                {/* ═══ DATUM 1 ═══
+                    "Weighted score" ONLY when there is a weighting. One reading
+                    weighted is not a weighting, and calling it one would be the
+                    single-survey lie A5 exists to prevent. TODO-COPY —
+                    PLACEHOLDERS. */}
+                <span className="flex shrink-0 flex-col gap-y-1">
+                  <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                    {review.aggregate ? "Weighted score" : "Score"}
+                  </span>
+                  <span className="flex items-baseline gap-x-2">
+                    <span className="flex shrink-0 items-baseline gap-x-1">
+                      <span className={STAT_VALUE}>
+                        {evidence.score}
+                      </span>
+                      {/* THE DENOMINATOR. A bare "9" has no scale. The maximum
+                          comes from the INSTRUMENT DEFINITION, never a literal
+                          here: a per-card constant is how one surface ends up
+                          saying /21 for a PHQ-9. */}
+                      <span className="text-[14px] leading-[26px] tabular-nums text-[var(--text-muted)]">
+                        / {maxScore}
+                      </span>
+                    </span>
+                    <BandChip severity={evidence.severity} />
+                  </span>
+                </span>
+
+                {/* ═══ DATUM 2 ═══
+                    The count is a value now rather than a clause in the deleted
+                    eyebrow, and the window it covers is its sub-line. */}
+                <span className="flex shrink-0 flex-col gap-y-1">
+                  <span className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                    {/* TODO-COPY — PLACEHOLDER. */}
+                    Assessments
+                  </span>
+                  <span className={STAT_VALUE}>
+                    {review.aggregate ? review.aggregate.surveys.length : 1}
+                  </span>
+                  <span className="whitespace-nowrap text-[13px] leading-[18px] text-[var(--text-muted)]">
+                    {/* DATES ALONE. The instrument moved to its own datum, so
+                        repeating it here would state one fact twice in one row.
+                        Oldest → newest; on one survey it is that survey's own
+                        date, with no range and no "weighted" language anywhere in
+                        the unit. TODO-COPY. */}
+                    {review.aggregate
+                      ? `${clinicalDate(
+                          review.aggregate.surveys[review.aggregate.surveys.length - 1].at
+                        )} – ${clinicalDate(review.aggregate.surveys[0].at)}`
+                      : clinicalDate(evidence.at)}
+                  </span>
+                </span>
+              </span>
+
+              {/* PINNED, and now a LABEL rather than a control. Its own flex
+                  child in a fixed-height row, so it cannot move. */}
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+                {/* TODO-COPY — PLACEHOLDER. "View results (n)" is the design
+                    file's label. The count came back with it: it had been
+                    dropped as a duplicate of the Assessments datum two columns
+                    left, and the counter-argument is that this control has to be
+                    self-describing at the moment of aiming at it — a reader's
+                    eye is on the right edge of the row, not on a cell across the
+                    panel.
+                    IT STILL TOGGLES. The file only ever draws the collapsed
+                    state, so it says nothing about the open one, and an action
+                    phrase that never changes reads "View results" while the
+                    results are on screen. Open drops the count with the verb —
+                    "Hide results (3)" would be offering to hide three of
+                    something. */}
+                {open ? "Hide results" : `View results (${surveyCount})`}
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 transition-transform",
+                    open && "rotate-90"
+                  )}
+                  aria-hidden
+                />
+              </span>
+            </button>
+
+            {/* BODY — expanded only, beneath a hairline, full width, BELOW the
+                header rather than beside the score. */}
+            {open && (
+              <div className="border-t border-[var(--border-subtle)] px-6 py-3">
+                {/* ═══ THE SHARED GRID ═══
+                    The same component the drawer's evidence strip renders, so a
+                    supervisor who opens the answers here and then opens the
+                    review is looking at one table rather than two layouts of one
+                    dataset.
+                    It replaces a stacked pair — a list of the contributing
+                    surveys, then the newest survey's answers — which could show
+                    what the period contained OR what one day contained, never
+                    both at once. The claim being checked ("the movement sits in
+                    these items") is a comparison, so the display is one. */}
+                <SurveyComparisonGrid
+                  surveys={
+                    review.aggregate
+                      ? review.aggregate.surveys
+                      : review.survey
+                        ? [review.survey]
+                        : []
+                  }
+                  weighted={
+                    review.aggregate
+                      ? {
+                          score: review.aggregate.score,
+                          severity: review.aggregate.severity,
+                        }
+                      : null
+                  }
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
