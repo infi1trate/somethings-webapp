@@ -393,11 +393,42 @@ function Row({
   const resolved = /resolved/i.test(rawResult);
   const statusText = score || hasStatus ? null : rawResult || null;
   const named = event.author.kind === "person";
+  /** ═══ A MENTOR CHANGE PUTS ITS TWO NAMES WHERE THE RESULT WOULD GO ═══
+   *
+   *  The pair IS this row's content, and line 2 is the only place for it: line 1
+   *  is a fixed height holding the title, the type lozenge and nothing that
+   *  wraps, and the row's two-line cap is the point of the anatomy. So the
+   *  `mentor_change` variant carries no `result` and spends that slot on the
+   *  names — the alternative was a third element on a line that does not wrap,
+   *  where the attribution truncates first.
+   *
+   *  NO EXPANDER. `expandable` needs items, a note, a field set or a demoted
+   *  line, and this row has none of them — verified, not assumed, because a
+   *  chevron on a row whose whole content is already visible is a control that
+   *  opens nothing.
+   *
+   *  ═══ THE ARROW IS DECORATION AND THE SENTENCE IS SEPARATE ═══
+   *  "Aisha Bello → Priya Nair" read aloud is either "Aisha Bello right arrow
+   *  Priya Nair" or, on a screen reader that skips the glyph, two names with no
+   *  relationship — and the relationship is the entire fact. So the visual pair
+   *  is `aria-hidden` and an `sr-only` sentence says which direction it went. */
+  const pair = event.mentorChange;
   const line2 =
-    statusText || named ? (
+    statusText || pair || named ? (
       <>
+        {pair && (
+          <span className="flex items-center gap-1">
+            <span aria-hidden className="flex items-center gap-1">
+              <span>{pair.from}</span>
+              <span className="text-[var(--text-muted)]">→</span>
+              <span className="text-[var(--text-primary)]">{pair.to}</span>
+            </span>
+            {/* TODO-COPY */}
+            <span className="sr-only">{`Mentor changed from ${pair.from} to ${pair.to}`}</span>
+          </span>
+        )}
         {statusText && <span>{statusText}</span>}
-        {statusText && named && (
+        {(statusText || pair) && named && (
           <span aria-hidden className="text-[var(--text-muted)]">
             ·
           </span>

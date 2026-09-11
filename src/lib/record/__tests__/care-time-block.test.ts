@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import {
   CARE_TIME_BLOCKS,
   DEFAULT_CARE_BLOCK,
+  blockById,
   blockRangeLine,
   blockWindowFor,
   type CareTimeBlockId,
@@ -33,19 +34,36 @@ const doc = (id: string, b: CareTimeBlockId) =>
   careSummaryFor(id, NOW, undefined, b);
 
 describe("the blocks and their windows", () => {
-  it("offers exactly four, and defaults to 30 days", () => {
-    expect(IDS).toEqual(["recent", "d30", "d90", "all"]);
-    // A flagged decision, not an accident — see the note on the constant.
-    expect(DEFAULT_CARE_BLOCK).toBe("d30");
+  it("offers exactly three, and defaults to the 7-day block", () => {
+    // THE 30-DAY BLOCK WAS DROPPED on instruction, and this is the assertion
+    // that makes the default's move deliberate: `DEFAULT_CARE_BLOCK` was `d30`,
+    // so removing the block without choosing a successor would have left the
+    // rail defaulting to an id that no longer exists.
+    expect(IDS).toEqual(["recent", "d90", "all"]);
+    expect(DEFAULT_CARE_BLOCK).toBe("recent");
+    // And the default must BE one of the blocks — the failure the above would
+    // otherwise let through, since a stale string still type-checks if it stays
+    // in the union.
+    expect(IDS).toContain(DEFAULT_CARE_BLOCK);
+  });
+
+  it("spells the labels out, and gives each block its own", () => {
+    // THE FRAME'S COPY. "7 day" rather than "7d" — read rather than decoded.
+    expect(CARE_TIME_BLOCKS.map((b) => b.label)).toEqual(["7 day", "90 day", "All"]);
+  });
+
+  it("falls back to the default, not to a position", () => {
+    // `blockById` indexed `CARE_TIME_BLOCKS[1]` for an unknown id, which meant
+    // dropping a block silently re-pointed the fallback from 30 days to 90.
+    expect(blockById("nope" as CareTimeBlockId).id).toBe(DEFAULT_CARE_BLOCK);
   });
 
   it("measures trailing windows from today", () => {
-    const w = blockWindowFor("t17", NOW, "d30")!;
+    const w = blockWindowFor("t17", NOW, "d90")!;
     expect(w.toAt).toBe(NOW);
-    expect(Math.round((NOW - w.fromAt) / DAY)).toBe(30);
+    expect(Math.round((NOW - w.fromAt) / DAY)).toBe(90);
     expect(w.clamped).toBe(false);
     expect(Math.round((NOW - blockWindowFor("t17", NOW, "recent")!.fromAt) / DAY)).toBe(7);
-    expect(Math.round((NOW - blockWindowFor("t17", NOW, "d90")!.fromAt) / DAY)).toBe(90);
   });
 
   it("makes All the mentorship, not a large day count", () => {
@@ -60,7 +78,7 @@ describe("the blocks and their windows", () => {
     // would be counting absence as a finding.
     const teen = DEMO_TEENS.find((t) => t.id === "t1")!;
     expect(teen.joinedDaysAgo).toBeLessThan(7);
-    for (const b of ["recent", "d30", "d90"] as const) {
+    for (const b of ["recent", "d90"] as const) {
       const w = blockWindowFor("t1", NOW, b)!;
       expect(w.clamped, `${b} did not clamp`).toBe(true);
       expect(Math.round((NOW - w.fromAt) / DAY)).toBe(teen.joinedDaysAgo);
@@ -70,26 +88,34 @@ describe("the blocks and their windows", () => {
 
 describe("the range line — the card's one scope declaration", () => {
   it("uses an en dash, because it is a range", () => {
-    const line = blockRangeLine(blockWindowFor("t17", NOW, "d30")!, "d30");
+    const line = blockRangeLine(blockWindowFor("t17", NOW, "d90")!, "d90");
     expect(line).toContain("–");
     expect(line).not.toContain(" - ");
   });
 
-  it("names the mentorship only when the dates ARE the mentorship", () => {
+  it("marks the span complete only when the dates ARE the whole record", () => {
+    // "· all time", NOT "· full mentorship" — shortened because the frame's
+    // `Reporting Period : ` prefix made the longer suffix fold onto a second
+    // line on every record that carried it. Measured; see the note on
+    // `blockRangeLine`.
     expect(blockRangeLine(blockWindowFor("t17", NOW, "all")!, "all")).toContain(
-      "full mentorship"
+      "· all time"
     );
-    expect(blockRangeLine(blockWindowFor("t17", NOW, "d30")!, "d30")).not.toContain(
-      "full mentorship"
+    expect(blockRangeLine(blockWindowFor("t17", NOW, "d90")!, "d90")).not.toContain(
+      "all time"
     );
     // …including a clamped trailing block, where they are.
     expect(blockRangeLine(blockWindowFor("t1", NOW, "d90")!, "d90")).toContain(
-      "full mentorship"
+      "· all time"
     );
+    // AND THE OLD STRING IS GONE, not merely unasserted: a caption carrying it
+    // is the fold this replaced.
+    for (const b of ["recent", "d90", "all"] as const)
+      expect(blockRangeLine(blockWindowFor("t1", NOW, b)!, b)).not.toContain("mentorship");
   });
 
   it("prints one year, at the end", () => {
-    const line = blockRangeLine(blockWindowFor("t17", NOW, "d30")!, "d30");
+    const line = blockRangeLine(blockWindowFor("t17", NOW, "d90")!, "d90");
     expect(line.match(/2026/g)).toHaveLength(1);
     expect(line).toMatch(/, 2026$/);
   });
@@ -101,7 +127,7 @@ describe("the per-block data is coherent", () => {
     // engaged days than the quarter containing it is not a rendering bug a
     // reader can spot — it just quietly makes the card untrustworthy.
     for (const id of FULL) {
-      const order: CareTimeBlockId[] = ["recent", "d30", "d90", "all"];
+      const order: CareTimeBlockId[] = ["recent", "d90", "all"];
       const days = order.map((b) => doc(id, b)!.themes?.conversationDays ?? 0);
       const ex = order.map((b) => doc(id, b)!.exchanges ?? 0);
       for (let i = 1; i < order.length; i++) {

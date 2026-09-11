@@ -23,6 +23,7 @@ import {
   careFlagsFor,
   DEMO_TEENS,
   defaultMenteeStatus,
+  mentorName,
   type CareFlagRecord,
 } from "@/lib/record/people-demo";
 import { statementForCode } from "@/lib/record/dsm5";
@@ -150,6 +151,19 @@ export interface CareEvent {
    *  to match prose to learn what happened. It is what lets a test assert the
    *  last change on a record agrees with the status the roster reports. */
   accountChange?: AccountChangeKind;
+  /** ═══ account_update / mentor_change ROWS — WHO CHANGED TO WHOM ═══
+   *
+   *  TWO NAMES, NOT ONE FORMATTED STRING. The row renders them as a pair with an
+   *  arrow between, and the arrow is decoration a screen reader must not read as
+   *  a word — which needs the two names separable at render time. It is also the
+   *  same rule `accountChange` follows: a reader of this data should not have to
+   *  parse prose to learn what happened.
+   *
+   *  DERIVED FROM THE ROSTER, never authored here. `to` is the teen's CURRENT
+   *  mentor and `from` is their most recent past one, so the row cannot name a
+   *  mentor the roster does not have or disagree with the mentor shown at the top
+   *  of the same page. A test asserts both. */
+  mentorChange?: { from: string; to: string };
   /** ═══ risk_flag / escalation rows — THE SOURCE RECORD ITSELF ═══
    *
    *  The History expansion renders a field set (escalation type, suicide-risk
@@ -266,15 +280,42 @@ export type AccountChangeKind =
   | "paused"
   | "activated"
   | "deactivated"
-  | "closed";
+  | "closed"
+  /** ═══ A MENTOR REASSIGNMENT — AND THE ONLY STANDING-NEUTRAL KIND ═══
+   *
+   *  The other four move the account between the three states
+   *  `defaultMenteeStatus` reports. This one moves nothing: a teen whose mentor
+   *  changes is exactly as active as they were the day before.
+   *
+   *  THAT BREAKS AN INVARIANT THE OTHER FOUR ESTABLISHED — "the newest account
+   *  row agrees with the standing the roster reports" — because a mentor change
+   *  can sit on top of a paused record's stack while saying nothing about the
+   *  pause. The claim is narrowed rather than dropped: it is the newest
+   *  STANDING-CHANGING row that has to agree, and this kind is excluded by
+   *  carrying `null` in the test's map rather than by name. See
+   *  `care-account-events.test.ts`.
+   *
+   *  IT ALSO EXPLAINS NOTHING. The four lifecycle changes are on this page
+   *  because a gap in a trajectory is innocent when the account was paused and
+   *  unexplained otherwise; a mentor change accounts for no gap, so it does not
+   *  count toward a record's history explaining its own standing. */
+  | "mentor_change";
 
-/** TODO-COPY, all four. Each names the transition, never the person's state —
- *  "Account paused", not "Inactive teen". */
+/** TODO-COPY, all five. Each names WHAT CHANGED, never the person's state —
+ *  "Account paused", not "Inactive teen".
+ *
+ *  "MENTOR CHANGED" IS THE FIRST LABEL HERE THAT IS NOT ABOUT THE ACCOUNT, and
+ *  the rule it appears to break is worth restating rather than bending: the rule
+ *  was never "every label starts with Account", it was "no label describes the
+ *  teen's state". A mentor reassignment is a fact about the mentorship's
+ *  staffing, and naming it "Account updated" to preserve a prefix would tell a
+ *  reader less than the pill above it already does. */
 export const ACCOUNT_CHANGE_LABEL: Record<AccountChangeKind, string> = {
   paused: "Account paused",
   activated: "Account reactivated",
   deactivated: "Account deactivated",
   closed: "Account closed",
+  mentor_change: "Mentor changed",
 };
 
 export const TYPE_LABEL: Record<CareEventType, string> = {
@@ -1567,7 +1608,17 @@ function decisionToEvent(d: CareReviewDecision): CareEvent {
  *  only row the page could show. */
 const ACCOUNT_CHANGES: Record<
   string,
-  { daysAgo: number; to: AccountChangeKind; why: string; by?: CareAuthor }[]
+  {
+    daysAgo: number;
+    to: AccountChangeKind;
+    /** WHY IT HAPPENED, and REQUIRED for the four lifecycle changes: the reason
+     *  is what makes a stopped review clock or a gap in a trajectory legible.
+     *  A `mentor_change` carries none — the pair of names IS its content, and
+     *  the row's two-line cap has room for the names or a reason, not both. A
+     *  test holds the requirement to the four kinds that need it. */
+    why?: string;
+    by?: CareAuthor;
+  }[]
 > = {
   // ── Paused, and recently: each of these joined inside the last month ──────
   t11: [{ daysAgo: 3, to: "paused", why: "Guardian asked to hold sessions for two weeks" }],
@@ -1600,6 +1651,31 @@ const ACCOUNT_CHANGES: Record<
       by: { kind: "person", name: "Brandy Forrestor", role: "Lead mentor" },
     },
   ],
+  /* ═══ THE ONLY MENTOR CHANGE IN THE ROSTER, AND WHY IT IS THE ONLY ONE ═══
+     A `mentor_change` row's names are DERIVED — `to` from `teen.mentorId`, `from`
+     from `teen.pastMentors[0]` — so a record can only carry one if the roster
+     already says its mentor changed. Five teens have `pastMentors` and only this
+     one qualifies:
+       · t13 and t15 have a past mentor, but their CURRENT one is the
+         store-backed "live" mentor, whose name is the onboarding draft rather
+         than a fixture. `mentorName("live")` returns "—", so a derived row there
+         would print an em-dash as the incoming mentor until the store had a name
+         in it. Resolving that means plumbing the store's draft into name
+         resolution inside `careTimelineFor`, which is a bigger change than a
+         history variant needs — reported instead.
+       · t4 has two past mentors and NO care record at all, which is the
+         roster's "it ended before care ever started" case, deliberately left
+         without account rows (see the note above).
+     So t12: Aisha Bello → Priya Nair, both static roster rows, 31 days into a
+     70-day mentorship and 30 days after its only assessment. */
+  t12: [
+    {
+      daysAgo: 31,
+      to: "mentor_change",
+      by: { kind: "person", name: "Brandy Forrestor", role: "Lead mentor" },
+    },
+  ],
+
   /* THE ONLY `closed` IN THE ROSTER, and it follows a deactivation rather than
      replacing one — which is the sequence the two words describe: the
      mentorship ended in July, the account was closed a month later. Both read
@@ -1620,6 +1696,29 @@ const ACCOUNT_CHANGES: Record<
   ],
 };
 
+/** ═══ THE MENTOR PAIR FOR A RECORD, OR NULL ═══
+ *
+ *  `to` is the teen's current mentor and `from` is their most recent past one.
+ *  `pastMentors` is documented most-recent-first (see `mentorsForTeen`), so
+ *  index 0 is the mentor being replaced.
+ *
+ *  RETURNS undefined WHEN EITHER HALF IS MISSING — no past mentor, or a mentor
+ *  id with no directory row (which is the store-backed "live" mentor, whose name
+ *  is not a fixture). A row with one name would be worse than no row: "changed
+ *  to Priya Nair" from nobody reads as a first assignment, which is a different
+ *  event. */
+function mentorPairFor(teenId: string): { from: string; to: string } | undefined {
+  const teen = DEMO_TEENS.find((t) => t.id === teenId);
+  const priorId = teen?.pastMentors?.[0]?.mentorId;
+  if (!teen || !priorId) return undefined;
+  const from = mentorName(priorId);
+  const to = mentorName(teen.mentorId);
+  /* `mentorName` RETURNS AN EM-DASH for an unknown id rather than throwing, so
+     the guard is on its output and not just on the ids being present. */
+  if (from === "—" || to === "—") return undefined;
+  return { from, to };
+}
+
 /** The account rows for one record, newest first. */
 function accountEventsFor(teenId: string, now: number): CareEvent[] {
   return (ACCOUNT_CHANGES[teenId] ?? []).map((c, n) => ({
@@ -1628,10 +1727,21 @@ function accountEventsFor(teenId: string, now: number): CareEvent[] {
     type: "account_update",
     accountChange: c.to,
     description: ACCOUNT_CHANGE_LABEL[c.to],
+    /* ═══ THE PAIR, RESOLVED FROM THE ROSTER AT BUILD TIME ═══
+       Not stored beside the date, because a name written here is a name that can
+       disagree with the one at the top of the same page. `undefined` for the
+       four lifecycle kinds and for a `mentor_change` on a record whose roster
+       cannot supply both halves — which a test rules out rather than tolerating,
+       so a fixture that stops resolving fails loudly instead of quietly
+       rendering a row with no names on it. */
+    mentorChange: c.to === "mentor_change" ? mentorPairFor(teenId) : undefined,
     /* THE REASON IS THE RESULT COLUMN, not a note behind a disclosure. It is one
        short clause and it is the whole content of the row — putting it behind an
        expander would hide the only thing the row has to say. */
-    result: c.why,
+    /* EMPTY FOR A MENTOR CHANGE. `result` is the row's sub-line and the pair of
+       names takes that place; a `why ?? ""` here rather than an optional field
+       keeps `CareEvent.result` a plain string for its forty other readers. */
+    result: c.why ?? "",
     /* ═══ EVERY ACCOUNT CHANGE HAS A NAMED ACTOR ═══
        There is no automatic path to any of these four transitions in this
        product, so a `system` author here would be a false attribution — and it

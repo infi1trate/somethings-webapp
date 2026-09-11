@@ -67,33 +67,23 @@ import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
-/** ═══ THE LABEL-OVER-VALUE STAT PATTERN, NAMED AND EXPORTED ═══
- *
- *  The weighted strip below is where this pattern lives — 12px muted label over
- *  a 20px tabular value, three data on one baseline — and the care summary rail
- *  now shows two data in the same shape. So the styles are exported from here
- *  rather than copied there: a second declaration of "the stat pattern" is how
- *  one surface ends up at 12.5px and 19px leading while the other stays at 12,
- *  and nothing fails until someone puts the two cards side by side.
- *
- *  EXPORTED IN TWO PIECES, because the rail needs one of them changed. The INK
- *  and the figures are shared verbatim; the SIZE is the strip's own, and the rail
- *  steps down one ramp stop for a reason recorded at its call site (its card
- *  title is 16px, so a 20px value would be the largest text in the card). Naming
- *  the shared part separately is what makes that a deliberate one-property
- *  difference rather than a fork. */
-export const STAT_LABEL = {
+const LABEL_STYLE = {
   font: "var(--type-field-label)",
   letterSpacing: "var(--type-field-label-tracking)",
 } as const;
 
-/** The value's treatment, minus its size: primary ink and tabular figures. */
-export const STAT_VALUE_INK = "tabular-nums text-[var(--text-primary)]";
-
-/** The strip's own value size — 20px/24px. */
-export const STAT_VALUE = `text-[20px] leading-[24px] ${STAT_VALUE_INK}`;
-
-const LABEL_STYLE = STAT_LABEL;
+/** ═══ THE WEIGHTED STRIP'S VALUE STYLE, IN ONE PLACE ═══
+ *
+ *  Three data in the strip below wear this and it was written out three times.
+ *
+ *  IT WAS BRIEFLY EXPORTED, and it is not any more. The care summary rail showed
+ *  two data in this same label-over-value shape and imported these styles so the
+ *  pattern could not fork; the design frame has since inverted that row to
+ *  value-over-label at 24px Avantt, so the rail no longer wears this pattern and
+ *  there is no consumer left to keep the export honest. Un-exported rather than
+ *  left as public surface with a comment describing an importer that does not
+ *  exist. The de-duplication is the part worth keeping. */
+const STAT_VALUE = "text-[20px] leading-[24px] tabular-nums text-[var(--text-primary)]";
 /** The hairline that does the sectioning a nested card used to do. */
 const SECTION = "mt-4 border-t border-[var(--border-subtle)] pt-4";
 

@@ -36,6 +36,11 @@ const SCENARIOS = [
   { id: "review-90", teen: "t23", label: "90-day review due" },
   { id: "review-overdue", teen: "t19", label: "Review overdue" },
   { id: "longitudinal", teen: "t17", label: "Rich longitudinal" },
+  /* THE MENTOR-CHANGE ROW, here for the TWO-LINE CAP. Its sub-line carries three
+     elements — the name pair, a middot and the attribution — on a line that does
+     not wrap, which is exactly the shape that turned a two-line row into a
+     three-line one the last time something was added to it. */
+  { id: "mentor-change", teen: "t12", label: "Mentor reassigned" },
 ];
 
 for (const w of [

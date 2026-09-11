@@ -1057,7 +1057,7 @@ export function CareTab({
           {summaryNode}
           {/* A1. DIRECTLY BENEATH THE SUMMARY CARD, in the same stack, at the
               rhythm the rail already uses between units. */}
-          <RecordAuthorityNote className="mt-4" />
+          <RecordAuthorityNote teenId={teen.id} className="mt-4" />
         </aside>
       )}
 
@@ -1074,7 +1074,7 @@ export function CareTab({
           This is an ADDITION to the brief's placement, made because following
           that placement alone would have dropped required compliance copy on
           every viewport under 1100px. Reported rather than quietly accepted. */}
-      <RecordAuthorityNote className="mt-8 min-[1100px]:hidden" />
+      <RecordAuthorityNote teenId={teen.id} className="mt-8 min-[1100px]:hidden" />
 
       {/* ── BELOW 1100px: THE SAME NODE, IN AN OVERLAY ────────────────────
           A right-edge panel rather than a bottom sheet, for the reason the

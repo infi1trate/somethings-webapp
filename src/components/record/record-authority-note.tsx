@@ -1,3 +1,5 @@
+"use client";
+
 // ═══ ABOUT THIS RECORD — CLINICAL AUTHORITY + THE BLANKET AI CAVEAT ═══
 //
 // Two standing facts about the whole Care tab, in one card beneath the Care
@@ -40,9 +42,11 @@
 // leading it — the sentence is the point and the address is an affordance for
 // acting on it.
 
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Mail, Sparkles } from "lucide-react";
+import { Mail, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { CLINICAL_AUTHORITY } from "@/lib/record/clinical-authority";
+import { useOnboardingStore } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
 
 /** Focus ring, matching every other interactive element on the record. */
@@ -83,8 +87,202 @@ function SectionLabel({
 const BODY = "mt-1 text-[var(--text-primary)]";
 const BODY_STYLE = { font: "var(--type-body)" } as const;
 
-export function RecordAuthorityNote({ className }: { className?: string }) {
+/** ═══ THUMBS ON THE CAVEAT, AND A NOTE WHEN THE ANSWER IS NO ═══
+ *
+ *  WHY THE DOWN PATH ASKS AND THE UP PATH DOES NOT. "Yes this was useful" is
+ *  complete on its own; "no it wasn't" is the start of a sentence, and the only
+ *  version of that signal anyone can act on is the reason. So the input appears
+ *  on thumbs-down alone rather than on both — a comment box under a thumbs-up is
+ *  a question with no answer.
+ *
+ *  TWO TOGGLE BUTTONS, NOT A RADIO GROUP. `aria-pressed` on a pair is the
+ *  pattern for "one of these is on"; a radiogroup would need arrow-key handling
+ *  and a group label read as a form field, which is heavier than two icons
+ *  deserve. The choice is still exclusive — picking one replaces the other.
+ *
+ *  IT IS A CHANGEABLE ANSWER, not a submission. Both buttons stay live after a
+ *  choice, so a reader who mis-clicks can just click the other one. Switching
+ *  away from down CLEARS the note with it — see the store action.
+ *
+ *  ═══ THE ACKNOWLEDGEMENT NEVER SAYS "SENT" ═══
+ *  There is no pipeline behind this: the rating and the note land in the local
+ *  store and stop there. So the copy says "Noted", which is true, rather than
+ *  "Thanks, we'll look into it", which would not be. TODO-DATA on the store
+ *  field, TODO-COPY on all four strings.
+ */
+function AiUsageFeedback({ teenId }: { teenId: string }) {
+  const feedback = useOnboardingStore((s) => s.aiUsageFeedback[teenId]);
+  const setFeedback = useOnboardingStore((s) => s.setAiUsageFeedback);
+  const [draft, setDraft] = useState("");
+  const noteId = useId();
+  const box = useRef<HTMLTextAreaElement | null>(null);
+
+  const rating = feedback?.rating ?? null;
+  const submitted = Boolean(feedback?.note);
+  /* The form is open on a thumbs-down that has not been written up yet. Derived
+     from the store rather than held in its own flag: a second copy of this
+     module mounted at another width must not sit open while this one is done. */
+  const asking = rating === "down" && !submitted;
+
+  /* FOCUS FOLLOWS THE REVEAL. The input appeared because the reader pressed a
+     button, so it is where they are going next — and a keyboard user would
+     otherwise have to tab back into a control that materialised below them.
+     Only on the transition into `asking`, never on every render. */
+  useEffect(() => {
+    if (asking) box.current?.focus();
+  }, [asking]);
+
+  return (
+    <div className="mt-2">
+      {/* THE PROMPT IS PART OF THE ROW, at label scale. A bare pair of thumbs
+          with nothing to answer is the version of this control a reader has to
+          guess at. TODO-COPY. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span
+          className="text-[var(--text-muted)]"
+          style={{ font: "var(--type-row-label)" }}
+        >
+          Was this helpful?
+        </span>
+        <div className="flex items-center gap-0.5">
+          {(
+            [
+              ["up", ThumbsUp, "Yes, the AI on this page was helpful"],
+              ["down", ThumbsDown, "No, the AI on this page was not helpful"],
+            ] as const
+          ).map(([value, Icon, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={rating === value}
+              /* THE NAME SAYS WHAT IT MEANS, not "thumbs up". A screen-reader
+                 user hearing "thumbs up button" has to infer the question.
+                 TODO-COPY, both. */
+              aria-label={label}
+              onClick={() => {
+                /* Re-pressing the current answer is a no-op rather than a
+                   toggle-off: there is no "no opinion" state to return to that
+                   is distinguishable from never having answered. */
+                if (rating === value) return;
+                setFeedback(teenId, value);
+                setDraft("");
+              }}
+              className={cn(
+                "inline-flex size-6 items-center justify-center rounded-[var(--radius-control)] transition-colors",
+                rating === value
+                  ? "bg-[var(--tint-hover)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              {/* ═══ THE PRESSED ICON IS FILLED, AND THAT IS THE STATE SIGNAL ═══
+                  MEASURED: the pressed background is `rgba(0,0,0,0.04)` over
+                  white, which composes to #f5f5f5 — 1.09:1 against the card. As
+                  a state indicator that is nothing; WCAG 1.4.11 wants 3:1 for
+                  the visual information that identifies a control's state, and a
+                  tint that faint does not carry it. The glyph's ink also changes
+                  (muted 5.30:1 → primary 15.27:1), and muted-vs-primary is only
+                  ~2.9:1 against each other at a 14px glyph.
+                  So the pressed thumb is FILLED. Mass, not colour and not a
+                  wash — the conventional signal for a cast vote, legible in
+                  greyscale and in forced-colors, and unmistakable beside its
+                  outlined neighbour.
+                  A `fill` ATTRIBUTE, not a utility class: Tailwind's arbitrary
+                  SVG paint utilities can generate no rule at all, and lucide
+                  passes this straight onto the `<svg>`. `getComputedStyle().fill`
+                  is the proof, and it is in the report. */}
+              <Icon
+                className="size-3.5"
+                fill={rating === value ? "currentColor" : "none"}
+                aria-hidden
+              />
+            </button>
+          ))}
+        </div>
+        {/* ONE LIVE REGION FOR THE WHOLE MODULE, so the acknowledgement is
+            announced without the buttons re-announcing themselves. Empty until
+            there is something to say. */}
+        <span aria-live="polite" className="text-[var(--text-muted)]" style={{ font: "var(--type-row-label)" }}>
+          {submitted ? "Noted" : rating === "up" ? "Thanks" : ""}
+        </span>
+      </div>
+
+      {asking && (
+        <form
+          className="mt-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const note = draft.trim();
+            if (!note) return;
+            setFeedback(teenId, "down", note);
+          }}
+        >
+          {/* A REAL LABEL, VISUALLY HIDDEN. The placeholder is a prompt and
+              disappears on the first keystroke, which is exactly when a reader
+              who needs the label most has lost it. TODO-COPY. */}
+          <label htmlFor={noteId} className="sr-only">
+            What was wrong with the AI on this page?
+          </label>
+          <textarea
+            id={noteId}
+            ref={box}
+            rows={2}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            /* TODO-COPY */
+            placeholder="What was wrong?"
+            className={cn(
+              "w-full resize-none rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-2.5 py-1.5",
+              "text-[13px] leading-[18px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
+              RING
+            )}
+          />
+          <div className="mt-1.5 flex items-center gap-2">
+            {/* DISABLED ON AN EMPTY BOX rather than accepting a blank note: a
+                stored note of "" is indistinguishable from the thumbs-down
+                already recorded, so submitting one would change nothing while
+                telling the reader it had. */}
+            <button
+              type="submit"
+              disabled={!draft.trim()}
+              className={cn(
+                "inline-flex h-7 items-center rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] px-2.5",
+                "text-[12px] leading-[16px] text-[var(--text-primary)] transition-colors",
+                draft.trim()
+                  ? "hover:bg-[var(--tint-hover)]"
+                  : "cursor-not-allowed text-[var(--text-muted)]",
+                RING
+              )}
+            >
+              {/* TODO-COPY */}
+              Submit
+            </button>
+            {/* NO CANCEL. Leaving the box empty and walking away is the cancel,
+                and the thumbs-down it sits under is a complete answer on its
+                own — a Cancel here would imply the rating was provisional. */}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+export function RecordAuthorityNote({
+  /** The record this card sits on — the AI-usage feedback is keyed by it. */
+  teenId,
+  className,
+}: {
+  teenId: string;
+  className?: string;
+}) {
   const { name, teamHref, email } = CLINICAL_AUTHORITY;
+  /* ═══ A GENERATED ID, BECAUSE THIS MODULE IS MOUNTED TWICE ═══
+     Once in the rail and once `min-[1100px]:hidden` for narrow viewports, and
+     both are in the DOM at every width — so the hard-coded
+     `id="record-authority-heading"` appeared twice in one document and both
+     `aria-labelledby` attributes resolved to whichever came first. Invalid HTML
+     that happened to name the right string. `useId` gives each mount its own. */
+  const headingId = useId();
 
   return (
     <section
@@ -102,32 +300,34 @@ export function RecordAuthorityNote({ className }: { className?: string }) {
       )}
     >
       {/* ── THE HEADER BAND ────────────────────────────────────────────────
-          A REAL HEADING, at 13px. `<h2>` matches the Care summary's own header
-          so the rail reads as two sections to a screen reader rather than a
-          section and an unlabelled div — and `aria-labelledby` above points at
-          it instead of duplicating the string in an `aria-label`.
-          `--surface-s2` IS THE APP GROUND, one step darker than this card's
-          white and darker than the `--surface-s1` the rail sits on, which is
-          what makes the band read as a band. */}
-      {/* ═══ THE FILLED BAND IS GONE (C1) ═══
-          It was `--surface-s2` — the app ground — with a bottom border, and it
-          worked exactly as intended: the card announced itself. That was the
-          problem. This module's own rule is that the rail must read Care summary
-          first and the module must be findable without competing, and a filled
-          band on the second card in the stack is the loudest element in a column
-          whose primary card has none.
-          A PLAIN QUIET LABEL, back to the module's original spec: field-label
-          scale, muted ink, no fill, no divider under it. It is still a real
-          `<h2>` — the semantics were never the problem — so the rail still reads
-          as two labelled sections to a screen reader.
-          Squint check re-run after the change; result in the report. */}
+          ═══ RESTORED (AND WHY IT SHOULD NOT HAVE GONE) ═══
+          The band is `--surface-s2` — the app ground, one step darker than this
+          card's white — with a bottom border, and it is what makes the card
+          read as a card rather than as a footnote in a box.
+
+          A LATER TYPOGRAPHIC SWEEP REMOVED IT, on the argument that a filled
+          band on the second card in a column whose primary card has none is the
+          loudest element in that column. That argument was about squint order
+          and it was not wrong about squint order; it was wrong about whose call
+          it was. The band is in the design frame, the frame was drawn after the
+          module shipped, and "the design says so" outranks a legibility
+          heuristic applied to someone else's decision. Restored to the frame.
+
+          A REAL HEADING, at 13px, matching the Care summary's own header — so
+          the rail reads as two labelled sections to a screen reader rather than
+          a section and an unlabelled div, and `aria-labelledby` points here
+          instead of duplicating the string in an `aria-label`.
+
+          AVANTT BOLD, NOT `font-semibold`. It was `font-semibold` (600) and that
+          renders as regular: this app loads Lausanne 400 and Avantt Bold only,
+          and Chrome synthesises nothing for this face at any weight — measured
+          identical advance widths at 400, 500, 600 and 700. The frame draws this
+          bold, so it takes the face that is actually bold. 13px is off Bloom's
+          Avantt ramp (16 / 24 / 32) and matches the frame; same trade as the
+          Care summary's caption, same flag. */}
       <h2
-        id="record-authority-heading"
-        className="px-4 pt-3 text-[var(--text-muted)]"
-        style={{
-          font: "var(--type-field-label)",
-          letterSpacing: "var(--type-field-label-tracking)",
-        }}
+        id={headingId}
+        className="border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-4 py-2.5 font-display text-[13px] font-bold leading-[18px] text-[var(--text-primary)]"
       >
         {/* TODO-COPY */}
         About this Record
@@ -138,10 +338,10 @@ export function RecordAuthorityNote({ className }: { className?: string }) {
           of the column; only its container changed. Do not reword it here — it
           is pending clinical sign-off, and this is not the surface that decides
           what it says. */}
-      {/* `pt-2` RATHER THAN `py-3`: the label above is no longer a banded row
-          with its own padding, so the gap between it and the first section's own
-          label was doubling up. */}
-      <div className="px-4 pb-3 pt-2">
+      {/* `py-3` AGAIN. It was `pb-3 pt-2` while the heading was a bare label
+          sharing this section's air; the band has its own padding back, so the
+          two no longer double up. */}
+      <div className="px-4 py-3">
         {/* TODO-COPY */}
         <SectionLabel icon={Mail}>Clinical Advisor</SectionLabel>
         <p className={BODY} style={BODY_STYLE}>
@@ -168,7 +368,7 @@ export function RecordAuthorityNote({ className }: { className?: string }) {
           <a
             href={`mailto:${email}`}
             aria-label={`Email ${name}`}
-            className={cn(TEXT_LINK, "whitespace-nowrap font-medium")}
+            className={cn(TEXT_LINK, "whitespace-nowrap font-display font-bold")}
           >
             <Mail className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />
             {/* TODO-COPY */}
@@ -192,13 +392,20 @@ export function RecordAuthorityNote({ className }: { className?: string }) {
         {/* TODO-COPY */}
         <SectionLabel icon={Sparkles}>AI Usage</SectionLabel>
         <p className={BODY} style={BODY_STYLE}>
-          {/* TODO-COPY. THE TERMINAL FULL STOP IS MINE: the design frame ends
-              this sentence without one, and a sentence on a clinical record
-              should close. Named as a deviation rather than absorbed — it is
-              one character and it is veto-able. */}
+          {/* TODO-COPY. THE TERMINAL FULL STOP IS GONE. It was mine — the frame
+              ended this sentence without one and I added it, on the argument
+              that a sentence on a clinical record should close, and flagged it
+              as veto-able. A second frame has now drawn it without the period,
+              which is the veto. */}
           AI is used in parts of this page. Always review AI generated content
-          for accuracy.
+          for accuracy
         </p>
+        {/* ═══ THE FEEDBACK MODULE SITS IN THIS QUADRANT, UNDER THE CAVEAT ═══
+            Under the sentence it is about, inside the section it belongs to —
+            not in the card's footer, where it would read as feedback on the
+            whole card, and not beside the "Clinical Advisor" section, where the
+            subject would be a person. */}
+        <AiUsageFeedback teenId={teenId} />
       </div>
     </section>
   );

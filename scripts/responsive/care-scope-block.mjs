@@ -23,7 +23,8 @@ import { launch, openView, BASE, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/care-scope-block";
-const BLOCKS = ["7d", "30d", "90d", "All"];
+/** The frame's labels — the probe clicks by visible text, so these ARE copy. */
+const BLOCKS = ["7 day", "90 day", "All"];
 const RECORDS = [
   { id: "t17", note: "rich longitudinal — 8 months, dual-type badges on Aug and Sep" },
   { id: "t23", note: "day-30 cadence, shorter span" },
@@ -194,8 +195,9 @@ for (const rec of RECORDS) {
       const live = sec.querySelector("[aria-live]");
       const caption = live.querySelector("p");
       const row = live.querySelector("[aria-hidden]");
+      // VALUE FIRST, LABEL SECOND — the frame inverted the pair.
       const data = [...row.children].map((d) => {
-        const [label, value] = d.children;
+        const [value, label] = d.children;
         const lc = getComputedStyle(label), vc = getComputedStyle(value);
         return {
           label: label.textContent,
@@ -207,16 +209,41 @@ for (const rec of RECORDS) {
           baseline: +(value.getBoundingClientRect().top + parseFloat(vc.fontSize) * 0.8).toFixed(1),
           labelTop: +label.getBoundingClientRect().top.toFixed(1),
           left: +value.getBoundingClientRect().left.toFixed(1),
+          cellLeft: +d.getBoundingClientRect().left.toFixed(1),
+          cellW: +d.getBoundingClientRect().width.toFixed(1),
+          /* THE RULE IS ON THE FIRST CELL'S RIGHT EDGE. Tailwind v4's `divide-x`
+             is `& > :not(:last-child) { border-inline-end-width }` — v3's was a
+             `~` sibling selector setting border-LEFT on every cell but the
+             first. Reading the second cell's left border reported "no rule
+             between the cells" against a rule that was rendering fine. */
+          ruleWidth: getComputedStyle(d).borderRightWidth,
+          ruleColor: getComputedStyle(d).borderRightColor,
         };
       });
       const ctl = sec.querySelector('[aria-label="Care summary time period"]');
       const hdr = sec.querySelector("header");
       const r = (el) => el.getBoundingClientRect();
 
-      // Wrap: a Range yields one client rect per line box; a <p>'s own
-      // getClientRects() is one rect whether its text wrapped or not.
+      /* ═══ WRAP, COUNTED BY CLUSTERING RECTS — NOT BY DISTINCT TOPS ═══
+         A Range yields one client rect per TEXT RUN per line, and this caption
+         has two runs in two different faces: Lausanne 400 for the label and
+         Avantt Bold for the dates. Different fonts give different ascents, so
+         the two rects on ONE line have different `top` values — and counting
+         distinct tops reported every caption as wrapped, including a 244px
+         string in a 338px box. (It also called the All block "3 lines", which
+         was three runs, not three lines.)
+         So rects are clustered by VERTICAL OVERLAP: two runs sharing a line box
+         overlap, two lines do not. `clientHeight / line-height` would be the
+         cheaper test and is wrong for the same reason — a taller inline face can
+         stretch the line box past the declared leading. */
       const rg = document.createRange(); rg.selectNodeContents(caption);
-      const rects = [...rg.getClientRects()].filter((x) => x.width > 0);
+      const rects = [...rg.getClientRects()].filter((x) => x.width > 0)
+        .sort((a, b) => a.top - b.top);
+      let lineCount = 0, clusterBottom = -Infinity;
+      for (const x of rects) {
+        if (x.top >= clusterBottom) { lineCount++; clusterBottom = x.bottom; }
+        else clusterBottom = Math.max(clusterBottom, x.bottom);
+      }
       const capW = +(Math.max(...rects.map((x) => x.right)) - Math.min(...rects.map((x) => x.left))).toFixed(1);
 
       // Every text size the card renders, largest first.
@@ -237,15 +264,31 @@ for (const rec of RECORDS) {
         captionCss: `${getComputedStyle(caption).fontSize}/${getComputedStyle(caption).lineHeight} ${getComputedStyle(caption).color}`,
         captionW: capW,
         captionAvail: +r(caption).width.toFixed(1),
-        captionLineBoxes: new Set(rects.map((x) => Math.round(x.top))).size,
+        captionLineBoxes: lineCount,
+        captionClientH: caption.clientHeight,
         data,
-        rowGap: getComputedStyle(row).columnGap,
-        rowJustify: getComputedStyle(row).justifyContent,
+        rowCols: getComputedStyle(row).gridTemplateColumns,
         gaps: {
           controlToCaption: +(r(caption).top - r(ctl).bottom).toFixed(1),
           captionToRow: +(r(row).top - r(caption).bottom).toFixed(1),
-          rowToDivider: +parseFloat(getComputedStyle(hdr).paddingBottom).toFixed(1),
+          // THE ROW OWNS THE BOTTOM PADDING NOW, so the rule can reach the
+          // divider — measured on the row, not on the header.
+          rowToDivider: +parseFloat(getComputedStyle(row).paddingBottom).toFixed(1),
+          headerPb: +parseFloat(getComputedStyle(hdr).paddingBottom).toFixed(1),
         },
+        // THE RULE MUST MEET THE DIVIDER. Its own bottom edge against the
+        // header's border, which is what "two cells" rather than "a mark beside
+        // the numbers" comes down to.
+        ruleToDivider: +(r(hdr).bottom - r(row).bottom).toFixed(1),
+        controlSeg: (() => {
+          const b = ctl.querySelector("button");
+          const c = getComputedStyle(b);
+          return `${c.fontSize} h${Math.round(b.getBoundingClientRect().height)} w${c.fontWeight}`;
+        })(),
+        segLabels: [...ctl.querySelectorAll("button")].map((b) => b.textContent.trim()),
+        segWraps: [...ctl.querySelectorAll("button")].some(
+          (b) => b.scrollWidth > b.clientWidth + 1
+        ),
         titleSize: parseFloat(getComputedStyle(sec.querySelector("h2")).fontSize),
         ramp,
         utterance: [...live.childNodes]
@@ -260,29 +303,44 @@ for (const rec of RECORDS) {
     // THE TWO CLAIMS ON THE ROW.
     const bases = new Set(stack.data.map((d) => d.baseline));
     if (bases.size > 1) report.failures.push(`${rec.id}/${block}: values do not share a baseline (${[...bases].join(", ")})`);
-    /* ═══ THE SCALE CLAIM, AS THREE MEASURABLE PARTS ═══
-       "The largest text in the card after the title" cannot be asserted as
-       "exactly one size is larger": the shipped value TIES the title at 16px
-       rather than sitting below it, because the ramp offers nothing between the
-       title's 16px and the body's 14px. So the claim is:
-         · nothing in the card is LARGER than the value — it leads the card,
-         · the title is not OUTRANKED by it in size — a tie is the ceiling, and
-           the title keeps the lead by weight (700 vs 400) and face (Avantt vs
-           Lausanne), which size alone cannot express,
-         · the value is above body size — otherwise the pattern has failed and
-           this is just body text under a small label.
-       All three together are what item 8 asks for, and stating them separately
-       is what makes the tie a recorded decision rather than a near-miss. */
+    /* ═══ THE SCALE CLAIM, INVERTED BY THE FRAME ═══
+       The previous rule was "largest in the card AFTER the title, step down if
+       they compete", and the shipped 16px tied the title. The frame draws the
+       values at roughly 1.5x the title, so the claim is now the opposite one:
+         · the values are the LARGEST text in the card — nothing above them,
+         · and they OUTRANK the title, which is the reversal, asserted so that
+           a later step-down cannot happen silently.
+       Recorded rather than swapped: a reviewer who remembers the old rule should
+       find it broken on purpose, in a named place. */
     const valueSize = parseFloat(stack.data[0].valueCss);
     const larger = stack.ramp.filter((r) => parseFloat(r) > valueSize);
     if (larger.length)
       report.failures.push(`${rec.id}/${block}: text larger than the ${valueSize}px stat value — ${larger.join(" | ")}`);
-    if (valueSize > stack.titleSize)
-      report.failures.push(`${rec.id}/${block}: the stat value (${valueSize}px) outranks the title (${stack.titleSize}px)`);
-    if (valueSize <= 14)
-      report.failures.push(`${rec.id}/${block}: the stat value at ${valueSize}px reads as body text`);
+    if (valueSize <= stack.titleSize)
+      report.failures.push(`${rec.id}/${block}: the stat value (${valueSize}px) no longer outranks the title (${stack.titleSize}px)`);
     if (stack.gaps.controlToCaption !== 8 || stack.gaps.captionToRow !== 12 || stack.gaps.rowToDivider !== 16)
       report.failures.push(`${rec.id}/${block}: rhythm ${JSON.stringify(stack.gaps)} is not 8 / 12 / 16`);
+    if (stack.ruleToDivider !== 1)
+      report.failures.push(`${rec.id}/${block}: the rule stops ${stack.ruleToDivider}px short of the divider (1px = flush against its 1px border)`);
+    if (stack.data[0].ruleWidth !== "1px")
+      report.failures.push(`${rec.id}/${block}: no rule between the cells (border-inline-end ${stack.data[0].ruleWidth})`);
+    // EQUAL CELLS. The rule sits at the content box's exact midpoint only if the
+    // two columns are the same width, which is what makes it read as a division
+    // rather than as a mark placed near the numbers.
+    if (Math.abs(stack.data[0].cellW - stack.data[1].cellW) > 0.5)
+      report.failures.push(`${rec.id}/${block}: cells are ${stack.data[0].cellW} and ${stack.data[1].cellW}`);
+    if (stack.segWraps)
+      report.failures.push(`${rec.id}/${block}: a segment label is truncated or wrapped`);
+    /* ═══ TABULAR FIGURES, ASSERTED — IT WAS IN THE REPORT AND NOT IN A CLAIM ═══
+       The values are two numbers in fixed columns that change as a reader
+       clicks, so proportional figures make the row jitter. `valueCss` has always
+       carried `font-variant-numeric`, and it silently went from `tabular-nums`
+       to `normal` when the value moved onto a `font:` shorthand — which resets
+       the longhand, and outranks the utility class that was setting it. Printed
+       but unasserted is the same as unmeasured. */
+    for (const d of stack.data)
+      if (!d.valueCss.includes("tabular-nums"))
+        report.failures.push(`${rec.id}/${block}: "${d.label}" value is not tabular — ${d.valueCss}`);
 
     report.stack.push({ record: rec.id, block, ...stack });
 
@@ -327,7 +385,7 @@ for (const rec of RECORDS) {
     await cdp.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
     });
-    const tween = await page.evaluate(async () => {
+    const tween = await page.evaluate(async (labels) => {
       const sec = document.querySelector('[data-record-section="care-summary-doc"]');
       const box = sec.querySelector('div[aria-hidden][class*="inset-y-0"]');
       const plot = box.parentElement;
@@ -337,12 +395,18 @@ for (const rec of RECORDS) {
       };
       const click = (label) => [...document.querySelectorAll('[aria-label="Care summary time period"] button')]
         .find((b) => b.textContent.trim() === label)?.click();
+      /* THE LABELS ARE COPY, AND THIS HELPER HELD THEM TWICE. It clicked "30d"
+         and "90d" while the frame renamed the segments and dropped the 30-day
+         block — so both clicks hit nothing, no transition ran, and the probe
+         reported that `min()`/`max()` had stopped interpolating. Read from the
+         shared list instead, so a copy change cannot silently disarm the one
+         claim here that needs a running animation. */
       const frames = [];
-      click("30d");
+      click(labels[0]);
       await new Promise((r) => setTimeout(r, 400));
       const from = rel();
       const t0 = performance.now();
-      click("90d");
+      click(labels[1]);
       // The running transitions, named. READ AFTER A FRAME: called synchronously
       // after the click it returns [], because the style change has not been
       // committed yet — an empty list there reads as "nothing animates", which
@@ -354,7 +418,7 @@ for (const rec of RECORDS) {
         frames.push({ dt: Math.round(performance.now() - t0), ...rel() });
       }
       return { from, running, to: rel(), frames };
-    });
+    }, BLOCKS);
     const pick = (ms) => tween.frames.reduce((a, b) => (Math.abs(b.dt - ms) < Math.abs(a.dt - ms) ? b : a));
     report.tween = {
       running: tween.running,
@@ -370,7 +434,7 @@ for (const rec of RECORDS) {
     await cdp.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: "reduce" }],
     });
-    report.tween.reducedMotion = await page.evaluate(async () => {
+    report.tween.reducedMotion = await page.evaluate(async (labels) => {
       const box = document
         .querySelector('[data-record-section="care-summary-doc"]')
         .querySelector('div[aria-hidden][class*="inset-y-0"]');
@@ -381,15 +445,15 @@ for (const rec of RECORDS) {
       };
       const click = (label) => [...document.querySelectorAll('[aria-label="Care summary time period"] button')]
         .find((b) => b.textContent.trim() === label)?.click();
-      click("30d");
+      click(labels[0]);
       await new Promise((r) => setTimeout(r, 300));
       const from = rel();
-      click("90d");
+      click(labels[1]);
       await new Promise((r) => requestAnimationFrame(r));
       const firstFrame = rel();
       const property = getComputedStyle(box).transitionProperty;
       return { property, from, firstFrame, instant: firstFrame.w !== from.w };
-    });
+    }, BLOCKS);
     if (report.tween.reducedMotion.property !== "none")
       report.failures.push(`t17: reduced motion still transitions (${report.tween.reducedMotion.property})`);
   }
