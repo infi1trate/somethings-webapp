@@ -81,25 +81,13 @@ const DOMAIN_VISUAL: Record<
   },
 };
 
-/** THE ONE BREACH CHIP, used on the tab, the row and the pane header (§3.3's
- *  alarm-budget rule: "one compact chip pattern everywhere"). Exported so the
- *  other two surfaces consume it rather than each growing a lookalike.
- *
- *  NEVER COLOUR ALONE — icon plus text, always. */
-export function BreachChip({ label }: { label: string }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold leading-[16px]"
-      style={{
-        backgroundColor: "var(--band-clay-bg)",
-        color: "var(--band-clay-fg)",
-      }}
-    >
-      <AlertTriangle className="size-3 shrink-0" aria-hidden />
-      {label}
-    </span>
-  );
-}
+/* `BreachChip` MOVED TO `chips.tsx` (arch-A) and is re-exported here so this
+   file's own cards keep working while Phase B decides its fate. It is required
+   to be one pattern system-wide and could not stay inside the four-domain
+   navigator that scoping Tasks to billing retires. */
+import { BreachChip } from "@/components/tasks/chips";
+export { BreachChip };
+
 
 /** TODO-COPY, AND THE COPY IS GENUINELY AMBIGUOUS — see gap row 221.
  *

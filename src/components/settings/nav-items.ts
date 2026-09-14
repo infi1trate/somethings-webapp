@@ -87,6 +87,26 @@ export const NAV = {
   people: { id: "people", label: "People", icon: Users },
 } as const satisfies Record<string, SidebarItemDef>;
 
+/** ═══ WHAT A BADGE COUNTS DEPENDS ON THE DESTINATION (arch-A) ═══
+ *
+ *  Every badge announced "{n} unread", which is Activity's word: an unread thing
+ *  is a message somebody has not opened. Tasks got a badge in arch-A and it is a
+ *  count of OPEN BILLING REVIEWS — work waiting, not mail — so "15 unread" told a
+ *  screen-reader user the wrong thing about the wrong kind of object, and
+ *  "unread" as a substitute for the product's chat vocabulary is prohibited
+ *  outright in aria labels.
+ *
+ *  A NOUN PER ITEM, defaulting to the old word. Activity's label is byte-identical
+ *  to what it was; only an item that declares a noun gets a different one. */
+const BADGE_NOUN: Record<string, string> = {
+  /* TODO-COPY — placeholder pending Nicole. */
+  tasks: "open",
+};
+
+export function badgeNounFor(itemId: string): string {
+  return BADGE_NOUN[itemId] ?? "unread";
+}
+
 const isStaff = (p: Persona) =>
   p === "lead-mentor" || p === "supervisor" || p === "admin";
 

@@ -61,7 +61,10 @@ const SHORTCUTS: Array<{ keys: string[]; what: string }> = [
   { keys: ["y"], what: "Flagged correctly — resolve" },
   { keys: ["n"], what: "Not flagged correctly — resolve" },
   { keys: ["Enter"], what: "Confirm the billing code, or focus the panel" },
-  { keys: ["1", "2", "3", "4"], what: "Switch tabs" },
+  /* THE `1`–`4` ROW IS GONE. It switched domain tabs, and Tasks is
+     single-domain since arch-A. The binding survives on the hook for Phase B's
+     Monitoring tiers; the SHEET lists what the surface a reader is looking at
+     can actually do, and listing a dead key is worse than a shorter sheet. */
   { keys: ["u"], what: "Undo the last resolve, while the toast is up" },
   { keys: ["?"], what: "Show this list" },
 ];
@@ -105,7 +108,12 @@ export function useTaskShortcuts({
   onUndo,
   onHelp,
 }: {
-  onTab: (index: number) => void;
+  /** OPTIONAL SINCE arch-A. Tasks is single-domain and has no tab row, so it
+   *  passes nothing and `1`–`4` are inert there. Kept on the hook rather than
+   *  deleted: Phase B's Monitoring has tiers, and this is the binding it will
+   *  want. A hook that silently ignored an absent handler would be worse — the
+   *  guard below is explicit. */
+  onTab?: (index: number) => void;
   onFocusPane: () => void;
   /** "Was this flagged correctly?" — the footer's two buttons, as keys. A no-op
    *  when the selected item is not a flag. */
@@ -147,6 +155,7 @@ export function useTaskShortcuts({
       if (keyboardIsBusy(e.target)) return;
 
       if (e.key >= "1" && e.key <= "4") {
+        if (!onTab) return;
         e.preventDefault();
         onTab(Number(e.key) - 1);
         return;

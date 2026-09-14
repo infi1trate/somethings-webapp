@@ -32,7 +32,7 @@ import {
   type BillingCommitDetail,
   type BillingSubmitHandle,
 } from "@/components/tasks/billing-review";
-import { BreachChip } from "@/components/tasks/domain-tabs";
+import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
