@@ -26,7 +26,9 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
-import { Dsm5SearchDialog } from "@/components/record/dsm5-search";
+import { ReviewBody } from "@/components/record/review-body";
+import { billingReviewFor } from "@/lib/tasks/billing-presentation";
+import type { ReviewDecision } from "@/lib/record/review-draft";
 import {
   BillingReview,
   type BillingCommitDetail,
@@ -37,7 +39,6 @@ import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
 // "Notes"; the link itself is unchanged.)
-import { chatHrefFor } from "@/lib/record/chat";
 import {
   buildConversation,
   conversationHref,
@@ -65,10 +66,8 @@ import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
   PANE_LABEL,
   PaneChip,
-  ScoreLozenge,
   SystemBlock,
 } from "@/components/ui/evidence-primitives";
-import { severityFor } from "@/lib/record/care-demo";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -176,18 +175,22 @@ function RiskFlagBody({
   );
 }
 
-/* ═══ `ChangeSide` IS GONE — THE DIFF IS SHARED NOW ═══
-   It lived here and the Care page had its own single-column presentation block,
-   so the same clinical comparison was drawn two ways on the two surfaces that
-   commit it. This one was the better of the two and became canonical:
-   `record/presentation-diff.tsx` holds the framing, the three proposal kinds and
-   the chip, and the Care review card renders the same component.
-   ONE THING CHANGED IN THE MOVE, and it is a correctness fix rather than a
-   restyle: the tint on the changed elements was `--band-sage-*`, which is
-   emerald/100. Green is this product's committed-and-confirmed colour, and a
-   proposal is the state before that — so the old tint said "done" on the one
-   screen whose entire question is "should this happen?". It is `--band-sand-*`
-   now, the warm neutral the system reserves for routine/review-due. */
+/* ═══ THE PRESENTATION COMPARISON: THREE OWNERS, AND NOW ONE ═══
+   `ChangeSide` lived here. It became `record/presentation-diff.tsx` — a shared
+   two-column Current → Recommended block with three proposal kinds and a chip —
+   on the reasoning that the same clinical comparison was being drawn two ways on
+   the two surfaces that commit it.
+   THE PRODUCT OWNER SETTLED IT THE OTHER WAY: the Care page is the reference
+   standard, so the diff was reverted OFF Care and left as a Tasks-only
+   component. That made it a shared component with one consumer, which is a
+   single component with extra steps.
+   `review-module-02-tasks-host` ends it. This pane renders `ReviewBody` — the
+   Care card's own review — so the comparison is drawn once, by the module both
+   surfaces use, and `presentation-diff.tsx` is DELETED rather than kept as
+   surface with no reader. Its one idea that does not survive is the two-column
+   layout; what replaced it is the module's recommendation line plus an "On
+   record" row in the host's context strip, which states the same two facts in
+   the order a supervisor reads them. */
 
 /** ═══ THE BILLING BODY — NOW A WRAPPER AROUND THE REVIEW ═══
  *
@@ -199,109 +202,114 @@ function RiskFlagBody({
  *  commits without documentation. */
 function BillingBody({
   payload,
-  teenId,
   item,
   recommended,
-  onChangeCode,
+  decision,
+  onDecisionChange,
   onCommit,
   handleRef,
 }: {
   payload: BillingPayload;
-  teenId: string;
   item: TaskItem;
   recommended: { code: string; statement: string };
-  onChangeCode: (trigger: HTMLElement) => void;
+  decision: ReviewDecision | null;
+  onDecisionChange: (next: ReviewDecision | null) => void;
   onCommit: (detail: BillingCommitDetail) => void;
   handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
 }) {
-  /* THE SURVEY'S BAND, RE-DERIVED FROM THE INSTRUMENT'S OWN THRESHOLDS rather
-     than carried on the payload. Same rule the record's History follows: if a
-     stored band and a computed one ever disagree, the instrument wins.
-     Instruments outside the two this codebase has cut-offs for render the number
-     with no band, which is honest — a lozenge asserting a severity nobody
-     defined would not be. */
-  const scored =
-    payload.survey.instrument === "PHQ-9" || payload.survey.instrument === "GAD-7"
-      ? severityFor(payload.survey.instrument, payload.survey.score)
-      : null;
-
+  /** ═══ THE SHARED REVIEW MODULE, FINALLY HOSTED HERE ═══
+   *
+   *  `review-module-01-extract` pulled `ReviewBody` out of the Care card with
+   *  seventeen DOM parity snapshots proving Care did not move. This is the second
+   *  half, and it retires the composition that stood in for it: a `Notes` block
+   *  where Care says `Rationale`, an `Assigned survey` metadata cell and a
+   *  `ScoreLozenge` where Care has a score strip with the answers behind it, a
+   *  two-column `PresentationDiff`, and no provenance affordance anywhere.
+   *
+   *  ONE CLINICAL DECISION, ONE PRESENTATION OF IT. A supervisor who opens a
+   *  review from the record and the same review from the queue was reading two
+   *  arrangements of one thing with no way to tell which parts were the same.
+   *
+   *  ═══ WHAT THE HOST STILL OWNS, AND WHY THAT IS THE RIGHT SPLIT ═══
+   *
+   *  The module is the REVIEW. The host is the CONTEXT. On the Care page the
+   *  context is the page itself — the summary document states the mentorship and
+   *  the metadata strip states the code in force — so the module never had to
+   *  carry either. Tasks has no page around its pane, so the strip below supplies
+   *  both. That is what makes a shared module possible rather than a lowest
+   *  common denominator.
+   *
+   *  ═══ THE ON-RECORD LINE IS NOT OPTIONAL HERE ═══
+   *
+   *  `ReviewBody` reads `currentCode` to decide WHICH KIND of proposal this is
+   *  and to mark "On record" in the picker, and it never DISPLAYS it — which is
+   *  fine on Care, where the strip above the card states it, and would be a
+   *  regression here, where nothing else on the pane does. Recorded as a cost in
+   *  `presentation-diff.tsx` during the arch-A recon, and paid here rather than
+   *  carried. */
   return (
     <BillingReview
       item={item}
       payload={payload}
       recommended={recommended}
-      onChangeCode={onChangeCode}
       onCommit={onCommit}
       handleRef={handleRef}
-      rationale={
-        <>
-          {/* ═══ THE RATIONALE COMES FIRST ═══
-              It was buried between the mentorship stats and the recommendation,
-              which is the wrong order for the only paragraph on the pane that
-              explains WHY the recommendation is what it is. A supervisor reads
-              the reasoning, then the change, then documents it.
-
-              ═══ THE LABEL IS "Notes", NOT "AI summary" (A3) ═══
-              Two reasons, and the second is the load-bearing one. It matched the
-              record's own panel, which was renamed from "AI Draft" to "AI Notes"
-              at an earlier request — so this surface was the last place still
-              calling the same kind of generated prose a summary. And "AI" in the
-              label duplicated the provenance badge sitting beside it: the badge
-              is the attribution, and a label that repeats it spends the reader's
-              first glance saying the same thing twice.
-              THE BADGE STILL CARRIES THE PROVENANCE. Nothing about the
-              attribution weakened — `attribution="badge"` is unchanged, and it
-              is what says a model wrote this. */}
-          <SystemBlock
-            /* TODO-COPY */
-            label="Notes"
-            attribution="badge"
-            link={{ href: chatHrefFor(teenId), label: "View conversation" }}
-          >
-            {payload.aiSummary}
-          </SystemBlock>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className={LABEL}>{/* TODO-COPY */}Assigned survey</p>
-              {/* THE RECORD'S OWN SCORE LOZENGE, not a second way of showing a
-                  reading. A supervisor sees "14 · Moderate" in the same shape
-                  here and in the teen's History, so the two are obviously the
-                  same fact. */}
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {payload.survey.instrument}
-                {scored ? (
-                  <ScoreLozenge value={payload.survey.score} band={scored} />
-                ) : (
-                  <span className="tabular-nums text-[var(--text-secondary)]">
-                    {payload.survey.score} / {payload.survey.max}
-                  </span>
-                )}
+      context={
+        <div className="grid gap-3 rounded-[var(--radius-inset)] border border-[color:var(--border-contour)] px-3.5 py-3 sm:grid-cols-2">
+          <div>
+            <p className={LABEL}>{/* TODO-COPY */}On record</p>
+            {payload.current ? (
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                <span
+                  className="shrink-0 rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
+                >
+                  {payload.current.code}
+                </span>
+                <span className="min-w-0">{payload.current.statement}</span>
               </p>
-            </div>
-            <div>
-              <p className={LABEL}>{/* TODO-COPY */}Mentorship</p>
+            ) : (
               <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                {/* A NAMED PLATFORM METRIC keeps its own unit — "140 days",
-                    never "4 months". */}
-                <span className="tabular-nums">
-                  {payload.mentorStats.daysInMentorship} days
-                </span>{" "}
-                ·{" "}
-                <span className="tabular-nums">
-                  {payload.mentorStats.messagesLast30}
-                </span>{" "}
-                messages ·{" "}
-                <span className="tabular-nums">
-                  {payload.mentorStats.videoLast30}
-                </span>{" "}
-                video
+                {/* TODO-COPY. AN ABSENCE, NAMED. "—" would read as missing data
+                    where this is the actual state: nothing has been assigned, and
+                    that absence is the reason the review exists. */}
+                Nothing assigned yet
               </p>
-            </div>
+            )}
           </div>
-        </>
+          <div>
+            <p className={LABEL}>{/* TODO-COPY */}Mentorship</p>
+            <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+              <span className="tabular-nums">
+                {payload.mentorStats.daysInMentorship} days
+              </span>
+              <span aria-hidden className="px-1.5 opacity-40">·</span>
+              <span className="tabular-nums">
+                {payload.mentorStats.messagesLast30} messages
+              </span>
+              <span aria-hidden className="px-1.5 opacity-40">·</span>
+              <span className="tabular-nums">
+                {payload.mentorStats.videoLast30} video
+              </span>
+            </p>
+          </div>
+        </div>
       }
-    />
+    >
+      {/* `canAct` AND `interactive` ARE BOTH TRUE, unconditionally. Care passes
+          its card's `expanded` for `interactive` because its review lives inside
+          a collapsible; this pane IS the review, so there is no collapsed state
+          for a pending change to hide in. `canAct` is the tier gate, and only a
+          supervisor tier reaches this route at all. */}
+      <ReviewBody
+        review={billingReviewFor(item, payload)}
+        currentCode={payload.current?.code ?? null}
+        currentStatement={payload.current?.statement ?? null}
+        decision={decision}
+        onDecisionChange={onDecisionChange}
+        canAct
+        interactive
+      />
+    </BillingReview>
   );
 }
 
@@ -481,7 +489,6 @@ export function TaskPane({
   const [retryNonce, setRetryNonce] = useState(0);
   const effectiveExcerptState: ExcerptState =
     retryNonce > 0 ? "ready" : excerptState;
-  const [pickerOpen, setPickerOpen] = useState(false);
   /* ═══ THE OVERRIDE BELONGS TO ONE ITEM, AND ONLY ONE ═══
      The pane does not unmount between reviews — resolving auto-advances to the
      next item in the same component — so a code picked for Jordan's intake was
@@ -499,7 +506,9 @@ export function TaskPane({
     override && override.id === item?.id
       ? { code: override.code, statement: override.statement }
       : null;
-  const pickerTrigger = useRef<HTMLElement | null>(null);
+  /* `pickerOpen` AND `pickerTrigger` WENT WITH THE PICKER. Both existed to open
+     a `Dsm5SearchDialog` this pane mounted and to hand focus back to the button
+     that opened it; `ReviewBody` owns that dialog and that focus return now. */
   /** ═══ WHERE THE REVIEW PUBLISHES ITS GATE ═══
    *  The footer's Submit and the keyboard's ⌘/Ctrl+Enter both have to run the
    *  SAME three-field validation, and the state it validates lives inside the
@@ -722,13 +731,33 @@ export function TaskPane({
         {p.kind === "billing" && recommended && (
           <BillingBody
             payload={p}
-            teenId={item.teenId}
             item={item}
             recommended={recommended}
-            onChangeCode={(trigger) => {
-              pickerTrigger.current = trigger;
-              setPickerOpen(true);
-            }}
+            /* ═══ ONE OVERRIDE, TWO VOCABULARIES ═══
+               The pane has always held the supervisor's pick as
+               `{id, code, statement} | null`, keyed to the item so a code chosen
+               for Jordan's intake cannot still be sitting there when Riley's
+               arrives. The shared module speaks `ReviewDecision`. The two mean
+               the same thing — `pending ?? review.recommended` on one side is
+               `activeOverride ?? p.recommended` on the other — so this translates
+               at the boundary rather than migrating the pane's state to a shape
+               the footer and the commit would then also have to learn. */
+            decision={
+              activeOverride
+                ? {
+                    kind: "change",
+                    code: activeOverride.code,
+                    statement: activeOverride.statement,
+                  }
+                : null
+            }
+            onDecisionChange={(next) =>
+              setOverride(
+                next?.kind === "change"
+                  ? { id: item.id, code: next.code, statement: next.statement }
+                  : null
+              )
+            }
             onCommit={(detail) => onResolve(item, detail)}
             handleRef={billingHandle}
           />
@@ -889,21 +918,13 @@ export function TaskPane({
         )}
       </div>
 
-      {/* THE CODE PICKER — the record's existing searchable DSM-5 dialog, reused.
-          A SEARCHABLE LIST AND NO FREE-TEXT ENTRY (§5, error prevention): a typed
-          code is a code nobody validated, on a minor's billing record. */}
-      {p.kind === "billing" && (
-        <Dsm5SearchDialog
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          current={p.current}
-          onSelect={(entry) => {
-            setOverride({ id: item.id, code: entry.code, statement: entry.statement });
-            setPickerOpen(false);
-          }}
-          returnFocusTo={pickerTrigger}
-        />
-      )}
+      {/* ═══ THE CODE PICKER LIVES IN THE SHARED MODULE NOW ═══
+          It was a `Dsm5SearchDialog` mounted here, opened by a `Change…` button
+          the pane passed down. `ReviewBody` carries its own `Change code` control
+          and its own picker — including the focus-return this app's dialogs need
+          by hand, and the rule that picking the code ON RECORD resolves to
+          unchanged rather than producing a change from a code to itself. Two
+          pickers would have been two places for that rule to live. */}
     </div>
   );
 }

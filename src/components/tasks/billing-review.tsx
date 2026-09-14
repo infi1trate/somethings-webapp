@@ -92,8 +92,6 @@
 //
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CareUpdateFields } from "@/components/record/care-update-compose";
-import { PresentationDiff } from "@/components/record/presentation-diff";
-import { RecordButton } from "@/components/record/record-button";
 import {
   emptyCareUpdateBody,
   type CareUpdateBody,
@@ -160,20 +158,24 @@ export function BillingReview({
   /** Override-aware: the code the supervisor picked, or the model's proposal.
    *  What the diff and the commit both read, so they cannot disagree. */
   recommended,
-  onChangeCode,
   onCommit,
   handleRef,
-  rationale,
+  context,
+  children,
 }: {
   item: TaskItem;
   payload: BillingPayload;
   recommended: { code: string; statement: string };
-  onChangeCode: (trigger: HTMLElement) => void;
   onCommit: (detail: BillingCommitDetail) => void;
   handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
-  /** The generated-rationale block, rendered by the pane so this component does
-   *  not also own the provenance badge and the conversation link. */
-  rationale: React.ReactNode;
+  /** THE HOST'S CONTEXT STRIP — the code on record and the mentorship stats.
+   *  Neither belongs to the shared review module: on the Care page the page
+   *  supplies them, and this pane has no page. See the note at `BillingBody`. */
+  context: React.ReactNode;
+  /** THE SHARED REVIEW MODULE. Passed in rather than rendered here so this
+   *  component owns exactly one thing — the documentation gate and its commit —
+   *  and the review stays the caller's to compose. */
+  children: React.ReactNode;
 }) {
   /** ═══ THE DRAFT IS KEYED ON THE ITEM, NOT THE TEEN ═══
    *  A supervisor with two billing items open across a shift has two reviews,
@@ -335,29 +337,19 @@ export function BillingReview({
 
   return (
     <div data-slot="billing-review" className="space-y-4">
-      {/* ═══ THE SPINE'S ORDER (A2) ═══
-          Rationale → diff → documentation. A supervisor reads WHY, then WHAT is
-          moving, then writes their own account of it — so the pane is in that
-          order and the thing they have to produce is last, where a decision
-          belongs.
-          The context rail this order was designed against is absent; see the
-          module note. Nothing here is a two-column grid, so the rail arrives as
-          an addition rather than a re-layout. */}
-      {rationale}
+      {/* ═══ THE SPINE'S ORDER ═══
+          Context → review → documentation. A supervisor reads what is on record
+          and what the mentorship looks like, then the review itself — which
+          carries its own order, recommendation → rationale → evidence, settled on
+          the Care page — and then writes their own account of it. The thing they
+          have to produce is last, where a decision belongs.
+          THE ORDER USED TO BE "rationale → diff → documentation" and the middle
+          term is gone with `PresentationDiff`: the shared module states the
+          recommendation and the proposal kind itself, and the code on record
+          moved up into the context strip where the rest of the context is. */}
+      {context}
 
-      <PresentationDiff
-        current={payload.current}
-        recommended={recommended}
-        action={
-          <RecordButton
-            onClick={(e) => onChangeCode(e.currentTarget)}
-            className="min-h-8 shrink-0 px-3 text-[12.5px]"
-          >
-            {/* TODO-COPY — the ellipsis says a picker opens. */}
-            Change…
-          </RecordButton>
-        }
-      />
+      {children}
 
       {/* ═══ ALWAYS VISIBLE, NEVER BEHIND A DISCLOSURE (A5) ═══
           A form the supervisor has to open is a form that reads as optional, and

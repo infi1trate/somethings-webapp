@@ -772,7 +772,19 @@ const NO_POINTS_QUESTION = "Thoughts of self-harm";
  *  couple of items driving the score, several mid, some at zero — where a flat
  *  round-robin reads as synthetic and a purely greedy fill maxes three items and
  *  leaves the rest empty. */
-function buildItems(
+/** ═══ ITEM-LEVEL ANSWERS THAT ADD UP TO A SCORE ═══
+ *
+ *  EXPORTED so the Tasks billing queue derives its survey items the SAME way
+ *  this file's own fixtures do. Those items are a fixture either way — a
+ *  prototype has no moderation service behind it — and the thing that matters is
+ *  that a PHQ-9 of 14 shown on the Care page and the same PHQ-9 of 14 shown on
+ *  the billing pane break down into the same answers. Two derivations would give
+ *  two, and a supervisor comparing the surfaces would be reading a difference
+ *  that does not exist.
+ *
+ *  Deterministic in `(instrument, score, seed)`, and the points always sum to the
+ *  score, so the grid can never contradict the number above it. */
+export function buildItems(
   instrument: "PHQ-9" | "GAD-7",
   score: number,
   seed: string
