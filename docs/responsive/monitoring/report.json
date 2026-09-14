@@ -1,0 +1,78 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "id": "shell.header",
+      "label": "the page names itself",
+      "ok": true
+    },
+    {
+      "id": "shell.tiers",
+      "label": "three tier bands, imminent first",
+      "ok": true,
+      "detail": "Imminent — 23 | Clinical review — 26 | Routine review — 20"
+    },
+    {
+      "id": "shell.no-colour-words",
+      "label": "no tier is named by its colour",
+      "ok": true
+    },
+    {
+      "id": "shell.counts-reconcile",
+      "label": "the subtitle's coverage equals the bands' total",
+      "ok": true,
+      "detail": "bands 69 vs subtitle 69 (“2 past 24h · 1 write-up due · 69 flags in review”)"
+    },
+    {
+      "id": "shell.obligation-first",
+      "label": "the subtitle leads with what is owed",
+      "ok": true,
+      "detail": "2 past 24h · 1 write-up due · 69 flags in review"
+    },
+    {
+      "id": "badge.present",
+      "label": "Monitoring carries an obligation badge",
+      "ok": true,
+      "detail": "3 overdue"
+    },
+    {
+      "id": "badge.noun",
+      "label": "the badge says what it counts",
+      "ok": true,
+      "detail": "3 overdue"
+    },
+    {
+      "id": "badge.agrees",
+      "label": "the badge equals the subtitle's debt",
+      "ok": true,
+      "detail": "badge 3 vs 2 + 1"
+    },
+    {
+      "id": "persona.mentor.placeholder",
+      "label": "sees the unbuilt-section placeholder, not the surface",
+      "ok": true
+    },
+    {
+      "id": "persona.mentor.no-nav-item",
+      "label": "is not offered the destination",
+      "ok": true,
+      "detail": "Home · Chats · Activity · Tasks · Mentees · Team · Home · Chats · Tasks · Mentees"
+    },
+    {
+      "id": "persona.lead-mentor.placeholder",
+      "label": "sees the unbuilt-section placeholder, not the surface",
+      "ok": true
+    },
+    {
+      "id": "persona.lead-mentor.no-nav-item",
+      "label": "is not offered the destination",
+      "ok": true,
+      "detail": "Home · Chats · Activity · Tasks · Team · Home · Chats · Tasks · People"
+    },
+    {
+      "id": "regression.tasks",
+      "label": "Tasks still renders its own two bands and nothing else",
+      "ok": true
+    }
+  ]
+}

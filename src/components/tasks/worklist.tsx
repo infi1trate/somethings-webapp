@@ -382,7 +382,7 @@ function ListSkeleton({ rows }: { rows: number }) {
  *  reference — nothing type-checks an error message — and it was caught by
  *  reading the error state rather than by any tool. What is left is the part
  *  that was ever actionable: try again. */
-function ListError({ domain, onRetry }: { domain: TaskDomain; onRetry: () => void }) {
+function ListError({ subject, onRetry }: { subject: string; onRetry: () => void }) {
   return (
     <div role="alert" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
       <p className="max-w-xs text-[14px] leading-[20px] text-[var(--text-secondary)]">
@@ -390,7 +390,7 @@ function ListError({ domain, onRetry }: { domain: TaskDomain; onRetry: () => voi
             JSX collapses the newline between `{expr}` and the following literal,
             which rendered "Billingdidn't load". The same trap the person record's
             role line already hit once. */}
-        {`${DOMAIN_LABEL[domain]} didn’t load — try again.`}
+        {`${subject} didn’t load — try again.`}
       </p>
       <RecordButton onClick={onRetry}>
         <RotateCcw className="size-3.5" aria-hidden />
@@ -407,7 +407,7 @@ function ListError({ domain, onRetry }: { domain: TaskDomain; onRetry: () => voi
  *  exclamation, no tick-with-a-flourish — an empty routine queue means nobody has
  *  written anything worth reading, which is neither an achievement nor a problem.
  *  The other three are allowed to read as relief; this one reads as a fact. */
-function EmptyList({ domain }: { domain: TaskDomain }) {
+function EmptyList({ domain, line }: { domain: TaskDomain | null; line?: string }) {
   /* TODO-COPY on all four. */
   const copy: Record<TaskDomain, string> = {
     escalation: "No active escalations.",
@@ -424,7 +424,7 @@ function EmptyList({ domain }: { domain: TaskDomain }) {
         <CalmCheck />
       </span>
       <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-        {copy[domain]}
+        {line ?? (domain ? copy[domain] : null)}
       </p>
     </div>
   );
@@ -480,6 +480,8 @@ export function Worklist({
   entries,
   items,
   domain,
+  subject,
+  emptyLine,
   now,
   selectedId,
   state,
@@ -491,7 +493,25 @@ export function Worklist({
    *  retirement, which reports how many of a cleared tier closed today — a fact
    *  that by definition is not in `entries`, since `entries` is the open set. */
   items: TaskItem[];
-  domain: TaskDomain;
+  /** ═══ THE DOMAIN IS OPTIONAL NOW, AND THAT IS arch-B ═══
+   *
+   *  Tasks is one domain and names itself from it. Monitoring is THREE TIERS
+   *  ACROSS TWO domains — imminent and clinical are `riskFlag`, routine is
+   *  `routineFlag` — so there is no single domain for it to pass, and passing one
+   *  of the two would put "Risk flags worklist" on a list that also holds routine
+   *  rows.
+   *
+   *  `null` disables exactly two things and nothing else: the per-domain empty
+   *  line (supply `emptyLine`) and the scroll-position reset's domain guard,
+   *  which exists to stop a TAB SWITCH from restoring a scroll offset measured in
+   *  a different list. Monitoring has no tab switch, so there is nothing for that
+   *  guard to catch. */
+  domain: TaskDomain | null;
+  /** What the list is called, in the tree's accessible name and the loading and
+   *  error lines. Defaults to the domain's label. */
+  subject?: string;
+  /** The empty line, when `domain` is null. */
+  emptyLine?: string;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
    *  otherwise. */
@@ -500,6 +520,8 @@ export function Worklist({
   onSelect: (entry: ListEntry, item: TaskItem) => void;
   onRetry: () => void;
 }) {
+  /** TODO-COPY. The list's own name, in three places that must agree. */
+  const subjectLabel = subject ?? (domain ? DOMAIN_LABEL[domain] : "Worklist");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const refs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -684,7 +706,7 @@ export function Worklist({
    *  Both are needed — the ids to prove the band was CLEARED rather than merely
    *  swapped away, the height to know what to compress. */
   const lastSeen = useRef<
-    Map<TaskType, { label: string; ids: string[]; height: number; domain: TaskDomain }>
+    Map<TaskType, { label: string; ids: string[]; height: number; domain: TaskDomain | null }>
   >(new Map());
 
   useEffect(() => {
@@ -703,7 +725,7 @@ export function Worklist({
          The test is specific: every task the band held must now exist, resolved.
          A tab switch fails it because the ids are absent from this domain's
          items; a scenario swap fails it because the ids do not exist at all. */
-      if (prev.domain !== domain) continue;
+      if (domain !== null && prev.domain !== domain) continue;
       const allResolved =
         prev.ids.length > 0 &&
         prev.ids.every((tid) =>
@@ -761,20 +783,20 @@ export function Worklist({
         <ListSkeleton rows={Math.max(5, Math.ceil((viewport.height || 560) / ROW_H))} />
         <p className="sr-only" role="status">
           {/* TODO-COPY */}
-          Loading {DOMAIN_LABEL[domain]}.
+          Loading {subjectLabel}.
         </p>
       </div>
     );
   if (state === "error")
     return (
       <div className={frame}>
-        <ListError domain={domain} onRetry={onRetry} />
+        <ListError subject={subjectLabel} onRetry={onRetry} />
       </div>
     );
   if (entries.length === 0 && retiring.length === 0)
     return (
       <div className={frame}>
-        <EmptyList domain={domain} />
+        <EmptyList domain={domain} line={emptyLine} />
       </div>
     );
 
@@ -783,7 +805,7 @@ export function Worklist({
       ref={scrollerRef}
       role="tree"
       /* TODO-COPY */
-      aria-label={`${DOMAIN_LABEL[domain]} worklist`}
+      aria-label={`${subjectLabel} worklist`}
       onKeyDown={onKeyDown}
       /* ═══ THE LIST IS ITS OWN SCROLLER (Part 3) ═══
          It used to sit inside a scrolling column, which was fine at eight rows and

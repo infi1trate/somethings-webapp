@@ -25,7 +25,7 @@
 // plain row, and resolving the last one removes the row entirely — §4's "resolving
 // the last child resolves the group row", for free.
 
-import { compareTasks, listForDomain } from "@/lib/tasks/sort";
+import { compareTasks, listForDomain, sortedOpen } from "@/lib/tasks/sort";
 import type { TaskDomain, TaskItem, TaskType } from "@/lib/tasks/types";
 
 /** The flag task types — the only ones that coalesce. */
@@ -63,18 +63,42 @@ export function itemsOf(entry: ListEntry): TaskItem[] {
   return entry.kind === "item" ? [entry.item] : entry.members;
 }
 
-/** THE LIST FOR A TAB: the domain's sorted open items, with flags coalesced.
- *
- *  Built by walking the already-sorted list once and attaching each flag to its
- *  group as it is encountered. Walking the sorted list rather than grouping and
- *  re-sorting is what guarantees a group lands exactly where its head would have
- *  — no second comparator, no re-sort. */
+/** THE LIST FOR ONE DOMAIN: its sorted open items, with flags coalesced. */
 export function listEntriesFor(
   items: TaskItem[],
   domain: TaskDomain,
   now: number
 ): ListEntry[] {
-  const sorted = listForDomain(items, domain, now);
+  return coalesce(listForDomain(items, domain, now), now);
+}
+
+/** ═══ EVERY FLAG, ACROSS THE TIERS' TWO DOMAINS (arch-B) ═══
+ *
+ *  Monitoring is one surface over three tiers, and the tiers do not share a
+ *  domain: imminent and clinical review are `riskFlag`, routine is its own
+ *  `routineFlag`. That split is the old four-tab Tasks page's, kept because the
+ *  routine tier's SLA and its ledger mapping genuinely differ — not because
+ *  anyone believes a supervisor thinks of them as two kinds of thing.
+ *
+ *  SO THE FILTER IS THE TASK TYPE, NOT THE DOMAIN. `isFlagTask` is already the
+ *  authority on what coalesces; this makes it the authority on what Monitoring
+ *  holds, so the two cannot drift into a list containing something that does not
+ *  group and a group containing something not in the list.
+ *
+ *  ORDER IS THE ONE COMPARATOR'S, unchanged: the items are sorted before they are
+ *  grouped, exactly as a single domain's are. */
+export function flagEntriesFor(items: TaskItem[], now: number): ListEntry[] {
+  return coalesce(
+    sortedOpen(items, now).filter((i) => isFlagTask(i.taskType)),
+    now
+  );
+}
+
+/** The grouping half, shared by both. Walks an ALREADY-SORTED list once and
+ *  attaches each flag to its group as it is encountered — which is what
+ *  guarantees a group lands exactly where its head would have, with no second
+ *  comparator and no re-sort. */
+function coalesce(sorted: TaskItem[], now: number): ListEntry[] {
 
   const groups = new Map<string, TaskItem[]>();
   for (const item of sorted) {
