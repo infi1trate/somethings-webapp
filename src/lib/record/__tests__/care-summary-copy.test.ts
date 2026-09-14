@@ -179,9 +179,18 @@ describe("the care summary's copy obeys the record rules", () => {
     // notices if a later copy pass quietly removes the tag as well.
     expect(note).toMatch(/label = "AI"/);
 
+    /* THE REVIEW'S MARK MOVED FILE, NOT SURFACE. It was rendered inline in
+       `care-review-card.tsx`; the card's four content blocks are
+       `review-body.tsx` now, so the Tasks billing pane can show the same review
+       instead of reimplementing it. The card still renders the mark — through
+       that component — and this list points at the file that holds the
+       `<Provenance>` call so the assertion keeps checking a real thing rather
+       than a filename.
+       THE CLAIM IS UNCHANGED: every surface that shows generated text carries
+       the mark, and the extraction did not get to weaken it. */
     for (const file of [
       "src/components/record/care-summary-doc.tsx",
-      "src/components/record/care-review-card.tsx",
+      "src/components/record/review-body.tsx",
     ]) {
       expect(copyOf(file), `${file} must carry the provenance mark`).toMatch(
         /<Provenance/
