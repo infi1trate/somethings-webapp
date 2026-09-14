@@ -338,15 +338,18 @@ for (const persona of ["mentor", "lead-mentor"]) {
   check("coalesce.reachable", "a coalesced teen row is reachable", found);
 
   const countOf = (label) => Number((label.match(/(\d+) flags/) ?? [0, 0])[1]);
-  const first = await page
-    .locator('[role="treeitem"][aria-expanded]')
-    .first()
-    .getAttribute("aria-label");
-  const teen = first.split(",")[0];
+  const group = page.locator('[role="treeitem"][aria-expanded]').first();
+  const first = await group.getAttribute("aria-label");
+  /* ═══ THE TEEN NAME COMES FROM THE ROW, NOT FROM THE LABEL'S FIRST SEGMENT ═══
+     It used to be `label.split(",")[0]`, and arch-D put the GROUP first in every
+     row's accessible name — so this started tracking a row called "Clinical
+     review" and reported the count frozen at 5 while five different rows each
+     correctly said 5. Reading the rendered name is immune to the label's shape. */
+  const teen = (await group.locator("span.min-w-0 > span").first().innerText()).trim();
   const start = countOf(first);
   // `aria-level="1"` so the parent is never confused with one of its own
   // children, which carry the same teen name.
-  const sel = (t) => `[role="treeitem"][aria-level="1"][aria-label^="${t},"]`;
+  const sel = (t) => `[role="treeitem"][aria-level="1"][aria-label*="${t},"]`;
   const row = () => page.locator(sel(teen)).first();
   check("coalesce.start", `a group of ${start} to work with`, start >= 3, `${teen}: ${start} flags`);
 

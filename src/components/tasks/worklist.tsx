@@ -48,14 +48,23 @@ import {
   bandsAreMeaningful,
   bandsFor,
   closedTodayInBand,
-  retiredBandLabel,
   type TierBand,
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
+import {
+  deadlineLabel,
+  rowEmphasisFor,
+  type RowEmphasis,
+} from "@/lib/tasks/row-emphasis";
 import { compositionLabel } from "@/lib/tasks/monitoring-list";
 import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem, type TaskType } from "@/lib/tasks/types";
 import type { SurfaceState } from "@/lib/tasks/load-plan";
+import {
+  GROUP_HEADER_H,
+  RetiringBand,
+  WorklistGroupHeader,
+} from "@/components/tasks/group-header";
 import { cn } from "@/lib/utils";
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
@@ -71,7 +80,11 @@ import { cn } from "@/lib/utils";
  *  changing this constant, and the compiler will not tell you — the list will
  *  simply drift. */
 const ROW_H = 56;
-const HEADER_H = 34;
+/** THE HEADER'S HEIGHT, from the component that draws it. Two constants for one
+ *  box is how the virtualizer's offsets and the rendered header drift apart, and
+ *  that drift is invisible: the list simply stops scrolling rows to where the
+ *  keyboard thinks they are. */
+const HEADER_H = GROUP_HEADER_H;
 
 /** Rows rendered beyond each edge of the viewport. Six is enough that ordinary
  *  arrow-key movement never lands on an unmounted row (so focus is immediate) and
@@ -93,10 +106,6 @@ const HEADER_H = 34;
  *  the only reason keyboard movement to an off-screen row works at all. */
 const OVERSCAN = 6;
 
-/** How long a cleared band's rows take to compress away. The brief's number.
- *  Short enough to read as the list settling, long enough to be seen at all —
- *  under about 120ms a collapse reads as a jump. */
-const RETIRE_MS = 160;
 
 /** And how long the retired header stays before it goes. Long enough to read a
  *  seven-word line, and it is the only reason the band lingers at all. */
@@ -188,6 +197,7 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
 
 function Row({
   entry,
+  group,
   now,
   selected,
   expanded,
@@ -199,6 +209,9 @@ function Row({
   registerRef,
 }: {
   entry: ListEntry;
+  /** The band this row sits under — for the accessible name only. See the call
+   *  site for why it is not drawn. */
+  group: string;
   now: number;
   selected: boolean;
   expanded: boolean;
@@ -220,19 +233,6 @@ function Row({
    *  construction (taskType is half that key) and the line would restate the
    *  header. */
   const composition = isTeenGroup ? compositionLabel(entry.members) : null;
-  /** ═══ "OPEN" IS NOT TRUE OF EVERY ROW (arch-B) ═══
-   *
-   *  This column appended the literal word "open" to an elapsed figure for every
-   *  non-child row, whatever kind of task it was — so an escalation DOCUMENTATION
-   *  row read "20h open" while the pane two inches away read "Closed Sep 13".
-   *  Neither was a data error; they are the same instant, because the write-up's
-   *  clock starts at the escalation's close (see `escalation-state.ts`). The only
-   *  thing that disagreed was this suffix.
-   *
-   *  A documentation row's elapsed figure is how long the write-up has been owed,
-   *  which is not a thing that is "open" — the escalation it belongs to is shut.
-   *  The state chip says which state it is in; this says the duration and stops. */
-  const openSuffix = item.taskType === "escalationDocumentation" ? "" : " open";
   /** ═══ THE AGE ON A TEEN ROW IS THE OLDEST FLAG'S ═══
    *  Not the head's. The head is the most URGENT flag, which on a teen carrying
    *  three clinical and two routine is usually not the one that has been waiting
@@ -241,24 +241,79 @@ function Row({
   const ageAt = isTeenGroup
     ? Math.min(...entry.members.map((m) => m.openedAt))
     : item.openedAt;
-  /** TODO-COPY. The full row, spoken — teen, mentor, differentiators, age. */
+
+  const overdue = itemsOf(entry).some((i) => isBreached(i, now));
+
+  /** ═══ WHAT THIS ROW LEADS WITH (arch-D) ═══
+   *
+   *  Derived from the task type rather than passed by the surface — see
+   *  `rowEmphasisFor` for the full argument. A row whose tier gathers by teen is
+   *  a picture of a person; everything else is one piece of work with a clock on
+   *  it. Monitoring's Imminent rows therefore take the Tasks emphasis, and that
+   *  is not an exception bolted on: it falls out, because an imminent flag is
+   *  individual and deadline-bearing for exactly the reason it is never
+   *  coalesced. Emphasis follows obligation, like the unit of review above it.
+   *
+   *  A CHILD ROW IS ALWAYS QUIET. Inside an expanded group every member shares
+   *  the teen and the tier, so the thing that distinguishes one child from the
+   *  next is when it arrived — which is what `childTimeLabel` already says, and
+   *  which is not an obligation worth shouting one row under its parent. */
+  const emphasis: RowEmphasis = indent
+    ? "person"
+    : rowEmphasisFor(item.taskType);
+
+  /** ═══ ONE TEMPORAL FACT PER ROW ═══
+   *
+   *  A deadline-forward row shows the COUNTDOWN and drops elapsed age entirely.
+   *  "2d open" is history; "due in 15h" is the question the surface answers, and
+   *  the pane header still carries age for anyone who wants it.
+   *
+   *  A person-forward row keeps age, quietly: on a coalesced clinical picture
+   *  "how long has this been accumulating" is a real question and there is no
+   *  single deadline to count to — the members' SLAs differ by tier.
+   *
+   *  ═══ "OPEN" IS NOT TRUE OF EVERY ROW (arch-B, and it survives arch-D) ═══
+   *  This column appended the literal word "open" to every elapsed figure, so an
+   *  escalation DOCUMENTATION row read "20h open" while the pane read "Closed
+   *  Sep 13". Both figures were right and the word was wrong. Documentation rows
+   *  do not reach this surface today, but the suffix is still derived rather than
+   *  written, so the defect cannot come back with the row type. */
+  const openSuffix = item.taskType === "escalationDocumentation" ? "" : " open";
+  const temporal = indent
+    ? childTimeLabel(item.openedAt)
+    : emphasis === "deadline"
+      ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
+      : `${elapsedLabel(ageAt, now)}${openSuffix}`;
+
+  /** TODO-COPY. The full row, spoken — group, teen, mentor, differentiators,
+   *  and the one temporal fact.
+   *
+   *  THE GROUP COMES FIRST, and only on a top-level row. A sighted reader gets
+   *  the task type or the tier from the sticky header; before arch-D a
+   *  screen-reader user got it from nowhere, because that header is `aria-hidden`
+   *  and the enclosing group's label is announced on entry and not again forty
+   *  rows down. A CHILD omits it — it is announced immediately after its parent,
+   *  which just said it. */
   const ariaLabel = [
+    indent ? null : group,
     item.teenDisplayName,
     `to ${item.mentorName}`,
     isGroup ? coalesceLabel(entry.members.length) : null,
     composition,
-    itemsOf(entry).some((i) => isBreached(i, now)) ? "overdue" : null,
+    overdue ? "overdue" : null,
     item.payload.kind === "escalation"
       ? item.payload.is911
         ? "911 dispatched"
         : "no 911"
       : null,
     item.status === "inProgress" ? "in review" : null,
-    // A CHILD IS IDENTIFIED BY ITS TIME, a parent by its age — see
-    // childTimeLabel.
-    indent
-      ? childTimeLabel(item.openedAt)
-      : `${elapsedLabel(ageAt, now)} open`,
+    /* THE SAME ONE TEMPORAL FACT THE ROW DRAWS. This read `{elapsed} open` for
+       every row and did not move when arch-D changed the column — so the screen
+       reader went on hearing "2d open" on a row that said "due in 15h", which is
+       two different facts about one item told to two readers. The probe caught
+       it, and only because it checks the accessible name separately from the
+       rendered spans. */
+    temporal,
     /* ═══ TWO FLAGS ON ONE TEEN NEED TWO NAMES ═══
        MEASURED on Monitoring: the Imminent band never coalesces — deliberately,
        so a 24h deadline cannot hide inside a group row — and a teen carrying two
@@ -356,7 +411,23 @@ function Row({
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {/* ═══ THE NAME'S WEIGHT FOLLOWS THE UNIT OF WORK (arch-D) ═══
+            PERSON-FORWARD: `font-display` — Avantt, which ships Bold only, so it
+            is the one real weight step available on this surface. MEASURED:
+            Lausanne renders identically at 400/500/600/700, so every
+            `font-semibold` that used to sit on these rows was a declaration with
+            no rendering behind it. Face, size and colour are the channels that
+            exist; weight is not one of them.
+            DEADLINE-FORWARD: regular Lausanne. The name stays for
+            identification — first name + last initial, locked decision 11 — and
+            stops being the thing the eye lands on, because on a completion queue
+            the person is the review's SUBJECT and not its unit. */}
+        <span
+          className={cn(
+            "block truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
+            emphasis === "person" && "font-display"
+          )}
+        >
           {item.teenDisplayName}
         </span>
         {/* `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit on
@@ -373,48 +444,51 @@ function Row({
               name is what pushes that line to truncate first. Flag rows keep it:
               there the mentor line is the row's only secondary fact. */}
           to {isTeenGroup ? mentorFirstName : item.mentorName}
-          {/* ═══ TIER COMPOSITION, IN WORDS, ON THE LINE THAT IS ALREADY THERE ═══
-              "3 clinical · 2 routine". The band header says which tier this teen
-              was filed UNDER — the highest they carry — and this says what is
-              actually behind the row. Text rather than a stack of tinted chips
-              for the reason the whole surface is: the alarm budget spends colour
-              on the escalation treatment and nothing else, and a row encoding its
-              mix in hue would be unreadable to anyone who cannot separate two
-              pale tints.
-              IT SHARES THE MENTOR LINE RATHER THAN TAKING A THIRD. `ROW_H` is a
-              fixed 56px that the virtualizer multiplies — its own comment warns
-              that "adding a third line to a row means changing this constant, and
-              the compiler will not tell you; the list will simply drift". A third
-              line would have needed either a variable row height, which this
-              virtualizer cannot express, or a taller row for every flag on the
-              surface to accommodate the minority that are teen groups. Sharing
-              the line costs a truncation at narrow widths and nothing else —
-              which is also why the mentor drops to a first name here. */}
-          {composition && (
-            <>
-              <span aria-hidden className="px-1 opacity-40">·</span>
-              {composition}
-            </>
-          )}
         </span>
       </span>
 
       <span className="flex shrink-0 items-center gap-1.5">
         <RowChips entry={entry} now={now} />
-        {/* AGE IN MONO (§4) — "3h open" on a parent row. Mono so the column
-            reads as a column rather than as ragged text. A CHILD shows its clock
-            time instead, because inside a group the age is identical on every
-            row — see childTimeLabel. */}
+        {/* ═══ THE COMPOSITION MOVED TO THE RIGHT (arch-D, D3) ═══
+            It shared the mentor caption, which put the row's PRIMARY fact — how
+            much signal this teen is carrying — in the quietest line on the row,
+            behind a `to {mentor}` that is only identification. On a person-
+            forward row the count and the composition ARE the point, so they sit
+            with the other facts where the eye already goes.
+            STILL TEXT, NEVER COLOUR ALONE: the alarm budget spends colour on the
+            escalation treatment and nothing else, and a row encoding its tier mix
+            in hue would be unreadable to anyone who cannot separate two pale
+            tints. */}
+        {composition && (
+          <span className="shrink-0 truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
+            {composition}
+          </span>
+        )}
+        {/* ═══ THE ONE TEMPORAL FACT ═══
+            MONO AND TABULAR ON BOTH PATHS, so the column reads as a column and a
+            live figure does not jitter as its digits change width.
+            THE WEIGHT IS REAL HERE, unlike anywhere else on this row. MEASURED by
+            rendering both to a canvas and summing ink: the mono stack draws 41%
+            more ink at 700 than at 400 (79,171 vs 56,058), because a system
+            monospace ships a bold. Lausanne draws the SAME at both, which is why
+            the name cannot use weight and reaches for Avantt instead. So the two
+            emphasised elements on this surface are emphasised by two different
+            faces, and neither is competing for the same channel.
+            DEADLINE-FORWARD takes it: "when is this owed" is the question the
+            surface answers. PERSON-FORWARD keeps age quiet — on a coalesced
+            picture there is no single deadline to count to, because the members'
+            SLAs differ by tier. */}
         <span
-          // `--text-secondary` for the same reason as the line above — s2 is too
-          // dark for muted ink at 12px. Gap row 294.
-          className="shrink-0 text-[12px] tabular-nums text-[var(--text-secondary)]"
+          className={cn(
+            "shrink-0 tabular-nums",
+            emphasis === "deadline" && !indent
+              ? "text-[14px] font-bold text-[var(--text-primary)]"
+              : "text-[12px] text-[var(--text-secondary)]"
+          )}
           style={{ fontFamily: "var(--font-mono)" }}
         >
           {/* TODO-COPY */}
-          {indent
-            ? childTimeLabel(item.openedAt)
-            : `${elapsedLabel(ageAt, now)}${openSuffix}`}
+          {temporal}
         </span>
       </span>
     </div>
@@ -890,7 +964,7 @@ export function Worklist({
         {headersReady ? (
           bands.map((band) => (
             <div key={band.id} role="group" aria-label={bandHeaderLabel(band)}>
-              <BandHeader band={band} />
+              <WorklistGroupHeader label={band.label} count={band.taskCount} />
               <ListSkeleton rows={Math.min(band.entries.length, 6)} />
             </div>
           ))
@@ -951,7 +1025,10 @@ export function Worklist({
             aria-label={bandHeaderLabel(section.band)}
           >
             {showBands && (
-              <BandHeader band={section.band} countPending={headersState !== "ready"} />
+              <WorklistGroupHeader
+                label={section.band.label}
+                count={headersState === "ready" ? section.band.taskCount : null}
+              />
             )}
             {/* SPACERS, NOT RENDERED ROWS. Two divs stand in for everything
                 outside the window, which is what keeps a hundred-row list at a
@@ -961,6 +1038,16 @@ export function Worklist({
               <Row
                 key={v.id}
                 entry={v.entry}
+                /* ═══ THE ROW SAYS WHICH GROUP IT IS IN, BECAUSE IT NO LONGER
+                       SHOWS IT (arch-D, D1) ═══
+                   The task type and the tier came off the rows deliberately —
+                   they are in the sticky header now. A sighted reader gets them
+                   from that header; a screen-reader user was getting them from
+                   nowhere, because the header is `aria-hidden` and the enclosing
+                   group's label is announced once on entry and not again forty
+                   rows later. Putting the band on each row's own name is what
+                   makes the two readings equivalent. */
+                group={section.band.label}
                 now={now}
                 optionId={`task-option-${v.id}`}
                 selected={v.id === selectedId}
@@ -983,7 +1070,12 @@ export function Worklist({
       })}
 
       {retiring.map((r) => (
-        <RetiredBand key={r.id} band={r} />
+        <RetiringBand
+          key={r.id}
+          label={r.label}
+          closedToday={r.closedToday}
+          height={r.height}
+        />
       ))}
     </div>
   );
@@ -992,87 +1084,3 @@ export function Worklist({
 /** THE STICKY BAND HEADER. Quiet by construction: muted ink, no fill beyond the
  *  card's own, no rule of its own — the first row's hairline already separates it.
  *  It is a wayfinding label, not a section title competing with the rows. */
-function BandHeader({
-  band,
-  countPending,
-}: {
-  band: TierBand;
-  /** The rows have not arrived, so the count would be a number that is wrong
-   *  for 240ms. The band NAME still renders — it is the part that is already
-   *  known, and withholding it too would leave the list unlabelled for the one
-   *  moment a reader is deciding where to start. */
-  countPending?: boolean;
-}) {
-  return (
-    <div
-      aria-hidden
-      style={{ height: HEADER_H }}
-      /* SENTENCE CASE, for the same reasons the pane's field labels dropped
-         theirs — and more so here, because this label's ENTIRE JOB is to be
-         scanned. All caps strips the ascenders and descenders that make
-         "Imminent" recognisable in peripheral vision, which is exactly how a
-         reader forty rows down uses it.
-         `--type-field-label`, not a hand-rolled size: the token exists, this is
-         the stop it names, and its weight is 400 because TWKLausanne-700 is not
-         shipped — a `font-semibold` here would be a synthesised faux bold. */
-      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 [font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)] text-[var(--text-muted)]"
-    >
-      {/* `tabular-nums` — the counts tick down as a supervisor works, and
-          proportional figures would shift the whole line each time. */}
-      <span className="tabular-nums">
-        {countPending ? band.label : bandHeaderLabel(band)}
-      </span>
-      {countPending && (
-        <span className="ml-2 inline-block h-2 w-6 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
-      )}
-    </div>
-  );
-}
-
-/** ═══ A BAND ON ITS WAY OUT ═══
- *
- *  Mounts at the height its rows occupied and compresses to zero, so the list
- *  settles rather than jumps. The header stays for a beat and reports the
- *  clearance as a fact — see `retiredBandLabel` for why it does not celebrate.
- *
- *  `motion-reduce:transition-none` is not decoration: a 160ms height collapse is
- *  exactly the kind of unrequested movement `prefers-reduced-motion` exists to
- *  suppress, and with it the band simply appears cleared and then goes. */
-function RetiredBand({ band }: { band: Retiring }) {
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    // A frame later, so the browser has a start value to animate FROM. Setting
-    // both heights in one commit animates nothing.
-    const id = requestAnimationFrame(() => setCollapsed(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-  return (
-    <div role="group" aria-label={retiredBandLabel(band.label, band.closedToday)}>
-      <div
-        aria-hidden
-        style={{ height: HEADER_H }}
-        /* SENTENCE CASE, for the same reasons the pane's field labels dropped
-         theirs — and more so here, because this label's ENTIRE JOB is to be
-         scanned. All caps strips the ascenders and descenders that make
-         "Imminent" recognisable in peripheral vision, which is exactly how a
-         reader forty rows down uses it.
-         `--type-field-label`, not a hand-rolled size: the token exists, this is
-         the stop it names, and its weight is 400 because TWKLausanne-700 is not
-         shipped — a `font-semibold` here would be a synthesised faux bold. */
-      className="sticky top-0 z-10 flex items-center bg-[var(--surface-card)] px-4 [font:var(--type-field-label)] [letter-spacing:var(--type-field-label-tracking)] text-[var(--text-muted)]"
-      >
-        <span className="tabular-nums">
-          {retiredBandLabel(band.label, band.closedToday)}
-        </span>
-      </div>
-      <div
-        aria-hidden
-        style={{
-          height: collapsed ? 0 : band.height,
-          transitionDuration: `${RETIRE_MS}ms`,
-        }}
-        className="overflow-hidden transition-[height] ease-out motion-reduce:transition-none"
-      />
-    </div>
-  );
-}

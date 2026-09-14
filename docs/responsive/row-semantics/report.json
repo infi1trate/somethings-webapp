@@ -1,0 +1,154 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "id": "tasks.one-emphasis",
+      "label": "exactly one emphasised element per row",
+      "ok": true,
+      "detail": "1,1,1,1,1,1,1,1"
+    },
+    {
+      "id": "tasks.deadline-leads",
+      "label": "and it is the countdown",
+      "ok": true,
+      "detail": "due in 15h · 14px/700 ui-monospace"
+    },
+    {
+      "id": "tasks.no-elapsed",
+      "label": "elapsed age is gone from the row",
+      "ok": true,
+      "detail": "S | Sofia G. | to Victoria Ellery | due in 15h"
+    },
+    {
+      "id": "tasks.one-temporal",
+      "label": "one temporal fact per row",
+      "ok": true
+    },
+    {
+      "id": "tasks.name-demoted",
+      "label": "the name is present and not the emphasis",
+      "ok": true,
+      "detail": "Sofia G. · 14px/400 lausanne"
+    },
+    {
+      "id": "tasks.height",
+      "label": "row height",
+      "ok": true,
+      "detail": "56px"
+    },
+    {
+      "id": "tasks.overdue",
+      "label": "an overdue row carries the breach chip and says how late",
+      "ok": true,
+      "detail": "R Riley T. to Brandon Forant Overdue overdue by 8h"
+    },
+    {
+      "id": "mon.imminent-deadline",
+      "label": "an imminent flag leads with its countdown, like a Tasks row",
+      "ok": true,
+      "detail": "overdue by 2h"
+    },
+    {
+      "id": "mon.teen-one-emphasis",
+      "label": "exactly one emphasised element per teen row",
+      "ok": true,
+      "detail": "1,1,1"
+    },
+    {
+      "id": "mon.teen-person",
+      "label": "and it is the name",
+      "ok": true,
+      "detail": "Omari J. · 14px/400 avantt"
+    },
+    {
+      "id": "mon.teen-volume",
+      "label": "signal volume is on the row, in words",
+      "ok": true,
+      "detail": "Clinical review, Omari J., to Brandy Forrestor, 4 flags, 2 clinical · 2 routine, 2d open"
+    },
+    {
+      "id": "mon.teen-age-quiet",
+      "label": "oldest age stays, quiet",
+      "ok": true,
+      "detail": "2d open · 12px/400"
+    },
+    {
+      "id": "mon.height",
+      "label": "row height",
+      "ok": true,
+      "detail": "56px"
+    },
+    {
+      "id": "hdr.tasks.uniform",
+      "label": "every header on the surface has one treatment",
+      "ok": true,
+      "detail": "sticky|0px|1px|rgb(255, 255, 255)|12px|none|34"
+    },
+    {
+      "id": "hdr.tasks.own-hairline",
+      "label": "every header draws its own separator rather than borrowing the card's",
+      "ok": true,
+      "detail": "1px, 1px"
+    },
+    {
+      "id": "hdr.tasks.anatomy",
+      "label": "label — count, sentence case, not mono",
+      "ok": true,
+      "detail": "Monthly re-review — 7 | Intake — 9"
+    },
+    {
+      "id": "hdr.tasks.sticky",
+      "label": "a header is pinned to the top of the list after 90 rows",
+      "ok": true,
+      "detail": "scrollTop 166, pinned \"Monthly re-review — 7\", selected Intake, Devon A., to Omar Haddad, due in 2d, 10:13"
+    },
+    {
+      "id": "hdr.monitoring.uniform",
+      "label": "every header on the surface has one treatment",
+      "ok": true,
+      "detail": "sticky|0px|1px|rgb(255, 255, 255)|12px|none|34"
+    },
+    {
+      "id": "hdr.monitoring.own-hairline",
+      "label": "every header draws its own separator rather than borrowing the card's",
+      "ok": true,
+      "detail": "1px, 1px, 1px"
+    },
+    {
+      "id": "hdr.monitoring.anatomy",
+      "label": "label — count, sentence case, not mono",
+      "ok": true,
+      "detail": "Imminent — 45 | Clinical review — 64 | Routine review — 14"
+    },
+    {
+      "id": "hdr.monitoring.sticky",
+      "label": "a header is pinned to the top of the list after 90 rows",
+      "ok": true,
+      "detail": "scrollTop 3765, pinned \"Clinical review — 64\", selected Routine review, Caleb O., to Omar Haddad, 2d open,"
+    },
+    {
+      "id": "sr.tasks.group-in-name",
+      "label": "every row names the group it is in",
+      "ok": true,
+      "detail": "Monthly re-review, Sofia G., to Victoria Ellery, due in 15h,"
+    },
+    {
+      "id": "sr.tasks.same-temporal",
+      "label": "and states the same temporal fact the row draws — exactly one kind, never both",
+      "ok": true,
+      "detail": "15 countdown, 0 elapsed, of 15"
+    },
+    {
+      "id": "sr.monitoring.group-in-name",
+      "label": "every row names the group it is in",
+      "ok": true,
+      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 8:44 PM"
+    },
+    {
+      "id": "sr.monitoring.same-temporal",
+      "label": "and states the same temporal fact the row draws — exactly one kind, never both",
+      "ok": true,
+      "detail": "20 countdown, 3 elapsed, of 23"
+    }
+  ]
+}
