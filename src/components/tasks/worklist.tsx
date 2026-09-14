@@ -73,7 +73,21 @@ const HEADER_H = 34;
 /** Rows rendered beyond each edge of the viewport. Six is enough that ordinary
  *  arrow-key movement never lands on an unmounted row (so focus is immediate) and
  *  small enough that a hundred-row list mounts a dozen nodes rather than a
- *  hundred. */
+ *  hundred.
+ *
+ *  ═══ THE VIRTUALIZER IS OVER-PROVISIONED FOR WHAT TASKS NOW HOLDS (arch-A) ═══
+ *
+ *  It was built for the flag domains: 49 open on typical-shift, 97 on
+ *  heavy-caseload. Scoping Tasks to billing leaves 15 and 16 — measured across
+ *  all five scenarios, the billing set is 1 / 15 / 16 / 1 / 1 — and at a screenful
+ *  plus twelve overscan rows the window covers the whole list on every one of
+ *  them. So nothing here is currently doing any work.
+ *
+ *  KEPT ANYWAY, DELIBERATELY. Billing volume grows with the roster, this is the
+ *  list Phase B's Monitoring domain would come back to, and the cost of carrying
+ *  it is a constant and two `slice` calls. Removing it would also take the
+ *  arithmetic `revealRow` with it — which exists BECAUSE of virtualization but is
+ *  the only reason keyboard movement to an off-screen row works at all. */
 const OVERSCAN = 6;
 
 /** How long a cleared band's rows take to compress away. The brief's number.
