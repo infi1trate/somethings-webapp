@@ -177,7 +177,6 @@ function Row({
   optionId,
   tabbable,
   indent,
-  flush,
   onSelect,
   onToggle,
   registerRef,
@@ -189,9 +188,6 @@ function Row({
   optionId: string;
   tabbable: boolean;
   indent?: boolean;
-  /** The first row of the whole list with no band header above it — drops the
-   *  top hairline so it does not draw against the card's rounded corner. */
-  flush?: boolean;
   onSelect: () => void;
   onToggle?: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
@@ -250,7 +246,6 @@ function Row({
            55px while every other row was 56, which the virtualizer would have
            accumulated into a real offset error. */
         "flex cursor-pointer items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 transition-colors",
-        flush && "border-t-0",
         // SELECTED AND FOCUSED ARE DISTINCT (§4): selected is a filled ground,
         // focus is the ring. A reader arrowing through a list sees the ring move
         // while the fill stays put.
@@ -365,9 +360,14 @@ function ListSkeleton({ rows }: { rows: number }) {
   );
 }
 
-/** PER-DOMAIN ERROR, INLINE, WITH RETRY (§4). Scoped to this tab — the other
- *  three keep their lists, because one domain failing to load is not a reason to
- *  blank the board. Non-blaming, with a next step (Somethings voice). */
+/** DOMAIN ERROR, INLINE, WITH RETRY (§4). Non-blaming, with a next step
+ *  (Somethings voice).
+ *
+ *  THE SECOND SENTENCE USED TO BE "The other tabs are unaffected", and arch-A
+ *  removed the other tabs. It survived the removal because it is a string, not a
+ *  reference — nothing type-checks an error message — and it was caught by
+ *  reading the error state rather than by any tool. What is left is the part
+ *  that was ever actionable: try again. */
 function ListError({ domain, onRetry }: { domain: TaskDomain; onRetry: () => void }) {
   return (
     <div role="alert" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
@@ -376,7 +376,7 @@ function ListError({ domain, onRetry }: { domain: TaskDomain; onRetry: () => voi
             JSX collapses the newline between `{expr}` and the following literal,
             which rendered "Billingdidn't load". The same trap the person record's
             role line already hit once. */}
-        {`${DOMAIN_LABEL[domain]} didn’t load. The other tabs are unaffected — try again.`}
+        {`${DOMAIN_LABEL[domain]} didn’t load — try again.`}
       </p>
       <RecordButton onClick={onRetry}>
         <RotateCcw className="size-3.5" aria-hidden />
@@ -780,7 +780,7 @@ export function Worklist({
       data-anno-ref="tasks-worklist-scroller"
       className={cn(frame, "h-full overflow-y-auto overscroll-contain")}
     >
-      {sections.map((section, si) => {
+      {sections.map((section) => {
         const n = section.rows.length;
         const first = clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
         const last = clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
@@ -800,7 +800,7 @@ export function Worklist({
                 outside the window, which is what keeps a hundred-row list at a
                 dozen mounted nodes. */}
             {first > 0 && <div aria-hidden style={{ height: first * ROW_H }} />}
-            {section.rows.slice(first, last).map((v, k) => (
+            {section.rows.slice(first, last).map((v) => (
               <Row
                 key={v.id}
                 entry={v.entry}
@@ -810,10 +810,6 @@ export function Worklist({
                 expanded={expanded.has(v.id)}
                 tabbable={visible[activeIndex]?.id === v.id}
                 indent={v.child}
-                // The very first row of the whole list, with no header above it,
-                // would otherwise draw a hairline against the card's rounded top
-                // edge.
-                flush={!showBands && si === 0 && first + k === 0}
                 onSelect={() => onSelect(v.entry, v.item)}
                 onToggle={
                   v.entry.kind === "group" ? () => toggle(v.entry.id) : undefined

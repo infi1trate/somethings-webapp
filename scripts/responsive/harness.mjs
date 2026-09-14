@@ -90,6 +90,13 @@ export function buildStoreSeed(seed, version) {
       ],
     };
   }
+  /* ═══ ARBITRARY STORE KEYS, FOR PROBES THAT DRIVE DEV STATE ═══
+     The named fields above cover the seeds every earlier phase needed. A probe
+     that has to open a surface in a particular DEV state — a task scenario, a
+     load state — would otherwise have to hand-roll its own init script and
+     duplicate the version/shape handling this function exists to own. Last, so a
+     probe can also override one of the named fields on purpose. */
+  if (seed.extra) Object.assign(state, seed.extra);
   return { state, version };
 }
 

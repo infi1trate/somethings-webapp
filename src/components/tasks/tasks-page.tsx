@@ -83,11 +83,15 @@ function PaneError({ domain }: { domain: TaskDomain }) {
         {/* TODO-COPY */}
         Couldn&apos;t load this {DOMAIN_LABEL[domain].toLowerCase()} item.
       </p>
-      <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
-        {/* TODO-COPY. Points at the working half rather than at a retry that the
-            prototype cannot honour. */}
-        Other domains may still be available.
-      </p>
+      {/* THE SECOND LINE IS GONE, not rewritten. It read "Other domains may
+          still be available" — it pointed at the working half of a four-domain
+          board, and arch-A left one domain, so it pointed at nothing. There is
+          no honest replacement to make: the list below carries the only retry
+          this prototype can honour, and once that retry has run the list is
+          ready while the pane is still erroring, so a line sending the reader
+          back to it would go stale the moment they followed it. A sentence that
+          names the failure and stops is better than one that invents a
+          recovery. */}
     </div>
   );
 }
@@ -260,10 +264,12 @@ export function TasksPage() {
    *  Pairing the stage with the load state it was counted for makes the reset a
    *  DERIVATION instead: if the state has moved on, the stage is 0 by definition,
    *  no write required. The effect then only schedules. */
-  const [progress, setProgress] = useState<{ forState: string; stage: number }>({
-    forState: devLoadState,
-    stage: LOAD_STAGES,
-  });
+  const [progress, setProgress] = useState<{
+    /** The load state this stage was counted for, or null once that run has been
+     *  torn down — see the effect's cleanup. */
+    forState: string | null;
+    stage: number;
+  }>({ forState: devLoadState, stage: LOAD_STAGES });
   const loadStage =
     progress.forState === devLoadState
       ? progress.stage
@@ -274,15 +280,10 @@ export function TasksPage() {
   /** THE STAGE ADVANCES ON A TIMER because "loading" has to be watchable — a
    *  sequence that resolves in the same frame is not a sequence anybody can see.
    *  240ms per step is slow enough to read and short enough not to become the
-   *  demo. Re-selecting "Loading" replays it, because the state change moves
-   *  `forState` and the derivation above puts the stage back to 0. */
+   *  demo. Re-selecting "Loading" replays it — see the effect body for what that
+   *  actually takes, and for the run where it did not. */
   useEffect(() => {
     if (!mounted) return;
-    // NO WRITE FOR THE NON-LOADING CASE. The derivation above already reports
-    // `LOAD_STAGES` whenever `forState` has fallen behind, so setting it here was
-    // both redundant and a synchronous setState in an effect — the thing the
-    // hooks lint objects to, for the good reason that it costs a second render
-    // pass on every load-state change.
     if (devLoadState !== "loading") return;
     const timers = Array.from({ length: LOAD_STAGES }, (_, i) =>
       setTimeout(
@@ -290,7 +291,31 @@ export function TasksPage() {
         (i + 1) * 240
       )
     );
-    return () => timers.forEach(clearTimeout);
+    /* ═══ THE RESET LIVES IN THE CLEANUP, AND IT IS NOT DECORATION ═══
+     *
+     *  The claim above used to be that re-selecting "Loading" replays the
+     *  sequence "because the state change moves `forState`". MEASURED while
+     *  re-verifying the dev footer (arch-A, A2): it replays exactly once. A
+     *  finished run leaves `progress` at `{forState: "loading", stage: 4}`, so
+     *  Loading → Ready → Loading finds `forState` ALREADY equal to "loading",
+     *  reads its stage as 4, and resolves in the same frame. The second
+     *  selection did nothing, and every one after it.
+     *
+     *  Clearing the stamp on the way OUT is what makes the next entry a change
+     *  again. IN THE CLEANUP RATHER THAN THE EFFECT BODY because a synchronous
+     *  setState in the body is what the compiler's lint rejects — correctly, and
+     *  it rejected the first version of this fix. The cleanup runs on the way to
+     *  the next state, which is exactly when this belongs.
+     *
+     *  IT MOVES NO PIXEL. The derivation already reports `LOAD_STAGES` for every
+     *  non-loading state, so the only thing this write changes is what the NEXT
+     *  entry into loading sees.
+     *
+     *  PRE-EXISTING, not introduced by scoping Tasks. */
+    return () => {
+      timers.forEach(clearTimeout);
+      setProgress({ forState: null, stage: LOAD_STAGES });
+    };
   }, [mounted, devLoadState]);
 
   /** SELECTION. `selectedEntryId` is the ENTRY id — a group id for a collapsed

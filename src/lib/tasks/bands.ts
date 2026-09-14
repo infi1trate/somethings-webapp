@@ -101,10 +101,25 @@ export function bandsFor(entries: ListEntry[]): TierBand[] {
   return order.map((id) => byId.get(id)!);
 }
 
-/** Whether the headers should render at all. One band is a header that repeats
- *  the tab label; two or more is a navigational aid. */
+/** ═══ WHETHER THE HEADERS RENDER AT ALL ═══
+ *
+ *  THIS WAS `bands.length > 1`, and the reason it was is gone. A single band
+ *  used to be "a header that repeats the tab label", which was true while a tab
+ *  row sat above the list naming the domain. arch-A removed the tabs, so on the
+ *  three scenarios that yield one band — quiet-day, breach-overnight,
+ *  active-escalation — nothing on screen said whether the rows were intake
+ *  reviews or monthly re-reviews. The band's name survived only in the group's
+ *  aria label, visible to a screen reader and to nobody else.
+ *
+ *  THE RETIREMENT STATE MADE IT WORSE, not just incomplete: `RetiredBand` draws
+ *  its header unconditionally, so clearing a single-band list produced a header
+ *  that had never been there announcing that a band the reader had never seen
+ *  was cleared.
+ *
+ *  ZERO STILL RENDERS NOTHING, which is not a special case — there are no
+ *  sections to draw a header above. */
 export function bandsAreMeaningful(bands: TierBand[]): boolean {
-  return bands.length > 1;
+  return bands.length > 0;
 }
 
 /** ═══ RETIREMENT: WHAT A CLEARED BAND SAYS ═══
