@@ -1,0 +1,324 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "id": "shell.header",
+      "label": "the page names itself",
+      "ok": true
+    },
+    {
+      "id": "shell.tiers",
+      "label": "three tier bands, imminent first",
+      "ok": true,
+      "detail": "Imminent — 23 | Clinical review — 38 | Routine review — 8"
+    },
+    {
+      "id": "shell.no-colour-words",
+      "label": "no tier is named by its colour",
+      "ok": true
+    },
+    {
+      "id": "shell.counts-reconcile",
+      "label": "the subtitle's coverage equals the bands' total",
+      "ok": true,
+      "detail": "bands 69 vs subtitle 69 (“2 past 24h · 2 write-ups due · 69 flags in review”)"
+    },
+    {
+      "id": "shell.obligation-first",
+      "label": "the subtitle leads with what is owed",
+      "ok": true,
+      "detail": "2 past 24h · 2 write-ups due · 69 flags in review"
+    },
+    {
+      "id": "badge.present",
+      "label": "Monitoring carries an obligation badge",
+      "ok": true,
+      "detail": "4 overdue"
+    },
+    {
+      "id": "badge.noun",
+      "label": "the badge says what it counts",
+      "ok": true,
+      "detail": "4 overdue"
+    },
+    {
+      "id": "badge.agrees",
+      "label": "the badge equals the subtitle's debt",
+      "ok": true,
+      "detail": "badge 4 vs 2 + 2"
+    },
+    {
+      "id": "persona.mentor.placeholder",
+      "label": "sees the unbuilt-section placeholder, not the surface",
+      "ok": true
+    },
+    {
+      "id": "persona.mentor.no-nav-item",
+      "label": "is not offered the destination",
+      "ok": true,
+      "detail": "Home · Chats · Activity · Tasks · Mentees · Team · Home · Chats · Tasks · Mentees"
+    },
+    {
+      "id": "persona.lead-mentor.placeholder",
+      "label": "sees the unbuilt-section placeholder, not the surface",
+      "ok": true
+    },
+    {
+      "id": "persona.lead-mentor.no-nav-item",
+      "label": "is not offered the destination",
+      "ok": true,
+      "detail": "Home · Chats · Activity · Tasks · Team · Home · Chats · Tasks · People"
+    },
+    {
+      "id": "regression.tasks",
+      "label": "Tasks still renders its own two bands and nothing else",
+      "ok": true
+    },
+    {
+      "id": "hybrid.imminent-individual",
+      "label": "no imminent flag is behind a disclosure",
+      "ok": true,
+      "detail": "20 imminent rows, 0 expandable"
+    },
+    {
+      "id": "hybrid.teen-coalesced",
+      "label": "the lower tiers gather into teen rows",
+      "ok": true,
+      "detail": "3 teen rows"
+    },
+    {
+      "id": "hybrid.composition",
+      "label": "a mixed teen row says what is behind it",
+      "ok": true,
+      "detail": "Clinical review, Omari J., to Brandy Forrestor, 4 flags, 2 clinical · 2 routine, 2d open"
+    },
+    {
+      "id": "hybrid.row-height",
+      "label": "the teen row did not grow the row",
+      "ok": true,
+      "detail": "heights: 56"
+    },
+    {
+      "id": "hybrid.fits",
+      "label": "the composition line is not clipped at xl",
+      "ok": true,
+      "detail": "overflow 0px"
+    },
+    {
+      "id": "coalesce.reachable",
+      "label": "a coalesced teen row is reachable",
+      "ok": true
+    },
+    {
+      "id": "coalesce.start",
+      "label": "a group of 5 to work with",
+      "ok": true,
+      "detail": "Hana T.: 5 flags"
+    },
+    {
+      "id": "coalesce.count-falls",
+      "label": "the count falls by exactly one per child",
+      "ok": true,
+      "detail": "5 → 4 → 3 → 0"
+    },
+    {
+      "id": "coalesce.degrades",
+      "label": "the row stops being a group before its last child",
+      "ok": true,
+      "detail": "0 disclosure(s) left on Hana T."
+    },
+    {
+      "id": "coalesce.last-child-survives",
+      "label": "the last flag is still on the surface",
+      "ok": true
+    },
+    {
+      "id": "keyboard.survives",
+      "label": "selection survives 80 presses of j",
+      "ok": true,
+      "detail": "Routine review, Caleb O., to Omar Haddad, 2d open, 5:46 PM"
+    },
+    {
+      "id": "keyboard.in-view",
+      "label": "the selected row was scrolled into view",
+      "ok": true
+    },
+    {
+      "id": "keyboard.focus",
+      "label": "focus tracks the selection across the unmount boundary",
+      "ok": true
+    },
+    {
+      "id": "keyboard.moved",
+      "label": "the list actually scrolled",
+      "ok": true,
+      "detail": "scrollTop 3765"
+    },
+    {
+      "id": "reanchor.children",
+      "label": "expanding reveals the individual flags",
+      "ok": true,
+      "detail": "5 children"
+    },
+    {
+      "id": "reanchor.no-reload",
+      "label": "the pane re-rendered rather than remounted",
+      "ok": true
+    },
+    {
+      "id": "reanchor.moved",
+      "label": "the excerpt moved to the child's own message",
+      "ok": true,
+      "detail": "changed"
+    },
+    {
+      "id": "esc.present",
+      "label": "the region renders when there is something in it",
+      "ok": true
+    },
+    {
+      "id": "esc.three-states",
+      "label": "active, due and overdue are all on screen",
+      "ok": true,
+      "detail": "active | documentationOverdue | documentationDue"
+    },
+    {
+      "id": "esc.no-open-on-closed",
+      "label": "a closed escalation is never called open",
+      "ok": true,
+      "detail": "T Theo L. to Brandy Forrestor Closed · write ‖ R Riley T. to Brandon Forant Closed · write-"
+    },
+    {
+      "id": "esc.says-closed",
+      "label": "and says what it actually is",
+      "ok": true,
+      "detail": "T Theo L. to Brandy Forrestor Closed · write-up overdue 7h o"
+    },
+    {
+      "id": "esc.clock-due",
+      "label": "a due write-up counts down",
+      "ok": true,
+      "detail": "R Riley T. to Brandon Forant Closed · write-up due due in 4h"
+    },
+    {
+      "id": "esc.clock-over",
+      "label": "an overdue one counts up",
+      "ok": true,
+      "detail": "T Theo L. to Brandy Forrestor Closed · write-up overdue 7h o"
+    },
+    {
+      "id": "esc.clock-active",
+      "label": "an active escalation counts elapsed",
+      "ok": true,
+      "detail": "Naomi R. to Maria Lopez 911 dispatched Active 9m elapsed Ope"
+    },
+    {
+      "id": "esc.one-alarm",
+      "label": "only the active row carries the filled treatment",
+      "ok": true,
+      "detail": "rgb(201, 53, 29) | rgb(255, 255, 255)"
+    },
+    {
+      "id": "esc.action",
+      "label": "a closed escalation offers the write-up, not the crisis",
+      "ok": true,
+      "detail": "Open escalation / Open documentation"
+    },
+    {
+      "id": "esc.landmark",
+      "label": "the region's name covers the whole lifecycle",
+      "ok": true,
+      "detail": "Escalations — 1 active, 2 awaiting documentation"
+    },
+    {
+      "id": "esc.pane-state",
+      "label": "the pane names the state and its deadline, not a dead end",
+      "ok": true,
+      "detail": "Closed · write-up overdue — 7h overdue. The write-up is completed on the escalat"
+    },
+    {
+      "id": "esc.pane-context",
+      "label": "and carries the context a write-up needs",
+      "ok": true
+    },
+    {
+      "id": "esc.selection",
+      "label": "exactly one row is marked current",
+      "ok": true,
+      "detail": "1 current"
+    },
+    {
+      "id": "esc.pane-header",
+      "label": "the pane header does not call it open either",
+      "ok": true,
+      "detail": "Theo L. · 7h overdue · Past 24h"
+    },
+    {
+      "id": "esc.absent",
+      "label": "no region when there is nothing in it",
+      "ok": true
+    },
+    {
+      "id": "load.replays",
+      "label": "Loading replays on every selection, not just the first",
+      "ok": true,
+      "detail": "true, true"
+    },
+    {
+      "id": "load.headers-first",
+      "label": "a band names itself before it can count",
+      "ok": true,
+      "detail": "Monitoring 2 past 24h · 2 write-ups due · 69 flags in review Naomi R. "
+    },
+    {
+      "id": "state.error",
+      "label": "the list errors with a retry",
+      "ok": true
+    },
+    {
+      "id": "state.error-escalations",
+      "label": "an escalation outage is not reported as calm",
+      "ok": true,
+      "detail": "Escalations couldn’t be loaded, so this page can’t say whether any are open."
+    },
+    {
+      "id": "state.retry",
+      "label": "retry restores the list",
+      "ok": true
+    },
+    {
+      "id": "state.partial",
+      "label": "the flags load while the escalation service and the transcript do not",
+      "ok": true,
+      "detail": "excerpt errored"
+    },
+    {
+      "id": "empty.plain",
+      "label": "the empty flags view states a fact",
+      "ok": true,
+      "detail": "Monitoring 0 flags in review No flags in review right now. Select a task to review it. Nex"
+    },
+    {
+      "id": "empty.no-celebration",
+      "label": "and does not congratulate anyone",
+      "ok": true
+    },
+    {
+      "id": "retire.setup",
+      "label": "three tiers, one flag each",
+      "ok": true,
+      "detail": "Imminent — 1 | Clinical review — 1 | Routine review — 1"
+    },
+    {
+      "id": "retire.reports",
+      "label": "the emptied tier says it cleared rather than vanishing",
+      "ok": true,
+      "detail": "Imminent — cleared · 1 today"
+    },
+    {
+      "id": "retire.others-stay",
+      "label": "the other tiers are untouched",
+      "ok": true
+    }
+  ]
+}

@@ -12,24 +12,32 @@
 // difference is the CTA — an empty tab offers nothing because nothing follows,
 // while a finished one knows exactly what is next, because the global sort does.
 //
-// THE CTA FOLLOWS THE GLOBAL SORT (§5) — "Next: Billing (6)". Not the tab order,
-// not the biggest queue: the same comparator that drives everything else, so the
-// reader is handed the genuinely-highest-priority remaining work.
+// ═══ THE CTA IS OPTIONAL SINCE arch-A ═══
+//
+// It read "Next: Billing (6)" — the next DOMAIN per the global sort, not the tab
+// order and not the biggest queue. Tasks is single-domain now, so there is no
+// next tab to offer and the card renders the cleared statement alone.
+//
+// THE PROP SURVIVES RATHER THAN BEING DELETED, for two reasons: Phase B's
+// Monitoring has tiers to move between, and Phase C's Home is where a cleared
+// supervisor is actually sent next. Wiring this card to Home now would be a
+// cross-surface CTA built before the surface exists.
 
 import { PillButton } from "@/components/settings/pill-button";
 import { DOMAIN_LABEL, type TaskDomain } from "@/lib/tasks/types";
 
 export function TabComplete({
   domain,
-  next,
+  next = null,
   onGoNext,
 }: {
   domain: TaskDomain;
-  /** The next domain per the global sort, with its open count. Null when
-   *  everything is clear — the caller then shows the whole-page empty state
+  /** The next domain per the global sort, with its open count. Null — or absent,
+   *  which is what a single-domain surface passes — renders the statement with no
+   *  CTA. When everything is clear the caller shows the whole-page empty state
    *  instead, per §5. */
-  next: { domain: TaskDomain; count: number } | null;
-  onGoNext: (domain: TaskDomain) => void;
+  next?: { domain: TaskDomain; count: number } | null;
+  onGoNext?: (domain: TaskDomain) => void;
 }) {
   return (
     <div className="flex min-h-[45vh] flex-col items-center justify-center gap-3 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-6 text-center">
@@ -57,7 +65,7 @@ export function TabComplete({
         {`${DOMAIN_LABEL[domain]} — all reviewed.`}
       </p>
 
-      {next && (
+      {next && onGoNext && (
         <PillButton
           onClick={() => onGoNext(next.domain)}
           className="mt-1 h-9 px-5 text-[14px]"

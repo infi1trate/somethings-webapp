@@ -64,7 +64,7 @@ describe("loadPlanFor", () => {
     it("fails the risk-flag domains and spares Billing", () => {
       expect(domainFailsUnderPartial("riskFlag")).toBe(true);
       expect(domainFailsUnderPartial("escalation")).toBe(true);
-      expect(domainFailsUnderPartial("monitoring")).toBe(true);
+      expect(domainFailsUnderPartial("routineFlag")).toBe(true);
       expect(domainFailsUnderPartial("billing")).toBe(false);
     });
 

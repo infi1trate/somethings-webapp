@@ -25,33 +25,27 @@
 // produce zero console errors, so the gate is the only thing between a persisted
 // scenario id and a hydration mismatch.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
-import { DomainTabs } from "@/components/tasks/domain-tabs";
-import { RespondStrip, elapsedLabel } from "@/components/tasks/strips";
+/* `RespondStrip` LEFT WITH THE ESCALATIONS — see the note at its old mount.
+   `elapsedLabel` is domain-neutral and still formats the list's ages. */
+import { elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
-import { UNDO_WINDOW_MS, resolveWithUndo, type ResolveHandle } from "@/lib/tasks/resolve";
+import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { listEntriesFor, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
-  closedToday,
-  defaultActiveDomain,
-  domainSummaries,
   headerCounts,
-  nextUp,
-  openEscalations,
   preselectedFor,
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
 import {
-  ACTIVITY_DOMAIN_OF,
   DOMAIN_LABEL,
   TASK_DOMAINS,
   type TaskDomain,
@@ -62,34 +56,8 @@ import { cn } from "@/lib/utils";
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** ═══ THE LOADING HIERARCHY'S PLACEHOLDERS (Part 4) ═══
- *
- *  Each matches the dimensions of the component it stands in for, because the
- *  requirement is no layout shift on resolve — a skeleton that is the wrong
- *  height moves the page under the reader at the exact moment they start reading
- *  it, which is worse than no skeleton at all.
- *
- *  ALL `aria-hidden`. A screen-reader user is told the region is busy by the
- *  surface's own live region; being read a list of empty boxes is noise. */
-function TabCardsSkeleton() {
-  return (
-    <div aria-hidden className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          // 72px — the tab-card's own height, so the row does not jump.
-          className="flex min-h-[72px] flex-col justify-between gap-1 rounded-[var(--radius-surface)] bg-[var(--surface-s1)] px-3 py-2.5"
-        >
-          <div className="flex items-center gap-2">
-            <div className="size-6 shrink-0 rounded-[8px] bg-[var(--surface-s2)]" />
-            <div className="h-4 w-20 rounded bg-[var(--surface-s2)]" />
-          </div>
-          <div className="h-6 w-10 rounded bg-[var(--surface-s2)]" />
-        </div>
-      ))}
-    </div>
-  );
-}
+/* `TabCardsSkeleton` WENT WITH THE TAB ROW (arch-A) — it was the four-card
+   loading state, and there are no cards to skeleton. */
 
 function PaneSkeleton() {
   return (
@@ -114,11 +82,15 @@ function PaneError({ domain }: { domain: TaskDomain }) {
         {/* TODO-COPY */}
         Couldn&apos;t load this {DOMAIN_LABEL[domain].toLowerCase()} item.
       </p>
-      <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
-        {/* TODO-COPY. Points at the working half rather than at a retry that the
-            prototype cannot honour. */}
-        Other domains may still be available.
-      </p>
+      {/* THE SECOND LINE IS GONE, not rewritten. It read "Other domains may
+          still be available" — it pointed at the working half of a four-domain
+          board, and arch-A left one domain, so it pointed at nothing. There is
+          no honest replacement to make: the list below carries the only retry
+          this prototype can honour, and once that retry has run the list is
+          ready while the pane is still erroring, so a line sending the reader
+          back to it would go stale the moment they followed it. A sentence that
+          names the failure and stops is better than one that invents a
+          recovery. */}
     </div>
   );
 }
@@ -130,26 +102,11 @@ function PaneError({ domain }: { domain: TaskDomain }) {
    segment reads "· 2 closed" and repeating "flags" under a card labelled Flags
    would be the redundancy the relocation was meant to remove. */
 
-/** THE ACTIVITY DEEP LINK for a "Closed today" counter (§1): Activity filtered to
- *  scope=mine, matching domain, today.
- *
- *  ROUTES THROUGH `ACTIVITY_DOMAIN_OF` because the two surfaces' domain names are
- *  not the same set — see design-system-gaps.md row 208. Passing a Tasks domain
- *  string straight through would silently match nothing.
- *
- *  The Activity route DOES exist (built in the A-series), so this is a real link
- *  rather than the stub §1 allows for. */
-function closedTodayHref(domain: TaskDomain): string {
-  return `/app/activity?scope=mine&domain=${ACTIVITY_DOMAIN_OF[domain]}&range=today`;
-}
+/* `closedTodayHref` WENT WITH THE CARDS — it deep-linked a card's closed-today
+   count into the Activity ledger, filtered to that domain. */
 
-/** Open count for a domain, for the completion CTA's "(6)". Counts ITEMS, matching
- *  the summary cards — see the T3 note on why the card counts tasks rather than
- *  rows. */
-function listForDomainCount(items: TaskItem[], domain: TaskDomain, now: number): number {
-  void now;
-  return items.filter((i) => i.domain === domain && i.status !== "resolved").length;
-}
+/* `listForDomainCount` WENT WITH THE TAB BADGES — it counted one domain's open
+   items for a card. The page's own `counts` covers the subtitle. */
 
 export function TasksPage() {
   const mounted = useMounted();
@@ -217,7 +174,7 @@ export function TasksPage() {
     });
 
 
-  const items = useMemo(() => {
+  const allItems = useMemo(() => {
     if (!mounted) return [];
     return tasksScenario(scenarioId, now).map((i) => {
       const detail = detailById[i.id];
@@ -230,16 +187,38 @@ export function TasksPage() {
     });
   }, [mounted, scenarioId, now, resolvedIds, detailById]);
 
-  const summaries = useMemo(() => domainSummaries(items, now), [items, now]);
-  const escalations = useMemo(() => openEscalations(items, now), [items, now]);
-  const counts = useMemo(() => headerCounts(items, now), [items, now]);
-  const closed = useMemo(() => closedToday(items, now), [items, now]);
+  /** ═══ ONE DOMAIN, FILTERED AT THE SOURCE (arch-A) ═══
+   *
+   *  Tasks is a COMPLETION surface now: billing reviews, which clear to zero.
+   *  Escalations and risk flags are clinical VIGILANCE — coverage work that never
+   *  reaches zero — and they move to Monitoring in Phase B. Three of the four
+   *  domains never shared this page's success model; the split is by work mode,
+   *  not by task type.
+   *
+   *  FILTERED HERE RATHER THAN AT EACH READER. Every derivation below — counts,
+   *  closed-today, the list entries, `nextUp`, auto-advance, the completion
+   *  state — reads `items`, so narrowing the source narrows all of them at once
+   *  and none of their logic changes. The alternative was a domain argument
+   *  threaded through six call sites, each of which could be missed.
+   *
+   *  THE SEED IS UNTOUCHED and still produces all four domains: Phase B needs the
+   *  same fixtures to build Monitoring from. `allItems` is what the scenario
+   *  returns; `items` is this surface's share of it. */
+  const items = useMemo(
+    () => allItems.filter((i) => i.domain === "billing"),
+    [allItems]
+  );
 
-  /** DEFAULT ACTIVE TAB = the Next-up item's domain (§3). Null means "not chosen
-   *  yet", so the derived default applies; once the reader picks a tab their
-   *  choice wins and does not get overwritten when the data changes. */
-  const [pickedDomain, setPickedDomain] = useState<TaskDomain | null>(null);
-  const activeDomain = pickedDomain ?? defaultActiveDomain(items, now);
+  const counts = useMemo(() => headerCounts(items, now), [items, now]);
+  /* `closed` (closed-today per domain) WENT WITH THE CARDS that displayed it. */
+
+  /** ═══ THE ONLY DOMAIN ═══
+   *  It was `pickedDomain ?? defaultActiveDomain(items, now)` — a reader's tab
+   *  choice over a derived default. With one domain there is no choice to hold
+   *  and no default to derive, so it is a constant and `defaultActiveDomain`
+   *  loses its only caller on this surface. Kept in `sort.ts` for Phase B, which
+   *  has tiers to default between. */
+  const activeDomain: TaskDomain = "billing";
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
   const entries = useMemo(
@@ -284,10 +263,12 @@ export function TasksPage() {
    *  Pairing the stage with the load state it was counted for makes the reset a
    *  DERIVATION instead: if the state has moved on, the stage is 0 by definition,
    *  no write required. The effect then only schedules. */
-  const [progress, setProgress] = useState<{ forState: string; stage: number }>({
-    forState: devLoadState,
-    stage: LOAD_STAGES,
-  });
+  const [progress, setProgress] = useState<{
+    /** The load state this stage was counted for, or null once that run has been
+     *  torn down — see the effect's cleanup. */
+    forState: string | null;
+    stage: number;
+  }>({ forState: devLoadState, stage: LOAD_STAGES });
   const loadStage =
     progress.forState === devLoadState
       ? progress.stage
@@ -298,15 +279,10 @@ export function TasksPage() {
   /** THE STAGE ADVANCES ON A TIMER because "loading" has to be watchable — a
    *  sequence that resolves in the same frame is not a sequence anybody can see.
    *  240ms per step is slow enough to read and short enough not to become the
-   *  demo. Re-selecting "Loading" replays it, because the state change moves
-   *  `forState` and the derivation above puts the stage back to 0. */
+   *  demo. Re-selecting "Loading" replays it — see the effect body for what that
+   *  actually takes, and for the run where it did not. */
   useEffect(() => {
     if (!mounted) return;
-    // NO WRITE FOR THE NON-LOADING CASE. The derivation above already reports
-    // `LOAD_STAGES` whenever `forState` has fallen behind, so setting it here was
-    // both redundant and a synchronous setState in an effect — the thing the
-    // hooks lint objects to, for the good reason that it costs a second render
-    // pass on every load-state change.
     if (devLoadState !== "loading") return;
     const timers = Array.from({ length: LOAD_STAGES }, (_, i) =>
       setTimeout(
@@ -314,7 +290,31 @@ export function TasksPage() {
         (i + 1) * 240
       )
     );
-    return () => timers.forEach(clearTimeout);
+    /* ═══ THE RESET LIVES IN THE CLEANUP, AND IT IS NOT DECORATION ═══
+     *
+     *  The claim above used to be that re-selecting "Loading" replays the
+     *  sequence "because the state change moves `forState`". MEASURED while
+     *  re-verifying the dev footer (arch-A, A2): it replays exactly once. A
+     *  finished run leaves `progress` at `{forState: "loading", stage: 4}`, so
+     *  Loading → Ready → Loading finds `forState` ALREADY equal to "loading",
+     *  reads its stage as 4, and resolves in the same frame. The second
+     *  selection did nothing, and every one after it.
+     *
+     *  Clearing the stamp on the way OUT is what makes the next entry a change
+     *  again. IN THE CLEANUP RATHER THAN THE EFFECT BODY because a synchronous
+     *  setState in the body is what the compiler's lint rejects — correctly, and
+     *  it rejected the first version of this fix. The cleanup runs on the way to
+     *  the next state, which is exactly when this belongs.
+     *
+     *  IT MOVES NO PIXEL. The derivation already reports `LOAD_STAGES` for every
+     *  non-loading state, so the only thing this write changes is what the NEXT
+     *  entry into loading sees.
+     *
+     *  PRE-EXISTING, not introduced by scoping Tasks. */
+    return () => {
+      timers.forEach(clearTimeout);
+      setProgress({ forState: null, stage: LOAD_STAGES });
+    };
   }, [mounted, devLoadState]);
 
   /** SELECTION. `selectedEntryId` is the ENTRY id — a group id for a collapsed
@@ -348,10 +348,12 @@ export function TasksPage() {
 
   /** THE LIVE UNDO. One at a time — a second resolve flushes the first, because
    *  two open windows would mean two toasts and an ambiguous `u` key. */
-  const pending = useRef<ResolveHandle | null>(null);
   /** Set when a tab's last item was just resolved, so the pane can show the
    *  completion state instead of an empty frame. */
-  const [completedDomain, setCompletedDomain] = useState<TaskDomain | null>(null);
+  /** Billing cleared to zero — the completion state. It was
+   *  `completedDomain: TaskDomain | null`, which existed to say WHICH of four
+   *  tabs had emptied; with one domain the question is only whether. */
+  const [billingComplete, setBillingComplete] = useState(false);
 
   /** THE SHIFT-START DIGEST (§7). Gated on a persisted last-visit stamp, because
    *  "has it been a shift" cannot be answered from component state across a
@@ -380,26 +382,11 @@ export function TasksPage() {
    *  over a reader who is navigating deliberately. */
   const [announcement, setAnnouncement] = useState("");
 
-  /** BOUNDARY EMIT (§6). Unmount and page-hide both count as "the session ended
-   *  before the window closed", so the pending event is written rather than lost.
-   *  This is the other half of the timing rule and it is easy to forget — without
-   *  it, closing the tab five seconds after a resolve silently discards it. */
-  useEffect(() => {
-    const flush = () => pending.current?.flush();
-    window.addEventListener("pagehide", flush);
-    return () => {
-      window.removeEventListener("pagehide", flush);
-      flush();
-    };
-  }, []);
-
-  const selectDomain = (d: TaskDomain) => {
-    setPickedDomain(d);
-    // A new tab means a new pre-selection — dropping both ids lets the derived
-    // head apply rather than stranding a selection from another domain.
-    setPickedId(null);
-    setSelectedEntryId(null);
-  };
+  /* `selectDomain` IS GONE with the tab row. It set the picked domain and
+     dropped both selection ids so the derived head applied rather than stranding
+     a selection from another domain — a cross-domain concern with one domain
+     left. Its only callers were the tab cards, the 1–4 shortcuts and the
+     completion CTA, and all three go with it. */
 
   /** ═══ `openItem` WENT WITH THE DIGEST ═══
    *  It set the domain, the picked id and pane takeover in one go, so a CTA
@@ -419,68 +406,22 @@ export function TasksPage() {
 
   const nothingOpen = mounted && counts.open === 0;
 
-  /** §7's FOCUS PAUSE ON THE UNDO TOAST.
-   *
-   *  A reader who tabs toward Undo must not have it taken away while they are
-   *  reaching. sonner pauses its own timer on pointer hover, pointer drag and
-   *  page-hidden — never on keyboard focus (2.0.7: `expanded || interacting ||
-   *  isDocumentHidden`) — so this pauses the window instead, which is where the
-   *  clock actually lives.
-   *
-   *  ONE LISTENER FOR THE PAGE, aimed at whatever resolve is pending, rather than
-   *  handlers on a button sonner renders itself. Scoped by containment so a focus
-   *  moving BETWEEN elements inside the toast does not resume and re-pause. */
-  useEffect(() => {
-    const region = () => document.querySelector("[data-sonner-toaster]");
-    /** TELL SONNER THE READER IS PRESENT, in the only vocabulary it has.
-     *
-     *  sonner pauses a toast's timer while `expanded` is true, and sets `expanded`
-     *  from pointer presence alone — `onMouseEnter` / `onMouseMove` to set,
-     *  `onMouseLeave` to clear. There is no focus equivalent and no imperative
-     *  pause API, and the toast's duration is captured into a ref at mount, so
-     *  re-issuing it with a longer duration does not move a live timer either.
-     *
-     *  So focus is translated into the presence signal sonner already understands.
-     *  `mouseout` rather than `mouseleave` because React derives `onMouseLeave`
-     *  from the bubbling event. */
-    const signalPresence = (present: boolean) => {
-      const ol = region();
-      if (!ol) return;
-      ol.dispatchEvent(
-        present
-          ? new MouseEvent("mousemove", { bubbles: true })
-          : new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })
-      );
-    };
-    const onFocusIn = (e: FocusEvent) => {
-      if (!region()?.contains(e.target as Node)) return;
-      if (!pending.current) return;
-      // BOTH CLOCKS PAUSE TOGETHER. The window owns the ledger write and sonner
-      // owns the visible affordance; if only one paused, the Undo button and the
-      // thing it undoes would disagree about how long is left.
-      pending.current.pause();
-      signalPresence(true);
-    };
-    const onFocusOut = (e: FocusEvent) => {
-      const r = region();
-      if (!r?.contains(e.target as Node)) return;
-      if (r.contains(e.relatedTarget as Node | null)) return;
-      if (!pending.current) return;
-      pending.current.resume();
-      signalPresence(false);
-    };
-    document.addEventListener("focusin", onFocusIn);
-    document.addEventListener("focusout", onFocusOut);
-    return () => {
-      document.removeEventListener("focusin", onFocusIn);
-      document.removeEventListener("focusout", onFocusOut);
-    };
-  }, []);
+  /* THE FOCUS PAUSE AND THE BOUNDARY FLUSH MOVED TO `useResolveUndo` (arch-B).
+     Sixty-five lines of sonner-presence translation and a `pagehide` listener,
+     both of which are about WHEN an event reaches the ledger and neither of
+     which is about this page. Monitoring resolves flags on the same timing rule,
+     and two copies of a rule whose failures are invisible on screen — a lost
+     write looks like a successful resolve; an unpaused window looks like an Undo
+     button that stopped working — is two behaviours waiting to diverge. */
 
-  /** `1`–`4` switch tabs, `Enter` focuses the pane, `u` undoes, `?` opens the
-   *  sheet. The list's own ↑/↓/j/k live in the tree (T3). */
+  /** `Enter` focuses the pane, `u` undoes, `?` opens the sheet. The list's own
+   *  ↑/↓/j/k live in the tree (T3).
+   *
+   *  `1`–`4` ARE GONE WITH THE TABS. They selected a domain, and there is one.
+   *  The binding is dropped rather than left pointing at a constant, and the
+   *  shortcut sheet drops the row with it — a help sheet listing a key that does
+   *  nothing is worse than a shorter sheet. */
   useTaskShortcuts({
-    onTab: (i) => selectDomain(TASK_DOMAINS[i]),
     /* `y` / `n` — the footer's two buttons, without the aim. A no-op on a
        billing or escalation item, because `answer` is only published for a flag:
        a key that resolved the wrong kind of task would be much worse than a key
@@ -509,27 +450,12 @@ export function TasksPage() {
       setPaneTakeover(true);
       requestAnimationFrame(() => paneRef.current?.focus());
     },
-    onUndo: () => pending.current?.undo(),
+    onUndo: () => undoPending(),
     onHelp: () => setShortcutsOpen(true),
   });
 
-  /** THE NEXT DOMAIN PER THE GLOBAL SORT, for the completion CTA (§5). Reads
-   *  `nextUp` over the whole remaining open set rather than picking the biggest
-   *  queue — same comparator as everything else (locked decision 8). */
-  const nextDomainAfter = useCallback(
-    (excluding: TaskDomain, current: TaskItem[]): { domain: TaskDomain; count: number } | null => {
-      const head = nextUp(
-        current.filter((i) => i.domain !== excluding),
-        now
-      );
-      if (!head) return null;
-      return {
-        domain: head.domain,
-        count: listForDomainCount(current, head.domain, now),
-      };
-    },
-    [now]
-  );
+  /* `nextDomainAfter` WENT WITH THE COMPLETION CTA — it answered "which tab
+     next", per the global sort. */
 
   /** RESOLVE (§5 + §6).
    *
@@ -537,87 +463,68 @@ export function TasksPage() {
    *  start the undo window → toast. The event is NOT written here; `resolveWithUndo`
    *  owns that and writes it when the window closes (§6). Nothing in this component
    *  appends to the ledger. */
-  const onResolve = (item: TaskItem, detail: Record<string, unknown>) => {
-    // ONE PENDING RESOLVE AT A TIME. A second resolve flushes the first, because
-    // two live windows means two toasts and an ambiguous undo.
-    pending.current?.flush();
-
-    // WHERE SELECTION GOES: the next entry in sort order within this tab, computed
-    // BEFORE the item leaves the list.
-    const remaining = entries.filter((e) => !itemsOf(e).every((i) => i.id === item.id));
-    const idx = entries.findIndex((e) => itemsOf(e).some((i) => i.id === item.id));
-    const nextEntry = remaining[Math.min(idx, remaining.length - 1)] ?? null;
-
-    const afterResolve = items.map((i) =>
-      i.id === item.id ? { ...i, status: "resolved" as const } : i
-    );
-    const tabEmptied =
-      afterResolve.filter((i) => i.domain === item.domain && i.status !== "resolved")
-        .length === 0;
-
-    setDetailById((prev) => ({ ...prev, [item.id]: detail }));
-    setResolvedIds((prev) => new Set(prev).add(item.id));
-
-    if (tabEmptied) {
-      setCompletedDomain(item.domain);
-      setSelectedEntryId(null);
-      setPickedId(null);
-    } else if (nextEntry) {
-      setSelectedEntryId(nextEntry.id);
-      const nextItem = paneItemFor(nextEntry);
-      setPickedId(nextItem.id);
-      // TODO-COPY. §7's example shape: "Next: Marcus, red flag, 22 hours open".
-      // The first name only — the row already carries the initial, and a spoken
-      // "Marcus L." reads the punctuation aloud.
-      setAnnouncement(
-        `Next: ${nextItem.teenDisplayName.split(" ")[0]}, ${DOMAIN_LABEL[
-          nextItem.domain
-        ].toLowerCase()}, ${elapsedLabel(nextItem.openedAt, now)} open`
-      );
-    }
-
-    const handle = resolveWithUndo({
-      item,
-      decidedAt: Date.now(),
-      detail,
-      onCommitted: () => {
-        if (pending.current === handle) pending.current = null;
-      },
-      onUndone: ({ alreadyCommitted }) => {
-        if (pending.current === handle) pending.current = null;
-        setResolvedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(item.id);
-          return next;
-        });
-        setCompletedDomain(null);
-        setPickedDomain(item.domain);
-        setSelectedEntryId(null);
-        setPickedId(item.id);
-        if (alreadyCommitted) {
-          // HONEST ABOUT THE LEDGER. §6: an event, once written, is never
-          // retracted. The row comes back; the record already shows the close.
-          /* TODO-COPY */
-          toast("Restored. The activity record still shows the close.");
-        }
-      },
-    });
-    pending.current = handle;
-
+  const { resolve: onResolve, undo: undoPending } = useResolveUndo({
     /* TODO-COPY. "Flag closed — Undo", 6s (§5). The verb matches the domain so a
        reader who resolves several in a row can tell which one the toast is
-       about. */
-    const noun =
-      item.domain === "billing" ? "Billing review completed" : "Flag closed";
-    /** SONNER OWNS THE VISIBLE LIFETIME; THE WINDOW OWNS THE LEDGER WRITE. Same
-     *  duration, and the focus effect above pauses both together — see there for
-     *  why the pause is expressed as a presence signal rather than a new duration
-     *  or a `toast.dismiss`. */
-    toast(noun, {
-      duration: UNDO_WINDOW_MS,
-      action: { label: "Undo", onClick: () => handle.undo() },
-    });
-  };
+       about. Only billing reaches this surface now; the other verb is kept
+       because the function is the domain's, not the page's. */
+    toastLabel: (item) =>
+      item.domain === "billing" ? "Billing review completed" : "Flag closed",
+
+    onResolved: (item, detail) => {
+      // WHERE SELECTION GOES: the next entry in sort order, computed BEFORE the
+      // item leaves the list.
+      const remaining = entries.filter(
+        (e) => !itemsOf(e).every((i) => i.id === item.id)
+      );
+      const idx = entries.findIndex((e) =>
+        itemsOf(e).some((i) => i.id === item.id)
+      );
+      const nextEntry = remaining[Math.min(idx, remaining.length - 1)] ?? null;
+
+      const afterResolve = items.map((i) =>
+        i.id === item.id ? { ...i, status: "resolved" as const } : i
+      );
+      const tabEmptied =
+        afterResolve.filter(
+          (i) => i.domain === item.domain && i.status !== "resolved"
+        ).length === 0;
+
+      setDetailById((prev) => ({ ...prev, [item.id]: detail }));
+      setResolvedIds((prev) => new Set(prev).add(item.id));
+
+      if (tabEmptied) {
+        setBillingComplete(true);
+        setSelectedEntryId(null);
+        setPickedId(null);
+      } else if (nextEntry) {
+        setSelectedEntryId(nextEntry.id);
+        const nextItem = paneItemFor(nextEntry);
+        setPickedId(nextItem.id);
+        // TODO-COPY. §7's example shape: "Next: Marcus, red flag, 22 hours open".
+        // The first name only — the row already carries the initial, and a spoken
+        // "Marcus L." reads the punctuation aloud.
+        setAnnouncement(
+          `Next: ${nextItem.teenDisplayName.split(" ")[0]}, ${DOMAIN_LABEL[
+            nextItem.domain
+          ].toLowerCase()}, ${elapsedLabel(nextItem.openedAt, now)} open`
+        );
+      }
+    },
+
+    onRestore: (item) => {
+      setResolvedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      setBillingComplete(false);
+      /* NO DOMAIN TO RESTORE. Undo used to re-point the tab at the undone item's
+         domain; every item on this surface is billing. */
+      setSelectedEntryId(null);
+      setPickedId(item.id);
+    },
+  });
 
   return (
     /* ═══ A FIXED FRAME, NOT A DOCUMENT (Part 1.2) ═══
@@ -668,42 +575,24 @@ export function TasksPage() {
             domain, and it stated the domain's name a second time to say so. */}
       </div>
 
-      {/* ── RESPOND STRIP (§3.2). Above the tabs, visible from every tab. ── */}
-      {escalations.length > 0 && (
-        <div className="mt-4 shrink-0">
-          <RespondStrip escalations={escalations} now={now} />
-        </div>
-      )}
+      {/* ═══ THE RESPOND STRIP AND THE TAB-CARD ROW ARE BOTH GONE (arch-A) ═══
+          THE RESPOND STRIP was escalations only — a persistent "respond within
+          five minutes" band above the tabs, visible from every tab because an
+          active escalation outranks whatever you were doing. It goes to
+          Monitoring with the escalations it is about. Nothing on a billing
+          surface is answerable in five minutes, so a strip here would be a
+          permanent empty slot.
 
-      {/* ═══ THE NEXT-UP STRIP WAS HERE, AND ITS FUNCTION SURVIVES ═══
-          It named the highest-priority open item in a sentence and offered one
-          Open button. Deleted as duplication rather than as a bad idea: the list
-          is ALREADY sorted by that same comparator, the pane opens on that same
-          item, and auto-advance moves to the next one on resolve — so the strip
-          restated in prose what the surface below it was already doing in its
-          order and its selection.
-          `nextUp` IS UNTOUCHED and still drives all of that, plus tab-badge
-          urgency. Only the strip's UI is gone. The Respond strip above is a different thing — escalations, not
-          priority — and stays. */}
-      {/* ── TABS / SUMMARY CARDS (§3.3) — PINNED with the header. ─────────
-             32px below the subtitle, 24px above the columns: the region's only
-             two vertical values, both on the scale (Part 2). */}
-      <div data-anno-ref="tasks-domain-tabs" className="mt-8 shrink-0">
-        {plan.cards === "loading" ? (
-          <TabCardsSkeleton />
-        ) : (
-        <DomainTabs
-          summaries={summaries}
-          active={activeDomain}
-          onSelect={selectDomain}
-          /* CLOSED-TODAY MOVED INTO THE CARDS (Part 3). One derivation, passed
-             down — the page still owns `closedToday` and the Activity href, so a
-             card and its link cannot disagree about the number. */
-          closed={closed}
-          closedHref={closedTodayHref}
-        />
-        )}
-      </div>
+          THE TAB-CARD ROW had one job — moving between four domains — and there
+          is one. Removing it reclaims 208px above the list (176px of cards plus
+          their 32px margin), measured before the change.
+
+          `DomainTabs` IS NOT DELETED, per the strangler rule: the file stays for
+          Phase B to judge. Two things inside it needed handling first, and both
+          are done rather than left dangling — `BreachChip` was exported from it
+          and imported by the pane, so it moved to `chips.tsx`; `ClosedCount`'s
+          pulse animation and the row's roving-tabindex keyboard nav had no other
+          consumer and go dark with the row. */}
 
       {/* ── MASTER-DETAIL ───────────────────────────────────────────────── */}
       <div
@@ -815,15 +704,16 @@ export function TasksPage() {
                   Back to list
                 </button>
               )}
-              {completedDomain === activeDomain ? (
-                <TabComplete
-                  domain={activeDomain}
-                  next={nextDomainAfter(activeDomain, items)}
-                  onGoNext={(d) => {
-                    setCompletedDomain(null);
-                    selectDomain(d);
-                  }}
-                />
+              {billingComplete ? (
+                /* ═══ COMPLETION, WITHOUT A NEXT DOMAIN ═══
+                   `TabComplete` offered "you cleared Billing — go to Risk
+                   flags", which was the surface's whole reward loop when it held
+                   four queues. There is no next tab now, so it renders the
+                   cleared state alone and `nextDomainAfter` loses its only
+                   caller here. Phase C's Home is where a supervisor is sent
+                   next; sending them there from this card would be a cross-
+                   surface CTA built before the surface exists. */
+                <TabComplete domain={activeDomain} />
               ) : (
                 <div
                   ref={paneRef}

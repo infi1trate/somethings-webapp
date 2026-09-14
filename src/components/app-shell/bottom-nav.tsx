@@ -44,7 +44,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import Link from "next/link";
-import type { SidebarItemDef } from "@/components/settings/nav-items";
+import {
+  badgeNounFor,
+  type SidebarItemDef,
+} from "@/components/settings/nav-items";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -86,7 +89,9 @@ function Cell({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      aria-label={badge > 0 ? `${item.label}, ${badge} unread` : undefined}
+      aria-label={
+        badge > 0 ? `${item.label}, ${badge} ${badgeNounFor(item.id)}` : undefined
+      }
       className={cn(
         // `h-[68px]` is the frame's item height inside its 72px pill. Equal
         // `flex-1` cells rather than the frame's asymmetric padding — see the

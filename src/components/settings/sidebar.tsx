@@ -6,6 +6,7 @@ import { HelpCircle, Settings } from "lucide-react";
 import Link from "next/link";
 import { AccountPopover } from "@/components/settings/account-popover";
 import {
+  badgeNounFor,
   railItems,
   type SidebarItemDef,
 } from "@/components/settings/nav-items";
@@ -34,8 +35,11 @@ interface SettingsSidebarProps {
    *  mentor personas, the Photo-row asset for lead/supervisor. Feeds the
    *  account popover the avatar opens (settings-04). */
   avatarSrc?: string | null;
-  /** Unread counts by item id (e.g. { activity: 2 }) — red dot badge on the
-   *  icon tile, mirroring the Supervisor console's treatment. */
+  /** Counts by item id (e.g. { activity: 2, tasks: 15 }) — dot badge on the
+   *  icon tile, mirroring the Supervisor console's treatment. WHAT IS COUNTED
+   *  DIFFERS BY DESTINATION: Activity counts unread notifications, Tasks counts
+   *  open reviews. `badgeNounFor` supplies the right noun for the aria label;
+   *  the number itself is the same treatment either way. */
   badges?: Record<string, number>;
   /** Accessible name for the nav landmark — the styling is identical across
    *  roles; only the item set and this label change (e.g. supervisor passes
@@ -123,7 +127,7 @@ export function SettingsSidebar({
                 />
                 {badge > 0 && (
                   <span
-                    aria-label={`${badge} unread`}
+                    aria-label={`${badge} ${badgeNounFor(item.id)}`}
                     className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--state-error)] px-1 text-[10px] font-semibold leading-none text-[var(--text-inverse)]"
                   >
                     {badge}

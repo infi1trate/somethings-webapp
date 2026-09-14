@@ -1,0 +1,137 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "id": "default.subtitle",
+      "label": "subtitle counts billing only",
+      "ok": true,
+      "detail": "Tasks · "
+    },
+    {
+      "id": "default.bands",
+      "label": "both band headers render",
+      "ok": true
+    },
+    {
+      "id": "default.no-tabs",
+      "label": "no tab row survives",
+      "ok": true
+    },
+    {
+      "id": "default.first-row-top",
+      "label": "y of the first row",
+      "measured": 155
+    },
+    {
+      "id": "breach.subtitle",
+      "label": "overdue clause appears",
+      "ok": true
+    },
+    {
+      "id": "breach.chip",
+      "label": "the row carries an Overdue chip",
+      "ok": true
+    },
+    {
+      "id": "breach.single-band",
+      "label": "a lone band still labels itself",
+      "ok": true
+    },
+    {
+      "id": "error.retry",
+      "label": "the list errors with a retry",
+      "ok": true
+    },
+    {
+      "id": "error.no-tab-copy",
+      "label": "no copy refers to other tabs",
+      "ok": true
+    },
+    {
+      "id": "error.no-domain-copy",
+      "label": "no copy refers to other domains",
+      "ok": true
+    },
+    {
+      "id": "error.retry-works",
+      "label": "retry restores the list",
+      "ok": true
+    },
+    {
+      "id": "partial.billing-healthy",
+      "label": "partial leaves billing fully loaded",
+      "ok": true
+    },
+    {
+      "id": "loading.run1",
+      "label": "selection 1 replays the sequence",
+      "ok": true
+    },
+    {
+      "id": "loading.run2",
+      "label": "selection 2 replays the sequence",
+      "ok": true
+    },
+    {
+      "id": "review.three-kinds",
+      "label": "every proposal kind is reachable",
+      "ok": true,
+      "detail": "Change proposed / Presentation proposed / Renewal proposed"
+    },
+    {
+      "id": "gate.refuses",
+      "label": "an undocumented review is refused, and told what is missing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "mechanics.submit",
+      "label": "⌘/Ctrl+Enter submits a documented review",
+      "ok": true,
+      "detail": "Sofia G. → Mei W."
+    },
+    {
+      "id": "mechanics.auto-advance",
+      "label": "the queue moves to the next item on its own",
+      "ok": true
+    },
+    {
+      "id": "mechanics.row-gone",
+      "label": "the resolved row leaves the list",
+      "ok": true
+    },
+    {
+      "id": "mechanics.undo-restores",
+      "label": "undo puts the row back",
+      "ok": true
+    },
+    {
+      "id": "mechanics.undo-reselects",
+      "label": "undo reselects what it restored",
+      "ok": true,
+      "detail": "Mei W. → Sofia G."
+    },
+    {
+      "id": "retire.header",
+      "label": "a cleared band reports the clearance rather than vanishing",
+      "ok": true,
+      "detail": "Monthly re-review — cleared · 7 today"
+    },
+    {
+      "id": "retire.other-band",
+      "label": "the other band is untouched",
+      "ok": true
+    },
+    {
+      "id": "empty.copy",
+      "label": "the emptied surface says nothing is open",
+      "ok": true,
+      "detail": "Tasks Nothing open No open tasks Every queue is clear. Go to ongoing chats"
+    },
+    {
+      "id": "empty.skips-retirement",
+      "label": "the page empty replaces the band beat",
+      "ok": true
+    }
+  ]
+}

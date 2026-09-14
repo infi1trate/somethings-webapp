@@ -33,7 +33,7 @@ import { TASK_DOMAINS, isActiveEscalation, isBreached, slaRemaining, type TaskDo
  *    slaRemaining       ASC    then whatever runs out soonest
  *    openedAt           ASC    stable tiebreak
  *
- *  WHY BREACH OUTRANKS TIER: a breached orange flag beats an on-track red one.
+ *  WHY BREACH OUTRANKS TIER: a breached clinical flag beats an on-track imminent one.
  *  That is deliberate and it is the whole point of putting breach second — the
  *  ladder says what matters in the abstract, breach says what has already been
  *  failed. Reversing them would let a queue of on-track high-tier work hide an
@@ -156,8 +156,8 @@ export function headerCounts(items: TaskItem[], now: number) {
  *  on the same calendar day as `now`.
  *
  *  Note the domains it reports: §1 names escalations, flags and billing —
- *  monitoring is deliberately absent from the header counters, because closing a
- *  green-flag review is not an achievement worth a counter. Monitoring still has
+ *  the routine tier is deliberately absent from the header counters, because
+ *  closing a routine review is not an achievement worth a counter. It still has
  *  its own tab and its own list. */
 export function closedToday(items: TaskItem[], now: number): Partial<Record<TaskDomain, number>> {
   const sameDay = (a: number, b: number) => {

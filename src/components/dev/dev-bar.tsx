@@ -411,7 +411,15 @@ export function DevBar() {
           {/* TODO-COPY */}
           {/* LABEL GOES, CONTROL STAYS — see the group note. */}
           <span className="hidden text-[var(--text-muted)] lg:inline">Scenario</span>
+          {/* ═══ THE NAME HAS TO SURVIVE THE LABEL BEING HIDDEN ═══
+              The `<label>` wrapper names this control only while the span inside
+              it renders, and the span is `hidden … lg:inline` — so below the
+              `lg` breakpoint the select had NO accessible name at all. Axe
+              reported it as `select-name`, critical, on every page carrying the
+              dev bar. Pre-existing and dev-only, fixed here because it was
+              polluting arch-B's sweep and the fix is one attribute. */}
           <select
+            aria-label="Prototype scenario"
             /* ═══ THE VALUE FOLLOWS THE SCREEN, NOT THE LAST CLICK ═══
                One select, two independent axes: the record scenario is derived
                from the URL, the activity scenario is a store field. Showing
@@ -567,6 +575,7 @@ export function DevBar() {
             </span>
           </span>
           <select
+            aria-label={`Load state (${LOAD_STATE_SCREENS.join(", ")})`}
             value={loadState}
             onChange={(e) => setDevLoadState(e.target.value as LoadState)}
             className={cn(

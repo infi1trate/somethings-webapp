@@ -9,9 +9,32 @@
 // `useId`, so element ids are stable across runs and `outerHTML` is a fair
 // comparison — which is the fact that makes this approach available at all.
 //
-// `openView` PINS THE CLOCK, so the dates inside the card ("Jul 11, 2026 – Sep
-// 11, 2026", "2d open") are deterministic. Without that this would fail on a day
-// boundary and teach everyone to ignore it.
+// ═══ IT IS A SAME-DAY GATE, AND THAT IS ENCODED RATHER THAN ASSUMED ═══
+//
+// This file originally claimed `openView` pins the clock so the card's dates are
+// deterministic. IT DOES NOT. `openView` pins the device mock's status-bar STRING
+// ("9:41") for the phone preview and nothing else — its own comment says so:
+// "the fixtures' relative dates already drift, but only daily."
+//
+// So every date the card renders ("Aug 29, 2026", "Jul 11, 2026 – Sep 11, 2026")
+// is `ago(Date.now(), n)` and moves at midnight. Measured three days after the
+// baseline was taken: all 17 snapshots differed, every one of them at a date and
+// every one with IDENTICAL LENGTH — the signature of "Aug 26" becoming "Aug 29".
+// Not one byte of markup had changed.
+//
+// A gate that reports seventeen regressions for a reason that is not a
+// regression is worse than no gate: the next person either panics or regenerates
+// the baseline to make it stop, and regenerating to silence a failure is how a
+// parity check becomes a rubber stamp.
+//
+// SO THE BASELINE CARRIES THE DAY IT WAS TAKEN, and a comparison across a day
+// boundary REFUSES rather than diffing. Dates are not normalised away: this gate
+// exists to catch unintended output changes, and a changed date format is
+// exactly such a change. The constraint is real, so it is stated and enforced
+// instead of hidden.
+//
+// USE IT THE WAY IT WAS USED: capture on a clean tree, do the work, compare the
+// same day.
 //
 // ═══ WHAT IS NORMALISED, AND WHY EACH ONE IS SAFE ═══
 //
@@ -92,6 +115,9 @@ const failValidation = (page) =>
     [...c.querySelectorAll("button")].find((b) => b.textContent.trim() === "Submit")?.click();
   }, CARD);
 
+/** The day the fixtures' relative dates resolve against. */
+const today = () => new Date().toISOString().slice(0, 10);
+
 await mkdir(OUT, { recursive: true });
 const version = await readStoreVersion();
 const browser = await launch();
@@ -132,13 +158,27 @@ for (const rec of RECORDS) {
 await browser.close();
 
 if (WRITE) {
-  await writeFile(FILE, JSON.stringify(shots, null, 2));
+  await writeFile(FILE, JSON.stringify({ capturedOn: today(), shots }, null, 2));
   console.log(`baseline written: ${Object.keys(shots).length} snapshots`);
   for (const [k, v] of Object.entries(shots)) console.log(`  ${k} — ${v ? v.length : "NULL"} chars`);
   process.exit(0);
 }
 
-const baseline = JSON.parse(await readFile(FILE, "utf8"));
+const file = JSON.parse(await readFile(FILE, "utf8"));
+/* A baseline written before `capturedOn` existed has no day to check, and
+   cannot be compared honestly — it is treated as stale rather than trusted. */
+const baseline = file.shots ?? {};
+if (file.capturedOn !== today()) {
+  console.log(
+    `STALE BASELINE — captured ${file.capturedOn ?? "before this check existed"}, today is ${today()}.\n` +
+      `The fixtures' dates are relative to now and move at midnight, so a byte\n` +
+      `comparison across days reports differences that are not regressions.\n\n` +
+      `Re-capture on a CLEAN TREE and compare the same day:\n` +
+      `  git stash && node scripts/responsive/review-body-parity.mjs --write && git stash pop\n` +
+      `  node scripts/responsive/review-body-parity.mjs`
+  );
+  process.exit(2);
+}
 const keys = [...new Set([...Object.keys(baseline), ...Object.keys(shots)])];
 const diffs = [];
 for (const k of keys) {

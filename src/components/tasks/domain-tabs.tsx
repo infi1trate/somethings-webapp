@@ -22,7 +22,7 @@
 // competes.
 //
 // FIXED ORDER, NEVER REORDERED, NEVER HIDDEN (locked decision 7). Escalations ·
-// Risk flags · Billing · Monitoring, straight from TASK_DOMAINS. Breach is
+// Risk flags · Billing · Routine review, straight from TASK_DOMAINS. Breach is
 // expressed by TREATMENT, never by position — a breached domain does not jump to
 // the front, because a board whose cards move is a board a supervisor has to
 // re-read every time they look at it. Zero-count cards render de-emphasized rather
@@ -36,7 +36,7 @@
 //   · No filled saturated red here — that is the Respond strip and the interrupt
 //     banner only. These are pale tint wells with deep same-hue ink.
 //   · Breach uses ONE compact chip pattern, shared with the row and the pane
-//     header (see BreachChip below, exported for exactly that reason).
+//     header (see BreachChip, which lives in `chips.tsx` for that reason).
 //
 // REAL TAB SEMANTICS. These are `role="tab"` in a `role="tablist"` with arrow-key
 // navigation, one tab stop for the set — the same APG pattern the Activity rail
@@ -74,32 +74,23 @@ const DOMAIN_VISUAL: Record<
     bg: "var(--task-tint-billing-bg)",
     fg: "var(--task-tint-billing-fg)",
   },
-  monitoring: {
+  routineFlag: {
     icon: ClipboardCheck,
-    bg: "var(--task-tint-monitoring-bg)",
-    fg: "var(--task-tint-monitoring-fg)",
+    bg: "var(--task-tint-routine-bg)",
+    fg: "var(--task-tint-routine-fg)",
   },
 };
 
-/** THE ONE BREACH CHIP, used on the tab, the row and the pane header (§3.3's
- *  alarm-budget rule: "one compact chip pattern everywhere"). Exported so the
- *  other two surfaces consume it rather than each growing a lookalike.
- *
- *  NEVER COLOUR ALONE — icon plus text, always. */
-export function BreachChip({ label }: { label: string }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold leading-[16px]"
-      style={{
-        backgroundColor: "var(--band-clay-bg)",
-        color: "var(--band-clay-fg)",
-      }}
-    >
-      <AlertTriangle className="size-3 shrink-0" aria-hidden />
-      {label}
-    </span>
-  );
-}
+/* `BreachChip` MOVED TO `chips.tsx` (arch-A). It is required to be one pattern
+   system-wide and could not stay inside the four-domain navigator that scoping
+   Tasks to billing retires; the card below still draws it, from there.
+
+   THE RE-EXPORT THAT SAT HERE IS GONE. It was a compatibility shim for callers
+   importing `BreachChip` from this file, and A2 found there are none left —
+   `task-pane.tsx`, the only other consumer, reads it from `chips.tsx` directly.
+   A re-export nobody imports is surface to keep in sync for no reader. */
+import { BreachChip } from "@/components/tasks/chips";
+
 
 /** TODO-COPY, AND THE COPY IS GENUINELY AMBIGUOUS — see gap row 221.
  *
@@ -107,7 +98,7 @@ export function BreachChip({ label }: { label: string }) {
  *  "1 item past its 24h deadline" (names the SLA) or "1 item overdue by 24h"
  *  (names the overage). This computes the OVERAGE, because that is the fact the
  *  supervisor cannot get anywhere else — the SLA is implied by the domain, and a
- *  Risk flags tab holding both red (24h) and orange (48h) flags could not name one
+ *  Risk flags tab holding both imminent (24h) and clinical (48h) flags could not name one
  *  SLA truthfully anyway.
  *
  *  The wording stays the spec's until a copywriter settles it. "1 past 2h" does

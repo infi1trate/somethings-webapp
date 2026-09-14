@@ -51,6 +51,7 @@ import {
   Home,
   ListChecks,
   MessageCircle,
+  Radar,
   Users,
   UsersRound,
 } from "lucide-react";
@@ -76,6 +77,18 @@ export const NAV = {
   chat: { id: "chat", label: "Chats", icon: MessageCircle },
   activity: { id: "activity", label: "Activity", icon: Bell },
   tasks: { id: "tasks", label: "Tasks", icon: ListChecks },
+  /** ═══ SUPERVISOR ONLY, AND AFTER TASKS (arch-B) ═══
+   *
+   *  Position follows the shift sequence rather than any ranking of importance:
+   *  a supervisor clears the completion surface, then keeps watch. Putting
+   *  vigilance before completion would make the first thing they see the one
+   *  thing that never finishes.
+   *
+   *  `Radar` rather than a shield or an eye. A shield is the alarm vocabulary and
+   *  this item is permanent chrome — an alarm that is always on is furniture. An
+   *  eye reads as surveillance of the teen, which is the one thing this surface
+   *  must not look like: it watches the SIGNAL, not the person. */
+  monitoring: { id: "monitoring", label: "Monitoring", icon: Radar },
   mentees: { id: "mentees", label: "Mentees", icon: Users },
   team: { id: "team", label: "Team", icon: UsersRound },
   /** BAR-ONLY, STAFF-ONLY. A real route (`/app/people`) carrying a
@@ -86,6 +99,30 @@ export const NAV = {
    *  The design's own grammar says destination. */
   people: { id: "people", label: "People", icon: Users },
 } as const satisfies Record<string, SidebarItemDef>;
+
+/** ═══ WHAT A BADGE COUNTS DEPENDS ON THE DESTINATION (arch-A) ═══
+ *
+ *  Every badge announced "{n} unread", which is Activity's word: an unread thing
+ *  is a message somebody has not opened. Tasks got a badge in arch-A and it is a
+ *  count of OPEN BILLING REVIEWS — work waiting, not mail — so "15 unread" told a
+ *  screen-reader user the wrong thing about the wrong kind of object, and
+ *  "unread" as a substitute for the product's chat vocabulary is prohibited
+ *  outright in aria labels.
+ *
+ *  A NOUN PER ITEM, defaulting to the old word. Activity's label is byte-identical
+ *  to what it was; only an item that declares a noun gets a different one. */
+const BADGE_NOUN: Record<string, string> = {
+  /* TODO-COPY — both placeholders pending Nicole. */
+  tasks: "open",
+  /* NOT "open" — Monitoring's badge counts what is OWED, not what is open, and
+   *  the two differ by two orders of magnitude on this surface. See
+   *  `monitoringObligations`. */
+  monitoring: "overdue",
+};
+
+export function badgeNounFor(itemId: string): string {
+  return BADGE_NOUN[itemId] ?? "unread";
+}
 
 const isStaff = (p: Persona) =>
   p === "lead-mentor" || p === "supervisor" || p === "admin";
@@ -100,6 +137,10 @@ export function railItems(persona: Persona): SidebarItemDef[] {
     NAV.chat,
     NAV.activity,
     NAV.tasks,
+    // SUPERVISOR TIER ONLY (arch-B). A lead or a mentor has no Monitoring
+    // surface, and an item that routes to the unbuilt-section placeholder is
+    // worse than no item — see `hrefFor`'s note on why the allowlist went away.
+    ...(isStaff(persona) && persona !== "lead-mentor" ? [NAV.monitoring] : []),
     NAV.mentees,
     NAV.team,
   ];
@@ -110,7 +151,22 @@ export function railItems(persona: Persona): SidebarItemDef[] {
     : base;
 }
 
-/** THE BOTTOM BAR, below the tablet breakpoint. FOUR ITEMS, NO OVERFLOW. */
+/** THE BOTTOM BAR, below the tablet breakpoint. FOUR ITEMS, NO OVERFLOW.
+ *
+ *  ═══ MONITORING IS NOT HERE, AND THAT IS A REAL GAP (arch-B) ═══
+ *
+ *  Four is a designed cap, not an accident: HIG and Material 3 both top out near
+ *  five, and the seven-cell bar this replaced is what produced the cramped labels
+ *  Phase 2A was built to fix. Adding a fifth cell for one persona would undo that
+ *  phase to serve this one.
+ *
+ *  THE COST, STATED: below the tablet breakpoint a supervisor cannot reach
+ *  Monitoring, and its obligation badge — the only thing surfacing an Imminent
+ *  breach outside the surface itself until Phase C ships Home — is not visible to
+ *  them at all. design-system-gaps.md row 361. The alternative considered and NOT
+ *  taken was swapping People out of the staff bar: that trades a roster a
+ *  supervisor uses daily for an obligation that is usually zero, and it changes a
+ *  shipped surface for an existing persona on this phase's own authority. */
 export function barItems(persona: Persona): SidebarItemDef[] {
   if (isMentor(persona)) {
     return [NAV.home, NAV.chat, NAV.tasks, NAV.mentees];

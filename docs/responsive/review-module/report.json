@@ -1,0 +1,124 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "id": "tasks.rationale",
+      "label": "the labelled rationale, not a Notes block",
+      "ok": true
+    },
+    {
+      "id": "tasks.score-strip",
+      "label": "the score strip",
+      "ok": true
+    },
+    {
+      "id": "tasks.denominator",
+      "label": "a score with its denominator",
+      "ok": true
+    },
+    {
+      "id": "tasks.grid",
+      "label": "the answers behind the score",
+      "ok": true
+    },
+    {
+      "id": "tasks.change-code",
+      "label": "the module's own picker control",
+      "ok": true
+    },
+    {
+      "id": "tasks.provenance",
+      "label": "both provenance affordances, and they explain different things",
+      "ok": true,
+      "detail": "About this generated text | About this score"
+    },
+    {
+      "id": "tasks.no-notes-label",
+      "label": "the rationale is not called Notes",
+      "ok": true
+    },
+    {
+      "id": "tasks.no-assigned-survey",
+      "label": "the old metadata cell is gone",
+      "ok": true
+    },
+    {
+      "id": "tasks.on-record",
+      "label": "the host states the code on record",
+      "ok": true
+    },
+    {
+      "id": "tasks.mentorship",
+      "label": "and the mentorship context",
+      "ok": true
+    },
+    {
+      "id": "order.match",
+      "label": "the module's sections read in the same order on both",
+      "ok": true,
+      "detail": "tasks recommendation > rationale > evidence | care recommendation > rationale > evidence"
+    },
+    {
+      "id": "picker.tasks.control",
+      "label": "the module's picker control is present",
+      "ok": true
+    },
+    {
+      "id": "picker.tasks.on-record",
+      "label": "the code on record is marked in the list",
+      "ok": true
+    },
+    {
+      "id": "picker.tasks.closes",
+      "label": "picking closes the dialog",
+      "ok": true
+    },
+    {
+      "id": "picker.tasks.focus",
+      "label": "and hands the keyboard back to the control",
+      "ok": true,
+      "detail": "Change code"
+    },
+    {
+      "id": "picker.tasks.moves",
+      "label": "the recommendation moves with the decision",
+      "ok": true
+    },
+    {
+      "id": "picker.tasks.revert",
+      "label": "and offers the way back out",
+      "ok": true
+    },
+    {
+      "id": "picker.care.control",
+      "label": "the module's picker control is present",
+      "ok": true
+    },
+    {
+      "id": "picker.care.on-record",
+      "label": "the code on record is marked in the list",
+      "ok": true
+    },
+    {
+      "id": "picker.care.closes",
+      "label": "picking closes the dialog",
+      "ok": true
+    },
+    {
+      "id": "picker.care.focus",
+      "label": "and hands the keyboard back to the control",
+      "ok": true,
+      "detail": "Change code"
+    },
+    {
+      "id": "picker.care.moves",
+      "label": "the recommendation moves with the decision",
+      "ok": true
+    },
+    {
+      "id": "picker.care.revert",
+      "label": "and offers the way back out",
+      "ok": true
+    }
+  ]
+}
