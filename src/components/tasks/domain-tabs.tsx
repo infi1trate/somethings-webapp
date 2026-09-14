@@ -36,7 +36,7 @@
 //   · No filled saturated red here — that is the Respond strip and the interrupt
 //     banner only. These are pale tint wells with deep same-hue ink.
 //   · Breach uses ONE compact chip pattern, shared with the row and the pane
-//     header (see BreachChip below, exported for exactly that reason).
+//     header (see BreachChip, which lives in `chips.tsx` for that reason).
 //
 // REAL TAB SEMANTICS. These are `role="tab"` in a `role="tablist"` with arrow-key
 // navigation, one tab stop for the set — the same APG pattern the Activity rail
@@ -81,12 +81,15 @@ const DOMAIN_VISUAL: Record<
   },
 };
 
-/* `BreachChip` MOVED TO `chips.tsx` (arch-A) and is re-exported here so this
-   file's own cards keep working while Phase B decides its fate. It is required
-   to be one pattern system-wide and could not stay inside the four-domain
-   navigator that scoping Tasks to billing retires. */
+/* `BreachChip` MOVED TO `chips.tsx` (arch-A). It is required to be one pattern
+   system-wide and could not stay inside the four-domain navigator that scoping
+   Tasks to billing retires; the card below still draws it, from there.
+
+   THE RE-EXPORT THAT SAT HERE IS GONE. It was a compatibility shim for callers
+   importing `BreachChip` from this file, and A2 found there are none left —
+   `task-pane.tsx`, the only other consumer, reads it from `chips.tsx` directly.
+   A re-export nobody imports is surface to keep in sync for no reader. */
 import { BreachChip } from "@/components/tasks/chips";
-export { BreachChip };
 
 
 /** TODO-COPY, AND THE COPY IS GENUINELY AMBIGUOUS — see gap row 221.
