@@ -38,37 +38,68 @@
 // whose discs collide are still told apart by the letter, the name beside it, and
 // the mentor line under that (SC 1.4.1).
 
-/** Ink and ground, per identity. Eight pairs: enough that a collision is
- *  uncommon in a twelve-row viewport, few enough that they stay distinguishable
- *  from each other.
+/** ═══ ONE HUE PER IDENTITY, COMPOSED WITH WHATEVER SURFACE IT LANDS ON ═══
  *
- *  ALL RATIOS MEASURED, NOT ESTIMATED — the first draft of this table carried
- *  guessed figures and every one of them was wrong by 0.1–0.4.
+ *  Eight hues, and the disc is a 22% mix of one of them into the card. Not a
+ *  fixed pair of colours — that is the version this replaced, and it failed in
+ *  dark mode in a way that mattered.
  *
- *    ink / ground    6.99 – 8.57   (AA needs 4.5 for the initial at 12px)
- *    ground / card   1.14 – 1.18
- *    ground / s2     1.12 – 1.16   — the SELECTED-ROW ground
- *    ink / s2        6.02 – 7.65   — the initial when the disc vanishes into it
+ *  MEASURED, the fixed-pair version: grounds at 1.14–1.18:1 against the LIGHT
+ *  card (quiet, as intended) and 11.30–11.71:1 against the DARK one. The discs
+ *  are inline styles from literals, so they do not theme — on a dark row eight
+ *  pale circles became the brightest thing on the surface, competing for
+ *  attention with the one saturated treatment this page reserves for an active
+ *  escalation. On a safeguarding surface that is the more serious of the two
+ *  failures available.
  *
- *  THE `ground / s2` COLUMN IS WHY THESE ARE LIGHTER THAN THEY FIRST WERE. The
- *  draft sat at the lightness of the `--band-*-bg` tints, which measured 1.00:1
- *  against `--surface-s2` — so on a SELECTED row the disc's edge disappeared
- *  entirely and the initial floated in the row fill. Not an accessibility
- *  failure (the letter stayed legible, and the disc is `aria-hidden`), but a
- *  shape that exists on eleven rows and not on the twelfth reads as a rendering
- *  bug. Raising the grounds keeps the disc a disc in both states. */
-const DISCS = [
-  { bg: "#efeafb", fg: "#4a3585" }, // violet   — 8.34:1
-  { bg: "#e8ecfd", fg: "#2b3d80" }, // indigo   — 8.57:1
-  { bg: "#e2f2f0", fg: "#1f5450" }, // teal     — 7.45:1
-  { bg: "#fdeee0", fg: "#7a4318" }, // ochre    — 6.99:1
-  { bg: "#f9ebf7", fg: "#6d2a67" }, // mulberry — 8.38:1
-  { bg: "#e7f4e7", fg: "#26522c" }, // moss     — 7.95:1
-  { bg: "#feeae5", fg: "#7d3327" }, // brick    — 7.63:1
-  { bg: "#e9f0f8", fg: "#2f4a66" }, // slate    — 7.98:1
+ *  `color-mix` with `--surface-card` themes for free and lands quiet in both:
+ *  1.43–1.48:1 in light, 1.05–1.10:1 in dark. The INK is `--text-primary`
+ *  rather than a hue, which makes the initial 11.3–11.7:1 in both modes with no
+ *  per-hue tuning to get wrong.
+ *
+ *  ═══ WHAT THIS COSTS, MEASURED AND NOT PAPERED OVER ═══
+ *
+ *  In dark mode the hue is close to imperceptible — 1.05:1 against the card is a
+ *  tint you have to look for. Identity falls back to the initial, which was
+ *  always the primary carrier (SC 1.4.1: two teens whose discs collide are still
+ *  told apart by the letter, the name beside it and the mentor line under that).
+ *  A border at a deeper mix was tried and does not rescue it: these eight values
+ *  are DARK inks chosen for light grounds, so any mix of them into a dark card is
+ *  still dark — 1.16–1.31:1 against the card at 55%.
+ *
+ *  The real fix is a ramp with its own light and dark steps, which is gap row
+ *  364 and which `lib/anno/identity.ts` needs too. Until that exists, quiet in
+ *  both modes beats loud in one.
+ *
+ *  ═══ THE RULE THIS EXISTS UNDER, RESTATED BECAUSE IT IS THE POINT ═══
+ *
+ *  COLOUR HERE CARRIES IDENTITY AND NOTHING ELSE. Not tier, not breach, not
+ *  status, not how many flags the teen is carrying. A worklist where the discs
+ *  vary by hue AND the tier varies by hue has two colour languages in one row and
+ *  a reader learns neither. Every state on this row is carried by a word:
+ *  "Overdue", "2 flags", "3 clinical · 2 routine", the band header above it.
+ *
+ *  If you are about to make this function take a tier, a breach flag or a count —
+ *  that is the change this comment exists to stop. */
+const HUES = [
+  "#4a3585", // violet
+  "#2b3d80", // indigo
+  "#1f5450", // teal
+  "#7a4318", // ochre
+  "#6d2a67", // mulberry
+  "#26522c", // moss
+  "#7d3327", // brick
+  "#2f4a66", // slate
 ] as const;
 
+/** How much hue reaches the ground. 22% is where the tint is legible in light
+ *  without the disc becoming an object in its own right; see the note above for
+ *  what it costs in dark. */
+const GROUND_MIX = "22%";
+
 export interface AvatarDisc {
+  /** A `color-mix()` expression, not a colour — it resolves against whatever
+   *  `--surface-card` is in the active theme. */
   bg: string;
   fg: string;
 }
@@ -88,8 +119,12 @@ function hash(id: string): number {
  *  count does, when one is resolved, or between renders — a colour that moves is
  *  a colour that looks like it means something. */
 export function discFor(id: string): AvatarDisc {
-  return DISCS[hash(id) % DISCS.length];
+  const hue = HUES[hash(id) % HUES.length];
+  return {
+    bg: `color-mix(in oklab, ${hue} ${GROUND_MIX}, var(--surface-card))`,
+    fg: "var(--text-primary)",
+  };
 }
 
-export const DISC_COUNT = DISCS.length;
-export { DISCS as IDENTITY_DISCS };
+export const DISC_COUNT = HUES.length;
+export { HUES as IDENTITY_HUES };

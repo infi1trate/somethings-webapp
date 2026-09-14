@@ -66,6 +66,98 @@ export const LOAD_STAGES = 4;
  *  shows its inline error ONLY if the selected item's domain failed. A pane that
  *  errored while showing a healthy Billing item would be claiming an outage that
  *  did not touch it. */
+/** ═══ MONITORING'S OWN HIERARCHY — FIVE SURFACES, NOT FOUR ═══
+ *
+ *  Tasks resolves tab-cards → list → pane → excerpt. Monitoring has no cards and
+ *  two things Tasks does not: an escalation region above everything, and band
+ *  headers whose counts a reader uses to decide where to start.
+ *
+ *  THE ORDER IS THE ORDER A SUPERVISOR NEEDS IT IN, which is not the order the
+ *  data would arrive in:
+ *
+ *    1 escalation region   is anyone in danger right now
+ *    2 group headers       how much is there, and at which tiers
+ *    3 list rows           which specific ones
+ *    4 pane                the evidence for the first one
+ *    5 excerpt             what was actually said
+ *
+ *  A SEPARATE FUNCTION RATHER THAN A WIDER `LoadPlan`. Tasks' four surfaces and
+ *  these five are different sets, and one plan covering both would carry two
+ *  fields that are always null on one surface — which is how a renderer ends up
+ *  branching on a field that cannot apply to it. `LoadState` is shared; the
+ *  mapping is not. */
+export interface MonitoringLoadPlan {
+  escalations: SurfaceState;
+  headers: SurfaceState;
+  list: SurfaceState;
+  pane: SurfaceState;
+  excerpt: SurfaceState;
+}
+
+export const MONITORING_LOAD_STAGES = 5;
+
+export function monitoringLoadPlanFor(
+  load: LoadState,
+  stage: number
+): MonitoringLoadPlan {
+  if (load === "ready") {
+    return {
+      escalations: "ready",
+      headers: "ready",
+      list: "ready",
+      pane: "ready",
+      excerpt: "ready",
+    };
+  }
+
+  if (load === "error") {
+    /* A TOTAL OUTAGE TAKES THE WORK, NOT THE CHROME. The page header stays — a
+       page with no title is a broken build rather than a failed fetch — and
+       everything that would state a fact about the caseload says it could not. */
+    return {
+      escalations: "error",
+      headers: "error",
+      list: "error",
+      pane: "error",
+      excerpt: "error",
+    };
+  }
+
+  if (load === "partial") {
+    /* ═══ PARTIAL FAILURE MEANS SOMETHING DIFFERENT HERE ═══
+     *
+     *  On Tasks it is per-DOMAIN: the flag pipeline fails and billing stays
+     *  healthy, so a reader switches tabs and sees one broken list beside a
+     *  working one. Monitoring has no tabs and its domains are all flag domains,
+     *  so that demonstration has nowhere to happen — and after arch-A scoped
+     *  Tasks to billing, "Partial" renders there exactly like "Ready" (gap row
+     *  360). It would have been inert on both surfaces.
+     *
+     *  SO IT SPLITS BY SYSTEM INSTEAD, which is the realistic partition and the
+     *  one this surface can actually show: the ESCALATION service and the
+     *  CONVERSATION service are not the flag pipeline. The flags load; the
+     *  escalation region and the transcript do not. That also demonstrates the
+     *  thing the excerpt's independent state exists for — a supervisor who
+     *  cannot see the transcript can still act on the flag. */
+    return {
+      escalations: "error",
+      headers: "ready",
+      list: "ready",
+      pane: "ready",
+      excerpt: "error",
+    };
+  }
+
+  // ── loading: the staged hierarchy.
+  return {
+    escalations: stage >= 1 ? "ready" : "loading",
+    headers: stage >= 2 ? "ready" : "loading",
+    list: stage >= 3 ? "ready" : "loading",
+    pane: stage >= 4 ? "ready" : "loading",
+    excerpt: stage >= 5 ? "ready" : "loading",
+  };
+}
+
 export function loadPlanFor(
   load: LoadState,
   stage: number,

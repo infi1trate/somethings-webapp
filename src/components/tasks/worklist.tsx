@@ -55,6 +55,7 @@ import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
 import { compositionLabel } from "@/lib/tasks/monitoring-list";
 import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem, type TaskType } from "@/lib/tasks/types";
+import type { SurfaceState } from "@/lib/tasks/load-plan";
 import { cn } from "@/lib/utils";
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
@@ -565,6 +566,7 @@ export function Worklist({
   domain,
   subject,
   emptyLine,
+  headersState = "ready",
   now,
   selectedId,
   state,
@@ -595,6 +597,13 @@ export function Worklist({
   subject?: string;
   /** The empty line, when `domain` is null. */
   emptyLine?: string;
+  /** ═══ THE HEADERS RESOLVE BEFORE THE ROWS (arch-B) ═══
+   *  Monitoring's load hierarchy puts the band counts ahead of the rows, because
+   *  "how much is there, and at which tiers" is the question a supervisor asks
+   *  before "which specific ones". While this is "loading" the header renders its
+   *  label with the COUNT withheld rather than a placeholder count, which would
+   *  be a number that is wrong for 240ms. */
+  headersState?: SurfaceState;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
    *  otherwise. */
@@ -858,18 +867,45 @@ export function Worklist({
   const frame =
     "overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]";
 
-  if (state === "loading")
+  if (state === "loading") {
+    /* ═══ THE HEADERS CAN ARRIVE BEFORE THE ROWS (arch-B) ═══
+     *
+     *  Monitoring's load hierarchy resolves band counts at stage 2 and rows at
+     *  stage 3, because "how much is there, and at which tiers" is the question a
+     *  supervisor asks before "which specific ones". That staging did nothing at
+     *  first: this branch returned a flat skeleton and the sections — which is
+     *  where the headers live — only rendered once the whole list was ready. The
+     *  probe caught it by looking for a band name 520ms in and finding none.
+     *
+     *  So when the headers have resolved and the rows have not, the bands render
+     *  with skeleton rows beneath them, each band's skeleton as tall as its own
+     *  contents. A reader sees the shape of the caseload before its detail, which
+     *  is the whole point of ordering the two.
+     *
+     *  Tasks never reaches this branch with `headersState` set, so its loading
+     *  state is byte-identical to what it was. */
+    const headersReady = headersState === "ready" && showBands && bands.length > 0;
     return (
       <div className={cn(frame, "h-full")} ref={scrollerRef}>
-        {/* Enough rows to fill whatever height this frame got, so the load does
-            not read as a five-item list. */}
-        <ListSkeleton rows={Math.max(5, Math.ceil((viewport.height || 560) / ROW_H))} />
+        {headersReady ? (
+          bands.map((band) => (
+            <div key={band.id} role="group" aria-label={bandHeaderLabel(band)}>
+              <BandHeader band={band} />
+              <ListSkeleton rows={Math.min(band.entries.length, 6)} />
+            </div>
+          ))
+        ) : (
+          /* Enough rows to fill whatever height this frame got, so the load does
+             not read as a five-item list. */
+          <ListSkeleton rows={Math.max(5, Math.ceil((viewport.height || 560) / ROW_H))} />
+        )}
         <p className="sr-only" role="status">
           {/* TODO-COPY */}
           Loading {subjectLabel}.
         </p>
       </div>
     );
+  }
   if (state === "error")
     return (
       <div className={frame}>
@@ -914,7 +950,9 @@ export function Worklist({
             role="group"
             aria-label={bandHeaderLabel(section.band)}
           >
-            {showBands && <BandHeader band={section.band} />}
+            {showBands && (
+              <BandHeader band={section.band} countPending={headersState !== "ready"} />
+            )}
             {/* SPACERS, NOT RENDERED ROWS. Two divs stand in for everything
                 outside the window, which is what keeps a hundred-row list at a
                 dozen mounted nodes. */}
@@ -954,7 +992,17 @@ export function Worklist({
 /** THE STICKY BAND HEADER. Quiet by construction: muted ink, no fill beyond the
  *  card's own, no rule of its own — the first row's hairline already separates it.
  *  It is a wayfinding label, not a section title competing with the rows. */
-function BandHeader({ band }: { band: TierBand }) {
+function BandHeader({
+  band,
+  countPending,
+}: {
+  band: TierBand;
+  /** The rows have not arrived, so the count would be a number that is wrong
+   *  for 240ms. The band NAME still renders — it is the part that is already
+   *  known, and withholding it too would leave the list unlabelled for the one
+   *  moment a reader is deciding where to start. */
+  countPending?: boolean;
+}) {
   return (
     <div
       aria-hidden
@@ -971,7 +1019,12 @@ function BandHeader({ band }: { band: TierBand }) {
     >
       {/* `tabular-nums` — the counts tick down as a supervisor works, and
           proportional figures would shift the whole line each time. */}
-      <span className="tabular-nums">{bandHeaderLabel(band)}</span>
+      <span className="tabular-nums">
+        {countPending ? band.label : bandHeaderLabel(band)}
+      </span>
+      {countPending && (
+        <span className="ml-2 inline-block h-2 w-6 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+      )}
     </div>
   );
 }

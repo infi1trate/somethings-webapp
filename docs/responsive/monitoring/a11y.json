@@ -1,0 +1,47 @@
+{
+  "base": "http://localhost:3000",
+  "runs": [
+    {
+      "viewport": "xs",
+      "theme": "light",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "dark",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "light",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "dark",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "light",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "dark",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "light",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "dark",
+      "violations": 0
+    }
+  ],
+  "byRule": {},
+  "total": 0
+}

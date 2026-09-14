@@ -136,7 +136,7 @@
       "id": "keyboard.survives",
       "label": "selection survives 80 presses of j",
       "ok": true,
-      "detail": "Caleb O., to Omar Haddad, 2d open, 4:04 PM"
+      "detail": "Caleb O., to Omar Haddad, 2d open, 4:25 PM"
     },
     {
       "id": "keyboard.in-view",
@@ -242,6 +242,12 @@
       "ok": true
     },
     {
+      "id": "esc.selection",
+      "label": "exactly one row is marked current",
+      "ok": true,
+      "detail": "1 current"
+    },
+    {
       "id": "esc.pane-header",
       "label": "the pane header does not call it open either",
       "ok": true,
@@ -250,6 +256,68 @@
     {
       "id": "esc.absent",
       "label": "no region when there is nothing in it",
+      "ok": true
+    },
+    {
+      "id": "load.replays",
+      "label": "Loading replays on every selection, not just the first",
+      "ok": true,
+      "detail": "true, true"
+    },
+    {
+      "id": "load.headers-first",
+      "label": "a band names itself before it can count",
+      "ok": true,
+      "detail": "Monitoring 2 past 24h · 2 write-ups due · 69 flags in review Naomi R. "
+    },
+    {
+      "id": "state.error",
+      "label": "the list errors with a retry",
+      "ok": true
+    },
+    {
+      "id": "state.error-escalations",
+      "label": "an escalation outage is not reported as calm",
+      "ok": true,
+      "detail": "Escalations couldn’t be loaded, so this page can’t say whether any are open."
+    },
+    {
+      "id": "state.retry",
+      "label": "retry restores the list",
+      "ok": true
+    },
+    {
+      "id": "state.partial",
+      "label": "the flags load while the escalation service and the transcript do not",
+      "ok": true,
+      "detail": "excerpt errored"
+    },
+    {
+      "id": "empty.plain",
+      "label": "the empty flags view states a fact",
+      "ok": true,
+      "detail": "Monitoring 0 flags in review No flags in review right now. Select a task to review it. Nex"
+    },
+    {
+      "id": "empty.no-celebration",
+      "label": "and does not congratulate anyone",
+      "ok": true
+    },
+    {
+      "id": "retire.setup",
+      "label": "three tiers, one flag each",
+      "ok": true,
+      "detail": "Imminent — 1 | Clinical review — 1 | Routine review — 1"
+    },
+    {
+      "id": "retire.reports",
+      "label": "the emptied tier says it cleared rather than vanishing",
+      "ok": true,
+      "detail": "Imminent — cleared · 1 today"
+    },
+    {
+      "id": "retire.others-stay",
+      "label": "the other tiers are untouched",
       "ok": true
     }
   ]

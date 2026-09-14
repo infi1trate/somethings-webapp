@@ -43,8 +43,8 @@ import {
   clockFor,
   isAlarming,
   lifecycleOf,
-  type EscalationLifecycle,
 } from "@/lib/tasks/escalation-state";
+import type { SurfaceState } from "@/lib/tasks/load-plan";
 import type { TaskItem } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
@@ -65,22 +65,44 @@ export function clockLabel(item: TaskItem, now: number): string {
   return `${elapsedLabel(clock.at, now)} overdue`;
 }
 
-function StateChip({ state }: { state: EscalationLifecycle }) {
-  /* ICON AND TEXT, NEVER COLOUR ALONE (SC 1.4.1) — and on the saturated ground
-     colour could not carry it anyway. */
-  const Icon = state === "active" ? AlertTriangle : FileText;
-  if (isAlarming(state)) {
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_oklab,var(--task-respond-fg)_20%,transparent)] px-2 py-0.5 text-[11.5px] font-semibold leading-[16px] text-[var(--task-respond-fg)]">
-        <Icon className="size-3 shrink-0" aria-hidden />
-        {LIFECYCLE_LABEL[state]}
-      </span>
-    );
-  }
+/** ═══ A FACT ON THE ROW — AND ON THE ALARM ROW IT HAS NO GROUND ═══
+ *
+ *  MEASURED: the tinted pill this used to draw on the saturated row was
+ *  `--task-respond-fg` at 20% over `--task-respond-bg`, which computes to
+ *  `#d45d4a`, and white on it is **3.84:1** — a fail for 11.5px text, which
+ *  needs 4.5. The pattern came from the Respond strip, so that shipped the
+ *  failure too. Axe found 22 instances across four viewports and both themes.
+ *
+ *  White directly on `--task-respond-bg` is **5.24:1**. A border at the same 20%
+ *  mix would not have rescued it either — `#d45d4a` against `#c9351d` is 1.36:1,
+ *  under the 3:1 a non-text boundary needs, so it would have been an invisible
+ *  fix for a visible failure.
+ *
+ *  So the alarm row's facts are icon plus text with no ground at all. They were
+ *  never told apart by the tint — the icon and the words do that (SC 1.4.1) — and
+ *  the row is already one saturated object, so a second fill inside it was
+ *  decoration that cost contrast. The calm rows keep the pill, where it separates
+ *  a chip from a card that is otherwise the same colour. */
+function Fact({
+  icon: Icon,
+  children,
+  alarming,
+}: {
+  icon: typeof AlertTriangle;
+  children: React.ReactNode;
+  alarming: boolean;
+}) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[11.5px] leading-[16px] text-[var(--text-secondary)]">
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 text-[11.5px] font-semibold leading-[16px]",
+        alarming
+          ? "text-[var(--task-respond-fg)]"
+          : "rounded-full bg-[var(--surface-s1)] px-2 py-0.5 font-normal text-[var(--text-secondary)]"
+      )}
+    >
       <Icon className="size-3 shrink-0" aria-hidden />
-      {LIFECYCLE_LABEL[state]}
+      {children}
     </span>
   );
 }
@@ -102,16 +124,14 @@ function Row({
   const is911 = p.kind === "escalation" ? p.is911 : false;
   const disc = discFor(item.teenId);
   const escalationId =
-    p.kind === "escalation"
+    p.kind === "escalation" || p.kind === "documentation"
       ? p.escalationId
-      : p.kind === "documentation"
-        ? p.escalationId
-        : item.objectId;
+      : item.objectId;
 
-  /** TODO-COPY. The row, spoken. The STATE comes first because it is what
-   *  decides whether this row is read now or later — and on the closed ones it
-   *  is also the correction: a reader who hears "Riley T., closed, write-up due
-   *  in 4 hours" cannot come away thinking anyone is still in danger. */
+  /** TODO-COPY. The row, spoken. THE STATE COMES FIRST because it decides
+   *  whether this row is read now or later — and on the closed ones it is also
+   *  the correction: a reader who hears "Riley T., closed, write-up due in 4
+   *  hours" cannot come away thinking anyone is still in danger. */
   const ariaLabel = [
     item.teenDisplayName,
     LIFECYCLE_LABEL[state].replace(" · ", ", "),
@@ -126,28 +146,49 @@ function Row({
     .join(", ");
 
   return (
-    <li>
-      <div
-        role="option"
-        aria-selected={selected}
-        tabIndex={-1}
-        aria-label={ariaLabel}
+    /* ═══ A LIST AND TWO CONTROLS, NOT A LISTBOX ═══
+     *
+     *  This was `<ul role="listbox">` → `<li>` → `<div role="option">` holding a
+     *  link, and axe rejected it four ways at once: `aria-required-children`
+     *  (the listbox's options were not its children), `aria-required-parent`
+     *  (the options' parent was an `li`), `listitem` (an `li` whose parent had a
+     *  role), and `nested-interactive` — an option may not CONTAIN a control,
+     *  and this one contained the link that is the whole point of the row. 56
+     *  violations, four of the six rules axe reported on this page.
+     *
+     *  The STRUCTURE was wrong rather than the markup. A listbox is for choosing
+     *  one of a set; these rows do two different things — selecting shows the
+     *  evidence in the pane, the link leaves for the escalation flow. So it is a
+     *  plain list, the row body is a button, and the action is its sibling: both
+     *  reachable by Tab, in that order, which is also the order they are used in.
+     *  `aria-current` carries which one the pane is showing. */
+    <li
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2",
+        alarming
+          ? "text-[var(--task-respond-fg)]"
+          : "bg-[var(--surface-card)] text-[var(--text-primary)]",
+        selected &&
+          (alarming
+            ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
+            : "bg-[var(--surface-s2)]")
+      )}
+      style={alarming ? { backgroundColor: "var(--task-respond-bg)" } : undefined}
+      data-anno-ref={`escalation-row:${item.id}`}
+      data-escalation-state={state}
+    >
+      <button
+        type="button"
         onClick={onSelect}
-        data-anno-ref={`escalation-row:${item.id}`}
-        data-escalation-state={state}
+        aria-label={ariaLabel}
+        /* SELECTION IS `aria-current`, NOT `aria-pressed`. The button is not a
+           toggle — pressing it again does not un-show the pane — and "this is
+           the one being shown" is exactly what `current` means. */
+        aria-current={selected ? "true" : undefined}
         className={cn(
-          "flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3",
-          alarming
-            ? "text-[var(--task-respond-fg)]"
-            : "bg-[var(--surface-card)] text-[var(--text-primary)]",
-          // SELECTION IS A RING, NOT A FILL, on the saturated rows: a second fill
-          // over the alarm ground would either wash it out or read as a third
-          // state. On the calm rows it is the same `--surface-s2` the worklist
-          // uses, so selection means one thing on both lists.
-          selected && (alarming ? "ring-2 ring-inset ring-[var(--task-respond-fg)]" : "bg-[var(--surface-s2)]"),
+          "flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-control)] py-1 text-left",
           RING
         )}
-        style={alarming ? { backgroundColor: "var(--task-respond-bg)" } : undefined}
       >
         {alarming ? (
           <AlertTriangle className="size-4 shrink-0" aria-hidden />
@@ -174,7 +215,7 @@ function Row({
             className={cn(
               "block truncate text-[12px] leading-[16px]",
               alarming
-                ? "text-[color-mix(in_oklab,var(--task-respond-fg)_75%,transparent)]"
+                ? "text-[var(--task-respond-fg)]"
                 : "text-[var(--text-secondary)]"
             )}
           >
@@ -187,30 +228,16 @@ function Row({
             closed escalation "No 911" is an absence rather than a decision, and
             the row has a state and a deadline to spend its width on. */}
         {(state === "active" || is911) && (
-          <span
-            className={cn(
-              "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold leading-[16px]",
-              alarming
-                ? "bg-[color-mix(in_oklab,var(--task-respond-fg)_20%,transparent)] text-[var(--task-respond-fg)]"
-                : "bg-[var(--surface-s1)] text-[var(--text-secondary)]"
-            )}
-          >
-            <Phone className="size-3 shrink-0" aria-hidden />
+          <Fact icon={Phone} alarming={alarming}>
             {/* TODO-COPY */}
             {is911 ? "911 dispatched" : "No 911"}
-          </span>
+          </Fact>
         )}
 
-        <StateChip state={state} />
+        <Fact icon={state === "active" ? AlertTriangle : FileText} alarming={alarming}>
+          {LIFECYCLE_LABEL[state]}
+        </Fact>
 
-        {/* ═══ THE BREACH CHIP WAS HERE AND IT WAS THE THIRD VOICE ═══
-            MEASURED on the rendered row: "Closed · write-up overdue" · "Past 24h"
-            · "7h overdue" — three signals for one fact, on a surface whose whole
-            discipline is that attention is a budget. The state chip says WHICH
-            state; the clock says HOW LATE, and says it more precisely than a
-            chip naming the SLA can. `BreachChip` earns its place on a flag row,
-            where nothing else reports lateness. Here it was the redundancy the
-            alarm budget exists to stop. */}
         {/* THE CLOCK, mono so a live counter does not jitter as digits change
             width — and so the column reads as a column. */}
         <span
@@ -222,31 +249,80 @@ function Row({
         >
           {clockLabel(item, now)}
         </span>
+      </button>
 
-        <Link
-          href={escalationHref(escalationId)}
-          onClick={(e) => e.stopPropagation()}
-          className={cn(
-            "inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-[13px] font-semibold",
-            alarming
-              ? "bg-[var(--task-respond-fg)] text-[var(--task-respond-bg)] transition-opacity hover:opacity-90"
-              : "border border-[color:var(--border-contour)] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
-            RING
-          )}
-        >
-          {/* TODO-COPY. THE ACTION NAMES THE WORK, NOT THE OBJECT. "Open
-              escalation" on a closed one would send a reader looking for a
-              crisis that is over; what is waiting for them is the write-up. */}
-          {state === "active" ? "Open escalation" : "Open documentation"}
-        </Link>
-      </div>
+      <Link
+        href={escalationHref(escalationId)}
+        className={cn(
+          "inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-[13px] font-semibold",
+          alarming
+            ? "bg-[var(--task-respond-fg)] text-[var(--task-respond-bg)] transition-opacity hover:opacity-90"
+            : "border border-[color:var(--border-contour)] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
+          RING
+        )}
+      >
+        {/* TODO-COPY. THE ACTION NAMES THE WORK, NOT THE OBJECT. "Open
+            escalation" on a closed one would send a reader looking for a crisis
+            that is over; what is waiting for them is the write-up. */}
+        {state === "active" ? "Open escalation" : "Open documentation"}
+      </Link>
     </li>
+  );
+}
+
+/** ═══ THE REGION'S OWN SKELETON ═══
+ *  Two placeholder rows at the height real ones occupy, so resolving does not
+ *  move the flags view under the reader's eye. Two rather than three: the
+ *  measured fixtures carry one to three escalations, and a skeleton promising
+ *  more than usually arrives is a worse signal than one promising fewer. */
+function RegionSkeleton() {
+  return (
+    <section
+      aria-hidden
+      className="mt-4 shrink-0 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)]"
+    >
+      {[0, 1].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 py-3 first:border-t-0"
+        >
+          <span className="size-7 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+          <span className="min-w-0 flex-1 space-y-1.5">
+            <span className="block h-3 w-40 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+            <span className="block h-2.5 w-24 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+          </span>
+          <span className="h-3 w-20 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/** ═══ THE REGION FAILING IS NOT THE REGION BEING EMPTY ═══
+ *  Absent means "nothing is escalated", which is the good news a supervisor most
+ *  wants to be able to trust. If the escalation service is down, saying nothing
+ *  would assert that good news from an outage — so the failure is stated, and it
+ *  is stated where the region would have been. */
+function RegionError() {
+  return (
+    <section
+      role="alert"
+      className="mt-4 shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-3"
+    >
+      <p className="text-[13.5px] leading-[19px] text-[var(--text-secondary)]">
+        {/* TODO-COPY. NAMES WHAT IS UNKNOWN rather than what failed: "couldn't
+            load escalations" invites the reading "so there are none". */}
+        Escalations couldn’t be loaded, so this page can’t say whether any
+        are open.
+      </p>
+    </section>
   );
 }
 
 export function EscalationRegion({
   items,
   now,
+  state = "ready",
   selectedId,
   onSelect,
 }: {
@@ -256,7 +332,10 @@ export function EscalationRegion({
   now: number;
   selectedId: string | null;
   onSelect: (item: TaskItem) => void;
+  state?: SurfaceState;
 }) {
+  if (state === "loading") return <RegionSkeleton />;
+  if (state === "error") return <RegionError />;
   if (items.length === 0) return null;
 
   const active = items.filter((i) => lifecycleOf(i, now) === "active").length;
@@ -270,11 +349,7 @@ export function EscalationRegion({
       data-anno-ref="escalation-region"
       className="mt-4 shrink-0 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)]"
     >
-      <ul
-        role="listbox"
-        aria-label="Escalations"
-        className="divide-y divide-[color:var(--border-subtle)]"
-      >
+      <ul className="divide-y divide-[color:var(--border-subtle)]">
         {items.map((item) => (
           <Row
             key={item.id}

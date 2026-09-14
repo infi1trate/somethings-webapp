@@ -33,7 +33,7 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
@@ -46,6 +46,10 @@ import { isEscalationTask } from "@/lib/tasks/escalation-state";
 import { sortedOpen } from "@/lib/tasks/sort";
 import { monitoringEntriesFor } from "@/lib/tasks/monitoring-list";
 import { monitoringObligations } from "@/lib/tasks/obligations";
+import {
+  MONITORING_LOAD_STAGES,
+  monitoringLoadPlanFor,
+} from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
 import { tierLabel } from "@/lib/tasks/bands";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -82,6 +86,40 @@ export function monitoringSubtitle(
   }
   const coverage = `${openFlags} flag${openFlags === 1 ? "" : "s"} in review`;
   return owed.length ? `${owed.join(" · ")} · ${coverage}` : coverage;
+}
+
+/** ═══ THE PANE'S OWN TWO STATES ═══
+ *  Separate from the list's, because the two fail separately: the pane can be
+ *  erroring over a perfectly healthy list. Sized to the pane's real proportions
+ *  so the swap from skeleton to content moves nothing. */
+function PaneSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="flex h-full flex-col gap-4 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-5"
+    >
+      <div className="h-6 w-40 rounded bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+      <div className="h-4 w-56 rounded bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+      <div className="h-[340px] rounded-[var(--radius-surface)] bg-[var(--surface-s1)] motion-safe:animate-pulse" />
+    </div>
+  );
+}
+
+function PaneError() {
+  return (
+    <div className="flex h-full min-h-[12rem] flex-col items-start justify-center gap-2 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-6">
+      <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {/* TODO-COPY */}
+        Couldn&apos;t load this flag.
+      </p>
+      {/* NO SECOND LINE POINTING SOMEWHERE. The list below carries the only retry
+          this prototype can honour, and once that retry has run the list is ready
+          while the pane is still erroring — so a line sending the reader back to
+          it would go stale the moment they followed it. Same reasoning as the
+          Tasks pane's, which had its second line removed in arch-A for exactly
+          this. */}
+    </div>
+  );
 }
 
 export function MonitoringPage() {
@@ -203,7 +241,59 @@ export function MonitoringPage() {
   const [takeoverWanted, setPaneTakeover] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const [listState, setListState] = useState<ListState>("ready");
+  /** The list's own retry, which wins over the plan once a reader has used it —
+   *  the same arrangement Tasks has, and the reason the plan is a DEFAULT rather
+   *  than the value. */
+  const [listOverride, setListOverride] = useState<ListState | null>(null);
+
+  const devLoadState = useOnboardingStore((st) => st.devLoadState);
+
+  /** ═══ THE STAGE CARRIES THE STATE IT BELONGS TO ═══
+   *
+   *  Pairing the stage with the load state it was counted for makes the reset a
+   *  DERIVATION rather than a write: if the state has moved on, the stage is 0 by
+   *  definition. The effect then only schedules.
+   *
+   *  AND THE CLEANUP CLEARS THE STAMP, which is not decoration — without it a
+   *  finished run leaves `forState: "loading"` behind, so Loading → Ready →
+   *  Loading finds the stamp already matching, reads its stage as complete, and
+   *  the second selection does nothing. That exact defect shipped on Tasks and
+   *  was found in arch-A's A2 pass; this surface is built with the fix rather
+   *  than inheriting the bug. */
+  const [progress, setProgress] = useState<{
+    forState: string | null;
+    stage: number;
+  }>({ forState: devLoadState, stage: MONITORING_LOAD_STAGES });
+  const loadStage =
+    progress.forState === devLoadState
+      ? progress.stage
+      : devLoadState === "loading"
+        ? 0
+        : MONITORING_LOAD_STAGES;
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (devLoadState !== "loading") return;
+    /* 240ms PER STEP — slow enough to read, short enough not to become the demo.
+       Five steps here rather than Tasks' four; see `monitoringLoadPlanFor`. */
+    const timers = Array.from({ length: MONITORING_LOAD_STAGES }, (_, i) =>
+      setTimeout(() => setProgress({ forState: devLoadState, stage: i + 1 }), (i + 1) * 240)
+    );
+    return () => {
+      timers.forEach(clearTimeout);
+      setProgress({ forState: null, stage: MONITORING_LOAD_STAGES });
+    };
+  }, [mounted, devLoadState]);
+
+  const plan = useMemo(
+    () => monitoringLoadPlanFor(devLoadState, loadStage),
+    [devLoadState, loadStage]
+  );
+  const listState: ListState = listOverride ?? plan.list;
+  /** THE RETRY TAKES THE HEADERS WITH IT. They are the same fetch as the rows —
+   *  a retry that restored the list and left the counts saying nothing would be
+   *  a retry that half worked, which is worse than one that visibly did not. */
+  const headersState = listOverride ?? plan.headers;
 
   /** ═══ THE TAKEOVER IS DERIVED, NOT SYNCED ═══
    *
@@ -323,6 +413,7 @@ export function MonitoringPage() {
       <EscalationRegion
         items={escalations}
         now={now}
+        state={plan.escalations}
         selectedId={selectedEscalationId}
         onSelect={(item) => {
           setSelectedEscalationId(item.id);
@@ -356,6 +447,7 @@ export function MonitoringPage() {
               now={now}
               selectedId={selectedRowId}
               state={listState}
+              headersState={headersState}
               onSelect={(entry, item) => {
                 setSelectedEntryId(entry.id);
                 setPickedId(item.id);
@@ -363,7 +455,7 @@ export function MonitoringPage() {
                 setSelectedEscalationId(null);
                 setPaneTakeover(true);
               }}
-              onRetry={() => setListState("ready")}
+              onRetry={() => setListOverride("ready")}
             />
           </div>
 
@@ -396,13 +488,23 @@ export function MonitoringPage() {
               aria-live="polite"
               className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full xl:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
             >
-              <TaskPane
-                item={paneItem}
-                now={now}
-                onResolve={resolve}
-                actionsRef={paneActions}
-                excerptState="ready"
-              />
+              {/* PANE AND EXCERPT ARE SEPARATE AXES. Under partial failure the
+                  transcript errors while the pane stays healthy — which is the
+                  whole point of the excerpt having its own state: a supervisor
+                  who cannot see what was said can still act on the flag. */}
+              {plan.pane === "error" ? (
+                <PaneError />
+              ) : plan.pane === "loading" ? (
+                <PaneSkeleton />
+              ) : (
+                <TaskPane
+                  item={paneItem}
+                  now={now}
+                  onResolve={resolve}
+                  actionsRef={paneActions}
+                  excerptState={plan.excerpt}
+                />
+              )}
             </div>
           </div>
         </div>

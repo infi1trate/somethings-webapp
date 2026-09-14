@@ -501,13 +501,17 @@ for (const persona of ["mentor", "lead-mentor"]) {
   const region = page.locator('[data-anno-ref="escalation-region"]');
   check("esc.present", "the region renders when there is something in it", await region.count());
 
-  const rows = await region.locator('[role="option"]').evaluateAll((els) =>
+  /* THE ROW IS AN `li` WITH A BUTTON AND A LINK INSIDE IT, not a `role="option"`
+     — see the structure note in `escalation-region.tsx`. The probe followed the
+     old selector and reported six failures that were all one renaming. */
+  const rows = await region.locator("li[data-escalation-state]").evaluateAll((els) =>
     els.map((e) => ({
       state: e.getAttribute("data-escalation-state"),
-      label: e.getAttribute("aria-label") ?? "",
+      label: e.querySelector("button")?.getAttribute("aria-label") ?? "",
       text: e.innerText.replace(/\s+/g, " "),
       bg: getComputedStyle(e).backgroundColor,
       action: e.querySelector("a")?.innerText.trim() ?? "",
+      current: e.querySelector("button")?.getAttribute("aria-current"),
     }))
   );
 
@@ -573,7 +577,9 @@ for (const persona of ["mentor", "lead-mentor"]) {
   check("esc.landmark", "the region's name covers the whole lifecycle", !/\bopen\b/i.test(landmark), landmark);
 
   // ═══ THE PANE, FOR A CLOSED ESCALATION ═══
-  const closedRow = region.locator('[role="option"]:not([data-escalation-state="active"])').first();
+  const closedRow = region
+    .locator('li[data-escalation-state]:not([data-escalation-state="active"]) button')
+    .first();
   await closedRow.click();
   await page.waitForTimeout(600);
   const pane = await page.locator('[data-slot="task-pane"]').innerText();
@@ -589,6 +595,13 @@ for (const persona of ["mentor", "lead-mentor"]) {
     "and carries the context a write-up needs",
     /911 status/.test(pane) && /Recent conversation/.test(pane)
   );
+  // SELECTION IS `aria-current`, not `aria-selected` — a listbox option may not
+  // contain a control, and this row's whole point is the link inside it.
+  const current = await region
+    .locator("li[data-escalation-state] button[aria-current]")
+    .count();
+  check("esc.selection", "exactly one row is marked current", current === 1, `${current} current`);
+
   check(
     "esc.pane-header",
     "the pane header does not call it open either",
@@ -611,6 +624,168 @@ for (const persona of ["mentor", "lead-mentor"]) {
   const { context, page } = await open("no-escalations", { scenario: "quiet-day" });
   const count = await page.locator('[data-anno-ref="escalation-region"]').count();
   check("esc.absent", "no region when there is nothing in it", count === 0);
+  await context.close();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 11 · THE LOAD HIERARCHY, ON SCREEN (B4).
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Five surfaces resolving in order over 1.2s. A person checking by eye sees a
+// page appear; a reordering would look identical and would mean a reader reading
+// evidence before they know how much there is.
+{
+  const { context, page } = await open("loading", { load: "loading" });
+  /* DRIVEN THROUGH THE DEV BAR so the REPLAY is exercised too — the stage stamp
+     survived a finished run on Tasks and made the second selection a no-op
+     (found in arch-A's A2 pass). This surface is built with the fix; this is the
+     check that it stayed fixed. */
+  const load = page.locator("select").nth(1);
+  const seen = [];
+  for (const run of [1, 2]) {
+    await load.selectOption("ready");
+    await page.waitForTimeout(200);
+    await load.selectOption("loading");
+    const sawSkeleton = await page
+      .locator("[class*=animate-pulse]")
+      .first()
+      .waitFor({ state: "visible", timeout: 1500 })
+      .then(() => true)
+      .catch(() => false);
+    seen.push(sawSkeleton);
+    if (run === 1 && sawSkeleton) await page.screenshot({ path: `${OUT}/05-loading.png` });
+    await page.waitForTimeout(1600);
+  }
+  check("load.replays", "Loading replays on every selection, not just the first", seen.every(Boolean), seen.join(", "));
+
+  // THE HEADERS RESOLVE BEFORE THE ROWS, and while they are pending the band
+  // renders its NAME with the count withheld — a placeholder count would be a
+  // number that is wrong for 240ms.
+  await load.selectOption("ready");
+  await page.waitForTimeout(300);
+  await load.selectOption("loading");
+  await page.waitForTimeout(520);
+  const midway = await page.locator("main").innerText();
+  check(
+    "load.headers-first",
+    "a band names itself before it can count",
+    /Imminent/.test(midway),
+    midway.replace(/\s+/g, " ").slice(0, 70)
+  );
+  await load.selectOption("ready");
+  await page.waitForTimeout(400);
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 12 · ERROR, WITH RETRY — AND PARTIAL, WHICH MEANS SOMETHING HERE.
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("error", { load: "error" });
+  const t = await textOf(page);
+  check("state.error", "the list errors with a retry", /didn’t load — try again\./.test(t) && /Retry/.test(t));
+  check(
+    "state.error-escalations",
+    "an escalation outage is not reported as calm",
+    /can['\u2019]t say whether any\s+are open/.test(t),
+    (t.split("\n").find((l) => /Escalations couldn/.test(l)) ?? "").slice(0, 80)
+  );
+  await page.screenshot({ path: `${OUT}/06-error.png` });
+  await page.getByRole("button", { name: /^Retry$/ }).first().click();
+  await page.waitForTimeout(500);
+  check("state.retry", "retry restores the list", /Imminent — /.test(await textOf(page)));
+  await context.close();
+}
+{
+  const { context, page } = await open("partial", { load: "partial" });
+  const t = await textOf(page);
+  /* PARTIAL SPLITS BY SYSTEM HERE, NOT BY DOMAIN — the escalation service and
+     the transcript are not the flag pipeline. On Tasks the per-domain split
+     renders identically to Ready (gap row 360); this is the version that can
+     actually be shown. */
+  check(
+    "state.partial",
+    "the flags load while the escalation service and the transcript do not",
+    /Imminent — /.test(t) &&
+      /can['\u2019]t say whether any\s+are open/.test(t) &&
+      /Couldn['\u2019]t load the conversation/.test(t),
+    /* THE APOSTROPHE IS NOT COSMETIC HERE. The codebase mixes `&apos;` (U+0027)
+       and a typographic U+2019, and three checks failed against copy that was on
+       screen and correct because the probe pinned the wrong one. */
+    /Couldn['\u2019]t load the conversation/.test(t) ? "excerpt errored" : "excerpt healthy"
+  );
+  await page.screenshot({ path: `${OUT}/07-partial.png` });
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13 · THE EMPTY FLAGS VIEW READS PLAINLY.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// No celebration. An empty vigilance queue means nobody has written anything
+// worth reading, which is neither an achievement nor a problem.
+{
+  const { context, page } = await open("empty", { scenario: "quiet-day" });
+  for (let i = 0; i < 4; i += 1) {
+    if (!(await page.getByRole("treeitem").count())) break;
+    await page.getByRole("treeitem").first().click();
+    await page.waitForTimeout(200);
+    await page.keyboard.press("y");
+    await page.waitForTimeout(500);
+  }
+  const t = await textOf(page);
+  check("empty.plain", "the empty flags view states a fact", /No flags in review right now\./.test(t), t.replace(/\s+/g, " ").slice(0, 90));
+  check(
+    "empty.no-celebration",
+    "and does not congratulate anyone",
+    !/(nice work|great|well done|all done|!)/i.test(t)
+  );
+  await page.screenshot({ path: `${OUT}/08-empty.png` });
+  await context.close();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 14 · A CLEARED TIER REPORTS THE CLEARANCE.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The band stays for a beat, its rows compress, and the header says what
+// happened. Vanishing reads as a glitch and throws away the one piece of
+// information the moment contains.
+//
+// `active-escalation` HOLDS ONE FLAG PER TIER, which is the only fixture where a
+// band can be emptied without clearing the surface. quiet-day was tried first and
+// is the wrong shape: its two flags belong to ONE teen, so resolving the clinical
+// one does not clear the Clinical review band — the teen row MOVES to Routine
+// review, which is decision (a) working correctly and not a retirement at all.
+{
+  const { context, page } = await open("retire", { scenario: "active-escalation" });
+  const bandsBefore = await page
+    .getByRole("group")
+    .evaluateAll((els) =>
+      els.map((e) => e.getAttribute("aria-label")).filter((l) => l && / — \d+$/.test(l))
+    );
+  check("retire.setup", "three tiers, one flag each", bandsBefore.length === 3, bandsBefore.join(" | "));
+
+  await page.getByRole("treeitem").first().click();
+  await page.waitForTimeout(250);
+  await page.keyboard.press("y");
+  await page.waitForTimeout(220);
+
+  const during = await textOf(page);
+  check(
+    "retire.reports",
+    "the emptied tier says it cleared rather than vanishing",
+    /—\s*cleared/.test(during),
+    (during.split("\n").find((l) => /cleared/.test(l)) ?? "").slice(0, 50)
+  );
+  check(
+    "retire.others-stay",
+    "the other tiers are untouched",
+    /Clinical review/.test(during) && /Routine review/.test(during)
+  );
+  await page.screenshot({ path: `${OUT}/09-retiring.png` });
   await context.close();
 }
 
