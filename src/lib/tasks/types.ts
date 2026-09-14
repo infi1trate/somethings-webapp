@@ -24,33 +24,49 @@
  *    Activity (already shipped, lib/activity/events.ts):
  *      escalation · risk · billing · review · lifecycle
  *    Tasks (this spec, §2.1):
- *      escalation · riskFlag · billing · monitoring
+ *      escalation · riskFlag · billing · routineFlag
  *
  *  Two names differ (`risk` vs `riskFlag`), Activity has two domains Tasks does
  *  not (`review`, `lifecycle`), and Tasks has one Activity does not
- *  (`monitoring`). Renaming Activity's would be a change to a shipped surface,
+ *  (`routineFlag`). Renaming Activity's would be a change to a shipped surface,
  *  which the strangler rules forbid; renaming these would contradict §2.1's own
  *  field list.
  *
  *  So: these names follow §2.1, and `ACTIVITY_DOMAIN_OF` below is the explicit
  *  mapping used for every Activity deep link. See design-system-gaps.md row 208. */
-export type TaskDomain = "escalation" | "riskFlag" | "billing" | "monitoring";
+export type TaskDomain = "escalation" | "riskFlag" | "billing" | "routineFlag";
 
-/** THE TAB ORDER. Fixed, and the only place it is written down.
- *  Escalations · Risk flags · Billing · Monitoring. */
+/** THE DOMAIN ORDER. Fixed, and the only place it is written down.
+ *  Escalations · Risk flags · Billing · Routine review.
+ *
+ *  IT WAS "THE TAB ORDER" AND THERE ARE NO TABS. arch-A removed the tab row from
+ *  Tasks; arch-B's Monitoring has no tab row by design. The order still governs
+ *  every fixed-order render (the count table, the partial-failure list), so the
+ *  constant stays and only the sentence describing it moves. */
 export const TASK_DOMAINS: TaskDomain[] = [
   "escalation",
   "riskFlag",
   "billing",
-  "monitoring",
+  "routineFlag",
 ];
 
-/** TODO-COPY. Tab labels. */
+/** TODO-COPY. Domain labels.
+ *
+ *  ═══ `routineFlag` WAS `monitoring`, AND THE RENAME WAS NOT COSMETIC (arch-B) ═══
+ *
+ *  This domain has only ever meant ONE thing: the lowest flag tier. It was called
+ *  `monitoring` because the old four-tab Tasks page gave that tier its own tab and
+ *  named the tab after the activity. arch-B builds a SURFACE called Monitoring
+ *  which holds every flag tier and the escalation lifecycle — so keeping the name
+ *  here would have meant a page called Monitoring whose Imminent rows are, in the
+ *  data model, not monitoring. One word, two scopes, in the same reader's head.
+ *
+ *  So the domain is named for what it holds and the surface keeps the word. */
 export const DOMAIN_LABEL: Record<TaskDomain, string> = {
   escalation: "Escalations",
   riskFlag: "Risk flags",
   billing: "Billing",
-  monitoring: "Monitoring",
+  routineFlag: "Routine review",
 };
 
 /** TODO-COPY. The same labels for a count of one, lowercase.
@@ -60,14 +76,14 @@ export const DOMAIN_LABEL: Record<TaskDomain, string> = {
  *  never change (locked decision 7: tabs never reorder or rename), so the singular
  *  is a second table rather than a transform on the first.
  *
- *  `billing` and `monitoring` are mass nouns and read the same either way; they are
+ *  `billing` and `routine review` are mass nouns and read the same either way; they are
  *  listed anyway so the record stays total and nobody has to remember which two
  *  domains are exceptions. */
 export const DOMAIN_LABEL_ONE: Record<TaskDomain, string> = {
   escalation: "escalation",
   riskFlag: "risk flag",
   billing: "billing",
-  monitoring: "monitoring",
+  routineFlag: "routine review",
 };
 
 /** TODO-COPY. A count and its domain, in agreement. */
@@ -80,15 +96,15 @@ export function domainCountLabel(domain: TaskDomain, n: number): string {
  *  here rather than passing a Tasks domain string that Activity would silently
  *  fail to match.
  *
- *  `monitoring` maps to Activity's `risk`: a standard/green flag review IS a risk
+ *  `routineFlag` maps to Activity's `risk`: a routine-tier flag review IS a risk
  *  flag event in the ledger — the tier is what differs, not the domain. Tasks
- *  splits it into its own tab because a green flag is a different job; the ledger
- *  does not, because it is the same event. */
+ *  split it into its own tab because the lowest tier is a different job; the
+ *  ledger does not, because it is the same event. */
 export const ACTIVITY_DOMAIN_OF: Record<TaskDomain, string> = {
   escalation: "escalation",
   riskFlag: "risk",
   billing: "billing",
-  monitoring: "risk",
+  routineFlag: "risk",
 };
 
 /** Task types. A DOMAIN CAN HOLD MULTIPLE TYPES (locked decision 6) — the tab is
@@ -98,13 +114,13 @@ export type TaskType =
   | "activeEscalation"
   | "escalationDocumentation"
   // ── Risk flags
-  | "redFlagReview"
-  | "orangeFlagReview"
+  | "imminentFlagReview"
+  | "clinicalFlagReview"
   // ── Billing
   | "intakeBillingReview"
   | "monthlyReReview"
-  // ── Monitoring
-  | "standardFlagReview";
+  // ── Routine review — the lowest flag tier, its own domain.
+  | "routineFlagReview";
 
 export const DOMAIN_OF_TYPE: Record<TaskType, TaskDomain> = {
   activeEscalation: "escalation",
@@ -112,31 +128,31 @@ export const DOMAIN_OF_TYPE: Record<TaskType, TaskDomain> = {
   // lives in Escalations and monthly re-reviews live in Billing. There is no
   // fifth tab and there must not be one.
   escalationDocumentation: "escalation",
-  redFlagReview: "riskFlag",
-  orangeFlagReview: "riskFlag",
+  imminentFlagReview: "riskFlag",
+  clinicalFlagReview: "riskFlag",
   intakeBillingReview: "billing",
   monthlyReReview: "billing",
-  standardFlagReview: "monitoring",
+  routineFlagReview: "routineFlag",
 };
 
 /** TIER RANK — the ladder the priority sort reads (§3), ASC.
  *
- *  1 escalation · 2 red flag · 3 orange flag · 4 billing · 5 monitoring ·
+ *  1 escalation · 2 imminent · 3 clinical review · 4 billing · 5 routine review ·
  *  6 documentation
  *
  *  NOTE THE TAIL, because it looks like a mistake and is not: escalation
- *  DOCUMENTATION ranks 6 — BELOW monitoring — while living in the
+ *  DOCUMENTATION ranks 6 — BELOW routine review — while living in the
  *  highest-tier domain. Writing up a closed escalation is genuinely the least
  *  urgent thing on the page; the domain it belongs to says nothing about the
  *  urgency of finishing its paperwork. Anyone "fixing" this to 1 or 2 has
  *  confused the domain with the task. */
 export const TIER_RANK: Record<TaskType, number> = {
   activeEscalation: 1,
-  redFlagReview: 2,
-  orangeFlagReview: 3,
+  imminentFlagReview: 2,
+  clinicalFlagReview: 3,
   intakeBillingReview: 4,
   monthlyReReview: 4,
-  standardFlagReview: 5,
+  routineFlagReview: 5,
   escalationDocumentation: 6,
 };
 
@@ -144,12 +160,25 @@ export type TaskStatus = "open" | "inProgress" | "resolved";
 
 // ── Payloads (§5) ───────────────────────────────────────────────────────────
 
-/** RISK FLAG / MONITORING. One anatomy for red, orange and green — the TIER IS
- *  SHOWN IN THE HEADER ONLY (§5), never as a per-row chip inside a tier-filtered
- *  list (alarm budget, §3.3). */
+/** A RISK FLAG, AT ANY TIER. One anatomy for all three — the TIER IS SHOWN IN THE
+ *  HEADER ONLY (§5), never as a per-row chip inside a tier-filtered list (alarm
+ *  budget, §3.3).
+ *
+ *  ═══ THE TIER IS NOT A COLOUR ANY MORE (arch-B) ═══
+ *
+ *  It was `"red" | "orange" | "green"`. `bands.ts` had already rejected that
+ *  vocabulary at the display layer — "the band names the URGENCY, not the colour
+ *  chip… a reader who is colourblind gets the same sentence" — but the DATA kept
+ *  the colours, so every consumer translated one to the other and the pane ended
+ *  up printing "Red flag" under a header reading "Imminent".
+ *
+ *  Two of these three values now match `lib/record/risk-taxonomy.ts` exactly
+ *  (`imminent`, `clinicalReview`). The third is `routine` where the record says
+ *  `generalMonitoring`, because arch-B renamed this tier and the record is out of
+ *  scope — logged rather than reconciled. */
 export interface RiskFlagPayload {
   kind: "riskFlag";
-  tier: "red" | "orange" | "green";
+  tier: "imminent" | "clinicalReview" | "routine";
   /** "Message" — the surface the flag came from. */
   sourceType: string;
   /** PLAIN-LANGUAGE playbook categories. Raw enum values never reach here. */

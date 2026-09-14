@@ -200,12 +200,12 @@ describe("§2.1 / §2.3 — deadlines and breach", () => {
 });
 
 describe("the model's own shape", () => {
-  it("documentation ranks below monitoring, deliberately", () => {
+  it("documentation ranks below routine review, deliberately", () => {
     // The tail that looks like a bug: paperwork for a closed escalation is the
     // least urgent thing on the page, even though it lives in the highest-tier
     // domain. Pinned so a future "fix" has to argue with a test.
     expect(TIER_RANK.escalationDocumentation).toBeGreaterThan(
-      TIER_RANK.standardFlagReview
+      TIER_RANK.routineFlagReview
     );
     expect(TIER_RANK.activeEscalation).toBe(1);
   });
@@ -229,7 +229,7 @@ describe("the model's own shape", () => {
       "escalation",
       "riskFlag",
       "billing",
-      "monitoring",
+      "routineFlag",
     ]);
   });
 });

@@ -30,9 +30,9 @@ import type { TaskDomain, TaskItem, TaskType } from "@/lib/tasks/types";
 
 /** The flag task types — the only ones that coalesce. */
 const FLAG_TASK_TYPES: ReadonlySet<TaskType> = new Set([
-  "redFlagReview",
-  "orangeFlagReview",
-  "standardFlagReview",
+  "imminentFlagReview",
+  "clinicalFlagReview",
+  "routineFlagReview",
 ]);
 
 export function isFlagTask(taskType: TaskType): boolean {

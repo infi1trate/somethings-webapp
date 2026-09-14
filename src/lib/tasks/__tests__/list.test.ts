@@ -17,13 +17,13 @@ const NOW = new Date("2026-08-26T20:05:00.000Z").getTime();
 const HEAVY = () => tasksScenario("heavy-caseload", NOW);
 
 describe("§4 — coalescing", () => {
-  it("five red flags on one conversation collapse to one group row", () => {
+  it("five imminent flags on one conversation collapse to one group row", () => {
     const entries = listEntriesFor(HEAVY(), "riskFlag", NOW);
     const group = entries.find((e) => e.kind === "group" && e.members.length === 5);
     expect(group).toBeDefined();
     expect(group!.kind).toBe("group");
     if (group!.kind === "group") {
-      expect(group!.members.every((m) => m.taskType === "redFlagReview")).toBe(true);
+      expect(group!.members.every((m) => m.taskType === "imminentFlagReview")).toBe(true);
       expect(new Set(group!.members.map((m) => m.objectId)).size).toBe(1);
     }
   });
@@ -56,7 +56,7 @@ describe("§4 — coalescing", () => {
 
   it("groups never span domains", () => {
     const items = HEAVY();
-    for (const domain of ["escalation", "riskFlag", "billing", "monitoring"] as const) {
+    for (const domain of ["escalation", "riskFlag", "billing", "routineFlag"] as const) {
       for (const e of listEntriesFor(items, domain, NOW)) {
         for (const member of itemsOf(e)) {
           expect(member.domain, `${domain}/${e.id}`).toBe(domain);
@@ -66,9 +66,9 @@ describe("§4 — coalescing", () => {
     }
   });
 
-  it("a group's members all share one task type, so red and orange never merge", () => {
-    // taskType is half the key. A key that dropped it would put a red and an
-    // orange flag on the same conversation into one row, which is two different
+  it("a group's members all share one task type, so imminent and clinical never merge", () => {
+    // taskType is half the key. A key that dropped it would put an imminent and a
+    // clinical flag on the same conversation into one row, which is two different
     // jobs in one row.
     const entries = listEntriesFor(HEAVY(), "riskFlag", NOW);
     for (const e of entries) {
@@ -86,16 +86,16 @@ describe("§4 — coalescing", () => {
     }
     expect(isFlagTask("intakeBillingReview")).toBe(false);
     expect(isFlagTask("activeEscalation")).toBe(false);
-    expect(isFlagTask("redFlagReview")).toBe(true);
-    expect(isFlagTask("standardFlagReview")).toBe(true);
+    expect(isFlagTask("imminentFlagReview")).toBe(true);
+    expect(isFlagTask("routineFlagReview")).toBe(true);
   });
 
   it("a group of one is emitted as a plain row, not a group with a dead disclosure", () => {
     const items = HEAVY();
     const entries = listEntriesFor(items, "riskFlag", NOW);
-    // heavy-caseload has one ungrouped orange flag on its own conversation.
+    // heavy-caseload has one ungrouped clinical flag on its own conversation.
     const solo = entries.find(
-      (e) => e.kind === "item" && e.item.taskType === "orangeFlagReview"
+      (e) => e.kind === "item" && e.item.taskType === "clinicalFlagReview"
     );
     expect(solo).toBeDefined();
     for (const e of entries) {
@@ -107,7 +107,7 @@ describe("§4 — coalescing", () => {
     // Nothing dropped and nothing duplicated — the property a grouping pass is
     // most likely to break.
     const items = HEAVY();
-    for (const domain of ["escalation", "riskFlag", "billing", "monitoring"] as const) {
+    for (const domain of ["escalation", "riskFlag", "billing", "routineFlag"] as const) {
       const flat = listForDomain(items, domain, NOW).map((i) => i.id).sort();
       const viaEntries = listEntriesFor(items, domain, NOW)
         .flatMap(itemsOf)

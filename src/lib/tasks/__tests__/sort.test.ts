@@ -3,8 +3,8 @@
 //
 // Each key is tested in isolation AND the precedence between them is tested,
 // because the failure mode is not "the comparator is wrong" — it is "someone
-// reordered two keys and every list still looked plausible." A breached orange
-// flag beating an on-track red one is the case that looks like a bug and is the
+// reordered two keys and every list still looked plausible." A breached clinical
+// flag beating an on-track imminent one is the case that looks like a bug and is the
 // spec, so it gets its own test.
 
 import { describe, expect, it } from "vitest";
@@ -49,7 +49,7 @@ function item(taskType: TaskType, openedAgo: number, over?: Partial<TaskItem>): 
     status: "open",
     payload: {
       kind: "riskFlag",
-      tier: "red",
+      tier: "imminent",
       sourceType: "Message",
       categories: [],
       flaggedExcerpt: "",
@@ -64,17 +64,17 @@ function item(taskType: TaskType, openedAgo: number, over?: Partial<TaskItem>): 
 const ids = (items: TaskItem[]) => items.map((i) => i.id);
 
 describe("§3 — the sort key, one level at a time", () => {
-  it("1 · an active escalation outranks everything, even a breached red flag", () => {
+  it("1 · an active escalation outranks everything, even a breached imminent flag", () => {
     const esc = item("activeEscalation", 1 * 60_000); // 1m old, not breached
-    const breachedRed = item("redFlagReview", 40 * HOUR); // very breached
+    const breachedRed = item("imminentFlagReview", 40 * HOUR); // very breached
     expect(compareTasks(esc, breachedRed, NOW)).toBeLessThan(0);
   });
 
-  it("2 · breach outranks tier — a breached orange flag beats an on-track red one", () => {
+  it("2 · breach outranks tier — a breached clinical flag beats an on-track imminent one", () => {
     // THE CASE THAT LOOKS LIKE A BUG. The ladder says what matters in the
     // abstract; breach says what has already been failed.
-    const breachedOrange = item("orangeFlagReview", 50 * HOUR); // 48h SLA → breached
-    const onTrackRed = item("redFlagReview", 2 * HOUR); // 24h SLA → fine
+    const breachedOrange = item("clinicalFlagReview", 50 * HOUR); // 48h SLA → breached
+    const onTrackRed = item("imminentFlagReview", 2 * HOUR); // 24h SLA → fine
     expect(compareTasks(breachedOrange, onTrackRed, NOW)).toBeLessThan(0);
     expect(sortedOpen([onTrackRed, breachedOrange], NOW)[0].id).toBe(
       breachedOrange.id
@@ -82,30 +82,30 @@ describe("§3 — the sort key, one level at a time", () => {
   });
 
   it("3 · tier decides between two items in the same breach state", () => {
-    const red = item("redFlagReview", 2 * HOUR);
-    const orange = item("orangeFlagReview", 2 * HOUR);
+    const imminent = item("imminentFlagReview", 2 * HOUR);
+    const clinical = item("clinicalFlagReview", 2 * HOUR);
     const billing = item("intakeBillingReview", 2 * HOUR);
-    const monitoring = item("standardFlagReview", 2 * HOUR);
+    const routine = item("routineFlagReview", 2 * HOUR);
     const docs = item("escalationDocumentation", 2 * HOUR);
-    expect(ids(sortedOpen([docs, monitoring, billing, orange, red], NOW))).toEqual([
-      red.id,
-      orange.id,
+    expect(ids(sortedOpen([docs, routine, billing, clinical, imminent], NOW))).toEqual([
+      imminent.id,
+      clinical.id,
       billing.id,
-      monitoring.id,
-      // Documentation LAST, below monitoring — deliberate, see types.ts.
+      routine.id,
+      // Documentation LAST, below routine review — deliberate, see types.ts.
       docs.id,
     ]);
   });
 
   it("4 · within a tier, the soonest deadline wins", () => {
-    const older = item("redFlagReview", 20 * HOUR); // 4h left
-    const newer = item("redFlagReview", 2 * HOUR); // 22h left
+    const older = item("imminentFlagReview", 20 * HOUR); // 4h left
+    const newer = item("imminentFlagReview", 2 * HOUR); // 22h left
     expect(ids(sortedOpen([newer, older], NOW))).toEqual([older.id, newer.id]);
   });
 
   it("4b · among breached items, the MOST overdue comes first", () => {
-    const veryLate = item("redFlagReview", 60 * HOUR);
-    const justLate = item("redFlagReview", 25 * HOUR);
+    const veryLate = item("imminentFlagReview", 60 * HOUR);
+    const justLate = item("imminentFlagReview", 25 * HOUR);
     expect(ids(sortedOpen([justLate, veryLate], NOW))).toEqual([
       veryLate.id,
       justLate.id,
@@ -116,8 +116,8 @@ describe("§3 — the sort key, one level at a time", () => {
     // Two items identical on every other key. The sort must be deterministic, and
     // it must not be doing anything else with openedAt — test 4 already showed a
     // NEWER item sorting after an older one when the deadline says so.
-    const a = item("standardFlagReview", 3 * HOUR, { id: "zzz" });
-    const b = item("standardFlagReview", 3 * HOUR, { id: "aaa" });
+    const a = item("routineFlagReview", 3 * HOUR, { id: "zzz" });
+    const b = item("routineFlagReview", 3 * HOUR, { id: "aaa" });
     // Same openedAt → falls through to the id, so the order is total.
     expect(ids(sortedOpen([a, b], NOW))).toEqual(["aaa", "zzz"]);
   });
@@ -223,9 +223,9 @@ describe("header counts and Closed today (§1)", () => {
       );
       expect(matching.length, domain).toBeGreaterThanOrEqual(n as number);
     }
-    // §1 names escalations, flags and billing — monitoring is deliberately not a
-    // header counter.
-    expect(Object.keys(closed)).not.toContain("monitoring");
+    // §1 names escalations, flags and billing — the routine tier is deliberately
+    // not a header counter.
+    expect(Object.keys(closed)).not.toContain("routineFlag");
   });
 });
 

@@ -145,7 +145,7 @@ interface Mentor {
 // TODO-COPY / TODO-DATA on every string.
 
 function flagPayload(
-  tier: "red" | "orange" | "green",
+  tier: "imminent" | "clinicalReview" | "routine",
   categories: string[],
   excerpt: string,
   rationale: string
@@ -260,26 +260,26 @@ function withCoalesceCounts(items: TaskItem[]): TaskItem[] {
 
 // ── Reusable payload fixtures ───────────────────────────────────────────────
 
-const RED = () =>
+const IMMINENT = () =>
   flagPayload(
-    "red",
+    "imminent",
     ["Self-harm language"],
     "i don't know how much longer i can keep doing this",
     "The message contains language the playbook treats as a self-harm indicator, in a conversation where the previous two exchanges also referenced sleeplessness. Escalating rather than monitoring is the conservative read.",
   );
-const ORANGE = () =>
+const CLINICAL = () =>
   flagPayload(
-    "orange",
+    "clinicalReview",
     ["Family conflict"],
     "things at home got bad again last night",
     "The message describes conflict at home without naming a specific risk. Flagged for review rather than escalation because no immediate danger is stated.",
   );
-const GREEN = () =>
+const ROUTINE = () =>
   flagPayload(
-    "green",
+    "routine",
     ["Low mood"],
     "kind of a rough week honestly",
-    "Routine low-mood language with no risk indicators. Surfaced for monitoring only.",
+    "Routine low-mood language with no risk indicators. Surfaced for routine review only.",
   );
 
 const CODES = {
@@ -359,8 +359,8 @@ function fill(o: FillOptions): Spec[] {
        one, so a teen cannot plausibly have both — and it was on screen, one band
        above the other, with the same name on both rows.
        Striding by 7 gives each fill a disjoint window of the roster. Flags and
-       monitoring still overlap each other deliberately, because a teen WITH a red
-       flag plausibly has an orange one and a green one; §2.4's cross-domain reuse
+       routine review still overlap each other deliberately, because a teen WITH an imminent
+       flag plausibly has a clinical one and a routine one; §2.4's cross-domain reuse
        requirement is what that serves, and it is asserted in seed.test.ts. */
     const teen = ROSTER[(conv + o.seed * 7) % ROSTER.length];
     const mentor = MENTOR_POOL[(conv + o.seed) % MENTOR_POOL.length];
@@ -411,17 +411,17 @@ function closedFill(
 
 /** QUIET DAY — a handful of low-tier items, nothing breached, no escalation.
  *  Proves the surface reads calm when there is little to do, and that the
- *  Monitoring empty/near-empty state does not celebrate. */
+ *  Routine-review empty/near-empty state does not celebrate. */
 function quietDay(now: number): TaskItem[] {
   return build(
     [
       {
-        taskType: "standardFlagReview",
+        taskType: "routineFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-1",
         openedAgo: 2 * DAY,
-        payload: GREEN(),
+        payload: ROUTINE(),
       },
       {
         taskType: "monthlyReReview",
@@ -432,22 +432,22 @@ function quietDay(now: number): TaskItem[] {
         payload: billingPayload(true, now, CODES.mddMild, CODES.mddMild, 8),
       },
       {
-        taskType: "orangeFlagReview",
+        taskType: "clinicalFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-2",
         openedAgo: 3 * HOUR,
-        payload: ORANGE(),
+        payload: CLINICAL(),
       },
       // CLOSED TODAY — one per domain that has any, so the header counters have
       // matching resolved items (§2.4).
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-3",
         openedAgo: 9 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
         status: "resolved",
         resolvedAgo: 7 * HOUR,
       },
@@ -471,7 +471,7 @@ function quietDay(now: number): TaskItem[] {
  *  should be judged on. */
 function typicalShift(now: number): TaskItem[] {
   // THE NAMED CASES COME FIRST and are unchanged — Riley's documentation clock
-  // with four hours left, Marcus's breached red flag, the two orange. They are
+  // with four hours left, Marcus's breached imminent flag, the two clinical. They are
   // the ones anyone reviewing this surface is asked to look at, and the priority
   // sort puts them at the top of their bands where they can be found.
   const specs: Spec[] = [
@@ -486,30 +486,30 @@ function typicalShift(now: number): TaskItem[] {
         clockStartAgo: 20 * HOUR,
         payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 20 * HOUR },
       },
-      // ── Risk flags: one BREACHED red (26h old against a 24h SLA), two orange.
+      // ── Risk flags: one BREACHED imminent (26h against a 24h SLA), two clinical.
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.marcus,
         mentor: MENTORS.brandon,
         objectId: "conv-marcus-1",
         openedAgo: 26 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
       },
       {
-        taskType: "orangeFlagReview",
+        taskType: "clinicalFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-1",
         openedAgo: 9 * HOUR,
-        payload: ORANGE(),
+        payload: CLINICAL(),
       },
       {
-        taskType: "orangeFlagReview",
+        taskType: "clinicalFlagReview",
         teen: TEENS.jordan,
         mentor: MENTORS.maria,
         objectId: "conv-jordan-1",
         openedAgo: 30 * HOUR,
-        payload: ORANGE(),
+        payload: CLINICAL(),
       },
       // ── Billing: one intake, one re-review.
       {
@@ -528,31 +528,31 @@ function typicalShift(now: number): TaskItem[] {
         openedAgo: 40 * HOUR,
         payload: billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15),
       },
-      // ── Monitoring.
+      // ── Routine review.
       {
-        taskType: "standardFlagReview",
+        taskType: "routineFlagReview",
         teen: TEENS.simone,
         mentor: MENTORS.omar,
         objectId: "conv-simone-1",
         openedAgo: 3 * DAY,
-        payload: GREEN(),
+        payload: ROUTINE(),
       },
       {
-        taskType: "standardFlagReview",
+        taskType: "routineFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-1",
         openedAgo: 5 * DAY,
-        payload: GREEN(),
+        payload: ROUTINE(),
       },
       // ── Closed today, one per domain.
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-9",
         openedAgo: 12 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
         status: "resolved",
         resolvedAgo: 4 * HOUR,
       },
@@ -580,30 +580,30 @@ function typicalShift(now: number): TaskItem[] {
 
   /* ═══ AND THEN THE REST OF THE SHIFT ═══
      Forty-six open flags across twenty-eight conversations, thirteen billing
-     reviews, eighteen monitoring rows. That is what a supervisor's Tuesday looks
+     reviews, eighteen routine-review rows. That is what a supervisor's Tuesday looks
      like, and it is the volume every Part 3 decision was made against.
 
-     THE RED WINDOW CROSSES ITS SLA ON PURPOSE (2h → 26h against a 24h SLA), so a
+     THE IMMINENT WINDOW CROSSES ITS SLA ON PURPOSE (2h → 26h against a 24h SLA), so a
      handful of imminent flags are genuinely breached and the Imminent band opens
      with them — breach outranks tier in the comparator, and a fixture where
-     nothing is breached never proves that. The orange window (6h → 44h against
+     nothing is breached never proves that. The clinical window (6h → 44h against
      48h) stays inside its SLA, so the two bands differ in more than their label. */
   specs.push(
-    ...fill({ taskType: "redFlagReview", count: 22, conversations: 12, minAgo: 2 * HOUR, maxAgo: 26 * HOUR, payload: RED, seed: 1 }),
-    ...fill({ taskType: "orangeFlagReview", count: 24, conversations: 16, minAgo: 6 * HOUR, maxAgo: 44 * HOUR, payload: ORANGE, seed: 2 }),
+    ...fill({ taskType: "imminentFlagReview", count: 22, conversations: 12, minAgo: 2 * HOUR, maxAgo: 26 * HOUR, payload: IMMINENT, seed: 1 }),
+    ...fill({ taskType: "clinicalFlagReview", count: 24, conversations: 16, minAgo: 6 * HOUR, maxAgo: 44 * HOUR, payload: CLINICAL, seed: 2 }),
     ...fill({ taskType: "intakeBillingReview", count: 7, conversations: 7, minAgo: 4 * HOUR, maxAgo: 60 * HOUR, payload: () => billingPayload(false, now, null, CODES.gad, 12), seed: 3 }),
     ...fill({ taskType: "monthlyReReview", count: 6, conversations: 6, minAgo: 8 * HOUR, maxAgo: 66 * HOUR, payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15), seed: 4 }),
-    ...fill({ taskType: "standardFlagReview", count: 18, conversations: 14, minAgo: 1 * DAY, maxAgo: 6 * DAY, payload: GREEN, seed: 5 }),
+    ...fill({ taskType: "routineFlagReview", count: 18, conversations: 14, minAgo: 1 * DAY, maxAgo: 6 * DAY, payload: ROUTINE, seed: 5 }),
     // Closed today, at a volume that matches the open one.
-    ...closedFill("redFlagReview", 6, RED, 6),
-    ...closedFill("orangeFlagReview", 5, ORANGE, 7),
+    ...closedFill("imminentFlagReview", 6, IMMINENT, 6),
+    ...closedFill("clinicalFlagReview", 5, CLINICAL, 7),
     ...closedFill("intakeBillingReview", 4, () => billingPayload(false, now, null, CODES.adjustment, 9), 8),
   );
   return build(specs, now);
 }
 
 /** HEAVY CASELOAD — the coalescing stress case. One conversation carrying five
- *  red flags, plus a full board. */
+ *  imminent flags, plus a full board. */
 function heavyCaseload(now: number): TaskItem[] {
   const specs: Spec[] = [
     {
@@ -616,39 +616,39 @@ function heavyCaseload(now: number): TaskItem[] {
       payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 10 * HOUR },
     },
   ];
-  // FIVE RED FLAGS ON ONE CONVERSATION — the group that must render as one row
+  // FIVE IMMINENT FLAGS ON ONE CONVERSATION — the group that must render as one row
   // with a count and expand to five children.
   for (let i = 0; i < 5; i++) {
     specs.push({
-      taskType: "redFlagReview",
+      taskType: "imminentFlagReview",
       teen: TEENS.marcus,
       mentor: MENTORS.brandon,
       objectId: "conv-marcus-heavy",
       openedAgo: 20 * HOUR + i * 12 * MINUTE,
-      payload: RED(),
+      payload: IMMINENT(),
     });
   }
-  // Three orange on a second conversation, so there are two groups of different
+  // Three clinical on a second conversation, so there are two groups of different
   // sizes and one ungrouped row for contrast.
   for (let i = 0; i < 3; i++) {
     specs.push({
-      taskType: "orangeFlagReview",
+      taskType: "clinicalFlagReview",
       teen: TEENS.naomi,
       mentor: MENTORS.brandy,
       objectId: "conv-naomi-heavy",
       openedAgo: 30 * HOUR + i * 20 * MINUTE,
-      payload: ORANGE(),
+      payload: CLINICAL(),
     });
   }
   specs.push({
-    taskType: "orangeFlagReview",
+    taskType: "clinicalFlagReview",
     teen: TEENS.jordan,
     mentor: MENTORS.maria,
     objectId: "conv-jordan-solo",
     openedAgo: 5 * HOUR,
-    payload: ORANGE(),
+    payload: CLINICAL(),
   });
-  // Billing and monitoring, several each.
+  // Billing and routine review, several each.
   for (let i = 0; i < 4; i++) {
     const teen = [TEENS.jordan, TEENS.riley, TEENS.imani, TEENS.theo][i];
     specs.push({
@@ -663,22 +663,22 @@ function heavyCaseload(now: number): TaskItem[] {
   for (let i = 0; i < 6; i++) {
     const teen = [TEENS.caleb, TEENS.simone, TEENS.imani, TEENS.theo, TEENS.naomi, TEENS.jordan][i];
     specs.push({
-      taskType: "standardFlagReview",
+      taskType: "routineFlagReview",
       teen,
       mentor: MENTORS.omar,
       objectId: `conv-${teen.id}-mon`,
       openedAgo: (2 + i) * DAY,
-      payload: GREEN(),
+      payload: ROUTINE(),
     });
   }
   // Closed today.
   specs.push({
-    taskType: "redFlagReview",
+    taskType: "imminentFlagReview",
     teen: TEENS.simone,
     mentor: MENTORS.omar,
     objectId: "conv-simone-done",
     openedAgo: 14 * HOUR,
-    payload: RED(),
+    payload: IMMINENT(),
     status: "resolved",
     resolvedAgo: 3 * HOUR,
   });
@@ -692,13 +692,13 @@ function heavyCaseload(now: number): TaskItem[] {
      Marcus's five-flag conversation above is still in here, and still findable —
      if it stops being findable at this volume, the density work failed. */
   specs.push(
-    ...fill({ taskType: "redFlagReview", count: 40, conversations: 14, minAgo: 1 * HOUR, maxAgo: 34 * HOUR, payload: RED, seed: 11 }),
-    ...fill({ taskType: "orangeFlagReview", count: 48, conversations: 22, minAgo: 4 * HOUR, maxAgo: 3 * DAY, payload: ORANGE, seed: 12 }),
+    ...fill({ taskType: "imminentFlagReview", count: 40, conversations: 14, minAgo: 1 * HOUR, maxAgo: 34 * HOUR, payload: IMMINENT, seed: 11 }),
+    ...fill({ taskType: "clinicalFlagReview", count: 48, conversations: 22, minAgo: 4 * HOUR, maxAgo: 3 * DAY, payload: CLINICAL, seed: 12 }),
     ...fill({ taskType: "intakeBillingReview", count: 7, conversations: 7, minAgo: 6 * HOUR, maxAgo: 70 * HOUR, payload: () => billingPayload(false, now, null, CODES.gad, 13), seed: 13 }),
     ...fill({ taskType: "monthlyReReview", count: 5, conversations: 5, minAgo: 12 * HOUR, maxAgo: 80 * HOUR, payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 17), seed: 14 }),
-    ...fill({ taskType: "standardFlagReview", count: 20, conversations: 15, minAgo: 2 * DAY, maxAgo: 8 * DAY, payload: GREEN, seed: 15 }),
-    ...closedFill("redFlagReview", 11, RED, 16),
-    ...closedFill("orangeFlagReview", 9, ORANGE, 17),
+    ...fill({ taskType: "routineFlagReview", count: 20, conversations: 15, minAgo: 2 * DAY, maxAgo: 8 * DAY, payload: ROUTINE, seed: 15 }),
+    ...closedFill("imminentFlagReview", 11, IMMINENT, 16),
+    ...closedFill("clinicalFlagReview", 9, CLINICAL, 17),
     ...closedFill("intakeBillingReview", 5, () => billingPayload(false, now, null, CODES.adjustment, 10), 18),
   );
   return build(specs, now);
@@ -710,28 +710,28 @@ function breachOvernight(now: number): TaskItem[] {
   return build(
     [
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.marcus,
         mentor: MENTORS.brandon,
         objectId: "conv-marcus-1",
         openedAgo: 31 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
       },
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-1",
         openedAgo: 28 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
       },
       {
-        taskType: "orangeFlagReview",
+        taskType: "clinicalFlagReview",
         teen: TEENS.jordan,
         mentor: MENTORS.maria,
         objectId: "conv-jordan-1",
         openedAgo: 54 * HOUR,
-        payload: ORANGE(),
+        payload: CLINICAL(),
       },
       {
         taskType: "intakeBillingReview",
@@ -748,12 +748,12 @@ function breachOvernight(now: number): TaskItem[] {
       // whose billing has been sitting for 80 hours plausibly has an overdue flag
       // too, and now the worklist shows that.
       {
-        taskType: "orangeFlagReview",
+        taskType: "clinicalFlagReview",
         teen: TEENS.riley,
         mentor: MENTORS.brandon,
         objectId: "conv-riley-1",
         openedAgo: 60 * HOUR,
-        payload: ORANGE(),
+        payload: CLINICAL(),
       },
       {
         taskType: "escalationDocumentation",
@@ -765,12 +765,12 @@ function breachOvernight(now: number): TaskItem[] {
         payload: { kind: "documentation", escalationId: "esc-theo-1", closedAt: now - 30 * HOUR },
       },
       {
-        taskType: "standardFlagReview",
+        taskType: "routineFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-1",
         openedAgo: 9 * DAY,
-        payload: GREEN(),
+        payload: ROUTINE(),
       },
     ],
     now
@@ -802,20 +802,20 @@ function activeEscalation(now: number): TaskItem[] {
       },
       // SAME TEENS, OTHER DOMAINS — Riley's flag history and billing.
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.riley,
         mentor: MENTORS.brandon,
         objectId: "conv-riley-1",
         openedAgo: 20 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
       },
       {
-        taskType: "orangeFlagReview",
+        taskType: "clinicalFlagReview",
         teen: TEENS.marcus,
         mentor: MENTORS.brandy,
         objectId: "conv-marcus-2",
         openedAgo: 40 * HOUR,
-        payload: ORANGE(),
+        payload: CLINICAL(),
       },
       {
         taskType: "monthlyReReview",
@@ -826,20 +826,20 @@ function activeEscalation(now: number): TaskItem[] {
         payload: billingPayload(true, now, CODES.gad, CODES.mddModerate, 16),
       },
       {
-        taskType: "standardFlagReview",
+        taskType: "routineFlagReview",
         teen: TEENS.simone,
         mentor: MENTORS.omar,
         objectId: "conv-simone-1",
         openedAgo: 4 * DAY,
-        payload: GREEN(),
+        payload: ROUTINE(),
       },
       {
-        taskType: "redFlagReview",
+        taskType: "imminentFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-done",
         openedAgo: 10 * HOUR,
-        payload: RED(),
+        payload: IMMINENT(),
         status: "resolved",
         resolvedAgo: 1 * HOUR,
       },

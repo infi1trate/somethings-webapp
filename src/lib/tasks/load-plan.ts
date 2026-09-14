@@ -39,13 +39,13 @@ export interface LoadPlan {
  *  billing ledger are different systems, so a partial outage that took both would
  *  not be partial.
  *
- *  `monitoring` is a risk-flag domain for this purpose: it is fed by the same
+ *  `routineFlag` is a risk-flag domain for this purpose: it is fed by the same
  *  flag pipeline, so an outage that spares it would be telling a lie about how
  *  the data arrives. */
 export const PARTIAL_FAILURE_DOMAINS: TaskDomain[] = [
   "riskFlag",
   "escalation",
-  "monitoring",
+  "routineFlag",
 ];
 
 export function domainFailsUnderPartial(domain: TaskDomain): boolean {

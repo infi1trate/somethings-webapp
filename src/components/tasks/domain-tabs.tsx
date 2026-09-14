@@ -22,7 +22,7 @@
 // competes.
 //
 // FIXED ORDER, NEVER REORDERED, NEVER HIDDEN (locked decision 7). Escalations ·
-// Risk flags · Billing · Monitoring, straight from TASK_DOMAINS. Breach is
+// Risk flags · Billing · Routine review, straight from TASK_DOMAINS. Breach is
 // expressed by TREATMENT, never by position — a breached domain does not jump to
 // the front, because a board whose cards move is a board a supervisor has to
 // re-read every time they look at it. Zero-count cards render de-emphasized rather
@@ -74,10 +74,10 @@ const DOMAIN_VISUAL: Record<
     bg: "var(--task-tint-billing-bg)",
     fg: "var(--task-tint-billing-fg)",
   },
-  monitoring: {
+  routineFlag: {
     icon: ClipboardCheck,
-    bg: "var(--task-tint-monitoring-bg)",
-    fg: "var(--task-tint-monitoring-fg)",
+    bg: "var(--task-tint-routine-bg)",
+    fg: "var(--task-tint-routine-fg)",
   },
 };
 
@@ -98,7 +98,7 @@ import { BreachChip } from "@/components/tasks/chips";
  *  "1 item past its 24h deadline" (names the SLA) or "1 item overdue by 24h"
  *  (names the overage). This computes the OVERAGE, because that is the fact the
  *  supervisor cannot get anywhere else — the SLA is implied by the domain, and a
- *  Risk flags tab holding both red (24h) and orange (48h) flags could not name one
+ *  Risk flags tab holding both imminent (24h) and clinical (48h) flags could not name one
  *  SLA truthfully anyway.
  *
  *  The wording stays the spec's until a copywriter settles it. "1 past 2h" does

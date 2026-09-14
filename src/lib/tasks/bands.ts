@@ -30,10 +30,11 @@
 //
 // ═══ WHY "RED FIRST" IS NOT ENFORCED HERE ═══
 //
-// The brief asks for the red band before the clinical-review band. That is not a
-// rule this file applies — it FALLS OUT of TIER_RANK (red 2 < orange 3) via the
+// The brief asks for the Imminent band before the Clinical review band. That is
+// not a rule this file applies — it FALLS OUT of TIER_RANK (imminent 2 <
+// clinicalReview 3) via the
 // comparator. Enforcing it here as well would create a second place that decides
-// order, and the two would eventually disagree. If red ever stops coming first,
+// order, and the two would eventually disagree. If Imminent ever stops leading,
 // the comparator changed and that is where to look.
 //
 // One consequence worth stating: Billing's two types share tierRank 4, so which
@@ -43,23 +44,62 @@
 
 import { paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import { itemsOf } from "@/lib/tasks/list";
-import type { TaskDomain, TaskItem, TaskType } from "@/lib/tasks/types";
+import type {
+  RiskFlagPayload,
+  TaskDomain,
+  TaskItem,
+  TaskType,
+} from "@/lib/tasks/types";
 
 /** TODO-COPY. The band each task type belongs to.
  *
- *  "Imminent" rather than "Red": the band names the URGENCY, not the colour
- *  chip that used to sit on the row. A reader who is colourblind gets the same
- *  sentence, and the word survives being read aloud. */
+ *  "Imminent" rather than "Red": the band names the URGENCY, not the colour chip
+ *  that used to sit on the row. A reader who is colourblind gets the same
+ *  sentence, and the word survives being read aloud.
+ *
+ *  ARCH-B CARRIED THAT ARGUMENT INTO THE DATA AND THE PANE. The tier union is
+ *  `imminent | clinicalReview | routine` now rather than three colours, and
+ *  `task-pane.tsx` reads its tier label from THIS TABLE instead of holding a
+ *  second one that said "Red flag" under a header saying "Imminent". This is the
+ *  one place the three tiers are named. */
 export const BAND_LABEL: Record<TaskType, string> = {
   activeEscalation: "Active",
   escalationDocumentation: "Documentation",
-  redFlagReview: "Imminent",
-  orangeFlagReview: "Clinical review",
+  imminentFlagReview: "Imminent",
+  clinicalFlagReview: "Clinical review",
   intakeBillingReview: "Intake",
   monthlyReReview: "Monthly re-review",
-  // Monitoring has ONE type, so its band is never rendered — see `bandsFor`.
-  standardFlagReview: "Monitoring",
+  routineFlagReview: "Routine review",
 };
+
+/** TODO-COPY. The tier, shown IN THE HEADER ONLY (§5) — all three tiers share
+ *  one body anatomy, and the tier is not repeated inside it.
+ *
+ *  ═══ THESE ARE THE BAND'S WORDS NOW, NOT A SECOND SET (arch-B) ═══
+ *
+ *  They were "Red flag" / "Orange flag" / "Standard flag" while the band headers
+ *  four inches away said "Imminent" / "Clinical review" / "Monitoring" — two
+ *  vocabularies for one judgement, on one screen, with the colour-named half
+ *  sitting in the pane. `bands.ts` had already made the argument for the other
+ *  half: the band "names the URGENCY, not the colour chip that used to sit on the
+ *  row… a reader who is colourblind gets the same sentence, and the word survives
+ *  being read aloud." That reasoning never reached the data or this table.
+ *
+ *  So the pane reads from `BAND_LABEL` rather than holding a second table. One
+ *  vocabulary, and a tier label that cannot drift from the header above it.
+ *
+ *  IT LIVES HERE, not in the pane, because `BAND_LABEL` does: a mapping whose
+ *  whole job is "do not restate these three words" should not sit in the file
+ *  that would otherwise restate them. */
+export const TIER_BAND_TYPE: Record<RiskFlagPayload["tier"], TaskType> = {
+  imminent: "imminentFlagReview",
+  clinicalReview: "clinicalFlagReview",
+  routine: "routineFlagReview",
+};
+
+export function tierLabel(tier: RiskFlagPayload["tier"]): string {
+  return BAND_LABEL[TIER_BAND_TYPE[tier]];
+}
 
 export interface TierBand {
   /** The task type, which is also the band key. */
@@ -76,9 +116,8 @@ export interface TierBand {
 /** Split a domain's entries into bands, in first-appearance order.
  *
  *  Returns a SINGLE band with `label: null` semantics handled by the caller when
- *  the domain has only one — Monitoring, and any domain whose second type happens
- *  to be empty today. A header over the whole list saying what the tab already
- *  says is chrome. */
+ *  the domain has only one. Since arch-A that is no longer a reason to suppress
+ *  the header — see `bandsAreMeaningful`, which used to and now does not. */
 export function bandsFor(entries: ListEntry[]): TierBand[] {
   const byId = new Map<TaskType, TierBand>();
   const order: TaskType[] = [];
@@ -141,7 +180,7 @@ export function retiredBandLabel(label: string, closedToday: number): string {
 
 /** How many of a band's tasks were resolved today. Feeds the retirement line.
  *
- *  Counts by TASK TYPE, not by domain: a cleared "Imminent" band reports the red
+ *  Counts by TASK TYPE, not by domain: a cleared "Imminent" band reports the imminent
  *  flags closed today, not every risk-flag row of any tier. `closedToday` in
  *  sort.ts answers the domain-level question for the tab cards; this is the band
  *  scoped version of the same fact, and both read the same `resolvedAt`. */

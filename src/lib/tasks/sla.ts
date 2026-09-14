@@ -31,9 +31,9 @@ export { BILLING_REVIEW_SLA_HOURS };
  *
  *  From §2.2's table:
  *    Escalations   respond ≤5m · docs 24h FROM CLOSE
- *    Risk flags    red 24h · orange 48h
+ *    Risk flags    imminent 24h · clinical review 48h
  *    Billing       intake 72h* · monthly re-review 72h*   (*the conflict above)
- *    Monitoring    standard/green 7d
+ *    Routine       routine tier 7d
  *
  *  NOTE ON DOCUMENTATION: its clock starts at the escalation's CLOSE, not at the
  *  task's own creation — see `deadlineFor`, which is why that function takes an
@@ -41,11 +41,11 @@ export { BILLING_REVIEW_SLA_HOURS };
 export const TASK_SLA_MS: Record<TaskType, number> = {
   activeEscalation: 5 * MINUTE,
   escalationDocumentation: 24 * HOUR,
-  redFlagReview: 24 * HOUR,
-  orangeFlagReview: 48 * HOUR,
+  imminentFlagReview: 24 * HOUR,
+  clinicalFlagReview: 48 * HOUR,
   intakeBillingReview: BILLING_REVIEW_SLA_HOURS * HOUR,
   monthlyReReview: BILLING_REVIEW_SLA_HOURS * HOUR,
-  standardFlagReview: 7 * 24 * HOUR,
+  routineFlagReview: 7 * 24 * HOUR,
 };
 
 export function slaMsFor(taskType: TaskType): number {
@@ -68,7 +68,7 @@ export function slaLabelFor(taskType: TaskType): string {
   const ms = slaMsFor(taskType);
   if (ms < HOUR) return `${Math.round(ms / MINUTE)}m`;
   // `<=`, not `<`: a 24h SLA reads "24h", not "1d". §3.3's own breach-chip example
-  // is "1 past 24h", and a red flag's SLA is exactly 24 hours — the strict
+  // is "1 past 24h", and an imminent flag's SLA is exactly 24 hours — the strict
   // comparison rendered it as "1d", which is the same duration under a name the
   // spec does not use.
   if (ms <= 24 * HOUR) return `${Math.round(ms / HOUR)}h`;

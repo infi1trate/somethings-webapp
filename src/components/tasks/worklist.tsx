@@ -7,7 +7,7 @@
 //
 // ═══ WHAT A ROW MAY AND MAY NOT CARRY ═══
 // NO PER-ROW TIER CHIPS (§3.3). Inside a tier-filtered list the tier is AMBIENT —
-// every row in the Risk flags tab under a red-flag group is a red flag, and a chip
+// every row under an Imminent group is an imminent flag, and a chip
 // saying so on each one is a chip that never varies. Rows carry only
 // DIFFERENTIATORS: overdue · 911/non-911 · unreviewed/in-review · coalesce count.
 // If you are adding a chip, the test is whether it differs between rows in the
@@ -84,7 +84,7 @@ const HEADER_H = 34;
  *  them. So nothing here is currently doing any work.
  *
  *  KEPT ANYWAY, DELIBERATELY. Billing volume grows with the roster, this is the
- *  list Phase B's Monitoring domain would come back to, and the cost of carrying
+ *  list arch-B's Monitoring surface comes back to, and the cost of carrying
  *  it is a constant and two `slice` calls. Removing it would also take the
  *  arithmetic `revealRow` with it — which exists BECAUSE of virtualization but is
  *  the only reason keyboard movement to an off-screen row works at all. */
@@ -403,17 +403,17 @@ function ListError({ domain, onRetry }: { domain: TaskDomain; onRetry: () => voi
 
 /** EMPTY TAB (§4). A calm check and a domain-appropriate line.
  *
- *  THE MONITORING EMPTY STATE MUST NOT CELEBRATE. No "Nice work", no exclamation,
- *  no tick-with-a-flourish — an empty monitoring queue means nobody has written
- *  anything worth reading, which is neither an achievement nor a problem. The other
- *  three are allowed to read as relief; this one reads as a fact. */
+ *  THE ROUTINE-REVIEW EMPTY STATE MUST NOT CELEBRATE. No "Nice work", no
+ *  exclamation, no tick-with-a-flourish — an empty routine queue means nobody has
+ *  written anything worth reading, which is neither an achievement nor a problem.
+ *  The other three are allowed to read as relief; this one reads as a fact. */
 function EmptyList({ domain }: { domain: TaskDomain }) {
   /* TODO-COPY on all four. */
   const copy: Record<TaskDomain, string> = {
     escalation: "No active escalations.",
     riskFlag: "No open flags.",
     billing: "No billing reviews open.",
-    monitoring: "Nothing to monitor right now.",
+    routineFlag: "Nothing in routine review right now.",
   };
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">

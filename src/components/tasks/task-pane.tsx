@@ -52,6 +52,7 @@ import {
   type RiskFlagPayload,
   type TaskItem,
 } from "@/lib/tasks/types";
+import { tierLabel } from "@/lib/tasks/bands";
 import { slaLabelFor } from "@/lib/tasks/sla";
 import {
   PANE_LABEL,
@@ -80,13 +81,6 @@ const RING =
 const LABEL = PANE_LABEL;
 const Chip = PaneChip;
 
-/** TODO-COPY. The tier, shown IN THE HEADER ONLY (§5) — red, orange and green
- *  share one body anatomy, and the tier is not repeated inside it. */
-const TIER_LABEL: Record<RiskFlagPayload["tier"], string> = {
-  red: "Red flag",
-  orange: "Orange flag",
-  green: "Standard flag",
-};
 
 /** ═══ THE EXCERPT FAILS INDEPENDENTLY ═══
  *
@@ -423,7 +417,7 @@ function EscalationBody({
  *  silently, on a minor's billing record. Either the state moves up or the action
  *  comes down; the action is smaller. */
 export interface PaneActions {
-  /** Present only for risk-flag and monitoring items. */
+  /** Present only for flag items, at any tier. */
   answer?: (correct: boolean) => void;
   /** Present only for billing items, and it carries the OVERRIDE. */
   confirm?: () => void;
@@ -558,7 +552,7 @@ export function TaskPane({
       return;
     }
     actionsRef.current = {
-      // Flags and monitoring only — an escalation has no correctness question,
+      // Flags only, at any tier — an escalation has no correctness question,
       // and locked decision 3 says nothing on its pane resolves anything.
       answer:
         payload.kind === "riskFlag"
@@ -641,7 +635,7 @@ export function TaskPane({
           {p.kind === "riskFlag" && (
             <>
               <span aria-hidden className="opacity-40">·</span>
-              <span>{TIER_LABEL[p.tier]}</span>
+              <span>{tierLabel(p.tier)}</span>
             </>
           )}
         </p>

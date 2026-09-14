@@ -168,8 +168,8 @@
   --task-tint-risk-fg: #6b3d03; /* apricot/800-ish */
   --task-tint-billing-bg: #dfdfff; /* periwinkle/50 */
   --task-tint-billing-fg: #2933fb; /* periwinkle/600 */
-  --task-tint-monitoring-bg: #e8f5e3; /* forest/50 */
-  --task-tint-monitoring-fg: #2e4325; /* forest/800 */
+  --task-tint-routine-bg: #e8f5e3; /* forest/50 */
+  --task-tint-routine-fg: #2e4325; /* forest/800 */
 
   /* THE RESPOND STRIP'S FILL — the one filled saturated treatment on the Tasks
      page (§3.2 / §3.3 alarm budget).
@@ -620,8 +620,8 @@
   --task-tint-risk-fg: #ffd49c; /* apricot/200 */
   --task-tint-billing-bg: #26284f;
   --task-tint-billing-fg: #a8aaff; /* periwinkle/200 */
-  --task-tint-monitoring-bg: #25382a;
-  --task-tint-monitoring-fg: #b0daa2; /* forest/200 */
+  --task-tint-routine-bg: #25382a;
+  --task-tint-routine-fg: #b0daa2; /* forest/200 */
 
   --state-dirty: #fcd34d; /* unsaved indicator, lifted for dark */
   --state-error: #ff6f2f; /* tangelo/400 — also feeds --dot-critical */

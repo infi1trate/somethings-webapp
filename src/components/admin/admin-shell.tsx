@@ -19,6 +19,7 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { tasksScenario } from "@/lib/tasks/seed";
 import { openTasks } from "@/lib/tasks/sort";
+import { monitoringObligations } from "@/lib/tasks/obligations";
 
 // Supervisor nav. Users split into Teens + Mentors (each a role-filtered
 // roster); AVA/Risk/Onboarding dropped; Upcoming renamed Tasks, Todos renamed
@@ -98,18 +99,49 @@ export function AdminShell({
      the COUNT does not depend on the clock at all. Only breach does, and this
      badge does not show breach. */
   const [badgeNow] = useState(() => Date.now());
-  const billingOpen = useMemo(
-    () =>
-      mounted
-        ? openTasks(tasksScenario(tasksScenarioId, badgeNow)).filter(
-            (i) => i.domain === "billing"
-          ).length
-        : 0,
+  const scenarioItems = useMemo(
+    () => (mounted ? tasksScenario(tasksScenarioId, badgeNow) : []),
     [mounted, tasksScenarioId, badgeNow]
   );
+  const billingOpen = useMemo(
+    () => openTasks(scenarioItems).filter((i) => i.domain === "billing").length,
+    [scenarioItems]
+  );
+
+  /** ═══ MONITORING'S BADGE COUNTS DEBT, NOT VOLUME (arch-B) ═══
+   *
+   *  The reasoning lives at `monitoringObligations` and is the load-bearing part
+   *  of this line: an open count on this surface would never be zero — 43 flags
+   *  on a typical shift, 123 on a heavy one, against a routine tier with a
+   *  seven-day SLA — and a badge that is never zero stops being read within a
+   *  week. This counts the two things a named person has already failed to do by
+   *  a time that has already passed: an Imminent flag past 24h, and an escalation
+   *  closed without a write-up.
+   *
+   *  IT IS THE ONLY GLOBAL SURFACING OF EITHER, and that is why it ships with B
+   *  rather than waiting for Home in Phase C. Between these phases Monitoring
+   *  exists with no shift surface above it, so without this line an Imminent
+   *  breach is visible only to someone already looking at the page it is on.
+   *
+   *  THE CLOCK IS FIXED AT MOUNT, like the Tasks count beside it — but unlike
+   *  that one this badge DOES depend on the clock, because breach is `now >
+   *  slaDeadline`. A session left open overnight will under-report until it is
+   *  reloaded. Accepted for a prototype and recorded rather than papered over
+   *  with an interval; the fix is a shared ticking clock, which is a change to
+   *  every surface's re-render budget and not this phase's to make. */
+  const obligations = useMemo(
+    () => monitoringObligations(scenarioItems, badgeNow),
+    [scenarioItems, badgeNow]
+  );
+
   const badges = {
     activity: 4,
     ...(billingOpen > 0 ? { tasks: billingOpen } : {}),
+    // ZERO HIDES IT, and here that is right rather than a compromise: nothing
+    // owed is the resting state of a vigilance surface, and the shared rail's
+    // `badge > 0` gate says so for free. Contrast the Tasks badge, where zero is
+    // the goal state and hiding it loses the win — gap row 359.
+    ...(obligations.total > 0 ? { monitoring: obligations.total } : {}),
   };
 
   return (
