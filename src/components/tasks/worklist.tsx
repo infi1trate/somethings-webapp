@@ -52,6 +52,8 @@ import {
   type TierBand,
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
+import { discFor } from "@/lib/tasks/avatar";
+import { compositionLabel } from "@/lib/tasks/monitoring-list";
 import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem, type TaskType } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
@@ -208,11 +210,29 @@ function Row({
 }) {
   const item = paneItemFor(entry);
   const isGroup = entry.kind === "group";
+  const isTeenGroup = isGroup && entry.groupBy === "teen";
+  const disc = discFor(item.teenId);
+  const mentorFirstName = item.mentorName.split(" ")[0];
+  /** TODO-COPY. "3 clinical · 2 routine" — the tiers a teen row stands for, in
+   *  the band order, and only the tiers actually present. Null on a flag row and
+   *  on a conversation group, where every member is the same tier by
+   *  construction (taskType is half that key) and the line would restate the
+   *  header. */
+  const composition = isTeenGroup ? compositionLabel(entry.members) : null;
+  /** ═══ THE AGE ON A TEEN ROW IS THE OLDEST FLAG'S ═══
+   *  Not the head's. The head is the most URGENT flag, which on a teen carrying
+   *  three clinical and two routine is usually not the one that has been waiting
+   *  longest — and "how long has this been accumulating" is the question a
+   *  coalesced clinical picture is asked. */
+  const ageAt = isTeenGroup
+    ? Math.min(...entry.members.map((m) => m.openedAt))
+    : item.openedAt;
   /** TODO-COPY. The full row, spoken — teen, mentor, differentiators, age. */
   const ariaLabel = [
     item.teenDisplayName,
     `to ${item.mentorName}`,
     isGroup ? coalesceLabel(entry.members.length) : null,
+    composition,
     itemsOf(entry).some((i) => isBreached(i, now)) ? "overdue" : null,
     item.payload.kind === "escalation"
       ? item.payload.is911
@@ -224,7 +244,22 @@ function Row({
     // childTimeLabel.
     indent
       ? childTimeLabel(item.openedAt)
-      : `${elapsedLabel(item.openedAt, now)} open`,
+      : `${elapsedLabel(ageAt, now)} open`,
+    /* ═══ TWO FLAGS ON ONE TEEN NEED TWO NAMES ═══
+       MEASURED on Monitoring: the Imminent band never coalesces — deliberately,
+       so a 24h deadline cannot hide inside a group row — and a teen carrying two
+       imminent flags therefore gets two rows whose accessible names were
+       character-for-character identical ("Nia P., to Brandon Forant, 20h open",
+       twice). A sighted reader tells them apart by position; a screen-reader
+       user gets the same sentence and no way to know they have moved.
+       THE CLOCK TIME IS THE DISCRIMINATOR, which is not a new idea here — it is
+       the same one the indented children already use, for the same reason: "a
+       CHILD is identified by its time, a parent by its age". Elapsed is rounded
+       to the hour and two flags twenty minutes apart both read "20h".
+       NAME-ONLY. Nothing visual moves: the column still shows the age, because
+       age is what a reader scans and a clock time in that column would be a
+       second format in one line of figures. */
+    !isGroup && !indent ? childTimeLabel(item.openedAt) : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -290,10 +325,18 @@ function Row({
         !indent && <span aria-hidden className="w-5 shrink-0" />
       )}
 
-      {/* AVATAR — teen initial disc. */}
+      {/* ═══ THE IDENTITY DISC ═══
+          HUE MEANS WHO, AND NEVER WHAT — not the tier, not breach, not the flag
+          count. See `lib/tasks/avatar.ts` for the full argument; the short form
+          is that this row already carries every state in words ("Overdue", "2
+          flags", the composition line, the band header), and a second colour
+          language competing with those would leave a reader fluent in neither.
+          `aria-hidden`: the initial is a shortening of the name printed beside
+          it, so a screen reader would otherwise hear the letter twice. */}
       <span
         aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[12px] font-semibold text-[var(--text-secondary)]"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
+        style={{ backgroundColor: disc.bg, color: disc.fg }}
       >
         {item.teenDisplayName.charAt(0)}
       </span>
@@ -310,8 +353,35 @@ function Row({
             `--text-secondary` (#58534b) is 5.78:1 on s2 and is the design
             system's own next step, so nothing is invented. */}
         <span className="block truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
-          {/* TODO-COPY */}
-          to {item.mentorName}
+          {/* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
+              teen row already spends its width on a count and a composition
+              line, and the mentor is context rather than the subject — the full
+              name is what pushes that line to truncate first. Flag rows keep it:
+              there the mentor line is the row's only secondary fact. */}
+          to {isTeenGroup ? mentorFirstName : item.mentorName}
+          {/* ═══ TIER COMPOSITION, IN WORDS, ON THE LINE THAT IS ALREADY THERE ═══
+              "3 clinical · 2 routine". The band header says which tier this teen
+              was filed UNDER — the highest they carry — and this says what is
+              actually behind the row. Text rather than a stack of tinted chips
+              for the reason the whole surface is: the alarm budget spends colour
+              on the escalation treatment and nothing else, and a row encoding its
+              mix in hue would be unreadable to anyone who cannot separate two
+              pale tints.
+              IT SHARES THE MENTOR LINE RATHER THAN TAKING A THIRD. `ROW_H` is a
+              fixed 56px that the virtualizer multiplies — its own comment warns
+              that "adding a third line to a row means changing this constant, and
+              the compiler will not tell you; the list will simply drift". A third
+              line would have needed either a variable row height, which this
+              virtualizer cannot express, or a taller row for every flag on the
+              surface to accommodate the minority that are teen groups. Sharing
+              the line costs a truncation at narrow widths and nothing else —
+              which is also why the mentor drops to a first name here. */}
+          {composition && (
+            <>
+              <span aria-hidden className="px-1 opacity-40">·</span>
+              {composition}
+            </>
+          )}
         </span>
       </span>
 
@@ -330,7 +400,7 @@ function Row({
           {/* TODO-COPY */}
           {indent
             ? childTimeLabel(item.openedAt)
-            : `${elapsedLabel(item.openedAt, now)} open`}
+            : `${elapsedLabel(ageAt, now)} open`}
         </span>
       </span>
     </div>

@@ -44,6 +44,12 @@ export type ListEntry =
   | {
       kind: "group";
       id: string;
+      /** WHAT THE GROUP STANDS FOR. Tasks groups a CONVERSATION's flags; arch-B's
+       *  Monitoring groups a TEEN's, across two tiers — different rows, different
+       *  anatomy, and a renderer that guessed from the members would guess wrong
+       *  on a teen whose flags happen to share a conversation. Absent means
+       *  conversation, which is every group this file builds. */
+      groupBy?: "conversation" | "teen";
       /** Highest-priority child — the pane selects this when the parent is
        *  selected (§4), and the row's identity comes from it. */
       head: TaskItem;

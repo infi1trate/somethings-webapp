@@ -54,6 +54,7 @@ import {
 } from "@/lib/tasks/types";
 import { tierLabel } from "@/lib/tasks/bands";
 import { slaLabelFor } from "@/lib/tasks/sla";
+import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
   PANE_LABEL,
   PaneChip,
@@ -556,7 +557,8 @@ export function TaskPane({
       // and locked decision 3 says nothing on its pane resolves anything.
       answer:
         payload.kind === "riskFlag"
-          ? (correct: boolean) => onResolve(item, { flaggedCorrectly: correct })
+          ? (correct: boolean) =>
+              onResolve(item, dispositionDetail(dispositionFor(correct)))
           : undefined,
       /* ═══ IT RUNS THE GATE NOW, AND IT IS NOT REACHED BY BARE ENTER ═══
          This used to call `onResolve` directly with the code and nothing else —
@@ -719,15 +721,26 @@ export function TaskPane({
             </p>
             <div className="flex shrink-0 items-center gap-2">
               {/* EITHER ANSWER RESOLVES THE ITEM (§5). The question is feedback,
-                  not a gate — "No" does not mean "leave it open". */}
+                  not a gate — "No" does not mean "leave it open".
+                  BOTH ROUTE THROUGH `dispositionFor` RATHER THAN WRITING THE
+                  PAYLOAD HERE. Whether a THIRD disposition exists ("seen, not
+                  resolved, still watching") is open question 1 in the
+                  architecture preamble, blocked on Dr. Nissan and Meg. Routing
+                  the two through a named vocabulary means the day it is answered
+                  the compiler lists every site that has to change — see
+                  `lib/tasks/disposition.ts`, which enumerates them. */}
               <RecordButton
-                onClick={() => onResolve(item, { flaggedCorrectly: false })}
+                onClick={() =>
+                  onResolve(item, dispositionDetail(dispositionFor(false)))
+                }
               >
                 {/* TODO-COPY */}
                 No
               </RecordButton>
               <PillButton
-                onClick={() => onResolve(item, { flaggedCorrectly: true })}
+                onClick={() =>
+                  onResolve(item, dispositionDetail(dispositionFor(true)))
+                }
                 className="h-9 px-5 text-[14px]"
               >
                 {/* TODO-COPY */}

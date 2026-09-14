@@ -10,7 +10,7 @@
       "id": "shell.tiers",
       "label": "three tier bands, imminent first",
       "ok": true,
-      "detail": "Imminent — 23 | Clinical review — 26 | Routine review — 20"
+      "detail": "Imminent — 23 | Clinical review — 38 | Routine review — 8"
     },
     {
       "id": "shell.no-colour-words",
@@ -73,6 +73,103 @@
       "id": "regression.tasks",
       "label": "Tasks still renders its own two bands and nothing else",
       "ok": true
+    },
+    {
+      "id": "hybrid.imminent-individual",
+      "label": "no imminent flag is behind a disclosure",
+      "ok": true,
+      "detail": "17 imminent rows, 0 expandable"
+    },
+    {
+      "id": "hybrid.teen-coalesced",
+      "label": "the lower tiers gather into teen rows",
+      "ok": true,
+      "detail": "9 teen rows"
+    },
+    {
+      "id": "hybrid.composition",
+      "label": "a mixed teen row says what is behind it",
+      "ok": true,
+      "detail": "Omari J., to Brandy Forrestor, 4 flags, 2 clinical · 2 routine, 2d open"
+    },
+    {
+      "id": "hybrid.row-height",
+      "label": "the teen row did not grow the row",
+      "ok": true,
+      "detail": "heights: 56"
+    },
+    {
+      "id": "hybrid.fits",
+      "label": "the composition line is not clipped at xl",
+      "ok": true,
+      "detail": "overflow 0px"
+    },
+    {
+      "id": "coalesce.reachable",
+      "label": "a coalesced teen row is reachable",
+      "ok": true
+    },
+    {
+      "id": "coalesce.start",
+      "label": "a group of 5 to work with",
+      "ok": true,
+      "detail": "Hana T.: 5 flags"
+    },
+    {
+      "id": "coalesce.count-falls",
+      "label": "the count falls by exactly one per child",
+      "ok": true,
+      "detail": "5 → 4 → 3 → 2 → 0"
+    },
+    {
+      "id": "coalesce.degrades",
+      "label": "the row stops being a group before its last child",
+      "ok": true,
+      "detail": "0 disclosure(s) left on Hana T."
+    },
+    {
+      "id": "coalesce.last-child-survives",
+      "label": "the last flag is still on the surface",
+      "ok": true
+    },
+    {
+      "id": "keyboard.survives",
+      "label": "selection survives 80 presses of j",
+      "ok": true,
+      "detail": "Caleb O., to Omar Haddad, 2d open, 3:52 PM"
+    },
+    {
+      "id": "keyboard.in-view",
+      "label": "the selected row was scrolled into view",
+      "ok": true
+    },
+    {
+      "id": "keyboard.focus",
+      "label": "focus tracks the selection across the unmount boundary",
+      "ok": true
+    },
+    {
+      "id": "keyboard.moved",
+      "label": "the list actually scrolled",
+      "ok": true,
+      "detail": "scrollTop 3504"
+    },
+    {
+      "id": "reanchor.children",
+      "label": "expanding reveals the individual flags",
+      "ok": true,
+      "detail": "5 children"
+    },
+    {
+      "id": "reanchor.no-reload",
+      "label": "the pane re-rendered rather than remounted",
+      "ok": true
+    },
+    {
+      "id": "reanchor.moved",
+      "label": "the excerpt moved to the child's own message",
+      "ok": true,
+      "detail": "changed"
     }
   ]
 }

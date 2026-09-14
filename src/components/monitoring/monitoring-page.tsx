@@ -31,11 +31,8 @@
 // of risk do you want to look at", and the answer on a vigilance surface is
 // always "the most urgent one", which the comparator already knows.
 //
-// ═══ WHAT LANDS LATER, NAMED SO THE GAPS ARE NOT MISTAKEN FOR OVERSIGHTS ═══
+// ═══ WHAT LANDS LATER, NAMED SO THE GAP IS NOT MISTAKEN FOR AN OVERSIGHT ═══
 //
-//   B2 · the hybrid unit of review — Imminent as individual rows, the two lower
-//        tiers coalesced by teen. Today this coalesces by conversation, which is
-//        what Tasks does and what `flagEntriesFor` returns.
 //   B3 · the escalation region above the flags view, present only when non-empty.
 //        Its slot is marked below and renders nothing yet.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -47,7 +44,8 @@ import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { elapsedLabel } from "@/components/tasks/strips";
-import { flagEntriesFor, itemsOf, paneItemFor } from "@/lib/tasks/list";
+import { itemsOf, paneItemFor } from "@/lib/tasks/list";
+import { monitoringEntriesFor } from "@/lib/tasks/monitoring-list";
 import { monitoringObligations } from "@/lib/tasks/obligations";
 import { tasksScenario } from "@/lib/tasks/seed";
 import { tierLabel } from "@/lib/tasks/bands";
@@ -114,7 +112,10 @@ export function MonitoringPage() {
     [allItems, resolvedIds]
   );
 
-  const entries = useMemo(() => flagEntriesFor(items, now), [items, now]);
+  /** THE HYBRID UNIT OF REVIEW (B2). Imminent as individual rows, the two lower
+   *  tiers coalesced by teen — see `monitoring-list.ts` for why the unit follows
+   *  the obligation rather than being uniform. */
+  const entries = useMemo(() => monitoringEntriesFor(items, now), [items, now]);
   const obligations = useMemo(
     () => monitoringObligations(items, now),
     [items, now]
@@ -128,17 +129,47 @@ export function MonitoringPage() {
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [pickedId, setPickedId] = useState<string | null>(null);
 
-  /** THE SELECTED ENTRY, AND THE ITEM THE PANE SHOWS — two ids, because they are
-   *  two things. Selecting a coalesced group selects its highest-priority child
-   *  in the pane, so the highlighted ROW and the reviewed ITEM are not the same
-   *  object. Both fall back to the head of the list, so the pane is never empty
-   *  while there is work. */
+  /** ═══ THE SELECTED ROW, AND THE ITEM THE PANE SHOWS — TWO IDS ═══
+   *
+   *  Selecting a coalesced group puts its highest-priority child in the pane, so
+   *  the highlighted ROW and the reviewed ITEM are not the same object.
+   *
+   *  ═══ A CHILD ROW'S ID IS NOT AN ENTRY ID, AND THAT COST A DEFECT ═══
+   *
+   *  The worklist renders an expanded group's children from a SYNTHETIC entry —
+   *  `{kind: "item", id: member.id, item: member}` — built at render time and
+   *  never present in `entries`. So `entries.find(e => e.id === selectedEntryId)`
+   *  returns undefined for every child row, the `?? entries[0]` fallback fired,
+   *  and clicking a child put a DIFFERENT TEEN in the pane while the row lost its
+   *  selection outline entirely.
+   *
+   *  MEASURED, because it is worth saying how this was caught: a probe expanded a
+   *  group of five, clicked each child in turn and pressed `y`, and the count on
+   *  the row never moved. It was resolving the first row of the list, five times.
+   *  Nothing errored and nothing looked broken — the pane showed a real flag with
+   *  real evidence, just not the one that had been clicked.
+   *
+   *  THE SECOND LOOKUP IS THE FIX: a row id that is not an entry id belongs to a
+   *  member of one. Ordered so the common case — a top-level row — still costs
+   *  one scan.
+   *
+   *  LATENT ON TASKS TOO, and unreachable there: billing objectIds are unique per
+   *  review, so nothing on that surface coalesces and no child row exists to
+   *  click. Reported rather than changed — Tasks is out of this phase's scope. */
   const selectedEntry =
-    entries.find((e) => e.id === selectedEntryId) ?? entries[0] ?? null;
+    entries.find((e) => e.id === selectedEntryId) ??
+    entries.find((e) => itemsOf(e).some((i) => i.id === selectedEntryId)) ??
+    entries[0] ??
+    null;
   const selected: TaskItem | null = selectedEntry
     ? (itemsOf(selectedEntry).find((i) => i.id === pickedId) ??
       paneItemFor(selectedEntry))
     : null;
+  /** WHAT THE LIST HIGHLIGHTS. The row the reader clicked — which for a child is
+   *  the child, not its parent — falling back to the head so the pane and the
+   *  outline agree on an untouched page. */
+  const selectedRowId =
+    selectedEntryId ?? selectedEntry?.id ?? null;
 
   const paneRef = useRef<HTMLDivElement | null>(null);
   const paneActions = useRef<PaneActions>({});
@@ -287,7 +318,7 @@ export function MonitoringPage() {
               subject="Monitoring"
               emptyLine="No flags in review right now."
               now={now}
-              selectedId={selectedEntry?.id ?? null}
+              selectedId={selectedRowId}
               state={listState}
               onSelect={(entry, item) => {
                 setSelectedEntryId(entry.id);
