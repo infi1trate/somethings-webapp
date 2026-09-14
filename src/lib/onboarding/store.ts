@@ -337,6 +337,7 @@ interface OnboardingState {
    *  is in the dev footer and the state is in the page — a counter is the smallest
    *  seam that does not make the page reach into the bar or the reverse. */
   resetTasksReviewed: () => void;
+  setShiftSeenAt: (at: number) => void;
   setDevLoadState: (state: LoadState) => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
    *
@@ -346,6 +347,24 @@ interface OnboardingState {
    *  state cannot answer across a reload. 0 means never opened, which counts as a
    *  gap and shows the digest. */
   tasksLastVisitAt: number;
+  /** ═══ WHEN THE SUPERVISOR LAST STARTED A SHIFT (v44) ═══
+   *
+   *  The shift-start digest's gate, and it belongs to HOME rather than to Tasks.
+   *  `tasksLastVisitAt` was the old one and is superseded: Tasks wrote it on
+   *  every mount, so a supervisor who opened Tasks before Home would have killed
+   *  Home's digest by looking at the wrong page first. The digest is a fact about
+   *  the SESSION, so the surface that shows it is the surface that stamps it.
+   *
+   *  `tasksLastVisitAt` IS LEFT IN PLACE rather than removed. Dropping a
+   *  persisted field costs a migration to delete a number, and this codebase has
+   *  already made that call once for this exact field. It is migrated FROM at
+   *  v44 so an existing session keeps its place in the shift rather than meeting
+   *  the digest again on upgrade, and nothing writes it any more.
+   *
+   *  PERSISTED, necessarily — "has it been a shift since you were last here" is
+   *  not a question component state can answer across a reload. 0 means never,
+   *  which counts as a gap and shows the digest once. */
+  shiftLastSeenAt: number;
   /** ACTIVITY FEED DENSITY (v38). Per user, persisted — A11 asks for the choice to
    *  survive, and a reading-density preference that resets every session is worse
    *  than no toggle at all. */
@@ -595,6 +614,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       chatArtifacts: {},
       tasksResetNonce: 0,
       tasksLastVisitAt: 0,
+      shiftLastSeenAt: 0,
       activityDensity: "dense",
       careUpdates: {},
       careSummaryRefreshedAt: {},
@@ -1021,6 +1041,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         }),
       resetTasksReviewed: () =>
         set((st) => ({ tasksResetNonce: st.tasksResetNonce + 1 })),
+      setShiftSeenAt: (at) => set({ shiftLastSeenAt: at }),
       setDevLoadState: (state) => set({ devLoadState: state }),
       seedActivityRead: (overlay) => set({ activityRead: overlay }),
       markActivityRowsRead: (viewerId, scope, eventIds) =>
@@ -1182,7 +1203,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           chatEvents: {},
           chatNotes: {},
           chatArtifacts: {},
-          tasksLastVisitAt: 0, // …and brings the shift-start digest back
+          tasksLastVisitAt: 0,
+          shiftLastSeenAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
           careUpdates: {},
           careSummaryRefreshedAt: {},
@@ -1297,11 +1319,19 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      A scalar preference, so the backfill is the default id.
       // v43: the mentor chat's four persisted fields plus its scenario axis.
       //      `chatScenarioId` is a scalar preference (backfill: the default id);
+      // v44: shiftLastSeenAt (when the supervisor last started a shift) — a
+      //      SCALAR, and the one migration in this chain that CARRIES A VALUE
+      //      rather than backfilling a default. `tasksLastVisitAt` held the same
+      //      instant under a name that stopped being true when the shift-start
+      //      digest moved to Home, so an existing session inherits its place in
+      //      the shift instead of meeting the digest again on upgrade. The old
+      //      field stays: deleting it would cost a migration to remove a number,
+      //      which is the trade this codebase already declined once for it.
       //      `escalations`, `chatEvents`, `chatNotes` and `chatArtifacts` are
       //      sparse maps, so {} is the correct backfill and reads as "this mentor
       //      has raised nothing, sent nothing and written nothing" — which is true
       //      of every state persisted before this version existed.
-      version: 43,
+      version: 44,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1311,6 +1341,18 @@ export const useOnboardingStore = create<OnboardingState>()(
           hubWelcomeSeen?: unknown;
           publishedSnapshot?: unknown;
         };
+        /* ═══ v44 — CARRY, DO NOT BACKFILL ═══
+           The only migration in this chain that moves a VALUE. `tasksLastVisitAt`
+           held exactly this instant under a name that stopped being true when the
+           shift-start digest moved to Home, so an existing session inherits its
+           place in the shift rather than meeting the digest again on upgrade.
+           Guarded on absence, not on the version alone, so replaying the chain
+           cannot overwrite a stamp Home has already written. */
+        const v44 = persisted as { shiftLastSeenAt?: number; tasksLastVisitAt?: number };
+        if (version < 44 && typeof v44.shiftLastSeenAt !== "number") {
+          v44.shiftLastSeenAt =
+            typeof v44.tasksLastVisitAt === "number" ? v44.tasksLastVisitAt : 0;
+        }
         if (s?.draft) {
           const d = s.draft;
           if (version < 2) {

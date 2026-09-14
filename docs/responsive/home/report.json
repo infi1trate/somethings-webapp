@@ -1,0 +1,147 @@
+{
+  "base": "http://localhost:3000",
+  "rows": [
+    {
+      "id": "shell.supervisor",
+      "label": "a supervisor's Home is in the supervisor's chrome",
+      "ok": true,
+      "detail": "Supervisor sections"
+    },
+    {
+      "id": "sequence.order",
+      "label": "four stages, fixed order, never hidden",
+      "ok": true,
+      "detail": "escalations > billing > flags > chatReview"
+    },
+    {
+      "id": "sequence.one-directive",
+      "label": "exactly one stage carries the directive emphasis",
+      "ok": true,
+      "detail": "escalations"
+    },
+    {
+      "id": "sequence.names",
+      "label": "every stage's accessible name carries its state",
+      "ok": true,
+      "detail": "Risk flags, 2 imminent past 24h"
+    },
+    {
+      "id": "sequence.directive-in-name",
+      "label": "and the directive one says so in words, not only by shape",
+      "ok": true,
+      "detail": "Escalations, 1 open now, next"
+    },
+    {
+      "id": "boundary.no-controls",
+      "label": "the only control is the digest's dismissal",
+      "ok": true,
+      "detail": "Dismiss the shift summary"
+    },
+    {
+      "id": "boundary.no-queue",
+      "label": "no list, tree or queue is rendered",
+      "ok": true,
+      "detail": "0 found"
+    },
+    {
+      "id": "boundary.links-out",
+      "label": "every link leaves for a surface that owns the work",
+      "ok": true,
+      "detail": "/app/escalation/esc-naomi-live /app/monitoring?region=escalations /app/monitoring?band=imminentFlagReview /app/tasks /app/monitoring?band=clinicalFlagReview /app/monitoring /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
+    },
+    {
+      "id": "ladder.active-escalation",
+      "label": "an open escalation outranks everything",
+      "ok": true,
+      "detail": "escalations (expected escalations)"
+    },
+    {
+      "id": "ladder.breach-overnight",
+      "label": "a breached imminent flag outranks billing past SLA",
+      "ok": true,
+      "detail": "flags (expected flags)"
+    },
+    {
+      "id": "ladder.quiet-day",
+      "label": "billing before clinical, whatever the counts",
+      "ok": true,
+      "detail": "billing (expected billing)"
+    },
+    {
+      "id": "digest.present",
+      "label": "the digest renders after a gap",
+      "ok": true
+    },
+    {
+      "id": "digest.breach-first",
+      "label": "breach lines come before any neutral count",
+      "ok": true,
+      "detail": "breach:1 escalation open now | breach:2 imminent past 24h | breach:1 write-up overdue | attention:23 imminent | attention:15 billing | attention:26 clinical | attention:20 routine"
+    },
+    {
+      "id": "digest.one-cta",
+      "label": "one primary CTA, naming where it goes",
+      "ok": true,
+      "detail": "Start with escalations — Naomi first"
+    },
+    {
+      "id": "digest.gated",
+      "label": "and not again inside the same shift",
+      "ok": true
+    },
+    {
+      "id": "digest.tasks-clean",
+      "label": "Tasks renders no digest",
+      "ok": true
+    },
+    {
+      "id": "state.allclear-plain",
+      "label": "an all-clear Home says what is true and does not celebrate",
+      "ok": true,
+      "detail": "Your shift Work through the sequence in order Escalations All clear Bi"
+    },
+    {
+      "id": "state.partial",
+      "label": "a failed escalation read says what is unknown, not what failed",
+      "ok": true,
+      "detail": "Escalations couldn’t be loaded, so this page can’t say whether any are"
+    },
+    {
+      "id": "state.partial-intact",
+      "label": "and the other regions are intact",
+      "ok": true
+    },
+    {
+      "id": "state.error-retry",
+      "label": "each failed region offers its own retry",
+      "ok": true,
+      "detail": "2 retries"
+    },
+    {
+      "id": "state.retry-works",
+      "label": "and retrying restores that region alone",
+      "ok": true
+    },
+    {
+      "id": "scope.no-trend",
+      "label": "no trend, streak or comparative language",
+      "ok": true
+    },
+    {
+      "id": "scope.no-charts",
+      "label": "and no chart of any kind",
+      "ok": true,
+      "detail": "0 found"
+    },
+    {
+      "id": "persona.mentor",
+      "label": "sees the unbuilt-section placeholder, not the shift surface",
+      "ok": true
+    },
+    {
+      "id": "persona.lead-mentor",
+      "label": "sees the unbuilt-section placeholder, not the shift surface",
+      "ok": true
+    }
+  ]
+}

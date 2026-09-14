@@ -46,7 +46,7 @@ import {
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
 import {
-  DOMAIN_LABEL,
+  asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
   type TaskDomain,
   type TaskItem,
@@ -108,7 +108,13 @@ function PaneError({ domain }: { domain: TaskDomain }) {
 /* `listForDomainCount` WENT WITH THE TAB BADGES — it counted one domain's open
    items for a card. The page's own `counts` covers the subtitle. */
 
-export function TasksPage() {
+export function TasksPage({
+  /** arch-C's stage link — a band to land on. Validated here rather than at the
+   *  route, so a stale bookmark falls back to the default view. */
+  focusBand = null,
+}: {
+  focusBand?: string | null;
+} = {}) {
   const mounted = useMounted();
   /** ═══ THE SCENARIO LIVES IN THE STORE (v42, gap row 311) ═══
    *  It was `useState` here, driven by a panel pinned bottom-right — which sat
@@ -355,25 +361,27 @@ export function TasksPage() {
    *  tabs had emptied; with one domain the question is only whether. */
   const [billingComplete, setBillingComplete] = useState(false);
 
-  /** THE SHIFT-START DIGEST (§7). Gated on a persisted last-visit stamp, because
-   *  "has it been a shift" cannot be answered from component state across a
-   *  reload. Captured ONCE at mount — `isNewShift` is read before the stamp is
-   *  written, or opening the page would immediately disqualify it. */
-  const setLastVisitAt = useOnboardingStore((st) => st.setTasksLastVisitAt);
-
-  /** ═══ THE SHIFT DIGEST IS GONE (§7 RETIRED) ═══
+  /** ═══ THE SHIFT-START DIGEST BELONGS TO HOME NOW (arch-C, C2) ═══
    *
    *  "Since you were last here —" sat above the tabs and summarised what had
-   *  moved during the gap. Removed at the product owner's request, 2026-08-31.
+   *  moved during the gap. It was removed at the product owner's request on
+   *  2026-08-31, leaving only its gate: `tasksLastVisitAt`, stamped here on every
+   *  mount and read by nothing.
    *
-   *  THE VISIT STAMP STAYS WRITTEN. `tasksLastVisitAt` is persisted store state
-   *  (schema v37) and dropping it would cost a migration to delete a number that
-   *  is cheap to keep and is the input any later "what changed" treatment needs.
-   *  It is written and not read, deliberately, rather than removed. */
-  useEffect(() => {
-    if (!mounted) return;
-    setLastVisitAt(Date.now());
-  }, [mounted, setLastVisitAt]);
+   *  arch-C rebuilds the digest on Home, and THIS WRITE HAD TO GO WITH IT. The
+   *  stamp answers "has it been a shift since you were last here", and a
+   *  supervisor who opened Tasks before Home would have answered it on the wrong
+   *  page — killing Home's digest by looking somewhere else first. The surface
+   *  that shows the digest is the surface that stamps it, so Home owns
+   *  `shiftLastSeenAt` and this page owns nothing about the shift.
+   *
+   *  `tasksLastVisitAt` IS LEFT IN THE STORE, unwritten. Deleting a persisted
+   *  field costs a migration to remove a number, which this codebase already
+   *  declined once for this exact field; v44 migrates FROM it so an existing
+   *  session keeps its place in the shift.
+   *
+   *  C2 asked to "delete the digest from Tasks now that Home owns it". There was
+   *  no digest left to delete — only this write. */
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
@@ -661,7 +669,8 @@ export function TasksPage() {
                   // a no-op, which is why it went unnoticed on a desktop.
                   setPaneTakeover(true);
                 }}
-                onRetry={() =>
+                focusBand={asTaskType(focusBand)}
+              onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
                 }
               />

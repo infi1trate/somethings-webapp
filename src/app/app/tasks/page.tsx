@@ -28,9 +28,19 @@ export default function TasksRoute({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  // Read through the prop pattern so the shape is right before a later phase needs
-  // a param (the digest's deep links in T5, most likely).
-  void use(searchParams);
+  /** ═══ `?band=<taskType>` — arch-C's stage link ═══
+   *
+   *  Home's shift sequence gives each stage exactly one way in, and "Tasks" with
+   *  no further aim would drop a supervisor at the top of a fifteen-row list they
+   *  then have to find their place in. The param names a BAND rather than an
+   *  item: a stage is a kind of work, not a particular review, and a link to one
+   *  specific item would go stale the moment somebody else resolved it.
+   *
+   *  Read through the prop pattern, never `useSearchParams` (standing rule 3).
+   *  Validated inside the page against the real band list, so a stale bookmark
+   *  lands on the default view rather than on nothing. */
+  const query = use(searchParams);
+  const band = typeof query.band === "string" ? query.band : null;
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
 
@@ -42,7 +52,7 @@ export default function TasksRoute({
   if (supervisor) {
     return (
       <AdminShell active="tasks">
-        <TasksPage />
+        <TasksPage focusBand={band} />
       </AdminShell>
     );
   }

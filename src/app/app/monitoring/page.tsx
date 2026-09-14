@@ -30,7 +30,19 @@ export default function MonitoringRoute({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  void use(searchParams);
+  /** ═══ `?band=<taskType>` AND `?region=escalations` — arch-C's stage links ═══
+   *
+   *  Home's sequence asks two different questions of this surface — "the imminent
+   *  tier" and "the escalations" — and they land in two different regions of one
+   *  page, so one param could not express both. `band` scrolls the flags view to
+   *  a tier; `region` targets the escalation region above it.
+   *
+   *  A BAND, NOT AN ITEM. A stage is a kind of work; a link to one flag would go
+   *  stale the moment somebody else resolved it. Both are validated in the page,
+   *  so a stale bookmark lands on the default view rather than on nothing. */
+  const query = use(searchParams);
+  const band = typeof query.band === "string" ? query.band : null;
+  const region = typeof query.region === "string" ? query.region : null;
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
 
@@ -42,7 +54,7 @@ export default function MonitoringRoute({
   if (supervisor) {
     return (
       <AdminShell active="monitoring">
-        <MonitoringPage />
+        <MonitoringPage focusBand={band} focusRegion={region} />
       </AdminShell>
     );
   }

@@ -122,6 +122,21 @@ export type TaskType =
   // ── Routine review — the lowest flag tier, its own domain.
   | "routineFlagReview";
 
+/** ═══ A STRING FROM OUTSIDE THE PROGRAM, CHECKED ═══
+ *
+ *  arch-C's stage links carry a task type in the URL, which means a stale
+ *  bookmark, a truncated copy-paste or a hand-edited address can deliver
+ *  anything at all. Validated against the real table rather than cast: an
+ *  unrecognised value lands on the surface's default view, which is what a link
+ *  that no longer means anything should do.
+ *
+ *  `DOMAIN_OF_TYPE` is the table because it is exhaustive over `TaskType` by its
+ *  own type — a new task type cannot be added without appearing here, so this
+ *  cannot fall behind. */
+export function asTaskType(value: string | null | undefined): TaskType | null {
+  return value && value in DOMAIN_OF_TYPE ? (value as TaskType) : null;
+}
+
 export const DOMAIN_OF_TYPE: Record<TaskType, TaskDomain> = {
   activeEscalation: "escalation",
   // THE OLD "FOLLOW-UPS & DOCUMENTATION" ZONE IS DISSOLVED (§2.2): documentation
