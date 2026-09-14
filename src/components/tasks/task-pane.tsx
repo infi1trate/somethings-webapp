@@ -54,6 +54,13 @@ import {
 } from "@/lib/tasks/types";
 import { tierLabel } from "@/lib/tasks/bands";
 import { slaLabelFor } from "@/lib/tasks/sla";
+import {
+  LIFECYCLE_LABEL,
+  closedAtOf,
+  isEscalationTask,
+  lifecycleOf,
+} from "@/lib/tasks/escalation-state";
+import { clockLabel } from "@/components/monitoring/escalation-region";
 import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
   PANE_LABEL,
@@ -312,6 +319,8 @@ function EscalationBody({
   onRetryExcerpt: () => void;
 }) {
   const isDocs = payload.kind === "documentation";
+  const state = lifecycleOf(item, now);
+  const closedAt = closedAtOf(item);
   /** ═══ CONTEXT, NOT EVIDENCE ═══
    *
    *  An escalation has no `flaggedExcerpt` — nothing here was flagged, so there is
@@ -323,6 +332,14 @@ function EscalationBody({
    *  NOTHING ABOUT MITIGATION MOVES. This body is read-only (§5, locked decision
    *  3) and stays so; the excerpt is one more statement, not an action. */
   const conversation = buildConversation(item, null, now);
+
+  /* ═══ THE CLOSED ONES GET THE SAME FIELDS NOW (arch-B) ═══
+     They used to render TWO lines — a "Closed" date and a dead-end sentence —
+     and suppress the 911 status, the responder, the emergency contact and the
+     conversation entirely. The reasoning was presumably that a write-up is
+     paperwork, so the context does not matter. It is the opposite: somebody
+     writing up an escalation hours later needs the 911 decision, who raised it
+     and what was said MORE than the person who was in the room. */
   return (
     <div className="space-y-4">
       {/* READ-ONLY (§5). Every field here is a statement; there is no control in
@@ -331,7 +348,7 @@ function EscalationBody({
         <div>
           <p className={LABEL}>{/* TODO-COPY */}{isDocs ? "Closed" : "Opened"}</p>
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {new Date(isDocs ? payload.closedAt : item.openedAt).toLocaleString(
+            {new Date(isDocs && closedAt !== null ? closedAt : item.openedAt).toLocaleString(
               "en-US",
               { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
             )}
@@ -339,19 +356,32 @@ function EscalationBody({
               className="ml-2 text-[var(--text-secondary)] tabular-nums"
               style={{ fontFamily: "var(--font-mono)" }}
             >
-              {elapsedLabel(isDocs ? payload.closedAt : item.openedAt, now)}
+              {/* THE CLOCK THE READER IS ACTUALLY ON. An active escalation counts
+                  up from its start; a closed one counts down to its write-up
+                  deadline and past it counts up again. A bare figure here used to
+                  mean "since it closed", which is the one reading that answers
+                  nobody's question. */}
+              {clockLabel(item, now)}
             </span>
           </p>
         </div>
-        {!isDocs && (
-          <div>
-            <p className={LABEL}>{/* TODO-COPY */}911 status</p>
-            <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-              {payload.is911 ? "911 dispatched" : "No 911 call"}
-            </p>
-          </div>
-        )}
-        {!isDocs && (
+        <div>
+          <p className={LABEL}>{/* TODO-COPY */}911 status</p>
+          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+            {/* TODO-DATA. A documentation task's payload carries only the
+                escalation id and the close time — the 911 decision lives on the
+                escalation record, which this prototype has no reader for (gap row
+                213). Saying so is the honest option; printing "No 911 call" would
+                assert a decision from an absence, on the row where that decision
+                is most consequential. */}
+            {payload.kind === "escalation"
+              ? payload.is911
+                ? "911 dispatched"
+                : "No 911 call"
+              : "On the escalation record"}
+          </p>
+        </div>
+        {payload.kind === "escalation" && (
           <>
             <div>
               <p className={LABEL}>{/* TODO-COPY */}Flagged by</p>
@@ -369,35 +399,37 @@ function EscalationBody({
         )}
       </div>
 
-      {/* THE EXCERPT SITS ABOVE THE "this pane does not act" LINE, because it is
-          the last piece of CONTEXT and that line closes the body. A reader who
-          has just been told nothing here changes state should not then be handed
-          more to read. */}
-      {!isDocs && (
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}Recent conversation</p>
-          <div className="mt-2">
-            <ConversationExcerpt
-              conversation={conversation}
-              teenName={firstNameOf(item.teenDisplayName)}
-              href={conversationHref(item.teenId, conversation.anchorId)}
-              state={excerptState}
-              onRetry={onRetryExcerpt}
-              /* TODO-COPY. A different name from the flag pane's, because this
-                 excerpt makes a weaker claim: nothing here is flagged. */
-              label={`Recent conversation with ${firstNameOf(item.teenDisplayName)}`}
-            />
-          </div>
+      {/* THE EXCERPT SITS ABOVE THE CLOSING LINE, because it is the last piece of
+          CONTEXT and that line closes the body. A reader who has just been told
+          what state this is in should not then be handed more to read. */}
+      <div>
+        <p className={LABEL}>{/* TODO-COPY */}Recent conversation</p>
+        <div className="mt-2">
+          <ConversationExcerpt
+            conversation={conversation}
+            teenName={firstNameOf(item.teenDisplayName)}
+            href={conversationHref(item.teenId, conversation.anchorId)}
+            state={excerptState}
+            onRetry={onRetryExcerpt}
+            /* TODO-COPY. A different name from the flag pane's, because this
+               excerpt makes a weaker claim: nothing here is flagged. */
+            label={`Recent conversation with ${firstNameOf(item.teenDisplayName)}`}
+          />
         </div>
-      )}
+      </div>
 
+      {/* ═══ THE STATE, ITS DEADLINE, AND WHERE THE WORK IS ═══
+          THIS REPLACED A DEAD END. It read "Write-ups are completed on the
+          escalation record." and "This escalation is handled in the escalation
+          flow. Nothing here changes its state." — both true, both useless: they
+          told a reader what this pane will NOT do and left them to find out
+          elsewhere what state the thing is in and when it is due. The footer
+          already carries the link; this carries the fact. */}
       <p className="text-[13px] leading-[18px] text-[var(--text-muted)]">
-        {/* TODO-COPY. States plainly that this pane does not act — the honest
-            version of a read-only surface, rather than leaving a reader hunting
-            for a button that is not there. */}
+        {/* TODO-COPY, both. */}
         {isDocs
-          ? "Write-ups are completed on the escalation record."
-          : "This escalation is handled in the escalation flow. Nothing here changes its state."}
+          ? `${LIFECYCLE_LABEL[state]} — ${clockLabel(item, now)}. The write-up is completed on the escalation record.`
+          : `Active — ${clockLabel(item, now)}. Responding happens in the escalation flow; nothing here changes its state.`}
       </p>
     </div>
   );
@@ -615,11 +647,24 @@ export function TaskPane({
           <h2 className="font-display text-[18px] font-bold leading-[26px] text-[var(--text-primary)]">
             {item.teenDisplayName}
           </h2>
+          {/* ═══ THE SAME "open" DEFECT LIVED HERE TOO (arch-B) ═══
+              The header printed "{elapsed} open" for every item, so a
+              documentation row's header said "20h open" directly above a body
+              whose first field read "Closed". See `escalation-state.ts` for which
+              field is authoritative; the short version is that both figures were
+              right and the word was wrong.
+              DROPPING THE WORD WAS NOT ENOUGH, and the first fix here did only
+              that: a bare "1d" over a closed escalation is worse than a wrong
+              label, because it could mean a day since it closed, a day left, or a
+              day late. Escalations take the same `clockLabel` the region and the
+              body use, so all three say one thing. */}
           <span
             className="text-[13px] tabular-nums text-[var(--text-muted)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
-            {elapsedLabel(item.openedAt, now)} open
+            {isEscalationTask(item)
+              ? clockLabel(item, now)
+              : `${elapsedLabel(item.openedAt, now)} open`}
           </span>
           {breached && <BreachChip label={`Past ${slaLabelFor(item.taskType)}`} />}
         </div>
@@ -833,7 +878,12 @@ export function TaskPane({
               )}
             >
               {/* TODO-COPY */}
-              {p.kind === "documentation" ? "Open escalation record" : "Open escalation"}
+              {/* TODO-COPY. THE ACTION NAMES THE WORK, NOT THE OBJECT — "Open
+                  escalation" on a closed one sends a reader looking for a crisis
+                  that is over. Matches the region's own row button exactly, so a
+                  reader who clicks either lands in the same place expecting the
+                  same thing. */}
+              {p.kind === "documentation" ? "Open documentation" : "Open escalation"}
             </Link>
           </div>
         )}

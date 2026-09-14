@@ -219,6 +219,19 @@ function Row({
    *  construction (taskType is half that key) and the line would restate the
    *  header. */
   const composition = isTeenGroup ? compositionLabel(entry.members) : null;
+  /** ═══ "OPEN" IS NOT TRUE OF EVERY ROW (arch-B) ═══
+   *
+   *  This column appended the literal word "open" to an elapsed figure for every
+   *  non-child row, whatever kind of task it was — so an escalation DOCUMENTATION
+   *  row read "20h open" while the pane two inches away read "Closed Sep 13".
+   *  Neither was a data error; they are the same instant, because the write-up's
+   *  clock starts at the escalation's close (see `escalation-state.ts`). The only
+   *  thing that disagreed was this suffix.
+   *
+   *  A documentation row's elapsed figure is how long the write-up has been owed,
+   *  which is not a thing that is "open" — the escalation it belongs to is shut.
+   *  The state chip says which state it is in; this says the duration and stops. */
+  const openSuffix = item.taskType === "escalationDocumentation" ? "" : " open";
   /** ═══ THE AGE ON A TEEN ROW IS THE OLDEST FLAG'S ═══
    *  Not the head's. The head is the most URGENT flag, which on a teen carrying
    *  three clinical and two routine is usually not the one that has been waiting
@@ -400,7 +413,7 @@ function Row({
           {/* TODO-COPY */}
           {indent
             ? childTimeLabel(item.openedAt)
-            : `${elapsedLabel(ageAt, now)} open`}
+            : `${elapsedLabel(ageAt, now)}${openSuffix}`}
         </span>
       </span>
     </div>

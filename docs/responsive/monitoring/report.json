@@ -21,31 +21,31 @@
       "id": "shell.counts-reconcile",
       "label": "the subtitle's coverage equals the bands' total",
       "ok": true,
-      "detail": "bands 69 vs subtitle 69 (“2 past 24h · 1 write-up due · 69 flags in review”)"
+      "detail": "bands 69 vs subtitle 69 (“2 past 24h · 2 write-ups due · 69 flags in review”)"
     },
     {
       "id": "shell.obligation-first",
       "label": "the subtitle leads with what is owed",
       "ok": true,
-      "detail": "2 past 24h · 1 write-up due · 69 flags in review"
+      "detail": "2 past 24h · 2 write-ups due · 69 flags in review"
     },
     {
       "id": "badge.present",
       "label": "Monitoring carries an obligation badge",
       "ok": true,
-      "detail": "3 overdue"
+      "detail": "4 overdue"
     },
     {
       "id": "badge.noun",
       "label": "the badge says what it counts",
       "ok": true,
-      "detail": "3 overdue"
+      "detail": "4 overdue"
     },
     {
       "id": "badge.agrees",
       "label": "the badge equals the subtitle's debt",
       "ok": true,
-      "detail": "badge 3 vs 2 + 1"
+      "detail": "badge 4 vs 2 + 2"
     },
     {
       "id": "persona.mentor.placeholder",
@@ -78,13 +78,13 @@
       "id": "hybrid.imminent-individual",
       "label": "no imminent flag is behind a disclosure",
       "ok": true,
-      "detail": "17 imminent rows, 0 expandable"
+      "detail": "20 imminent rows, 0 expandable"
     },
     {
       "id": "hybrid.teen-coalesced",
       "label": "the lower tiers gather into teen rows",
       "ok": true,
-      "detail": "9 teen rows"
+      "detail": "3 teen rows"
     },
     {
       "id": "hybrid.composition",
@@ -119,7 +119,7 @@
       "id": "coalesce.count-falls",
       "label": "the count falls by exactly one per child",
       "ok": true,
-      "detail": "5 → 4 → 3 → 2 → 0"
+      "detail": "5 → 4 → 3 → 0"
     },
     {
       "id": "coalesce.degrades",
@@ -136,7 +136,7 @@
       "id": "keyboard.survives",
       "label": "selection survives 80 presses of j",
       "ok": true,
-      "detail": "Caleb O., to Omar Haddad, 2d open, 3:52 PM"
+      "detail": "Caleb O., to Omar Haddad, 2d open, 4:04 PM"
     },
     {
       "id": "keyboard.in-view",
@@ -152,7 +152,7 @@
       "id": "keyboard.moved",
       "label": "the list actually scrolled",
       "ok": true,
-      "detail": "scrollTop 3504"
+      "detail": "scrollTop 3765"
     },
     {
       "id": "reanchor.children",
@@ -170,6 +170,87 @@
       "label": "the excerpt moved to the child's own message",
       "ok": true,
       "detail": "changed"
+    },
+    {
+      "id": "esc.present",
+      "label": "the region renders when there is something in it",
+      "ok": true
+    },
+    {
+      "id": "esc.three-states",
+      "label": "active, due and overdue are all on screen",
+      "ok": true,
+      "detail": "active | documentationOverdue | documentationDue"
+    },
+    {
+      "id": "esc.no-open-on-closed",
+      "label": "a closed escalation is never called open",
+      "ok": true,
+      "detail": "T Theo L. to Brandy Forrestor Closed · write ‖ R Riley T. to Brandon Forant Closed · write-"
+    },
+    {
+      "id": "esc.says-closed",
+      "label": "and says what it actually is",
+      "ok": true,
+      "detail": "T Theo L. to Brandy Forrestor Closed · write-up overdue 7h o"
+    },
+    {
+      "id": "esc.clock-due",
+      "label": "a due write-up counts down",
+      "ok": true,
+      "detail": "R Riley T. to Brandon Forant Closed · write-up due due in 4h"
+    },
+    {
+      "id": "esc.clock-over",
+      "label": "an overdue one counts up",
+      "ok": true,
+      "detail": "T Theo L. to Brandy Forrestor Closed · write-up overdue 7h o"
+    },
+    {
+      "id": "esc.clock-active",
+      "label": "an active escalation counts elapsed",
+      "ok": true,
+      "detail": "Naomi R. to Maria Lopez 911 dispatched Active 9m elapsed Ope"
+    },
+    {
+      "id": "esc.one-alarm",
+      "label": "only the active row carries the filled treatment",
+      "ok": true,
+      "detail": "rgb(201, 53, 29) | rgb(255, 255, 255)"
+    },
+    {
+      "id": "esc.action",
+      "label": "a closed escalation offers the write-up, not the crisis",
+      "ok": true,
+      "detail": "Open escalation / Open documentation"
+    },
+    {
+      "id": "esc.landmark",
+      "label": "the region's name covers the whole lifecycle",
+      "ok": true,
+      "detail": "Escalations — 1 active, 2 awaiting documentation"
+    },
+    {
+      "id": "esc.pane-state",
+      "label": "the pane names the state and its deadline, not a dead end",
+      "ok": true,
+      "detail": "Closed · write-up overdue — 7h overdue. The write-up is completed on the escalat"
+    },
+    {
+      "id": "esc.pane-context",
+      "label": "and carries the context a write-up needs",
+      "ok": true
+    },
+    {
+      "id": "esc.pane-header",
+      "label": "the pane header does not call it open either",
+      "ok": true,
+      "detail": "Theo L. · 7h overdue · Past 24h"
+    },
+    {
+      "id": "esc.absent",
+      "label": "no region when there is nothing in it",
+      "ok": true
     }
   ]
 }

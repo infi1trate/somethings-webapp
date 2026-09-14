@@ -65,6 +65,31 @@ async function scrollToTeenRows(page, maxSteps = 12) {
   return (await page.locator('[role="treeitem"][aria-expanded]').count()) > 0;
 }
 
+/** Walk the whole virtualized list looking for a selector. Rows outside the
+ *  window are spacer divs, not elements, so "not in the DOM" and "not in the
+ *  list" are different facts and only this can tell them apart. */
+async function scrollToFind(page, selector, maxSteps = 30) {
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
+    if (el) el.scrollTop = 0;
+  });
+  await page.waitForTimeout(200);
+  for (let i = 0; i < maxSteps; i += 1) {
+    if (await page.locator(selector).count()) return true;
+    const more = await page.evaluate(() => {
+      const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
+      if (!el) return false;
+      const before = el.scrollTop;
+      el.scrollTop = before + el.clientHeight * 0.8;
+      el.dispatchEvent(new Event("scroll"));
+      return el.scrollTop > before;
+    });
+    await page.waitForTimeout(160);
+    if (!more) break;
+  }
+  return (await page.locator(selector).count()) > 0;
+}
+
 /** THE SUBTITLE, BY STRUCTURE RATHER THAN BY LINE NUMBER. The first version read
  *  `innerText.split("\n")[1]`, which is only the subtitle while nothing else in
  *  `main` happens to render above it — and in the harness's own context it did
@@ -371,10 +396,15 @@ for (const persona of ["mentor", "lead-mentor"]) {
     `${stillGrouped} disclosure(s) left on ${teen}`
   );
 
-  // AND THE TEEN IS STILL THERE, as a plain row, with the last flag on it. The
-  // group resolving early would take an open flag off the surface.
-  const survives = await page.locator(sel(teen)).count();
-  check("coalesce.last-child-survives", "the last flag is still on the surface", survives >= 1);
+  /* AND THE TEEN IS STILL THERE, as a plain row carrying the last flag — the
+     group resolving early would take an open flag off the surface entirely.
+     SCROLLED FOR, not queried in place: a row that drops from five flags to one
+     also drops from the Clinical review band to Routine review, which on a
+     120-row list is well past the mounted window. The first version asserted
+     `count() >= 1` where the row used to be and failed the moment the fixture
+     grew — reporting a missing flag when the flag was simply further down. */
+  const survives = await scrollToFind(page, sel(teen));
+  check("coalesce.last-child-survives", "the last flag is still on the surface", survives);
   await context.close();
 }
 
@@ -459,6 +489,128 @@ for (const persona of ["mentor", "lead-mentor"]) {
     );
   }
   await page.screenshot({ path: `${OUT}/03-expanded.png` });
+  await context.close();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9 · THE ESCALATION REGION (B3).
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("escalations");
+  const region = page.locator('[data-anno-ref="escalation-region"]');
+  check("esc.present", "the region renders when there is something in it", await region.count());
+
+  const rows = await region.locator('[role="option"]').evaluateAll((els) =>
+    els.map((e) => ({
+      state: e.getAttribute("data-escalation-state"),
+      label: e.getAttribute("aria-label") ?? "",
+      text: e.innerText.replace(/\s+/g, " "),
+      bg: getComputedStyle(e).backgroundColor,
+      action: e.querySelector("a")?.innerText.trim() ?? "",
+    }))
+  );
+
+  // ALL THREE STATES, ON THE SCENARIO A SUPERVISOR'S TUESDAY IS MEANT TO BE.
+  check(
+    "esc.three-states",
+    "active, due and overdue are all on screen",
+    new Set(rows.map((r) => r.state)).size === 3,
+    rows.map((r) => r.state).join(" | ")
+  );
+
+  // ═══ THE CONTRADICTION B0 WAS ASKED TO FIND ═══
+  // A row said "20h open" beside a pane saying "Closed Sep 13". Neither figure
+  // was wrong; the word was. Nothing in this region may call a closed escalation
+  // open.
+  const closed = rows.filter((r) => r.state !== "active");
+  check(
+    "esc.no-open-on-closed",
+    "a closed escalation is never called open",
+    closed.length > 0 && closed.every((r) => !/\bopen\b/.test(r.text.replace(/Open documentation/g, ""))),
+    closed.map((r) => r.text.slice(0, 44)).join(" ‖ ")
+  );
+  check(
+    "esc.says-closed",
+    "and says what it actually is",
+    closed.every((r) => /Closed/.test(r.text)),
+    closed[0]?.text.slice(0, 60)
+  );
+
+  // THE CLOCK RUNS IN THE READER'S DIRECTION. A bare figure beside a closed
+  // escalation could mean time since close, time left, or time late.
+  const due = rows.find((r) => r.state === "documentationDue");
+  const over = rows.find((r) => r.state === "documentationOverdue");
+  const live = rows.find((r) => r.state === "active");
+  check("esc.clock-due", "a due write-up counts down", /due in /.test(due?.text ?? ""), due?.text.slice(0, 60));
+  check("esc.clock-over", "an overdue one counts up", /overdue/.test(over?.text ?? ""), over?.text.slice(0, 60));
+  check("esc.clock-active", "an active escalation counts elapsed", /elapsed/.test(live?.text ?? ""), live?.text.slice(0, 60));
+
+  // ═══ THE ALARM BUDGET, SPENT ONCE ═══
+  // Exactly one filled saturated ground on the surface, and it belongs to the
+  // active escalation. An overdue write-up is a compliance failure about
+  // something already over.
+  const fills = new Set(rows.map((r) => r.bg));
+  check(
+    "esc.one-alarm",
+    "only the active row carries the filled treatment",
+    live && rows.filter((r) => r.bg === live.bg).length === 1,
+    [...fills].join(" | ")
+  );
+
+  // THE ACTION NAMES THE WORK, NOT THE OBJECT.
+  check(
+    "esc.action",
+    "a closed escalation offers the write-up, not the crisis",
+    closed.every((r) => r.action === "Open documentation") &&
+      live?.action === "Open escalation",
+    `${live?.action} / ${closed[0]?.action}`
+  );
+
+  // THE LANDMARK DOES NOT SAY "OPEN" EITHER — it holds closed ones too, and a
+  // landmark repeating the row-level defect is the same defect one level up.
+  const landmark = await region.getAttribute("aria-label");
+  check("esc.landmark", "the region's name covers the whole lifecycle", !/\bopen\b/i.test(landmark), landmark);
+
+  // ═══ THE PANE, FOR A CLOSED ESCALATION ═══
+  const closedRow = region.locator('[role="option"]:not([data-escalation-state="active"])').first();
+  await closedRow.click();
+  await page.waitForTimeout(600);
+  const pane = await page.locator('[data-slot="task-pane"]').innerText();
+  check(
+    "esc.pane-state",
+    "the pane names the state and its deadline, not a dead end",
+    /Closed/.test(pane) && /(due in|overdue)/.test(pane) &&
+      !/Nothing here changes its state/.test(pane),
+    (pane.split("\n").find((l) => /write-up is completed/.test(l)) ?? "").slice(0, 80)
+  );
+  check(
+    "esc.pane-context",
+    "and carries the context a write-up needs",
+    /911 status/.test(pane) && /Recent conversation/.test(pane)
+  );
+  check(
+    "esc.pane-header",
+    "the pane header does not call it open either",
+    !/\d+[mhd] open/.test(pane.split("\n").slice(0, 3).join(" ")),
+    pane.split("\n").slice(0, 3).join(" · ")
+  );
+
+  await page.screenshot({ path: `${OUT}/04-escalations.png` });
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10 · THE REGION IS ABSENT WHEN EMPTY.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// It is not a zone that must persist: the flags view is this surface's resting
+// state, and a permanently empty band above it is furniture a reader learns to
+// skip — the worst habit to build above the one region that matters.
+{
+  const { context, page } = await open("no-escalations", { scenario: "quiet-day" });
+  const count = await page.locator('[data-anno-ref="escalation-region"]').count();
+  check("esc.absent", "no region when there is nothing in it", count === 0);
   await context.close();
 }
 

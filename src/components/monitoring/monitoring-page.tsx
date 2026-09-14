@@ -31,10 +31,6 @@
 // of risk do you want to look at", and the answer on a vigilance surface is
 // always "the most urgent one", which the comparator already knows.
 //
-// ═══ WHAT LANDS LATER, NAMED SO THE GAP IS NOT MISTAKEN FOR AN OVERSIGHT ═══
-//
-//   B3 · the escalation region above the flags view, present only when non-empty.
-//        Its slot is marked below and renders nothing yet.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useMemo, useRef, useState } from "react";
@@ -44,7 +40,10 @@ import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { elapsedLabel } from "@/components/tasks/strips";
+import { EscalationRegion } from "@/components/monitoring/escalation-region";
 import { itemsOf, paneItemFor } from "@/lib/tasks/list";
+import { isEscalationTask } from "@/lib/tasks/escalation-state";
+import { sortedOpen } from "@/lib/tasks/sort";
 import { monitoringEntriesFor } from "@/lib/tasks/monitoring-list";
 import { monitoringObligations } from "@/lib/tasks/obligations";
 import { tasksScenario } from "@/lib/tasks/seed";
@@ -116,6 +115,15 @@ export function MonitoringPage() {
    *  tiers coalesced by teen — see `monitoring-list.ts` for why the unit follows
    *  the obligation rather than being uniform. */
   const entries = useMemo(() => monitoringEntriesFor(items, now), [items, now]);
+
+  /** ═══ THE ESCALATION SET — THE WHOLE LIFECYCLE ═══
+   *  Active AND documentation-pending, in the one comparator's order, which puts
+   *  active first because `TIER_RANK` does. Sorted rather than filtered-then-
+   *  sorted so its order is the same order everything else on this surface uses. */
+  const escalations = useMemo(
+    () => sortedOpen(items, now).filter(isEscalationTask),
+    [items, now]
+  );
   const obligations = useMemo(
     () => monitoringObligations(items, now),
     [items, now]
@@ -128,6 +136,18 @@ export function MonitoringPage() {
   // ── Selection ─────────────────────────────────────────────────────────────
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [pickedId, setPickedId] = useState<string | null>(null);
+  /** ═══ TWO LISTS, ONE PANE, AND ONE SELECTION BETWEEN THEM ═══
+   *
+   *  The escalation region and the flags view are separate listboxes and the pane
+   *  can only show one thing. Holding the escalation's id SEPARATELY, and
+   *  treating it as the winner while it is set, is what keeps the two lists from
+   *  both claiming to be selected — which would be two `aria-selected` rows on
+   *  one screen and a reader with no way to tell which one the footer acts on.
+   *
+   *  Selecting in either list clears the other. */
+  const [selectedEscalationId, setSelectedEscalationId] = useState<string | null>(
+    null
+  );
 
   /** ═══ THE SELECTED ROW, AND THE ITEM THE PANE SHOWS — TWO IDS ═══
    *
@@ -168,8 +188,15 @@ export function MonitoringPage() {
   /** WHAT THE LIST HIGHLIGHTS. The row the reader clicked — which for a child is
    *  the child, not its parent — falling back to the head so the pane and the
    *  outline agree on an untouched page. */
-  const selectedRowId =
-    selectedEntryId ?? selectedEntry?.id ?? null;
+  const selectedRowId = selectedEscalationId
+    ? null
+    : (selectedEntryId ?? selectedEntry?.id ?? null);
+
+  /** WHAT THE PANE SHOWS. An escalation wins while one is selected; otherwise the
+   *  flags view's pick. */
+  const selectedEscalation =
+    escalations.find((e) => e.id === selectedEscalationId) ?? null;
+  const paneItem = selectedEscalation ?? selected;
 
   const paneRef = useRef<HTMLDivElement | null>(null);
   const paneActions = useRef<PaneActions>({});
@@ -289,10 +316,19 @@ export function MonitoringPage() {
         </div>
       </div>
 
-      {/* ═══ THE ESCALATION REGION LANDS IN B3 ═══
-          Above the flags view, rendered only when non-empty — it is not a zone
-          that must persist, because the flags view is this surface's resting
-          state and a permanently empty band above it would be furniture. */}
+      {/* ABOVE THE FLAGS VIEW, AND ONLY WHEN NON-EMPTY — the flags view is this
+          surface's resting state, and a permanently empty band above it would be
+          furniture a reader learns to skip, which is the worst habit to build
+          above the one region that matters. */}
+      <EscalationRegion
+        items={escalations}
+        now={now}
+        selectedId={selectedEscalationId}
+        onSelect={(item) => {
+          setSelectedEscalationId(item.id);
+          setPaneTakeover(true);
+        }}
+      />
 
       <div className="mt-6 min-h-0 flex-1">
         <div
@@ -323,6 +359,8 @@ export function MonitoringPage() {
               onSelect={(entry, item) => {
                 setSelectedEntryId(entry.id);
                 setPickedId(item.id);
+                // THE OTHER LIST LETS GO. See `selectedEscalationId`.
+                setSelectedEscalationId(null);
                 setPaneTakeover(true);
               }}
               onRetry={() => setListState("ready")}
@@ -359,7 +397,7 @@ export function MonitoringPage() {
               className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full xl:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
             >
               <TaskPane
-                item={selected}
+                item={paneItem}
                 now={now}
                 onResolve={resolve}
                 actionsRef={paneActions}

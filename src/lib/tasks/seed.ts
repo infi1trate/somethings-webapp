@@ -475,7 +475,27 @@ function typicalShift(now: number): TaskItem[] {
   // the ones anyone reviewing this surface is asked to look at, and the priority
   // sort puts them at the top of their bands where they can be found.
   const specs: Spec[] = [
-      // ── Escalations: documentation only (no active escalation here).
+      /* ═══ THE ESCALATION LIFECYCLE, ALL THREE STATES AT ONCE (arch-B) ═══
+         It was one documentation row and no active escalation, which meant
+         arch-B's escalation region could not be seen in its full state on the
+         scenario a supervisor's Tuesday is supposed to look like. Measured across
+         the five scenarios before this change: the two that carry the flag volume
+         had ZERO active escalations, and the one with active escalations had
+         three flags in total. Nothing exercised the region.
+         ONE ACTIVE, TWO WRITE-UPS — one with four hours left and one already past
+         its twenty-four, so the region renders active, due and overdue together.
+         Within the brief's seeds (1–3 active, 1–2 documentation-pending). */
+      {
+        taskType: "activeEscalation",
+        teen: TEENS.naomi,
+        mentor: MENTORS.maria,
+        objectId: "esc-naomi-live",
+        // 9 minutes against a 5-minute SLA — breached, which is the point: an
+        // active escalation is late almost by definition and the row must not
+        // read as an alarm ABOUT lateness.
+        openedAgo: 9 * MINUTE,
+        payload: escalationPayload(true, "Maria Lopez", "esc-naomi-live"),
+      },
       {
         taskType: "escalationDocumentation",
         teen: TEENS.riley,
@@ -485,6 +505,17 @@ function typicalShift(now: number): TaskItem[] {
         // Clock starts at CLOSE, 20h ago — so 4h of the 24h remain.
         clockStartAgo: 20 * HOUR,
         payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 20 * HOUR },
+      },
+      {
+        // 31h against a 24h clock: the overdue write-up, so the third state is
+        // on screen beside the other two.
+        taskType: "escalationDocumentation",
+        teen: TEENS.theo,
+        mentor: MENTORS.brandy,
+        objectId: "esc-theo-3",
+        openedAgo: 31 * HOUR,
+        clockStartAgo: 31 * HOUR,
+        payload: { kind: "documentation", escalationId: "esc-theo-3", closedAt: now - 31 * HOUR },
       },
       // ── Risk flags: one BREACHED imminent (26h against a 24h SLA), two clinical.
       {
@@ -606,6 +637,27 @@ function typicalShift(now: number): TaskItem[] {
  *  imminent flags, plus a full board. */
 function heavyCaseload(now: number): TaskItem[] {
   const specs: Spec[] = [
+    /* THE SAME LIFECYCLE SPREAD AS TYPICAL-SHIFT (arch-B), at heavy volume: two
+       active rather than one, so the region is exercised with more than a single
+       saturated row — the case where the alarm budget is actually under
+       pressure. Within the brief's seeds (1–3 active, 1–2 awaiting
+       documentation). */
+    {
+      taskType: "activeEscalation",
+      teen: TEENS.imani,
+      mentor: MENTORS.omar,
+      objectId: "esc-imani-live",
+      openedAgo: 4 * MINUTE,
+      payload: escalationPayload(false, "Omar Haddad", "esc-imani-live"),
+    },
+    {
+      taskType: "activeEscalation",
+      teen: TEENS.simone,
+      mentor: MENTORS.maria,
+      objectId: "esc-simone-live",
+      openedAgo: 17 * MINUTE,
+      payload: escalationPayload(true, "Maria Lopez", "esc-simone-live"),
+    },
     {
       taskType: "escalationDocumentation",
       teen: TEENS.riley,
@@ -614,6 +666,15 @@ function heavyCaseload(now: number): TaskItem[] {
       openedAgo: 10 * HOUR,
       clockStartAgo: 10 * HOUR,
       payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 10 * HOUR },
+    },
+    {
+      taskType: "escalationDocumentation",
+      teen: TEENS.caleb,
+      mentor: MENTORS.omar,
+      objectId: "esc-caleb-2",
+      openedAgo: 27 * HOUR,
+      clockStartAgo: 27 * HOUR,
+      payload: { kind: "documentation", escalationId: "esc-caleb-2", closedAt: now - 27 * HOUR },
     },
   ];
   // FIVE IMMINENT FLAGS ON ONE CONVERSATION — the group that must render as one row

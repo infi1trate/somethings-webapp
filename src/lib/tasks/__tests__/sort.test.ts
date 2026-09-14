@@ -242,8 +242,23 @@ describe("locked decision 10 — escalations are never only inside a tab", () =>
   });
 
   it("resolved escalations do not appear in the strip", () => {
-    // typical-shift has a RESOLVED activeEscalation, which must not render.
+    /* ═══ THIS ASSERTED `toHaveLength(0)` AND THAT WAS THE WEAKER TEST ═══
+       typical-shift carries a RESOLVED activeEscalation and, since arch-B seeded
+       the escalation region, a LIVE one as well. The old assertion passed only
+       while the scenario happened to hold no open escalation at all — so it was
+       really testing the fixture, and it broke the moment the fixture grew
+       something it was never about.
+       The claim is that RESOLVED ones are excluded. Asserting that directly is
+       both stronger and immune to the seed. */
     const items = tasksScenario("typical-shift", NOW);
-    expect(openEscalations(items, NOW)).toHaveLength(0);
+    const resolved = items.filter(
+      (i) => i.taskType === "activeEscalation" && i.status === "resolved"
+    );
+    expect(resolved.length).toBeGreaterThan(0);
+
+    const strip = openEscalations(items, NOW);
+    const stripIds = new Set(strip.map((i) => i.id));
+    for (const r of resolved) expect(stripIds.has(r.id)).toBe(false);
+    expect(strip.every((i) => i.status !== "resolved")).toBe(true);
   });
 });
