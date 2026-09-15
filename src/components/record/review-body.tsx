@@ -61,6 +61,7 @@ import {
   type PresentationReview,
 } from "@/lib/record/care-demo";
 import { Provenance } from "@/components/record/provenance";
+import { proposalKindFor } from "@/lib/record/proposal-kind";
 import { cn } from "@/lib/utils";
 
 /* VERBATIM FROM THE CARD, and it was wrong for one run: this was written with a
@@ -154,24 +155,15 @@ export function ReviewBody({
     setTimeout(() => changeRef.current?.focus(), 0);
   };
 
-  /** ═══ WHAT KIND OF PROPOSAL THIS IS — THREE STATES, NOT TWO ═══
+  /** ═══ WHICH OF THE THREE PROPOSALS THIS IS ═══
    *
-   *  It was a boolean, `currentCode !== review.recommended.code`, and a record
-   *  with NOTHING on record satisfies it: `null !== "F43.22"` is true, so t9's
-   *  first-ever review wore "Change proposed → F43.22" beside a header already
-   *  reading F43.22 — a change from nothing to something, with the same code on
-   *  both sides of the arrow.
-   *
-   *  The codebase already models three outcomes here: `outcomeFor` in
-   *  `care-tab.tsx` returns `presentation_assigned` on exactly this
-   *  `currentCode === null` branch, before it ever compares the two codes. The
-   *  chip was the one place that collapsed them to two. */
-  const proposalKind: "assign" | "change" | "renewal" =
-    currentCode === null
-      ? "assign"
-      : currentCode === review.recommended.code
-        ? "renewal"
-        : "change";
+   *  The derivation and its history moved to `lib/record/proposal-kind.ts` in
+   *  arch-E, because the Tasks row needs the same answer: it previews the weight
+   *  of the decision before a supervisor opens it, and a row labelled differently
+   *  from the pane it opens would be two answers to one question. Nothing about
+   *  the three cases changed — see that file for why a null current code is an
+   *  assignment rather than a change from nothing. */
+  const proposalKind = proposalKindFor(currentCode, review.recommended.code);
 
   /** ONE shape for both variants: the aggregate's weighted score reads in the
    *  same position as a single survey's, which is what makes the two variants

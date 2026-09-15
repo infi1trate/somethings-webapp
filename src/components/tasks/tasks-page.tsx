@@ -33,6 +33,11 @@ import { useMounted } from "@/lib/use-mounted";
    `elapsedLabel` is domain-neutral and still formats the list's ages. */
 import { elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
+import {
+  ALL_KINDS,
+  KindFilter,
+  filterByKind,
+} from "@/components/tasks/kind-filter";
 import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
@@ -210,9 +215,23 @@ export function TasksPage({
    *  THE SEED IS UNTOUCHED and still produces all four domains: Phase B needs the
    *  same fixtures to build Monitoring from. `allItems` is what the scenario
    *  returns; `items` is this surface's share of it. */
-  const items = useMemo(
+  /** ═══ THE SURFACE'S OWN SET, BEFORE THE READER NARROWS IT ═══
+   *  Billing-only since arch-A. The kind filter narrows THIS, and the chips are
+   *  derived from it rather than from the filtered result — otherwise using a
+   *  chip would remove the others and a reader could not get back. */
+  const surfaceItems = useMemo(
     () => allItems.filter((i) => i.domain === "billing"),
     [allItems]
+  );
+
+  /** ═══ THE KIND FILTER (arch-E) ═══
+   *  Hidden with one task type, which is every scenario today — see
+   *  `KindFilter`'s note on why the affordance is built before the second type
+   *  lands. `ALL_KINDS` is the default and the only state reachable now. */
+  const [kindFilter, setKindFilter] = useState<string>(ALL_KINDS);
+  const items = useMemo(
+    () => filterByKind(surfaceItems, kindFilter),
+    [surfaceItems, kindFilter]
   );
 
   const counts = useMemo(() => headerCounts(items, now), [items, now]);
@@ -602,6 +621,12 @@ export function TasksPage({
           pulse animation and the row's roving-tabindex keyboard nav had no other
           consumer and go dark with the row. */}
 
+      <KindFilter
+        items={surfaceItems}
+        value={kindFilter}
+        onChange={setKindFilter}
+      />
+
       {/* ── MASTER-DETAIL ───────────────────────────────────────────────── */}
       <div
         id="tasks-panel"
@@ -669,6 +694,15 @@ export function TasksPage({
                   // a no-op, which is why it went unnoticed on a desktop.
                   setPaneTakeover(true);
                 }}
+                /* ═══ GROUPED BY WHEN, NOT BY WHAT (arch-E) ═══
+                 The type groups — "Monthly re-review — 7" then "Intake — 8" —
+                 took the verb off the row AND restarted the countdown at every
+                 header, so scanning for what was about to breach meant merging
+                 two sorted lists by eye on the surface whose whole job is
+                 deadline awareness. Monitoring keeps its tier bands: there the
+                 tier IS the kind of work, and its rows are person-forward. */
+                grouping="deadline"
+                rowVariant="task"
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))

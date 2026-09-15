@@ -231,10 +231,20 @@ for (const persona of ["mentor", "lead-mentor"]) {
 {
   const { context, page } = await open("tasks-unmoved", { url: "/app/tasks" });
   const t = await textOf(page);
+  /* ═══ RETARGETED BY arch-E: TASKS' OWN BANDS ARE NOW TIME, NOT TIER ═══
+     This named Tasks' two tier bands ("Intake — 8", "Monthly re-review — 7").
+     arch-E replaced them with deadline buckets by design, so the literal band
+     names are stale — but the claim the check exists to make is not. It is that
+     Tasks groups by ITS OWN axis and never borrows Monitoring's: whatever the
+     two surfaces do, a tier band must not appear on Tasks. So this now asserts
+     the deadline buckets are what Tasks draws, and that no tier band label
+     followed the shared `Worklist` across. */
+  const buckets = ["Overdue", "Due today", "Due tomorrow", "Later"].filter((b) => new RegExp(`${b} — \\d`).test(t));
   check(
     "regression.tasks",
-    "Tasks still renders its own two bands and nothing else",
-    /Intake — 8/.test(t) && /Monthly re-review — 7/.test(t) && !/Imminent — /.test(t)
+    "Tasks groups by its own axis — deadline buckets, and no tier band crossed over",
+    buckets.length >= 2 && !/(Imminent|Intake|Monthly re-review) — \d/.test(t),
+    buckets.join(" | ") || "no bucket header found"
   );
   await context.close();
 }

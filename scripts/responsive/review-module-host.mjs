@@ -161,9 +161,15 @@ async function openCareReview(page) {
 // the button on Care, which looked exactly like a host-specific defect and was an
 // artifact of a pane that does not hold OS focus. A synthetic click is not an
 // input event.
-for (const [label, url, prep] of [
-  ["tasks", "/app/tasks", null],
-  ["care", "/admin/person/t19?tab=care", openCareReview],
+/* ═══ THE TWO HOSTS NAME THE CODE ON RECORD DIFFERENTLY ═══
+   Tasks' context strip says "On record"; Care's spine says "Primary
+   presentation". Both are the same fact, and the module is indifferent to which
+   — it marks whatever code it is handed. Recorded here rather than unified,
+   because unifying the two labels is a naming decision on the record page and
+   nothing in arch-E touched it: one more entry for the copy pass. */
+for (const [label, url, prep, onRecordRe] of [
+  ["tasks", "/app/tasks", null, /On record\s*([A-Z]\d+\.\d+)/],
+  ["care", "/admin/person/t19?tab=care", openCareReview, /Primary presentation[\s\S]{0,40}?([A-Z]\d+\.\d+)/],
 ]) {
   const { context, page } = await open(`picker-${label}`, url);
   if (prep) await prep(page);
@@ -172,8 +178,32 @@ for (const [label, url, prep] of [
   if (await btn.count()) {
     await btn.click();
     await page.waitForTimeout(500);
-    const onRecord = await page.getByRole("dialog").getByText(/On record/).count();
-    check(`picker.${label}.on-record`, "the code on record is marked in the list", onRecord > 0);
+    /* ═══ SEARCH FOR THE CODE FIRST, AND THAT IS THE POINT OF THE FIX ═══
+       This read the marker off the dialog's opening shortlist, which made the
+       check depend on whether the host's on-record code happened to be one of
+       the six common presentations. arch-E reordered Tasks, the default row
+       became a teen on F33.1, F33.1 is not in the shortlist, and the check
+       failed against a module that marks the code correctly — verified by hand:
+       searching "F33.1" renders "1 match · Major depressive disorder,
+       recurrent, moderate · F33.1 · On record". The claim is that the module
+       marks the code the HOST states, so the probe now asks the host what that
+       code is and looks for it where it can be seen. */
+    const onRecordCode = (await page.locator("body").innerText()).match(onRecordRe)?.[1];
+    check(`picker.${label}.host-states-code`, "the host states a code to look for", !!onRecordCode, onRecordCode ?? "none");
+    const search = page.getByRole("dialog").locator('input[aria-label^="Search presentations"]').first();
+    if (onRecordCode) {
+      await search.fill(onRecordCode);
+      await page.waitForTimeout(500);
+    }
+    const onRecord = onRecordCode ? await page.getByRole("dialog").getByText(/On record/).count() : 0;
+    check(
+      `picker.${label}.on-record`,
+      "and the module marks that code in the list",
+      onRecord > 0,
+      onRecordCode ? `${onRecordCode} · ${onRecord} marked` : "no code to search for"
+    );
+    await search.fill("");
+    await page.waitForTimeout(400);
 
     await page.getByRole("dialog").getByText(/F43\.22/).first().click();
     await page.waitForTimeout(600);

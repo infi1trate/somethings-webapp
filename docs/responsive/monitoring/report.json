@@ -71,8 +71,9 @@
     },
     {
       "id": "regression.tasks",
-      "label": "Tasks still renders its own two bands and nothing else",
-      "ok": true
+      "label": "Tasks groups by its own axis — deadline buckets, and no tier band crossed over",
+      "ok": true,
+      "detail": "Overdue | Due today | Due tomorrow | Later"
     },
     {
       "id": "hybrid.imminent-individual",
@@ -136,7 +137,7 @@
       "id": "keyboard.survives",
       "label": "selection survives 80 presses of j",
       "ok": true,
-      "detail": "Routine review, Caleb O., to Omar Haddad, 2d open, 6:40 PM"
+      "detail": "Routine review, Caleb O., to Omar Haddad, 2d open, 11:46 AM"
     },
     {
       "id": "keyboard.in-view",

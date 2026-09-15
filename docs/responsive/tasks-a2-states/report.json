@@ -3,14 +3,15 @@
   "rows": [
     {
       "id": "default.subtitle",
-      "label": "subtitle counts billing only",
+      "label": "the subtitle counts billing, and agrees with the list",
       "ok": true,
-      "detail": "Tasks · "
+      "detail": "\"19 open · 2 overdue\" against 17 mounted rows"
     },
     {
-      "id": "default.bands",
-      "label": "both band headers render",
-      "ok": true
+      "id": "default.buckets",
+      "label": "the list is grouped by deadline, in fixed order",
+      "ok": true,
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "default.no-tabs",
@@ -21,6 +22,12 @@
       "id": "default.first-row-top",
       "label": "y of the first row",
       "measured": 155
+    },
+    {
+      "id": "default.no-kind-filter",
+      "label": "the filter chip row stays hidden with one task type",
+      "ok": true,
+      "detail": "0 chip row(s)"
     },
     {
       "id": "breach.subtitle",
@@ -34,7 +41,7 @@
     },
     {
       "id": "breach.single-band",
-      "label": "a lone band still labels itself",
+      "label": "a lone bucket still labels itself",
       "ok": true
     },
     {
@@ -60,7 +67,8 @@
     {
       "id": "partial.billing-healthy",
       "label": "partial leaves billing fully loaded",
-      "ok": true
+      "ok": true,
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "loading.run1",
@@ -88,7 +96,7 @@
       "id": "mechanics.submit",
       "label": "⌘/Ctrl+Enter submits a documented review",
       "ok": true,
-      "detail": "Sofia G. → Mei W."
+      "detail": "Theo L. → Imani C."
     },
     {
       "id": "mechanics.auto-advance",
@@ -109,18 +117,19 @@
       "id": "mechanics.undo-reselects",
       "label": "undo reselects what it restored",
       "ok": true,
-      "detail": "Mei W. → Sofia G."
+      "detail": "Imani C. → Theo L."
     },
     {
-      "id": "retire.header",
-      "label": "a cleared band reports the clearance rather than vanishing",
+      "id": "retire.no-bucket-retirement",
+      "label": "an emptied bucket stops rendering rather than announcing itself",
       "ok": true,
-      "detail": "Monthly re-review — cleared · 7 today"
+      "detail": "no clearance line"
     },
     {
-      "id": "retire.other-band",
-      "label": "the other band is untouched",
-      "ok": true
+      "id": "retire.others-stay",
+      "label": "and the remaining buckets are intact",
+      "ok": true,
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "empty.copy",

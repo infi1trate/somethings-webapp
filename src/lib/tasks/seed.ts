@@ -559,6 +559,60 @@ function typicalShift(now: number): TaskItem[] {
         openedAgo: 40 * HOUR,
         payload: billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15),
       },
+      /* ═══ BILLING NOW STRADDLES ITS DEADLINE (arch-E) ═══
+         arch-E groups Tasks by WHEN work is due rather than by task type, and the
+         fixture could not exercise the grouping. MEASURED before this change,
+         billing on this scenario: 0 overdue, 0 due today, 7 due tomorrow, 8
+         later — so the bucket carrying the breach treatment was empty on every
+         scenario except `breach-overnight`, where it held the only item.
+         The 72h SLA against ages of 4–66h is why: nothing could reach a day
+         boundary. These four put items on both sides of it — two already past,
+         two inside the next few hours — so Overdue and Due today are real states
+         a reader can be shown rather than branches nothing reaches.
+         A RENEWAL AMONG THEM, deliberately. `renewal` was reachable on ONE
+         scenario (`quiet-day`, its single item), so the row's disposition preview
+         had a case that volume never exercised. Theo's re-review keeps its code. */
+      {
+        taskType: "monthlyReReview",
+        teen: TEENS.theo,
+        mentor: MENTORS.brandy,
+        objectId: "survey-theo-2",
+        // 81h against 72h — nine hours past, and a renewal.
+        openedAgo: 81 * HOUR,
+        payload: billingPayload(true, now, CODES.mddModerate, CODES.mddModerate, 16),
+      },
+      {
+        taskType: "intakeBillingReview",
+        teen: TEENS.imani,
+        mentor: MENTORS.omar,
+        objectId: "survey-imani-1",
+        // 76h — four hours past.
+        openedAgo: 76 * HOUR,
+        payload: billingPayload(false, now, null, CODES.gad, 11),
+      },
+      {
+        taskType: "monthlyReReview",
+        teen: TEENS.naomi,
+        mentor: MENTORS.maria,
+        objectId: "survey-naomi-2",
+        /* 69h — three hours left. WHICH BUCKET THIS LANDS IN DEPENDS ON THE TIME
+           OF DAY, and that is a property of the grouping rather than a flaw in
+           the fixture: "due today" is a wall-clock day boundary, so an item three
+           hours out is today's until late evening and tomorrow's after. Recorded
+           rather than engineered around — a fixture cannot pin a bucket whose
+           edge is midnight. */
+        openedAgo: 69 * HOUR,
+        payload: billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 14),
+      },
+      {
+        taskType: "intakeBillingReview",
+        teen: TEENS.simone,
+        mentor: MENTORS.brandy,
+        objectId: "survey-simone-1",
+        // 70h — two hours left.
+        openedAgo: 70 * HOUR,
+        payload: billingPayload(false, now, null, CODES.adjustment, 9),
+      },
       // ── Routine review.
       {
         taskType: "routineFlagReview",

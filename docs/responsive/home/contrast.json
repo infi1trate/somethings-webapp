@@ -103,12 +103,12 @@
     {
       "theme": "light",
       "label": "stage · calm line",
-      "fg": "rgb(31, 30, 29)",
+      "fg": "rgb(110, 107, 103)",
       "bg": "rgb(255, 255, 255)",
       "px": 13,
       "weight": "400",
       "min": 4.5,
-      "ratio": 16.64,
+      "ratio": 5.3,
       "ok": true
     },
     {
@@ -279,12 +279,12 @@
     {
       "theme": "dark",
       "label": "stage · calm line",
-      "fg": "rgb(255, 255, 255)",
+      "fg": "rgb(160, 153, 141)",
       "bg": "rgb(50, 47, 44)",
       "px": 13,
       "weight": "400",
       "min": 4.5,
-      "ratio": 13.3,
+      "ratio": 4.71,
       "ok": true
     },
     {
