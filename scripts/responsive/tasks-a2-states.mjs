@@ -328,15 +328,64 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
     "the queue moves to the next item on its own",
     advanced !== before && advanced.length > 0
   );
+  /* ═══ RETARGETED BY arch-F (F4): THE ROW LEAVES LATER, ON PURPOSE ═══
+     It used to vanish on the press — so the undo toast offered to restore a row
+     the reader could no longer see, and the item reached "resolved" before the
+     ledger did. It now holds its place, dimmed and labelled "Closing…", for the
+     six seconds of the undo window, and leaves when the window closes and the
+     event is written. Both halves are asserted, because "the row stays" alone
+     would pass on a row that never leaves. */
   const listed = await textOf(page);
-  check("mechanics.row-gone", "the resolved row leaves the list", !listed.includes(before));
+  check(
+    "mechanics.row-holds-during-window",
+    "the resolved row holds its place while undo is still possible",
+    listed.includes(before) && (await page.locator('[data-resolving="true"]').count()) === 1,
+    (await page.locator('[data-resolving="true"]').first().innerText()).replace(/\s+/g, " ")
+  );
+  check(
+    "mechanics.says-closing",
+    "and says so in words, not only by dimming",
+    /Closing/.test(await page.locator('[data-resolving="true"]').first().innerText())
+  );
+  /* THE WINDOW IS 6s (`UNDO_WINDOW_MS`); 7 covers the commit and the re-render. */
+  await page.waitForTimeout(7000);
+  const afterWindow = await textOf(page);
+  check(
+    "mechanics.row-gone",
+    "and leaves when the window closes — the same instant the ledger is written",
+    !afterWindow.includes(before) && (await page.locator('[data-resolving="true"]').count()) === 0
+  );
+  check(
+    "mechanics.completed-group",
+    "arriving in Completed today, collapsed",
+    (await page.locator('[data-slot="completed-group"]').count()) === 1 &&
+      (await page.locator('[data-slot="completed-toggle"]').getAttribute("aria-expanded")) === "false",
+    (await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")
+  );
   await shot(page, "10-resolved");
 
+  /* ═══ UNDO NEEDS ITS OWN RESOLVE NOW (arch-F, F4) ═══
+     The section above waits out the six-second window to prove the row leaves,
+     which closes the toast — so undo cannot be tested on that resolve any more.
+     It resolves a SECOND item and undoes that one inside the window. Found by
+     this probe timing out on a button that had already gone. */
+  const second = await pane().innerText();
+  await fillReview(page);
+  await page.keyboard.press("Control+Enter");
+  await page.waitForTimeout(700);
   await page.getByRole("button", { name: /^Undo$/ }).first().click();
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(700);
   const restored = await pane().innerText();
-  check("mechanics.undo-restores", "undo puts the row back", (await textOf(page)).includes(before));
-  check("mechanics.undo-reselects", "undo reselects what it restored", restored === before, `${advanced} → ${restored}`);
+  check("mechanics.undo-restores", "undo puts the row back", (await textOf(page)).includes(second));
+  check("mechanics.undo-reselects", "undo reselects what it restored", restored === second, `${second} → ${restored}`);
+  /* AND IT NEVER REACHES THE COMPLETED GROUP. One completion from the resolve
+     above, and the undone one is not a second. */
+  check(
+    "mechanics.undo-not-completed",
+    "an undone item never enters Completed today",
+    /Completed today — 1/.test((await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")),
+    (await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")
+  );
   await shot(page, "11-undone");
   await context.close();
 }
@@ -394,12 +443,17 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   await page.waitForTimeout(300);
   await fillReview(page);
   await page.keyboard.press("Control+Enter");
-  await page.waitForTimeout(900);
+  /* THE UNDO WINDOW COMES FIRST NOW (arch-F, F4). The last row holds its place
+     while undo is possible, so the empty state is reachable only after the
+     window closes — which is also when the item becomes a completion. */
+  await page.waitForTimeout(7200);
   const empty = await textOf(page);
   check(
     "empty.copy",
     "the emptied surface says nothing is open",
-    /Nothing open/.test(empty) && /No open tasks/.test(empty),
+    /* AND THE COMPLETION SEGMENT SITS BESIDE IT (arch-F, F4): "Nothing open · 1
+       completed today". The zero NUMBER is omitted; the zero STATE is not. */
+    /Nothing open/.test(empty) && /No open tasks/.test(empty) && /1 completed today/.test(empty),
     empty.replace(/\s+/g, " ").slice(0, 80)
   );
   // A SINGLE-BAND SURFACE SKIPS RETIREMENT, measured: clearing the last item in

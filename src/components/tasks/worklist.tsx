@@ -52,6 +52,7 @@ import {
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
+import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
 import { deadlineBandsFor, deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { proposalPreview } from "@/lib/record/proposal-kind";
@@ -201,6 +202,13 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
 function Row({
   entry,
   variant,
+  /** ═══ THE UNDO WINDOW IS SIX SECONDS AND THE ROW STAYS PUT (arch-F, F4) ═══
+   *  A resolved row used to vanish the instant the button was pressed, so the
+   *  undo toast offered to restore something the reader could no longer see. It
+   *  now holds its place until the window closes and the ledger event is
+   *  written, dimmed, with the state in WORDS beside the name — never opacity
+   *  alone, which says nothing to a screen reader and nothing in high contrast. */
+  resolving = false,
   group,
   now,
   selected,
@@ -229,6 +237,7 @@ function Row({
   onSelect: () => void;
   onToggle?: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
+  resolving?: boolean;
 }) {
   const item = paneItemFor(entry);
   const isGroup = entry.kind === "group";
@@ -374,6 +383,8 @@ function Row({
        age is what a reader scans and a clock time in that column would be a
        second format in one line of figures. */
     !isGroup && !indent ? childTimeLabel(item.openedAt) : null,
+    /* THE STATE IN THE NAME, not only in the opacity. */
+    resolving ? /* NEEDS-COPY-NICOLE */ "closing" : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -401,6 +412,7 @@ function Row({
          rather than a row TYPE — so a pin resolves exactly when its row is
          mounted, and honestly orphans when the virtualizer has unmounted it. */
       data-anno-ref={`task-row:${item.id}`}
+      data-resolving={resolving ? "true" : undefined}
       style={{ height: ROW_H }}
       className={cn(
         /* EXACT HEIGHT, NOT A MINIMUM — see ROW_H. `border-t` on EVERY row,
@@ -414,6 +426,10 @@ function Row({
         // while the fill stays put.
         selected ? "bg-[var(--surface-s2)]" : "hover:bg-[var(--tint-hover)]",
         indent && "pl-11",
+        /* RESOLVING: dimmed, and the word is in the accessible name above. The
+           row keeps its height and its place — the whole point is that the list
+           does not move while the undo window is open. */
+        resolving && "opacity-55",
         RING
       )}
     >
@@ -541,7 +557,13 @@ function Row({
                THE MENTOR IS STILL GONE — removed in arch-E, and for the same
                reason: they do not perform a billing review, are not accountable
                for it, and cannot change the decision. */
-            <>{disposition ?? TASK_KIND_LABEL[item.taskType]}</>
+            <>
+              {resolving
+                ? /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
+                     is a state nobody can read (SC 1.4.1). */
+                  "Closing…"
+                : (disposition ?? TASK_KIND_LABEL[item.taskType])}
+            </>
           ) : (
             /* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
                teen row already spends its width on a count and a composition
@@ -772,6 +794,17 @@ export function Worklist({
   grouping = "tier",
   rowVariant = "subject",
   headersState = "ready",
+  /** ═══ THE BUCKET BEHIND YOU (arch-F, F4) ═══
+   *  Closed reviews whose undo window has shut, and where a link to the ledger
+   *  goes. Empty by default and absent entirely on Monitoring, which has its own
+   *  list — a surface that never empties has no completion to rest. */
+  completed = [],
+  completedSelectedId = null,
+  onSelectCompleted,
+  activityHref = "",
+  /** Items whose undo window is still open. They stay in their bucket, visibly
+   *  resolving — see the row's own note. */
+  resolvingIds,
   now,
   selectedId,
   state,
@@ -846,6 +879,11 @@ export function Worklist({
    *  label with the COUNT withheld rather than a placeholder count, which would
    *  be a number that is wrong for 240ms. */
   headersState?: SurfaceState;
+  completed?: CompletedEntry[];
+  completedSelectedId?: string | null;
+  onSelectCompleted?: (entry: CompletedEntry) => void;
+  activityHref?: string;
+  resolvingIds?: ReadonlySet<string>;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
    *  otherwise. */
@@ -1244,6 +1282,7 @@ export function Worklist({
             {section.rows.slice(first, last).map((v) => (
               <Row
                 key={v.id}
+                resolving={resolvingIds?.has(v.item.id) ?? false}
                 entry={v.entry}
                 variant={rowVariant}
                 /* ═══ THE ROW SAYS WHICH GROUP IT IS IN, BECAUSE IT NO LONGER
@@ -1285,6 +1324,20 @@ export function Worklist({
           height={r.height}
         />
       ))}
+
+      {/* AFTER EVERY BUCKET AND AFTER THE RETIRING BANDS — the last thing in the
+          scroller, which is where "behind you" belongs. Outside the virtualizer
+          on purpose: it is collapsed by default and holds a shift's worth of
+          rows, not a hundred, so the spacer arithmetic has nothing to gain here
+          and everything to lose. */}
+      {onSelectCompleted && (
+        <CompletedGroup
+          entries={completed}
+          selectedId={completedSelectedId}
+          onSelect={onSelectCompleted}
+          activityHref={activityHref}
+        />
+      )}
     </div>
   );
 }

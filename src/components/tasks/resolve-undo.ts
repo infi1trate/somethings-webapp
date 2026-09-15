@@ -39,6 +39,11 @@ export interface ResolveUndoOptions {
   /** Take the row out and move the selection. Called once, synchronously, before
    *  the window opens. */
   onResolved: (item: TaskItem, detail: Record<string, unknown>) => void;
+  /** ═══ THE WINDOW CLOSED AND THE EVENT WAS WRITTEN (arch-F, F4) ═══
+   *  The same instant the ledger write happens — §6's rule — which is when a
+   *  closed item may finally move to "Completed today". Not called on undo: an
+   *  undone item was never completed and must never appear there. */
+  onCommitted?: (item: TaskItem, detail: Record<string, unknown>) => void;
 }
 
 export interface ResolveUndoApi {
@@ -151,6 +156,9 @@ export function useResolveUndo(opts: ResolveUndoOptions): ResolveUndoApi {
         detail,
         onCommitted: () => {
           if (pending.current === handle) pending.current = null;
+          /* AFTER the handle is cleared, so a consumer that resolves again from
+             this callback cannot flush a window that has already closed. */
+          latest.current.onCommitted?.(item, detail);
         },
         onUndone: ({ alreadyCommitted }) => {
           if (pending.current === handle) pending.current = null;

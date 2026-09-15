@@ -37,6 +37,7 @@ import {
 import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { chatThreadHref } from "@/lib/record/chat";
+import type { CompletedEntry } from "@/components/tasks/completed-group";
 import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 // Still used by the BILLING pane's Notes link — a different block from the
@@ -523,6 +524,13 @@ export function TaskPane({
    *  pane's so the two can disagree — which is the point: the dev harness must be
    *  able to fail the excerpt while the pane succeeds. */
   excerptState = "ready",
+  /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (arch-F, F4) ═══
+   *  Set when the selection is a row from "Completed today". The review renders
+   *  with `canAct={false}` — the module's own tier gate, which already drops the
+   *  proposal chip and the picker — and the action bar is replaced by what was
+   *  submitted and when. A live Submit over a closed review would offer to commit
+   *  it a second time. */
+  completed = null,
 }: {
   item: TaskItem | null;
   now: number;
@@ -531,6 +539,7 @@ export function TaskPane({
   /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
   actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
+  completed?: CompletedEntry | null;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
    *  re-render — but a reader cannot tell that, and a Retry that did nothing
@@ -871,7 +880,21 @@ export function TaskPane({
             onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
           />
         )}
-        {p.kind === "billing" && recommended && (
+        {p.kind === "billing" && recommended && completed && (
+          /* ═══ THE CLOSED REVIEW, AS A RECORD ═══
+             The module with `canAct={false}`: no proposal chip, no picker, no
+             documentation gate. What a supervisor gets is what they submitted. */
+          <ReviewBody
+            review={billingReviewFor(item, p)}
+            currentCode={p.current?.code ?? null}
+            currentStatement={p.current?.statement ?? null}
+            showCurrentLine
+            decision={null}
+            canAct={false}
+            interactive
+          />
+        )}
+        {p.kind === "billing" && recommended && !completed && (
           <BillingBody
             payload={p}
             item={item}
@@ -988,7 +1011,25 @@ export function TaskPane({
           </div>
         )}
 
-        {p.kind === "billing" && recommended && (
+        {p.kind === "billing" && completed && (
+          /* NEEDS-COPY-NICOLE. WHAT WAS SUBMITTED AND WHEN — the bar's job on a
+             closed review is to state the outcome, not to offer one. */
+          <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {completed.outcome === "unchanged"
+              ? `${completed.code} confirmed`
+              : `Changed to ${completed.code}`}
+            <span aria-hidden className="px-1.5 opacity-40">·</span>
+            <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+              {new Date(completed.at).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </span>
+          </p>
+        )}
+
+        {p.kind === "billing" && recommended && !completed && (
           /* ═══ TWO BUTTONS, AND NEITHER NAMES THE CODE ANY MORE ═══
              It was `Confirm unchanged` (tonal, re-reviews only) and
              `Confirm {code}` (primary), and the second named its object for a

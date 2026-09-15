@@ -33,6 +33,7 @@ import { useMounted } from "@/lib/use-mounted";
    `elapsedLabel` is domain-neutral and still formats the list's ages. */
 import { elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
+import type { CompletedEntry } from "@/components/tasks/completed-group";
 import {
   ALL_KINDS,
   KindFilter,
@@ -170,6 +171,21 @@ export function TasksPage({
         details: ok ? r.details : {},
       };
     });
+  /** ═══ THE SIX SECONDS BETWEEN A PRESS AND A RECORD (arch-F, F4) ═══
+   *  A resolved row used to leave the list on the press, so the undo toast
+   *  offered to restore a row the reader could no longer see, and the item
+   *  reached "resolved" before the ledger did. It now holds its place, dimmed and
+   *  labelled, until the window closes — at which point it becomes a completion
+   *  entry and leaves. An undone item clears from here and never becomes one. */
+  const [resolvingIds, setResolvingIds] = useState<ReadonlySet<string>>(new Set());
+  /** Closed reviews, this session, in the order they closed. Newest first so the
+   *  group reads like a log. */
+  const [completed, setCompleted] = useState<CompletedEntry[]>([]);
+  /** A completed row the reader has opened. Separate from `selectedEntryId`
+   *  because a completed item is no longer IN `entries` — the same lesson gap row
+   *  365 recorded about synthetic child rows. */
+  const [completedSelectedId, setCompletedSelectedId] = useState<string | null>(null);
+
   const setDetailById = (
     fn: (
       prev: Record<string, Record<string, unknown>>
@@ -352,7 +368,19 @@ export function TasksPage({
 
   const activeEntry: ListEntry | null =
     entries.find((e) => e.id === selectedEntryId) ?? entries[0] ?? null;
+  /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
+   *  It carries `status: "resolved"`, so the buckets have filtered it out — and
+   *  `entries.find(...)` returns undefined for it, which is exactly the shape of
+   *  the defect gap row 365 recorded about synthetic child rows: the lookup falls
+   *  through to a DIFFERENT item and nothing errors. So the completed selection
+   *  is resolved from `items`, which still holds it, and it wins while it is
+   *  set. */
+  const completedItem: TaskItem | null = completedSelectedId
+    ? (items.find((i) => i.id === completedSelectedId) ?? null)
+    : null;
+
   const selected: TaskItem | null =
+    completedItem ??
     // An explicitly picked child wins; otherwise the entry's pane item, which for
     // a group is its head.
     (pickedId
@@ -518,7 +546,10 @@ export function TasksPage({
         ).length === 0;
 
       setDetailById((prev) => ({ ...prev, [item.id]: detail }));
-      setResolvedIds((prev) => new Set(prev).add(item.id));
+      /* RESOLVING, NOT RESOLVED. `resolvedIds` — which is what removes the row
+         and feeds the closed-today counters — is set at the window's CLOSE, in
+         `onCommitted` below, so the row stays where it is for six seconds. */
+      setResolvingIds((prev) => new Set(prev).add(item.id));
 
       if (tabEmptied) {
         setBillingComplete(true);
@@ -539,7 +570,44 @@ export function TasksPage({
       }
     },
 
+    /** ═══ THE WINDOW CLOSED — THE SAME INSTANT THE LEDGER IS WRITTEN ═══
+     *  §6's rule, and the rule F4 asks this group to match exactly: an item
+     *  enters "Completed today" when its close becomes a record, not when the
+     *  button was pressed. */
+    onCommitted: (item, detail) => {
+      setResolvingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      setResolvedIds((prev) => new Set(prev).add(item.id));
+      /* THE OUTCOME COMES FROM THE COMMIT DETAIL, not from the payload: the
+         supervisor may have picked a different code than the model proposed, and
+         the record is what they submitted. */
+      const code = typeof detail.code === "string" ? detail.code : null;
+      const outcome = detail.outcome === "unchanged" ? "unchanged" : "confirmed";
+      setCompleted((prev) => [
+        {
+          id: item.id,
+          teenName: item.teenDisplayName,
+          taskType: item.taskType,
+          code: code ?? "—",
+          outcome,
+          at: Date.now(),
+        },
+        ...prev,
+      ]);
+    },
+
     onRestore: (item) => {
+      /* AN UNDONE ITEM WAS NEVER COMPLETED. It clears from `resolvingIds` and
+         never reaches `completed` — the group is built only in `onCommitted`, so
+         there is no path from here into it. */
+      setResolvingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
       setResolvedIds((prev) => {
         const next = new Set(prev);
         next.delete(item.id);
@@ -583,14 +651,27 @@ export function TasksPage({
           {/* 4px under the display title — the spacing scale's first step, and
               the only value between these two lines (Part 2). */}
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {/* TODO-COPY. "20 open · 4 overdue" — and the overdue clause is
-                omitted entirely at zero rather than reading "0 overdue", which is
-                a number nobody needs to see. */}
-            {counts.open === 0
-              ? "Nothing open"
-              : counts.overdue > 0
-                ? `${counts.open} open · ${counts.overdue} overdue`
-                : `${counts.open} open`}
+            {/* ═══ THREE SEGMENTS, EVERY ZERO OMITTED (arch-F, F4) ═══
+                NEEDS-COPY-NICOLE. "19 open · 2 overdue · 3 completed today".
+                A zero segment is dropped entirely rather than rendered as "0
+                overdue" — a number nobody needs — and with nothing open at all
+                the line says so in words instead of leading with a zero.
+                NOTHING BEYOND THIS AND THE COMPLETED GROUP. No 24h/7d/30d strip:
+                the bucket headers already carry those counts, and a progress or
+                streak display on a clinical queue becomes a productivity
+                scoreboard — which is exactly what was designed out of Home. */}
+            {[
+              /* ═══ ZERO OPEN IS STATED IN WORDS, NOT OMITTED ═══
+                 "Omit any segment that is zero" read literally turned an emptied
+                 queue with one completion into "1 completed today" — which drops
+                 the fact a supervisor opens this page for. A zero NUMBER is what
+                 nobody needs ("0 open"); the state still needs saying. */
+              counts.open > 0 ? `${counts.open} open` : "Nothing open",
+              counts.overdue > 0 ? `${counts.overdue} overdue` : null,
+              completed.length > 0 ? `${completed.length} completed today` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
 
@@ -683,6 +764,8 @@ export function TasksPage({
                 selectedId={selectedEntryId ?? activeEntry?.id ?? null}
                 state={listState}
                 onSelect={(entry, item) => {
+                // THE OTHER SELECTION LETS GO — see `onSelectCompleted`.
+                setCompletedSelectedId(null);
                   setSelectedEntryId(entry.id);
                   setPickedId(item.id);
                   // AND HAND THE PANE THE SCREEN. Below `xl` the grid collapses
@@ -703,6 +786,27 @@ export function TasksPage({
                  tier IS the kind of work, and its rows are person-forward. */
                 grouping="deadline"
                 rowVariant="task"
+                completed={completed}
+                completedSelectedId={completedSelectedId}
+                onSelectCompleted={(e) => {
+                  /* THE PANE OPENS READ-ONLY. The list's own selection is
+                     cleared: two selected rows in one tree would be two
+                     `aria-selected` and a reader with no way to tell which one
+                     the footer acts on — the same rule Monitoring's two lists
+                     follow. */
+                  setCompletedSelectedId(e.id);
+                  setSelectedEntryId(null);
+                  setPickedId(e.id);
+                  setPaneTakeover(true);
+                }}
+                /* ═══ THE LEDGER LINK CANNOT CARRY THE DAY ═══
+                   Activity's filter axes are objectId, domain, scope and event —
+                   there is no date axis (gap row 371, still open), so this lands
+                   on billing + mine rather than on today. Stated in the group's
+                   own comment rather than implied by a label that promises
+                   today. */
+                activityHref="/app/activity?domain=billing&scope=mine"
+                resolvingIds={resolvingIds}
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
@@ -792,6 +896,15 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
+                      /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
+                         decision is on the record; there is nothing here to
+                         decide, and a live Submit over a closed review would
+                         offer to commit it twice. */
+                      completed={
+                        completedItem
+                          ? (completed.find((c) => c.id === completedItem.id) ?? null)
+                          : null
+                      }
                     />
                   )}
                 </div>
