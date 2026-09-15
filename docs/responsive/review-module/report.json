@@ -72,8 +72,8 @@
     {
       "id": "picker.tasks.on-record",
       "label": "and the module marks that code in the list",
-      "ok": false,
-      "detail": "F33.1 · 0 marked"
+      "ok": true,
+      "detail": "F33.1 · 1 marked"
     },
     {
       "id": "picker.tasks.closes",
@@ -110,8 +110,8 @@
     {
       "id": "picker.care.on-record",
       "label": "and the module marks that code in the list",
-      "ok": false,
-      "detail": "F33.0 · 0 marked"
+      "ok": true,
+      "detail": "F33.0 · 1 marked"
     },
     {
       "id": "picker.care.closes",

@@ -47,6 +47,17 @@ The cost, stated: on a supervisor's screen today, Tasks holds only billing
 reviews, so the name is broader than the contents. That is deliberate — the
 contents are what will widen.
 
+### The surface is still called Tasks — confirmed at arch-E
+
+The earlier awkwardness was never the label. **Rows described people while the
+label promised work**: the group header said the task type, so the row said only
+a name and a deadline. With rows leading with the job and the list grouped by
+when work is due, the surface is a task list in the plainest sense and the name
+stops being a stretch.
+
+Alternatives stay rejected for the reasons above — chiefly that only "Tasks"
+holds across all three roles in the PRD roll-out.
+
 ### When chrome returns — the extensibility threshold
 
 Written down because the failure mode runs both ways: chrome added before it is
@@ -54,15 +65,47 @@ needed, and chrome forgotten when it is.
 
 | Change | What the surface grows |
 |---|---|
-| A new task type inside an existing domain | **A new group header.** No structural change. |
-| A second domain on Tasks | **The tab row returns**, with group headers nesting beneath the tabs. |
-| A single domain | **Never a tab row.** |
+| A new task type | **Nothing structural.** Rows state their own type and time buckets hold any mix. |
+| More than one task type present | **A filter chip row** above the list (`All · Billing · …`), defaulting to All. |
+| A single task type | **No chip row**, and never a tab row. |
 
-One tab advertises an absence and adds a control that offers no choice. That is
-why arch-A removed it when Tasks was scoped to billing, and it reclaimed 150px
-above the list doing so (measured at 1280×900: the worklist scroller moved from
-y=270 to y=120). A tab row reintroduced for one domain would spend that space to
-say "there is nothing else here".
+**arch-D said "a second domain brings the tab row back". arch-E replaced that.**
+The old rule came from the four-domain architecture, where a tab was a DOMAIN
+with its own success model — escalations measured by response time, billing by
+completion, flags by coverage — so switching tabs changed what "done" meant.
+Tasks has one success model now and will have many task types. Tabs would claim
+separate surfaces where there is one; chips say "narrow this list", which is both
+what a reader wants and a far lighter promise.
+
+A single filter offering no choice is dead chrome, which is the same reasoning
+that removed the one-tab row in arch-A — and that reclaimed 150px above the list
+(measured at 1280×900: the worklist scroller moved from y=270 to y=120).
+
+The chip row is **built and hidden**: it renders only when more than one task
+type is present, so the affordance exists before the second type lands.
+
+### Tasks groups by when, Monitoring groups by tier
+
+Not a style difference — the two surfaces have opposite units of work, and the
+grouping follows.
+
+Tasks' type groups (`Intake` / `Monthly re-review`) did two things wrong at once.
+They took the verb off the row, so a row said only a name and a clock. And they
+**destroyed deadline order across buckets** — measured, the list ran 15h → 2d and
+then RESTARTED at 20h → 2d, so finding what was about to breach meant merging N
+sorted lists by eye, on the surface whose entire job is deadline awareness.
+
+Deadline buckets (`Overdue` / `Due today` / `Due tomorrow` / `Later`) are a
+PARTITION of the one sorted list, not a re-sort: `slaRemaining` is the
+comparator's fourth key and is monotonic down the list, so each bucket is a
+contiguous run of it. Empty buckets do not render — unlike the old tab cards,
+which kept their position for navigational stability; a bucket is a content
+grouping and "Overdue — 0" is noise claiming a shape the list does not have.
+
+Monitoring keeps its tier bands, because there the tier IS the kind of work and
+its rows are person-forward. Band retirement (`{Tier} — cleared · {n} today`)
+stays tier-only for the same reason: a tier clearing is information, while a
+deadline bucket can empty because the work was done *or* because the clock moved.
 
 ### Rows: emphasis follows obligation
 
@@ -77,5 +120,15 @@ identically at 400, 500, 600 and 700 (only the 400 face ships), so every
 `font-semibold` on a row is a declaration with no rendering behind it. What does
 work, measured by ink density: **Avantt** (`font-display`, Bold-only, +19% ink
 over Lausanne 400) and the **mono stack at 700** (+41% over its own 400). Those
-are the two emphasis channels, and the two emphasised elements on these surfaces
-use one each so they never compete.
+are the two emphasis channels.
+
+**arch-E changed which one Tasks spends.** arch-D gave Tasks the mono-bold
+countdown and Monitoring the Avantt name, one channel each. With rows leading
+with the job, Tasks' emphasis is the job in Avantt — so the countdown gave up
+its bold and kept everything else: 14px, primary ink, mono, tabular,
+right-aligned. Both surfaces now emphasise in Avantt, which is fine because they
+are never on screen together; what matters is the rule that survived both
+phases — **one emphasised element per row**. The countdown and the job were
+briefly both bold and the row had two places for the eye to land; the probe
+counts the emphasised elements per row for exactly that reason. A column of
+figures is scannable without winning the weight channel.

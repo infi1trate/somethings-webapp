@@ -76,7 +76,7 @@
       "id": "digest.breach-first",
       "label": "breach lines come before any neutral count",
       "ok": true,
-      "detail": "breach:1 escalation open now | breach:2 imminent past 24h | breach:1 write-up overdue | attention:23 imminent | attention:15 billing | attention:26 clinical | attention:20 routine"
+      "detail": "breach:1 escalation open now | breach:2 imminent past 24h | breach:2 billing past SLA | breach:1 write-up overdue | attention:23 imminent | attention:19 billing | attention:26 clinical | attention:20 routine"
     },
     {
       "id": "digest.one-cta",

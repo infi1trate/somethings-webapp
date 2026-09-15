@@ -154,7 +154,7 @@
       "id": "sr.monitoring.group-in-name",
       "label": "every row names the group it is in",
       "ok": true,
-      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 3:25 PM"
+      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 3:40 PM"
     },
     {
       "id": "sr.monitoring.same-temporal",
@@ -178,7 +178,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, overdue, overdue by 9h, 2:32 AM"
+      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, overdue, overdue by 9h, 2:47 AM"
     },
     {
       "id": "e.no-avatar",
