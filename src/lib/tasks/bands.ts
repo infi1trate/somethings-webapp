@@ -102,8 +102,14 @@ export function tierLabel(tier: RiskFlagPayload["tier"]): string {
 }
 
 export interface TierBand {
-  /** The task type, which is also the band key. */
-  id: TaskType;
+  /** ═══ THE BAND KEY — A TASK TYPE, OR A DEADLINE BUCKET (arch-E) ═══
+   *  It was `TaskType`, because every band was a tier. arch-E groups Tasks by
+   *  WHEN work is due, so the key widens to a string and `bandsFor` still
+   *  produces task-type bands for Monitoring. The only consumer that needed the
+   *  narrower type was band RETIREMENT, which reports how many of a cleared TIER
+   *  closed today — see `Worklist`, where retirement is now gated on the grouping
+   *  rather than attempted for a bucket it cannot count. */
+  id: string;
   label: string;
   entries: ListEntry[];
   /** How many TASKS the band stands for — not how many rows. A coalesced group

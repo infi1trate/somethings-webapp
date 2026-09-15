@@ -52,6 +52,7 @@ import {
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
+import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import {
   deadlineLabel,
   rowEmphasisFor,
@@ -625,7 +626,7 @@ interface Section {
 /** A band that has just been cleared and is on its way out. Held in state rather
  *  than derived, because the whole point is that it OUTLIVES the data. */
 interface Retiring {
-  id: TaskType;
+  id: string;
   label: string;
   closedToday: number;
   /** The height its rows occupied, which is what compresses to zero. */
@@ -641,6 +642,7 @@ export function Worklist({
   subject,
   emptyLine,
   focusBand = null,
+  grouping = "tier",
   headersState = "ready",
   now,
   selectedId,
@@ -672,6 +674,22 @@ export function Worklist({
   subject?: string;
   /** The empty line, when `domain` is null. */
   emptyLine?: string;
+  /** ═══ WHAT THE BANDS MEAN (arch-E) ═══
+   *
+   *  `"tier"` groups by task type — Monitoring's Imminent / Clinical review /
+   *  Routine review, unchanged by this phase.
+   *
+   *  `"deadline"` groups by WHEN work is due, which is what Tasks needs: its
+   *  type groups took the verb off the row AND destroyed deadline order across
+   *  buckets, so the list restarted its countdown at every header. See
+   *  `deadline-buckets.ts` for the measurement and for why buckets are a
+   *  partition of the one sort rather than a second ordering.
+   *
+   *  ONE AXIS, TWO VALUES, rather than two components: everything below this —
+   *  the sections, the offsets, the sticky headers, the keyboard order — is
+   *  identical either way, and forking the list to change what a header says
+   *  would have been two virtualizers to keep in step. */
+  grouping?: "tier" | "deadline";
   /** ═══ arch-C's STAGE LINK LANDS HERE ═══
    *  A band to bring into view on arrival. Home's shift sequence gives each stage
    *  one way in, and "the imminent tier" has to mean more than "the top of a
@@ -709,7 +727,10 @@ export function Worklist({
    *  rather than only inside it. */
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
 
-  const bands = useMemo(() => bandsFor(entries), [entries]);
+  const bands = useMemo(
+    () => (grouping === "deadline" ? deadlineBandsFor(entries, now) : bandsFor(entries)),
+    [entries, grouping, now]
+  );
   const showBands = bandsAreMeaningful(bands);
 
   /* ═══ SECTIONS: THE RENDER ORDER, AND THE KEYBOARD'S ORDER ═══
@@ -900,11 +921,25 @@ export function Worklist({
   /** What was on screen last render: each band's task ids and its pixel height.
    *  Both are needed — the ids to prove the band was CLEARED rather than merely
    *  swapped away, the height to know what to compress. */
+  /** ═══ RETIREMENT IS A TIER'S, NOT A BUCKET'S (arch-E) ═══
+   *
+   *  A cleared tier reports the clearance — "Imminent — cleared · 1 today" —
+   *  because the moment contains information: that tier is DONE. A deadline
+   *  bucket emptying does not mean that. It can empty because the work was done
+   *  OR because the clock moved and every item slid into the next bucket, and
+   *  `closedTodayInBand` counts by TASK TYPE, so it could not tell a reader which
+   *  of those happened even if the message were wanted.
+   *
+   *  So a bucket simply stops rendering when it empties, which is also why empty
+   *  buckets never render in the first place. Gated rather than guarded inside
+   *  the effect, so the whole mechanism is inert on Tasks rather than running and
+   *  producing nothing. */
   const lastSeen = useRef<
-    Map<TaskType, { label: string; ids: string[]; height: number; domain: TaskDomain | null }>
+    Map<string, { label: string; ids: string[]; height: number; domain: TaskDomain | null }>
   >(new Map());
 
   useEffect(() => {
+    if (grouping !== "tier") return;
     const next = new Map(lastSeen.current);
     const live = new Set(sections.map((s) => s.band.id));
 
@@ -938,7 +973,7 @@ export function Worklist({
               {
                 id,
                 label: prev.label,
-                closedToday: closedTodayInBand(items, id, now),
+                closedToday: closedTodayInBand(items, id as TaskType, now),
                 height: prev.height,
               },
             ]

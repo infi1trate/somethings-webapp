@@ -81,8 +81,42 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
 {
   const { context, page } = await open("default");
   const t = await textOf(page);
-  check("default.subtitle", "subtitle counts billing only", /^\s*Tasks\s+15 open/m.test(t), t.split("\n").slice(0, 2).join(" · "));
-  check("default.bands", "both band headers render", /Intake — 8/.test(t) && /Monthly re-review — 7/.test(t));
+  /* ═══ NOT PINNED TO A LITERAL COUNT ANY MORE ═══
+     This asserted "15 open". arch-E widened the billing fixture so items straddle
+     their deadline — the time buckets needed an Overdue and a Due today that
+     actually contained something — and the check broke on a number that was
+     never the claim. The claim is that the subtitle counts BILLING and agrees
+     with the list. */
+  const subtitle = (await page.locator("main h1 + p").innerText()).trim();
+  const claimed = Number((subtitle.match(/(\d+) open/) ?? [])[1]);
+  const rowCount = await page.getByRole("treeitem").count();
+  check(
+    "default.subtitle",
+    "the subtitle counts billing, and agrees with the list",
+    claimed > 0 && claimed >= rowCount,
+    `"${subtitle}" against ${rowCount} mounted rows`
+  );
+  /* ═══ SUPERSEDED BY arch-E: TASK-TYPE BANDS ARE NOW TIME BUCKETS ═══
+     This asserted "Intake — 8" and "Monthly re-review — 7". Those groups took the
+     verb off the row and restarted the countdown at every header; Tasks groups by
+     WHEN work is due now. The claim worth keeping is that the list IS grouped and
+     the headers name their group with a count — retargeted, not relaxed. */
+  const bands = await page
+    .getByRole("group")
+    .evaluateAll((els) =>
+      els.map((e) => e.getAttribute("aria-label")).filter((l) => l && / — \d+$/.test(l))
+    );
+  check(
+    "default.buckets",
+    "the list is grouped by deadline, in fixed order",
+    bands.length > 0 &&
+      bands.join(" ") ===
+        ["Overdue", "Due today", "Due tomorrow", "Later"]
+          .filter((b) => bands.some((x) => x.startsWith(b)))
+          .map((b) => bands.find((x) => x.startsWith(b)))
+          .join(" "),
+    bands.join(" | ")
+  );
   check("default.no-tabs", "no tab row survives", !/Escalations|Risk flags|Monitoring/.test(t));
   /* ═══ WHERE THE LIST NOW STARTS ═══
      Recorded, not asserted: pinning it would turn any later padding change into
@@ -95,6 +129,23 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   const firstRowTop = await page.getByRole("treeitem").first().evaluate((el) => Math.round(el.getBoundingClientRect().top));
   rows.push({ id: "default.first-row-top", label: "y of the first row", measured: firstRowTop });
   console.log(`  · ${"default.first-row-top".padEnd(26)} first row at y=${firstRowTop} (harness xl; see the note)`);
+  /* ═══ THE FILTER CHIP ROW IS BUILT AND HIDDEN (arch-E) ═══
+     One task type on this surface means no choice to offer, and a single filter
+     offering no choice is dead chrome — the same reasoning that removed the
+     one-tab row in arch-A. The affordance exists so the second task type does
+     not arrive to a scramble; this is the check that it stays out of the way
+     until then.
+     ASSERTED IN THE DOM, because the gate lives in the component: a unit test
+     over `kindChipsFor` verifies the chip LIST and passed with the gate inverted,
+     which a mutation run caught. */
+  const chipRow = await page.locator('[data-anno-ref="tasks-kind-filter"]').count();
+  check(
+    "default.no-kind-filter",
+    "the filter chip row stays hidden with one task type",
+    chipRow === 0,
+    `${chipRow} chip row(s)`
+  );
+
   await shot(page, "01-default");
   await context.close();
 }
@@ -109,7 +160,9 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   check("breach.chip", "the row carries an Overdue chip", /Overdue/.test(t));
   // The reason bandsAreMeaningful changed: with one band and no tab row above
   // it, nothing on screen said what kind of work these rows were.
-  check("breach.single-band", "a lone band still labels itself", /Intake — 1/.test(t));
+  /* WAS `Intake — 1`. A single bucket still labels itself — the reason
+     `bandsAreMeaningful` changed in arch-A survives the regrouping. */
+  check("breach.single-band", "a lone bucket still labels itself", /Overdue — 1/.test(t));
   await shot(page, "02-breach");
   await context.close();
 }
@@ -129,7 +182,7 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   await page.getByRole("button", { name: /^Retry$/ }).first().click();
   await page.waitForTimeout(500);
   const after = await textOf(page);
-  check("error.retry-works", "retry restores the list", /Intake — 8/.test(after));
+  check("error.retry-works", "retry restores the list", /Due tomorrow — |Later — /.test(after));
   await shot(page, "04-error-retried");
   await context.close();
 }
@@ -144,7 +197,12 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   // deliberately the healthy one. With billing the only domain left on this
   // surface, "Partial" now renders exactly like "Ready". Asserted rather than
   // narrated, so the day billing is added to that list this probe says so.
-  check("partial.billing-healthy", "partial leaves billing fully loaded", /Intake — 8/.test(t) && !/didn’t load/.test(t));
+  check(
+    "partial.billing-healthy",
+    "partial leaves billing fully loaded",
+    /(Due tomorrow|Later|Overdue|Due today) — \d/.test(t) && !/didn['\u2019]t load/.test(t),
+    (t.match(/(Overdue|Due today|Due tomorrow|Later) — \d+/g) ?? []).join(" | ")
+  );
   await shot(page, "05-partial");
   await context.close();
 }
@@ -289,14 +347,28 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
     await page.keyboard.press("Control+Enter");
     await page.waitForTimeout(500);
   }
+  /* ═══ SUPERSEDED BY arch-E: A BUCKET DOES NOT RETIRE ═══
+     This asserted "Monthly re-review — cleared · 7 today". Band retirement
+     reports that a TIER is done, which is information; a deadline bucket
+     emptying is not the same fact — it can empty because the work was done OR
+     because the clock moved and everything slid into the next bucket, and
+     `closedTodayInBand` counts by task type so it could not tell a reader which.
+     Retirement is gated to tier grouping now, and Monitoring's is verified in
+     `monitoring-states.mjs`. What is asserted here instead is the behaviour that
+     replaced it: an emptied bucket stops rendering, and the others carry on. */
   const retired = await textOf(page);
   check(
-    "retire.header",
-    "a cleared band reports the clearance rather than vanishing",
-    /cleared/i.test(retired),
-    (retired.split("\n").find((l) => /cleared/i.test(l)) ?? "").slice(0, 50)
+    "retire.no-bucket-retirement",
+    "an emptied bucket stops rendering rather than announcing itself",
+    !/—\s*cleared/.test(retired),
+    (retired.split("\n").find((l) => /cleared/.test(l)) ?? "no clearance line").slice(0, 50)
   );
-  check("retire.other-band", "the other band is untouched", /Intake — 8/.test(retired));
+  check(
+    "retire.others-stay",
+    "and the remaining buckets are intact",
+    /(Overdue|Due today|Due tomorrow|Later) — \d/.test(retired),
+    (retired.match(/(Overdue|Due today|Due tomorrow|Later) — \d+/g) ?? []).join(" | ")
+  );
   await shot(page, "12-retired");
   await context.close();
 }

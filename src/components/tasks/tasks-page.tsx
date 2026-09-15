@@ -669,6 +669,14 @@ export function TasksPage({
                   // a no-op, which is why it went unnoticed on a desktop.
                   setPaneTakeover(true);
                 }}
+                /* ═══ GROUPED BY WHEN, NOT BY WHAT (arch-E) ═══
+                 The type groups — "Monthly re-review — 7" then "Intake — 8" —
+                 took the verb off the row AND restarted the countdown at every
+                 header, so scanning for what was about to breach meant merging
+                 two sorted lists by eye on the surface whose whole job is
+                 deadline awareness. Monitoring keeps its tier bands: there the
+                 tier IS the kind of work, and its rows are person-forward. */
+                grouping="deadline"
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
