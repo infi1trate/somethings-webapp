@@ -3,96 +3,112 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // MONITORING — the clinical vigilance surface. Supervisor tier only.
 //
-// ═══ IT IS COVERAGE-MEASURED, AND EVERY DECISION HERE FOLLOWS FROM THAT ═══
+// ═══ WHAT THIS PAGE STOPPED ASSERTING ═══
 //
-// Tasks empties. This does not, and must not be built as though it might. Flags
-// arrive continuously, the routine tier has a seven-day SLA, and "finished
-// Monitoring" would only ever mean finished for the minute. Measured on the
-// shipped fixtures: 43 open flags on a typical shift, 123 on a heavy one.
+// It grouped flags into Imminent / Clinical review / Routine review and counted
+// each tier's SLA down to a breach. None of that was computable: the classifier
+// emits categories, not severity, and nothing published states a review deadline
+// for a flag. So the page was asserting clinical severity and manufacturing
+// breach states from it — and a supervisor reading "overdue by 2h" on a flag was
+// reading a number this system invented.
 //
-// Three things follow, and they are the three ways this page differs from Tasks
-// rather than three preferences:
+// Tiers are gone. Flags carry AGE. Breach treatment now belongs to exactly one
+// thing: escalation-linked obligations against their real 5-minute and 24-hour
+// clocks.
 //
-//   · THE SUBTITLE LEADS WITH WHAT IS OWED, not with what is open. An open count
-//     on a surface that never empties is a number a reader learns to skip.
-//   · THE BADGE COUNTS THE SAME DEBT — see `monitoringObligations` for why an
-//     open count would be ignored inside a week.
-//   · THERE IS NO COMPLETION STATE. No "you cleared it" card, no next-surface
-//     CTA. Clearing the list here means the flags happen to be worked right now,
-//     which is a fact and not an achievement — the same reasoning the routine
-//     tier's empty line already carries in `worklist.tsx`.
+// ═══ THE PAGE HAS TWO VIEWS AND ONE COMPARATOR ═══
 //
-// ═══ NO TAB-CARD ROW, AND THAT IS STRUCTURAL ═══
+//   · THE QUEUE — events for judgment: teen safety flags and mentor practice
+//     breaches, one list, one five-step comparator, filterable by subject.
+//   · COVERAGE — every supervised conversation, as progress against the shift.
+//     The floor under the queue, because a surface that can only show what a
+//     model noticed cannot answer "have I looked at my teens".
 //
-// Monitoring is ONE conceptual surface. Its tiers are groups inside one list,
-// not four destinations — so a reader moves through them by scrolling a sorted
-// list rather than by choosing which queue to be in. That is the difference from
-// the old four-tab Tasks page, and it is deliberate: a tab row asks "which kind
-// of risk do you want to look at", and the answer on a vigilance surface is
-// always "the most urgent one", which the comparator already knows.
+// Two scroll regions total (locked decision 4): the left column's, and the
+// pane's. The transcript renders unscrolled inside the pane.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
-import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
-import { Worklist, type ListState } from "@/components/tasks/worklist";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
-import { elapsedLabel } from "@/components/tasks/strips";
 import { EscalationRegion } from "@/components/monitoring/escalation-region";
-import { itemsOf, paneItemFor } from "@/lib/tasks/list";
-import { isEscalationTask } from "@/lib/tasks/escalation-state";
-import { sortedOpen } from "@/lib/tasks/sort";
-import { monitoringEntriesFor } from "@/lib/tasks/monitoring-list";
-import { monitoringObligations } from "@/lib/tasks/obligations";
+import { EventList, SubjectFilter, ALL_SUBJECTS, ageLabel } from "@/components/monitoring/event-list";
+import { EventPane, type PaneHandle } from "@/components/monitoring/event-pane";
+import { CoverageList, CoverageMeter } from "@/components/monitoring/coverage-view";
+import { NowBand } from "@/components/monitoring/now-band";
 import {
   MONITORING_LOAD_STAGES,
   monitoringLoadPlanFor,
 } from "@/lib/tasks/load-plan";
-import { tasksScenario } from "@/lib/tasks/seed";
-import { tierLabel } from "@/lib/tasks/bands";
+import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
+import { groupEvents, sortEvents, type ReviewSubject } from "@/lib/monitoring/event";
+import {
+  ackStateFor,
+  closeOutOpen,
+  compareEscalations,
+  isActive,
+  isSettled,
+  type EscalationRecord,
+} from "@/lib/monitoring/escalation";
+import { coverageProgress, creditsCoverage } from "@/lib/monitoring/coverage";
+import { bandStateFor } from "@/lib/monitoring/live";
+import { monitoringData } from "@/lib/monitoring/scenarios";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
-import { asTaskType } from "@/lib/tasks/types";
-import type { RiskFlagPayload, TaskItem } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** TODO-COPY. The subtitle.
+/** ═══ THE SUBTITLE — EVERY NUMBER STATES ITS UNIT ═══
  *
- *  ═══ OBLIGATION FIRST, COVERAGE SECOND, AND NEVER A BARE OPEN COUNT ═══
+ *  It read "2 past 24h · 3 write-ups due · 43 flags in review": three
+ *  incompatible units, one of them ("2") with no stated referent at all, and a
+ *  flag count on a queue that never empties standing in for progress.
  *
- *  "43 open" is the number this surface can always produce and the one it should
- *  never lead with: on a queue that never empties it describes the weather, not
- *  the work. What a supervisor needs from a glance is whether anything has gone
- *  past its deadline — so the debt clause comes first and is dropped entirely at
- *  zero rather than reading "0 overdue", which is a number nobody needs to see.
+ *  Now every clause is one of exactly two things — COVERAGE PROGRESS, or a count
+ *  of a REAL obligation with a real clock. A flag count is neither, so it is
+ *  gone: it described the weather.
  *
- *  The coverage clause stays because it is the honest denominator: "2 overdue"
- *  alone would imply the rest is finished. */
-export function monitoringSubtitle(
-  openFlags: number,
-  imminentBreached: number,
-  documentationOpen: number
-): string {
+ *  NEEDS-COPY-NICOLE, every clause. */
+export function monitoringSubtitle(input: {
+  coverageReviewed: number;
+  coverageTotal: number;
+  ackOutstanding: number;
+  closeOutOverdue: number;
+  classifierDegraded: boolean;
+}): string {
   const owed: string[] = [];
-  if (imminentBreached > 0) owed.push(`${imminentBreached} past 24h`);
-  if (documentationOpen > 0) {
+  if (input.ackOutstanding > 0) {
     owed.push(
-      `${documentationOpen} write-up${documentationOpen === 1 ? "" : "s"} due`
+      `${input.ackOutstanding} escalation${input.ackOutstanding === 1 ? "" : "s"} awaiting acknowledgement`
     );
   }
-  const coverage = `${openFlags} flag${openFlags === 1 ? "" : "s"} in review`;
-  return owed.length ? `${owed.join(" · ")} · ${coverage}` : coverage;
+  if (input.closeOutOverdue > 0) {
+    owed.push(
+      `${input.closeOutOverdue} close-out item${input.closeOutOverdue === 1 ? "" : "s"} overdue`
+    );
+  }
+  /* ═══ COVERAGE IS NOT REPEATED HERE ═══
+     The first build put the coverage clause in this subtitle AND in the meter
+     beside it, so the header said "9 of 24 conversations reviewed this shift"
+     twice, three centimetres apart. The METER owns coverage — it is the half
+     with the bar and the percentage — and the subtitle owns obligations.
+     WITH NOTHING OWED IT SAYS SO, rather than falling back to a flag count: a
+     zero obligation count is a real fact about real clocks, and "43 open" was
+     the weather. */
+  const line = owed.length
+    ? owed.join(" · ")
+    : /* NEEDS-COPY-NICOLE */ "No escalation clocks outstanding";
+  /* THE CLASSIFIER'S HEALTH OUTRANKS EVERY OTHER CLAUSE. Zero flags is otherwise
+     ambiguous between a quiet shift and a broken safety pipe. */
+  return input.classifierDegraded
+    ? `Flag pipeline is down — no flags are arriving · ${line}`
+    : line;
 }
 
-/** ═══ THE PANE'S OWN TWO STATES ═══
- *  Separate from the list's, because the two fail separately: the pane can be
- *  erroring over a perfectly healthy list. Sized to the pane's real proportions
- *  so the swap from skeleton to content moves nothing. */
 function PaneSkeleton() {
   return (
     <div
@@ -101,7 +117,7 @@ function PaneSkeleton() {
     >
       <div className="h-6 w-40 rounded bg-[var(--surface-s2)] motion-safe:animate-pulse" />
       <div className="h-4 w-56 rounded bg-[var(--surface-s2)] motion-safe:animate-pulse" />
-      <div className="h-[340px] rounded-[var(--radius-surface)] bg-[var(--surface-s1)] motion-safe:animate-pulse" />
+      <div className="h-[220px] rounded-[var(--radius-surface)] bg-[var(--surface-s1)] motion-safe:animate-pulse" />
     </div>
   );
 }
@@ -110,179 +126,159 @@ function PaneError() {
   return (
     <div className="flex h-full min-h-[12rem] flex-col items-start justify-center gap-2 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-6">
       <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
-        {/* TODO-COPY */}
-        Couldn&apos;t load this flag.
+        {/* NEEDS-COPY-NICOLE */}
+        Couldn&apos;t load this event.
       </p>
-      {/* NO SECOND LINE POINTING SOMEWHERE. The list below carries the only retry
-          this prototype can honour, and once that retry has run the list is ready
-          while the pane is still erroring — so a line sending the reader back to
-          it would go stale the moment they followed it. Same reasoning as the
-          Tasks pane's, which had its second line removed in arch-A for exactly
-          this. */}
     </div>
   );
 }
 
-/** A selection that means "whichever is first, once there is a first". Not a
- *  real id, and never compared against one — see `selectedEscalation`. */
+function ListSkeleton() {
+  return (
+    <div aria-hidden className="space-y-0">
+      {Array.from({ length: 7 }, (_, i) => (
+        <div key={i} className="flex h-14 items-center gap-3 border-t border-[color:var(--border-subtle)] px-3 first:border-t-0">
+          <span className="size-7 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+          <span className="min-w-0 flex-1 space-y-1.5">
+            <span className="block h-3 w-44 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+            <span className="block h-2.5 w-28 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const PENDING_ESCALATION = "__first__";
 
+/** NEEDS-COPY-NICOLE. `y`/`n` DO NOT RESOLVE HERE — see the sheet's own note. */
+const MONITORING_SHORTCUTS = [
+  { keys: ["↑", "↓"], what: "Move through the queue" },
+  { keys: ["j", "k"], what: "Move through the queue" },
+  { keys: ["y"], what: "Classifier was right (records accuracy only)" },
+  { keys: ["n"], what: "Classifier was wrong (records accuracy only)" },
+  { keys: ["u"], what: "Undo the last close" },
+  { keys: ["↵"], what: "Move focus to the review pane" },
+  { keys: ["?"], what: "This list" },
+];
+
 export function MonitoringPage({
-  /** arch-C's stage links — a tier to land on, or the escalation region.
-   *  Validated here rather than at the route, so a stale bookmark falls back to
-   *  the default view. */
+  /** ═══ `?band=` IS ACCEPTED AND IGNORED (arch-mon Phase 1) ═══
+   *  Home's shift sequence links here with a TIER — the taxonomy this phase
+   *  removed. The param is still received so an existing link does not 404 or
+   *  land on an error, and it does nothing: there are no tier bands to scroll to.
+   *  Home is a separate workstream and its links are not this phase's to change.
+   *  `?region=escalations` still works and still selects the first escalation. */
   focusBand = null,
   focusRegion = null,
 }: {
   focusBand?: string | null;
   focusRegion?: string | null;
 } = {}) {
+  void focusBand;
   const mounted = useMounted();
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
+  const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
+  const devLoadState = useOnboardingStore((st) => st.devLoadState);
 
-  /** THE CLOCK IS FIXED AT MOUNT, matching Tasks exactly. `Date.now()` in render
-   *  scope is impure and the React Compiler's purity rule rejects it — caught by
-   *  lint, not by reasoning. Every elapsed figure and breach state on this page
-   *  would otherwise move mid-render. */
-  const [now] = useState(() => Date.now());
+  /** THE CLOCK IS FIXED AT MOUNT. `Date.now()` in render scope is impure and the
+   *  React Compiler rejects it. Every age and every clock on this page is
+   *  measured from this one instant — and with the live layer off, nothing here
+   *  needs to tick. */
+  const [mountedAt] = useState(() => Date.now());
 
-  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
-
-  const allItems = useMemo(
-    () => (mounted ? tasksScenario(tasksScenarioId, now) : []),
-    [mounted, tasksScenarioId, now]
-  );
-
-  /** RESOLVED IS LOCAL, exactly as on Tasks: the fixture is immutable and the
-   *  page owns what a supervisor has done to it this session. */
-  const items = useMemo(
+  const data = useMemo(
     () =>
-      allItems.map((i) =>
-        resolvedIds.has(i.id) ? { ...i, status: "resolved" as const } : i
-      ),
-    [allItems, resolvedIds]
+      mounted
+        ? monitoringData(monitoringScenarioId, tasksScenarioId, mountedAt)
+        : null,
+    [mounted, monitoringScenarioId, tasksScenarioId, mountedAt]
+  );
+  /** A fixture may pin the hour — the dormant band and the after-hours
+   *  escalation are states about the time of day. */
+  const now = data?.clockOverride ?? mountedAt;
+
+  // ── Page-local decisions ──────────────────────────────────────────────────
+  /** Resolved events. Local, exactly as Tasks' resolutions are: the fixture is
+   *  immutable and nothing persists a decision in this prototype. */
+  const [resolvedIds, setResolvedIds] = useState<ReadonlySet<string>>(new Set());
+  /** Conversations credited toward coverage this session. */
+  const [credited, setCredited] = useState<ReadonlySet<string>>(new Set());
+  /** Escalations opened from a flag's disposition — the path the old control did
+   *  not have. */
+  const [raised, setRaised] = useState<EscalationRecord[]>([]);
+  const [view, setView] = useState<"queue" | "coverage">("queue");
+  const [subject, setSubject] = useState<string>(ALL_SUBJECTS);
+  const [paused, setPaused] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [listOverride, setListOverride] = useState<"ready" | null>(null);
+
+  const events = useMemo(() => {
+    const live = (data?.events ?? []).filter((e) => !resolvedIds.has(e.id));
+    return sortEvents(live);
+  }, [data, resolvedIds]);
+
+  const present = useMemo(() => {
+    const set = new Set<ReviewSubject>(events.map((e) => e.subject));
+    return (["teenSafety", "mentorPractice"] as ReviewSubject[]).filter((s) => set.has(s));
+  }, [events]);
+
+  const filtered = useMemo(
+    () => (subject === ALL_SUBJECTS ? events : events.filter((e) => e.subject === subject)),
+    [events, subject]
+  );
+  const groups = useMemo(() => groupEvents(filtered), [filtered]);
+
+  /** ═══ A SETTLED ESCALATION FINALLY LEAVES ═══
+   *  Resolved AND every owed close-out item done. Anything less stays on screen
+   *  and keeps aging. */
+  const escalations = useMemo(() => {
+    const all = [...(data?.escalations ?? []), ...raised];
+    return all.filter((r) => !isSettled(r, now)).sort((a, b) => compareEscalations(a, b, now));
+  }, [data, raised, now]);
+
+  /** MEMOISED SEPARATELY so the `?? []` fallback is not a new array identity on
+   *  every render — which would make every memo below it recompute. */
+  const conversations = useMemo(() => data?.conversations ?? [], [data]);
+  const coverage = useMemo(
+    () => coverageProgress(conversations, credited),
+    [conversations, credited]
   );
 
-  /** THE HYBRID UNIT OF REVIEW (B2). Imminent as individual rows, the two lower
-   *  tiers coalesced by teen — see `monitoring-list.ts` for why the unit follows
-   *  the obligation rather than being uniform. */
-  const entries = useMemo(() => monitoringEntriesFor(items, now), [items, now]);
-
-  /** ═══ THE ESCALATION SET — THE WHOLE LIFECYCLE ═══
-   *  Active AND documentation-pending, in the one comparator's order, which puts
-   *  active first because `TIER_RANK` does. Sorted rather than filtered-then-
-   *  sorted so its order is the same order everything else on this surface uses. */
-  const escalations = useMemo(
-    () => sortedOpen(items, now).filter(isEscalationTask),
-    [items, now]
-  );
-  const obligations = useMemo(
-    () => monitoringObligations(items, now),
-    [items, now]
-  );
-  const openFlags = useMemo(
-    () => entries.reduce((n, e) => n + itemsOf(e).length, 0),
-    [entries]
-  );
+  const obligations = useMemo(() => {
+    let ackOutstanding = 0;
+    let closeOutOverdue = 0;
+    for (const r of escalations) {
+      if (isActive(r) && ackStateFor(r, now) !== "acknowledged") ackOutstanding += 1;
+      closeOutOverdue += closeOutOpen(r, now).filter((i) => i.overdue).length;
+    }
+    return { ackOutstanding, closeOutOverdue };
+  }, [escalations, now]);
 
   // ── Selection ─────────────────────────────────────────────────────────────
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  /** ═══ TWO LISTS, ONE PANE, AND ONE SELECTION BETWEEN THEM ═══
-   *
-   *  The escalation region and the flags view are separate listboxes and the pane
-   *  can only show one thing. Holding the escalation's id SEPARATELY, and
-   *  treating it as the winner while it is set, is what keeps the two lists from
-   *  both claiming to be selected — which would be two `aria-selected` rows on
-   *  one screen and a reader with no way to tell which one the footer acts on.
-   *
-   *  Selecting in either list clears the other. */
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEscalationId, setSelectedEscalationId] = useState<string | null>(
     () => (focusRegion === "escalations" ? PENDING_ESCALATION : null)
   );
-
-  /** ═══ THE SELECTED ROW, AND THE ITEM THE PANE SHOWS — TWO IDS ═══
-   *
-   *  Selecting a coalesced group puts its highest-priority child in the pane, so
-   *  the highlighted ROW and the reviewed ITEM are not the same object.
-   *
-   *  ═══ A CHILD ROW'S ID IS NOT AN ENTRY ID, AND THAT COST A DEFECT ═══
-   *
-   *  The worklist renders an expanded group's children from a SYNTHETIC entry —
-   *  `{kind: "item", id: member.id, item: member}` — built at render time and
-   *  never present in `entries`. So `entries.find(e => e.id === selectedEntryId)`
-   *  returns undefined for every child row, the `?? entries[0]` fallback fired,
-   *  and clicking a child put a DIFFERENT TEEN in the pane while the row lost its
-   *  selection outline entirely.
-   *
-   *  MEASURED, because it is worth saying how this was caught: a probe expanded a
-   *  group of five, clicked each child in turn and pressed `y`, and the count on
-   *  the row never moved. It was resolving the first row of the list, five times.
-   *  Nothing errored and nothing looked broken — the pane showed a real flag with
-   *  real evidence, just not the one that had been clicked.
-   *
-   *  THE SECOND LOOKUP IS THE FIX: a row id that is not an entry id belongs to a
-   *  member of one. Ordered so the common case — a top-level row — still costs
-   *  one scan.
-   *
-   *  LATENT ON TASKS TOO, and unreachable there: billing objectIds are unique per
-   *  review, so nothing on that surface coalesces and no child row exists to
-   *  click. Reported rather than changed — Tasks is out of this phase's scope. */
-  const selectedEntry =
-    entries.find((e) => e.id === selectedEntryId) ??
-    entries.find((e) => itemsOf(e).some((i) => i.id === selectedEntryId)) ??
-    entries[0] ??
-    null;
-  const selected: TaskItem | null = selectedEntry
-    ? (itemsOf(selectedEntry).find((i) => i.id === pickedId) ??
-      paneItemFor(selectedEntry))
-    : null;
-  /** WHAT THE LIST HIGHLIGHTS. The row the reader clicked — which for a child is
-   *  the child, not its parent — falling back to the head so the pane and the
-   *  outline agree on an untouched page. */
-  const selectedRowId = selectedEscalationId
-    ? null
-    : (selectedEntryId ?? selectedEntry?.id ?? null);
-
-  /** WHAT THE PANE SHOWS. An escalation wins while one is selected; otherwise the
-   *  flags view's pick. */
-  /** `PENDING_ESCALATION` resolves to the head once the list exists — the store
-   *  is not read until `mounted`, so a deep link cannot name an id at
-   *  construction time. */
   const selectedEscalation =
     selectedEscalationId === PENDING_ESCALATION
       ? (escalations[0] ?? null)
       : (escalations.find((e) => e.id === selectedEscalationId) ?? null);
-  const paneItem = selectedEscalation ?? selected;
+  const selectedEvent = selectedEscalation
+    ? null
+    : (filtered.find((e) => e.id === selectedEventId) ?? filtered[0] ?? null);
 
-  const paneRef = useRef<HTMLDivElement | null>(null);
-  const paneActions = useRef<PaneActions>({});
   const [takeoverWanted, setPaneTakeover] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
-  /** The list's own retry, which wins over the plan once a reader has used it —
-   *  the same arrangement Tasks has, and the reason the plan is a DEFAULT rather
-   *  than the value. */
-  const [listOverride, setListOverride] = useState<ListState | null>(null);
+  const paneTakeover = takeoverWanted && (filtered.length > 0 || escalations.length > 0);
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  const paneHandle = useRef<PaneHandle>({});
 
-  const devLoadState = useOnboardingStore((st) => st.devLoadState);
-
-  /** ═══ THE STAGE CARRIES THE STATE IT BELONGS TO ═══
-   *
-   *  Pairing the stage with the load state it was counted for makes the reset a
-   *  DERIVATION rather than a write: if the state has moved on, the stage is 0 by
-   *  definition. The effect then only schedules.
-   *
-   *  AND THE CLEANUP CLEARS THE STAMP, which is not decoration — without it a
-   *  finished run leaves `forState: "loading"` behind, so Loading → Ready →
-   *  Loading finds the stamp already matching, reads its stage as complete, and
-   *  the second selection does nothing. That exact defect shipped on Tasks and
-   *  was found in arch-A's A2 pass; this surface is built with the fix rather
-   *  than inheriting the bug. */
-  const [progress, setProgress] = useState<{
-    forState: string | null;
-    stage: number;
-  }>({ forState: devLoadState, stage: MONITORING_LOAD_STAGES });
+  // ── Load states ──────────────────────────────────────────────────────────
+  const [progress, setProgress] = useState<{ forState: string | null; stage: number }>({
+    forState: devLoadState,
+    stage: MONITORING_LOAD_STAGES,
+  });
   const loadStage =
     progress.forState === devLoadState
       ? progress.stage
@@ -293,8 +289,6 @@ export function MonitoringPage({
   useEffect(() => {
     if (!mounted) return;
     if (devLoadState !== "loading") return;
-    /* 240ms PER STEP — slow enough to read, short enough not to become the demo.
-       Five steps here rather than Tasks' four; see `monitoringLoadPlanFor`. */
     const timers = Array.from({ length: MONITORING_LOAD_STAGES }, (_, i) =>
       setTimeout(() => setProgress({ forState: devLoadState, stage: i + 1 }), (i + 1) * 240)
     );
@@ -304,93 +298,66 @@ export function MonitoringPage({
     };
   }, [mounted, devLoadState]);
 
+  /** The `loading-partial` fixture and the dev bar's own load axis are the same
+   *  question asked two ways; the fixture wins while it is set. */
+  const effectiveLoad = data?.load === "partial" ? "partial" : devLoadState;
   const plan = useMemo(
-    () => monitoringLoadPlanFor(devLoadState, loadStage),
-    [devLoadState, loadStage]
+    () => monitoringLoadPlanFor(effectiveLoad, loadStage),
+    [effectiveLoad, loadStage]
   );
-  const listState: ListState = listOverride ?? plan.list;
-  /** THE RETRY TAKES THE HEADERS WITH IT. They are the same fetch as the rows —
-   *  a retry that restored the list and left the counts saying nothing would be
-   *  a retry that half worked, which is worse than one that visibly did not. */
-  const headersState = listOverride ?? plan.headers;
+  const listState = listOverride ?? plan.list;
 
-  /** ═══ THE TAKEOVER IS DERIVED, NOT SYNCED ═══
-   *
-   *  Below `xl` the two columns switch rather than shrink, so selecting a row
-   *  hands the whole width to the pane and a "Back to list" button appears. When
-   *  the list empties there is no list to go back to, and a stuck `true` would
-   *  leave that button pointing at nothing.
-   *
-   *  WRITTEN AS A DERIVATION RATHER THAN AN EFFECT THAT RESETS IT. The first
-   *  version was `useEffect(() => { if (!entries.length) setPaneTakeover(false) })`,
-   *  which the compiler's lint rejects — correctly: a synchronous setState in an
-   *  effect is a second render pass, and here it also meant one frame painted
-   *  with a back button over an empty list. The intent was never to REMEMBER a
-   *  release; it was that the takeover is only meaningful while there is
-   *  something behind it. */
-  const paneTakeover = takeoverWanted && entries.length > 0;
-
+  // ── Resolve / undo ───────────────────────────────────────────────────────
+  /** ═══ THE LEDGER TIMING IS UNCHANGED (locked decision 2) ═══
+   *  Flags still resolve through the shared `useResolveUndo`, which owns the
+   *  6-second window and the write at the end of it. What changed above it is
+   *  WHAT MAY CALL IT: only a disposition whose effect is `resolve`. */
   const { resolve, undo } = useResolveUndo({
-    /* TODO-COPY. Every item on this surface is a flag; escalations are not
-       resolved here (locked decision 3) and the utility refuses one. */
-    toastLabel: () => "Flag closed",
-
+    /* NEEDS-COPY-NICOLE */
+    toastLabel: () => "Event closed",
     onResolved: (item) => {
-      // WHERE SELECTION GOES: the next entry in sort order, computed BEFORE the
-      // item leaves the list.
-      const remaining = entries.filter(
-        (e) => !itemsOf(e).every((i) => i.id === item.id)
-      );
-      const idx = entries.findIndex((e) =>
-        itemsOf(e).some((i) => i.id === item.id)
-      );
-      const nextEntry = remaining[Math.min(idx, remaining.length - 1)] ?? null;
-
       setResolvedIds((prev) => new Set(prev).add(item.id));
-
-      if (nextEntry) {
-        setSelectedEntryId(nextEntry.id);
-        const nextItem = paneItemFor(nextEntry);
-        setPickedId(nextItem.id);
-        /* TODO-COPY. THE TIER, NOT THE DOMAIN — "Next: Marcus, imminent, 22h
-           open". Tasks announces the domain because its rows differ by domain;
-           here every row is a flag and the tier is the only thing that
-           distinguishes one from the next. */
-        const p = nextItem.payload;
-        const tier =
-          p.kind === "riskFlag"
-            ? tierLabel((p as RiskFlagPayload).tier).toLowerCase()
-            : "flag";
+      const idx = filtered.findIndex((e) => e.id === item.id);
+      const next = filtered.filter((e) => e.id !== item.id)[Math.max(0, Math.min(idx, filtered.length - 2))] ?? null;
+      setSelectedEventId(next?.id ?? null);
+      if (next) {
+        /* NEEDS-COPY-NICOLE. THE ANNOUNCEMENT NAMES THE SUBJECT AND THE AGE —
+           never a tier, which no longer exists, and never a deadline. */
         setAnnouncement(
-          `Next: ${nextItem.teenDisplayName.split(" ")[0]}, ${tier}, ${elapsedLabel(
-            nextItem.openedAt,
-            now
-          )} open`
+          `Next: ${next.subject === "mentorPractice" ? next.mentorName : (next.teenName ?? next.mentorName)}, ${next.category ?? ""}, ${ageLabel(next.at, now)}`
         );
-      } else {
-        setSelectedEntryId(null);
-        setPickedId(null);
       }
     },
-
     onRestore: (item) => {
       setResolvedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
+        const s = new Set(prev);
+        s.delete(item.id);
+        return s;
       });
-      setSelectedEntryId(null);
-      setPickedId(item.id);
+      setSelectedEventId(item.id);
     },
   });
 
+  /** ═══ WHAT CREDITS COVERAGE ═══ see `creditsCoverage` for the blocked rule.
+   *
+   *  KEYED BY TEEN, and the first build keyed it by the flag's `objectId` — a
+   *  conversation id that no coverage row carries, so reviewing a flag credited
+   *  nothing and the meter never moved. The probe caught it (11 → 11). A
+   *  supervised conversation IS a teen on this surface; that is what the roster
+   *  is keyed on and what the credit has to match. */
+  const credit = (teenId: string | null, source: "event-review" | "conversation-open") => {
+    if (!teenId || !creditsCoverage(source)) return;
+    setCredited((prev) => (prev.has(teenId) ? prev : new Set(prev).add(teenId)));
+  };
+
   useTaskShortcuts({
-    onAnswer: (correct) => paneActions.current.answer?.(correct),
-    /* `Enter` AND `⌘/Ctrl+Enter` HAVE NOTHING TO PRESS HERE, and are wired to
-       `false` rather than left out so the hook falls through to focusing the
-       pane. Both belong to the billing review's documentation gate, which is a
-       Tasks control: a flag resolves from `y`/`n` or the footer's two buttons,
-       and there is no draft on this surface to submit. */
+    /* `y`/`n` RECORD CLASSIFIER ACCURACY AND RESOLVE NOTHING. The old binding
+       resolved the event from a key, which is the one-tap closure Phase 2
+       removed — a clinical disposition cannot come from a keystroke. */
+    onAnswer: (accurate) => {
+      paneHandle.current.accuracy?.(accurate);
+      return;
+    },
     onEnter: () => false,
     onSubmit: () => false,
     onFocusPane: () => paneRef.current?.focus(),
@@ -398,102 +365,169 @@ export function MonitoringPage({
     onHelp: () => setShortcutsOpen(true),
   });
 
+  const liveIds = useMemo(
+    () => new Set((data?.live ?? []).map((i) => i.conversationId).filter((x): x is string => !!x)),
+    [data]
+  );
+  const bandState = bandStateFor({
+    enabled: LIVE_LAYER_ENABLED,
+    transport: data?.transport === "lost" ? "lost" : "connected",
+    paused: paused || !!data?.paused,
+    now,
+    items: data?.live ?? [],
+  });
+
   return (
-    /* THE SAME FIXED FRAME AS TASKS, for the same reason: at 40–120 rows a
-       flowing page puts the resolve footer below the fold, reachable only by
-       scrolling past the evidence it acts on. `min-h-0` is the load-bearing
-       half — without it the columns refuse to shrink and the shell scrolls. */
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col px-6 py-6 lg:px-8">
       <div
         data-anno-ref="monitoring-header"
         className="flex shrink-0 flex-wrap items-start justify-between gap-4"
       >
-        <div>
+        <div className="min-w-0">
           <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-            {/* TODO-COPY */}
+            {/* NEEDS-COPY-NICOLE */}
             Monitoring
           </h1>
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
             {mounted
-              ? monitoringSubtitle(
-                  openFlags,
-                  obligations.imminentBreached,
-                  obligations.documentationOpen
-                )
+              ? monitoringSubtitle({
+                  coverageReviewed: coverage.reviewed,
+                  coverageTotal: coverage.total,
+                  ackOutstanding: obligations.ackOutstanding,
+                  closeOutOverdue: obligations.closeOutOverdue,
+                  classifierDegraded: data?.classifier === "degraded",
+                })
               : ""}
           </p>
         </div>
+        {mounted && (
+          <div className="w-full max-w-[18rem] shrink-0">
+            <CoverageMeter conversations={conversations} credited={credited} />
+          </div>
+        )}
       </div>
 
-      {/* ABOVE THE FLAGS VIEW, AND ONLY WHEN NON-EMPTY — the flags view is this
-          surface's resting state, and a permanently empty band above it would be
-          furniture a reader learns to skip, which is the worst habit to build
-          above the one region that matters. */}
-      {/* ═══ `?region=escalations` SELECTS THE FIRST ONE ═══
-          Home's escalation stage links here, and landing at the top of the page
-          with nothing chosen would leave a supervisor to pick again from a region
-          they were just sent to. The FIRST is the comparator's head — active
-          before documentation, because `TIER_RANK` says so — so the pane opens on
-          the same escalation the region lists first.
-          ONCE, on arrival: `useState`'s initialiser rather than an effect, so
-          there is no frame with the wrong selection and no reset when the reader
-          moves on. */}
-      <EscalationRegion
-        items={escalations}
-        now={now}
-        state={plan.escalations}
-        selectedId={selectedEscalationId}
-        onSelect={(item) => {
-          setSelectedEscalationId(item.id);
-          setPaneTakeover(true);
-        }}
-      />
+      {mounted && (
+        <NowBand
+          state={bandState}
+          items={data?.live ?? []}
+          now={now}
+          paused={paused || !!data?.paused}
+          onTogglePause={() => setPaused((p) => !p)}
+        />
+      )}
+
+      {mounted && (
+        <EscalationRegion
+          records={escalations}
+          now={now}
+          state={plan.escalations}
+          selectedId={selectedEscalationId === PENDING_ESCALATION ? (escalations[0]?.id ?? null) : selectedEscalationId}
+          onSelect={(rec) => {
+            setSelectedEscalationId(rec.id);
+            setPaneTakeover(true);
+          }}
+        />
+      )}
 
       <div className="mt-6 min-h-0 flex-1">
         <div
           className={cn(
-            // 40 / 60 at >=1280px, and below 1100px only ONE of the two mounts —
-            // switching rather than shrinking, so neither column is ever squeezed
-            // into a width it cannot use. `minmax(0,1fr)` on the row caps it at
-            // the space available: an auto track would size to its content and
-            // push the frame past its own height, which scrolls the shell and
-            // carries the pinned header off the top.
             "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
             "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
           )}
         >
-          <div className={cn("min-h-0", paneTakeover && "hidden xl:block")}>
-            <Worklist
-              entries={entries}
-              items={items}
-              /* NO SINGLE DOMAIN. Three tiers across two of them — see the prop's
-                 own note in `worklist.tsx`. */
-              domain={null}
-              /* TODO-COPY */
-              subject="Monitoring"
-              emptyLine="No flags in review right now."
-              now={now}
-              selectedId={selectedRowId}
-              state={listState}
-              headersState={headersState}
-              onSelect={(entry, item) => {
-                setSelectedEntryId(entry.id);
-                setPickedId(item.id);
-                // THE OTHER LIST LETS GO. See `selectedEscalationId`.
-                setSelectedEscalationId(null);
-                setPaneTakeover(true);
-              }}
-              focusBand={asTaskType(focusBand)}
-              onRetry={() => setListOverride("ready")}
-            />
+          <div className={cn("flex min-h-0 flex-col", paneTakeover && "hidden xl:flex")}>
+            {/* ═══ TWO VIEWS, ONE COLUMN, ONE SCROLLER ═══
+                A segmented control rather than a second page: coverage and the
+                queue are two readings of the same supervision, and a route
+                change would lose the pane's selection between them. */}
+            <div
+              role="tablist"
+              /* NEEDS-COPY-NICOLE. A TABLIST IS CORRECT HERE, unlike the subject
+                 chips below: these two genuinely swap the panel's content. */
+              aria-label="Queue or coverage"
+              className="flex shrink-0 items-center gap-1"
+            >
+              {(["queue", "coverage"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === v}
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "inline-flex min-h-9 items-center rounded-full px-3 text-[13px] font-semibold",
+                    view === v
+                      ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
+                    RING
+                  )}
+                >
+                  {/* NEEDS-COPY-NICOLE */}
+                  {v === "queue" ? `For review (${events.length})` : "Coverage"}
+                </button>
+              ))}
+            </div>
+
+            {view === "queue" && (
+              <SubjectFilter present={present} value={subject} onChange={setSubject} />
+            )}
+
+            <div
+              data-anno-ref="monitoring-scroller"
+              className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+            >
+              {listState === "loading" ? (
+                <ListSkeleton />
+              ) : listState === "error" ? (
+                <div role="alert" className="px-3 py-6">
+                  <p className="text-[13.5px] leading-[19px] text-[var(--text-primary)]">
+                    {/* NEEDS-COPY-NICOLE */}
+                    Events couldn&apos;t be loaded, so this page can&apos;t say what is waiting.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setListOverride("ready")}
+                    className={cn(
+                      "mt-2 inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold",
+                      RING
+                    )}
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : view === "queue" ? (
+                <EventList
+                  groups={groups}
+                  now={now}
+                  selectedId={selectedEvent?.id ?? null}
+                  onSelect={(e) => {
+                    setSelectedEventId(e.id);
+                    setSelectedEscalationId(null);
+                    setPaneTakeover(true);
+                  }}
+                  /* NEEDS-COPY-NICOLE. NOT "you're done": the queue emptying is
+                     weather, and coverage is the floor. */
+                  emptyLine={
+                    data?.classifier === "degraded"
+                      ? "No events — and the flag pipeline is down, so this is not the same as a quiet shift."
+                      : "Nothing waiting for judgment. Coverage is where the rest of the work is."
+                  }
+                />
+              ) : (
+                <CoverageList
+                  conversations={conversations}
+                  credited={credited}
+                  liveIds={liveIds}
+                  now={now}
+                  onOpen={(c) => credit(c.id, "conversation-open")}
+                />
+              )}
+            </div>
           </div>
 
-          <div
-            className={cn(
-              "flex min-h-0 flex-col xl:block",
-              !paneTakeover && "hidden xl:block"
-            )}
-          >
+          <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
             {paneTakeover && (
               <button
                 type="button"
@@ -505,33 +539,83 @@ export function MonitoringPage({
                 )}
               >
                 <ChevronLeft className="size-4" aria-hidden />
-                {/* TODO-COPY */}
-                Back to list
+                {/* NEEDS-COPY-NICOLE */}
+                Back to the list
               </button>
             )}
             <div
               ref={paneRef}
               tabIndex={-1}
-              // POLITE, and on the pane itself so an auto-advance announces the
-              // item that arrived rather than the whole page re-reading.
+              /* POLITE, and on the pane so an auto-advance announces the event
+                 that arrived rather than the whole page. */
               aria-live="polite"
-              className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full xl:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+              className={cn(
+                "min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full",
+                RING
+              )}
             >
-              {/* PANE AND EXCERPT ARE SEPARATE AXES. Under partial failure the
-                  transcript errors while the pane stays healthy — which is the
-                  whole point of the excerpt having its own state: a supervisor
-                  who cannot see what was said can still act on the flag. */}
               {plan.pane === "error" ? (
                 <PaneError />
               ) : plan.pane === "loading" ? (
                 <PaneSkeleton />
               ) : (
-                <TaskPane
-                  item={paneItem}
+                <EventPane
+                  event={selectedEvent}
+                  escalation={selectedEscalation}
                   now={now}
-                  onResolve={resolve}
-                  actionsRef={paneActions}
-                  excerptState={plan.excerpt}
+                  compliance={data?.compliance ?? null}
+                  deactivated={
+                    !!data?.teenDeactivated &&
+                    !!selectedEvent &&
+                    selectedEvent.teenId === data.teenDeactivated
+                  }
+                  handleRef={paneHandle}
+                  onResolve={(e, detail) => {
+                    credit(e.teenId, "event-review");
+                    if (e.flag) {
+                      /* THE LEDGER PATH, UNCHANGED. The disposition and the
+                         optional accuracy answer both travel as detail. */
+                      resolve(e.flag, {
+                        disposition: detail.disposition.id,
+                        classifierAccuracy: detail.accuracy,
+                      });
+                    } else {
+                      /* ═══ BLOCKER: NO LEDGER EVENT TYPE FOR MENTOR PRACTICE ═══
+                         `buildResolveEvent` maps a task DOMAIN to an activity
+                         event type, and mentor practice is not a domain. So a
+                         practice event closes locally with no ledger write, and
+                         that gap is reported rather than papered over with a
+                         flag-shaped event that would file a teen-safety record
+                         for a mentor's late note. */
+                      setResolvedIds((prev) => new Set(prev).add(e.id));
+                    }
+                  }}
+                  onEscalate={(e) => {
+                    /* ═══ THE FLAG BECOMES AN ESCALATION RECORD ═══
+                       It does NOT resolve: the event stays in the queue until a
+                       clinical disposition closes it, because escalating is the
+                       moment it stopped being handled. */
+                    setRaised((prev) => [
+                      ...prev,
+                      {
+                        id: `esc-from-${e.id}`,
+                        teenId: e.teenId ?? "",
+                        teenName: e.teenName ?? "",
+                        mentorId: e.mentorId,
+                        mentorName: e.mentorName,
+                        conversationId: e.conversationId,
+                        triggeredAt: now,
+                        acknowledgedAt: now,
+                        resolvedAt: null,
+                        is911: false,
+                        caregiverInvolved: null,
+                        closeOutDone: [],
+                      },
+                    ]);
+                    setSelectedEscalationId(`esc-from-${e.id}`);
+                    /* NEEDS-COPY-NICOLE */
+                    setAnnouncement("Escalation opened. The flag stays in the queue.");
+                  }}
                 />
               )}
             </div>
@@ -539,13 +623,15 @@ export function MonitoringPage({
         </div>
       </div>
 
-      {/* OUTSIDE the pane's own markup so a re-render of the pane cannot swallow
-          it. */}
       <p aria-live="polite" role="status" className="sr-only">
         {announcement}
       </p>
 
-      <ShortcutSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <ShortcutSheet
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        rows={MONITORING_SHORTCUTS}
+      />
     </div>
   );
 }

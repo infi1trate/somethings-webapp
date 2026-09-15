@@ -55,40 +55,34 @@
       "detail": "Billing code review Riley T.·Presentation proposed Overdue overdue by 8h"
     },
     {
-      "id": "mon.imminent-deadline",
-      "label": "an imminent flag leads with its countdown, like a Tasks row",
+      "id": "mon.rows-read",
+      "label": "rows were readable at all",
       "ok": true,
-      "detail": "overdue by 2h"
+      "detail": "6 rows"
     },
     {
-      "id": "mon.teen-one-emphasis",
-      "label": "exactly one emphasised element per teen row",
+      "id": "mon.one-emphasis",
+      "label": "exactly one emphasised element per row",
       "ok": true,
-      "detail": "1,1,1"
+      "detail": "1,1,1,1,1,1"
     },
     {
-      "id": "mon.teen-person",
-      "label": "and it is the name",
+      "id": "mon.subject-leads",
+      "label": "and it is the subject of review, not a clock",
       "ok": true,
-      "detail": "Omari J. · 14px/400 avantt"
+      "detail": "Naomi R. · 14px/400 avantt"
     },
     {
-      "id": "mon.teen-volume",
-      "label": "signal volume is on the row, in words",
+      "id": "mon.age-quiet",
+      "label": "the age is present, mono, and not the emphasis",
       "ok": true,
-      "detail": "Clinical review, Omari J., to Brandy Forrestor, 4 flags, 2 clinical · 2 routine, 2d open"
+      "detail": "9h ago · 12px/400 ui-monospace"
     },
     {
-      "id": "mon.teen-age-quiet",
-      "label": "oldest age stays, quiet",
+      "id": "mon.no-tier-composition",
+      "label": "no row carries a tier composition line any more",
       "ok": true,
-      "detail": "2d open · 12px/400"
-    },
-    {
-      "id": "mon.height",
-      "label": "row height",
-      "ok": true,
-      "detail": "56px"
+      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Family conflict, "
     },
     {
       "id": "hdr.tasks.uniform",
@@ -106,13 +100,13 @@
       "id": "hdr.tasks.anatomy",
       "label": "label — count, sentence case, not mono",
       "ok": true,
-      "detail": "Due today — 2 | Due tomorrow — 6 | Later — 8"
+      "detail": "Due today — 1 | Due tomorrow — 5 | Later — 10"
     },
     {
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 200, pinned \"Due tomorrow — 6\", selected Later, Billing code review, Devon A., Presentation"
+      "detail": "scrollTop 200, pinned \"Due tomorrow — 5\", selected Later, Billing code review, Devon A., Presentation"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -124,19 +118,19 @@
       "id": "hdr.monitoring.own-hairline",
       "label": "every header draws its own separator rather than borrowing the card's",
       "ok": true,
-      "detail": "1px, 1px, 1px"
+      "detail": "1px, 1px"
     },
     {
       "id": "hdr.monitoring.anatomy",
       "label": "label — count, sentence case, not mono",
       "ok": true,
-      "detail": "Imminent — 45 | Clinical review — 64 | Routine review — 14"
+      "detail": "Teen safety — 3 | Mentor practice — 1"
     },
     {
       "id": "hdr.monitoring.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 3765, pinned \"Clinical review — 64\", selected Routine review, Caleb O., to Omar Haddad, 2d open,"
+      "detail": "scrollTop 2868, pinned \"Teen safety — 64\", selected Teen safety, teen Jordan P., mentor Maria Lopez, F"
     },
     {
       "id": "sr.tasks.group-in-name",
@@ -154,13 +148,13 @@
       "id": "sr.monitoring.group-in-name",
       "label": "every row names the group it is in",
       "ok": true,
-      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 3:40 PM"
+      "detail": "Teen safety, teen Jordan P., mentor Maria Lopez, Family conf"
     },
     {
       "id": "sr.monitoring.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "20 countdown, 3 elapsed, of 23"
+      "detail": "0 countdown, 4 elapsed, of 4"
     },
     {
       "id": "e.job-first",
@@ -178,7 +172,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, overdue, overdue by 9h, 2:47 AM"
+      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, overdue, overdue by 9h, 6:54 AM"
     },
     {
       "id": "e.no-avatar",
@@ -201,7 +195,7 @@
       "id": "e.buckets-present",
       "label": "the buckets that exist are labelled with counts",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
     },
     {
       "id": "e.bucket-in-name",
@@ -210,15 +204,16 @@
       "detail": "Overdue, Billing code review, Theo L., Renewal propose"
     },
     {
-      "id": "e.monitoring-tiers",
-      "label": "Monitoring still groups by tier, not by deadline",
+      "id": "e.monitoring-subjects",
+      "label": "Monitoring groups by review subject — never by tier, never by deadline",
       "ok": true,
-      "detail": "Imminent — 23 | Clinical review — 38 | Routine review — 8"
+      "detail": "Teen safety — 69"
     },
     {
       "id": "e.monitoring-mentor",
-      "label": "and still names the mentor, where it is load-bearing",
-      "ok": true
+      "label": "and still names the mentor — with its role, not after a preposition",
+      "ok": true,
+      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Family conf"
     },
     {
       "id": "e.monitoring-avatar",

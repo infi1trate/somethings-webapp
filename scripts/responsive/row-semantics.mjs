@@ -38,10 +38,17 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(30)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
-async function open(id, url, { scenario = "typical-shift" } = {}) {
+async function open(id, url, { scenario = "typical-shift", monitoring = null } = {}) {
   return openView(
     browser,
-    { id, url, seed: { persona: "supervisor", extra: { tasksScenarioId: scenario, devLoadState: "ready" } } },
+    {
+      id,
+      url,
+      seed: {
+        persona: "supervisor",
+        extra: { tasksScenarioId: scenario, monitoringScenarioId: monitoring, devLoadState: "ready" },
+      },
+    },
     XL,
     version
   );
@@ -182,56 +189,68 @@ const rowReport = `(row) => {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3 · MONITORING — BOTH EMPHASES, ON ONE SURFACE.
+// 3 · MONITORING — RETARGETED BY arch-mon PHASE 1.
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// This section asserted arch-D's two emphases on one surface: an imminent flag
+// leading with its COUNTDOWN, and a coalesced teen row leading with the NAME and
+// carrying a tier-composition line. Phase 1 removed the tiers, the flag
+// deadlines and the coalescing, so all four claims lost their subject.
+//
+// WHAT SURVIVES IS THIS FILE'S ACTUAL SUBJECT — one emphasised element per row,
+// and the emphasis follows what the surface is FOR. On Tasks that is the job; on
+// Monitoring it is the subject of review. The rest of Monitoring's anatomy is
+// asserted in `monitoring-states.mjs`, which owns that surface.
 {
   const { context, page } = await open("monitoring", "/app/monitoring");
-  const imminent = await page.evaluate(
-    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 5).map(${rowReport})`
+  const rows = await page.evaluate(
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 6).map(${rowReport})`
   );
-  const iEmph = imminent.map((r) => r.parts.filter((p) => p.emphasised));
+  check("mon.rows-read", "rows were readable at all", rows.length > 0, `${rows.length} rows`);
+  const emph = rows.map((r) => r.parts.filter((p) => p.emphasised));
   check(
-    "mon.imminent-deadline",
-    "an imminent flag leads with its countdown, like a Tasks row",
-    iEmph.every((e) => e.length === 1 && /^(due in|overdue by) /.test(e[0].text)),
-    iEmph[0]?.[0]?.text
-  );
-
-  await scrollToTeen(page);
-  const teens = await page.evaluate(
-    `[...document.querySelectorAll('[role="treeitem"][aria-expanded]')].slice(0, 4).map(${rowReport})`
-  );
-  const tEmph = teens.map((r) => r.parts.filter((p) => p.emphasised));
-  check(
-    "mon.teen-one-emphasis",
-    "exactly one emphasised element per teen row",
-    tEmph.length > 0 && tEmph.every((e) => e.length === 1),
-    tEmph.map((e) => e.length).join(",")
+    "mon.one-emphasis",
+    "exactly one emphasised element per row",
+    rows.length > 0 && emph.every((e) => e.length === 1),
+    emph.map((e) => e.length).join(",")
   );
   check(
-    "mon.teen-person",
-    "and it is the name",
-    tEmph.every((e) => /^[A-Z][a-z]+ [A-Z]\.$/.test(e[0]?.text ?? "")),
-    tEmph[0]?.[0] && `${tEmph[0][0].text} · ${tEmph[0][0].px}px/${tEmph[0][0].weight} ${tEmph[0][0].fam}`
+    "mon.subject-leads",
+    "and it is the subject of review, not a clock",
+    emph.every((e) => /^[A-Z][a-z]+ [A-Z]\.$/.test(e[0]?.text ?? "")),
+    emph[0]?.[0] && `${emph[0][0].text} · ${emph[0][0].px}px/${emph[0][0].weight} ${emph[0][0].fam}`
+  );
+  const age = rows[0]?.parts.find((p) => / ago$/.test(p.text));
+  check(
+    "mon.age-quiet",
+    "the age is present, mono, and not the emphasis",
+    age && !age.emphasised && /mono/.test(age.fam),
+    age && `${age.text} · ${age.px}px/${age.weight} ${age.fam}`
   );
   check(
-    "mon.teen-volume",
-    "signal volume is on the row, in words",
-    teens.every((r) => /\d+ flags/.test(r.label) && /\d+ (clinical|routine)/.test(r.label)),
-    teens[0]?.label
+    "mon.no-tier-composition",
+    "no row carries a tier composition line any more",
+    rows.every((r) => !/\d+ (clinical|routine)/.test(r.label ?? "")),
+    rows[0]?.label?.slice(0, 70)
   );
-  const age = teens[0]?.parts.find((p) => /\d+[mhd] open$/.test(p.text));
-  check("mon.teen-age-quiet", "oldest age stays, quiet", age && !age.emphasised, age && `${age.text} · ${age.px}px/${age.weight}`);
-  check("mon.height", "row height", true, `${teens[0]?.height}px`);
-  await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/monitoring-rows.png` });
+  await page.locator('[data-anno-ref="monitoring-scroller"]').screenshot({ path: `${OUT}/monitoring-rows.png` });
   await context.close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 4 · THE GROUP HEADER — ONE COMPONENT, ONE TREATMENT, STICKY ON BOTH.
 // ═══════════════════════════════════════════════════════════════════════════
-for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitoring"]]) {
-  const { context, page } = await open(`hdr-${name}`, url, { scenario: "heavy-caseload" });
+for (const [url, name, scroller, monitoring, monitoringLong] of [
+  ["/app/tasks", "tasks", "tasks-worklist-scroller", null, null],
+  /* ═══ TWO FIXTURES, BECAUSE THE TWO CHECKS NEED DIFFERENT THINGS ═══
+     Uniformity needs TWO headers to compare, and Monitoring's groups are the two
+     review subjects — so it needs the practice fixture. Stickiness needs a list
+     LONGER THAN THE VIEWPORT, which the practice fixture is not (four rows: 90
+     `j` presses left scrollTop at 0 and the check passed vacuously on a header
+     that had never moved). `surge` is the long one. */
+  ["/app/monitoring", "monitoring", "monitoring-scroller", "mentor-note-overdue", "surge"],
+]) {
+  let { context, page } = await open(`hdr-${name}`, url, { scenario: "heavy-caseload", monitoring });
   const headers = await page.evaluate(() =>
     [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
       .filter((h) => / — \d/.test(h.innerText || ""))
@@ -288,12 +307,18 @@ for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitor
      was removed. Driven with `j` rather than a scroll write, because that is the
      path that crosses the boundary: the rows a reader arrows past are UNMOUNTED
      behind them. */
+  if (monitoringLong) {
+    await context.close();
+    ({ context, page } = await open(`hdr-${name}-long`, url, { scenario: "heavy-caseload", monitoring: monitoringLong }));
+    await page.waitForTimeout(500);
+  }
+  await page.evaluate(`window.__SCROLLER__ = ${JSON.stringify(scroller)}`);
   await page.getByRole("treeitem").first().click();
   await page.waitForTimeout(250);
   for (let i = 0; i < 90; i += 1) await page.keyboard.press("j");
   await page.waitForTimeout(400);
   const stuck = await page.evaluate(() => {
-    const scroller = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
+    const scroller = document.querySelector(`[data-anno-ref="${window.__SCROLLER__}"]`);
     const s = scroller.getBoundingClientRect();
     const visible = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
       .filter((h) => / — \d/.test(h.innerText || ""))
@@ -322,8 +347,11 @@ for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitor
 // entry, not again forty rows down. Without this a screen-reader user has no way
 // to know which tier they are in — which is a fact arch-D deliberately removed
 // from the row's own surface.
-for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitoring"]]) {
-  const { context, page } = await open(`sr-${name}`, url);
+for (const [url, name, scroller, monitoring] of [
+  ["/app/tasks", "tasks", "tasks-worklist-scroller", null],
+  ["/app/monitoring", "monitoring", "monitoring-scroller", "mentor-note-overdue"],
+]) {
+  const { context, page } = await open(`sr-${name}`, url, { monitoring });
   /* SCROLL TO THE COALESCED ROWS FIRST on Monitoring. Only Imminent rows are
      mounted at rest, so a check written against the default viewport would have
      inspected deadline rows only and reported "no elapsed anywhere" — true, and
@@ -350,13 +378,18 @@ for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitor
      facts, one for each reader. A probe that only inspected rendered spans would
      have reported the surface clean. */
   const countdown = tops.filter((d) => /due in|overdue by/.test(d.label));
-  const elapsed = tops.filter((d) => /\d+[mhd] open/.test(d.label));
+  /* ═══ TWO SPELLINGS OF "HOW OLD" ═══
+     Tasks says "2d open" (age since the review opened); Monitoring says "2h ago"
+     (age since the flagged message) — arch-mon Phase 1 replaced its countdown
+     with the second. Both are the elapsed kind, and the claim is unchanged: one
+     temporal kind per row, never both. */
+  const elapsed = tops.filter((d) => /\d+[mhd] open|\d+[mhd] ago/.test(d.label));
   check(
     `sr.${name}.same-temporal`,
     "and states the same temporal fact the row draws — exactly one kind, never both",
     tops.length > 0 &&
       countdown.length + elapsed.length === tops.length &&
-      tops.every((d) => !(/due in|overdue by/.test(d.label) && /\d+[mhd] open/.test(d.label))),
+      tops.every((d) => !(/due in|overdue by/.test(d.label) && /\d+[mhd] open|\d+[mhd] ago/.test(d.label))),
     `${countdown.length} countdown, ${elapsed.length} elapsed, of ${tops.length}`
   );
   await context.close();
@@ -466,7 +499,14 @@ for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitor
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7 · MONITORING KEEPS WHAT arch-E DID NOT TOUCH.
+// 7 · MONITORING, AFTER arch-mon PHASE 1 — RETARGETED.
+//
+// arch-E asserted that Monitoring kept its TIER bands, its `to {mentor}` caption
+// and its identity disc while Tasks moved to buckets and task-led rows. Two of
+// those three claims lost their subject when Phase 1 removed the tiers: the
+// bands are the two REVIEW SUBJECTS now, and the mentor is named with its role
+// rather than after a preposition. The third — the identity disc — still stands
+// and is still checked below.
 // ═══════════════════════════════════════════════════════════════════════════
 {
   const { context, page } = await open("mon-intact", "/app/monitoring");
@@ -476,15 +516,22 @@ for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitor
       .filter((l) => l && / — \d+$/.test(l))
   );
   check(
-    "e.monitoring-tiers",
-    "Monitoring still groups by tier, not by deadline",
-    bands.some((b) => /^Imminent/.test(b)) && !bands.some((b) => /^(Overdue|Due |Later)/.test(b)),
+    "e.monitoring-subjects",
+    "Monitoring groups by review subject — never by tier, never by deadline",
+    bands.length > 0 &&
+      bands.every((b) => /^(Teen safety|Mentor practice) — \d+$/.test(b)) &&
+      !bands.some((b) => /^(Imminent|Clinical review|Routine review|Overdue|Due |Later)/.test(b)),
     bands.join(" | ")
   );
   const mentor = await page.evaluate(() =>
-    [...document.querySelectorAll('[role="treeitem"]')].some((r) => /, to /.test(r.getAttribute("aria-label") ?? ""))
+    [...document.querySelectorAll('[role="treeitem"]')].map((r) => r.getAttribute("aria-label") ?? "")
   );
-  check("e.monitoring-mentor", "and still names the mentor, where it is load-bearing", mentor);
+  check(
+    "e.monitoring-mentor",
+    "and still names the mentor — with its role, not after a preposition",
+    mentor.length > 0 && mentor.every((l) => /mentor [A-Z]/.test(l)) && !mentor.some((l) => /, to /.test(l)),
+    mentor[0]?.slice(0, 64)
+  );
   const disc = await page.evaluate(
     () => document.querySelectorAll('[role="treeitem"] span[aria-hidden][style*="background"]').length > 0
   );

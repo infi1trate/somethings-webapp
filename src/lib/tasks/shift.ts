@@ -231,7 +231,7 @@ export function shiftStagesFor(
     stages.push({
       id: "escalations",
       label: STAGE_LABEL.escalations,
-      state: `${facts.documentationOverdue} write-up${facts.documentationOverdue === 1 ? "" : "s"} overdue`,
+      state: `${facts.documentationOverdue} escalation note${facts.documentationOverdue === 1 ? "" : "s"} overdue`,
       tone: "breach",
       href: STAGE_HREF.escalations,
     });
@@ -239,7 +239,7 @@ export function shiftStagesFor(
     stages.push({
       id: "escalations",
       label: STAGE_LABEL.escalations,
-      state: `${facts.documentationOpen} write-up${facts.documentationOpen === 1 ? "" : "s"} due`,
+      state: `${facts.documentationOpen} escalation note${facts.documentationOpen === 1 ? "" : "s"} due`,
       tone: "attention",
       href: STAGE_HREF.escalations,
     });
@@ -430,7 +430,7 @@ export function digestLinesFor(facts: ShiftFacts): DigestLine[] {
   if (facts.documentationOverdue > 0) {
     breaches.push({
       id: "documentation-overdue",
-      text: `${facts.documentationOverdue} write-up${facts.documentationOverdue === 1 ? "" : "s"} overdue`,
+      text: `${facts.documentationOverdue} escalation note${facts.documentationOverdue === 1 ? "" : "s"} overdue`,
       tone: "breach",
       href: STAGE_HREF.escalations,
     });

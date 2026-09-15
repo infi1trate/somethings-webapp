@@ -1,325 +1,454 @@
 {
-  "base": "http://localhost:3000",
+  "at": 1789502494285,
   "rows": [
     {
-      "id": "shell.header",
-      "label": "the page names itself",
+      "id": "input.headers",
+      "label": "group headers were readable at all",
+      "ok": true,
+      "detail": "Teen safety — 69"
+    },
+    {
+      "id": "tier.no-band-headers",
+      "label": "no tier names a group",
+      "ok": true,
+      "detail": "Teen safety — 69"
+    },
+    {
+      "id": "tier.no-tier-anywhere",
+      "label": "and the words appear nowhere on the surface",
       "ok": true
     },
     {
-      "id": "shell.tiers",
-      "label": "three tier bands, imminent first",
+      "id": "input.rows",
+      "label": "rows were readable at all",
       "ok": true,
-      "detail": "Imminent — 23 | Clinical review — 38 | Routine review — 8"
+      "detail": "69 rows"
     },
     {
-      "id": "shell.no-colour-words",
-      "label": "no tier is named by its colour",
+      "id": "tier.no-flag-deadline",
+      "label": "no flag row counts down to a deadline or reports a breach",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "id": "tier.age-not-deadline",
+      "label": "every flag row states an age instead",
+      "ok": true,
+      "detail": "N Naomi R. ↔ Brandy Forrestor Family conflict · 9h ago Escalation open"
+    },
+    {
+      "id": "tier.breach-is-escalations-only",
+      "label": "breach treatment is present, and only inside the escalation lifecycle",
+      "ok": true,
+      "detail": "3 breach chips, all escalation-linked"
+    },
+    {
+      "id": "input.parts",
+      "label": "the row's parts were readable",
+      "ok": true,
+      "detail": "8 parts"
+    },
+    {
+      "id": "row.one-emphasis",
+      "label": "exactly one emphasised element per row",
+      "ok": true,
+      "detail": "Naomi R. 14/400 avantt"
+    },
+    {
+      "id": "row.subject-leads",
+      "label": "and it is the subject of review",
+      "ok": true,
+      "detail": "Naomi R."
+    },
+    {
+      "id": "row.age-tabular",
+      "label": "the age is mono and tabular",
+      "ok": true,
+      "detail": "9h ago 12px ui-monospace"
+    },
+    {
+      "id": "row.roles-in-name",
+      "label": "the accessible name labels both roles",
+      "ok": true,
+      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Family conflict, escalation"
+    },
+    {
+      "id": "row.no-message-content",
+      "label": "no row shows message content",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "id": "input.cmp-rows",
+      "label": "rows were readable",
+      "ok": true,
+      "detail": "8 rows"
+    },
+    {
+      "id": "cmp.escalation-first",
+      "label": "an event on an escalated teen sorts to the top",
+      "ok": true,
+      "detail": "S Simone B. ↔ Omar Haddad Low mood · 3d ago Escalation open"
+    },
+    {
+      "id": "cmp.pattern-before-single",
+      "label": "a repeat-flagged conversation sorts above a single flag",
+      "ok": true,
+      "detail": "M Marcus L. ↔ Brandon Forant Self-harm language · 8h ago 3 in this conversation"
+    },
+    {
+      "id": "input.noreply",
+      "label": "the unanswered row was found",
+      "ok": true,
+      "detail": "index 0"
+    },
+    {
+      "id": "cmp.silence-beats-age",
+      "label": "an unanswered flagged message outranks older answered ones",
+      "ok": true,
+      "detail": "M Marcus L. ↔ Brandon Forant Self-harm language · 1d ago No reply  ||  C Caleb O. ↔ Maria Lopez Low mood · 5d ago"
+    },
+    {
+      "id": "input.dispositions",
+      "label": "the disposition axis rendered",
+      "ok": true,
+      "detail": "no-concern,support-in-place,watching,escalate"
+    },
+    {
+      "id": "axis1.has-escalate-path",
+      "label": "one value opens an escalation instead of resolving",
+      "ok": true,
+      "detail": "Escalate now"
+    },
+    {
+      "id": "axis.no-disabled-button",
+      "label": "neither axis uses a disabled button",
       "ok": true
     },
     {
-      "id": "shell.counts-reconcile",
-      "label": "the subtitle's coverage equals the bands' total",
+      "id": "input.accuracy",
+      "label": "the accuracy axis rendered",
       "ok": true,
-      "detail": "bands 69 vs subtitle 69 (“2 past 24h · 2 write-ups due · 69 flags in review”)"
+      "detail": "Classifier was right,Classifier was wrong"
     },
     {
-      "id": "shell.obligation-first",
-      "label": "the subtitle leads with what is owed",
-      "ok": true,
-      "detail": "2 past 24h · 2 write-ups due · 69 flags in review"
-    },
-    {
-      "id": "badge.present",
-      "label": "Monitoring carries an obligation badge",
-      "ok": true,
-      "detail": "4 overdue"
-    },
-    {
-      "id": "badge.noun",
-      "label": "the badge says what it counts",
-      "ok": true,
-      "detail": "4 overdue"
-    },
-    {
-      "id": "badge.agrees",
-      "label": "the badge equals the subtitle's debt",
-      "ok": true,
-      "detail": "badge 4 vs 2 + 2"
-    },
-    {
-      "id": "persona.mentor.placeholder",
-      "label": "sees the unbuilt-section placeholder, not the surface",
+      "id": "axis2.never-preselected",
+      "label": "classifier accuracy starts with nothing chosen",
       "ok": true
     },
     {
-      "id": "persona.mentor.no-nav-item",
-      "label": "is not offered the destination",
-      "ok": true,
-      "detail": "Home · Chats · Activity · Tasks · Mentees · Team · Home · Chats · Tasks · Mentees"
-    },
-    {
-      "id": "persona.lead-mentor.placeholder",
-      "label": "sees the unbuilt-section placeholder, not the surface",
+      "id": "gate.inline-hint",
+      "label": "asking to resolve with no disposition surfaces inline guidance",
       "ok": true
     },
     {
-      "id": "persona.lead-mentor.no-nav-item",
-      "label": "is not offered the destination",
-      "ok": true,
-      "detail": "Home · Chats · Activity · Tasks · Team · Home · Chats · Tasks · People"
-    },
-    {
-      "id": "regression.tasks",
-      "label": "Tasks groups by its own axis — deadline buckets, and no tier band crossed over",
-      "ok": true,
-      "detail": "Overdue | Due today | Due tomorrow | Later"
-    },
-    {
-      "id": "hybrid.imminent-individual",
-      "label": "no imminent flag is behind a disclosure",
-      "ok": true,
-      "detail": "20 imminent rows, 0 expandable"
-    },
-    {
-      "id": "hybrid.teen-coalesced",
-      "label": "the lower tiers gather into teen rows",
-      "ok": true,
-      "detail": "3 teen rows"
-    },
-    {
-      "id": "hybrid.composition",
-      "label": "a mixed teen row says what is behind it",
-      "ok": true,
-      "detail": "Clinical review, Omari J., to Brandy Forrestor, 4 flags, 2 clinical · 2 routine, 2d open"
-    },
-    {
-      "id": "hybrid.row-height",
-      "label": "the teen row did not grow the row",
-      "ok": true,
-      "detail": "heights: 56"
-    },
-    {
-      "id": "hybrid.fits",
-      "label": "the composition line is not clipped at xl",
-      "ok": true,
-      "detail": "overflow 0px"
-    },
-    {
-      "id": "coalesce.reachable",
-      "label": "a coalesced teen row is reachable",
+      "id": "gate.not-a-toast",
+      "label": "and it is at the control, not a toast",
       "ok": true
     },
     {
-      "id": "coalesce.start",
-      "label": "a group of 5 to work with",
+      "id": "gate.nothing-resolved",
+      "label": "and nothing resolves",
       "ok": true,
-      "detail": "Hana T.: 5 flags"
+      "detail": "12 → 12 rows"
     },
     {
-      "id": "coalesce.count-falls",
-      "label": "the count falls by exactly one per child",
+      "id": "gate.focus-moves-to-hint",
+      "label": "focus moves to the guidance",
       "ok": true,
-      "detail": "5 → 4 → 3 → 0"
+      "detail": "disposition-hint"
     },
     {
-      "id": "coalesce.degrades",
-      "label": "the row stops being a group before its last child",
+      "id": "gate.accuracy-alone-resolves-nothing",
+      "label": "recording classifier accuracy alone does not resolve anything",
       "ok": true,
-      "detail": "0 disclosure(s) left on Hana T."
+      "detail": "12 → 12 rows"
     },
     {
-      "id": "coalesce.last-child-survives",
-      "label": "the last flag is still on the surface",
+      "id": "resolve.closes",
+      "label": "a resolving disposition closes the event",
+      "ok": true,
+      "detail": "12 → 11 rows"
+    },
+    {
+      "id": "resolve.undo-window",
+      "label": "and the undo window opens",
       "ok": true
     },
     {
-      "id": "keyboard.survives",
-      "label": "selection survives 80 presses of j",
+      "id": "watch.keeps-open",
+      "label": "the watching state records a look and keeps the event in the queue",
       "ok": true,
-      "detail": "Routine review, Caleb O., to Omar Haddad, 2d open, 11:46 AM"
+      "detail": "12 rows"
     },
     {
-      "id": "keyboard.in-view",
-      "label": "the selected row was scrolled into view",
+      "id": "escalate.creates-record",
+      "label": "escalating creates an escalation record",
+      "ok": true,
+      "detail": "0 → 1"
+    },
+    {
+      "id": "escalate.does-not-resolve",
+      "label": "and does not close the event",
+      "ok": true,
+      "detail": "12 rows"
+    },
+    {
+      "id": "ack.ack-pending",
+      "label": "the five-minute clock reads correctly (escalation-unacked)",
+      "ok": true,
+      "detail": "TEEN Zara H. MENTOR Omar Haddad No 911 Active · awaiting acknowledgement ack in 3m 2m ago "
+    },
+    {
+      "id": "ack.ack-pending.state",
+      "label": "and the row declares its ack state",
+      "ok": true,
+      "detail": "pending"
+    },
+    {
+      "id": "ack.ack-breached",
+      "label": "the five-minute clock reads correctly (escalation-breach)",
+      "ok": true,
+      "detail": "TEEN Zara H. MENTOR Omar Haddad No 911 Active · not acknowledged ack 6m overdue 11m ago Op"
+    },
+    {
+      "id": "ack.ack-breached.state",
+      "label": "and the row declares its ack state",
+      "ok": true,
+      "detail": "breached"
+    },
+    {
+      "id": "input.closeout",
+      "label": "the close-out set rendered",
+      "ok": true,
+      "detail": "note,debrief,teenFollowUp,safetyPlan"
+    },
+    {
+      "id": "closeout.four-items",
+      "label": "all four items, in order",
       "ok": true
     },
     {
-      "id": "keyboard.focus",
-      "label": "focus tracks the selection across the unmount boundary",
+      "id": "closeout.persists-after-resolve",
+      "label": "a resolved escalation stays on screen carrying them",
       "ok": true
     },
     {
-      "id": "keyboard.moved",
-      "label": "the list actually scrolled",
-      "ok": true,
-      "detail": "scrollTop 3765"
-    },
-    {
-      "id": "reanchor.children",
-      "label": "expanding reveals the individual flags",
-      "ok": true,
-      "detail": "5 children"
-    },
-    {
-      "id": "reanchor.no-reload",
-      "label": "the pane re-rendered rather than remounted",
+      "id": "closeout.no-write-up",
+      "label": "and the word write-up appears nowhere",
       "ok": true
     },
     {
-      "id": "reanchor.moved",
-      "label": "the excerpt moved to the child's own message",
+      "id": "closeout.escalation-note",
+      "label": "the note is called an escalation note",
       "ok": true,
-      "detail": "changed"
+      "detail": "Escalation note 22h left"
     },
     {
-      "id": "esc.present",
-      "label": "the region renders when there is something in it",
+      "id": "closeout.conditional-says-why",
+      "label": "the conditional follow-up states why it is being asked for",
+      "ok": true,
+      "detail": "Teen follow-up 22h left required — caregiver involvement not recorded"
+    },
+    {
+      "id": "closeout.no-invented-deadline",
+      "label": "the safety plan says it has no stated deadline rather than borrowing one",
+      "ok": true,
+      "detail": "Family safety plan filed no stated deadline"
+    },
+    {
+      "id": "closeout.conditional-applies",
+      "label": "with no caregiver recorded, the teen follow-up is required and does not claim a reason it lacks",
+      "ok": true,
+      "detail": "Teen follow-up 22h left"
+    },
+    {
+      "id": "roles.strip-labels",
+      "label": "the escalation strip labels both roles",
+      "ok": true,
+      "detail": "TEEN Zara H. MENTOR Omar Haddad 911 dispatched Active · not acknowledg"
+    },
+    {
+      "id": "roles.strip-aria",
+      "label": "and so does its accessible name",
+      "ok": true,
+      "detail": "teen Zara H., mentor Omar Haddad, Active · not acknowledged, 911 dispa"
+    },
+    {
+      "id": "header.coverage-is-progress",
+      "label": "the header states coverage as progress against a period",
+      "ok": true,
+      "detail": "Monitoring No escalation clocks outstanding 3 of 24 conversations reviewed this shift"
+    },
+    {
+      "id": "header.no-backlog-count",
+      "label": "and never as a backlog of items",
       "ok": true
     },
     {
-      "id": "esc.three-states",
-      "label": "active, due and overdue are all on screen",
-      "ok": true,
-      "detail": "active | documentationOverdue | documentationDue"
-    },
-    {
-      "id": "esc.no-open-on-closed",
-      "label": "a closed escalation is never called open",
-      "ok": true,
-      "detail": "T Theo L. to Brandy Forrestor Closed · write ‖ R Riley T. to Brandon Forant Closed · write-"
-    },
-    {
-      "id": "esc.says-closed",
-      "label": "and says what it actually is",
-      "ok": true,
-      "detail": "T Theo L. to Brandy Forrestor Closed · write-up overdue 7h o"
-    },
-    {
-      "id": "esc.clock-due",
-      "label": "a due write-up counts down",
-      "ok": true,
-      "detail": "R Riley T. to Brandon Forant Closed · write-up due due in 4h"
-    },
-    {
-      "id": "esc.clock-over",
-      "label": "an overdue one counts up",
-      "ok": true,
-      "detail": "T Theo L. to Brandy Forrestor Closed · write-up overdue 7h o"
-    },
-    {
-      "id": "esc.clock-active",
-      "label": "an active escalation counts elapsed",
-      "ok": true,
-      "detail": "Naomi R. to Maria Lopez 911 dispatched Active 9m elapsed Ope"
-    },
-    {
-      "id": "esc.one-alarm",
-      "label": "only the active row carries the filled treatment",
-      "ok": true,
-      "detail": "rgb(201, 53, 29) | rgb(255, 255, 255)"
-    },
-    {
-      "id": "esc.action",
-      "label": "a closed escalation offers the write-up, not the crisis",
-      "ok": true,
-      "detail": "Open escalation / Open documentation"
-    },
-    {
-      "id": "esc.landmark",
-      "label": "the region's name covers the whole lifecycle",
-      "ok": true,
-      "detail": "Escalations — 1 active, 2 awaiting documentation"
-    },
-    {
-      "id": "esc.pane-state",
-      "label": "the pane names the state and its deadline, not a dead end",
-      "ok": true,
-      "detail": "Closed · write-up overdue — 7h overdue. The write-up is completed on the escalat"
-    },
-    {
-      "id": "esc.pane-context",
-      "label": "and carries the context a write-up needs",
+      "id": "header.no-bare-flag-count",
+      "label": "and does not lead with an open flag count",
       "ok": true
     },
     {
-      "id": "esc.selection",
-      "label": "exactly one row is marked current",
+      "id": "coverage.view-exists",
+      "label": "a coverage view lists supervised conversations",
       "ok": true,
-      "detail": "1 current"
+      "detail": "24 conversations"
     },
     {
-      "id": "esc.pane-header",
-      "label": "the pane header does not call it open either",
+      "id": "coverage.unreviewed-first",
+      "label": "unreviewed conversations sort first",
       "ok": true,
-      "detail": "Theo L. · 7h overdue · Past 24h"
+      "detail": "false"
     },
     {
-      "id": "esc.absent",
-      "label": "no region when there is nothing in it",
+      "id": "input.credit",
+      "label": "the coverage figure was readable before and after",
+      "ok": true,
+      "detail": "11 → 12"
+    },
+    {
+      "id": "coverage.credits-on-review",
+      "label": "reviewing an event credits its conversation",
+      "ok": true,
+      "detail": "11 → 12"
+    },
+    {
+      "id": "practice.one-queue",
+      "label": "practice events share the queue with flags",
+      "ok": true,
+      "detail": "Filter by review subject | Teen safety — 3 | Mentor practice — 1"
+    },
+    {
+      "id": "practice.filter-chips",
+      "label": "a subject filter appears, as chips",
+      "ok": true,
+      "detail": "All,Teen safety,Mentor practice"
+    },
+    {
+      "id": "practice.not-a-tablist",
+      "label": "and it is not a tablist",
       "ok": true
     },
     {
-      "id": "load.replays",
-      "label": "Loading replays on every selection, not just the first",
+      "id": "practice.filter-works",
+      "label": "the chip narrows the one queue",
       "ok": true,
-      "detail": "true, true"
+      "detail": "mentorPractice"
     },
     {
-      "id": "load.headers-first",
-      "label": "a band names itself before it can count",
+      "id": "practice.states-measure",
+      "label": "a practice row names the rule and the measure",
       "ok": true,
-      "detail": "Monitoring 2 past 24h · 2 write-ups due · 69 flags in review Naomi R. "
+      "detail": "B Brandon Forant ↔ Sofia G. Video progress note overdue · 1d ago"
     },
     {
-      "id": "state.error",
-      "label": "the list errors with a retry",
+      "id": "practice.pane-names-constant",
+      "label": "and the pane says what it was measured against",
+      "ok": true,
+      "detail": "VIDEO PROGRESS NOTE OVERDUE TEEN Sofia G. MENTOR Brandon Forant 1d ago What was measured Video progress note overdue — 5"
+    },
+    {
+      "id": "practice.stub-says-so",
+      "label": "a stubbed event states that nothing computed it",
+      "ok": true,
+      "detail": "CONDUCT REVIEW MENTOR Brandy Forrestor 3h ago What was measured Conduct review — flagged for review — no automated measure exists Measured a"
+    },
+    {
+      "id": "live.off-by-default",
+      "label": "the Now band does not render while the flag is off",
       "ok": true
     },
     {
-      "id": "state.error-escalations",
-      "label": "an escalation outage is not reported as calm",
+      "id": "structure.two-scrollers",
+      "label": "exactly two scroll regions (locked decision 4)",
       "ok": true,
-      "detail": "Escalations couldn’t be loaded, so this page can’t say whether any are open."
+      "detail": "2: div > div > div[monitoring-scroller] ‖ div > div[event-pane] > div"
     },
     {
-      "id": "state.retry",
-      "label": "retry restores the list",
-      "ok": true
-    },
-    {
-      "id": "state.partial",
-      "label": "the flags load while the escalation service and the transcript do not",
+      "id": "structure.footer-static",
+      "label": "the pane footer is not an overlay, so focus cannot hide under it",
       "ok": true,
-      "detail": "excerpt errored"
+      "detail": "{\"position\":\"static\",\"top\":693,\"bottom\":919,\"left\":580,\"right\":1231}"
     },
     {
-      "id": "empty.plain",
-      "label": "the empty flags view states a fact",
+      "id": "input.focus",
+      "label": "tab stops were observed",
       "ok": true,
-      "detail": "Monitoring 0 flags in review No flags in review right now. Select a task to review it. Nex"
+      "detail": "30 stops"
     },
     {
-      "id": "empty.no-celebration",
-      "label": "and does not congratulate anyone",
-      "ok": true
-    },
-    {
-      "id": "retire.setup",
-      "label": "three tiers, one flag each",
+      "id": "focus.order",
+      "label": "escalations → list → pane → footer, in that order",
       "ok": true,
-      "detail": "Imminent — 1 | Clinical review — 1 | Routine review — 1"
+      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,escalations,escalations,escalations,escalations,escalations,escalations,escalations,escalations,shell,shell,list,pane,pane,footer,footer,footer,footer,footer,footer,footer"
     },
     {
-      "id": "retire.reports",
-      "label": "the emptied tier says it cleared rather than vanishing",
+      "id": "focus.always-visible",
+      "label": "every stop draws a focus ring",
       "ok": true,
-      "detail": "Imminent — cleared · 1 today"
+      "detail": "min 2px"
     },
     {
-      "id": "retire.others-stay",
-      "label": "the other tiers are untouched",
-      "ok": true
+      "id": "focus.never-obscured",
+      "label": "and none is under the footer (WCAG 2.4.11)",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "id": "targets.24px-floor",
+      "label": "every new control clears the 24×24 floor (WCAG 2.5.8)",
+      "ok": true,
+      "detail": "18 controls, smallest 16px high"
+    },
+    {
+      "id": "targets.escalations-44",
+      "label": "every escalation control clears HIG's 44px",
+      "ok": true,
+      "detail": "teen Theo L., mentor Brandy Forres:44 Open escalation:44 teen Naomi R., mentor Maria Lopez,:44 Open escalation:44 teen Theo L., mentor Brandy Forres:44 Open the record:44 teen Riley T., mentor Brandon Fora:44 Open the record:44"
+    },
+    {
+      "id": "targets.rows",
+      "label": "a queue row is a comfortable target",
+      "ok": true,
+      "detail": "56x433"
+    },
+    {
+      "id": "a11y.live-inventory",
+      "label": "every live region on the route is accounted for",
+      "ok": true,
+      "detail": "assertive:Escalations | polite:FLAG TEEN Naomi R. MENTOR  | polite:(empty) | polite:(empty) | polite:Notifications alt+T"
+    },
+    {
+      "id": "a11y.one-assertive",
+      "label": "only the escalation region is assertive",
+      "ok": true,
+      "detail": "assertive:Escalations"
+    },
+    {
+      "id": "fixtures.wired",
+      "label": "every key is wired into the dev bar's switcher",
+      "ok": true,
+      "detail": "39 of 39"
+    },
+    {
+      "id": "fixtures.exact-keys",
+      "label": "and they are the exact keys, in the phase file's order",
+      "ok": true,
+      "detail": "exact"
+    },
+    {
+      "id": "fixtures.grouped",
+      "label": "grouped in the order the phase file lists",
+      "ok": true,
+      "detail": "Monitoring · Volume and coverage | Monitoring · Escalation lifecycle | Monitoring · Compliance paths | Monitoring · Risk flags | Monitoring · Mentor practice | Monitoring · Live layer | Monitoring · System and edge"
+    },
+    {
+      "id": "fixtures.all-render",
+      "label": "all 39 scenario keys render without error",
+      "ok": true,
+      "detail": "39 keys"
     }
   ]
 }

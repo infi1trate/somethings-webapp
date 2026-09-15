@@ -62,6 +62,12 @@ import type {
  *  `task-pane.tsx` reads its tier label from THIS TABLE instead of holding a
  *  second one that said "Red flag" under a header saying "Imminent". This is the
  *  one place the three tiers are named. */
+/** ═══ TASKS-FACING SINCE arch-mon PHASE 1 ═══
+ *  The three flag-tier labels below are no longer rendered anywhere: Monitoring
+ *  groups by review subject and names its groups from `SUBJECT_LABEL`. What still
+ *  reads this table is Tasks (its deadline buckets take their treatment from the
+ *  same header component) and Home's stage labels. Nothing in
+ *  `lib/monitoring/` or `components/monitoring/` imports it. */
 export const BAND_LABEL: Record<TaskType, string> = {
   activeEscalation: "Active",
   escalationDocumentation: "Documentation",

@@ -13,12 +13,25 @@
 // describe the debt — the small subset of the picture where a deadline has been
 // missed or is about to be, and the only subset worth interrupting someone over.
 
+import { ESCALATION_ACK_SLA } from "@/lib/monitoring/constants";
 import { isBreached, type TaskItem } from "@/lib/tasks/types";
 
 export interface MonitoringObligations {
-  /** Imminent-tier flags still open past their 24h SLA. */
+  /** ═══ TIER-DERIVED, AND MONITORING NO LONGER READS IT (arch-mon Phase 1) ═══
+   *  An imminent-tier flag past a 24h SLA. Both halves of that — the tier and the
+   *  flag deadline — were the severity taxonomy Phase 1 removed: nothing
+   *  published states a review deadline for a flag, so this counts a breach of a
+   *  clock this system invented. Still computed because HOME's shift digest reads
+   *  it (`shift.ts`) and Home is a separate workstream; excluded from `total`, so
+   *  the nav badge no longer reports it. */
   imminentBreached: number;
-  /** Escalations closed but not written up — due and overdue alike. */
+  /** An active escalation whose five-minute acknowledgement window has passed —
+   *  the only published response SLA on the surface. Unacknowledged is the
+   *  default reading because no acknowledgement timestamp exists upstream; see
+   *  `lib/monitoring/escalation.ts`. */
+  ackOutstanding: number;
+  /** Escalations closed with the escalation note still owed — due and overdue
+   *  alike. (The word "escalation note" is gone; see `CLOSE_OUT_LABEL`.) */
   documentationOpen: number;
   /** …of which the 24h documentation clock has already run out. */
   documentationOverdue: number;
@@ -61,6 +74,7 @@ export function monitoringObligations(
   now: number
 ): MonitoringObligations {
   let imminentBreached = 0;
+  let ackOutstanding = 0;
   let documentationOpen = 0;
   let documentationOverdue = 0;
 
@@ -71,6 +85,10 @@ export function monitoringObligations(
 
     if (item.taskType === "imminentFlagReview" && isBreached(item, now)) {
       imminentBreached += 1;
+      continue;
+    }
+    if (item.taskType === "activeEscalation" && now - item.openedAt > ESCALATION_ACK_SLA) {
+      ackOutstanding += 1;
       continue;
     }
     if (item.taskType === "escalationDocumentation") {
@@ -84,8 +102,15 @@ export function monitoringObligations(
 
   return {
     imminentBreached,
+    ackOutstanding,
     documentationOpen,
     documentationOverdue,
-    total: imminentBreached + documentationOpen,
+    /* ═══ WHAT THE NAV BADGE COUNTS NOW ═══
+       Real obligations against real clocks: an unacknowledged escalation past
+       five minutes, and an escalation note past its 24 hours. It used to be
+       `imminentBreached + documentationOpen` — a manufactured flag breach plus
+       every open note whether or not it was late — which made the badge a number
+       a supervisor could not act on. */
+    total: ackOutstanding + documentationOverdue,
   };
 }

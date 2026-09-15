@@ -38,6 +38,13 @@ export { BILLING_REVIEW_SLA_HOURS };
  *  NOTE ON DOCUMENTATION: its clock starts at the escalation's CLOSE, not at the
  *  task's own creation — see `deadlineFor`, which is why that function takes an
  *  explicit start rather than always using `openedAt`. */
+/** ═══ THE THREE FLAG ROWS ARE UNREAD BY MONITORING (arch-mon Phase 1) ═══
+ *  `imminentFlagReview`, `clinicalFlagReview` and `routineFlagReview` carry
+ *  deadlines nothing published states — see `FLAG_REVIEW_SLA`, which is null and
+ *  blocked on Meg. They still populate `TaskItem.slaDeadline` at creation, and
+ *  Home's shift digest still reads the imminent breach; Monitoring derives no
+ *  deadline and no breach from any of them. The escalation rows ARE real: five
+ *  minutes and 24 hours, both published, both enforced. */
 export const TASK_SLA_MS: Record<TaskType, number> = {
   activeEscalation: 5 * MINUTE,
   escalationDocumentation: 24 * HOUR,

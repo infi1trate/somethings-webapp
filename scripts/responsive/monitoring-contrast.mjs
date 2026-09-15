@@ -105,104 +105,97 @@ for (const theme of ["light", "dark"]) {
   );
   await page.emulateMedia({ colorScheme: theme });
   await page.waitForTimeout(400);
-  // Scroll far enough to mount a coalesced teen row, so its disc and its
-  // composition line are measured rather than assumed.
-  for (let i = 0; i < 14; i += 1) {
-    if (await page.locator('[role="treeitem"][aria-expanded]').count()) break;
-    const more = await page.evaluate(() => {
-      const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
-      if (!el) return false;
-      const before = el.scrollTop;
-      el.scrollTop = before + el.clientHeight * 0.9;
-      el.dispatchEvent(new Event("scroll"));
-      return el.scrollTop > before;
-    });
-    await page.waitForTimeout(160);
-    if (!more) break;
-  }
-
-  /** Walk up for the first non-transparent background — what the ink actually
-   *  sits on, which is rarely the element's own. */
-  const samples = await page.evaluate(() => {
+  /* ═══ RETARGETED BY arch-mon ═══
+     The old sample list read the tier band header, the coalesced teen row's
+     identity disc and the three escalation lifecycle rows. Two of those are
+     gone with the tiers; the third changed shape. It also SILENTLY SKIPPED its
+     own breach-chip row — `push` returned early on a missing element and the
+     scroll loop had moved every "Overdue" row out of the DOM, so the report read
+     ALL PAIRS PASS having checked one fewer pair than it listed (gap row 366's
+     rule, broken by the file that recorded it). Every `push` below therefore
+     records a MISSING row rather than returning, and a missing row fails. */
+  const samples = await page.evaluate(`(() => {
     const groundOf = (el) => {
       let n = el;
       while (n) {
         const bg = getComputedStyle(n).backgroundColor;
-        if (bg && !/rgba\(0, 0, 0, 0\)|transparent/.test(bg)) return bg;
+        /* STRING COMPARISON, NOT A REGEX. A regex here is authored inside a
+           template literal that is then evaluated in the page, and the backslash
+           does not survive the round trip: \\( arrives as ( and the pattern
+           silently becomes a capture group that matches nothing. Every ground
+           then resolved to "rgba(0, 0, 0, 0)" and ten pairs reported 1.26:1
+           against a transparent black. Gap row 368's failure, third occurrence,
+           in the file that recorded the rule. */
+        if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg;
         n = n.parentElement;
       }
       return "rgb(255, 255, 255)";
     };
     const out = [];
-    const push = (label, el, min) => {
-      if (!el) return;
+    const push = (label, el, min, extra) => {
+      if (!el) { out.push({ label, min, missing: true }); return; }
       const cs = getComputedStyle(el);
-      out.push({
-        label,
-        fg: cs.color,
-        bg: groundOf(el),
-        px: parseFloat(cs.fontSize),
-        weight: cs.fontWeight,
-        min,
-      });
+      out.push({ label, fg: cs.color, bg: groundOf(el), px: parseFloat(cs.fontSize), weight: cs.fontWeight, min, ...(extra || {}) });
     };
     const q = (sel) => document.querySelector(sel);
+    const rowSpans = [...document.querySelectorAll('[role="treeitem"] span')];
+    const text = (re) => rowSpans.find((e) => re.test((e.innerText || "").trim()) && !e.querySelector("span"));
 
-    // Band header ink — the one place a tier is named.
-    const header = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')][0];
-    push("band header", header?.querySelector("span") ?? header, 4.5);
+    // GROUP HEADER — the one place the noun phrase lives.
+    push("group header", q('[role="group"] > div[aria-hidden] span'), 4.5);
 
-    // Row ink, both lines.
-    const row = q('[role="treeitem"]');
-    push("row · teen name", row?.querySelector("span.min-w-0 > span"), 4.5);
-    push(
-      "row · mentor + composition",
-      row?.querySelectorAll("span.min-w-0 > span")[1],
-      4.5
-    );
-    push("row · age (mono)", [...(row?.querySelectorAll("span") ?? [])].at(-1), 4.5);
+    // ROW: the emphasised subject, the secondary category line, the mono age.
+    push("row · subject", q('[role="treeitem"] span.font-display'), 4.5);
+    push("row · category (secondary)", text(/^(Self-harm language|Family conflict|Low mood)$/), 4.5);
+    push("row · age (mono)", text(/ ago$/), 4.5);
 
-    /* IDENTITY DISC. The initial has to be legible (4.5), and the disc has to
-       stay QUIET against the row it sits on — the failure that sent this back to
-       the drawing board was a ground measuring 11.5:1 on the dark card, which
-       made eight identity dots the brightest thing on a safeguarding surface.
-       There is no floor for "quiet", so the ratio is recorded and the ceiling is
-       asserted separately below. */
-    const disc = row?.querySelector('span[aria-hidden][style*="background"]');
+    // THE ROW'S MARKERS — the comparator's reasons, none of them breach
+    // treatment and none of them colour alone.
+    push("row marker · escalation open", text(/^Escalation open$/), 4.5);
+    push("row marker · pattern", text(/in this conversation$/), 4.5);
+
+    // IDENTITY DISC — legible initial, and a ground that must stay quiet.
+    const disc = q('[role="treeitem"] span[style*="background"]');
     push("identity disc initial", disc, 4.5);
     if (disc) {
       const cs = getComputedStyle(disc);
-      out.push({
-        label: "identity disc ground (must stay quiet)",
-        fg: cs.backgroundColor,
-        bg: groundOf(disc.parentElement),
-        px: 99, // not text; the 3:1 non-text floor does not apply to a tint
-        weight: "400",
-        min: 1,
-        ceiling: 2.5,
-      });
+      out.push({ label: "identity disc ground (must stay quiet)", fg: cs.backgroundColor, bg: groundOf(disc.parentElement), px: 99, weight: "400", min: 1, ceiling: 2.5 });
     }
 
-    // Breach chip.
-    const breach = [...document.querySelectorAll('[role="treeitem"] span')].find((e) =>
-      /Overdue/.test(e.textContent ?? "")
-    );
-    push("breach chip", breach, 4.5);
+    // THE ESCALATION STRIP ON ITS FILL — role labels, state, clock, action.
+    const fill = q('li[data-escalation-state="active"]');
+    push("escalation fill · role label", [...(fill?.querySelectorAll("span") ?? [])].find((e) => ["teen","mentor"].includes((e.innerText || "").trim().toLowerCase())), 4.5);
+    push("escalation fill · teen name", [...(fill?.querySelectorAll("span") ?? [])].find((e) => /^[A-Z][a-z]+ [A-Z]\.$/.test((e.innerText || "").trim())), 4.5);
+    push("escalation fill · state", [...(fill?.querySelectorAll("span") ?? [])].find((e) => /Active/.test(e.innerText || "")), 4.5);
+    push("escalation fill · ack clock", [...(fill?.querySelectorAll("span") ?? [])].find((e) => /^ack /.test((e.innerText || "").trim())), 4.5);
+    push("escalation fill · action", fill?.querySelector("a"), 4.5);
 
-    // Escalation states.
-    for (const state of ["active", "documentationDue", "documentationOverdue"]) {
-      const li = q(`li[data-escalation-state="${state}"]`);
-      push(`escalation · ${state} · name`, li?.querySelector("button span.min-w-0 > span"), 4.5);
-      const fact = [...(li?.querySelectorAll("button > span") ?? [])].find((e) =>
-        /Closed|Active|911/.test(e.textContent ?? "")
-      );
-      push(`escalation · ${state} · fact`, fact, 4.5);
-      push(`escalation · ${state} · action`, li?.querySelector("a"), 4.5);
-    }
+    // A RESOLVED RECORD, which must stay calm and still be readable.
+    const calm = q('li[data-escalation-state="closeout-open"]');
+    push("escalation calm · state", [...(calm?.querySelectorAll("span") ?? [])].find((e) => /Closed/.test(e.innerText || "")), 4.5);
+    push("escalation calm · age", [...(calm?.querySelectorAll("span") ?? [])].find((e) => / ago$/.test((e.innerText || "").trim())), 4.5);
+
+    // THE BREACH TREATMENT — the only one left on the page.
+    push("breach chip (overdue)", [...document.querySelectorAll("span")].find((e) => /overdue/i.test(e.innerText || "") && !e.querySelector("span") && /Alert|/.test("")), 4.5);
+
+    // THE PANE: the category chip, the disposition control, the optional axis.
+    push("pane · category chip", q('[data-slot="event-pane"] span.inline-flex'), 4.5);
+    push("pane · disposition (chosen)", q("[data-disposition]"), 4.5);
+    push("pane · accuracy (optional)", q("[data-accuracy]"), 4.5);
+    push("pane · record button", q('[data-action="record"]'), 4.5);
+
+    // THE COVERAGE METER'S OWN TEXT.
+    push("coverage line", [...document.querySelectorAll("p")].find((e) => /conversations reviewed this/.test(e.innerText || "")), 4.5);
     return out;
-  });
+  })()`);
 
   for (const s of samples) {
+    if (s.missing) {
+      failed += 1;
+      rows.push({ theme, ...s, ratio: null, ok: false });
+      console.log(`  × ${theme.padEnd(5)} ${s.label.padEnd(40)} MISSING — not in the DOM, so not checked`);
+      continue;
+    }
     const fg = parse(s.fg);
     const bg = parse(s.bg);
     if (!fg || !bg) {
@@ -223,7 +216,7 @@ for (const theme of ["light", "dark"]) {
     if (!ok) failed += 1;
     rows.push({ theme, ...s, ratio: Number(r.toFixed(2)), min, ok });
     console.log(
-      `  ${ok ? "✓" : "×"} ${theme.padEnd(5)} ${s.label.padEnd(40)} ${r.toFixed(2).padStart(5)}:1  (${s.ceiling ? `max ${s.ceiling}` : `needs ${min}`}, ${s.px === 99 ? "tint" : `${s.px}px/${s.weight}`})`
+      `  ${ok ? "✓" : "×"} ${theme.padEnd(5)} ${s.label.padEnd(40)} ${r.toFixed(2).padStart(5)}:1  (${s.ceiling ? `max ${s.ceiling}` : `needs ${min}`}, ${s.px === 99 ? "tint" : `${s.px}px/${s.weight}`})${ok ? "" : `  fg=${s.fg} bg=${s.bg}`}`
     );
   }
   await context.close();

@@ -226,6 +226,27 @@ export function ConversationExcerpt({
   onRetry,
   /** TODO-COPY. Escalations get context, not evidence — the label says which. */
   label,
+  /** ═══ SCROLLING IS OPTIONAL, AND ON MONITORING IT IS OFF ═══
+   *
+   *  The scrolling version is a scroll region inside the pane's scroll region —
+   *  defensible here (bounded, marked, `overscroll-contain`) and still a third
+   *  scroll region on the page, which Monitoring's locked decision 4 does not
+   *  allow. So that surface renders a WINDOW: the flagged message with a few
+   *  turns either side, no inner overflow, and the pane's own scroll carrying it.
+   *
+   *  NOT A SECOND COMPONENT. This is the only transcript renderer the supervisor
+   *  surfaces have, and a fork for a scrollbar would be the fourth
+   *  message-bubble implementation in the codebase.
+   *
+   *  THE UNSCROLLED VERSION IS ALSO NOT FOCUSABLE, deliberately: `tabIndex={0}`
+   *  plus `role="group"` exists to make a SCROLLABLE region operable by keyboard
+   *  (`scrollable-region-focusable`). A block that does not scroll has nothing to
+   *  operate, and a focus stop that does nothing is noise in the tab order. */
+  scroll = true,
+  /** How many turns either side of the flagged message the window holds. Six
+   *  total fits the pane without pushing the disposition control off screen —
+   *  measured at 1440×1000 with the footer pinned. */
+  windowTurns = 3,
 }: {
   conversation: Conversation | null;
   teenName: string;
@@ -233,6 +254,8 @@ export function ConversationExcerpt({
   state?: "ready" | "loading" | "error";
   onRetry?: () => void;
   label?: string;
+  scroll?: boolean;
+  windowTurns?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLLIElement>(null);
@@ -339,6 +362,16 @@ export function ConversationExcerpt({
 
   if (!conversation) return null;
 
+  /** THE WINDOW. Centred on the anchor rather than on the array's middle — the
+   *  flagged message is the reason the block is here. */
+  const anchorIdx = conversation.messages.findIndex((m) => m.id === conversation.anchorId);
+  const from = scroll ? 0 : Math.max(0, anchorIdx - windowTurns);
+  const to = scroll ? conversation.messages.length : Math.min(conversation.messages.length, anchorIdx + windowTurns + 1);
+  const shown = conversation.messages.slice(from, to);
+  /* THE EDGE MARKER IS TRUE IN ONE MORE CASE NOW: the fixture was truncated, OR
+     the window cut into it. Both mean "there is more above this". */
+  const cutAbove = conversation.truncatedStart || from > 0;
+
   return (
     <div>
       <div
@@ -346,20 +379,21 @@ export function ConversationExcerpt({
         // FOCUSABLE AND LABELLED. A scroll region that keyboard users cannot
         // reach is the `scrollable-region-focusable` failure; `tabIndex={0}` plus
         // a group role and a name is what makes it operable and announced.
-        tabIndex={0}
-        role="group"
-        aria-label={regionLabel}
+        tabIndex={scroll ? 0 : undefined}
+        role={scroll ? "group" : undefined}
+        aria-label={scroll ? regionLabel : undefined}
         className={cn(
           SHELL,
-          REGION_H,
+          scroll && REGION_H,
           // `overscroll-contain` — see the module note. This is the line that
           // stops the excerpt from hijacking the pane's scroll at its edges.
           // `pl-9` — the gutter the flag marker lives in. See the marker's note.
-          "overflow-y-auto overscroll-contain py-3 pl-9 pr-4",
-          RING
+          scroll && "overflow-y-auto overscroll-contain",
+          "py-3 pl-9 pr-4",
+          scroll && RING
         )}
       >
-        {conversation.truncatedStart && (
+        {cutAbove && (
           /* ═══ A QUIET EDGE MARKER, CENTRED ON A RULE ═══
              It was a centred sentence with nothing to centre it against, which at
              the top of a scroll region reads as a first message from nobody. A
@@ -379,11 +413,11 @@ export function ConversationExcerpt({
           </p>
         )}
         <ul className="space-y-4">
-          {conversation.messages.map((m, i) => (
+          {shown.map((m, i) => (
             <Bubble
               key={m.id}
               m={m}
-              header={needsHeader(m, conversation.messages[i - 1])}
+              header={needsHeader(m, shown[i - 1])}
               blooming={bloomFor === m.id}
               flaggedRef={m.id === conversation.anchorId ? anchorRef : undefined}
             />

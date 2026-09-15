@@ -132,3 +132,47 @@ phases — **one emphasised element per row**. The countdown and the job were
 briefly both bold and the row had two places for the eye to land; the probe
 counts the emphasised elements per row for exactly that reason. A column of
 figures is scannable without winning the weight channel.
+
+### Monitoring asserts only what it can compute (arch-mon)
+
+The page grouped flags into **Imminent / Clinical review / Routine review** and
+counted each tier's SLA down to a breach. Neither half was computable: the
+classifier emits CATEGORIES, not severity, and nothing published states a review
+deadline for a flag. So the surface was asserting clinical severity and
+manufacturing breach states from it — a supervisor reading "overdue by 2h" on a
+flag was reading a number this system invented.
+
+**Flags carry age.** Elapsed time since the flagged message, mono and tabular.
+`FLAG_REVIEW_SLA` is `null` and blocked on Meg, and while it is null nothing on
+the page may derive a flag deadline. `TaskItem.slaDeadline` is still populated
+upstream for the three flag types and is deliberately never read here.
+
+**Breach treatment belongs to escalation obligations alone** — the 5-minute
+acknowledgement SLA and the 24-hour escalation note. That is the whole point of
+removing it from flags, so reintroducing it there would undo the phase.
+
+**One comparator, two review subjects.** Teen safety flags and mentor practice
+breaches are one event primitive in one queue with one five-step ordering
+(escalation → category rank → repeat pattern → no mentor reply → age), filterable
+by subject with chips. Two of the five steps are currently no-ops with named
+owners; `lib/monitoring/constants.ts` says which and why. No secondary ordering
+exists anywhere else on the surface, and nothing is AI-ordered.
+
+**Two views, one column.** The queue is the priority entry point; COVERAGE — every
+supervised conversation as progress against the shift — is the floor, because a
+surface that can only show what a model noticed cannot answer "have I looked at
+my teens". Coverage is never expressed as a count of what is left.
+
+**The disposition is two axes.** A required clinical disposition (the only thing
+that can close an event, and one of its values opens an escalation instead), and
+an optional, never-primary, never-pre-selected note about whether the classifier
+was right. `y`/`n` answer the second one and resolve nothing — on Tasks they
+still resolve, which is why `ShortcutSheet` takes its rows per surface.
+
+**Monitoring has its own list and pane.** `event-list.tsx` and `event-pane.tsx`
+rather than Tasks' `Worklist`/`TaskPane`, because after this phase the two
+surfaces share no row anatomy, no grouping, no ordering and no footer. What is
+still shared is what should be: the group header, the chips, the identity disc,
+and the conversation excerpt — which gained a non-scrolling mode rather than a
+fourth transcript implementation. The cost is a second list, stated plainly:
+that is how silent per-screen forks start, so it is written down here.

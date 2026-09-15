@@ -199,9 +199,17 @@ export function useTaskShortcuts({
 export function ShortcutSheet({
   open,
   onOpenChange,
+  /** ═══ THE SHEET TAKES THE SURFACE'S OWN BINDINGS ═══
+   *  `y`/`n` RESOLVE on Tasks and, since arch-mon's Phase 2, only record
+   *  classifier accuracy on Monitoring — where resolving requires a clinical
+   *  disposition and no key can supply one. A sheet that described the Tasks
+   *  binding on Monitoring would be teaching a shortcut that does not exist.
+   *  Defaults to Tasks' set, so Tasks is untouched. */
+  rows = SHORTCUTS,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  rows?: Array<{ keys: string[]; what: string }>;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -215,7 +223,7 @@ export function ShortcutSheet({
           </DialogDescription>
         </DialogHeader>
         <dl className="space-y-2">
-          {SHORTCUTS.map((s) => (
+          {rows.map((s) => (
             <div
               key={s.what + s.keys.join()}
               className="flex items-center justify-between gap-4"

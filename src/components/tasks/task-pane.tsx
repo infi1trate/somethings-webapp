@@ -344,7 +344,7 @@ function EscalationBody({
   /* ═══ THE CLOSED ONES GET THE SAME FIELDS NOW (arch-B) ═══
      They used to render TWO lines — a "Closed" date and a dead-end sentence —
      and suppress the 911 status, the responder, the emergency contact and the
-     conversation entirely. The reasoning was presumably that a write-up is
+     conversation entirely. The reasoning was presumably that a escalation note is
      paperwork, so the context does not matter. It is the opposite: somebody
      writing up an escalation hours later needs the 911 decision, who raised it
      and what was said MORE than the person who was in the room. */
@@ -365,7 +365,7 @@ function EscalationBody({
               style={{ fontFamily: "var(--font-mono)" }}
             >
               {/* THE CLOCK THE READER IS ACTUALLY ON. An active escalation counts
-                  up from its start; a closed one counts down to its write-up
+                  up from its start; a closed one counts down to its escalation note
                   deadline and past it counts up again. A bare figure here used to
                   mean "since it closed", which is the one reading that answers
                   nobody's question. */}
@@ -427,7 +427,7 @@ function EscalationBody({
       </div>
 
       {/* ═══ THE STATE, ITS DEADLINE, AND WHERE THE WORK IS ═══
-          THIS REPLACED A DEAD END. It read "Write-ups are completed on the
+          THIS REPLACED A DEAD END. It read "Escalation notes are completed on the
           escalation record." and "This escalation is handled in the escalation
           flow. Nothing here changes its state." — both true, both useless: they
           told a reader what this pane will NOT do and left them to find out
@@ -436,7 +436,7 @@ function EscalationBody({
       <p className="text-[13px] leading-[18px] text-[var(--text-muted)]">
         {/* TODO-COPY, both. */}
         {isDocs
-          ? `${LIFECYCLE_LABEL[state]} — ${clockLabel(item, now)}. The write-up is completed on the escalation record.`
+          ? `${LIFECYCLE_LABEL[state]} — ${clockLabel(item, now)}. The escalation note is completed on the escalation record.`
           : `Active — ${clockLabel(item, now)}. Responding happens in the escalation flow; nothing here changes its state.`}
       </p>
     </div>

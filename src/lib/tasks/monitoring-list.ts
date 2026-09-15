@@ -1,46 +1,22 @@
-// ═══ THE HYBRID UNIT OF REVIEW — the core decision of arch-B ═══
+// ═══ WHAT IS LEFT OF THIS MODULE, AND WHAT TOOK THE REST ═══
 //
-// THE UNIT FOLLOWS THE OBLIGATION, which means this surface has two units and
-// not one:
+// It held arch-B's hybrid unit of review: imminent flag rows never coalesced,
+// clinical and routine flags coalesced by teen, each teen row filed under the
+// worst tier it carried. That whole arrangement was a consequence of the SEVERITY
+// TIERS, and arch-mon Phase 1 removed the tiers — the page was asserting clinical
+// severity it could not compute, and the grouping the tiers justified went with
+// them. Monitoring now builds its own events in `lib/monitoring/event.ts`,
+// groups them by REVIEW SUBJECT, and orders them with one five-step comparator.
 //
-//   IMMINENT       individual flag rows, never coalesced.
-//   CLINICAL/ROUTINE   coalesced by TEEN.
+// TWO FUNCTIONS SURVIVE, BOTH TASKS-FACING:
+//   · `coalescesByTeen` — read by `row-emphasis.ts`, which decides whether a row
+//     emphasises the person or the deadline. Still keyed on task type.
+//   · `compositionLabel` — read by `worklist.tsx` for a coalesced row's mix.
 //
-// The reason is not symmetry, it is what a group row costs. A coalesced row
-// hides its members behind a count until someone expands it, and that is exactly
-// right for a picture of accumulating low-tier signal — five routine flags on one
-// teen IS one thing to look at — and exactly wrong for a flag with a 24-hour
-// deadline, which must not be able to hide inside a group row. An imminent flag
-// that a supervisor has to expand a chevron to find is an imminent flag they can
-// miss.
-//
-// ═══ A TEEN CAN APPEAR TWICE, AND THAT IS CORRECT ═══
-//
-// Their imminent flags are individual rows in the Imminent band; their lower-tier
-// flags coalesce into one teen row further down. The two entries mean different
-// things — "this flag, now" and "this teen's accumulating signal" — and merging
-// them would mean either burying the deadline or splitting the picture.
-//
-// ═══ THE BAND IS THE HEAD'S, AND THAT MAKES THE BANDS A PARTITION ═══
-//
-// `bandsFor` files an entry under `paneItemFor(entry).taskType`, and a teen
-// group's head is its highest-priority member — so a teen carrying three clinical
-// and two routine flags files under Clinical review, and the header counts all
-// five. That is deliberate and it is the only arrangement where every flag is
-// counted exactly once and no teen row is drawn twice:
-//
-//   · Counting only same-tier members would make "Clinical review — 26" exclude
-//     routine flags that are on screen inside that band's rows, which is the
-//     failure the header count exists to prevent ("a supervisor reading
-//     'Imminent — 12' and finding forty flags behind it").
-//   · Listing the teen in both bands draws the same person twice, and a reader
-//     resolving from one copy would watch the other go stale.
-//
-// The row's own tier-composition line ("3 clinical · 2 routine") is what
-// discloses the mix, in text, never in colour alone.
+// The tier vocabulary below is therefore class (c) under this phase's audit: a
+// data-model fact about task types that Tasks still consumes, and which nothing
+// on Monitoring renders or sorts by.
 
-import { compareTasks, sortedOpen } from "@/lib/tasks/sort";
-import { isFlagTask, type ListEntry } from "@/lib/tasks/list";
 import { BAND_LABEL } from "@/lib/tasks/bands";
 import { TIER_RANK, type TaskItem, type TaskType } from "@/lib/tasks/types";
 
@@ -86,32 +62,10 @@ export function coalescesByTeen(taskType: TaskType): boolean {
  *    4 · teen id                total order, so the list cannot reshuffle between
  *                               renders (the same tiebreak `compareTasks` ends on)
  */
-export function compareTeenGroups(
-  a: TaskItem[],
-  b: TaskItem[]
-): number {
-  const topTier = (xs: TaskItem[]) => Math.min(...xs.map((x) => TIER_RANK[x.taskType]));
-  const oldest = (xs: TaskItem[]) => Math.min(...xs.map((x) => x.openedAt));
-
-  const tierDelta = topTier(a) - topTier(b);
-  if (tierDelta !== 0) return tierDelta;
-
-  if (a.length !== b.length) return b.length - a.length;
-
-  const ageDelta = oldest(a) - oldest(b);
-  if (ageDelta !== 0) return ageDelta;
-
-  return a[0].teenId.localeCompare(b[0].teenId);
-}
 
 /** How many of each tier a teen row stands for. Keyed by TASK TYPE rather than by
  *  the payload's tier, so it cannot disagree with the band the group was filed
  *  under — both read the same field. */
-export function tierCounts(members: TaskItem[]): Map<TaskType, number> {
-  const counts = new Map<TaskType, number>();
-  for (const m of members) counts.set(m.taskType, (counts.get(m.taskType) ?? 0) + 1);
-  return counts;
-}
 
 /** TODO-COPY. "3 clinical · 2 routine".
  *
@@ -131,6 +85,15 @@ export function tierCounts(members: TaskItem[]): Map<TaskType, number> {
  *  ONE TIER PRESENT MEANS NO LINE. A teen carrying only routine flags gets `null`
  *  — the band header has already said "Routine review" and the count badge has
  *  already said how many, so "5 routine" is both facts a third time. */
+/** How many of each type a coalesced group holds. Local since arch-mon Phase 1:
+ *  `compositionLabel` is its only reader now that Monitoring builds its own
+ *  events. */
+function tierCounts(members: TaskItem[]): Map<TaskType, number> {
+  const counts = new Map<TaskType, number>();
+  for (const m of members) counts.set(m.taskType, (counts.get(m.taskType) ?? 0) + 1);
+  return counts;
+}
+
 export function compositionLabel(members: TaskItem[]): string | null {
   const counts = tierCounts(members);
   if (counts.size < 2) return null;
@@ -150,49 +113,12 @@ export function compositionLabel(members: TaskItem[]): string | null {
  *  disclosure control over a single child is a control that does nothing, and a
  *  "1 flag" badge is a count nobody needs. Same rule the conversation coalescing
  *  already applies. */
-export function monitoringEntriesFor(
-  items: TaskItem[],
-  now: number
-): ListEntry[] {
-  const sorted = sortedOpen(items, now).filter((i) => isFlagTask(i.taskType));
-
-  const singles = sorted.filter((i) => !coalescesByTeen(i.taskType));
-
-  const byTeen = new Map<string, TaskItem[]>();
-  for (const item of sorted) {
-    if (!coalescesByTeen(item.taskType)) continue;
-    const bucket = byTeen.get(item.teenId);
-    if (bucket) bucket.push(item);
-    else byTeen.set(item.teenId, [item]);
-  }
-
-  const groups = [...byTeen.values()].sort(compareTeenGroups);
-
-  const entries: ListEntry[] = singles.map((item) => ({
-    kind: "item",
-    id: item.id,
-    item,
-  }));
-
-  for (const members of groups) {
-    if (members.length === 1) {
-      entries.push({ kind: "item", id: members[0].id, item: members[0] });
-      continue;
-    }
-    entries.push({
-      kind: "group",
-      // TEEN-KEYED, so it cannot collide with the conversation-keyed group ids
-      // Tasks builds — the two surfaces read each other's selection state in
-      // neither direction today, and an id that could mean two things is how
-      // that stops being true by accident.
-      id: `teen:${members[0].teenId}`,
-      groupBy: "teen",
-      // `sorted` is already in comparator order, so the first member reached is
-      // the highest-priority one — which is also what decides the band.
-      head: members[0],
-      members: [...members].sort((a, b) => compareTasks(a, b, now)),
-    });
-  }
-
-  return entries;
-}
+/* ═══ `monitoringEntriesFor` IS GONE (arch-mon Phase 1) ═══
+   It built Monitoring's hybrid unit of review: imminent flags as individual
+   rows, the two lower TIERS coalesced by teen. The tiers were the severity
+   taxonomy this phase removed, so the grouping they justified went with them —
+   Monitoring now groups by REVIEW SUBJECT and builds its own events in
+   `lib/monitoring/event.ts`.
+   WHAT SURVIVES HERE, and why the file did not go with it: `coalescesByTeen`
+   (read by `row-emphasis.ts`, which Tasks uses) and `compositionLabel` (read by
+   `worklist.tsx`). Both are Tasks-facing now. */

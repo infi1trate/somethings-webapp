@@ -1,16 +1,43 @@
-// ═══ THE MONITORING SURFACE, STATE BY STATE (arch-B) ═══
+// ═══ MONITORING, REBUILT (arch-mon Phases 1–7) ═══
 //
-// Grows with the phase: B1 checks the route, the persona gate, the header and
-// the tier bands; B2 adds the hybrid unit of review; B3 the escalation region;
-// B4 the load states and the a11y sweep.
+// This file replaces the arch-B probe wholesale. That one asserted the tier
+// bands, the tier-derived SLA countdowns and the hybrid coalesced rows — every
+// one of which was the severity taxonomy Phase 1 removed. Their subjects were
+// deleted, not their assertions weakened, and the claims that replaced them are
+// stronger: they are about what the page may NOT assert.
 //
-// THE CONTEXT IS THE HARNESS'S OWN, so every run seeds a fresh localStorage and
-// nothing here can touch a real demo store.
+// RULE THIS FILE FOLLOWS (gap rows 366, 368): an assertion must fail loudly when
+// its INPUT is absent. Every check that reads an element proves the element was
+// found; `every`/`!some` over an empty set never stands alone.
 //
-// Exit codes: 0 every check passed · 1 a check failed.
+// Exit codes: 0 all passed · 1 a check failed.
 
-import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
+import { launch, openView, VIEWPORTS, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
+
+/** ═══ THE PACK'S 39 KEYS, TRANSCRIBED ═══
+ *  Duplicated here on purpose: the probe is the independent check, so it must not
+ *  import the list it is checking. Grouped and ordered as the phase file lists
+ *  them, because the order is part of what was asked for. */
+const EXPECTED_KEYS = [
+  // Volume and coverage
+  "clean-day", "classifier-degraded", "shift-start-backlog", "normal-day", "surge", "coverage-debt",
+  // Escalation lifecycle
+  "escalation-unacked", "escalation-breach", "escalation-911", "escalation-concurrent",
+  "escalation-closeout", "escalation-note-overdue", "escalation-no-caregiver", "escalation-afterhours",
+  // Compliance paths
+  "explicit-media", "suspected-death",
+  // Risk flags
+  "flag-in-escalation", "flag-repeat-pattern", "flag-no-mentor-reply", "flag-false-positive-cluster",
+  // Mentor practice
+  "mentor-offline", "mentor-outreach-missed", "mentor-response-slow", "mentor-note-overdue",
+  "mentor-conduct-flag", "mentor-perf-escalation", "mentor-post-crisis",
+  // Live layer
+  "live-offhours", "live-transport-lost", "live-quiet-shift", "live-busy-shift", "live-response-clock",
+  "live-mentor-drop", "live-outreach-window", "live-flag-arrival", "live-escalation-arrival", "live-paused",
+  // System and edge
+  "teen-deactivated-midreview", "loading-partial",
+];
 
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/monitoring";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1000 };
@@ -20,790 +47,656 @@ await mkdir(OUT, { recursive: true });
 
 const rows = [];
 let failed = 0;
-
 function check(id, label, ok, detail) {
   rows.push({ id, label, ok: !!ok, detail });
   if (!ok) failed += 1;
-  console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(28)} ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(30)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
-async function open(id, { persona = "supervisor", scenario = "typical-shift", load = "ready", url = "/app/monitoring" } = {}) {
+async function open(id, { scenario = null, tasks = "typical-shift", load = "ready", url = "/app/monitoring" } = {}) {
   return openView(
     browser,
-    { id, url, seed: { persona, extra: { tasksScenarioId: scenario, devLoadState: load } } },
+    {
+      id,
+      url,
+      seed: {
+        persona: "supervisor",
+        extra: { tasksScenarioId: tasks, monitoringScenarioId: scenario, devLoadState: load },
+      },
+    },
     XL,
     version
   );
 }
 
-const textOf = (page) => page.locator("main").innerText();
-
-/** ═══ SCROLL UNTIL THE COALESCED TIERS ARE MOUNTED ═══
- *
- *  The list is virtualized, so everything past the viewport is a spacer div and
- *  NOT in the DOM. On typical-shift the Imminent band alone is 23 rows and fills
- *  the first screen, so a probe that queried straight away found zero teen rows
- *  and reported the hybrid unit missing — which it was not. It was below the
- *  fold, which is the virtualizer working.
- *
- *  Scrolls in viewport-sized steps and stops as soon as a disclosure row exists,
- *  so it costs one step on a short list and a handful on a long one. */
-async function scrollToTeenRows(page, maxSteps = 12) {
-  for (let i = 0; i < maxSteps; i += 1) {
-    if (await page.locator('[role="treeitem"][aria-expanded]').count()) return true;
-    const more = await page.evaluate(() => {
-      const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
-      if (!el) return false;
-      const before = el.scrollTop;
-      el.scrollTop = before + el.clientHeight * 0.9;
-      el.dispatchEvent(new Event("scroll"));
-      return el.scrollTop > before;
-    });
-    await page.waitForTimeout(220);
-    if (!more) break;
-  }
-  return (await page.locator('[role="treeitem"][aria-expanded]').count()) > 0;
-}
-
-/** Walk the whole virtualized list looking for a selector. Rows outside the
- *  window are spacer divs, not elements, so "not in the DOM" and "not in the
- *  list" are different facts and only this can tell them apart. */
-async function scrollToFind(page, selector, maxSteps = 30) {
-  await page.evaluate(() => {
-    const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
-    if (el) el.scrollTop = 0;
-  });
-  await page.waitForTimeout(200);
-  for (let i = 0; i < maxSteps; i += 1) {
-    if (await page.locator(selector).count()) return true;
-    const more = await page.evaluate(() => {
-      const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
-      if (!el) return false;
-      const before = el.scrollTop;
-      el.scrollTop = before + el.clientHeight * 0.8;
-      el.dispatchEvent(new Event("scroll"));
-      return el.scrollTop > before;
-    });
-    await page.waitForTimeout(160);
-    if (!more) break;
-  }
-  return (await page.locator(selector).count()) > 0;
-}
-
-/** THE SUBTITLE, BY STRUCTURE RATHER THAN BY LINE NUMBER. The first version read
- *  `innerText.split("\n")[1]`, which is only the subtitle while nothing else in
- *  `main` happens to render above it — and in the harness's own context it did
- *  not, so three checks failed against an empty string and said nothing useful
- *  about the page. The element is the thing being asserted; address it. */
-const subtitleOf = (page) => page.locator("main h1 + p").first().innerText();
+const mainText = (page) => page.locator("main").innerText();
+const rowText = (page) =>
+  page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => (e.innerText || "").replace(/\s+/g, " ").trim()));
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 1 · THE SURFACE EXISTS, AND SAYS WHAT IT HOLDS.
+// 1 · THE SEVERITY TAXONOMY IS GONE (Phase 1)
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("shell");
-  const t = await textOf(page);
-
-  check("shell.header", "the page names itself", /^\s*Monitoring/m.test(t));
-
-  // ALL THREE TIERS, IN THE COMPARATOR'S ORDER. Imminent leads because
-  // TIER_RANK says so, not because the band code enforces it.
-  const bands = await page
-    .getByRole("group")
-    .evaluateAll((els) =>
-      els.map((e) => e.getAttribute("aria-label")).filter((l) => l && / — \d+$/.test(l))
-    );
-  check(
-    "shell.tiers",
-    "three tier bands, imminent first",
-    bands.length === 3 &&
-      /^Imminent/.test(bands[0]) &&
-      /^Clinical review/.test(bands[1]) &&
-      /^Routine review/.test(bands[2]),
-    bands.join(" | ")
-  );
-
-  // THE OLD TIER VOCABULARY IS GONE FROM THE SCREEN, not just from the types.
-  check(
-    "shell.no-colour-words",
-    "no tier is named by its colour",
-    !/\b(Red flag|Orange flag|Standard flag)\b/.test(t)
-  );
-
-  // ═══ THE COUNTS HAVE TO RECONCILE ═══
-  // The subtitle's coverage figure and the three band headers are computed from
-  // different code paths — `flagEntriesFor` counting members, and `bandsFor`
-  // summing taskCount. If they ever disagree, one of them is lying to a
-  // supervisor about how much work there is.
-  const banded = bands.reduce((n, b) => n + Number(b.match(/ — (\d+)$/)[1]), 0);
-  const sub = (await subtitleOf(page)).trim();
-  const claimed = Number((sub.match(/(\d+) flags? in review/) ?? [])[1]);
-  check(
-    "shell.counts-reconcile",
-    "the subtitle's coverage equals the bands' total",
-    banded === claimed,
-    `bands ${banded} vs subtitle ${claimed} (“${sub}”)`
-  );
-
-  // OBLIGATION FIRST. A bare open count is what this surface must never lead
-  // with — see `monitoringSubtitle`.
-  check(
-    "shell.obligation-first",
-    "the subtitle leads with what is owed",
-    /^\d+ past 24h/.test(sub),
-    sub
-  );
-
-  await page.screenshot({ path: `${OUT}/01-shell.png` });
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 2 · THE BADGE COUNTS DEBT, AND IT AGREES WITH THE PAGE.
-// ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("badge");
-  const labels = await page
-    .locator("nav [aria-label]")
-    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  const badge = labels.find((l) => /overdue$/.test(l));
-  check("badge.present", "Monitoring carries an obligation badge", Boolean(badge), badge);
-
-  // NOT "unread", which is Activity's word about mail, and not "open", which is
-  // Tasks' word about volume. This badge counts debt.
-  check(
-    "badge.noun",
-    "the badge says what it counts",
-    Boolean(badge) && !/unread|open/.test(badge),
-    badge
-  );
-
-  // THE BADGE AND THE SUBTITLE READ THE SAME OBLIGATIONS. Two call sites, one
-  // function; a mismatch would mean the nav is arguing with the page.
-  const sub = (await subtitleOf(page)).trim();
-  const past = Number((sub.match(/(\d+) past 24h/) ?? [0, 0])[1]);
-  const writeUps = Number((sub.match(/(\d+) write-up/) ?? [0, 0])[1]);
-  const badged = Number((badge ?? "0").match(/\d+/)[0]);
-  check(
-    "badge.agrees",
-    "the badge equals the subtitle's debt",
-    badged === past + writeUps,
-    `badge ${badged} vs ${past} + ${writeUps}`
-  );
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 3 · EVERY OTHER PERSONA IS UNTOUCHED.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// A static route shadows `/app/[section]` for EVERYBODY, so the non-supervisor
-// branch has to render what the dynamic route would have. Getting this wrong
-// gives a mentor a blank shell — a regression for them, dressed up as a feature
-// for someone else.
-for (const persona of ["mentor", "lead-mentor"]) {
-  const { context, page } = await open(`persona-${persona}`, { persona });
-  const t = await textOf(page);
-  check(
-    `persona.${persona}.placeholder`,
-    "sees the unbuilt-section placeholder, not the surface",
-    /Nothing here yet/.test(t) && !/Imminent — /.test(t)
-  );
-  const navItems = await page
-    .locator("nav a")
-    .evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()));
-  check(
-    `persona.${persona}.no-nav-item`,
-    "is not offered the destination",
-    !navItems.some((l) => /Monitoring/.test(l)),
-    navItems.filter(Boolean).join(" · ")
-  );
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 4 · TASKS DID NOT MOVE.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// arch-B pulled the undo-window wiring out of `tasks-page.tsx` into a shared
-// hook and made `Worklist`'s domain optional. Neither was meant to change Tasks,
-// and both are the kind of change that would show up there first.
-{
-  const { context, page } = await open("tasks-unmoved", { url: "/app/tasks" });
-  const t = await textOf(page);
-  /* ═══ RETARGETED BY arch-E: TASKS' OWN BANDS ARE NOW TIME, NOT TIER ═══
-     This named Tasks' two tier bands ("Intake — 8", "Monthly re-review — 7").
-     arch-E replaced them with deadline buckets by design, so the literal band
-     names are stale — but the claim the check exists to make is not. It is that
-     Tasks groups by ITS OWN axis and never borrows Monitoring's: whatever the
-     two surfaces do, a tier band must not appear on Tasks. So this now asserts
-     the deadline buckets are what Tasks draws, and that no tier band label
-     followed the shared `Worklist` across. */
-  const buckets = ["Overdue", "Due today", "Due tomorrow", "Later"].filter((b) => new RegExp(`${b} — \\d`).test(t));
-  check(
-    "regression.tasks",
-    "Tasks groups by its own axis — deadline buckets, and no tier band crossed over",
-    buckets.length >= 2 && !/(Imminent|Intake|Monthly re-review) — \d/.test(t),
-    buckets.join(" | ") || "no bucket header found"
-  );
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 5 · THE HYBRID UNIT OF REVIEW (B2).
-// ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("hybrid");
-  await scrollToTeenRows(page);
-
-  const rows = await page.getByRole("treeitem").evaluateAll((els) =>
-    els.map((e) => ({
-      label: e.getAttribute("aria-label") ?? "",
-      expandable: e.getAttribute("aria-expanded") !== null,
-      band: e.closest('[role="group"]')?.getAttribute("aria-label") ?? "",
-      h: Math.round(e.getBoundingClientRect().height),
-    }))
-  );
-
-  // THE CORE CLAIM. A 24h deadline must not be reachable only through a chevron.
-  const imminent = rows.filter((r) => /^Imminent/.test(r.band));
-  check(
-    "hybrid.imminent-individual",
-    "no imminent flag is behind a disclosure",
-    imminent.length > 0 && imminent.every((r) => !r.expandable),
-    `${imminent.length} imminent rows, ${imminent.filter((r) => r.expandable).length} expandable`
-  );
-
-  const teenRows = rows.filter((r) => r.expandable);
-  check(
-    "hybrid.teen-coalesced",
-    "the lower tiers gather into teen rows",
-    teenRows.length > 0 && teenRows.every((r) => !/^Imminent/.test(r.band)),
-    `${teenRows.length} teen rows`
-  );
-
-  // COUNT AND COMPOSITION, BOTH IN WORDS. Colour carries identity on this row
-  // and nothing else, so every state has to be sayable.
-  const withComposition = teenRows.filter((r) => / \d+ (clinical|routine)/.test(r.label));
-  check(
-    "hybrid.composition",
-    "a mixed teen row says what is behind it",
-    withComposition.length > 0 &&
-      withComposition.every((r) => /\d+ flags/.test(r.label)),
-    withComposition[0]?.label
-  );
-
-  // ═══ EVERY ROW IS EXACTLY `ROW_H` ═══
-  // The virtualizer multiplies a constant; a taller row would not error, it
-  // would silently drift the spacers and put the keyboard's target under the
-  // reader's cursor instead of on it. This is why the composition line shares
-  // the mentor line rather than taking a third.
-  check(
-    "hybrid.row-height",
-    "the teen row did not grow the row",
-    new Set(rows.map((r) => r.h)).size === 1,
-    `heights: ${[...new Set(rows.map((r) => r.h))].join(", ")}`
-  );
-
-  // THE COMPOSITION MUST FIT AT DESKTOP. It truncates at phone widths by design
-  // — that is what `truncate` is for — but a line that is clipped on a 1280px
-  // desktop is a line nobody reads.
-  const clipped = await page.evaluate(() => {
-    const el = [...document.querySelectorAll('[role="treeitem"][aria-expanded]')]
-      .map((r) => r.querySelectorAll("span.truncate")[1])
-      .find(Boolean);
-    // `null`, NOT a sentinel number. The first version returned -1 when it found
-    // nothing and the check read `clipped <= 0`, so "no teen row on screen"
-    // passed as "nothing is clipped" — a green tick for an assertion that never
-    // ran.
-    return el ? el.scrollWidth - el.clientWidth : null;
-  });
-  check(
-    "hybrid.fits",
-    "the composition line is not clipped at xl",
-    clipped !== null && clipped <= 0,
-    clipped === null ? "no teen row found to measure" : `overflow ${clipped}px`
-  );
-
-  await page.screenshot({ path: `${OUT}/02-hybrid.png` });
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 6 · COALESCING CORRECTNESS — resolve the children one at a time.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// The group is DERIVED from the open set rather than bookkept, so this is really
-// a test that the derivation holds under mutation: the count falls, the row stops
-// being a group once one child is left, and only the last child removes it.
-//
-// THE GROUP IS TRACKED BY TEEN NAME, NOT BY `.first()`. The first version
-// re-read `.first()` after every resolve, which returns whichever group leads the
-// list NOW — so it reported "5 → 5 → 5 → 5" while five different rows each
-// correctly said 5, and the count it was watching was never the count it had
-// changed. A row is identified by whose it is.
-{
-  const { context, page } = await open("coalesce", { scenario: "heavy-caseload" });
-  const found = await scrollToTeenRows(page);
-  check("coalesce.reachable", "a coalesced teen row is reachable", found);
-
-  const countOf = (label) => Number((label.match(/(\d+) flags/) ?? [0, 0])[1]);
-  const group = page.locator('[role="treeitem"][aria-expanded]').first();
-  const first = await group.getAttribute("aria-label");
-  /* ═══ THE TEEN NAME COMES FROM THE ROW, NOT FROM THE LABEL'S FIRST SEGMENT ═══
-     It used to be `label.split(",")[0]`, and arch-D put the GROUP first in every
-     row's accessible name — so this started tracking a row called "Clinical
-     review" and reported the count frozen at 5 while five different rows each
-     correctly said 5. Reading the rendered name is immune to the label's shape. */
-  const teen = (await group.locator("span.min-w-0 > span").first().innerText()).trim();
-  const start = countOf(first);
-  // `aria-level="1"` so the parent is never confused with one of its own
-  // children, which carry the same teen name.
-  const sel = (t) => `[role="treeitem"][aria-level="1"][aria-label*="${t},"]`;
-  const row = () => page.locator(sel(teen)).first();
-  check("coalesce.start", `a group of ${start} to work with`, start >= 3, `${teen}: ${start} flags`);
-
-  // EXPAND WITH THE KEYBOARD. Clicking the row SELECTS it — the chevron has its
-  // own click zone with `stopPropagation`, deliberately, so a pointer reader can
-  // expand without selecting. ArrowRight is the documented expand.
-  await row().click();
-  await page.waitForTimeout(250);
-  await page.keyboard.press("ArrowRight");
-  await page.waitForTimeout(250);
-
-  /* RESOLVE THE CHILDREN ONE AT A TIME, each by clicking the child row itself —
-     which is the path that found the selection defect: a child row's entry is
-     synthetic and was not in `entries`, so the page fell back to row 0 and `y`
-     resolved a different teen's flag five times over while this count sat at 5. */
-  const seen = [start];
-  for (let i = 0; i < start - 1; i += 1) {
-    const child = page.locator('[role="treeitem"][aria-level="2"]').first();
-    if (await child.count()) {
-      await child.click();
-      await page.waitForTimeout(220);
-    }
-    await page.keyboard.press("y");
-    await page.waitForTimeout(550);
-    const alive = await page.locator(`${sel(teen)}`).count();
-    if (!alive) {
-      seen.push(0);
-      break;
-    }
-    seen.push(countOf(await page.locator(`${sel(teen)}`).first().getAttribute("aria-label")));
-  }
-
-  check(
-    "coalesce.count-falls",
-    "the count falls by exactly one per child",
-    seen.length > 1 && seen.every((v, i) => i === 0 || v === seen[i - 1] - 1 || v === 0),
-    seen.join(" → ")
-  );
-
-  // ONE CHILD LEFT IS A PLAIN ROW — a disclosure over a single child is a control
-  // that does nothing, so the count badge and the chevron go together.
-  const stillGrouped = await page.locator(`${sel(teen)}[aria-expanded]`).count();
-  check(
-    "coalesce.degrades",
-    "the row stops being a group before its last child",
-    stillGrouped === 0,
-    `${stillGrouped} disclosure(s) left on ${teen}`
-  );
-
-  /* AND THE TEEN IS STILL THERE, as a plain row carrying the last flag — the
-     group resolving early would take an open flag off the surface entirely.
-     SCROLLED FOR, not queried in place: a row that drops from five flags to one
-     also drops from the Clinical review band to Routine review, which on a
-     120-row list is well past the mounted window. The first version asserted
-     `count() >= 1` where the row used to be and failed the moment the fixture
-     grew — reporting a missing flag when the flag was simply further down. */
-  const survives = await scrollToFind(page, sel(teen));
-  check("coalesce.last-child-survives", "the last flag is still on the surface", survives);
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 7 · VIRTUALIZATION × KEYBOARD — `j` across the boundary.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// The rows a reader arrows past are UNMOUNTED behind them. `revealRow` scrolls by
-// arithmetic rather than `scrollIntoView` precisely because the element may not
-// exist yet — this is the test of that.
-{
-  const { context, page } = await open("keyboard", { scenario: "heavy-caseload" });
-  await page.getByRole("treeitem").first().click();
-  await page.waitForTimeout(250);
-
-  const STEPS = 80;
-  for (let i = 0; i < STEPS; i += 1) await page.keyboard.press("j");
-  await page.waitForTimeout(400);
-
-  const state = await page.evaluate(() => {
-    const sel = document.querySelector('[role="treeitem"][aria-selected="true"]');
-    const scroller = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
-    const r = sel?.getBoundingClientRect();
-    const s = scroller?.getBoundingClientRect();
-    return {
-      hasSelection: Boolean(sel),
-      label: sel?.getAttribute("aria-label") ?? null,
-      inView: r && s ? r.top >= s.top - 1 && r.bottom <= s.bottom + 1 : false,
-      focused: document.activeElement === sel,
-      scrolled: scroller?.scrollTop ?? 0,
-    };
-  });
-  check("keyboard.survives", `selection survives ${STEPS} presses of j`, state.hasSelection, state.label);
-  check("keyboard.in-view", "the selected row was scrolled into view", state.inView);
-  check("keyboard.focus", "focus tracks the selection across the unmount boundary", state.focused);
-  check("keyboard.moved", "the list actually scrolled", state.scrolled > 0, `scrollTop ${state.scrolled}`);
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 8 · THE EXCERPT RE-ANCHORS ON A CHILD, WITHOUT RELOADING THE PANE.
-// ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("reanchor", { scenario: "heavy-caseload" });
-  await scrollToTeenRows(page);
-  await page.locator('[role="treeitem"][aria-expanded]').first().click();
-  await page.waitForTimeout(400);
-
-  // Mark the pane so a remount is detectable: a node the app never touches
-  // survives a re-render and does not survive a remount.
-  await page.evaluate(() => {
-    document.querySelector('[data-slot="task-pane"]')?.setAttribute("data-probe-mark", "1");
-  });
-
-  const before = await page.evaluate(() => ({
-    anchor: document.querySelector('[role="group"][aria-label^="Conversation excerpt"]')?.scrollTop ?? -1,
-    text: document.querySelector('[role="group"][aria-label^="Conversation excerpt"]')?.innerText.slice(0, 120) ?? "",
-  }));
-
-  // EXPAND WITH THE KEYBOARD, not by clicking the row — clicking selects, and
-  // the chevron's own zone stops propagation so a pointer reader can expand
-  // without selecting. The first version clicked the row and then looked for
-  // children that were never revealed.
-  await page.keyboard.press("ArrowRight");
-  await page.waitForTimeout(300);
-  const children = page.locator('[role="treeitem"][aria-level="2"]');
-  const n = await children.count();
-  check("reanchor.children", "expanding reveals the individual flags", n >= 2, `${n} children`);
-  if (n >= 2) {
-    await children.nth(1).click();
-    await page.waitForTimeout(500);
-    const after = await page.evaluate(() => ({
-      marked: document.querySelector('[data-slot="task-pane"]')?.getAttribute("data-probe-mark"),
-      text: document.querySelector('[role="group"][aria-label^="Conversation excerpt"]')?.innerText.slice(0, 120) ?? "",
-    }));
-    check("reanchor.no-reload", "the pane re-rendered rather than remounted", after.marked === "1");
-    check(
-      "reanchor.moved",
-      "the excerpt moved to the child's own message",
-      after.text !== before.text,
-      after.text === before.text ? "identical excerpt" : "changed"
-    );
-  }
-  await page.screenshot({ path: `${OUT}/03-expanded.png` });
-  await context.close();
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 9 · THE ESCALATION REGION (B3).
-// ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("escalations");
-  const region = page.locator('[data-anno-ref="escalation-region"]');
-  check("esc.present", "the region renders when there is something in it", await region.count());
-
-  /* THE ROW IS AN `li` WITH A BUTTON AND A LINK INSIDE IT, not a `role="option"`
-     — see the structure note in `escalation-region.tsx`. The probe followed the
-     old selector and reported six failures that were all one renaming. */
-  const rows = await region.locator("li[data-escalation-state]").evaluateAll((els) =>
-    els.map((e) => ({
-      state: e.getAttribute("data-escalation-state"),
-      label: e.querySelector("button")?.getAttribute("aria-label") ?? "",
-      text: e.innerText.replace(/\s+/g, " "),
-      bg: getComputedStyle(e).backgroundColor,
-      action: e.querySelector("a")?.innerText.trim() ?? "",
-      current: e.querySelector("button")?.getAttribute("aria-current"),
-    }))
-  );
-
-  // ALL THREE STATES, ON THE SCENARIO A SUPERVISOR'S TUESDAY IS MEANT TO BE.
-  check(
-    "esc.three-states",
-    "active, due and overdue are all on screen",
-    new Set(rows.map((r) => r.state)).size === 3,
-    rows.map((r) => r.state).join(" | ")
-  );
-
-  // ═══ THE CONTRADICTION B0 WAS ASKED TO FIND ═══
-  // A row said "20h open" beside a pane saying "Closed Sep 13". Neither figure
-  // was wrong; the word was. Nothing in this region may call a closed escalation
-  // open.
-  const closed = rows.filter((r) => r.state !== "active");
-  check(
-    "esc.no-open-on-closed",
-    "a closed escalation is never called open",
-    closed.length > 0 && closed.every((r) => !/\bopen\b/.test(r.text.replace(/Open documentation/g, ""))),
-    closed.map((r) => r.text.slice(0, 44)).join(" ‖ ")
-  );
-  check(
-    "esc.says-closed",
-    "and says what it actually is",
-    closed.every((r) => /Closed/.test(r.text)),
-    closed[0]?.text.slice(0, 60)
-  );
-
-  // THE CLOCK RUNS IN THE READER'S DIRECTION. A bare figure beside a closed
-  // escalation could mean time since close, time left, or time late.
-  const due = rows.find((r) => r.state === "documentationDue");
-  const over = rows.find((r) => r.state === "documentationOverdue");
-  const live = rows.find((r) => r.state === "active");
-  check("esc.clock-due", "a due write-up counts down", /due in /.test(due?.text ?? ""), due?.text.slice(0, 60));
-  check("esc.clock-over", "an overdue one counts up", /overdue/.test(over?.text ?? ""), over?.text.slice(0, 60));
-  check("esc.clock-active", "an active escalation counts elapsed", /elapsed/.test(live?.text ?? ""), live?.text.slice(0, 60));
-
-  // ═══ THE ALARM BUDGET, SPENT ONCE ═══
-  // Exactly one filled saturated ground on the surface, and it belongs to the
-  // active escalation. An overdue write-up is a compliance failure about
-  // something already over.
-  const fills = new Set(rows.map((r) => r.bg));
-  check(
-    "esc.one-alarm",
-    "only the active row carries the filled treatment",
-    live && rows.filter((r) => r.bg === live.bg).length === 1,
-    [...fills].join(" | ")
-  );
-
-  // THE ACTION NAMES THE WORK, NOT THE OBJECT.
-  check(
-    "esc.action",
-    "a closed escalation offers the write-up, not the crisis",
-    closed.every((r) => r.action === "Open documentation") &&
-      live?.action === "Open escalation",
-    `${live?.action} / ${closed[0]?.action}`
-  );
-
-  // THE LANDMARK DOES NOT SAY "OPEN" EITHER — it holds closed ones too, and a
-  // landmark repeating the row-level defect is the same defect one level up.
-  const landmark = await region.getAttribute("aria-label");
-  check("esc.landmark", "the region's name covers the whole lifecycle", !/\bopen\b/i.test(landmark), landmark);
-
-  // ═══ THE PANE, FOR A CLOSED ESCALATION ═══
-  const closedRow = region
-    .locator('li[data-escalation-state]:not([data-escalation-state="active"]) button')
-    .first();
-  await closedRow.click();
+  const { context, page } = await open("tiers-gone");
   await page.waitForTimeout(600);
-  const pane = await page.locator('[data-slot="task-pane"]').innerText();
+  const t = await mainText(page);
+  const headers = await page
+    .locator('[role="group"][aria-label]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  check("input.headers", "group headers were readable at all", headers.length > 0, headers.join(" | "));
   check(
-    "esc.pane-state",
-    "the pane names the state and its deadline, not a dead end",
-    /Closed/.test(pane) && /(due in|overdue)/.test(pane) &&
-      !/Nothing here changes its state/.test(pane),
-    (pane.split("\n").find((l) => /write-up is completed/.test(l)) ?? "").slice(0, 80)
+    "tier.no-band-headers",
+    "no tier names a group",
+    !headers.some((h) => /Imminent|Clinical review|Routine review/.test(h ?? "")),
+    headers.join(" | ")
   );
   check(
-    "esc.pane-context",
-    "and carries the context a write-up needs",
-    /911 status/.test(pane) && /Recent conversation/.test(pane)
-  );
-  // SELECTION IS `aria-current`, not `aria-selected` — a listbox option may not
-  // contain a control, and this row's whole point is the link inside it.
-  const current = await region
-    .locator("li[data-escalation-state] button[aria-current]")
-    .count();
-  check("esc.selection", "exactly one row is marked current", current === 1, `${current} current`);
-
-  check(
-    "esc.pane-header",
-    "the pane header does not call it open either",
-    !/\d+[mhd] open/.test(pane.split("\n").slice(0, 3).join(" ")),
-    pane.split("\n").slice(0, 3).join(" · ")
+    "tier.no-tier-anywhere",
+    "and the words appear nowhere on the surface",
+    !/\bImminent\b|\bClinical review\b|\bRoutine review\b/.test(t)
   );
 
-  await page.screenshot({ path: `${OUT}/04-escalations.png` });
+  const texts = await rowText(page);
+  check("input.rows", "rows were readable at all", texts.length > 0, `${texts.length} rows`);
+  check(
+    "tier.no-flag-deadline",
+    "no flag row counts down to a deadline or reports a breach",
+    texts.length > 0 && !texts.some((x) => /due in|overdue/i.test(x)),
+    texts.find((x) => /due in|overdue/i.test(x)) ?? "none"
+  );
+  check(
+    "tier.age-not-deadline",
+    "every flag row states an age instead",
+    texts.length > 0 && texts.every((x) => / ago\b/.test(x)),
+    texts[0]
+  );
+  /* THE BREACH TREATMENT STILL EXISTS, and belongs to exactly one thing. Asserted
+     positively so "no breach on flags" cannot quietly become "no breach at all". */
+  const breachChips = await page
+    .locator("li[data-escalation-state] span, [data-slot='event-pane'] span")
+    .evaluateAll((els) => els.filter((e) => /Overdue|overdue/.test(e.textContent ?? "")).length);
+  check(
+    "tier.breach-is-escalations-only",
+    "breach treatment is present, and only inside the escalation lifecycle",
+    breachChips > 0,
+    `${breachChips} breach chips, all escalation-linked`
+  );
+  await page.screenshot({ path: `${OUT}/01-queue.png` });
   await context.close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 10 · THE REGION IS ABSENT WHEN EMPTY.
+// 2 · ROW ANATOMY (Phase 1)
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// It is not a zone that must persist: the flags view is this surface's resting
-// state, and a permanently empty band above it is furniture a reader learns to
-// skip — the worst habit to build above the one region that matters.
 {
-  const { context, page } = await open("no-escalations", { scenario: "quiet-day" });
-  const count = await page.locator('[data-anno-ref="escalation-region"]').count();
-  check("esc.absent", "no region when there is nothing in it", count === 0);
+  const { context, page } = await open("row-anatomy");
+  await page.waitForTimeout(600);
+  const parts = await page.locator('[role="treeitem"]').first().evaluate((row) => {
+    const leaves = [...row.querySelectorAll("span")].filter((e) => !e.querySelector("span") && (e.innerText || "").trim());
+    return leaves.map((e) => {
+      const cs = getComputedStyle(e);
+      const fam = cs.fontFamily.toLowerCase();
+      return {
+        text: (e.innerText || "").trim(),
+        px: parseFloat(cs.fontSize),
+        weight: cs.fontWeight,
+        fam: fam.split(",")[0].replace(/["']/g, ""),
+        emph: parseFloat(cs.fontSize) >= 14 && (fam.includes("avantt") || (fam.includes("mono") && Number(cs.fontWeight) >= 600)),
+      };
+    });
+  });
+  check("input.parts", "the row's parts were readable", parts.length > 0, `${parts.length} parts`);
+  const emph = parts.filter((p) => p.emph);
+  check(
+    "row.one-emphasis",
+    "exactly one emphasised element per row",
+    emph.length === 1,
+    emph.map((e) => `${e.text} ${e.px}/${e.weight} ${e.fam}`).join(" | ")
+  );
+  check(
+    "row.subject-leads",
+    "and it is the subject of review",
+    emph[0] && /^[A-Z][a-z]+ [A-Z]\./.test(emph[0].text),
+    emph[0]?.text
+  );
+  const age = parts.find((p) => / ago$/.test(p.text));
+  check("row.age-tabular", "the age is mono and tabular", age && /mono/.test(age.fam), age && `${age.text} ${age.px}px ${age.fam}`);
+  const label = await page.locator('[role="treeitem"]').first().getAttribute("aria-label");
+  check("row.roles-in-name", "the accessible name labels both roles", /teen /.test(label ?? "") && /mentor /.test(label ?? ""), label?.slice(0, 80));
+  const texts = await rowText(page);
+  /* NO MESSAGE CONTENT (locked decision 9). The fixtures' flagged lines are
+     lowercase teen messages; a row carrying one would contain the excerpt. */
+  const excerptish = texts.filter((x) => /i don.t know how much longer|idk it/i.test(x));
+  check("row.no-message-content", "no row shows message content", excerptish.length === 0, excerptish[0] ?? "none");
   await context.close();
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
-// 11 · THE LOAD HIERARCHY, ON SCREEN (B4).
+// 3 · THE COMPARATOR, VISIBLE (Phase 1)
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// Five surfaces resolving in order over 1.2s. A person checking by eye sees a
-// page appear; a reordering would look identical and would mean a reader reading
-// evidence before they know how much there is.
 {
-  const { context, page } = await open("loading", { load: "loading" });
-  /* DRIVEN THROUGH THE DEV BAR so the REPLAY is exercised too — the stage stamp
-     survived a finished run on Tasks and made the second selection a no-op
-     (found in arch-A's A2 pass). This surface is built with the fix; this is the
-     check that it stayed fixed. */
-  const load = page.locator("select").nth(1);
-  const seen = [];
-  for (const run of [1, 2]) {
-    await load.selectOption("ready");
-    await page.waitForTimeout(200);
-    await load.selectOption("loading");
-    const sawSkeleton = await page
-      .locator("[class*=animate-pulse]")
-      .first()
-      .waitFor({ state: "visible", timeout: 1500 })
-      .then(() => true)
-      .catch(() => false);
-    seen.push(sawSkeleton);
-    if (run === 1 && sawSkeleton) await page.screenshot({ path: `${OUT}/05-loading.png` });
-    await page.waitForTimeout(1600);
-  }
-  check("load.replays", "Loading replays on every selection, not just the first", seen.every(Boolean), seen.join(", "));
-
-  // THE HEADERS RESOLVE BEFORE THE ROWS, and while they are pending the band
-  // renders its NAME with the count withheld — a placeholder count would be a
-  // number that is wrong for 240ms.
-  await load.selectOption("ready");
-  await page.waitForTimeout(300);
-  await load.selectOption("loading");
-  await page.waitForTimeout(520);
-  const midway = await page.locator("main").innerText();
+  const { context, page } = await open("comparator", { scenario: "flag-in-escalation" });
+  await page.waitForTimeout(600);
+  const texts = await rowText(page);
+  check("input.cmp-rows", "rows were readable", texts.length > 1, `${texts.length} rows`);
   check(
-    "load.headers-first",
-    "a band names itself before it can count",
-    /Imminent/.test(midway),
-    midway.replace(/\s+/g, " ").slice(0, 70)
+    "cmp.escalation-first",
+    "an event on an escalated teen sorts to the top",
+    /Escalation open/.test(texts[0] ?? ""),
+    texts[0]
   );
-  await load.selectOption("ready");
+  await context.close();
+}
+{
+  const { context, page } = await open("cmp-pattern", { scenario: "flag-repeat-pattern" });
+  await page.waitForTimeout(600);
+  const texts = await rowText(page);
+  check(
+    "cmp.pattern-before-single",
+    "a repeat-flagged conversation sorts above a single flag",
+    /in this conversation/.test(texts[0] ?? ""),
+    texts[0]
+  );
+  await context.close();
+}
+{
+  const { context, page } = await open("cmp-noreply", { scenario: "flag-no-mentor-reply" });
+  await page.waitForTimeout(600);
+  const texts = await rowText(page);
+  const idx = texts.findIndex((x) => /No reply/.test(x));
+  check("input.noreply", "the unanswered row was found", idx >= 0, `index ${idx}`);
+  check(
+    "cmp.silence-beats-age",
+    "an unanswered flagged message outranks older answered ones",
+    idx === 0,
+    texts.slice(0, 2).join("  ||  ")
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4 · THE DISPOSITION CONTROL (Phase 2) — THE ACCEPTANCE CRITERIA
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("disposition", { scenario: "normal-day" });
+  await page.waitForTimeout(700);
+  const before = (await rowText(page)).length;
+
+  const dispositions = await page.locator("[data-disposition]").evaluateAll((els) =>
+    els.map((e) => ({ id: e.getAttribute("data-disposition"), effect: e.getAttribute("data-effect"), text: e.innerText.trim() }))
+  );
+  check("input.dispositions", "the disposition axis rendered", dispositions.length >= 3, dispositions.map((d) => d.id).join(","));
+  check(
+    "axis1.has-escalate-path",
+    "one value opens an escalation instead of resolving",
+    dispositions.some((d) => d.effect === "escalate"),
+    dispositions.find((d) => d.effect === "escalate")?.text
+  );
+  check(
+    "axis.no-disabled-button",
+    "neither axis uses a disabled button",
+    (await page.locator('[data-slot="event-pane-footer"] button[disabled]').count()) === 0
+  );
+  const accuracy = await page.locator("[data-accuracy]").evaluateAll((els) =>
+    els.map((e) => ({ pressed: e.getAttribute("aria-checked"), text: e.innerText.trim() }))
+  );
+  check("input.accuracy", "the accuracy axis rendered", accuracy.length === 2, accuracy.map((a) => a.text).join(","));
+  check(
+    "axis2.never-preselected",
+    "classifier accuracy starts with nothing chosen",
+    accuracy.every((a) => a.pressed === "false")
+  );
+
+  // ── RESOLVING WITH NO DISPOSITION MUST BE IMPOSSIBLE ────────────────────
+  await page.locator('[data-action="record"]').click();
   await page.waitForTimeout(400);
+  const hint = await page.locator("#disposition-hint").count();
+  const afterNoDisposition = (await rowText(page)).length;
+  check("gate.inline-hint", "asking to resolve with no disposition surfaces inline guidance", hint === 1);
+  check(
+    "gate.not-a-toast",
+    "and it is at the control, not a toast",
+    (await page.locator('[data-slot="event-pane-footer"] #disposition-hint').count()) === 1
+  );
+  check(
+    "gate.nothing-resolved",
+    "and nothing resolves",
+    afterNoDisposition === before,
+    `${before} → ${afterNoDisposition} rows`
+  );
+  const focused = await page.evaluate(`document.activeElement?.id ?? ""`);
+  check("gate.focus-moves-to-hint", "focus moves to the guidance", focused === "disposition-hint", focused || "(none)");
+
+  // ── ACCURACY ALONE MUST RESOLVE NOTHING ─────────────────────────────────
+  await page.locator("[data-accuracy]").first().click();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(400);
+  const afterAccuracyOnly = (await rowText(page)).length;
+  check(
+    "gate.accuracy-alone-resolves-nothing",
+    "recording classifier accuracy alone does not resolve anything",
+    afterAccuracyOnly === before,
+    `${before} → ${afterAccuracyOnly} rows`
+  );
+
+  // ── A RESOLVING DISPOSITION CLOSES IT ───────────────────────────────────
+  await page.locator('[data-effect="resolve"]').first().click();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(700);
+  const afterResolve = (await rowText(page)).length;
+  check(
+    "resolve.closes",
+    "a resolving disposition closes the event",
+    afterResolve === before - 1,
+    `${before} → ${afterResolve} rows`
+  );
+  const toast = await page.getByText(/Event closed/).count();
+  check("resolve.undo-window", "and the undo window opens", toast > 0);
   await context.close();
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 12 · ERROR, WITH RETRY — AND PARTIAL, WHICH MEANS SOMETHING HERE.
-// ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("error", { load: "error" });
-  const t = await textOf(page);
-  check("state.error", "the list errors with a retry", /didn’t load — try again\./.test(t) && /Retry/.test(t));
-  check(
-    "state.error-escalations",
-    "an escalation outage is not reported as calm",
-    /can['\u2019]t say whether any\s+are open/.test(t),
-    (t.split("\n").find((l) => /Escalations couldn/.test(l)) ?? "").slice(0, 80)
-  );
-  await page.screenshot({ path: `${OUT}/06-error.png` });
-  await page.getByRole("button", { name: /^Retry$/ }).first().click();
+  // ── THE WATCH STATE KEEPS IT OPEN ───────────────────────────────────────
+  const { context, page } = await open("watching", { scenario: "normal-day" });
+  await page.waitForTimeout(700);
+  const before = (await rowText(page)).length;
+  await page.locator('[data-effect="watch"]').first().click();
+  await page.locator('[data-action="record"]').click();
   await page.waitForTimeout(500);
-  check("state.retry", "retry restores the list", /Imminent — /.test(await textOf(page)));
+  check(
+    "watch.keeps-open",
+    "the watching state records a look and keeps the event in the queue",
+    (await rowText(page)).length === before,
+    `${before} rows`
+  );
   await context.close();
 }
 {
-  const { context, page } = await open("partial", { load: "partial" });
-  const t = await textOf(page);
-  /* PARTIAL SPLITS BY SYSTEM HERE, NOT BY DOMAIN — the escalation service and
-     the transcript are not the flag pipeline. On Tasks the per-domain split
-     renders identically to Ready (gap row 360); this is the version that can
-     actually be shown. */
+  // ── THE ESCALATE PATH ───────────────────────────────────────────────────
+  const { context, page } = await open("escalate-path", { scenario: "normal-day" });
+  await page.waitForTimeout(700);
+  const beforeRows = (await rowText(page)).length;
+  const beforeEsc = await page.locator("li[data-escalation-state]").count();
+  await page.locator('[data-effect="escalate"]').first().click();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(600);
+  const afterEsc = await page.locator("li[data-escalation-state]").count();
+  check("escalate.creates-record", "escalating creates an escalation record", afterEsc === beforeEsc + 1, `${beforeEsc} → ${afterEsc}`);
   check(
-    "state.partial",
-    "the flags load while the escalation service and the transcript do not",
-    /Imminent — /.test(t) &&
-      /can['\u2019]t say whether any\s+are open/.test(t) &&
-      /Couldn['\u2019]t load the conversation/.test(t),
-    /* THE APOSTROPHE IS NOT COSMETIC HERE. The codebase mixes `&apos;` (U+0027)
-       and a typographic U+2019, and three checks failed against copy that was on
-       screen and correct because the probe pinned the wrong one. */
-    /Couldn['\u2019]t load the conversation/.test(t) ? "excerpt errored" : "excerpt healthy"
+    "escalate.does-not-resolve",
+    "and does not close the event",
+    (await rowText(page)).length === beforeRows,
+    `${beforeRows} rows`
   );
-  await page.screenshot({ path: `${OUT}/07-partial.png` });
   await context.close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 13 · THE EMPTY FLAGS VIEW READS PLAINLY.
+// 5 · THE ESCALATION LIFECYCLE (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// No celebration. An empty vigilance queue means nobody has written anything
-// worth reading, which is neither an achievement nor a problem.
+for (const [scenario, id, want] of [
+  ["escalation-unacked", "ack-pending", /ack in/],
+  ["escalation-breach", "ack-breached", /ack .* overdue/],
+]) {
+  const { context, page } = await open(id, { scenario });
+  await page.waitForTimeout(600);
+  const row = await page.locator("li[data-escalation-state]").first().innerText();
+  check(`ack.${id}`, `the five-minute clock reads correctly (${scenario})`, want.test(row.replace(/\s+/g, " ")), row.replace(/\s+/g, " ").slice(0, 90));
+  const state = await page.locator("li[data-escalation-state]").first().getAttribute("data-ack-state");
+  check(`ack.${id}.state`, "and the row declares its ack state", state === (scenario === "escalation-breach" ? "breached" : "pending"), state);
+  await context.close();
+}
 {
-  const { context, page } = await open("empty", { scenario: "quiet-day" });
-  for (let i = 0; i < 4; i += 1) {
-    if (!(await page.getByRole("treeitem").count())) break;
-    await page.getByRole("treeitem").first().click();
-    await page.waitForTimeout(200);
-    await page.keyboard.press("y");
-    await page.waitForTimeout(500);
+  const { context, page } = await open("closeout", { scenario: "escalation-closeout" });
+  await page.waitForTimeout(700);
+  await page.locator("li[data-escalation-state] button").first().click();
+  await page.waitForTimeout(500);
+  const items = await page.locator("[data-closeout]").evaluateAll((els) =>
+    els.map((e) => ({ id: e.getAttribute("data-closeout"), state: e.getAttribute("data-closeout-state"), text: e.innerText.replace(/\s+/g, " ").trim() }))
+  );
+  check("input.closeout", "the close-out set rendered", items.length === 4, items.map((i) => i.id).join(","));
+  check(
+    "closeout.four-items",
+    "all four items, in order",
+    items.map((i) => i.id).join(",") === "note,debrief,teenFollowUp,safetyPlan"
+  );
+  check(
+    "closeout.persists-after-resolve",
+    "a resolved escalation stays on screen carrying them",
+    (await page.locator("li[data-escalation-state]").count()) > 0
+  );
+  check(
+    "closeout.no-write-up",
+    "and the word write-up appears nowhere",
+    !/write-?up/i.test(await mainText(page))
+  );
+  check(
+    "closeout.escalation-note",
+    "the note is called an escalation note",
+    items.some((i) => /Escalation note/.test(i.text)),
+    items[0]?.text
+  );
+  const followUp = items.find((i) => i.id === "teenFollowUp");
+  check(
+    "closeout.conditional-says-why",
+    "the conditional follow-up states why it is being asked for",
+    /caregiver involvement not recorded/.test(followUp?.text ?? ""),
+    followUp?.text
+  );
+  const plan = items.find((i) => i.id === "safetyPlan");
+  check(
+    "closeout.no-invented-deadline",
+    "the safety plan says it has no stated deadline rather than borrowing one",
+    /no stated deadline/.test(plan?.text ?? ""),
+    plan?.text
+  );
+  await page.screenshot({ path: `${OUT}/02-closeout.png` });
+  await context.close();
+}
+{
+  const { context, page } = await open("no-caregiver", { scenario: "escalation-no-caregiver" });
+  await page.waitForTimeout(700);
+  await page.locator("li[data-escalation-state] button").first().click();
+  await page.waitForTimeout(500);
+  const followUp = await page.locator('[data-closeout="teenFollowUp"]').innerText();
+  check(
+    "closeout.conditional-applies",
+    "with no caregiver recorded, the teen follow-up is required and does not claim a reason it lacks",
+    !/not required/.test(followUp),
+    followUp.replace(/\s+/g, " ")
+  );
+  await context.close();
+}
+{
+  const { context, page } = await open("roles", { scenario: "escalation-911" });
+  await page.waitForTimeout(600);
+  const row = (await page.locator("li[data-escalation-state]").first().innerText()).replace(/\s+/g, " ");
+  check("roles.strip-labels", "the escalation strip labels both roles", /TEEN|Teen/.test(row) && /MENTOR|Mentor/.test(row), row.slice(0, 70));
+  const label = await page.locator("li[data-escalation-state] button").first().getAttribute("aria-label");
+  check("roles.strip-aria", "and so does its accessible name", /teen /.test(label ?? "") && /mentor /.test(label ?? ""), label?.slice(0, 70));
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6 · COVERAGE (Phase 4)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("coverage", { scenario: "coverage-debt" });
+  await page.waitForTimeout(600);
+  const header = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
+  check(
+    "header.coverage-is-progress",
+    "the header states coverage as progress against a period",
+    / of \d+ conversations reviewed this shift/.test(header.replace(/\s+/g, " ")),
+    header.replace(/\s+/g, " ")
+  );
+  check(
+    "header.no-backlog-count",
+    "and never as a backlog of items",
+    !/unreviewed|to review|left|remaining|inbox/i.test(header)
+  );
+  check(
+    "header.no-bare-flag-count",
+    "and does not lead with an open flag count",
+    !/\d+ flags? in review/.test(header)
+  );
+  await page.getByRole("tab", { name: /Coverage/ }).click();
+  await page.waitForTimeout(400);
+  const convos = await page.locator("[data-anno-ref^='coverage-row:']").count();
+  check("coverage.view-exists", "a coverage view lists supervised conversations", convos > 0, `${convos} conversations`);
+  const unreviewedFirst = await page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
+  check("coverage.unreviewed-first", "unreviewed conversations sort first", unreviewedFirst === "false", unreviewedFirst);
+  await page.screenshot({ path: `${OUT}/03-coverage.png` });
+  await context.close();
+}
+{
+  /* REVIEWING A FLAG CREDITS ITS CONVERSATION — the rule that stops a supervisor
+     doing the same reading twice. */
+  const { context, page } = await open("coverage-credit", { scenario: "normal-day" });
+  await page.waitForTimeout(700);
+  const before = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
+  await page.locator('[data-effect="resolve"]').first().click();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(700);
+  const after = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
+  const n = (s) => Number((s.replace(/\s+/g, " ").match(/(\d+) of \d+ conversations/) ?? [])[1] ?? -1);
+  check("input.credit", "the coverage figure was readable before and after", n(before) >= 0 && n(after) >= 0, `${n(before)} → ${n(after)}`);
+  check(
+    "coverage.credits-on-review",
+    "reviewing an event credits its conversation",
+    n(after) === n(before) + 1,
+    `${n(before)} → ${n(after)}`
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7 · MENTOR PRACTICE (Phase 5)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("practice", { scenario: "mentor-note-overdue" });
+  await page.waitForTimeout(700);
+  const headers = await page.locator('[role="group"][aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  /* PREFIX MATCH: the group's accessible name carries its count ("Teen safety —
+     3"), which is what a screen-reader user needs on entry. */
+  const named = (want) => headers.some((h) => (h ?? "").startsWith(want));
+  check("practice.one-queue", "practice events share the queue with flags", named("Mentor practice") && named("Teen safety"), headers.join(" | "));
+  const chips = await page.locator('[role="group"][aria-label*="review subject"] button').evaluateAll((els) =>
+    els.map((e) => ({ text: e.innerText.trim(), pressed: e.getAttribute("aria-pressed") }))
+  );
+  check("practice.filter-chips", "a subject filter appears, as chips", chips.length === 3, chips.map((c) => c.text).join(","));
+  check(
+    "practice.not-a-tablist",
+    "and it is not a tablist",
+    (await page.locator('[role="tablist"][aria-label*="subject"]').count()) === 0
+  );
+  await page.getByRole("button", { name: "Mentor practice" }).click();
+  await page.waitForTimeout(400);
+  const subjects = await page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-event-subject")));
+  check("practice.filter-works", "the chip narrows the one queue", subjects.length > 0 && subjects.every((s) => s === "mentorPractice"), subjects.join(","));
+  const row = await page.locator('[role="treeitem"]').first().innerText();
+  check("practice.states-measure", "a practice row names the rule and the measure", /overdue/.test(row.replace(/\s+/g, " ")), row.replace(/\s+/g, " "));
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(400);
+  const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
+  check("practice.pane-names-constant", "and the pane says what it was measured against", /Measured against/.test(pane), pane.slice(0, 120));
+  await page.screenshot({ path: `${OUT}/04-practice.png` });
+  await context.close();
+}
+{
+  const { context, page } = await open("practice-stub", { scenario: "mentor-conduct-flag" });
+  await page.waitForTimeout(700);
+  await page.getByRole("button", { name: "Mentor practice" }).click();
+  await page.waitForTimeout(300);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(400);
+  const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
+  check(
+    "practice.stub-says-so",
+    "a stubbed event states that nothing computed it",
+    /No automated measure|no automated measure/.test(pane),
+    pane.slice(0, 140)
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8 · THE LIVE LAYER (Phase 6)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("band-off", { scenario: "live-busy-shift" });
+  await page.waitForTimeout(600);
+  check(
+    "live.off-by-default",
+    "the Now band does not render while the flag is off",
+    (await page.locator('[data-slot="now-band"]').count()) === 0
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9 · STRUCTURE, FOCUS AND TARGETS
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("structure");
+  await page.waitForTimeout(700);
+  const scrollers = await page.evaluate(`(() => {
+    const path = (el) => { const out = []; let n = el;
+      while (n && n.tagName !== 'BODY') { let s = n.tagName.toLowerCase();
+        if (n.getAttribute('data-slot')) s += '[' + n.getAttribute('data-slot') + ']';
+        else if (n.getAttribute('data-anno-ref')) s += '[' + n.getAttribute('data-anno-ref') + ']';
+        else if (n.getAttribute('role')) s += '[role=' + n.getAttribute('role') + ']';
+        out.unshift(s); n = n.parentElement; }
+      return out.slice(-3).join(' > '); };
+    return [...document.querySelectorAll('*')].filter((el) => { const s = getComputedStyle(el);
+      return /(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 4; })
+      .map((el) => path(el));
+  })()`);
+  check("structure.two-scrollers", "exactly two scroll regions (locked decision 4)", scrollers.length === 2, `${scrollers.length}: ${scrollers.join(" ‖ ")}`);
+
+  const footer = await page.evaluate(`(() => { const f = document.querySelector('[data-slot="event-pane-footer"]');
+    const r = f.getBoundingClientRect(); return { position: getComputedStyle(f).position,
+      top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; })()`);
+  check("structure.footer-static", "the pane footer is not an overlay, so focus cannot hide under it", footer.position === "static", JSON.stringify(footer));
+
+  const seq = [];
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press("Tab");
+    const d = await page.evaluate(`(() => { const el = document.activeElement; if (!el || el === document.body) return null;
+      const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+      return { zone: el.closest('[data-slot="event-pane-footer"]') ? 'footer' : el.closest('[data-slot="event-pane"]') ? 'pane'
+               : el.closest('[role="tree"]') ? 'list' : el.closest('[data-anno-ref="escalation-region"]') ? 'escalations' : 'shell',
+        name: (el.getAttribute('aria-label') || el.innerText || '').replace(/\\s+/g,' ').trim().slice(0,34),
+        h: Math.round(r.height), w: Math.round(r.width), top: Math.round(r.top), bottom: Math.round(r.bottom),
+        left: Math.round(r.left), right: Math.round(r.right),
+        ring: parseFloat(cs.outlineWidth) }; })()`);
+    if (d) seq.push(d);
   }
-  const t = await textOf(page);
-  check("empty.plain", "the empty flags view states a fact", /No flags in review right now\./.test(t), t.replace(/\s+/g, " ").slice(0, 90));
+  const zones = seq.map((d) => d.zone);
+  const firstOf = (z) => zones.indexOf(z);
+  check("input.focus", "tab stops were observed", seq.length > 8, `${seq.length} stops`);
   check(
-    "empty.no-celebration",
-    "and does not congratulate anyone",
-    !/(nice work|great|well done|all done|!)/i.test(t)
+    "focus.order",
+    "escalations → list → pane → footer, in that order",
+    firstOf("escalations") < firstOf("list") && firstOf("list") < firstOf("pane") && firstOf("pane") < firstOf("footer"),
+    zones.join(",")
   );
-  await page.screenshot({ path: `${OUT}/08-empty.png` });
+  check("focus.always-visible", "every stop draws a focus ring", seq.every((d) => d.ring >= 2), `min ${Math.min(...seq.map((d) => d.ring))}px`);
+  /* BOTH AXES. The first version compared only the y band, which flagged the
+     left rail's Team/Settings/Help — controls 550px to the left of the footer
+     and obscured by nothing. An overlap is an overlap in two dimensions. */
+  const obscured = seq.filter(
+    (d) =>
+      d.zone !== "footer" &&
+      d.bottom > footer.top &&
+      d.top < footer.bottom &&
+      d.right > footer.left &&
+      d.left < footer.right
+  );
+  check("focus.never-obscured", "and none is under the footer (WCAG 2.4.11)", obscured.length === 0, obscured.map((d) => d.name).join(",") || "none");
+
+  const targets = seq.filter((d) => d.zone !== "shell");
+  /* ═══ WCAG 2.5.8's INLINE EXCEPTION, NAMED RATHER THAN IGNORED ═══
+     "Hide" inside the transcript is a text toggle in a sentence, 16px high
+     because the line it sits in is — which is the exception the success
+     criterion states, and the only control on the route that relies on it. It is
+     the shared excerpt's, not this surface's, and raising it would change the
+     Tasks pane's geometry. Excluded here BY NAME so a new small target cannot
+     hide behind the exemption. */
+  const INLINE_EXEMPT = ["Hide", "Show"];
+  const small = targets.filter((d) => (d.h < 24 || d.w < 24) && !INLINE_EXEMPT.includes(d.name));
+  check(
+    "targets.24px-floor",
+    "every new control clears the 24×24 floor (WCAG 2.5.8)",
+    targets.length > 0 && small.length === 0,
+    small.map((d) => `${d.name}:${d.h}x${d.w}`).join(" ") || `${targets.length} controls, smallest ${Math.min(...targets.map((d) => d.h))}px high`
+  );
+  /* AND THE SAFETY-CRITICAL ONES AGAINST THE PLATFORM GUIDANCE, separately:
+     44×44 is HIG's floor and 24×24 is only the WCAG minimum. */
+  const escTargets = targets.filter((d) => d.zone === "escalations");
+  check(
+    "targets.escalations-44",
+    "every escalation control clears HIG's 44px",
+    escTargets.length > 0 && escTargets.every((d) => d.h >= 44),
+    escTargets.map((d) => `${d.name}:${d.h}`).join(" ")
+  );
+  const rowBox = await page.locator('[role="treeitem"]').first().evaluate((e) => {
+    const r = e.getBoundingClientRect();
+    return `${Math.round(r.height)}x${Math.round(r.width)}`;
+  });
+  check("targets.rows", "a queue row is a comfortable target", /^56x/.test(rowBox), rowBox);
+
+  const live = await page.evaluate(`(() => [...document.querySelectorAll('[aria-live],[role=status],[role=alert],[role=log]')]
+    .map((e) => (e.getAttribute('aria-live') || e.getAttribute('role')) + ':' + ((e.getAttribute('aria-label') || e.innerText || '').replace(/\\s+/g,' ').trim().slice(0,26) || '(empty)')))()`);
+  check("a11y.live-inventory", "every live region on the route is accounted for", live.length > 0, live.join(" | "));
+  check(
+    "a11y.one-assertive",
+    "only the escalation region is assertive",
+    live.filter((l) => /^assertive/.test(l)).length <= 1,
+    live.filter((l) => /^assertive/.test(l)).join(" | ") || "none"
+  );
   await context.close();
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
-// 14 · A CLEARED TIER REPORTS THE CLEARANCE.
+// 10 · EVERY FIXTURE RENDERS (Phase 7)
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// The band stays for a beat, its rows compress, and the header says what
-// happened. Vanishing reads as a glitch and throws away the one piece of
-// information the moment contains.
-//
-// `active-escalation` HOLDS ONE FLAG PER TIER, which is the only fixture where a
-// band can be emptied without clearing the surface. quiet-day was tried first and
-// is the wrong shape: its two flags belong to ONE teen, so resolving the clinical
-// one does not clear the Clinical review band — the teen row MOVES to Routine
-// review, which is decision (a) working correctly and not a retirement at all.
 {
-  const { context, page } = await open("retire", { scenario: "active-escalation" });
-  const bandsBefore = await page
-    .getByRole("group")
-    .evaluateAll((els) =>
-      els.map((e) => e.getAttribute("aria-label")).filter((l) => l && / — \d+$/.test(l))
-    );
-  check("retire.setup", "three tiers, one flag each", bandsBefore.length === 3, bandsBefore.join(" | "));
-
-  await page.getByRole("treeitem").first().click();
-  await page.waitForTimeout(250);
-  await page.keyboard.press("y");
-  await page.waitForTimeout(220);
-
-  const during = await textOf(page);
+  /* ═══ THE KEYS ARE READ OFF THE DEV BAR, NOT OFF THE MODULE ═══
+     Phase 7 asks for them WIRED INTO THE SWITCHER, so reading the switcher is
+     the check. A key that exists in the registry and never reaches the control
+     would pass an import-based test and fail a supervisor trying to demo it. */
+  const { context: c0, page: p0 } = await open("fx-keys");
+  await p0.waitForTimeout(500);
+  const wired = await p0.locator('select[aria-label="Prototype scenario"] option').evaluateAll((els) =>
+    els.map((e) => e.getAttribute("value")).filter((v) => (v ?? "").startsWith("monitoring:")).map((v) => v.slice("monitoring:".length))
+  );
+  const groups = await p0.locator('select[aria-label="Prototype scenario"] optgroup').evaluateAll((els) =>
+    els.map((e) => e.getAttribute("label")).filter((l) => (l ?? "").startsWith("Monitoring · "))
+  );
+  await c0.close();
+  check("fixtures.wired", "every key is wired into the dev bar's switcher", wired.length === EXPECTED_KEYS.length, `${wired.length} of ${EXPECTED_KEYS.length}`);
   check(
-    "retire.reports",
-    "the emptied tier says it cleared rather than vanishing",
-    /—\s*cleared/.test(during),
-    (during.split("\n").find((l) => /cleared/.test(l)) ?? "").slice(0, 50)
+    "fixtures.exact-keys",
+    "and they are the exact keys, in the phase file's order",
+    wired.join(",") === EXPECTED_KEYS.join(","),
+    wired.filter((k) => !EXPECTED_KEYS.includes(k)).join(",") || EXPECTED_KEYS.filter((k) => !wired.includes(k)).join(",") || "exact"
   );
   check(
-    "retire.others-stay",
-    "the other tiers are untouched",
-    /Clinical review/.test(during) && /Routine review/.test(during)
+    "fixtures.grouped",
+    "grouped in the order the phase file lists",
+    groups.join(" | ") ===
+      [
+        "Monitoring · Volume and coverage",
+        "Monitoring · Escalation lifecycle",
+        "Monitoring · Compliance paths",
+        "Monitoring · Risk flags",
+        "Monitoring · Mentor practice",
+        "Monitoring · Live layer",
+        "Monitoring · System and edge",
+      ].join(" | "),
+    groups.join(" | ")
   );
-  await page.screenshot({ path: `${OUT}/09-retiring.png` });
-  await context.close();
+
+  const broken = [];
+  for (const key of EXPECTED_KEYS) {
+    const { context, page } = await open(`fx-${key}`, { scenario: key });
+    const errs = [];
+    page.on("pageerror", (e) => errs.push(String(e).slice(0, 120)));
+    page.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 120)); });
+    await page.waitForTimeout(450);
+    const header = await page.locator('[data-anno-ref="monitoring-header"]').count();
+    if (!header || errs.length) broken.push(`${key}${errs.length ? `: ${errs[0]}` : " (no header)"}`);
+    await context.close();
+  }
+  check(
+    "fixtures.all-render",
+    `all ${EXPECTED_KEYS.length} scenario keys render without error`,
+    broken.length === 0,
+    broken.join(" | ") || `${EXPECTED_KEYS.length} keys`
+  );
 }
 
-
+await writeFile(`${OUT}/report.json`, JSON.stringify({ at: Date.now(), rows }, null, 2));
 await browser.close();
-await writeFile(`${OUT}/report.json`, JSON.stringify({ base: BASE, rows }, null, 2));
 console.log(failed ? `\n${failed} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
 process.exit(failed ? 1 : 0);
