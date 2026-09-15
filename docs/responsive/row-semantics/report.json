@@ -8,22 +8,28 @@
       "detail": "1,1,1,1,1,1,1,1"
     },
     {
-      "id": "tasks.job-leads",
-      "label": "and it is the task name",
+      "id": "tasks.teen-leads",
+      "label": "and it is the teen, which is what varies row to row",
       "ok": true,
-      "detail": "Billing code review · 14px/400 avantt"
+      "detail": "Theo L. · 14px/400 avantt"
     },
     {
-      "id": "tasks.countdown-prominent",
-      "label": "and the countdown keeps its column at full size and primary ink",
+      "id": "tasks.job-chip",
+      "label": "the task type is present on every row, subordinate",
       "ok": true,
-      "detail": "overdue by 9h · 14px/400 ui-monospace"
+      "detail": "Billing code review · 11px/400 lausanne"
+    },
+    {
+      "id": "tasks.deadline-column",
+      "label": "the deadline keeps its mono tabular column, in secondary ink",
+      "ok": true,
+      "detail": "overdue by 9h · 13px/400 ui-monospace"
     },
     {
       "id": "tasks.no-elapsed",
       "label": "elapsed age is gone from the row",
       "ok": true,
-      "detail": "Billing code review | · | Overdue | overdue by 9h"
+      "detail": "Theo L. | Billing code review | Renewal proposed | Overdue | overdue by 9h"
     },
     {
       "id": "tasks.one-temporal",
@@ -34,13 +40,13 @@
       "id": "tasks.spans-read",
       "label": "the row's spans were readable at all",
       "ok": true,
-      "detail": "9 spans"
+      "detail": "10 spans"
     },
     {
-      "id": "tasks.subject-demoted",
-      "label": "the subject leads the caption, with its disposition, and is not the emphasis",
+      "id": "tasks.caption-disposition",
+      "label": "the caption carries the disposition, and not the name again",
       "ok": true,
-      "detail": "Theo L.·Renewal proposed · 12px/400 lausanne"
+      "detail": "Renewal proposed · 12px/400 lausanne"
     },
     {
       "id": "tasks.height",
@@ -52,7 +58,7 @@
       "id": "tasks.overdue",
       "label": "an overdue row carries the breach chip and says how late",
       "ok": true,
-      "detail": "Billing code review Riley T.·Presentation proposed Overdue overdue by 8h"
+      "detail": "Riley T. Billing code review Presentation proposed Overdue overdue by 8h"
     },
     {
       "id": "mon.rows-read",
@@ -106,7 +112,7 @@
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 200, pinned \"Due tomorrow — 5\", selected Later, Billing code review, Devon A., Presentation"
+      "detail": "scrollTop 200, pinned \"Due tomorrow — 5\", selected Later, Devon A., Billing code review, Presentation"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -136,7 +142,7 @@
       "id": "sr.tasks.group-in-name",
       "label": "every row names the group it is in",
       "ok": true,
-      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, ove"
+      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, ove"
     },
     {
       "id": "sr.tasks.same-temporal",
@@ -157,22 +163,22 @@
       "detail": "0 countdown, 4 elapsed, of 4"
     },
     {
-      "id": "e.job-first",
-      "label": "line 1 is the job, in the display face",
+      "id": "e.teen-first",
+      "label": "line 1 is the teen, in the display face (arch-F revised arch-E here)",
       "ok": true,
-      "detail": "Billing code review · 14px/400 avantt"
+      "detail": "Theo L. Billing code review · 16px/400 lausanne"
     },
     {
-      "id": "e.subject-caption",
-      "label": "line 2 carries the subject and the disposition preview",
+      "id": "e.disposition-caption",
+      "label": "line 2 carries the disposition preview, and not the name a second time",
       "ok": true,
-      "detail": "Theo L.·Renewal proposed"
+      "detail": "Renewal proposed"
     },
     {
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, overdue, overdue by 9h, 6:54 AM"
+      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 7:26 AM"
     },
     {
       "id": "e.no-avatar",
@@ -195,13 +201,13 @@
       "id": "e.buckets-present",
       "label": "the buckets that exist are labelled with counts",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
     },
     {
       "id": "e.bucket-in-name",
       "label": "and every row's accessible name starts with its bucket",
       "ok": true,
-      "detail": "Overdue, Billing code review, Theo L., Renewal propose"
+      "detail": "Overdue, Theo L., Billing code review, Renewal propose"
     },
     {
       "id": "e.monitoring-subjects",

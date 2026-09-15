@@ -11,7 +11,7 @@
       "id": "default.buckets",
       "label": "the list is grouped by deadline, in fixed order",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
     },
     {
       "id": "default.no-tabs",
@@ -68,7 +68,7 @@
       "id": "partial.billing-healthy",
       "label": "partial leaves billing fully loaded",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
     },
     {
       "id": "loading.run1",
@@ -129,7 +129,7 @@
       "id": "retire.others-stay",
       "label": "and the remaining buckets are intact",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
     },
     {
       "id": "empty.copy",

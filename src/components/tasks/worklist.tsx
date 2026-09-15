@@ -52,7 +52,7 @@ import {
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
-import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
+import { deadlineBandsFor, deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { proposalPreview } from "@/lib/record/proposal-kind";
 import {
@@ -311,9 +311,16 @@ function Row({
   const openSuffix = item.taskType === "escalationDocumentation" ? "" : " open";
   const temporal = indent
     ? childTimeLabel(item.openedAt)
-    : emphasis === "deadline"
-      ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
-      : `${elapsedLabel(ageAt, now)}${openSuffix}`;
+    : /* ═══ PER BUCKET ON A TASK-LED ROW (arch-F, F1.2) ═══
+         A task-led row sits under a bucket header that already names the day, so
+         the row states what the header cannot — the hour, the date, or how late.
+         `deadlineLabel`'s uniform "due in {n}" stays for Monitoring's imminent
+         flags, which have no bucket above them to defer to. */
+      taskLed
+      ? deadlineFactFor(item.slaDeadline, now, elapsedLabel)
+      : emphasis === "deadline"
+        ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
+        : `${elapsedLabel(ageAt, now)}${openSuffix}`;
 
   /** TODO-COPY. The full row, spoken — group, teen, mentor, differentiators,
    *  and the one temporal fact.
@@ -329,8 +336,12 @@ function Row({
     /* THE JOB FIRST ON A DEADLINE ROW, matching what the row draws. A name-first
        accessible label on a task-led row would tell a screen-reader user they
        are in a directory while a sighted reader sees a work queue. */
+    /* THE NAME FIRST ON A TASK-LED ROW NOW, matching what the row draws —
+       arch-E led with the job because the job was the emphasis. The task type
+       follows immediately, so a screen-reader user gets both in the order a
+       sighted reader's eye takes them. */
     ...(taskLed
-      ? [TASK_KIND_LABEL[item.taskType], item.teenDisplayName, disposition]
+      ? [item.teenDisplayName, TASK_KIND_LABEL[item.taskType], disposition]
       : [item.teenDisplayName, `to ${item.mentorName}`]),
     isGroup ? coalesceLabel(entry.members.length) : null,
     composition,
@@ -477,17 +488,35 @@ function Row({
             one emphasised ELEMENT per row on each axis, and the row has one of
             each.
             PERSON-FORWARD: unchanged from arch-D — the teen name in Avantt. */}
-        <span
-          className={cn(
-            "block truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
-            /* EMPHASISED WHEN LINE 1 IS THE POINT — the job on a task-led row,
-               the person on a coalesced one. A deadline-forward SUBJECT row (a
-               Monitoring imminent flag) leaves it regular, because there the
-               countdown is the emphasis. */
-            (taskLed || emphasis === "person") && "font-display"
+        {/* ═══ arch-F REVISES arch-E: EMPHASIS FOLLOWS WHAT VARIES ═══
+            arch-E made the task name the row's strongest element. With one task
+            type on the surface that string is IDENTICAL on every row — an
+            emphasis carrying no information, and a column of nineteen rows all
+            shouting the same three words. Emphasis belongs on the varying
+            content, which is the teen.
+            THE TASK NAME STAYS, as a chip: without it the row reads as a
+            directory entry, and the day a second task type lands the chip is
+            already the place that says which. Small, neutral, secondary — a
+            label, not the focal point.
+            AND THE RULE IS NOW ONE EMPHASISED ELEMENT PER ZONE, not per row:
+            identity on the left, deadline on the right. Two scan zones, one
+            focal point each. Recorded here so it is not read as drift from
+            arch-D's per-row rule — it is a refinement of it, and the thing both
+            versions forbid is two focal points competing inside one zone. */}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span
+            className={cn(
+              "truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
+              (taskLed || emphasis === "person") && "font-display"
+            )}
+          >
+            {item.teenDisplayName}
+          </span>
+          {taskLed && (
+            <span className="shrink-0 rounded-full bg-[var(--surface-s1)] px-1.5 py-px text-[11px] leading-[15px] text-[var(--text-secondary)]">
+              {TASK_KIND_LABEL[item.taskType]}
+            </span>
           )}
-        >
-          {taskLed ? TASK_KIND_LABEL[item.taskType] : item.teenDisplayName}
         </span>
         {/* ═══ LINE 2 — THE CAPTION ═══
             `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit
@@ -505,20 +534,14 @@ function Row({
             attributes who said what. */}
         <span className="block truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
           {taskLed ? (
-            <>
-              {/* TEEN NAME FIRST, and it is a judgment call rather than a
-                  derivation: identification is the more common need than
-                  batching by disposition, so the row is scannable by who before
-                  it is scannable by what kind of decision. Noted here because the
-                  other order is defensible and somebody may want it. */}
-              {item.teenDisplayName}
-              {disposition && (
-                <>
-                  <span aria-hidden className="px-1 opacity-40">·</span>
-                  {disposition}
-                </>
-              )}
-            </>
+            /* ═══ THE DISPOSITION ALONE (arch-F) ═══
+               arch-E put the teen name here with the disposition beside it. The
+               name moved up to line 1 where the emphasis went, so repeating it
+               here would spend the caption on a string already six pixels above.
+               THE MENTOR IS STILL GONE — removed in arch-E, and for the same
+               reason: they do not perform a billing review, are not accountable
+               for it, and cannot change the decision. */
+            <>{disposition ?? TASK_KIND_LABEL[item.taskType]}</>
           ) : (
             /* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
                teen row already spends its width on a count and a composition
@@ -574,11 +597,18 @@ function Row({
             A SUBJECT ROW KEEPS THE BOLD — on Monitoring's imminent flags the
             countdown is still the only emphasis, because line 1 is a name at
             regular weight there. */}
+        {/* ═══ THE RIGHT ZONE'S ONE ELEMENT (arch-F) ═══
+            Mono, tabular, SECONDARY ink. The bucket header carries the urgency —
+            "Overdue" and "Due today" are the alarm — so this fact informs rather
+            than alarms: it answers "which hour" and "how late", questions the
+            header cannot. Primary ink at 14px made it the loudest thing in the
+            row's right half and put it in competition with the breach chip
+            beside it. */}
         <span
           className={cn(
             "shrink-0 tabular-nums",
             taskLed
-              ? "text-[14px] text-[var(--text-primary)]"
+              ? "text-[13px] text-[var(--text-secondary)]"
               : emphasis === "deadline" && !indent
                 ? "text-[14px] font-bold text-[var(--text-primary)]"
                 : "text-[12px] text-[var(--text-secondary)]"

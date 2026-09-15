@@ -165,3 +165,57 @@ export function deadlineBandsFor(
      comparator's earlier keys ever reorder something. */
   return DEADLINE_BUCKETS.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
 }
+
+/** ═══ THE RIGHT-HAND FACT, PER BUCKET (arch-F, F1.2) ═══
+ *
+ *  Every row carried the same expression — `due in {n}` — and the bucket header
+ *  above it said the same thing in words, so five rows under "Due tomorrow — 5"
+ *  each read "due in 1d" and told a reader nothing the header had not.
+ *
+ *  MEASURED, AND WORSE THAN A REPETITION: `elapsedLabel` rounds 24–47h to "1d"
+ *  while `bucketOf` partitions by CALENDAR DAY, so on the shipped fixtures five
+ *  rows under "Later" also read "due in 1d". The countdown did not merely repeat
+ *  its header, it contradicted it — those rows read as due tomorrow.
+ *
+ *  So each bucket's fact carries what its header cannot:
+ *
+ *    overdue   how late, which is the actionable number once the deadline is gone
+ *    today     the clock time, because "today" is hours away and which hour matters
+ *    tomorrow  the clock time, for the same reason one day out
+ *    later     the date, because beyond tomorrow the day is the fact
+ *
+ *  ═══ THE LOCALE, AND WHY THIS PICKS ONE RATHER THAN INVENTING ONE ═══
+ *
+ *  This codebase has no single convention: `childTimeLabel` in `worklist.tsx`
+ *  hardcodes `en-US` with `hour12: true`, `conversation-excerpt.tsx` passes
+ *  `undefined` (browser locale), `use-clock.ts` derives hour12 from the browser,
+ *  and `care-pattern.ts` and `activity/sentences.ts` hardcode `en-US`. There is
+ *  no timezone handling anywhere — everything is local browser time.
+ *
+ *  This follows its NEAREST NEIGHBOUR, `childTimeLabel`, which is the other
+ *  clock on this very row: same locale, same options. Introducing a third
+ *  convention on one surface would be the worse of the two available mistakes.
+ *  The inconsistency is reported rather than resolved here. */
+export function deadlineFactFor(
+  deadline: number,
+  now: number,
+  elapsed: (from: number, to: number) => string
+): string {
+  const bucket = bucketOf(deadline, now);
+  if (bucket === "overdue") {
+    /* NEEDS-COPY-NICOLE. "by" rather than a bare duration: the number alone
+       beside a breach chip could be read as time remaining. */
+    return `overdue by ${elapsed(deadline, now)}`;
+  }
+  if (bucket === "later") {
+    /* NEEDS-COPY-NICOLE */
+    return `due ${new Date(deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  }
+  /* NEEDS-COPY-NICOLE. Today and tomorrow both read as a clock time — the bucket
+     header already says which day, so the row says which hour. */
+  return `due ${new Date(deadline).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })}`;
+}
