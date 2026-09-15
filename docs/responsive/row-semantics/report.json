@@ -100,7 +100,7 @@
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 166, pinned \"Monthly re-review — 7\", selected Intake, Devon A., to Omar Haddad, due in 2d, 11:08"
+      "detail": "scrollTop 166, pinned \"Monthly re-review — 7\", selected Intake, Devon A., to Omar Haddad, due in 2d, 12:03"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -142,7 +142,7 @@
       "id": "sr.monitoring.group-in-name",
       "label": "every row names the group it is in",
       "ok": true,
-      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 9:39 PM"
+      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 10:34 PM"
     },
     {
       "id": "sr.monitoring.same-temporal",

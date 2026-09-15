@@ -54,6 +54,7 @@ import { tasksScenario } from "@/lib/tasks/seed";
 import { tierLabel } from "@/lib/tasks/bands";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
+import { asTaskType } from "@/lib/tasks/types";
 import type { RiskFlagPayload, TaskItem } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
@@ -122,7 +123,20 @@ function PaneError() {
   );
 }
 
-export function MonitoringPage() {
+/** A selection that means "whichever is first, once there is a first". Not a
+ *  real id, and never compared against one — see `selectedEscalation`. */
+const PENDING_ESCALATION = "__first__";
+
+export function MonitoringPage({
+  /** arch-C's stage links — a tier to land on, or the escalation region.
+   *  Validated here rather than at the route, so a stale bookmark falls back to
+   *  the default view. */
+  focusBand = null,
+  focusRegion = null,
+}: {
+  focusBand?: string | null;
+  focusRegion?: string | null;
+} = {}) {
   const mounted = useMounted();
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
 
@@ -184,7 +198,7 @@ export function MonitoringPage() {
    *
    *  Selecting in either list clears the other. */
   const [selectedEscalationId, setSelectedEscalationId] = useState<string | null>(
-    null
+    () => (focusRegion === "escalations" ? PENDING_ESCALATION : null)
   );
 
   /** ═══ THE SELECTED ROW, AND THE ITEM THE PANE SHOWS — TWO IDS ═══
@@ -232,8 +246,13 @@ export function MonitoringPage() {
 
   /** WHAT THE PANE SHOWS. An escalation wins while one is selected; otherwise the
    *  flags view's pick. */
+  /** `PENDING_ESCALATION` resolves to the head once the list exists — the store
+   *  is not read until `mounted`, so a deep link cannot name an id at
+   *  construction time. */
   const selectedEscalation =
-    escalations.find((e) => e.id === selectedEscalationId) ?? null;
+    selectedEscalationId === PENDING_ESCALATION
+      ? (escalations[0] ?? null)
+      : (escalations.find((e) => e.id === selectedEscalationId) ?? null);
   const paneItem = selectedEscalation ?? selected;
 
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -410,6 +429,15 @@ export function MonitoringPage() {
           surface's resting state, and a permanently empty band above it would be
           furniture a reader learns to skip, which is the worst habit to build
           above the one region that matters. */}
+      {/* ═══ `?region=escalations` SELECTS THE FIRST ONE ═══
+          Home's escalation stage links here, and landing at the top of the page
+          with nothing chosen would leave a supervisor to pick again from a region
+          they were just sent to. The FIRST is the comparator's head — active
+          before documentation, because `TIER_RANK` says so — so the pane opens on
+          the same escalation the region lists first.
+          ONCE, on arrival: `useState`'s initialiser rather than an effect, so
+          there is no frame with the wrong selection and no reset when the reader
+          moves on. */}
       <EscalationRegion
         items={escalations}
         now={now}
@@ -455,6 +483,7 @@ export function MonitoringPage() {
                 setSelectedEscalationId(null);
                 setPaneTakeover(true);
               }}
+              focusBand={asTaskType(focusBand)}
               onRetry={() => setListOverride("ready")}
             />
           </div>

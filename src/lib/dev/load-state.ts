@@ -47,4 +47,9 @@ export const LOAD_STATE_LABEL: Record<LoadState, string> = {
 
 /** Which screens actually render these. Used by the dev bar to name the scope of
  *  the axis rather than implying it is universal — see the note above. */
-export const LOAD_STATE_SCREENS = ["Activity", "Tasks"] as const;
+export const LOAD_STATE_SCREENS = [
+  "Activity",
+  "Tasks",
+  "Monitoring",
+  "Home",
+] as const;

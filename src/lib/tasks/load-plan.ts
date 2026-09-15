@@ -158,6 +158,48 @@ export function monitoringLoadPlanFor(
   };
 }
 
+/** ═══ HOME'S THREE REGIONS, RESOLVING INDEPENDENTLY ═══
+ *
+ *  Home shows no list and hosts no work, so its load story is not a hierarchy of
+ *  one queue's parts — it is three separate readings of three separate things.
+ *  The ORDER is what a supervisor needs first: is anyone in danger, then where am
+ *  I in the shift, then what has already been done.
+ *
+ *  PER-REGION ERROR, and this is the one that matters. If the escalation read
+ *  fails, the sequence and the closures still render — a Home that blanked
+ *  entirely because one fetch failed would tell a supervisor nothing at all, and
+ *  the one region that CANNOT quietly go missing is the escalation strip:
+ *  absence there means "nobody is in danger", which is the good news this surface
+ *  must never assert from an outage. */
+export interface HomeLoadPlan {
+  escalations: SurfaceState;
+  sequence: SurfaceState;
+  closed: SurfaceState;
+}
+
+export const HOME_LOAD_STAGES = 3;
+
+export function homeLoadPlanFor(load: LoadState, stage: number): HomeLoadPlan {
+  if (load === "ready") {
+    return { escalations: "ready", sequence: "ready", closed: "ready" };
+  }
+  if (load === "error") {
+    return { escalations: "error", sequence: "error", closed: "error" };
+  }
+  if (load === "partial") {
+    /* THE SEQUENCE SURVIVES, the escalation read does not. That split is the
+       realistic one — the escalation service is not the task store — and it is
+       the only one that demonstrates the rule above: a failed escalation read
+       has to SAY so rather than render as calm. */
+    return { escalations: "error", sequence: "ready", closed: "ready" };
+  }
+  return {
+    escalations: stage >= 1 ? "ready" : "loading",
+    sequence: stage >= 2 ? "ready" : "loading",
+    closed: stage >= 3 ? "ready" : "loading",
+  };
+}
+
 export function loadPlanFor(
   load: LoadState,
   stage: number,

@@ -640,6 +640,7 @@ export function Worklist({
   domain,
   subject,
   emptyLine,
+  focusBand = null,
   headersState = "ready",
   now,
   selectedId,
@@ -671,6 +672,12 @@ export function Worklist({
   subject?: string;
   /** The empty line, when `domain` is null. */
   emptyLine?: string;
+  /** ═══ arch-C's STAGE LINK LANDS HERE ═══
+   *  A band to bring into view on arrival. Home's shift sequence gives each stage
+   *  one way in, and "the imminent tier" has to mean more than "the top of a
+   *  hundred-row list". Scrolled to ONCE per value — a reader who then scrolls
+   *  away is not dragged back, because the link expressed where to START. */
+  focusBand?: TaskType | null;
   /** ═══ THE HEADERS RESOLVE BEFORE THE ROWS (arch-B) ═══
    *  Monitoring's load hierarchy puts the band counts ahead of the rows, because
    *  "how much is there, and at which tiers" is the question a supervisor asks
@@ -810,6 +817,28 @@ export function Worklist({
     el.focus();
     setPendingFocus(null);
   }, [pendingFocus, viewport, visible]);
+
+  /** ═══ BRING THE LINKED BAND INTO VIEW, ONCE ═══
+   *
+   *  `sections` already carries every band's absolute offset, so this is the same
+   *  arithmetic `revealRow` uses rather than a `scrollIntoView` that would scroll
+   *  the pane and the page with it.
+   *
+   *  ONCE PER VALUE, tracked in a ref: an effect that re-ran on every render
+   *  would yank a reader back to the band they arrived at every time the list
+   *  re-rendered underneath them — which on this surface is every resolve. The
+   *  link says where to START, not where to stay. */
+  const focusedBand = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusBand || focusedBand.current === focusBand) return;
+    const section = sections.find((s) => s.band.id === focusBand);
+    if (!section) return;
+    focusedBand.current = focusBand;
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTop = Math.max(0, section.rowsTop - (showBands ? HEADER_H : 0));
+    setViewport((v) => ({ ...v, top: el.scrollTop }));
+  }, [focusBand, sections, showBands]);
 
   // Collapsing a group whose child is selected would strand the selection on an
   // invisible option. Reselect the group instead.
