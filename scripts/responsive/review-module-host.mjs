@@ -101,8 +101,33 @@ async function openCareReview(page) {
   // The module never displays the code ON RECORD — fine on Care, where the page
   // states it, and a regression here where nothing else would. The host supplies
   // it, with the mentorship stats, in a context strip.
-  check("tasks.on-record", "the host states the code on record", /On record/.test(t));
-  check("tasks.mentorship", "and the mentorship context", /Mentorship/.test(t) && /days/.test(t));
+  /* ═══ RETARGETED BY arch-F: THE HOST NO LONGER OWES EITHER ═══
+     The module never displayed the code on record, so this host built a context
+     strip above the review to state it — which put the code and the mentorship
+     figures ABOVE the recommendation they qualify. arch-F moved both where the
+     parity spec asks: the code is a subordinate line beneath the recommendation
+     title (in the module, opt-in so Care is untouched), the figures are a
+     collapsed Record context accordion after the review. The CLAIM is unchanged —
+     both facts are still on this pane — and is now asserted where they live. */
+  check(
+    "tasks.current-line",
+    "the code on record renders as a subordinate line under the recommendation",
+    /Current/.test(t) && /F\d\d\.\d/.test(t),
+    (t.replace(/\s+/g, " ").match(/Current · [A-Z0-9.]+ [^·]{0,32}/) ?? ["none"])[0]
+  );
+  check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
+  const accordion = page.locator('[data-slot="record-context"]');
+  check("tasks.record-context", "the mentorship figures live in a collapsed accordion", (await accordion.count()) === 1);
+  if (await accordion.count()) {
+    check(
+      "tasks.accordion-collapsed",
+      "which starts collapsed and says what it holds",
+      (await accordion.getAttribute("aria-expanded")) === "false" &&
+        /days in mentorship/.test(await accordion.innerText()),
+      (await accordion.innerText()).replace(/\s+/g, " ")
+    );
+  }
+  check("tasks.no-mentor", "and the pane no longer names the mentor", !/to [A-Z][a-z]+ [A-Z]/.test(t));
   await page.locator('[data-slot="task-pane"]').screenshot({ path: `${OUT}/tasks-pane.png` });
   await context.close();
 }
@@ -162,13 +187,16 @@ async function openCareReview(page) {
 // artifact of a pane that does not hold OS focus. A synthetic click is not an
 // input event.
 /* ═══ THE TWO HOSTS NAME THE CODE ON RECORD DIFFERENTLY ═══
-   Tasks' context strip says "On record"; Care's spine says "Primary
+   Tasks' subordinate line says "Current"; Care's spine says "Primary
    presentation". Both are the same fact, and the module is indifferent to which
    — it marks whatever code it is handed. Recorded here rather than unified,
    because unifying the two labels is a naming decision on the record page and
    nothing in arch-E touched it: one more entry for the copy pass. */
 for (const [label, url, prep, onRecordRe] of [
-  ["tasks", "/app/tasks", null, /On record\s*([A-Z]\d+\.\d+)/],
+  /* THE HOST'S WORDING CHANGED WITH THE BLOCK (arch-F): "On record F33.1"
+     became "Current · F33.1" beneath the recommendation title. The picker's own
+     marker still reads "On record" — that string is the module's. */
+  ["tasks", "/app/tasks", null, /Current[^A-Z]*([A-Z]\d+\.\d+)/],
   ["care", "/admin/person/t19?tab=care", openCareReview, /Primary presentation[\s\S]{0,40}?([A-Z]\d+\.\d+)/],
 ]) {
   const { context, page } = await open(`picker-${label}`, url);

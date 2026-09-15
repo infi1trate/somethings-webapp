@@ -98,6 +98,19 @@ export function ReviewBody({
   review,
   /** The code on record, so the body can say whether the proposal is a change. */
   currentCode = null,
+  /** ═══ THE SUBORDINATE CURRENT LINE — OPT-IN, AND THAT IS THE POINT ═══
+   *
+   *  The parity spec asks for the code on record as a quiet line beneath the
+   *  recommendation title. It has never existed: `currentCode` and
+   *  `currentStatement` reach this module only to derive the proposal kind and to
+   *  mark "On record" in the picker, which is why the Tasks host built a context
+   *  strip of its own to state it (arch-F's recon found both halves).
+   *
+   *  IT IS A PROP RATHER THAN ALWAYS-ON because Care states the code in the spine
+   *  ABOVE this card, and rendering it here too would both duplicate that and
+   *  change Care's rendered output — which the seventeen parity snapshots exist
+   *  to forbid. Tasks opts in; Care does not pass it and is byte-identical. */
+  showCurrentLine = false,
   /** The statement for `currentCode`. */
   currentStatement = null,
   /** The pending change, owned by the caller. `null` is unchanged. */
@@ -112,6 +125,7 @@ export function ReviewBody({
   review: PresentationReview;
   currentCode?: string | null;
   currentStatement?: string | null;
+  showCurrentLine?: boolean;
   decision?: ReviewDecision | null;
   onDecisionChange?: (next: ReviewDecision | null) => void;
   canAct: boolean;
@@ -401,6 +415,24 @@ export function ReviewBody({
             </button>
           )}
         </div>
+
+        {/* ═══ WHAT IS ON RECORD, SUBORDINATE TO WHAT IS PROPOSED ═══
+            Quiet, one line, directly beneath the title it qualifies — the
+            recommendation is the card's claim and this is the thing it would
+            replace. Tasks only (see `showCurrentLine`).
+            ABSENT FOR A FIRST ASSIGNMENT, and that is not an omission: there is
+            nothing on record, and a line reading "Current · none" would invent a
+            state. The proposal chip already says "Presentation proposed", which
+            is the same fact stated as the thing that matters. */}
+        {showCurrentLine && currentCode && (
+          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
+            {/* NEEDS-COPY-NICOLE */}
+            <span>Current</span>
+            <span aria-hidden className="opacity-40">·</span>
+            <span className="font-mono tabular-nums">{currentCode}</span>
+            {currentStatement && <span className="min-w-0">{currentStatement}</span>}
+          </p>
+        )}
       </div>
 
       {/* THE DELTA BAR IS GONE. It stated the change as old-struck → new with

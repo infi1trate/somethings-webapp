@@ -43,13 +43,30 @@
       "ok": true
     },
     {
-      "id": "tasks.on-record",
-      "label": "the host states the code on record",
+      "id": "tasks.current-line",
+      "label": "the code on record renders as a subordinate line under the recommendation",
+      "ok": true,
+      "detail": "Current · F33.1 Major depressive disorder, recur"
+    },
+    {
+      "id": "tasks.no-on-record-strip",
+      "label": "and the old context strip is gone",
       "ok": true
     },
     {
-      "id": "tasks.mentorship",
-      "label": "and the mentorship context",
+      "id": "tasks.record-context",
+      "label": "the mentorship figures live in a collapsed accordion",
+      "ok": true
+    },
+    {
+      "id": "tasks.accordion-collapsed",
+      "label": "which starts collapsed and says what it holds",
+      "ok": true,
+      "detail": "Record context 140 days in mentorship"
+    },
+    {
+      "id": "tasks.no-mentor",
+      "label": "and the pane no longer names the mentor",
       "ok": true
     },
     {

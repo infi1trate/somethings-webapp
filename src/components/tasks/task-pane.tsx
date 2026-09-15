@@ -23,7 +23,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ExternalLink, MessageSquare } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { ReviewBody } from "@/components/record/review-body";
@@ -36,6 +36,9 @@ import {
 } from "@/components/tasks/billing-review";
 import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
+import { chatThreadHref } from "@/lib/record/chat";
+import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
+import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
 // "Notes"; the link itself is unchanged.)
@@ -192,6 +195,81 @@ function RiskFlagBody({
    record" row in the host's context strip, which states the same two facts in
    the order a supervisor reads them. */
 
+/** ═══ THE RECORD CONTEXT ACCORDION (arch-F, F2) ═══
+ *
+ *  The mentorship figures — days, messages, video — were half of a two-cell strip
+ *  at the top of the pane, which put them above the recommendation they are
+ *  context for. They are a thing a supervisor CONSULTS when the recommendation
+ *  looks surprising, not a thing they read every time, so they are collapsed.
+ *
+ *  BUILT HERE RATHER THAN IN THE MODULE, and minimal by intent: the parity work
+ *  specifies a Record context accordion and this pane has none (arch-F's recon
+ *  confirmed the only disclosure in the module is the score strip's). This is the
+ *  Tasks-only version — one section, the figures it already had — so that when
+ *  the real one lands there is one place to replace and nothing of the old header
+ *  left behind.
+ *
+ *  A REAL <button> WITH `aria-expanded`, the whole row as the target, the caret
+ *  `aria-hidden` — the same arrangement the score strip settled on. */
+function RecordContext({ payload }: { payload: BillingPayload }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-inset)] border border-[color:var(--border-contour)]">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        data-slot="record-context"
+        className={cn(
+          "flex min-h-11 w-full items-center justify-between gap-3 px-3.5 text-left",
+          "transition-colors hover:bg-[var(--tint-hover)]",
+          RING
+        )}
+      >
+        <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
+          {/* NEEDS-COPY-NICOLE */}
+          Record context
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+          {/* THE HEADLINE FIGURE STAYS VISIBLE COLLAPSED. A disclosure whose
+              closed state says nothing is a disclosure nobody opens; the
+              mentorship length is the one figure that changes how the rest
+              reads. */}
+          <span className="tabular-nums">
+            {payload.mentorStats.daysInMentorship} days in mentorship
+          </span>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "size-4 shrink-0 transition-transform motion-reduce:transition-none",
+              open && "rotate-180"
+            )}
+          />
+        </span>
+      </button>
+      {open && (
+        <dl className="grid gap-3 border-t border-[color:var(--border-subtle)] px-3.5 py-3 sm:grid-cols-3">
+          {[
+            /* NEEDS-COPY-NICOLE, all three labels. The window is named: "62
+               messages" without "last 30 days" is a figure a reader cannot
+               size. */
+            ["In mentorship", `${payload.mentorStats.daysInMentorship} days`],
+            ["Messages, last 30 days", `${payload.mentorStats.messagesLast30}`],
+            ["Video calls, last 30 days", `${payload.mentorStats.videoLast30}`],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt className={LABEL}>{label}</dt>
+              <dd className="mt-1 text-[14px] leading-[20px] tabular-nums text-[var(--text-primary)]">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 /** ═══ THE BILLING BODY — NOW A WRAPPER AROUND THE REVIEW ═══
  *
  *  What it still owns: the generated rationale block and the two survey /
@@ -254,46 +332,7 @@ function BillingBody({
       recommended={recommended}
       onCommit={onCommit}
       handleRef={handleRef}
-      context={
-        <div className="grid gap-3 rounded-[var(--radius-inset)] border border-[color:var(--border-contour)] px-3.5 py-3 sm:grid-cols-2">
-          <div>
-            <p className={LABEL}>{/* TODO-COPY */}On record</p>
-            {payload.current ? (
-              <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                <span
-                  className="shrink-0 rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
-                >
-                  {payload.current.code}
-                </span>
-                <span className="min-w-0">{payload.current.statement}</span>
-              </p>
-            ) : (
-              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                {/* TODO-COPY. AN ABSENCE, NAMED. "—" would read as missing data
-                    where this is the actual state: nothing has been assigned, and
-                    that absence is the reason the review exists. */}
-                Nothing assigned yet
-              </p>
-            )}
-          </div>
-          <div>
-            <p className={LABEL}>{/* TODO-COPY */}Mentorship</p>
-            <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-              <span className="tabular-nums">
-                {payload.mentorStats.daysInMentorship} days
-              </span>
-              <span aria-hidden className="px-1.5 opacity-40">·</span>
-              <span className="tabular-nums">
-                {payload.mentorStats.messagesLast30} messages
-              </span>
-              <span aria-hidden className="px-1.5 opacity-40">·</span>
-              <span className="tabular-nums">
-                {payload.mentorStats.videoLast30} video
-              </span>
-            </p>
-          </div>
-        </div>
-      }
+      recordContext={<RecordContext payload={payload} />}
     >
       {/* `canAct` AND `interactive` ARE BOTH TRUE, unconditionally. Care passes
           its card's `expanded` for `interactive` because its review lives inside
@@ -304,6 +343,12 @@ function BillingBody({
         review={billingReviewFor(item, payload)}
         currentCode={payload.current?.code ?? null}
         currentStatement={payload.current?.statement ?? null}
+        /* ═══ THE HOST OPTS IN (arch-F) ═══
+           The code on record now renders as a quiet line beneath the
+           recommendation title, where the parity spec always wanted it. Care does
+           not pass this: its spine states the code above the card, and the
+           seventeen parity snapshots forbid changing what that page draws. */
+        showCurrentLine
         decision={decision}
         onDecisionChange={onDecisionChange}
         canAct
@@ -650,51 +695,109 @@ export function TaskPane({
       data-anno-ref="task-pane"
       className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
-      {/* ── HEADER — pinned inside the pane. ─────────────────────────────── */}
+      {/* ── HEADER — pinned inside the pane (arch-F rebuilt it) ─────────── */}
+      {/* ═══ WHAT THE OLD HEADER SAID, AND WHY EACH PART MOVED ═══
+          It was: the teen's name, an age, a breach chip, and "to {mentor}".
+          · THE MENTOR IS GONE. The same leftover the rows dropped in arch-E: the
+            mentor does not perform a billing review, is not accountable for it,
+            and cannot change its outcome — the code derives from survey data.
+            This was its last display on the surface (the transcript still uses
+            the field for its sender names).
+          · THE TASK TYPE ARRIVED, above the heading, small — the pane's
+            equivalent of the Care attention band's identifying chip, and the
+            answer to "what am I being asked to do" before "about whom".
+          · THE META LINE now carries the age AND the due fact in the same
+            expression the row used, so a supervisor who selected a row reading
+            "due 6:24 PM" sees the same words in the pane rather than a second
+            spelling of the same instant.
+          · THE TWO WAYS OUT live here. See the note on the CTAs. */}
       <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <h2 className="font-display text-[18px] font-bold leading-[26px] text-[var(--text-primary)]">
-            {item.teenDisplayName}
-          </h2>
-          {/* ═══ THE SAME "open" DEFECT LIVED HERE TOO (arch-B) ═══
-              The header printed "{elapsed} open" for every item, so a
-              documentation row's header said "20h open" directly above a body
-              whose first field read "Closed". See `escalation-state.ts` for which
-              field is authoritative; the short version is that both figures were
-              right and the word was wrong.
-              DROPPING THE WORD WAS NOT ENOUGH, and the first fix here did only
-              that: a bare "1d" over a closed escalation is worse than a wrong
-              label, because it could mean a day since it closed, a day left, or a
-              day late. Escalations take the same `clockLabel` the region and the
-              body use, so all three say one thing. */}
-          <span
-            className="text-[13px] tabular-nums text-[var(--text-muted)]"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            {isEscalationTask(item)
-              ? clockLabel(item, now)
-              : `${elapsedLabel(item.openedAt, now)} open`}
-          </span>
-          {breached && <BreachChip label={`Past ${slaLabelFor(item.taskType)}`} />}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <p className={LABEL}>
+              {/* NEEDS-COPY-NICOLE */}
+              {TASK_KIND_LABEL[item.taskType]}
+            </p>
+            <h2 className="mt-0.5 font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]">
+              {item.teenDisplayName}
+            </h2>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+              <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+                {isEscalationTask(item)
+                  ? clockLabel(item, now)
+                  : `${elapsedLabel(item.openedAt, now)} open`}
+              </span>
+              {!isEscalationTask(item) && (
+                <>
+                  <span aria-hidden className="opacity-40">·</span>
+                  <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+                    {deadlineFactFor(item.slaDeadline, now, elapsedLabel)}
+                  </span>
+                </>
+              )}
+              {/* ═══ THE CHIP IS THE ALARM; THE FACT BESIDE IT IS THE DETAIL ═══
+                  It read `Past 3d` — the SLA's LENGTH — directly beside "overdue
+                  by 9h", so the header carried two numbers about one lateness
+                  that did not agree and neither of which was wrong. The chip now
+                  says only that it is late, in the same word the row's chip uses,
+                  and the mono fact says by how much. Still text plus icon, never
+                  colour alone. */}
+              {breached && <BreachChip label="Overdue" />}
+            </p>
+          </div>
+
+          {/* ═══ THE TWO WAYS OUT, AND WHY THEY ARE HERE AND NOT ON THE ROWS ═══
+              At 19–100 rows, two or three controls per row puts 40–300 targets in
+              a column whose only job is scanning — Hick's Law, and every one of
+              them a chance to leave the queue by accident. Navigation away from
+              triage is a deliberate, occasional act; selecting a row fills this
+              pane instantly, so the pane header IS the row's control surface.
+              TERTIARY, DELIBERATELY: text buttons with icons, no fill, no border.
+              They must not compete with the recommendation title below them or
+              with the footer's Submit, which is the one primary on the pane. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
+            <Link
+              href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
+              className={cn(
+                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+              {/* NEEDS-COPY-NICOLE */}
+              View care profile
+            </Link>
+            {/* ═══ THE CONVERSATION OPENS AT THE TOP, AND THAT IS A GAP ═══
+                `conversationHref` builds `?msg=` and nothing reads it:
+                `/app/chat` redirects through `chatThreadHref`, which takes a
+                person id only. So the anchor is dropped today — logged as a gap
+                row rather than papered over with a link that pretends to anchor.
+                FOR A BILLING REVIEW THERE IS NO ANCHOR ANYWAY: nothing here was
+                flagged, so there is no relevant message to land on, and the top
+                of the thread is the honest destination even once `?msg=` works. */}
+            <Link
+              href={chatThreadHref(item.teenId)}
+              className={cn(
+                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              <MessageSquare className="size-3.5 shrink-0" aria-hidden />
+              {/* NEEDS-COPY-NICOLE */}
+              View conversation
+            </Link>
+          </div>
         </div>
-        {/* ═══ THE DOMAIN LEAVES THE SUBTITLE (Part 5) ═══
-            It read "to Maria Lopez · Risk flags · Red flag". The middle segment
-            is the name of the SELECTED TAB, sitting four inches below the tab
-            itself — a reader cannot be looking at this pane without having chosen
-            that tab, so it answers a question nobody has. What is left is the two
-            facts the header did not already carry: who the mentor is, and which
-            tier this flag is (which is header-only by §5, and now unobstructed). */}
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-          {/* TODO-COPY */}
-          <span>to {item.mentorName}</span>
-          {/* THE TIER, HEADER ONLY (§5). */}
-          {p.kind === "riskFlag" && (
-            <>
-              <span aria-hidden className="opacity-40">·</span>
-              <span>{tierLabel(p.tier)}</span>
-            </>
-          )}
-        </p>
+        {/* THE TIER, HEADER ONLY (§5) — risk flags do not reach this surface
+            today, and the line is derived rather than deleted so it cannot come
+            back wrong with the row type. */}
+        {p.kind === "riskFlag" && (
+          <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {tierLabel(p.tier)}
+          </p>
+        )}
       </div>
 
       {/* ── BODY, scrolls independently ─────────────────────────────────── */}

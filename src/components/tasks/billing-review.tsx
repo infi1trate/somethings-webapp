@@ -160,7 +160,7 @@ export function BillingReview({
   recommended,
   onCommit,
   handleRef,
-  context,
+  recordContext,
   children,
 }: {
   item: TaskItem;
@@ -168,10 +168,15 @@ export function BillingReview({
   recommended: { code: string; statement: string };
   onCommit: (detail: BillingCommitDetail) => void;
   handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
-  /** THE HOST'S CONTEXT STRIP — the code on record and the mentorship stats.
-   *  Neither belongs to the shared review module: on the Care page the page
-   *  supplies them, and this pane has no page. See the note at `BillingBody`. */
-  context: React.ReactNode;
+  /** ═══ THE RECORD CONTEXT, AND IT MOVED BELOW THE REVIEW (arch-F) ═══
+   *  This was a two-cell strip ABOVE the review holding the code on record and
+   *  the mentorship figures. The code went where the parity spec always wanted
+   *  it — a subordinate line under the recommendation title, inside the module —
+   *  and the figures went into a collapsed accordion, which is what this slot
+   *  now carries. Below the review, because it is context a supervisor consults
+   *  rather than reads: above it, it was the first thing on the pane and the
+   *  recommendation was the second. */
+  recordContext: React.ReactNode;
   /** THE SHARED REVIEW MODULE. Passed in rather than rendered here so this
    *  component owns exactly one thing — the documentation gate and its commit —
    *  and the review stays the caller's to compose. */
@@ -338,18 +343,24 @@ export function BillingReview({
   return (
     <div data-slot="billing-review" className="space-y-4">
       {/* ═══ THE SPINE'S ORDER ═══
-          Context → review → documentation. A supervisor reads what is on record
-          and what the mentorship looks like, then the review itself — which
-          carries its own order, recommendation → rationale → evidence, settled on
-          the Care page — and then writes their own account of it. The thing they
+          Review → context → documentation (arch-F reordered the first two). The
+          review carries its own order — recommendation → rationale → evidence,
+          settled on the Care page — and the code on record is now a subordinate
+          line inside it rather than a strip above it. What is left of the old
+          context strip is the mentorship figures, which are a thing to consult
+          rather than to read, so they sit after the claim in a collapsed
+          accordion and before the documentation the supervisor has to write. The thing they
           have to produce is last, where a decision belongs.
           THE ORDER USED TO BE "rationale → diff → documentation" and the middle
           term is gone with `PresentationDiff`: the shared module states the
           recommendation and the proposal kind itself, and the code on record
           moved up into the context strip where the rest of the context is. */}
-      {context}
-
       {children}
+
+      {/* CONTEXT AFTER THE CLAIM, BEFORE THE DOCUMENTATION. A supervisor reads
+          the recommendation, consults the mentorship figures if they want them,
+          then writes. */}
+      {recordContext}
 
       {/* ═══ ALWAYS VISIBLE, NEVER BEHIND A DISCLOSURE (A5) ═══
           A form the supervisor has to open is a form that reads as optional, and
