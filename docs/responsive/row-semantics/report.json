@@ -8,16 +8,22 @@
       "detail": "1,1,1,1,1,1,1,1"
     },
     {
-      "id": "tasks.deadline-leads",
-      "label": "and it is the countdown",
+      "id": "tasks.job-leads",
+      "label": "and it is the task name",
       "ok": true,
-      "detail": "due in 15h · 14px/700 ui-monospace"
+      "detail": "Billing code review · 14px/400 avantt"
+    },
+    {
+      "id": "tasks.countdown-prominent",
+      "label": "and the countdown keeps its column at full size and primary ink",
+      "ok": true,
+      "detail": "overdue by 9h · 14px/400 ui-monospace"
     },
     {
       "id": "tasks.no-elapsed",
       "label": "elapsed age is gone from the row",
       "ok": true,
-      "detail": "S | Sofia G. | to Victoria Ellery | due in 15h"
+      "detail": "Billing code review | · | Overdue | overdue by 9h"
     },
     {
       "id": "tasks.one-temporal",
@@ -25,10 +31,16 @@
       "ok": true
     },
     {
-      "id": "tasks.name-demoted",
-      "label": "the name is present and not the emphasis",
+      "id": "tasks.spans-read",
+      "label": "the row's spans were readable at all",
       "ok": true,
-      "detail": "Sofia G. · 14px/400 lausanne"
+      "detail": "9 spans"
+    },
+    {
+      "id": "tasks.subject-demoted",
+      "label": "the subject leads the caption, with its disposition, and is not the emphasis",
+      "ok": true,
+      "detail": "Theo L.·Renewal proposed · 12px/400 lausanne"
     },
     {
       "id": "tasks.height",
@@ -40,7 +52,7 @@
       "id": "tasks.overdue",
       "label": "an overdue row carries the breach chip and says how late",
       "ok": true,
-      "detail": "R Riley T. to Brandon Forant Overdue overdue by 8h"
+      "detail": "Billing code review Riley T.·Presentation proposed Overdue overdue by 8h"
     },
     {
       "id": "mon.imminent-deadline",
@@ -88,19 +100,19 @@
       "id": "hdr.tasks.own-hairline",
       "label": "every header draws its own separator rather than borrowing the card's",
       "ok": true,
-      "detail": "1px, 1px"
+      "detail": "1px, 1px, 1px"
     },
     {
       "id": "hdr.tasks.anatomy",
       "label": "label — count, sentence case, not mono",
       "ok": true,
-      "detail": "Monthly re-review — 7 | Intake — 9"
+      "detail": "Due today — 2 | Due tomorrow — 6 | Later — 8"
     },
     {
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 166, pinned \"Monthly re-review — 7\", selected Intake, Devon A., to Omar Haddad, due in 2d, 12:03"
+      "detail": "scrollTop 200, pinned \"Due tomorrow — 6\", selected Later, Billing code review, Devon A., Presentation"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -130,25 +142,88 @@
       "id": "sr.tasks.group-in-name",
       "label": "every row names the group it is in",
       "ok": true,
-      "detail": "Monthly re-review, Sofia G., to Victoria Ellery, due in 15h,"
+      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, ove"
     },
     {
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "15 countdown, 0 elapsed, of 15"
+      "detail": "18 countdown, 0 elapsed, of 18"
     },
     {
       "id": "sr.monitoring.group-in-name",
       "label": "every row names the group it is in",
       "ok": true,
-      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 10:34 PM"
+      "detail": "Imminent, Nia P., to Brandon Forant, due in 3h, 3:25 PM"
     },
     {
       "id": "sr.monitoring.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
       "detail": "20 countdown, 3 elapsed, of 23"
+    },
+    {
+      "id": "e.job-first",
+      "label": "line 1 is the job, in the display face",
+      "ok": true,
+      "detail": "Billing code review · 14px/400 avantt"
+    },
+    {
+      "id": "e.subject-caption",
+      "label": "line 2 carries the subject and the disposition preview",
+      "ok": true,
+      "detail": "Theo L.·Renewal proposed"
+    },
+    {
+      "id": "e.no-mentor",
+      "label": "no Tasks row names a mentor, in text or in its accessible name",
+      "ok": true,
+      "detail": "Overdue, Billing code review, Theo L., Renewal proposed, overdue, overdue by 9h, 2:32 AM"
+    },
+    {
+      "id": "e.no-avatar",
+      "label": "the identity disc is replaced by a task-type icon",
+      "ok": true
+    },
+    {
+      "id": "e.height",
+      "label": "row height",
+      "ok": true,
+      "detail": "56px"
+    },
+    {
+      "id": "e.buckets-monotonic",
+      "label": "buckets appear in fixed order and never repeat",
+      "ok": true,
+      "detail": "Overdue > Due today > Due tomorrow > Later"
+    },
+    {
+      "id": "e.buckets-present",
+      "label": "the buckets that exist are labelled with counts",
+      "ok": true,
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
+    },
+    {
+      "id": "e.bucket-in-name",
+      "label": "and every row's accessible name starts with its bucket",
+      "ok": true,
+      "detail": "Overdue, Billing code review, Theo L., Renewal propose"
+    },
+    {
+      "id": "e.monitoring-tiers",
+      "label": "Monitoring still groups by tier, not by deadline",
+      "ok": true,
+      "detail": "Imminent — 23 | Clinical review — 38 | Routine review — 8"
+    },
+    {
+      "id": "e.monitoring-mentor",
+      "label": "and still names the mentor, where it is load-bearing",
+      "ok": true
+    },
+    {
+      "id": "e.monitoring-avatar",
+      "label": "and still carries the identity disc",
+      "ok": true
     }
   ]
 }

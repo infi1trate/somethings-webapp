@@ -64,9 +64,16 @@
       "ok": true
     },
     {
+      "id": "picker.tasks.host-states-code",
+      "label": "the host states a code to look for",
+      "ok": true,
+      "detail": "F33.1"
+    },
+    {
       "id": "picker.tasks.on-record",
-      "label": "the code on record is marked in the list",
-      "ok": true
+      "label": "and the module marks that code in the list",
+      "ok": false,
+      "detail": "F33.1 · 0 marked"
     },
     {
       "id": "picker.tasks.closes",
@@ -95,9 +102,16 @@
       "ok": true
     },
     {
+      "id": "picker.care.host-states-code",
+      "label": "the host states a code to look for",
+      "ok": true,
+      "detail": "F33.0"
+    },
+    {
       "id": "picker.care.on-record",
-      "label": "the code on record is marked in the list",
-      "ok": true
+      "label": "and the module marks that code in the list",
+      "ok": false,
+      "detail": "F33.0 · 0 marked"
     },
     {
       "id": "picker.care.closes",

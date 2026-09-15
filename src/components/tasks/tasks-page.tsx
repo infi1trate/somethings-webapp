@@ -677,6 +677,7 @@ export function TasksPage({
                  deadline awareness. Monitoring keeps its tier bands: there the
                  tier IS the kind of work, and its rows are person-forward. */
                 grouping="deadline"
+                rowVariant="task"
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))

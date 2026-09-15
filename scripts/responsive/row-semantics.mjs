@@ -106,11 +106,28 @@ const rowReport = `(row) => {
     emph.every((e) => e.length === 1),
     emph.map((e) => e.length).join(",")
   );
+  /* ═══ SUPERSEDED BY arch-E: THE EMPHASIS MOVED FROM THE CLOCK TO THE JOB ═══
+     This asserted the emphasised element was the countdown. arch-D was right for
+     the row it had — a name and a clock, where the clock is the only actionable
+     half. arch-E leads with the JOB, so the emphasis is the task name and the
+     countdown keeps the column it always had: 14px, primary ink, mono and
+     tabular, right-aligned. A column of figures is scannable without winning the
+     weight channel from the thing that names the row. */
   check(
-    "tasks.deadline-leads",
-    "and it is the countdown",
-    emph.every((e) => /^(due in|overdue by) /.test(e[0]?.text ?? "")),
+    "tasks.job-leads",
+    "and it is the task name",
+    emph.every((e) => e[0]?.text === "Billing code review" && /avantt/.test(e[0].fam)),
     emph[0]?.[0] && `${emph[0][0].text} · ${emph[0][0].px}px/${emph[0][0].weight} ${emph[0][0].fam}`
+  );
+  /* THE COUNTDOWN IS STILL THERE AND STILL THE SCANNABLE COLUMN — asserted
+     separately, so "the emphasis moved" cannot quietly become "the countdown
+     went quiet". */
+  const clocks = data.map((r) => r.parts.find((p) => /^(due in|overdue by) /.test(p.text)));
+  check(
+    "tasks.countdown-prominent",
+    "and the countdown keeps its column at full size and primary ink",
+    clocks.every((c) => c && c.px >= 14 && /mono/.test(c.fam)),
+    clocks[0] && `${clocks[0].text} · ${clocks[0].px}px/${clocks[0].weight} ${clocks[0].fam}`
   );
   check(
     "tasks.no-elapsed",
@@ -123,12 +140,25 @@ const rowReport = `(row) => {
     "one temporal fact per row",
     data.every((r) => r.parts.filter((p) => /(due in|overdue by|\d+[mhd] open)/.test(p.text)).length === 1)
   );
-  const name = data[0]?.parts.find((p) => /^[A-Z][a-z]+ [A-Z]\.$/.test(p.text));
+  /* WAS a standalone-leaf match on the teen name. arch-E puts the subject on
+     line 2 beside its disposition — "Theo L. · Renewal proposed" — so the name is
+     no longer its own leaf. The claim survives retargeted: the subject is present
+     for identification and is not what the eye lands on. */
+  /* NOT read off `parts`: the caption span now WRAPS a separator span, so the
+     leaf filter in `rowReport` (leaves only) skips it and reports the bare "·".
+     This reads every span on the row and lets Node do the matching — a regex in
+     the page string would pass through a template literal, where `\.` silently
+     loses its backslash. */
+  const spans = await page.evaluate(
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => { const describe = ${EMPHASIS_FN}; return [...row.querySelectorAll("span")].map(describe); })`
+  );
+  check("tasks.spans-read", "the row's spans were readable at all", (spans[0]?.length ?? 0) > 0, `${spans[0]?.length ?? 0} spans`);
+  const caption = spans[0]?.find((p) => /^[A-Z][a-z]+ [A-Z]\./.test(p.text));
   check(
-    "tasks.name-demoted",
-    "the name is present and not the emphasis",
-    name && !name.emphasised,
-    name && `${name.text} · ${name.px}px/${name.weight} ${name.fam}`
+    "tasks.subject-demoted",
+    "the subject leads the caption, with its disposition, and is not the emphasis",
+    caption && !caption.emphasised && caption.px < 14 && /proposed/.test(caption.text),
+    caption && `${caption.text.replace(/\s+/g, " ")} · ${caption.px}px/${caption.weight} ${caption.fam}`
   );
   check("tasks.height", "row height", true, `${data[0]?.height}px`);
   await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-rows.png` });
@@ -331,6 +361,137 @@ for (const [url, name] of [["/app/tasks", "tasks"], ["/app/monitoring", "monitor
   );
   await context.close();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6 · TASKS IS TASK-LED AND GROUPED BY DEADLINE (arch-E).
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// arch-D made the countdown the scannable fact. arch-E goes further: the row
+// leads with the JOB, carries the subject as context, and the list groups by when
+// work is due rather than what kind it is. What is asserted here is the part a
+// screenshot cannot show — that deadline order survives end to end, and that the
+// mentor is gone from Tasks while still present on Monitoring.
+{
+  const { context, page } = await open("task-led", "/app/tasks");
+
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="treeitem"]')].map((r) => {
+      const nb = r.querySelector("span.min-w-0");
+      const cs = (el) => {
+        if (!el) return null;
+        const s = getComputedStyle(el);
+        return {
+          text: (el.innerText || "").replace(/\s+/g, " ").trim(),
+          px: parseFloat(s.fontSize),
+          weight: s.fontWeight,
+          fam: s.fontFamily.split(",")[0].replace(/["']/g, ""),
+        };
+      };
+      const leaves = [...r.querySelectorAll("span")].filter(
+        (e) => !e.querySelector("span") && (e.innerText || "").trim()
+      );
+      return {
+        label: r.getAttribute("aria-label") ?? "",
+        band: r.closest('[role="group"]')?.getAttribute("aria-label") ?? "",
+        height: Math.round(r.getBoundingClientRect().height),
+        line1: cs(nb?.children?.[0]),
+        line2: cs(nb?.children?.[1]),
+        right: cs(leaves.at(-1)),
+      };
+    })
+  );
+
+  check(
+    "e.job-first",
+    "line 1 is the job, in the display face",
+    rows.every((r) => r.line1?.text === "Billing code review" && /avantt/.test(r.line1.fam)),
+    rows[0]?.line1 && `${rows[0].line1.text} · ${rows[0].line1.px}px/${rows[0].line1.weight} ${rows[0].line1.fam}`
+  );
+  check(
+    "e.subject-caption",
+    "line 2 carries the subject and the disposition preview",
+    rows.every((r) => /^[A-Z][a-z]+ [A-Z]\./.test(r.line2?.text ?? "")) &&
+      rows.some((r) => /proposed/.test(r.line2?.text ?? "")),
+    rows[0]?.line2?.text
+  );
+  /* ═══ THE MENTOR IS GONE FROM TASKS ═══
+     Inherited from the flag row, where it earns its place. On a billing code
+     review the mentor does not perform the task, is not accountable for it, and
+     cannot change the decision — the code derives from survey data. */
+  check(
+    "e.no-mentor",
+    "no Tasks row names a mentor, in text or in its accessible name",
+    rows.every((r) => !/\bto [A-Z]/.test(r.line2?.text ?? "") && !/, to /.test(r.label)),
+    rows[0]?.label
+  );
+  check(
+    "e.no-avatar",
+    "the identity disc is replaced by a task-type icon",
+    await page.evaluate(
+      () =>
+        document.querySelectorAll('[role="treeitem"] span[aria-hidden][style*="background"]').length === 0 &&
+        document.querySelectorAll('[role="treeitem"] svg').length > 0
+    )
+  );
+  check("e.height", "row height", true, `${rows[0]?.height}px`);
+
+  /* ═══ DEADLINE ORDER, END TO END ═══
+     The failure arch-E fixes: type buckets cut a correctly sorted list into runs,
+     so the page restarted its countdown at every header. Read as one sequence,
+     the buckets must be non-decreasing. */
+  const buckets = rows.map((r) => r.band.split(" — ")[0]);
+  const fixed = ["Overdue", "Due today", "Due tomorrow", "Later"];
+  const asIndex = buckets.map((b) => fixed.indexOf(b));
+  check(
+    "e.buckets-monotonic",
+    "buckets appear in fixed order and never repeat",
+    asIndex.every((v, i) => i === 0 || v >= asIndex[i - 1]) && !asIndex.includes(-1),
+    [...new Set(buckets)].join(" > ")
+  );
+  const seen = [...new Set(await page.evaluate(() =>
+    [...document.querySelectorAll('[role="group"]')]
+      .map((g) => g.getAttribute("aria-label"))
+      .filter((l) => l && / — \d+$/.test(l))
+  ))];
+  check("e.buckets-present", "the buckets that exist are labelled with counts", seen.length > 0, seen.join(" | "));
+  check(
+    "e.bucket-in-name",
+    "and every row's accessible name starts with its bucket",
+    rows.every((r) => r.label.startsWith(r.band.split(" — ")[0])),
+    rows[0]?.label.slice(0, 54)
+  );
+
+  await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-task-led.png` });
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7 · MONITORING KEEPS WHAT arch-E DID NOT TOUCH.
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("mon-intact", "/app/monitoring");
+  const bands = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="group"]')]
+      .map((g) => g.getAttribute("aria-label"))
+      .filter((l) => l && / — \d+$/.test(l))
+  );
+  check(
+    "e.monitoring-tiers",
+    "Monitoring still groups by tier, not by deadline",
+    bands.some((b) => /^Imminent/.test(b)) && !bands.some((b) => /^(Overdue|Due |Later)/.test(b)),
+    bands.join(" | ")
+  );
+  const mentor = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="treeitem"]')].some((r) => /, to /.test(r.getAttribute("aria-label") ?? ""))
+  );
+  check("e.monitoring-mentor", "and still names the mentor, where it is load-bearing", mentor);
+  const disc = await page.evaluate(
+    () => document.querySelectorAll('[role="treeitem"] span[aria-hidden][style*="background"]').length > 0
+  );
+  check("e.monitoring-avatar", "and still carries the identity disc", disc);
+  await context.close();
+}
+
 
 await browser.close();
 await writeFile(`${OUT}/report.json`, JSON.stringify({ base: BASE, rows }, null, 2));

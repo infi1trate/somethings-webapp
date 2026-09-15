@@ -53,6 +53,8 @@ import {
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
+import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
+import { proposalPreview } from "@/lib/record/proposal-kind";
 import {
   deadlineLabel,
   rowEmphasisFor,
@@ -198,6 +200,7 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
 
 function Row({
   entry,
+  variant,
   group,
   now,
   selected,
@@ -210,6 +213,10 @@ function Row({
   registerRef,
 }: {
   entry: ListEntry;
+  /** See `rowVariant` on the list. A CHILD is always `subject`: inside an
+   *  expanded group every member shares the teen and the tier, so job-first would
+   *  print the same label down a run of rows. */
+  variant: "subject" | "task";
   /** The band this row sits under — for the accessible name only. See the call
    *  site for why it is not drawn. */
   group: string;
@@ -228,6 +235,28 @@ function Row({
   const isTeenGroup = isGroup && entry.groupBy === "teen";
   const disc = discFor(item.teenId);
   const mentorFirstName = item.mentorName.split(" ")[0];
+  const KindIcon = TASK_KIND_ICON[item.taskType];
+  /** JOB-FIRST ANATOMY. A child row is never task-led — see `variant`. */
+  const taskLed = variant === "task" && !indent;
+  /** ═══ THE DISPOSITION PREVIEW — THE WEIGHT OF THE DECISION, BEFORE IT OPENS ═══
+   *
+   *  "Change proposed → F33.1" against "Renewal proposed": a renewal is a
+   *  twenty-second confirm and a proposed change needs thought, and a supervisor
+   *  can plan a queue around that if the row says so.
+   *
+   *  DERIVED FROM THE LIST DATA, which already carries both halves —
+   *  `payload.current` and `payload.recommended` are on the item, not only in the
+   *  pane. And derived through the SHARED function the pane uses, so a row cannot
+   *  label a review differently from the pane it opens. That function was
+   *  extracted for this; before arch-E the comparison lived inline inside
+   *  `ReviewBody` and was reachable nowhere else.
+   *
+   *  BILLING ONLY. Flags have no proposal and escalations have no code; a
+   *  preview on those would be a blank segment after a separator. */
+  const disposition =
+    item.payload.kind === "billing"
+      ? proposalPreview(item.payload.current?.code ?? null, item.payload.recommended.code)
+      : null;
   /** TODO-COPY. "3 clinical · 2 routine" — the tiers a teen row stands for, in
    *  the band order, and only the tiers actually present. Null on a flag row and
    *  on a conversation group, where every member is the same tier by
@@ -297,8 +326,12 @@ function Row({
    *  which just said it. */
   const ariaLabel = [
     indent ? null : group,
-    item.teenDisplayName,
-    `to ${item.mentorName}`,
+    /* THE JOB FIRST ON A DEADLINE ROW, matching what the row draws. A name-first
+       accessible label on a task-led row would tell a screen-reader user they
+       are in a directory while a sighted reader sees a work queue. */
+    ...(taskLed
+      ? [TASK_KIND_LABEL[item.taskType], item.teenDisplayName, disposition]
+      : [item.teenDisplayName, `to ${item.mentorName}`]),
     isGroup ? coalesceLabel(entry.members.length) : null,
     composition,
     overdue ? "overdue" : null,
@@ -395,56 +428,105 @@ function Row({
         !indent && <span aria-hidden className="w-5 shrink-0" />
       )}
 
-      {/* ═══ THE IDENTITY DISC ═══
-          HUE MEANS WHO, AND NEVER WHAT — not the tier, not breach, not the flag
-          count. See `lib/tasks/avatar.ts` for the full argument; the short form
-          is that this row already carries every state in words ("Overdue", "2
-          flags", the composition line, the band header), and a second colour
-          language competing with those would leave a reader fluent in neither.
-          `aria-hidden`: the initial is a shortening of the name printed beside
-          it, so a screen reader would otherwise hear the letter twice. */}
-      <span
-        aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
-        style={{ backgroundColor: disc.bg, color: disc.fg }}
-      >
-        {item.teenDisplayName.charAt(0)}
-      </span>
+      {/* ═══ WHAT SITS AT THE HEAD OF THE ROW — PERSON OR JOB (arch-E) ═══
+          PERSON-FORWARD (Monitoring's coalesced rows): the identity disc. HUE
+          MEANS WHO, AND NEVER WHAT — not the tier, not breach, not the flag
+          count. See `lib/tasks/avatar.ts`; the short form is that the row already
+          carries every state in words and a second colour language would leave a
+          reader fluent in neither.
+          DEADLINE-FORWARD (Tasks): the TASK-TYPE ICON in a neutral well. The disc
+          is gone from these rows and that is a real loss, taken deliberately — a
+          supervisor works this queue in deadline order rather than hunting for a
+          named teen, and person-first lookup belongs on Mentees. It also makes
+          the two surfaces visibly different species, which is correct: Tasks'
+          unit is the review, Monitoring's is the person.
+          THE WELL IS NEUTRAL, NOT PER-TYPE. A hue per task type would compete
+          with breach, which is the one thing colour is spent on here — and with
+          one task type on the surface today it would be a colour that never
+          varies. The icon plus the label beside it carry the type (SC 1.4.1).
+          `aria-hidden` on both: the initial shortens a name printed beside it,
+          and the icon duplicates the task name printed beside it. */}
+      {taskLed ? (
+        <span
+          aria-hidden
+          className="flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--surface-s1)] text-[var(--text-secondary)]"
+        >
+          <KindIcon className="size-3.5" />
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
+          style={{ backgroundColor: disc.bg, color: disc.fg }}
+        >
+          {item.teenDisplayName.charAt(0)}
+        </span>
+      )}
 
       <span className="min-w-0 flex-1">
-        {/* ═══ THE NAME'S WEIGHT FOLLOWS THE UNIT OF WORK (arch-D) ═══
-            PERSON-FORWARD: `font-display` — Avantt, which ships Bold only, so it
-            is the one real weight step available on this surface. MEASURED:
-            Lausanne renders identically at 400/500/600/700, so every
-            `font-semibold` that used to sit on these rows was a declaration with
-            no rendering behind it. Face, size and colour are the channels that
-            exist; weight is not one of them.
-            DEADLINE-FORWARD: regular Lausanne. The name stays for
-            identification — first name + last initial, locked decision 11 — and
-            stops being the thing the eye lands on, because on a completion queue
-            the person is the review's SUBJECT and not its unit. */}
+        {/* ═══ LINE 1 — THE JOB, OR THE PERSON ═══
+            DEADLINE-FORWARD: the task name, at the row's strongest available
+            weight. `font-display` is Avantt, which ships Bold only, so it is the
+            one real weight step here — MEASURED: Lausanne renders identically at
+            400/500/600/700, so every `font-semibold` that used to sit on these
+            rows was a declaration with no rendering behind it.
+            THE COUNTDOWN IS ALSO EMPHASISED, and that is not two emphases: it is
+            mono at 700 (a real +41% ink) against Avantt, two different FACES
+            neither of which competes for the other's channel, and they are the
+            two halves of one sentence — what is owed, and when. arch-D's rule is
+            one emphasised ELEMENT per row on each axis, and the row has one of
+            each.
+            PERSON-FORWARD: unchanged from arch-D — the teen name in Avantt. */}
         <span
           className={cn(
             "block truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
-            emphasis === "person" && "font-display"
+            /* EMPHASISED WHEN LINE 1 IS THE POINT — the job on a task-led row,
+               the person on a coalesced one. A deadline-forward SUBJECT row (a
+               Monitoring imminent flag) leaves it regular, because there the
+               countdown is the emphasis. */
+            (taskLed || emphasis === "person") && "font-display"
           )}
         >
-          {item.teenDisplayName}
+          {taskLed ? TASK_KIND_LABEL[item.taskType] : item.teenDisplayName}
         </span>
-        {/* `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit on
-            `--surface-s2` (#e5e0d2), the shell canvas, and muted ink measures
-            4.01:1 there — under the 4.5 floor for 12px text. This is the exact
-            surface flagged when `--muted-foreground` was aliased in gap row 276:
-            the alias cleared card (5.30) and s1 (4.82) and could not clear s2.
-            `--text-secondary` (#58534b) is 5.78:1 on s2 and is the design
-            system's own next step, so nothing is invented. */}
+        {/* ═══ LINE 2 — THE CAPTION ═══
+            `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit
+            on `--surface-s2` (#e5e0d2), the shell canvas, and muted ink measures
+            4.01:1 there — under the 4.5 floor for 12px text. `--text-secondary`
+            (#58534b) is 5.78:1 on s2 and is the design system's own next step.
+
+            ═══ THE MENTOR IS GONE FROM TASKS ROWS (arch-E) ═══
+            It was inherited from the flag row, where it earns its place because
+            supervisors coach mentors and a flag reflects on the mentorship. On a
+            billing code review the mentor does not perform the task, is not
+            accountable for it, and cannot change the decision — the code derives
+            from survey data. It remains on Monitoring's rows, where it is
+            load-bearing, and on the pane header and the transcript, where it
+            attributes who said what. */}
         <span className="block truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
-          {/* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
-              teen row already spends its width on a count and a composition
-              line, and the mentor is context rather than the subject — the full
-              name is what pushes that line to truncate first. Flag rows keep it:
-              there the mentor line is the row's only secondary fact. */}
-          to {isTeenGroup ? mentorFirstName : item.mentorName}
+          {taskLed ? (
+            <>
+              {/* TEEN NAME FIRST, and it is a judgment call rather than a
+                  derivation: identification is the more common need than
+                  batching by disposition, so the row is scannable by who before
+                  it is scannable by what kind of decision. Noted here because the
+                  other order is defensible and somebody may want it. */}
+              {item.teenDisplayName}
+              {disposition && (
+                <>
+                  <span aria-hidden className="px-1 opacity-40">·</span>
+                  {disposition}
+                </>
+              )}
+            </>
+          ) : (
+            /* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
+               teen row already spends its width on a count and a composition
+               line, and the mentor is context rather than the subject — the full
+               name is what pushes that line to truncate first. Flag rows keep
+               it: there the mentor line is the row's only secondary fact. */
+            <>to {isTeenGroup ? mentorFirstName : item.mentorName}</>
+          )}
         </span>
       </span>
 
@@ -479,12 +561,27 @@ function Row({
             surface answers. PERSON-FORWARD keeps age quiet — on a coalesced
             picture there is no single deadline to count to, because the members'
             SLAs differ by tier. */}
+        {/* ═══ ONE EMPHASISED ELEMENT, AND arch-E MOVED WHICH ONE ═══
+            arch-D gave the countdown mono-bold because it was the row's only
+            emphasis and Lausanne has no weight axis. arch-E puts the JOB on line
+            1 at the display face, so a bold countdown would be a second
+            emphasis — measured, the probe counted two on every row.
+            IT STAYS PROMINENT WITHOUT THE WEIGHT: 14px, `--text-primary`, mono
+            and tabular, right-aligned in a column of figures. A column IS
+            scannable without being bold, which is what "deadline as the
+            scannable fact" actually asked for; what it does not need is to win
+            the weight channel from the thing that names the row.
+            A SUBJECT ROW KEEPS THE BOLD — on Monitoring's imminent flags the
+            countdown is still the only emphasis, because line 1 is a name at
+            regular weight there. */}
         <span
           className={cn(
             "shrink-0 tabular-nums",
-            emphasis === "deadline" && !indent
-              ? "text-[14px] font-bold text-[var(--text-primary)]"
-              : "text-[12px] text-[var(--text-secondary)]"
+            taskLed
+              ? "text-[14px] text-[var(--text-primary)]"
+              : emphasis === "deadline" && !indent
+                ? "text-[14px] font-bold text-[var(--text-primary)]"
+                : "text-[12px] text-[var(--text-secondary)]"
           )}
           style={{ fontFamily: "var(--font-mono)" }}
         >
@@ -643,6 +740,7 @@ export function Worklist({
   emptyLine,
   focusBand = null,
   grouping = "tier",
+  rowVariant = "subject",
   headersState = "ready",
   now,
   selectedId,
@@ -690,6 +788,21 @@ export function Worklist({
    *  identical either way, and forking the list to change what a header says
    *  would have been two virtualizers to keep in step. */
   grouping?: "tier" | "deadline";
+  /** ═══ THE ROW'S ANATOMY — TWO AXES, NOT ONE (arch-E) ═══
+   *
+   *  `"subject"` is arch-D's row: identity disc, name on line 1, `to {mentor}`
+   *  beneath. `"task"` is arch-E's: a task-type icon, the JOB on line 1, and the
+   *  subject plus its disposition beneath.
+   *
+   *  SEPARATE FROM `emphasis`, AND CONFLATING THEM WAS A BUG. A first pass keyed
+   *  the anatomy on `emphasis === "deadline"`, which is also true of Monitoring's
+   *  IMMINENT rows — so those lost their mentor and their identity disc, on the
+   *  one surface where both are load-bearing. The probe caught it.
+   *  They are genuinely two questions: WHICH element is emphasised (arch-D,
+   *  derived from the obligation) and WHAT the row is made of (arch-E, a property
+   *  of the surface). Monitoring's imminent rows want deadline emphasis AND
+   *  subject anatomy, which only two axes can express. */
+  rowVariant?: "subject" | "task";
   /** ═══ arch-C's STAGE LINK LANDS HERE ═══
    *  A band to bring into view on arrival. Home's shift sequence gives each stage
    *  one way in, and "the imminent tier" has to mean more than "the top of a
@@ -1102,6 +1215,7 @@ export function Worklist({
               <Row
                 key={v.id}
                 entry={v.entry}
+                variant={rowVariant}
                 /* ═══ THE ROW SAYS WHICH GROUP IT IS IN, BECAUSE IT NO LONGER
                        SHOWS IT (arch-D, D1) ═══
                    The task type and the tier came off the rows deliberately —
