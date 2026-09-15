@@ -21,7 +21,7 @@
 // pane" in §5's words — is the only filled button on the surface. It uses
 // PillButton; every other control here is a RecordButton.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ChevronDown, ExternalLink, MessageSquare } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
@@ -57,7 +57,6 @@ import {
   type TaskItem,
 } from "@/lib/tasks/types";
 import { tierLabel } from "@/lib/tasks/bands";
-import { slaLabelFor } from "@/lib/tasks/sla";
 import {
   LIFECYCLE_LABEL,
   closedAtOf,
@@ -286,6 +285,8 @@ function BillingBody({
   onDecisionChange,
   onCommit,
   handleRef,
+  onGapsChange,
+  onBlocked,
 }: {
   payload: BillingPayload;
   item: TaskItem;
@@ -294,6 +295,8 @@ function BillingBody({
   onDecisionChange: (next: ReviewDecision | null) => void;
   onCommit: (detail: BillingCommitDetail) => void;
   handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
+  onGapsChange: (gaps: number) => void;
+  onBlocked: () => void;
 }) {
   /** ═══ THE SHARED REVIEW MODULE, FINALLY HOSTED HERE ═══
    *
@@ -333,6 +336,8 @@ function BillingBody({
       onCommit={onCommit}
       handleRef={handleRef}
       recordContext={<RecordContext payload={payload} />}
+      onGapsChange={onGapsChange}
+      onBlocked={onBlocked}
     >
       {/* `canAct` AND `interactive` ARE BOTH TRUE, unconditionally. Care passes
           its card's `expanded` for `interactive` because its review lives inside
@@ -532,6 +537,28 @@ export function TaskPane({
    *  would be worse than none. `retryNonce` forces the excerpt to remount, which
    *  re-runs the anchor scroll and clears the error the caller set. */
   const [retryNonce, setRetryNonce] = useState(0);
+  /** ═══ THE GATE'S COUNT, FOR THE FOOTER (arch-F, F3) ═══
+   *  Published by `BillingReview`, whose gate owns the definition of "empty".
+   *  Held here because the footer is the pane's, and stated there because a
+   *  supervisor should know the commit is blocked before pressing the button
+   *  rather than after. */
+  const [gaps, setGaps] = useState(0);
+  /** Set by a blocked submit, cleared by the next keystroke that changes the
+   *  count. The difference between the two sentences is real: the count is a
+   *  standing fact, this is what just happened. */
+  const [blocked, setBlocked] = useState(false);
+  /** ═══ STABLE, AND THAT WAS A BUG ═══
+   *  These were inline arrows. `BillingReview` publishes the count from an effect
+   *  keyed on `[gaps.length, onGapsChange]`, so a new function identity every
+   *  render re-ran the effect every render — which called `setBlocked(false)`
+   *  immediately after a blocked press set it true, and the footer never showed
+   *  the blocked sentence. Measured: the status stayed "3 fields needed" through
+   *  a refused submit. */
+  const onGapsChange = useCallback((n: number) => {
+    setGaps(n);
+    setBlocked(false);
+  }, []);
+  const onBlocked = useCallback(() => setBlocked(true), []);
   const effectiveExcerptState: ExcerptState =
     retryNonce > 0 ? "ready" : excerptState;
   /* ═══ THE OVERRIDE BELONGS TO ONE ITEM, AND ONLY ONE ═══
@@ -693,7 +720,13 @@ export function TaskPane({
     <div
       data-slot="task-pane"
       data-anno-ref="task-pane"
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      /* ═══ `max-h-full`, NOT `h-full` (arch-F, F3) ═══
+         With `h-full` and the action bar now hugging its content, a short review
+         left ~190px of empty card BELOW the bar — the gap moved rather than
+         went away, and a card that ends 190px past its own footer reads as
+         unfinished. `max-h-full` lets the card end where the bar does and still
+         caps it at the cell, so the overflow case is unchanged. */
+      className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
       {/* ── HEADER — pinned inside the pane (arch-F rebuilt it) ─────────── */}
       {/* ═══ WHAT THE OLD HEADER SAID, AND WHY EACH PART MOVED ═══
@@ -816,6 +849,13 @@ export function TaskPane({
         data-fade-phase={phase}
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          /* ═══ SCROLL PADDING FOR THE STICKY BAR (arch-F, F3) ═══
+             The action bar is the last child of this scroller and sticks to its
+             bottom edge, so a focus move to a field near the end would land the
+             field UNDER it. `scroll-pb-24` reserves the bar's height plus a
+             little, so browser-driven scrolling (Tab, the gate's own focus move)
+             stops short of it. WCAG 2.4.11. */
+          "scroll-pb-24",
           phase === "snap"
             ? "opacity-0 transition-none"
             : "opacity-100 transition-opacity duration-[120ms] ease-out motion-reduce:transition-none"
@@ -863,6 +903,8 @@ export function TaskPane({
             }
             onCommit={(detail) => onResolve(item, detail)}
             handleRef={billingHandle}
+            onGapsChange={onGapsChange}
+            onBlocked={onBlocked}
           />
         )}
         {(p.kind === "escalation" || p.kind === "documentation") && (
@@ -874,21 +916,40 @@ export function TaskPane({
             onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
           />
         )}
-      </div>
 
-      {/* ═══ THE FOOTER, ACTUALLY PINNED (Part 1.2) ═══
-          This comment said "sticky" and the element was not — it sat in normal
-          flow, so it stayed on screen only while the pane happened to fit. The
-          fix is not `position: sticky` but `shrink-0` in a flex column whose
-          BODY is the flexible row: the footer then sits on the pane's bottom
-          edge by construction, at any content length, with no z-index and no
-          overlap to reason about.
-          "Was this flagged correctly?" and "Confirm {code}" are the controls a
-          supervisor presses fifty times a shift. They can never leave the
-          viewport. */}
+
+      {/* ═══ THE ACTION BAR (arch-F, F3) ═══
+          IT STAYS BELOW THE DOCUMENTATION, and that is not a compromise: Submit
+          attests to the fields above it, and moving it up would make it possible
+          to commit a code before writing its justification — and would break the
+          frozen-Care behaviour it inherits. Its weakness was a TREATMENT problem.
+          WHAT CHANGED: it is now the last child of the SCROLLER, `sticky
+          bottom-0`, rather than a `shrink-0` sibling of it. The difference is the
+          short-content case, measured before this change: with a pane taller
+          than its content the flex body stretched and left a 231px gap between
+          the last field and the bar, which read as two buttons floating in
+          space. Sticky-inside-the-scroller puts the bar directly under the
+          content when there is little, and pins it to the bottom edge when there
+          is more — one rule, both cases.
+          SOLID FILL, TOP HAIRLINE, SLIGHT ELEVATION. The shadow is what makes it
+          read as a bar in front of the content rather than the end of it. */}
       <div
         data-slot="task-pane-footer"
-        className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-3.5"
+        className={cn(
+          "sticky bottom-0 -mx-5 -mb-4 mt-4 border-t border-[color:var(--border-subtle)]",
+          "bg-[var(--surface-card)] px-5 py-3.5",
+          /* ═══ AN EXISTING TOKEN, NOT A NEW VALUE ═══
+             The first two attempts were arbitrary values — `shadow-[0_-1px_3px_
+             rgba(0,0,0,0.04)]` and then the slash form — and BOTH resolved to
+             `rgba(0,0,0,0) 0px 0px 0px 0px`: the bar shipped with no elevation
+             and the probe read it back as transparent, twice. `--shadow-tile` is
+             the design system's own small raised-surface shadow (the sidebar's
+             active tile uses it), it is defined for both themes, and it needs no
+             new token. It is omnidirectional where a bar wants an upward hint —
+             noted in the report as the one place a directional elevation token
+             would earn its place. */
+          "shadow-[var(--shadow-tile)]"
+        )}
       >
         {p.kind === "riskFlag" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -956,7 +1017,31 @@ export function TaskPane({
              `unchanged`, a change as `confirmed`. Two buttons that commit the
              same three documented fields with different outcome strings was an
              invitation to press the wrong one. */
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {/* ═══ THE GATE'S STATE, OPPOSITE THE BUTTONS (arch-F, F3) ═══
+                It used to exist only as an `sr-only` sentence inside the review,
+                600px below the button that runs the gate: a sighted supervisor
+                pressed Submit and found out then. This states it before.
+                A LIVE REGION, and the only one for the gate — `role="status"` so
+                the count is announced as fields are filled, and so the blocked
+                sentence is announced on a failed press without a second region
+                competing to say the same thing.
+                CLEARED WHEN VALID: zero gaps renders nothing at all rather than
+                "0 fields needed", which is a number nobody needs.
+                SUBMIT STAYS ENABLED (no-disabled-buttons): pressing it while
+                invalid focuses the first empty field, and this line says why. */}
+            <p
+              role="status"
+              aria-live="polite"
+              className="min-w-0 text-[12.5px] leading-[17px] text-[var(--text-secondary)]"
+            >
+              {gaps === 0
+                ? ""
+                : blocked
+                  ? /* NEEDS-COPY-NICOLE */ `${gaps} field${gaps === 1 ? "" : "s"} still needed. Focus moved to the first.`
+                  : /* NEEDS-COPY-NICOLE */ `${gaps} field${gaps === 1 ? "" : "s"} needed`}
+            </p>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <RecordButton
               onClick={() => {
                 billingHandle.current?.saveAndClose();
@@ -993,6 +1078,7 @@ export function TaskPane({
               {/* TODO-COPY */}
               Submit
             </PillButton>
+            </div>
           </div>
         )}
 
@@ -1019,6 +1105,8 @@ export function TaskPane({
             </Link>
           </div>
         )}
+      </div>
+      {/* ── end of the scroller, which now contains the action bar ───────── */}
       </div>
 
       {/* ═══ THE CODE PICKER LIVES IN THE SHARED MODULE NOW ═══

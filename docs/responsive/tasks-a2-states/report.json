@@ -90,7 +90,7 @@
       "id": "gate.refuses",
       "label": "an undocumented review is refused, and told what is missing",
       "ok": true,
-      "detail": ""
+      "detail": "3 fields still needed. Focus moved to the first."
     },
     {
       "id": "mechanics.submit",

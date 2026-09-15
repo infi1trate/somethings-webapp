@@ -283,7 +283,16 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   check(
     "gate.refuses",
     "an undocumented review is refused, and told what is missing",
-    /This field is required/.test(gated) && /still need an answer/i.test(gated),
+    /* ═══ THE SENTENCE MOVED TO THE ACTION BAR (arch-F, F3) ═══
+       It was an `sr-only` region inside the review reading "3 things still need
+       an answer" — invisible to sighted readers and 600px below the button that
+       ran the gate. The bar states it now, visibly and as the one live region:
+       "3 fields still needed. Focus moved to the first." The claim is unchanged
+       and is asserted in the bar as well as in the body, so a future move
+       cannot quietly drop it from the place a reader is looking. */
+    /This field is required/.test(gated) &&
+      /still needed/i.test(gated) &&
+      /still needed/i.test(await page.locator('[data-slot="task-pane-footer"]').innerText()),
     (gated.split("\n").find((l) => /needed|before this/i.test(l)) ?? "").slice(0, 70)
   );
   await shot(page, "09-validation");
