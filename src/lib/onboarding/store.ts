@@ -266,6 +266,13 @@ interface OnboardingState {
    *  navigation away. Same two faults `activityScenarioId` had and the same fix:
    *  the axis belongs to the harness, not to the screen it acts on. */
   tasksScenarioId: string;
+  /** ═══ MONITORING'S OWN SCENARIO AXIS (arch-mon Phase 7) ═══
+   *  Null = derive the surface from `tasksScenarioId`, which is what Home's deep
+   *  links and the five existing task scenarios rely on. A Monitoring key
+   *  overrides it. A separate axis rather than more entries in the task
+   *  registry: a dead classifier or a dormant live band has no meaning on Tasks
+   *  or Home, and adding them there would change what those surfaces show. */
+  monitoringScenarioId: string | null;
   /** ═══ EPHEMERAL, AND DELIBERATELY NOT PERSISTED ═══
    *
    *  A bump tells the Tasks page to drop its reviewed/resolved state. It is a
@@ -311,6 +318,7 @@ interface OnboardingState {
   chatArtifacts: Record<string, ChatArtifactRecord>;
   setActivityScenarioId: (id: string) => void;
   setTasksScenarioId: (id: string) => void;
+  setMonitoringScenarioId: (id: string | null) => void;
   setChatScenarioId: (id: string) => void;
   /** ═══ APPEND. THE ONLY MUTATION THE EVENT LOG HAS ═══
    *  No remove and no update, so "an event, once written, is never retracted" is a
@@ -607,6 +615,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       activityScenarioId: "typical-shift",
       devLoadState: DEFAULT_LOAD_STATE,
       tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
+      monitoringScenarioId: null,
       chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
       escalations: {},
       chatEvents: {},
@@ -1010,6 +1019,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         // prototype simulator swapping one fixture ledger for another.
         set({ activityScenarioId: id, activityRead: {} }),
       setTasksScenarioId: (id) => set({ tasksScenarioId: id }),
+      setMonitoringScenarioId: (id) => set({ monitoringScenarioId: id }),
       /* Switching scenario drops everything keyed to the old fixtures — the same
          reasoning as `setActivityScenarioId` clearing its read overlay. An
          escalation on Jordan's thread means nothing once the roster's threads have
@@ -1194,6 +1204,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           // would look like the reset had failed.
           devLoadState: DEFAULT_LOAD_STATE,
           tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
+          monitoringScenarioId: null,
           chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
           /* RESET CLEARS THE CHAT WRITES. Reset re-seeds every fixture, so an
              escalation left open would be an escalation with no conversation
@@ -1331,7 +1342,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      sparse maps, so {} is the correct backfill and reads as "this mentor
       //      has raised nothing, sent nothing and written nothing" — which is true
       //      of every state persisted before this version existed.
-      version: 44,
+      version: 45,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -1755,6 +1766,18 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (st38.activityDensity !== "detailed") {
             st38.activityDensity = "dense";
           }
+          /* v45: Monitoring's scenario axis. NULLABLE, so "absent" and "null"
+             mean the same thing and this only has to reject a wrong SHAPE — a
+             stored string that is not a Monitoring key is left alone and falls
+             through to the task-derived default at read time, which is the same
+             forgiving behaviour a stale bookmark gets. */
+          const st45 = persisted as { monitoringScenarioId?: unknown };
+          if (
+            st45.monitoringScenarioId !== null &&
+            typeof st45.monitoringScenarioId !== "string"
+          ) {
+            st45.monitoringScenarioId = null;
+          }
           // v42: a scalar preference — same shape as v36 below.
           const st42 = persisted as { tasksScenarioId?: unknown };
           if (typeof st42.tasksScenarioId !== "string") {
@@ -2144,6 +2167,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         activityRead: state.activityRead,
         activityScenarioId: state.activityScenarioId,
         tasksScenarioId: state.tasksScenarioId,
+        monitoringScenarioId: state.monitoringScenarioId,
         chatScenarioId: state.chatScenarioId,
         escalations: state.escalations,
         chatEvents: state.chatEvents,

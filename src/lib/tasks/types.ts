@@ -193,6 +193,13 @@ export type TaskStatus = "open" | "inProgress" | "resolved";
  *  scope — logged rather than reconciled. */
 export interface RiskFlagPayload {
   kind: "riskFlag";
+  /** ═══ MONITORING NO LONGER READS THIS (arch-mon Phase 1) ═══
+   *  The tier was a severity assertion the classifier does not make — it emits
+   *  categories — so Monitoring removed it from its headers, its rows, its pane
+   *  and its ordering. The field stays because the SEED writes it and because
+   *  `TIER_RANK` (below) still orders Tasks and Home; `lib/monitoring/` never
+   *  imports it. Recommend it move to the seed's own shape when Home has its
+   *  pass, since nothing that renders would miss it. */
   tier: "imminent" | "clinicalReview" | "routine";
   /** "Message" — the surface the flag came from. */
   sourceType: string;

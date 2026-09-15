@@ -68,6 +68,7 @@ import {
 } from "@/lib/dev/record-scenarios";
 import { ACTIVITY_SCENARIOS } from "@/lib/activity/seed";
 import { TASK_SCENARIOS } from "@/lib/tasks/seed";
+import { MONITORING_SCENARIO_GROUPS } from "@/lib/monitoring/scenarios";
 import { CHAT_SCENARIOS } from "@/lib/chat/seed";
 import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import {
@@ -94,6 +95,10 @@ const TASKS_PREFIX = "tasks:";
  *  families now share one select, and the prefix is the only reason `onChange` can
  *  be a switch rather than a guess. */
 const CHAT_PREFIX = "chat:";
+/** MONITORING, the sixth screen level. Prefixed for the same reason the three
+ *  above are: a record scenario NAVIGATES, this one only SETS STATE, and an id
+ *  collision between the families would navigate instead of switching. */
+const MONITORING_PREFIX = "monitoring:";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -259,6 +264,8 @@ export function DevBar() {
   const setTasksScenario = useOnboardingStore((s) => s.setTasksScenarioId);
   const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
   const setChatScenario = useOnboardingStore((s) => s.setChatScenarioId);
+  const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
+  const setMonitoringScenario = useOnboardingStore((s) => s.setMonitoringScenarioId);
   const loadState = useOnboardingStore((s) => s.devLoadState);
   const resetTasksReviewed = useOnboardingStore((s) => s.resetTasksReviewed);
   /** This bar is the widest horizontal scroller in the app at phone widths —
@@ -447,7 +454,11 @@ export function DevBar() {
                     ? `${CHAT_PREFIX}${chatScenarioId}`
                     : pathname.startsWith("/app/tasks")
                       ? `${TASKS_PREFIX}${tasksScenarioId}`
-                      : scenarioId
+                      : pathname.startsWith("/app/monitoring")
+                        ? monitoringScenarioId
+                          ? `${MONITORING_PREFIX}${monitoringScenarioId}`
+                          : ""
+                        : scenarioId
             }
             onChange={(e) => {
               const value = e.target.value;
@@ -470,6 +481,20 @@ export function DevBar() {
                 if (!pathname.startsWith("/app/tasks")) {
                   router.push("/app/tasks", { scroll: false });
                 }
+                return;
+              }
+              // ── MONITORING: same shape as Tasks. Selecting "— none —" while
+              //    on the page clears the axis back to the task-derived default,
+              //    which is the only way back without a reload.
+              if (value.startsWith(MONITORING_PREFIX)) {
+                setMonitoringScenario(value.slice(MONITORING_PREFIX.length));
+                if (!pathname.startsWith("/app/monitoring")) {
+                  router.push("/app/monitoring", { scroll: false });
+                }
+                return;
+              }
+              if (value === "" && pathname.startsWith("/app/monitoring")) {
+                setMonitoringScenario(null);
                 return;
               }
               // ── CHAT: same shape again. Note that switching the chat scenario
@@ -541,6 +566,20 @@ export function DevBar() {
                 </option>
               ))}
             </optgroup>
+            {/* ═══ MONITORING, THE SIXTH SCREEN LEVEL (arch-mon Phase 7) ═══
+                Seven groups in the order the phase file lists them, because the
+                order is itself the reading order of the surface's states:
+                volume, then the escalation lifecycle, then compliance, then
+                flags, then practice, then the live layer, then the edges. */}
+            {MONITORING_SCENARIO_GROUPS.map((g) => (
+              <optgroup key={g.label} label={`Monitoring · ${g.label}`}>
+                {g.scenarios.map((sc) => (
+                  <option key={sc.id} value={`${MONITORING_PREFIX}${sc.id}`}>
+                    {sc.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
             {/* ═══ CHAT, THE FIFTH SCREEN LEVEL ═══
                 Five relationship states, each pinned to a teen already on the live
                 mentor's roster — so the scenario and the conversation list cannot

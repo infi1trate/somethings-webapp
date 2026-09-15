@@ -72,7 +72,11 @@ const TEENS = {
  *  FIRST NAME + LAST INITIAL, MAXIMUM (locked decision 11), asserted in
  *  seed.test.ts across every scenario — so a name added here that carries a
  *  surname fails the suite rather than reaching a screen. */
-const ROSTER: Teen[] = [
+/* EXPORTED for Monitoring's coverage view (arch-mon Phase 4), which needs the
+   supervised roster rather than only the teens the classifier flagged — a
+   denominator, and it must be the SAME roster or the two surfaces would
+   disagree about who exists. Data only: nothing about Tasks changes. */
+export const ROSTER: Teen[] = [
   { id: "tk-ava", name: "Ava M." },
   { id: "tk-jordan-a", name: "Jordan A." },
   { id: "tk-diego", name: "Diego S." },
@@ -119,7 +123,7 @@ const MENTORS = {
 
 /** Mentors carry FULL names — they are staff, and locked decision 11 is about
  *  teens. Six more so a fifty-row list is not four mentors repeated. */
-const MENTOR_POOL: Mentor[] = [
+export const MENTOR_POOL: Mentor[] = [
   ...Object.values(MENTORS),
   { id: "tk-m-tasha", name: "Tasha Reyes" },
   { id: "tk-m-daniel", name: "Daniel Okafor" },
@@ -132,11 +136,11 @@ const MENTOR_POOL: Mentor[] = [
 /* Declared as standalone interfaces rather than derived from the literals: the
    roster below is a second source of the same shape, and a type derived from one
    of two sources is a type that stops describing the other. */
-interface Teen {
+export interface Teen {
   id: string;
   name: string;
 }
-interface Mentor {
+export interface Mentor {
   id: string;
   name: string;
 }
@@ -507,7 +511,7 @@ function typicalShift(now: number): TaskItem[] {
         payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 20 * HOUR },
       },
       {
-        // 31h against a 24h clock: the overdue write-up, so the third state is
+        // 31h against a 24h clock: the overdue escalation note, so the third state is
         // on screen beside the other two.
         taskType: "escalationDocumentation",
         teen: TEENS.theo,

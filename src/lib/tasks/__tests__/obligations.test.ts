@@ -14,6 +14,7 @@ import { DOMAIN_OF_TYPE, TIER_RANK } from "@/lib/tasks/types";
 
 const NOW = 1_800_000_000_000;
 const HOUR = 3_600_000;
+const MINUTE = 60_000;
 
 let n = 0;
 function item(
@@ -41,25 +42,34 @@ function item(
 }
 
 describe("what Monitoring owes", () => {
-  it("counts an imminent flag only once it is past its SLA", () => {
-    // 24h SLA: 23h old is work in hand, 25h old is a missed deadline.
+  /* ═══ RETARGETED BY arch-mon PHASE 1 ═══
+     This asserted that a breached imminent flag is debt the badge reports. The
+     tier and the flag SLA were both the severity taxonomy Phase 1 removed, so
+     the CLAIM changed rather than the assertion being relaxed: the count is
+     still computed for Home's digest, and it no longer reaches `total`. */
+  it("still reports a breached imminent flag for Home, and keeps it out of the badge", () => {
     const onTrack = monitoringObligations([item("imminentFlagReview", 23 * HOUR)], NOW);
     expect(onTrack.imminentBreached).toBe(0);
     expect(onTrack.total).toBe(0);
 
     const late = monitoringObligations([item("imminentFlagReview", 25 * HOUR)], NOW);
     expect(late.imminentBreached).toBe(1);
-    expect(late.total).toBe(1);
+    // NOT debt any more: nothing published states a review deadline for a flag.
+    expect(late.total).toBe(0);
   });
 
   it("counts documentation from the moment it is due, not only when it is late", () => {
-    // 24h from close. At 2h the write-up is owed and not yet late; both states
+    // 24h from close. At 2h the escalation note is owed and not yet late; both states
     // are debt, and the badge does not wait for the second one.
     const due = monitoringObligations([item("escalationDocumentation", 2 * HOUR)], NOW);
     expect(due).toMatchObject({
       documentationOpen: 1,
       documentationOverdue: 0,
-      total: 1,
+      /* ═══ RETARGETED: THE BADGE WAITS FOR LATE NOW ═══
+         It counted every open note. An escalation note owed but not yet late is
+         work in hand, and the badge exists for missed clocks — the same
+         reasoning that took the manufactured flag breach out of it. */
+      total: 0,
     });
 
     const overdue = monitoringObligations([item("escalationDocumentation", 30 * HOUR)], NOW);
@@ -88,23 +98,34 @@ describe("what Monitoring owes", () => {
     expect(o.total).toBe(0);
   });
 
-  it("ignores active escalations, which are not handled here", () => {
-    // 5m SLA, so this one is breached many times over — and still not counted.
-    // They have their own interrupt layer and locked decision 3 keeps them off
-    // this surface's resolve path entirely.
-    const o = monitoringObligations([item("activeEscalation", 6 * HOUR)], NOW);
-    expect(o.total).toBe(0);
+  /* ═══ REVERSED BY arch-mon PHASE 3 ═══
+     It asserted that active escalations are not obligations. They are now THE
+     obligation: five minutes from trigger to acknowledgement is the only
+     published response SLA on the surface, and the UI did not enforce it.
+     Locked decision 3 still holds — nothing about an escalation is RESOLVED on
+     this page — which is a different question from whether it is owed. */
+  it("counts an active escalation past its five minutes", () => {
+    const fresh = monitoringObligations([item("activeEscalation", 2 * MINUTE)], NOW);
+    expect(fresh.ackOutstanding).toBe(0);
+    expect(fresh.total).toBe(0);
+
+    const late = monitoringObligations([item("activeEscalation", 6 * HOUR)], NOW);
+    expect(late.ackOutstanding).toBe(1);
+    expect(late.total).toBe(1);
   });
 
   it("drops resolved work but keeps work someone opened and left", () => {
+    /* ON AN ESCALATION NOTE NOW, because the imminent flag this used to use is
+       no longer debt — the claim under test is about STATUS, not about which
+       task type, and it needs a subject that still counts. */
     const resolved = monitoringObligations(
-      [item("imminentFlagReview", 30 * HOUR, "resolved")],
+      [item("escalationDocumentation", 30 * HOUR, "resolved")],
       NOW
     );
     expect(resolved.total).toBe(0);
 
     const inProgress = monitoringObligations(
-      [item("imminentFlagReview", 30 * HOUR, "inProgress")],
+      [item("escalationDocumentation", 30 * HOUR, "inProgress")],
       NOW
     );
     expect(inProgress.total).toBe(1);
@@ -124,9 +145,16 @@ describe("what Monitoring owes", () => {
       NOW
     );
     expect(o).toMatchObject({
+      /* STILL COUNTED, STILL REPORTED, AND NO LONGER DEBT — Home reads these. */
       imminentBreached: 2,
       documentationOpen: 1,
-      total: 3,
+      documentationOverdue: 0,
+      /* THE ONE REAL OBLIGATION IN THAT LIST: the active escalation is an hour
+         old against a five-minute acknowledgement window. The note is owed and
+         not yet late; the two breached lower-tier flags and the billing review
+         are somebody else's surface or nobody's deadline. */
+      ackOutstanding: 1,
+      total: 1,
     });
   });
 

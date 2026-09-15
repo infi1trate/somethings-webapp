@@ -50,7 +50,7 @@ export const TASK_KIND_LABEL: Record<TaskType, string> = {
   clinicalFlagReview: "Clinical flag review",
   routineFlagReview: "Routine flag review",
   activeEscalation: "Active escalation",
-  escalationDocumentation: "Escalation write-up",
+  escalationDocumentation: "Escalation note",
 };
 
 /** ═══ AN ICON PER TASK TYPE — AND THE TWO BILLING TYPES SHARE ONE ═══

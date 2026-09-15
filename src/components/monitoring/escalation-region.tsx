@@ -1,63 +1,50 @@
 "use client";
 
-// ═══ THE ESCALATION REGION — the whole lifecycle, in one place ═══
+// ═══ THE ESCALATION REGION — A LIFECYCLE, NOT A BANNER ═══
 //
-// Sits above the flags view and renders ONLY when non-empty. It is not a zone
-// that must persist: the flags view is this surface's resting state, and a
-// permanently empty band above it would be furniture a reader learns to skip —
-// which is the worst possible habit to build above the one region that matters.
+// It rendered two unrelated row types from two TaskItems: an active escalation,
+// and separately the paperwork for a different one, with nothing saying they
+// were the same kind of object at different points in its life. This renders one
+// record per escalation, with the two clocks that actually exist and the
+// close-out set attached to it.
 //
-// ═══ INDIVIDUAL ROWS, NEVER COALESCED ═══
+// A RESOLVED RECORD STAYS. Calm, low-contrast, aging, carrying what is still
+// owed — until the close-out set is complete. That is deliberate and it cuts
+// against inbox instinct: the obligation outlives the emergency.
 //
-// Two escalations on one teen are two events, each with its own responder, its
-// own 911 decision and its own write-up. Grouping them would put a count where a
-// name belongs and hide one behind a chevron. Too consequential to group, and
-// there are one to three of them — a count is not solving a volume problem.
-//
-// ═══ AN ESCALATION IS NOT FINISHED UNTIL IT IS DOCUMENTED ═══
-//
-// So all three states live here — active, closed-with-write-up-due, and
-// closed-with-write-up-overdue — rather than the closed ones falling off the
-// surface into a separate queue. The state chip and the clock both change with
-// the state; see `escalation-state.ts` for which field is authoritative and for
-// the "20h open" / "Closed Sep 13" contradiction that module exists to end.
-//
-// ═══ THE ALARM BUDGET, SPENT ONCE ═══
-//
-// ACTIVE escalations carry the only filled saturated treatment on this surface —
-// the same `--task-respond-*` pair the Respond strip used, which is defined in
-// `:root` only and deliberately does not theme, because an alarm should be the
-// same object in both modes (gap row 214).
-//
-// AN OVERDUE WRITE-UP DOES NOT GET IT. It is a compliance failure about something
-// that is already over; giving it the same treatment would spend the budget twice
-// and teach a reader to discount both. It gets the breach chip every other overdue
-// thing on the surface gets.
+// ═══ THE ALARM BUDGET ═══
+// One saturated fill on the page, and two states earn it: an active escalation,
+// and an acknowledgement past its five minutes. Everything else — an overdue
+// note, an overdue debrief — gets the breach chip every other overdue obligation
+// on the surface gets.
 
 import Link from "next/link";
 import { AlertTriangle, FileText, Phone } from "lucide-react";
+import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
-import {
-  LIFECYCLE_LABEL,
-  clockFor,
-  isAlarming,
-  lifecycleOf,
-} from "@/lib/tasks/escalation-state";
+import { clockFor } from "@/lib/tasks/escalation-state";
 import type { SurfaceState } from "@/lib/tasks/load-plan";
 import type { TaskItem } from "@/lib/tasks/types";
+import {
+  ackDeadline,
+  ackStateFor,
+  closeOutOpen,
+  isActive,
+  isAlarming,
+  type EscalationRecord,
+} from "@/lib/monitoring/escalation";
+import { RolePair } from "@/components/monitoring/event-pane";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** TODO-COPY. THE CLOCK, IN THE READER'S QUESTION.
- *
- *  An active escalation counts UP — "how long has someone been waiting". A closed
- *  one counts DOWN to its write-up deadline, and past it counts up again. Three
- *  sentences rather than one figure, because a bare "4h" beside a closed
- *  escalation could mean four hours since it closed, four hours left, or four
- *  hours late, and those are three different afternoons. */
+/** ═══ KEPT FOR TASKS, WHICH IMPORTS IT ═══
+ *  `task-pane.tsx` renders escalation rows on the Tasks surface and takes this
+ *  helper for their clock. It works on a `TaskItem`, not on a record, and it
+ *  stays here unchanged so that rewriting this region costs Tasks nothing. It is
+ *  not used by anything below. */
 export function clockLabel(item: TaskItem, now: number): string {
   const clock = clockFor(item, now);
   if (clock.kind === "elapsed") return `${elapsedLabel(clock.at, now)} elapsed`;
@@ -65,24 +52,6 @@ export function clockLabel(item: TaskItem, now: number): string {
   return `${elapsedLabel(clock.at, now)} overdue`;
 }
 
-/** ═══ A FACT ON THE ROW — AND ON THE ALARM ROW IT HAS NO GROUND ═══
- *
- *  MEASURED: the tinted pill this used to draw on the saturated row was
- *  `--task-respond-fg` at 20% over `--task-respond-bg`, which computes to
- *  `#d45d4a`, and white on it is **3.84:1** — a fail for 11.5px text, which
- *  needs 4.5. The pattern came from the Respond strip, so that shipped the
- *  failure too. Axe found 22 instances across four viewports and both themes.
- *
- *  White directly on `--task-respond-bg` is **5.24:1**. A border at the same 20%
- *  mix would not have rescued it either — `#d45d4a` against `#c9351d` is 1.36:1,
- *  under the 3:1 a non-text boundary needs, so it would have been an invisible
- *  fix for a visible failure.
- *
- *  So the alarm row's facts are icon plus text with no ground at all. They were
- *  never told apart by the tint — the icon and the words do that (SC 1.4.1) — and
- *  the row is already one saturated object, so a second fill inside it was
- *  decoration that cost contrast. The calm rows keep the pill, where it separates
- *  a chip from a card that is otherwise the same colour. */
 function Fact({
   icon: Icon,
   children,
@@ -107,86 +76,66 @@ function Fact({
   );
 }
 
+/** NEEDS-COPY-NICOLE, all of them. The state, in the reader's terms. */
+function stateLine(rec: EscalationRecord, now: number): string {
+  if (isActive(rec)) {
+    const ack = ackStateFor(rec, now);
+    if (ack === "acknowledged") return "Active · acknowledged";
+    return ack === "breached" ? "Active · not acknowledged" : "Active · awaiting acknowledgement";
+  }
+  const open = closeOutOpen(rec, now).length;
+  return open === 0 ? "Closed · close-out complete" : `Closed · ${open} close-out item${open === 1 ? "" : "s"} open`;
+}
+
 function Row({
-  item,
+  rec,
   now,
   selected,
   onSelect,
 }: {
-  item: TaskItem;
+  rec: EscalationRecord;
   now: number;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const state = lifecycleOf(item, now);
-  const alarming = isAlarming(state);
-  const p = item.payload;
-  const is911 = p.kind === "escalation" ? p.is911 : false;
-  const disc = discFor(item.teenId);
-  const escalationId =
-    p.kind === "escalation" || p.kind === "documentation"
-      ? p.escalationId
-      : item.objectId;
-
-  /** TODO-COPY. The row, spoken. THE STATE COMES FIRST because it decides
-   *  whether this row is read now or later — and on the closed ones it is also
-   *  the correction: a reader who hears "Riley T., closed, write-up due in 4
-   *  hours" cannot come away thinking anyone is still in danger. */
-  const ariaLabel = [
-    item.teenDisplayName,
-    LIFECYCLE_LABEL[state].replace(" · ", ", "),
-    `to ${item.mentorName}`,
-    /* 911 ONLY WHEN IT WAS CALLED, on the closed rows. On an active escalation
-       both answers are load-bearing — "no 911" is a decision somebody made and a
-       responder needs to know it. On a closed one, "no 911" is an absence. */
-    is911 ? "911 dispatched" : state === "active" ? "no 911" : null,
-    clockLabel(item, now),
-  ]
-    .filter(Boolean)
-    .join(", ");
-
+  const alarming = isAlarming(rec, now);
+  const ack = ackStateFor(rec, now);
+  const disc = discFor(rec.teenId);
+  const open = closeOutOpen(rec, now);
   return (
-    /* ═══ A LIST AND TWO CONTROLS, NOT A LISTBOX ═══
-     *
-     *  This was `<ul role="listbox">` → `<li>` → `<div role="option">` holding a
-     *  link, and axe rejected it four ways at once: `aria-required-children`
-     *  (the listbox's options were not its children), `aria-required-parent`
-     *  (the options' parent was an `li`), `listitem` (an `li` whose parent had a
-     *  role), and `nested-interactive` — an option may not CONTAIN a control,
-     *  and this one contained the link that is the whole point of the row. 56
-     *  violations, four of the six rules axe reported on this page.
-     *
-     *  The STRUCTURE was wrong rather than the markup. A listbox is for choosing
-     *  one of a set; these rows do two different things — selecting shows the
-     *  evidence in the pane, the link leaves for the escalation flow. So it is a
-     *  plain list, the row body is a button, and the action is its sibling: both
-     *  reachable by Tab, in that order, which is also the order they are used in.
-     *  `aria-current` carries which one the pane is showing. */
     <li
       className={cn(
         "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2",
         alarming
           ? "text-[var(--task-respond-fg)]"
           : "bg-[var(--surface-card)] text-[var(--text-primary)]",
-        selected &&
-          (alarming
-            ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
-            : "bg-[var(--surface-s2)]")
+        selected && (alarming ? "ring-2 ring-inset ring-[var(--task-respond-fg)]" : "bg-[var(--surface-s2)]")
       )}
       style={alarming ? { backgroundColor: "var(--task-respond-bg)" } : undefined}
-      data-anno-ref={`escalation-row:${item.id}`}
-      data-escalation-state={state}
+      data-anno-ref={`escalation-row:${rec.id}`}
+      data-escalation-state={isActive(rec) ? "active" : open.length ? "closeout-open" : "settled"}
+      data-ack-state={ack}
     >
       <button
         type="button"
         onClick={onSelect}
-        aria-label={ariaLabel}
-        /* SELECTION IS `aria-current`, NOT `aria-pressed`. The button is not a
-           toggle — pressing it again does not un-show the pane — and "this is
-           the one being shown" is exactly what `current` means. */
+        aria-label={[
+          /* ROLES, SPELLED OUT. */
+          `teen ${rec.teenName}`,
+          `mentor ${rec.mentorName}`,
+          stateLine(rec, now),
+          rec.is911 ? "911 dispatched" : isActive(rec) ? "no 911" : null,
+          ack === "breached" ? "acknowledgement overdue" : null,
+          `triggered ${elapsedLabel(rec.triggeredAt, now)} ago`,
+        ]
+          .filter(Boolean)
+          .join(", ")}
         aria-current={selected ? "true" : undefined}
         className={cn(
-          "flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-control)] py-1 text-left",
+          /* 44px MINIMUM. The row's own button measured 28px high after the
+             role labels replaced the two-line name block — under HIG's 44 and
+             under Material's 48, on the most urgent control on the surface. */
+          "flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radius-control)] py-1.5 text-left",
           RING
         )}
       >
@@ -198,83 +147,78 @@ function Row({
             className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
             style={{ backgroundColor: disc.bg, color: disc.fg }}
           >
-            {item.teenDisplayName.charAt(0)}
+            {rec.teenName.charAt(0)}
           </span>
         )}
-
         <span className="min-w-0 flex-1">
-          <span
-            className={cn(
-              "block truncate text-[14px] leading-[20px]",
-              alarming && "font-semibold"
-            )}
-          >
-            {item.teenDisplayName}
-          </span>
-          <span
-            className={cn(
-              "block truncate text-[12px] leading-[16px]",
-              alarming
-                ? "text-[var(--task-respond-fg)]"
-                : "text-[var(--text-secondary)]"
-            )}
-          >
-            {/* TODO-COPY */}
-            to {item.mentorName}
-          </span>
+          <RolePair
+            teenName={rec.teenName}
+            mentorName={rec.mentorName}
+            tone={alarming ? "onFill" : "default"}
+          />
         </span>
-
-        {/* 911 / NO 911 — on active rows only. See the aria note above: on a
-            closed escalation "No 911" is an absence rather than a decision, and
-            the row has a state and a deadline to spend its width on. */}
-        {(state === "active" || is911) && (
+        {(isActive(rec) || rec.is911) && (
           <Fact icon={Phone} alarming={alarming}>
-            {/* TODO-COPY */}
-            {is911 ? "911 dispatched" : "No 911"}
+            {/* NEEDS-COPY-NICOLE */}
+            {rec.is911 ? "911 dispatched" : "No 911"}
           </Fact>
         )}
-
-        <Fact icon={state === "active" ? AlertTriangle : FileText} alarming={alarming}>
-          {LIFECYCLE_LABEL[state]}
+        <Fact icon={isActive(rec) ? AlertTriangle : FileText} alarming={alarming}>
+          {stateLine(rec, now)}
         </Fact>
-
-        {/* THE CLOCK, mono so a live counter does not jitter as digits change
-            width — and so the column reads as a column. */}
+        {/* ═══ THE ACK CLOCK, WHICH THE UI DID NOT ENFORCE BEFORE ═══
+            Counting down inside the window and breached past it. On a closed
+            record it is gone: acknowledgement is not a question any more. */}
+        {isActive(rec) &&
+          (ack === "breached" ? (
+            <span className="shrink-0 text-[12px] font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+              {/* NEEDS-COPY-NICOLE */}
+              ack {elapsedLabel(ackDeadline(rec), now)} overdue
+            </span>
+          ) : ack === "pending" ? (
+            <span
+              className={cn("shrink-0 text-[12px] tabular-nums", alarming ? "font-semibold" : "text-[var(--text-secondary)]")}
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              {/* NEEDS-COPY-NICOLE */}
+              ack in {elapsedLabel(now, ackDeadline(rec))}
+            </span>
+          ) : null)}
+        {/* AGE. Always, on every state — a resolved record's whole point is that
+            it ages visibly. */}
         <span
-          className={cn(
-            "shrink-0 text-[13px] tabular-nums",
-            alarming ? "font-semibold" : "text-[var(--text-secondary)]"
-          )}
+          className={cn("shrink-0 text-[13px] tabular-nums", alarming ? "font-semibold" : "text-[var(--text-secondary)]")}
           style={{ fontFamily: "var(--font-mono)" }}
         >
-          {clockLabel(item, now)}
+          {elapsedLabel(rec.triggeredAt, now)} ago
         </span>
+        {/* WHAT IS OWED, as a chip rather than as the fill — see the alarm
+            budget note at the top. */}
+        {!isActive(rec) && open.some((i) => i.overdue) && (
+          <BreachChip label={`${open.filter((i) => i.overdue).length} overdue`} />
+        )}
       </button>
-
       <Link
-        href={escalationHref(escalationId)}
+        href={escalationHref(rec.id)}
         className={cn(
-          "inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-[13px] font-semibold",
+          /* 44px, like the row button beside it — HIG's floor, on the control a
+             supervisor presses in the first five minutes of a crisis. */
+          "inline-flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-[13px] font-semibold",
           alarming
             ? "bg-[var(--task-respond-fg)] text-[var(--task-respond-bg)] transition-opacity hover:opacity-90"
             : "border border-[color:var(--border-contour)] text-[var(--text-primary)] transition-colors hover:bg-[var(--tint-hover)]",
           RING
         )}
       >
-        {/* TODO-COPY. THE ACTION NAMES THE WORK, NOT THE OBJECT. "Open
-            escalation" on a closed one would send a reader looking for a crisis
-            that is over; what is waiting for them is the write-up. */}
-        {state === "active" ? "Open escalation" : "Open documentation"}
+        {/* NEEDS-COPY-NICOLE. THE ACTION NAMES THE WORK. "Open documentation" is
+            gone with "write-up": on a closed escalation what is waiting is the
+            escalation note. */}
+        {isActive(rec) ? "Open escalation" : "Open the record"}
       </Link>
     </li>
   );
 }
 
-/** ═══ THE REGION'S OWN SKELETON ═══
- *  Two placeholder rows at the height real ones occupy, so resolving does not
- *  move the flags view under the reader's eye. Two rather than three: the
- *  measured fixtures carry one to three escalations, and a skeleton promising
- *  more than usually arrives is a worse signal than one promising fewer. */
 function RegionSkeleton() {
   return (
     <section
@@ -282,10 +226,7 @@ function RegionSkeleton() {
       className="mt-4 shrink-0 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)]"
     >
       {[0, 1].map((i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 py-3 first:border-t-0"
-        >
+        <div key={i} className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 py-3 first:border-t-0">
           <span className="size-7 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
           <span className="min-w-0 flex-1 space-y-1.5">
             <span className="block h-3 w-40 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
@@ -298,11 +239,6 @@ function RegionSkeleton() {
   );
 }
 
-/** ═══ THE REGION FAILING IS NOT THE REGION BEING EMPTY ═══
- *  Absent means "nothing is escalated", which is the good news a supervisor most
- *  wants to be able to trust. If the escalation service is down, saying nothing
- *  would assert that good news from an outage — so the failure is stated, and it
- *  is stated where the region would have been. */
 function RegionError() {
   return (
     <section
@@ -310,53 +246,52 @@ function RegionError() {
       className="mt-4 shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-3"
     >
       <p className="text-[13.5px] leading-[19px] text-[var(--text-secondary)]">
-        {/* TODO-COPY. NAMES WHAT IS UNKNOWN rather than what failed: "couldn't
-            load escalations" invites the reading "so there are none". */}
-        Escalations couldn’t be loaded, so this page can’t say whether any
-        are open.
+        {/* NAMES WHAT IS UNKNOWN rather than what failed. */}
+        Escalations couldn’t be loaded, so this page can’t say whether any are
+        open.
       </p>
     </section>
   );
 }
 
 export function EscalationRegion({
-  items,
+  records,
   now,
   state = "ready",
   selectedId,
   onSelect,
 }: {
-  /** Every escalation-domain item, active and documentation alike, in the one
-   *  comparator's order — active first, because `TIER_RANK` says so. */
-  items: TaskItem[];
+  records: EscalationRecord[];
   now: number;
-  selectedId: string | null;
-  onSelect: (item: TaskItem) => void;
   state?: SurfaceState;
+  selectedId: string | null;
+  onSelect: (rec: EscalationRecord) => void;
 }) {
   if (state === "loading") return <RegionSkeleton />;
   if (state === "error") return <RegionError />;
-  if (items.length === 0) return null;
+  if (records.length === 0) return null;
 
-  const active = items.filter((i) => lifecycleOf(i, now) === "active").length;
-
+  const alarming = records.some((r) => isAlarming(r, now));
   return (
     <section
-      /* TODO-COPY. NAMES THE WHOLE LIFECYCLE, not "Open escalations" — the region
-         holds closed ones too and a landmark that said "open" would repeat, at
-         the landmark level, the exact defect the rows were fixed for. */
-      aria-label={`Escalations — ${active} active, ${items.length - active} awaiting documentation`}
       data-anno-ref="escalation-region"
+      /* ═══ ASSERTIVE, AND ONLY HERE ═══
+         An escalation arriving is the one thing on this page that interrupts.
+         Nothing else earns it — see `now-band.tsx`, which is deliberately
+         `aria-live="off"`. */
+      aria-live={alarming ? "assertive" : "off"}
+      /* NEEDS-COPY-NICOLE */
+      aria-label="Escalations"
       className="mt-4 shrink-0 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)]"
     >
       <ul className="divide-y divide-[color:var(--border-subtle)]">
-        {items.map((item) => (
+        {records.map((rec) => (
           <Row
-            key={item.id}
-            item={item}
+            key={rec.id}
+            rec={rec}
             now={now}
-            selected={item.id === selectedId}
-            onSelect={() => onSelect(item)}
+            selected={selectedId === rec.id}
+            onSelect={() => onSelect(rec)}
           />
         ))}
       </ul>

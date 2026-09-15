@@ -116,7 +116,7 @@ export function AdminShell({
    *  seven-day SLA — and a badge that is never zero stops being read within a
    *  week. This counts the two things a named person has already failed to do by
    *  a time that has already passed: an Imminent flag past 24h, and an escalation
-   *  closed without a write-up.
+   *  closed without a escalation note.
    *
    *  IT IS THE ONLY GLOBAL SURFACING OF EITHER, and that is why it ships with B
    *  rather than waiting for Home in Phase C. Between these phases Monitoring

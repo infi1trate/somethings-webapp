@@ -59,6 +59,15 @@
 
 /** How fast a supervisor must respond. Named by the RESPONSE, never by a
  *  percentile — see the module note. */
+/** ═══ THE RECORD'S OWN TIERS — AND THE MONITORING SURFACE NO LONGER HAS ANY ═══
+ *  This is the Care page's taxonomy, unchanged and still rendered there. The
+ *  tasks-side twin (`RiskFlagPayload.tier`) is now unread by the surface it was
+ *  built for: arch-mon Phase 1 found that Monitoring could not compute severity
+ *  and removed the assertion. THIS one is a clinical registry with 21 enumerated
+ *  categories behind it (`RISK_CATEGORIES`) rather than a severity guess, which
+ *  is why it survives — but gap rows 362 and 374 still stand: two unions, two
+ *  label tables, and the same value renders as "Clinical review" on one surface
+ *  and "Clinical support" on the other. */
 export type RiskTier = "imminent" | "clinicalReview" | "generalMonitoring";
 
 /** TODO-COPY. Sentence case, and it describes the staff action.

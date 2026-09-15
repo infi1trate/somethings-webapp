@@ -65,14 +65,14 @@ describe("the escalation lifecycle", () => {
 
   it("says Closed on both documentation states", () => {
     // The most useful fact about one of these rows is that nobody is in danger
-    // now. A chip reading only "write-up due" makes a reader work that out.
+    // now. A chip reading only "escalation note due" makes a reader work that out.
     expect(LIFECYCLE_LABEL.documentationDue).toMatch(/^Closed/);
     expect(LIFECYCLE_LABEL.documentationOverdue).toMatch(/^Closed/);
     expect(LIFECYCLE_LABEL.active).not.toMatch(/Closed/);
   });
 
   it("spends the alarm budget on the active state alone", () => {
-    // An overdue write-up is a compliance failure about something already over.
+    // An overdue escalation note is a compliance failure about something already over.
     // Giving it the filled treatment would spend the budget twice.
     expect(isAlarming("active")).toBe(true);
     expect(isAlarming("documentationDue")).toBe(false);

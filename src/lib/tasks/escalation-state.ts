@@ -19,7 +19,7 @@
 // WHICH FIELD IS AUTHORITATIVE, stated once so nobody has to re-derive it:
 //
 //   · `payload.closedAt`   the escalation is CLOSED, and when.
-//   · `item.slaDeadline`   when the write-up is due. Computed at creation as
+//   · `item.slaDeadline`   when the escalation note is due. Computed at creation as
 //                          `closedAt + 24h` — see `deadlineFor`, which takes an
 //                          explicit clock start precisely so this cannot
 //                          silently measure from `openedAt`.
@@ -33,7 +33,7 @@
 // ═══ THREE STATES, AND THE THIRD IS NOT A NEW KIND OF THING ═══
 //
 // `active` · `documentationDue` · `documentationOverdue`. The last two are one
-// obligation in two conditions — the same write-up, before and after its deadline
+// obligation in two conditions — the same escalation note, before and after its deadline
 // — which is why the badge counts them once (see `monitoringObligations`) and why
 // they share a footer action. They are separate STATES because they read
 // differently to someone deciding what to do next, and identical states would
@@ -41,7 +41,7 @@
 //
 // AN ESCALATION IS NOT FINISHED UNTIL IT IS DOCUMENTED. That is the whole reason
 // the closed ones stay on this surface: a lifecycle that ended at "closed" would
-// drop the write-up on the floor, and preamble open question 2 — whether a
+// drop the escalation note on the floor, and preamble open question 2 — whether a
 // closed-but-undocumented escalation has a compliance status distinct from open —
 // is still with Dr. Nissan and Meg. Nothing here answers it; the states are a
 // description of the work, not a compliance model.
@@ -73,14 +73,14 @@ export function lifecycleOf(item: TaskItem, now: number): EscalationLifecycle {
  *  escalation itself is still running. */
 export const LIFECYCLE_LABEL: Record<EscalationLifecycle, string> = {
   active: "Active",
-  documentationDue: "Closed · write-up due",
-  documentationOverdue: "Closed · write-up overdue",
+  documentationDue: "Closed · escalation note due",
+  documentationOverdue: "Closed · escalation note overdue",
 };
 
 /** Does this state carry the surface's one saturated treatment?
  *
  *  ONLY `active`. The alarm budget has room for exactly one filled red thing and
- *  this is it — a person may be in danger now. An overdue write-up is a
+ *  this is it — a person may be in danger now. An overdue escalation note is a
  *  compliance failure about something that is already over, and giving it the
  *  same treatment would spend the budget twice and teach a reader to discount
  *  both. It gets the breach chip every other overdue thing on the surface gets. */
@@ -94,7 +94,7 @@ export function isAlarming(state: EscalationLifecycle): boolean {
  *  someone has been waiting, and there is no deadline to count toward that a
  *  five-minute SLA has not already passed.
  *
- *  A CLOSED one counts DOWN to its write-up deadline, and past it counts up again
+ *  A CLOSED one counts DOWN to its escalation note deadline, and past it counts up again
  *  as "overdue by". The reader's question changes with the state, so the figure
  *  does too.
  *
