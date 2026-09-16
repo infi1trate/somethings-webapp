@@ -40,15 +40,36 @@ export function elapsedLabel(openedAt: number, now: number): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-/** THE ESCALATION FLOW ROUTE.
+/** THE ESCALATION'S OWN PATH — and it resolves now (arch-G, G6).
  *
- *  TODO-DATA / BLOCKER §8.4: no escalation surface exists in this repo — audited.
- *  The Care tab has a flag REVIEW modal, which is a different thing (it closes a
- *  flag; it does not run an escalation). So this is a stub route and the gap is
- *  logged (design-system-gaps.md row 213). The link shape is what the real
- *  surface will inherit. */
+ *  IT WAS A STUB. The note here said "no escalation surface exists in this repo
+ *  — audited", and that was true through arch-A: the Care tab's flag REVIEW
+ *  modal closes a flag rather than running an escalation, so every link-out
+ *  landed on a placeholder sentence (gap row 213).
+ *
+ *  It is a HOP now. The route redirects to the record on Monitoring, which
+ *  arch-mon built and G6 gave a timeline, the note module and a terminal state.
+ *  The LINK SHAPE is unchanged, which is why every caller was left alone — see
+ *  `escalationRecordHref` for why the hop is kept rather than inlined.
+ *
+ *  WHAT IS STILL OPEN: the escalation FLOW — running one, live — has no surface
+ *  here. Reading the record is not the same as conducting the escalation, so row
+ *  213 narrows rather than closes. */
 export function escalationHref(escalationId: string): string {
   return `/app/escalation/${encodeURIComponent(escalationId)}`;
+}
+
+/** ═══ WHERE THE RECORD ACTUALLY OPENS (arch-G, G6) ═══
+ *  `/app/escalation/[id]` is a HOP: it redirects here. This is the destination,
+ *  and it is exported so the hop and anything that wants to skip it build one
+ *  URL rather than two spellings of it.
+ *  THE LINKS KEEP USING THE HOP, deliberately. Every "Open the escalation
+ *  record" on every surface points at the escalation's own path, which is the
+ *  URL a reader would expect to see and the one that stays right if the record
+ *  ever gets a page of its own. Rewriting forty call sites to Monitoring's
+ *  query string would bake this phase's hosting decision into every caller. */
+export function escalationRecordHref(escalationId: string): string {
+  return `/app/monitoring?escalation=${encodeURIComponent(escalationId)}`;
 }
 
 // ── Respond strip (§3.2) ────────────────────────────────────────────────────

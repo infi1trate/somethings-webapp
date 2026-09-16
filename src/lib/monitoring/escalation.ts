@@ -164,6 +164,51 @@ export function isActive(rec: EscalationRecord): boolean {
   return rec.resolvedAt == null;
 }
 
+/** ═══ THE RECORD'S LIFECYCLE, WITH A TERMINAL STATE (arch-G, G6) ═══
+ *
+ *  The surface could say "Active", and it could say "Closed · 2 close-out items
+ *  open" — but it had no way to say THIS IS FINISHED. Every closed record read as
+ *  outstanding paperwork of an unstated amount, which on a compliance surface is
+ *  the difference between a queue and a filing cabinet.
+ *
+ *  `closedDocumented` IS TERMINAL: the escalation is closed, its note is
+ *  recorded, and nothing owed is outstanding. Nothing on this surface may then
+ *  ask for anything about it — which is why the note module stops rendering as a
+ *  live form in that state rather than being left editable "just in case".
+ *
+ *  DOCUMENTED IS NOT THE SAME AS SETTLED, and the two are separate for a reason:
+ *  `isSettled` asks whether every OWED item is done, and the note is one of four.
+ *  A record can be settled with its note done and its debrief waived, or have its
+ *  note done with a follow-up still owed. The terminal state needs both, so it
+ *  asks both questions rather than one standing in for the other. */
+export type RecordLifecycle = "active" | "closedOutstanding" | "closedDocumented";
+
+/** NEEDS-COPY-NICOLE, all three. Stated in the reader's terms, and the SAME
+ *  words in the region row and in the pane — two spellings of one state is how a
+ *  reader ends up believing they are two states. */
+export const RECORD_LIFECYCLE_LABEL: Record<RecordLifecycle, string> = {
+  active: "Active",
+  closedOutstanding: "Closed",
+  closedDocumented: "Closed · documented",
+};
+
+/** Whether the escalation note itself is recorded. The note is `closeOutDone`'s
+ *  first item; asking for it by name rather than counting keeps "documented"
+ *  meaning the note rather than meaning "three of four things". */
+export function isDocumented(rec: EscalationRecord): boolean {
+  return rec.closeOutDone.includes("note");
+}
+
+export function recordLifecycleOf(
+  rec: EscalationRecord,
+  now: number
+): RecordLifecycle {
+  if (isActive(rec)) return "active";
+  return isDocumented(rec) && isSettled(rec, now)
+    ? "closedDocumented"
+    : "closedOutstanding";
+}
+
 /** ═══ THE ONE SATURATED TREATMENT ON THE PAGE, AND WHAT EARNS IT ═══
  *  An active escalation, and an acknowledgement past its five minutes. Both are
  *  "somebody may be in danger right now and nobody has responded". A resolved

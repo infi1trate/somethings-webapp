@@ -585,14 +585,32 @@ function Row({
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span
             className={cn(
-              "truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
+              "truncate text-[14px] leading-[20px]",
+              /* ═══ THE FILL CHANGES THE GROUND, SO IT CHANGES THE INK ═══
+                 MEASURED by axe: `--text-primary` (#1f1e1d) on the respond fill
+                 (#c9351d) is 3.17:1 — a WCAG failure on the most urgent row on
+                 the surface. The row root already sets `--task-respond-fg`; this
+                 element was overriding it with the ink for the ground it is NOT
+                 on. Inheriting instead of restating is the fix. */
+              isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-primary)]",
               (taskLed || emphasis === "person") && "font-display"
             )}
           >
             {item.teenDisplayName}
           </span>
           {taskLed && (
-            <span className="shrink-0 rounded-full bg-[var(--surface-s1)] px-1.5 py-px text-[11px] leading-[15px] text-[var(--text-secondary)]">
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-px text-[11px] leading-[15px]",
+                /* THE CHIP'S OWN GROUND IS THE FILL, not `--surface-s1`: a pale
+                   chip on the escalation red would be a second ground inside a
+                   saturated row, which reads as a badge rather than a label. A
+                   hairline in the fill's own ink instead. */
+                isResponse
+                  ? "border border-[color:var(--task-respond-fg)] text-[var(--task-respond-fg)]"
+                  : "bg-[var(--surface-s1)] text-[var(--text-secondary)]"
+              )}
+            >
               {TASK_KIND_LABEL[item.taskType]}
             </span>
           )}
@@ -611,7 +629,17 @@ function Row({
             from survey data. It remains on Monitoring's rows, where it is
             load-bearing, and on the pane header and the transcript, where it
             attributes who said what. */}
-        <span className="block truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
+        <span
+          className={cn(
+            "block truncate text-[12px] leading-[16px]",
+            /* ═══ 1.45:1 — THE WORST PAIR ON THE SURFACE (arch-G, G6) ═══
+               MEASURED by axe: `--text-secondary` (#58534b) on the respond fill
+               (#c9351d). At 12px. On the line that says "911 dispatched".
+               Same cause as line 1: an explicit ink for the default ground,
+               restated on a row whose ground is not the default. */
+            isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-secondary)]"
+          )}
+        >
           {taskLed ? (
             /* ═══ THE DISPOSITION ALONE (arch-F) ═══
                arch-E put the teen name here with the disposition beside it. The

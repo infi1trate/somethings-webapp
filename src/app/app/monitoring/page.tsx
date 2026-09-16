@@ -43,6 +43,14 @@ export default function MonitoringRoute({
   const query = use(searchParams);
   const band = typeof query.band === "string" ? query.band : null;
   const region = typeof query.region === "string" ? query.region : null;
+  /** ═══ `?escalation=<id>` — AN OBJECT, NOT A REGION (arch-G, G6) ═══
+   *  The one deep link here that names a specific thing, and it is allowed to
+   *  because an escalation RECORD is durable: it does not go stale the way a
+   *  link to one flag would, and the page says so plainly when the id is not in
+   *  the current data set. `/app/escalation/[escalationId]` sends every
+   *  link-out here. */
+  const escalation =
+    typeof query.escalation === "string" ? query.escalation : null;
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
 
@@ -54,7 +62,11 @@ export default function MonitoringRoute({
   if (supervisor) {
     return (
       <AdminShell active="monitoring">
-        <MonitoringPage focusBand={band} focusRegion={region} />
+        <MonitoringPage
+          focusBand={band}
+          focusRegion={region}
+          focusEscalation={escalation}
+        />
       </AdminShell>
     );
   }

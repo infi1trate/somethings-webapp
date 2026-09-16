@@ -88,6 +88,11 @@ export const MONITORING_SCENARIO_GROUPS: MonitoringScenarioGroup[] = [
       { id: "escalation-note-overdue", label: "Escalation · note overdue" },
       { id: "escalation-no-caregiver", label: "Escalation · no caregiver" },
       { id: "escalation-afterhours", label: "Escalation · after hours" },
+      /* LAST IN THE GROUP, AFTER THE PHASE FILE'S EIGHT. Appending rather than
+         inserting keeps every existing key at the position the phase file and
+         the probes record, so this addition cannot be mistaken for a reordering
+         of what was reviewed. */
+      { id: "escalation-documented", label: "Escalation · documented" },
     ],
   },
   {
@@ -434,6 +439,41 @@ const BUILDERS: Record<string, Builder> = {
         acknowledgedAt: now - 1995 * MINUTE,
         resolvedAt: now - (ESCALATION_NOTE_SLA + 6 * HOUR) / MINUTE * MINUTE,
         closeOutDone: ["debrief"] as CloseOutId[],
+      }),
+    ],
+  }),
+
+  /** ═══ THE TERMINAL STATE, WHICH NOTHING COULD REACH BEFORE (arch-G, G6) ═══
+   *  `closedDocumented` needs a closed record whose note is done AND nothing
+   *  owed outstanding, and no fixture had one: every closed escalation shipped
+   *  with paperwork open, so the surface's finished state was unreachable and
+   *  therefore unverifiable.
+   *  `caregiverInvolved: true` waives the teen follow-up — which is the point of
+   *  the conditional item — leaving the note, the debrief and the safety plan,
+   *  all three recorded here.
+   *  IT IS SETTLED, SO IT LEAVES THE REGION. That is deliberate and it is what
+   *  makes this fixture worth having: the record is reachable only by its own
+   *  link, which is exactly the path G6 built. Open it with
+   *  `/app/escalation/esc-documented`. */
+  "escalation-documented": (now, ts) => ({
+    ...base(now, eventsFromFlags(flagPool(ts, now).slice(0, 5), now), 0.4),
+    escalations: [
+      escalation(now, {
+        id: "esc-documented",
+        triggeredMinsAgo: 1500,
+        acknowledgedAt: now - 1497 * MINUTE,
+        resolvedAt: now - 1400 * MINUTE,
+        is911: true,
+        caregiverInvolved: true,
+        closeOutDone: ["note", "debrief", "safetyPlan"] as CloseOutId[],
+      }),
+      /* A SECOND, UNFINISHED ONE so the scenario is not only its edge case: a
+         reader lands on a page with work on it and reaches the documented
+         record by link, which is the real journey. */
+      escalation(now, {
+        triggeredMinsAgo: 400,
+        acknowledgedAt: now - 396 * MINUTE,
+        resolvedAt: now - 300 * MINUTE,
       }),
     ],
   }),

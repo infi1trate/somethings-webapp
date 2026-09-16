@@ -25,6 +25,11 @@ const EXPECTED_KEYS = [
   // Escalation lifecycle
   "escalation-unacked", "escalation-breach", "escalation-911", "escalation-concurrent",
   "escalation-closeout", "escalation-note-overdue", "escalation-no-caregiver", "escalation-afterhours",
+  /* ADDED BY arch-G, G6 — not in the phase file, because the state it reaches
+     did not exist then: no closed record could be `closed · documented`, so the
+     surface's terminal state was unreachable and unverifiable. The list grows
+     rather than the count being loosened. */
+  "escalation-documented",
   // Compliance paths
   "explicit-media", "suspected-death",
   // Risk flags

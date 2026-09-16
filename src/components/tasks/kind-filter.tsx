@@ -156,7 +156,16 @@ export function KindFilter({
                 is the same grammar the bucket headers use — name, em dash,
                 count. Tabular so a two-digit count does not shift the row. */}
             {kind === ALL_KINDS ? "All" : kind}
-            <span aria-hidden className="pl-1.5 tabular-nums opacity-70">
+            {/* ═══ NO `opacity-70` (arch-G, G6) ═══
+                MEASURED by axe: 70% of `--text-secondary` on the surface reads
+                3.43:1 light and 4.25:1 dark, both under the 4.5 floor at 12.5px.
+                Opacity as a de-emphasis dial is the same mistake the escalation
+                chip's white-at-80% was — it moves contrast without saying so.
+                THE COUNT DOES NOT NEED DE-EMPHASISING: it is already smaller
+                than nothing and separated by space, and on the ACTIVE chip it
+                sits on the inverse ground where the inherited ink is the only
+                one that works. */}
+            <span aria-hidden className="pl-1.5 tabular-nums">
               {kind === ALL_KINDS ? items.length : (counts[kind] ?? 0)}
             </span>
           </button>

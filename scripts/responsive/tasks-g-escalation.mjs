@@ -22,7 +22,8 @@
 //
 // Exit codes: 0 every check passed · 1 a check failed.
 
-import { launch, openView, VIEWPORTS, readStoreVersion } from "./harness.mjs";
+import AxeBuilder from "@axe-core/playwright";
+import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
 
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 900 };
 const version = await readStoreVersion();
@@ -348,6 +349,285 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
     "the action row counts recorded fields rather than validating",
     /of \d+ fields recorded/.test(pane.paneText),
     (pane.paneText.match(/\d+ of \d+ fields recorded/) ?? ["not found"])[0]
+  );
+  await context.close();
+}
+
+// ── 5. THE RECORD ON MONITORING (G6) ───────────────────────────────────────
+//
+// The record is the escalation's durable home. What is asserted: the deep link
+// resolves, the state is stated, the timeline is there, and a TERMINAL record —
+// which has left the escalation region because it is settled — is still
+// reachable by its own link and offers no form.
+{
+  const { context, page } = await openView(
+    browser,
+    {
+      id: "g-record",
+      url: "/app/monitoring?escalation=esc-documented",
+      seed: {
+        persona: "supervisor",
+        extra: {
+          tasksScenarioId: "typical-shift",
+          monitoringScenarioId: "escalation-documented",
+        },
+      },
+    },
+    XL,
+    version
+  );
+  await page.waitForTimeout(700);
+
+  const rec = await page.evaluate(() => {
+    const text = (el) => (el?.innerText ?? "").replace(/\s+/g, " ").trim();
+    const lifecycle = document.querySelector("[data-record-lifecycle]");
+    return {
+      lifecycle: lifecycle?.getAttribute("data-record-lifecycle") ?? null,
+      lifecycleText: text(lifecycle),
+      body: text(document.body),
+      entries: document.querySelectorAll("[data-timeline-entry]").length,
+      // A settled record has left the worklist; the link is the only way in.
+      regionRows: document.querySelectorAll("[data-escalation-state]").length,
+      inRegion: [...document.querySelectorAll("[data-anno-ref]")].some((el) =>
+        (el.getAttribute("data-anno-ref") ?? "").includes("esc-documented")
+      ),
+      noteFields: document.querySelectorAll('[data-slot="escalation-note"]').length,
+    };
+  });
+
+  check(
+    "record.deep-link",
+    "a link to an escalation opens its record",
+    rec.lifecycle !== null,
+    rec.lifecycle ?? "no [data-record-lifecycle] — the record did not open"
+  );
+  check(
+    "record.terminal",
+    "and a documented record says it is finished",
+    rec.lifecycle === "closedDocumented" &&
+      /nothing further is owed/.test(rec.lifecycleText),
+    rec.lifecycleText
+  );
+  check(
+    "record.left-the-region",
+    "a settled record is NOT in the escalation region",
+    rec.inRegion === false,
+    `${rec.regionRows} region rows`
+  );
+  check(
+    "record.timeline",
+    "the record carries the timeline",
+    rec.entries >= 3,
+    `${rec.entries} entries`
+  );
+  check(
+    "record.no-form",
+    "and offers no note form, because the note is recorded",
+    rec.noteFields === 0 && /stores no note body/.test(rec.body)
+  );
+
+  // ── the miss. An id from another scenario has no record to show.
+  await page.goto(`${BASE}/app/monitoring?escalation=esc-not-here`, {
+    waitUntil: "networkidle",
+  });
+  await page.waitForTimeout(500);
+  const missed = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('[role="status"]')].find((n) =>
+      /isn.t in this data set/.test(n.innerText)
+    );
+    return el ? el.innerText.replace(/\s+/g, " ").trim() : null;
+  });
+  check(
+    "record.miss-stated",
+    "an unreachable id is named rather than silently replaced",
+    !!missed && /esc-not-here/.test(missed),
+    missed ?? "no notice"
+  );
+  check(
+    "record.miss-spacing",
+    "and the sentence is not glued together",
+    !!missed && /esc-not-here isn/.test(missed),
+    missed?.slice(0, 60)
+  );
+
+  await context.close();
+}
+
+// ── 6. THE TIMELINE'S OWN ACCESSIBILITY AND CONTRAST ───────────────────────
+//
+// New UI on two surfaces, and neither surface's existing sweep saw it: the Tasks
+// axe run never had an escalation selected and Monitoring's ran a scenario with
+// no record open. So the sweep is here, in the state that mounts it, in both
+// themes — and the contrast pairs are measured rather than assumed, because the
+// source chip and the hand-logged chip are the two elements this phase invented.
+{
+  for (const scheme of ["light", "dark"]) {
+    const { context, page } = await openView(
+      browser,
+      {
+        id: `g-axe-${scheme}`,
+        url: "/app/tasks",
+        seed: {
+          persona: "supervisor",
+          extra: { tasksScenarioId: "typical-shift", theme: scheme },
+        },
+      },
+      { ...XL, scheme },
+      version
+    );
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.waitForTimeout(450);
+    await selectRow(page, /Active escalation/);
+    // Open the log form too — a collapsed form cannot be swept.
+    await page.getByRole("button", { name: /Log an action/i }).click();
+    await page.waitForTimeout(250);
+    /* ONE HAND-LOGGED ENTRY FIRST. Its chip is a BORDER rather than a fill —
+       the one element in the timeline whose treatment this phase invented — so a
+       sweep without it would be measuring only the pairs that already existed.
+       The form is re-opened after, because an open form is also part of the
+       state axe has to see. */
+    await page
+      .getByRole("textbox", { name: /What happened/i })
+      .fill("Called the mentor back");
+    await page.getByRole("button", { name: /^Log it$/i }).click();
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: /Log an action/i }).click();
+    await page.waitForTimeout(250);
+
+    const res = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    check(
+      `a11y.timeline-${scheme}`,
+      `axe is clean with the timeline and its log form open (${scheme})`,
+      res.violations.length === 0,
+      res.violations.map((v) => `${v.id}×${v.nodes.length}`).join(", ") || "0 violations"
+    );
+
+    /* ═══ CONTRAST, MEASURED AGAINST THE REAL GROUND ═══
+       String comparison, not a regex: a pattern authored inside this template
+       loses its backslashes, which is how ten pairs once read 1.26:1 against a
+       transparent ground. */
+    const pairs = await page.evaluate(() => {
+      const parse = (c) => {
+        const n = c.replace("rgba(", "").replace("rgb(", "").replace(")", "").split(",").map(Number);
+        return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
+      };
+      const lum = ({ r, g, b }) => {
+        const f = (v) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      };
+      /* WALK UP FOR AN OPAQUE GROUND. `rgba(0, 0, 0, 0)` is what a chip's own
+         background reads as when it has none, and treating that as black is the
+         artifact that produced the 1.26:1 readings. */
+      const groundOf = (el) => {
+        let n = el;
+        while (n) {
+          const bg = getComputedStyle(n).backgroundColor;
+          const p = parse(bg);
+          if (p.a > 0.9) return p;
+          n = n.parentElement;
+        }
+        return { r: 255, g: 255, b: 255, a: 1 };
+      };
+      const ratio = (el) => {
+        const cs = getComputedStyle(el);
+        const fg = parse(cs.color);
+        const bg = groundOf(el);
+        const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+        return Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+      };
+      const out = [];
+      const entry = document.querySelector("[data-timeline-entry]");
+      if (entry) {
+        out.push({ what: "source chip", r: ratio(entry.querySelector("[data-timeline-label] span")) });
+        out.push({ what: "timestamp", r: ratio(entry.querySelector("[data-timeline-time]")) });
+        out.push({ what: "entry text", r: ratio(entry.querySelector("[data-timeline-text]")) });
+      }
+      const manual = document.querySelector('[data-timeline-manual="true"]');
+      if (manual) out.push({ what: "hand-logged chip", r: ratio(manual.querySelector("[data-timeline-label] span")) });
+      const caveat = [...document.querySelectorAll("p")].find((n) =>
+        n.textContent.includes("out-of-band actions appear only when logged")
+      );
+      if (caveat) out.push({ what: "standing caveat", r: ratio(caveat) });
+      return out;
+    });
+    check(
+      `contrast.timeline-${scheme}-inputs`,
+      `all five pairs were found and measured (${scheme})`,
+      pairs.length === 5 &&
+        pairs.some((p) => p.what === "hand-logged chip"),
+      `${pairs.length} pairs: ${pairs.map((p) => p.what).join(", ")}`
+    );
+    check(
+      `contrast.timeline-${scheme}`,
+      `every timeline pair clears 4.5:1 (${scheme})`,
+      pairs.length > 0 && pairs.every((p) => p.r >= 4.5),
+      pairs.map((p) => `${p.what} ${p.r}:1`).join(" · ")
+    );
+
+    await context.close();
+  }
+}
+
+// ── 7. THE RESPONSE ROW'S INK ON THE SATURATED FILL ────────────────────────
+//
+// axe found `--text-primary` at 3.17:1 and `--text-secondary` at 1.45:1 on the
+// escalation fill — both because an element restated the ink for the DEFAULT
+// ground on a row whose ground is not the default. Measured here so the fix
+// cannot be undone by the next element that sets its own colour.
+{
+  const { context, page } = await open("g-row-ink");
+  const ink = await page.evaluate(() => {
+    const parse = (c) => {
+      const n = c.replace("rgba(", "").replace("rgb(", "").replace(")", "").split(",").map(Number);
+      return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
+    };
+    const lum = ({ r, g, b }) => {
+      const f = (v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const row = document.querySelector('[data-response="true"]');
+    if (!row) return null;
+    const bg = parse(getComputedStyle(row).backgroundColor);
+    // EVERY LEAF THAT DRAWS TEXT, not a wrapper — a wrapper inherits the row's
+    // own ink and would pass while its children fail.
+    const leaves = [...row.querySelectorAll("span")].filter(
+      (el) => !el.querySelector("span") && (el.textContent ?? "").trim().length > 0
+    );
+    return {
+      bg: getComputedStyle(row).backgroundColor,
+      pairs: leaves.map((el) => {
+        const fg = parse(getComputedStyle(el).color);
+        const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+        return {
+          text: (el.textContent ?? "").trim().slice(0, 22),
+          size: getComputedStyle(el).fontSize,
+          r: Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100,
+        };
+      }),
+    };
+  });
+  check(
+    "row.response-input",
+    "the response row is on the saturated fill (the input to the next check)",
+    !!ink && ink.pairs.length >= 3,
+    ink ? `${ink.bg}, ${ink.pairs.length} text leaves` : "no [data-response] row"
+  );
+  check(
+    "row.response-ink",
+    "every string on the fill clears 4.5:1",
+    !!ink && ink.pairs.every((p) => p.r >= 4.5),
+    (ink?.pairs ?? [])
+      .filter((p) => p.r < 4.5)
+      .map((p) => `"${p.text}" ${p.r}:1 @${p.size}`)
+      .join(" · ") || (ink?.pairs ?? []).map((p) => `${p.r}:1`).join(" ")
   );
   await context.close();
 }
