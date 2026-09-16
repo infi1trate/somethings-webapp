@@ -173,7 +173,20 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 /** Every differentiator a row carries, in one place so the "no tier chips" rule is
  *  enforced by there being nowhere to put one. */
-function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
+function RowChips({
+  entry,
+  now,
+  /** ═══ THE BUCKET ALREADY SAID IT (arch-G, G1) ═══
+   *  On a task-led row the bucket header carries the breach treatment, so a chip
+   *  here would be the second of three statements about one lateness. The
+   *  deadline column keeps the number and takes the breach ink. Monitoring's
+   *  rows have no bucket above them and keep their chip. */
+  suppressOverdue = false,
+}: {
+  entry: ListEntry;
+  now: number;
+  suppressOverdue?: boolean;
+}) {
   const item = paneItemFor(entry);
   const all = itemsOf(entry);
   // A GROUP IS OVERDUE IF ANY MEMBER IS — the row stands for all of them.
@@ -182,7 +195,7 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
   return (
     <>
       {entry.kind === "group" && <Chip>{coalesceLabel(entry.members.length)}</Chip>}
-      {overdue && <OverdueChip />}
+      {overdue && !suppressOverdue && <OverdueChip />}
       {p.kind === "escalation" && (
         <Chip>
           <Phone className="size-2.5 shrink-0" aria-hidden />
@@ -576,7 +589,7 @@ function Row({
       </span>
 
       <span className="flex shrink-0 items-center gap-1.5">
-        <RowChips entry={entry} now={now} />
+        <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION MOVED TO THE RIGHT (arch-D, D3) ═══
             It shared the mentor caption, which put the row's PRIMARY fact — how
             much signal this teen is carrying — in the quietest line on the row,
@@ -630,7 +643,12 @@ function Row({
           className={cn(
             "shrink-0 tabular-nums",
             taskLed
-              ? "text-[13px] text-[var(--text-secondary)]"
+              ? overdue
+                ? /* THE ONLY BREACH STATEMENT ON THE ROW NOW — so it carries the
+                     ink. Still not colour alone: the word "overdue" is in the
+                     string and in the accessible name. */
+                  "text-[13px] font-semibold text-[var(--band-clay-fg)]"
+                : "text-[13px] text-[var(--text-secondary)]"
               : emphasis === "deadline" && !indent
                 ? "text-[14px] font-bold text-[var(--text-primary)]"
                 : "text-[12px] text-[var(--text-secondary)]"
@@ -1273,6 +1291,18 @@ export function Worklist({
               <WorklistGroupHeader
                 label={section.band.label}
                 count={headersState === "ready" ? section.band.taskCount : null}
+                /* THE BUCKET'S OWN URGENCY (arch-G). Only the deadline grouping
+                   has tones — Monitoring's tier bands stay quiet, because there
+                   the tier is a kind of work rather than a clock. */
+                tone={
+                  grouping !== "deadline"
+                    ? "quiet"
+                    : section.band.id === "needsResponse"
+                      ? "respond"
+                      : section.band.id === "overdue"
+                        ? "breach"
+                        : "quiet"
+                }
               />
             )}
             {/* SPACERS, NOT RENDERED ROWS. Two divs stand in for everything

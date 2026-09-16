@@ -109,11 +109,32 @@ async function openCareReview(page) {
      title (in the module, opt-in so Care is untouched), the figures are a
      collapsed Record context accordion after the review. The CLAIM is unchanged —
      both facts are still on this pane — and is now asserted where they live. */
+  /* ═══ THE LINE IS A CHANGE'S, NOT EVERY CASE'S (arch-G, G1) ═══
+     arch-F gated it on the code being present, so a RENEWAL — where the code on
+     record IS the recommendation — printed "Current · F33.1" under a title
+     already reading F33.1. The parity spec asks for no line in that case. So the
+     probe now walks to a CHANGE row to assert the line, and asserts its ABSENCE
+     on a renewal, which is the half that would otherwise regress silently. */
+  const cases = { change: null, renewal: null };
+  for (let i = 0; i < 14 && (!cases.change || !cases.renewal); i += 1) {
+    await page.getByRole("treeitem").nth(i).click();
+    await page.waitForTimeout(280);
+    const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
+    const kind = /Change proposed/.test(pt) ? "change" : /Renewal proposed/.test(pt) ? "renewal" : null;
+    if (kind && !cases[kind]) cases[kind] = pt;
+  }
+  check("tasks.cases-found", "a change and a renewal were both reachable", !!cases.change && !!cases.renewal);
   check(
     "tasks.current-line",
-    "the code on record renders as a subordinate line under the recommendation",
-    /Current/.test(t) && /F\d\d\.\d/.test(t),
-    (t.replace(/\s+/g, " ").match(/Current · [A-Z0-9.]+ [^·]{0,32}/) ?? ["none"])[0]
+    "a CHANGE renders the code on record as a subordinate line",
+    cases.change && /Current/.test(cases.change) && /F\d\d\.\d/.test(cases.change),
+    (cases.change ?? "").match(/Current · [A-Z0-9.]+ [^·]{0,32}/)?.[0] ?? "none"
+  );
+  check(
+    "tasks.no-line-on-renewal",
+    "and a RENEWAL renders none — the code would be stated twice",
+    cases.renewal && !/Current ·/.test(cases.renewal),
+    (cases.renewal ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
   const accordion = page.locator('[data-slot="record-context"]');
@@ -201,6 +222,24 @@ for (const [label, url, prep, onRecordRe] of [
 ]) {
   const { context, page } = await open(`picker-${label}`, url);
   if (prep) await prep(page);
+  /* ═══ WALK TO A CHANGE ROW BEFORE OPENING THE PICKER ═══
+     The subordinate line only renders when the code on record DIFFERS from the
+     recommendation (arch-G, G1), so a renewal-selected pane has no code for this
+     section to look for. It has to happen before the dialog opens: a modal
+     blocks pointer events on the list behind it, and the first version of this
+     walk timed out clicking a row under the open picker. */
+  if (label === "tasks") {
+    for (let i = 0; i < 14; i += 1) {
+      /* NORMALISED: `innerText` puts a newline between the "Current" span and
+         the "·" span, so a literal "Current ·" never matches the raw string —
+         the first version of this walk clicked fourteen rows and broke on none
+         of them. */
+      const body = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      if (/Current ·/.test(body)) break;
+      await page.getByRole("treeitem").nth(i).click();
+      await page.waitForTimeout(260);
+    }
+  }
   const btn = page.getByRole("button", { name: /^Change code$/ }).first();
   check(`picker.${label}.control`, "the module's picker control is present", await btn.count());
   if (await btn.count()) {

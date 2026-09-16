@@ -199,15 +199,41 @@ const rowReport = `(row) => {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 2 · TASKS, OVERDUE — the breach chip AND the countdown.
+// 2 · TASKS, OVERDUE — ONE STATEMENT, NOT THREE (arch-G, G1 superseded F1.2).
+//
+// The row carried a breach chip AND the countdown, under a bucket header already
+// reading "Overdue" — three statements about one lateness. The BUCKET owns the
+// treatment now; the row states how late, in breach ink, and drops the chip.
 // ═══════════════════════════════════════════════════════════════════════════
 {
   const { context, page } = await open("tasks-overdue", "/app/tasks", { scenario: "breach-overnight" });
   const t = await page.locator('[role="treeitem"]').first().innerText();
+  const header = await page.evaluate(`(() => { const h = document.querySelector('[role="group"] > div[aria-hidden]');
+    if (!h) return null; const cs = getComputedStyle(h);
+    return { text: (h.innerText||"").replace(/\s+/g," ").trim(), bg: cs.backgroundColor, fg: cs.color }; })()`);
+  check("tasks.overdue-input", "the bucket header was readable", !!header, JSON.stringify(header));
+  check(
+    "tasks.overdue-header-carries-breach",
+    "the bucket header carries the breach treatment",
+    header && /Overdue/.test(header.text) && header.bg !== "rgba(0, 0, 0, 0)" && header.bg !== "rgb(255, 255, 255)",
+    header && `${header.text} · ${header.bg}`
+  );
+  const deadlineInk = await page.evaluate(`(() => {
+    /* THE LEAF, not an ancestor that happens to contain the text — a wrapper
+       inherits primary/400 and made this read as unstyled. */
+    const el = [...document.querySelectorAll('[role="treeitem"] span')].find((e) => !e.querySelector("span") && /^overdue by /.test((e.innerText||"").trim()));
+    if (!el) return null; const cs = getComputedStyle(el);
+    return { text: el.innerText.trim(), color: cs.color, weight: cs.fontWeight }; })()`);
+  check(
+    "tasks.overdue-row-states-how-late",
+    "and the row states how late, in breach ink, with no chip of its own",
+    deadlineInk && !/\bOverdue\b/.test(t.replace(/overdue by/gi, "")) && Number(deadlineInk.weight) >= 600,
+    deadlineInk && `${deadlineInk.text} · ${deadlineInk.color}/${deadlineInk.weight}`
+  );
   check(
     "tasks.overdue",
-    "an overdue row carries the breach chip and says how late",
-    /Overdue/.test(t) && /overdue by \d+[mhd]/.test(t),
+    "and the lateness is still stated exactly once",
+    /overdue by \d+[mhd]/.test(t) && t.match(/[Oo]verdue/g)?.length === 1,
     t.replace(/\s+/g, " ")
   );
   await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-overdue.png` });

@@ -424,7 +424,13 @@ export function ReviewBody({
             nothing on record, and a line reading "Current · none" would invent a
             state. The proposal chip already says "Presentation proposed", which
             is the same fact stated as the thing that matters. */}
-        {showCurrentLine && currentCode && (
+        {/* ═══ AND NOT ON A RENEWAL (arch-G, G1) ═══
+            A renewal IS the code on record, confirmed — so "Current · F33.1"
+            under a title already reading F33.1 states the same code twice, which
+            is what the parity spec's "no current line" means for this case. It
+            was gated on the code being PRESENT rather than on the proposal being
+            a change, so it rendered for renewals too. */}
+        {showCurrentLine && currentCode && proposalKind === "change" && (
           <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
             {/* NEEDS-COPY-NICOLE */}
             <span>Current</span>

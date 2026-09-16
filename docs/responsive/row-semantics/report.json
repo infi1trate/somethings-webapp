@@ -23,13 +23,13 @@
       "id": "tasks.deadline-column",
       "label": "the deadline keeps its mono tabular column, in secondary ink",
       "ok": true,
-      "detail": "overdue by 9h · 13px/400 ui-monospace"
+      "detail": "overdue by 9h · 13px/600 ui-monospace"
     },
     {
       "id": "tasks.no-elapsed",
       "label": "elapsed age is gone from the row",
       "ok": true,
-      "detail": "Theo L. | Billing code review | Renewal proposed | Overdue | overdue by 9h"
+      "detail": "Theo L. | Billing code review | Renewal proposed | overdue by 9h"
     },
     {
       "id": "tasks.one-temporal",
@@ -40,7 +40,7 @@
       "id": "tasks.spans-read",
       "label": "the row's spans were readable at all",
       "ok": true,
-      "detail": "10 spans"
+      "detail": "9 spans"
     },
     {
       "id": "tasks.caption-disposition",
@@ -55,10 +55,28 @@
       "detail": "56px"
     },
     {
-      "id": "tasks.overdue",
-      "label": "an overdue row carries the breach chip and says how late",
+      "id": "tasks.overdue-input",
+      "label": "the bucket header was readable",
       "ok": true,
-      "detail": "Riley T. Billing code review Presentation proposed Overdue overdue by 8h"
+      "detail": "{\"text\":\"Overdue — 1\",\"bg\":\"rgb(246, 211, 198)\",\"fg\":\"rgb(117, 48, 31)\"}"
+    },
+    {
+      "id": "tasks.overdue-header-carries-breach",
+      "label": "the bucket header carries the breach treatment",
+      "ok": true,
+      "detail": "Overdue — 1 · rgb(246, 211, 198)"
+    },
+    {
+      "id": "tasks.overdue-row-states-how-late",
+      "label": "and the row states how late, in breach ink, with no chip of its own",
+      "ok": true,
+      "detail": "overdue by 8h · rgb(117, 48, 31)/600"
+    },
+    {
+      "id": "tasks.overdue",
+      "label": "and the lateness is still stated exactly once",
+      "ok": true,
+      "detail": "Riley T. Billing code review Presentation proposed overdue by 8h"
     },
     {
       "id": "mon.rows-read",
@@ -106,13 +124,13 @@
       "id": "hdr.tasks.anatomy",
       "label": "label — count, sentence case, not mono",
       "ok": true,
-      "detail": "Due today — 1 | Due tomorrow — 5 | Later — 10"
+      "detail": "Due today — 2 | Due tomorrow — 6 | Later — 8"
     },
     {
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 200, pinned \"Due tomorrow — 5\", selected Later, Devon A., Billing code review, Presentation"
+      "detail": "scrollTop 200, pinned \"Due tomorrow — 6\", selected Later, Devon A., Billing code review, Presentation"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -178,7 +196,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 8:05 AM"
+      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 1:02 AM"
     },
     {
       "id": "e.no-avatar",
@@ -201,7 +219,7 @@
       "id": "e.buckets-present",
       "label": "the buckets that exist are labelled with counts",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "e.bucket-in-name",

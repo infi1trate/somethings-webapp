@@ -43,10 +43,21 @@
       "ok": true
     },
     {
+      "id": "tasks.cases-found",
+      "label": "a change and a renewal were both reachable",
+      "ok": true
+    },
+    {
       "id": "tasks.current-line",
-      "label": "the code on record renders as a subordinate line under the recommendation",
+      "label": "a CHANGE renders the code on record as a subordinate line",
       "ok": true,
-      "detail": "Current · F33.1 Major depressive disorder, recur"
+      "detail": "Current · F33.0 Major depressive disorder, recur"
+    },
+    {
+      "id": "tasks.no-line-on-renewal",
+      "label": "and a RENEWAL renders none — the code would be stated twice",
+      "ok": true,
+      "detail": "Renewal proposed Change code Rationale Scores have moved"
     },
     {
       "id": "tasks.no-on-record-strip",
@@ -84,13 +95,13 @@
       "id": "picker.tasks.host-states-code",
       "label": "the host states a code to look for",
       "ok": true,
-      "detail": "F33.1"
+      "detail": "F33.0"
     },
     {
       "id": "picker.tasks.on-record",
       "label": "and the module marks that code in the list",
       "ok": true,
-      "detail": "F33.1 · 1 marked"
+      "detail": "F33.0 · 1 marked"
     },
     {
       "id": "picker.tasks.closes",

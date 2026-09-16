@@ -248,12 +248,15 @@ function RecordContext({ payload }: { payload: BillingPayload }) {
         </span>
       </button>
       {open && (
-        <dl className="grid gap-3 border-t border-[color:var(--border-subtle)] px-3.5 py-3 sm:grid-cols-3">
+        <dl className="grid gap-3 border-t border-[color:var(--border-subtle)] px-3.5 py-3 sm:grid-cols-2">
           {[
-            /* NEEDS-COPY-NICOLE, all three labels. The window is named: "62
-               messages" without "last 30 days" is a figure a reader cannot
-               size. */
-            ["In mentorship", `${payload.mentorStats.daysInMentorship} days`],
+            /* ═══ THE DURATION IS NOT REPEATED (arch-G, G1) ═══
+               The collapsed header states "140 days in mentorship" and this list
+               stated "In mentorship · 140 days" again six pixels below it. The
+               header keeps the duration — it is the figure that changes how the
+               other two read — and the body holds only what the header does not
+               say. NEEDS-COPY-NICOLE on both labels; the window is named,
+               because "62 messages" without "last 30 days" cannot be sized. */
             ["Messages, last 30 days", `${payload.mentorStats.messagesLast30}`],
             ["Video calls, last 30 days", `${payload.mentorStats.videoLast30}`],
           ].map(([label, value]) => (
@@ -772,19 +775,23 @@ export function TaskPane({
               {!isEscalationTask(item) && (
                 <>
                   <span aria-hidden className="opacity-40">·</span>
-                  <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      breached && "font-semibold text-[var(--band-clay-fg)]"
+                    )}
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
                     {deadlineFactFor(item.slaDeadline, now, elapsedLabel)}
                   </span>
                 </>
               )}
-              {/* ═══ THE CHIP IS THE ALARM; THE FACT BESIDE IT IS THE DETAIL ═══
-                  It read `Past 3d` — the SLA's LENGTH — directly beside "overdue
-                  by 9h", so the header carried two numbers about one lateness
-                  that did not agree and neither of which was wrong. The chip now
-                  says only that it is late, in the same word the row's chip uses,
-                  and the mono fact says by how much. Still text plus icon, never
-                  colour alone. */}
-              {breached && <BreachChip label="Overdue" />}
+              {/* ═══ THE CHIP IS GONE FROM HERE TOO (arch-G, G1) ═══
+                  arch-F replaced its misleading label (`Past 3d`, the SLA's
+                  LENGTH) with "Overdue" — still a second statement beside
+                  "overdue by 9h". The meta line reads `3d open · overdue by 9h`
+                  and the due fact carries the breach ink, which is the same rule
+                  the rows now follow. */}
             </p>
           </div>
 

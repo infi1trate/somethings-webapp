@@ -11,7 +11,7 @@
       "id": "default.buckets",
       "label": "the list is grouped by deadline, in fixed order",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "default.no-tabs",
@@ -68,7 +68,7 @@
       "id": "partial.billing-healthy",
       "label": "partial leaves billing fully loaded",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "loading.run1",
@@ -107,7 +107,7 @@
       "id": "mechanics.row-holds-during-window",
       "label": "the resolved row holds its place while undo is still possible",
       "ok": true,
-      "detail": "Theo L. Billing code review Closing… Overdue overdue by 9h"
+      "detail": "Theo L. Billing code review Closing… overdue by 9h"
     },
     {
       "id": "mechanics.says-closing",
@@ -152,7 +152,7 @@
       "id": "retire.others-stay",
       "label": "and the remaining buckets are intact",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 4 | Later — 11"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "empty.copy",

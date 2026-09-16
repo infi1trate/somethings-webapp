@@ -62,6 +62,13 @@ const SHELL =
 
 export function WorklistGroupHeader({
   label,
+  /** ═══ THE BUCKET CARRIES THE BREACH (arch-G, G1) ═══
+   *  Breach was expressed three times on one row: this header said "Overdue",
+   *  the row carried an Overdue chip, and the deadline column said "overdue by
+   *  9h". The header is the right owner — it is the thing that groups them — so
+   *  it takes the treatment and the rows drop the chip. Text and ink, never ink
+   *  alone: the word "Overdue" is in the label. */
+  tone = "quiet",
   /** Null while the rows have not arrived — the band NAMES itself and withholds
    *  the number, because a placeholder count is a figure that is wrong for 240ms
    *  and the name is the half already known. */
@@ -71,12 +78,21 @@ export function WorklistGroupHeader({
   label: string;
   count: number | null;
   className?: string;
+  tone?: "quiet" | "breach" | "respond";
 }) {
   return (
     <div
       aria-hidden
       style={{ height: GROUP_HEADER_H }}
-      className={cn(SHELL, className)}
+      className={cn(
+        SHELL,
+        tone === "breach" && "bg-[var(--band-clay-bg)] text-[var(--band-clay-fg)]",
+        /* THE ONE SATURATED FILL IN THE TASKS LIST (arch-G, G2) — a live
+           escalation's bucket, and nothing else on the surface. */
+        tone === "respond" &&
+          "bg-[var(--task-respond-bg)] text-[var(--task-respond-fg)] font-semibold",
+        className
+      )}
     >
       <span className="tabular-nums">
         {count === null ? label : `${label} — ${count}`}
