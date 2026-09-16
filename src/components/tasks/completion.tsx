@@ -27,11 +27,16 @@ import { PillButton } from "@/components/settings/pill-button";
 import { DOMAIN_LABEL, type TaskDomain } from "@/lib/tasks/types";
 
 export function TabComplete({
-  domain,
+  /** ═══ OPTIONAL SINCE arch-G ═══
+   *  Tasks holds two domains in one list, so "Billing — all reviewed." is a
+   *  claim this card cannot make there: the surface clears as a whole or not at
+   *  all. Absent, the statement names no domain. The prop stays for a caller
+   *  whose queue IS one domain — Monitoring's tiers, per the note above. */
+  domain = null,
   next = null,
   onGoNext,
 }: {
-  domain: TaskDomain;
+  domain?: TaskDomain | null;
   /** The next domain per the global sort, with its open count. Null — or absent,
    *  which is what a single-domain surface passes — renders the statement with no
    *  CTA. When everything is clear the caller shows the whole-page empty state
@@ -61,8 +66,11 @@ export function TabComplete({
         className="text-[15px] leading-[22px] text-[var(--text-primary)]"
         role="status"
       >
-        {/* TODO-COPY. "Risk flags — all reviewed." A statement, with a full stop. */}
-        {`${DOMAIN_LABEL[domain]} — all reviewed.`}
+        {/* TODO-COPY. "Risk flags — all reviewed." A statement, with a full stop.
+            NEEDS-COPY-NICOLE for the domainless form: it has to read as finished
+            work rather than as an empty surface, which is the distinction this
+            whole card exists to draw. */}
+        {domain ? `${DOMAIN_LABEL[domain]} — all reviewed.` : "All reviewed."}
       </p>
 
       {next && onGoNext && (

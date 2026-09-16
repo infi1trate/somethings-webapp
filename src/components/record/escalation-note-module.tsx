@@ -186,7 +186,13 @@ export function EscalationNoteModule({
   const showReferralType = body.wasReferral === true;
 
   const actionRow = (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    /* `data-note-action-row` IS HOW THE PORTAL IS VERIFIED. Whether this row is
+       inside the host's sticky bar or in its own inline fallback is invisible in
+       a screenshot and load-order dependent, so the probe asks the DOM. */
+    <div
+      data-note-action-row
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+    >
       {/* ═══ COMPLETENESS, NOT VALIDATION ═══
           "{n} fields empty", never "{n} fields needed": nothing here is
           required, and the billing sentence would claim a gate that does not

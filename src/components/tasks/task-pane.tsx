@@ -34,10 +34,16 @@ import {
   type BillingCommitDetail,
   type BillingSubmitHandle,
 } from "@/components/tasks/billing-review";
-import { BreachChip } from "@/components/tasks/chips";
-import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
+import { elapsedLabel } from "@/components/tasks/strips";
 import { chatThreadHref } from "@/lib/record/chat";
+import {
+  EscalationCtas,
+  EscalationMeta,
+  EscalationTaskPane,
+  type EscalationPaneHandle,
+} from "@/components/tasks/escalation-task-pane";
 import type { CompletedEntry } from "@/components/tasks/completed-group";
+import type { MonitoringEvent } from "@/lib/monitoring/event";
 import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 // Still used by the BILLING pane's Notes link — a different block from the
@@ -52,19 +58,11 @@ import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
 import {
   isBreached,
   type BillingPayload,
-  type DocumentationPayload,
-  type EscalationPayload,
   type RiskFlagPayload,
   type TaskItem,
 } from "@/lib/tasks/types";
 import { tierLabel } from "@/lib/tasks/bands";
-import {
-  LIFECYCLE_LABEL,
-  closedAtOf,
-  isEscalationTask,
-  lifecycleOf,
-} from "@/lib/tasks/escalation-state";
-import { clockLabel } from "@/components/monitoring/escalation-region";
+import { isEscalationTask } from "@/lib/tasks/escalation-state";
 import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
   PANE_LABEL,
@@ -367,135 +365,19 @@ function BillingBody({
   );
 }
 
-function EscalationBody({
-  payload,
-  item,
-  now,
-  excerptState,
-  onRetryExcerpt,
-}: {
-  payload: EscalationPayload | DocumentationPayload;
-  item: TaskItem;
-  now: number;
-  excerptState: ExcerptState;
-  onRetryExcerpt: () => void;
-}) {
-  const isDocs = payload.kind === "documentation";
-  const state = lifecycleOf(item, now);
-  const closedAt = closedAtOf(item);
-  /** ═══ CONTEXT, NOT EVIDENCE ═══
-   *
-   *  An escalation has no `flaggedExcerpt` — nothing here was flagged, so there is
-   *  no line to highlight and `anchorText` is null, which anchors the excerpt to
-   *  the most recent messages instead. That is the brief's fallback and it is also
-   *  the honest one: highlighting an arbitrary message would assert that it
-   *  triggered the escalation, and the payload does not say that.
-   *
-   *  NOTHING ABOUT MITIGATION MOVES. This body is read-only (§5, locked decision
-   *  3) and stays so; the excerpt is one more statement, not an action. */
-  const conversation = buildConversation(item, null, now);
-
-  /* ═══ THE CLOSED ONES GET THE SAME FIELDS NOW (arch-B) ═══
-     They used to render TWO lines — a "Closed" date and a dead-end sentence —
-     and suppress the 911 status, the responder, the emergency contact and the
-     conversation entirely. The reasoning was presumably that a escalation note is
-     paperwork, so the context does not matter. It is the opposite: somebody
-     writing up an escalation hours later needs the 911 decision, who raised it
-     and what was said MORE than the person who was in the room. */
-  return (
-    <div className="space-y-4">
-      {/* READ-ONLY (§5). Every field here is a statement; there is no control in
-          this body at all. */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}{isDocs ? "Closed" : "Opened"}</p>
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {new Date(isDocs && closedAt !== null ? closedAt : item.openedAt).toLocaleString(
-              "en-US",
-              { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
-            )}
-            <span
-              className="ml-2 text-[var(--text-secondary)] tabular-nums"
-              style={{ fontFamily: "var(--font-mono)" }}
-            >
-              {/* THE CLOCK THE READER IS ACTUALLY ON. An active escalation counts
-                  up from its start; a closed one counts down to its escalation note
-                  deadline and past it counts up again. A bare figure here used to
-                  mean "since it closed", which is the one reading that answers
-                  nobody's question. */}
-              {clockLabel(item, now)}
-            </span>
-          </p>
-        </div>
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}911 status</p>
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {/* TODO-DATA. A documentation task's payload carries only the
-                escalation id and the close time — the 911 decision lives on the
-                escalation record, which this prototype has no reader for (gap row
-                213). Saying so is the honest option; printing "No 911 call" would
-                assert a decision from an absence, on the row where that decision
-                is most consequential. */}
-            {payload.kind === "escalation"
-              ? payload.is911
-                ? "911 dispatched"
-                : "No 911 call"
-              : "On the escalation record"}
-          </p>
-        </div>
-        {payload.kind === "escalation" && (
-          <>
-            <div>
-              <p className={LABEL}>{/* TODO-COPY */}Flagged by</p>
-              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {payload.flaggedBy}
-              </p>
-            </div>
-            <div>
-              <p className={LABEL}>{/* TODO-COPY */}Emergency contact</p>
-              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {payload.emergencyContact}
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* THE EXCERPT SITS ABOVE THE CLOSING LINE, because it is the last piece of
-          CONTEXT and that line closes the body. A reader who has just been told
-          what state this is in should not then be handed more to read. */}
-      <div>
-        <p className={LABEL}>{/* TODO-COPY */}Recent conversation</p>
-        <div className="mt-2">
-          <ConversationExcerpt
-            conversation={conversation}
-            teenName={firstNameOf(item.teenDisplayName)}
-            href={conversationHref(item.teenId, conversation.anchorId)}
-            state={excerptState}
-            onRetry={onRetryExcerpt}
-            /* TODO-COPY. A different name from the flag pane's, because this
-               excerpt makes a weaker claim: nothing here is flagged. */
-            label={`Recent conversation with ${firstNameOf(item.teenDisplayName)}`}
-          />
-        </div>
-      </div>
-
-      {/* ═══ THE STATE, ITS DEADLINE, AND WHERE THE WORK IS ═══
-          THIS REPLACED A DEAD END. It read "Escalation notes are completed on the
-          escalation record." and "This escalation is handled in the escalation
-          flow. Nothing here changes its state." — both true, both useless: they
-          told a reader what this pane will NOT do and left them to find out
-          elsewhere what state the thing is in and when it is due. The footer
-          already carries the link; this carries the fact. */}
-      <p className="text-[13px] leading-[18px] text-[var(--text-muted)]">
-        {/* TODO-COPY, both. */}
-        {isDocs
-          ? `${LIFECYCLE_LABEL[state]} — ${clockLabel(item, now)}. The escalation note is completed on the escalation record.`
-          : `Active — ${clockLabel(item, now)}. Responding happens in the escalation flow; nothing here changes its state.`}
-      </p>
-    </div>
-  );
-}
+/* ═══ `EscalationBody` IS GONE (arch-G, G4) ═══
+   It was the read-only pointer: four facts, a context excerpt, and a closing
+   sentence whose job was to say that the work happened somewhere else.
+   `EscalationTaskPane` replaces all of it — the facts as `Facts`, the mentor and
+   conversation as `Record context`, and the excerpt as the timeline's TEEN
+   CONVERSATION source, which shows the same messages verbatim and, unlike the
+   excerpt, next to the flags and the system events that share their window. The
+   link out to the full thread is not lost: `EscalationCtas` carries it.
+   THE ONE THING THE SWAP COSTS, stated: the excerpt drew from
+   `buildConversation(item, …)`, the surface's own conversation builder, while the
+   timeline's teen messages are fixtures (G0: the support thread is not queryable
+   by pair or window). Two sources for one set of messages is exactly the fork
+   this file's notes warn about, and it is a gap row rather than a fix here. */
 
 // ── The frame ───────────────────────────────────────────────────────────────
 
@@ -527,6 +409,14 @@ export function TaskPane({
    *  pane's so the two can disagree — which is the point: the dev harness must be
    *  able to fail the excerpt while the pane succeeds. */
   excerptState = "ready",
+  /** ═══ THE EVENTS ARE FOR THE ESCALATION TIMELINE'S FLAG JOIN ═══
+   *  Not optional, and that is the point: `flagsInWindowFor` joins real flags on
+   *  the same teen inside the escalation window, so a default of `[]` would make
+   *  the timeline silently drop entries that exist — on the surface whose whole
+   *  claim is that it shows what happened. An empty ARRAY from the page is a
+   *  statement that there are no flags; an omitted prop is a wiring mistake, and
+   *  the two must not look the same. */
+  events,
   /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (arch-F, F4) ═══
    *  Set when the selection is a row from "Completed today". The review renders
    *  with `canAct={false}` — the module's own tier gate, which already drops the
@@ -542,6 +432,7 @@ export function TaskPane({
   /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
   actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
+  events: MonitoringEvent[];
   completed?: CompletedEntry | null;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
@@ -601,6 +492,24 @@ export function TaskPane({
    *  the action is the smaller thing to move. Null whenever the mounted body is
    *  not a billing review, which is what the footer checks. */
   const billingHandle = useRef<BillingSubmitHandle | null>(null);
+  /** ═══ THE ESCALATION PANE'S, FOR THE SAME REASON (arch-G, G4) ═══
+   *  Its primary is in the footer and the state it acts on — the chosen
+   *  disposition — is inside `EscalationTaskPane`. Same trade as above. */
+  const escalationHandle = useRef<EscalationPaneHandle | null>(null);
+  /** Set by a refused press, cleared the moment a disposition is chosen. The
+   *  response has no count to state, so the only sentence it can offer is what
+   *  just happened — which is why the gate is a refused submit rather than a
+   *  disabled button: a disabled primary with no explanation is the failure
+   *  mode the billing footer already avoids. */
+  const [escalationBlocked, setEscalationBlocked] = useState(false);
+  const onDispositionChange = useCallback(() => setEscalationBlocked(false), []);
+  /** ═══ THE DOCUMENTATION NOTE'S ACTION ROW LANDS HERE ═══
+   *  State, not a ref, because the portal has to re-render once the node exists:
+   *  a ref written during commit is invisible to the render that reads it, so the
+   *  row would stay in its inline fallback until something else re-rendered the
+   *  pane. The module renders it inline while this is null, so the row is never
+   *  absent — it moves. */
+  const [actionSlot, setActionSlot] = useState<HTMLElement | null>(null);
 
   /* ═══ THE AUTO-ADVANCE CROSSFADE (Part 5) ═══
      Resolving replaces the pane's ENTIRE contents in one frame — new name, new
@@ -763,14 +672,26 @@ export function TaskPane({
               {/* NEEDS-COPY-NICOLE */}
               {TASK_KIND_LABEL[item.taskType]}
             </p>
-            <h2 className="mt-0.5 font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]">
+            <h2
+              /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance rule
+                 is a statement about which record is on screen after a resolve,
+                 and reading it off the heading is reading what a supervisor
+                 reads. */
+              data-pane-teen
+              className="mt-0.5 font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]"
+            >
               {item.teenDisplayName}
             </h2>
+            {isEscalationTask(item) ? (
+              /* THE THREE INSTANTS AN ESCALATION HAS — opened, closed, due —
+                 each stated once, and the response phase counts UP. Owned by the
+                 escalation pane's own module so the two task types cannot drift
+                 apart. */
+              <EscalationMeta item={item} now={now} />
+            ) : (
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-                {isEscalationTask(item)
-                  ? clockLabel(item, now)
-                  : `${elapsedLabel(item.openedAt, now)} open`}
+                {`${elapsedLabel(item.openedAt, now)} open`}
               </span>
               {!isEscalationTask(item) && (
                 <>
@@ -793,6 +714,7 @@ export function TaskPane({
                   and the due fact carries the breach ink, which is the same rule
                   the rows now follow. */}
             </p>
+            )}
           </div>
 
           {/* ═══ THE TWO WAYS OUT, AND WHY THEY ARE HERE AND NOT ON THE ROWS ═══
@@ -805,18 +727,28 @@ export function TaskPane({
               They must not compete with the recommendation title below them or
               with the footer's Submit, which is the one primary on the pane. */}
           <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
-            <Link
-              href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
-              className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
-                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-              {/* NEEDS-COPY-NICOLE */}
-              View care profile
-            </Link>
+            {/* ═══ ONE SOURCE FOR THE SET, PER TASK KIND (arch-G, G4) ═══
+                MEASURED: two "View care profile" links, identical href, side by
+                side. `EscalationCtas` carries the escalation set — care profile,
+                conversation, escalation record — and this link rendered
+                unconditionally alongside it. A duplicated way out is not
+                harmless in a cluster whose whole design note above is about not
+                competing for the eye: it doubles one destination's weight
+                against the two beside it. */}
+            {!isEscalationTask(item) && (
+              <Link
+                href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
+                className={cn(
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                  "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+                {/* NEEDS-COPY-NICOLE */}
+                View care profile
+              </Link>
+            )}
             {/* ═══ THE CONVERSATION OPENS AT THE TOP, AND THAT IS A GAP ═══
                 `conversationHref` builds `?msg=` and nothing reads it:
                 `/app/chat` redirects through `chatThreadHref`, which takes a
@@ -825,18 +757,23 @@ export function TaskPane({
                 FOR A BILLING REVIEW THERE IS NO ANCHOR ANYWAY: nothing here was
                 flagged, so there is no relevant message to land on, and the top
                 of the thread is the honest destination even once `?msg=` works. */}
-            <Link
-              href={chatThreadHref(item.teenId)}
-              className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
-                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-              {/* NEEDS-COPY-NICOLE */}
-              View conversation
-            </Link>
+            {!isEscalationTask(item) && (
+              <Link
+                href={chatThreadHref(item.teenId)}
+                className={cn(
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                  "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                <MessageSquare className="size-3.5 shrink-0" aria-hidden />
+                {/* NEEDS-COPY-NICOLE */}
+                View conversation
+              </Link>
+            )}
+            {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
+                component, so the two escalation task types carry the same set. */}
+            {isEscalationTask(item) && <EscalationCtas item={item} />}
           </div>
         </div>
         {/* THE TIER, HEADER ONLY (§5) — risk flags do not reach this surface
@@ -938,12 +875,25 @@ export function TaskPane({
           />
         )}
         {(p.kind === "escalation" || p.kind === "documentation") && (
-          <EscalationBody
-            payload={p}
+          /* ═══ MITIGATION HAPPENS HERE NOW (arch-G, G4) ═══
+             `EscalationBody` was a read-only pointer: facts, a context excerpt,
+             and a button that sent the reader somewhere else. That was right
+             while Tasks had no escalation task type and locked decision 3 meant
+             "escalations are not resolved on this surface" — it is wrong now
+             that the OBLIGATIONS are tasks. The record is still Monitoring's;
+             what happens here is the work the task names.
+             DECISION 3 IS NOT BROKEN BY THIS: nothing here resolves the
+             ESCALATION. The response task records a disposition and the
+             documentation task submits a note; the escalation's own lifecycle
+             belongs to the record. */
+          <EscalationTaskPane
             item={item}
             now={now}
-            excerptState={effectiveExcerptState}
-            onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
+            events={events}
+            onResolve={onResolve}
+            actionSlot={actionSlot}
+            handleRef={escalationHandle}
+            onDispositionChange={onDispositionChange}
           />
         )}
 
@@ -1131,26 +1081,42 @@ export function TaskPane({
         )}
 
         {(p.kind === "escalation" || p.kind === "documentation") && (
-          <div className="flex justify-end">
-            {/* SINGLE ACTION, AND IT ROUTES OUT. Nothing on this pane resolves —
-                locked decision 3, enforced here by there being no resolve control
-                and in resolve.ts by the utility refusing an escalation. */}
-            <Link
-              href={escalationHref(payloadEscalationId(p))}
-              className={cn(
-                "inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 text-[13px] font-semibold text-[var(--text-primary)]",
-                "transition-colors hover:bg-[var(--tint-hover)]",
-                RING
-              )}
+          /* ═══ THE ACTION BAR IS THE TASK'S, NOT A LINK OUT ═══
+             It held one button that routed to the record. The task is completed
+             HERE now: a response records its disposition, and a documentation
+             task's bar is where the note module portals its own action row —
+             which is why this branch renders only the response primary and
+             leaves the slot empty otherwise. */
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p
+              role="status"
+              aria-live="polite"
+              className="min-w-0 text-[12.5px] leading-[17px] text-[var(--text-secondary)]"
             >
-              {/* TODO-COPY */}
-              {/* TODO-COPY. THE ACTION NAMES THE WORK, NOT THE OBJECT — "Open
-                  escalation" on a closed one sends a reader looking for a crisis
-                  that is over. Matches the region's own row button exactly, so a
-                  reader who clicks either lands in the same place expecting the
-                  same thing. */}
-              {p.kind === "documentation" ? "Open documentation" : "Open escalation"}
-            </Link>
+              {/* NEEDS-COPY-NICOLE. The response's own gate, stated rather than
+                  enforced with a disabled button. */}
+              {p.kind === "escalation" && escalationBlocked
+                ? "Record what you did first."
+                : ""}
+            </p>
+            {p.kind === "escalation" ? (
+              <PillButton
+                onClick={() => {
+                  const h = escalationHandle.current;
+                  if (!h) return;
+                  /* THE REFUSAL IS THE MESSAGE. `submit` returns false when no
+                     disposition is chosen; the sentence to its left says so. */
+                  if (!h.submit()) setEscalationBlocked(true);
+                }}
+                className="h-9 shrink-0 px-5 text-[14px]"
+              >
+                {/* NEEDS-COPY-NICOLE */}
+                Record response
+              </PillButton>
+            ) : (
+              /* THE SLOT THE NOTE MODULE PORTALS INTO. */
+              <span ref={setActionSlot} className="contents" />
+            )}
           </div>
         )}
       </div>
@@ -1166,12 +1132,6 @@ export function TaskPane({
           pickers would have been two places for that rule to live. */}
     </div>
   );
-}
-
-function payloadEscalationId(
-  p: EscalationPayload | DocumentationPayload
-): string {
-  return p.escalationId;
 }
 
 /** Exported for the completion state's copy. */

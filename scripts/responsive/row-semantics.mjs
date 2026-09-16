@@ -231,7 +231,7 @@ const rowReport = `(row) => {
   const t = await page.locator('[role="treeitem"]').first().innerText();
   const header = await page.evaluate(`(() => { const h = document.querySelector('[role="group"] > div[aria-hidden]');
     if (!h) return null; const cs = getComputedStyle(h);
-    return { text: (h.innerText||"").replace(/\s+/g," ").trim(), bg: cs.backgroundColor, fg: cs.color }; })()`);
+    return { text: (h.innerText||"").replace(/\\s+/g," ").trim(), bg: cs.backgroundColor, fg: cs.color }; })()`);
   check("tasks.overdue-input", "the bucket header was readable", !!header, JSON.stringify(header));
   check(
     "tasks.overdue-header-carries-breach",

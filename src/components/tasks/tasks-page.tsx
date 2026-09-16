@@ -51,9 +51,11 @@ import {
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
+import { monitoringData } from "@/lib/monitoring/scenarios";
 import {
   asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
+  isActiveEscalation,
   type TaskDomain,
   type TaskItem,
 } from "@/lib/tasks/types";
@@ -140,6 +142,28 @@ export function TasksPage({
    *  rejects it — and every elapsed figure and breach state on the page would move
    *  on an unrelated re-render. */
   const [now] = useState(() => Date.now());
+
+  /** ═══ THE FLAG EVENTS, FOR THE ESCALATION TIMELINE'S JOIN (arch-G, G4) ═══
+   *
+   *  An escalation's timeline shows flags raised on the same teen inside the
+   *  escalation window. Those flags are Monitoring's events, and this surface
+   *  does not otherwise hold them.
+   *
+   *  DERIVED HERE WITH THE SAME CALL MONITORING MAKES, keyed on the same two
+   *  store values, so the two surfaces cannot disagree about what was flagged.
+   *  The alternatives were worse: passing `[]` would make the timeline assert
+   *  "no flags" on every escalation, which is the one thing a timeline may not
+   *  do quietly; and inventing Tasks-side flag fixtures would put two answers
+   *  to the same question in the repo.
+   *
+   *  `monitoringData` is a pure builder over (id, tasksScenarioId, now) — the
+   *  same contract Monitoring's own `useMemo` relies on — and `null` means
+   *  "derive from the task scenario", which is what Tasks wants: the escalations
+   *  in this list and the flags on the same teens come from one scenario. */
+  const monitoringEvents = useMemo(
+    () => monitoringData(null, scenarioId, now).events,
+    [scenarioId, now]
+  );
 
   /** RESOLVED IDS + PAYLOAD OVERRIDES. Resolving marks the id; the override map
    *  carries what the pane decided (`flaggedCorrectly`, the confirmed code) onto
@@ -279,11 +303,16 @@ export function TasksPage({
    *  has tiers to default between. */
   /** ═══ THE DOMAIN IS NO LONGER SINGULAR (arch-G, G2) ═══
    *  It was the constant `"billing"` — one domain, no choice to hold. Tasks now
-   *  spans two, so the list is built from the SET and `activeDomain` survives
-   *  only as the fallback the per-domain machinery still needs (the load plan's
-   *  partial-failure rule, the completion card, the pane's error copy). It is
-   *  derived from the SELECTED item wherever one exists, so those three cannot
-   *  claim "billing" over an escalation. */
+   *  spans two, so the list is built from the SET and this survives only as a
+   *  FALLBACK for the per-domain machinery that still needs one: the load plan's
+   *  partial-failure rule and the pane's error copy. Both of those read
+   *  `selected?.domain ?? activeDomain`, so neither can claim "billing" over an
+   *  escalation; the fallback applies when nothing is selected, where the
+   *  question does not arise.
+   *  IT IS NOT THE COMPLETION CARD'S ANY MORE — see `surfaceComplete`: a card
+   *  reading "Billing — all reviewed." over a cleared escalation queue would
+   *  name the wrong work. Declared before `selected` exists, which is why it is
+   *  a constant rather than a derivation of it. */
   const activeDomain: TaskDomain = "billing";
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
@@ -428,10 +457,16 @@ export function TasksPage({
    *  two open windows would mean two toasts and an ambiguous `u` key. */
   /** Set when a tab's last item was just resolved, so the pane can show the
    *  completion state instead of an empty frame. */
-  /** Billing cleared to zero — the completion state. It was
-   *  `completedDomain: TaskDomain | null`, which existed to say WHICH of four
-   *  tabs had emptied; with one domain the question is only whether. */
-  const [billingComplete, setBillingComplete] = useState(false);
+  /** ═══ THE SURFACE CLEARED TO ZERO — AND IT IS THE SURFACE, NOT A DOMAIN ═══
+   *  It was `completedDomain: TaskDomain | null`, which said WHICH of four tabs
+   *  had emptied; then `billingComplete`, when there was one domain and the
+   *  question was only whether.
+   *  arch-G BROKE THAT SILENTLY and this is the fix: the flag was set when the
+   *  RESOLVED ITEM'S DOMAIN emptied, so completing the last escalation raised
+   *  "Billing — all reviewed." over a list still holding billing rows. A
+   *  completion card is a claim about what is left, and per-domain it had no way
+   *  to be true on a two-domain surface. */
+  const [surfaceComplete, setSurfaceComplete] = useState(false);
 
   /** ═══ THE SHIFT-START DIGEST BELONGS TO HOME NOW (arch-C, C2) ═══
    *
@@ -548,8 +583,16 @@ export function TasksPage({
        reader who resolves several in a row can tell which one the toast is
        about. Only billing reaches this surface now; the other verb is kept
        because the function is the domain's, not the page's. */
-    toastLabel: (item) =>
-      item.domain === "billing" ? "Billing review completed" : "Flag closed",
+    toastLabel: (item) => {
+      if (item.domain === "billing") return "Billing review completed";
+      /* NEEDS-COPY-NICOLE, both. THE VERB MATCHES WHAT WAS RECORDED, not what
+         happened to the escalation — neither of these closes it (locked decision
+         3). "Escalation closed" would be the surface claiming a lifecycle change
+         it did not make. */
+      if (item.taskType === "activeEscalation") return "Response recorded";
+      if (item.taskType === "escalationDocumentation") return "Escalation note saved";
+      return "Flag closed";
+    },
 
     onResolved: (item, detail) => {
       // WHERE SELECTION GOES: the next entry in sort order, computed BEFORE the
@@ -565,10 +608,10 @@ export function TasksPage({
       const afterResolve = items.map((i) =>
         i.id === item.id ? { ...i, status: "resolved" as const } : i
       );
-      const tabEmptied =
-        afterResolve.filter(
-          (i) => i.domain === item.domain && i.status !== "resolved"
-        ).length === 0;
+      /* EVERY OPEN ITEM ON THE SURFACE, not every open item in this item's
+         domain. `afterResolve` is already the surface's set (`items`). */
+      const surfaceEmptied =
+        afterResolve.filter((i) => i.status !== "resolved").length === 0;
 
       setDetailById((prev) => ({ ...prev, [item.id]: detail }));
       /* RESOLVING, NOT RESOLVED. `resolvedIds` — which is what removes the row
@@ -576,10 +619,33 @@ export function TasksPage({
          `onCommitted` below, so the row stays where it is for six seconds. */
       setResolvingIds((prev) => new Set(prev).add(item.id));
 
-      if (tabEmptied) {
-        setBillingComplete(true);
+      if (surfaceEmptied) {
+        setSurfaceComplete(true);
         setSelectedEntryId(null);
         setPickedId(null);
+      } else if (isActiveEscalation(item)) {
+        /* ═══ ESCALATION RESPONSE NEVER AUTO-ADVANCES ═══
+           Every other task type loads the next one the moment this one closes,
+           and that is right for a queue a supervisor is working through: the
+           advance is the loop, and forty reviews a shift is what it is for.
+           IT IS WRONG HERE. Recording a response is the end of a live crisis,
+           not a step in a queue — the supervisor has just decided whether
+           somebody is safe, and the next thing they do is a decision of their
+           own: call the mentor back, open the record, write the note, or stop.
+           Silently loading an unrelated teen's billing review into the pane at
+           that moment answers a question nobody asked, and it takes the thing
+           they were looking at away while they may still need it.
+           So the selection STAYS. The row is still in the list — `resolvingIds`
+           holds it there for the undo window — and the pane keeps showing the
+           escalation whose response was just recorded.
+           DOCUMENTATION IS NOT EXEMPT: an escalation note is paperwork, filed
+           after the fact, in a run of other paperwork. `isActiveEscalation` is
+           the live-phase test, which is exactly the distinction that matters. */
+        setAnnouncement(
+          /* NEEDS-COPY-NICOLE. It has to say that nothing moved, or a reader who
+             cannot see the pane will assume it did. */
+          "Response recorded. Nothing else was loaded — choose what happens next."
+        );
       } else if (nextEntry) {
         setSelectedEntryId(nextEntry.id);
         const nextItem = paneItemFor(nextEntry);
@@ -638,9 +704,10 @@ export function TasksPage({
         next.delete(item.id);
         return next;
       });
-      setBillingComplete(false);
+      setSurfaceComplete(false);
       /* NO DOMAIN TO RESTORE. Undo used to re-point the tab at the undone item's
-         domain; every item on this surface is billing. */
+         domain; there are no tabs, and the list holds both of this surface's
+         domains at once — so restoring the SELECTION is the whole job. */
       setSelectedEntryId(null);
       setPickedId(item.id);
     },
@@ -876,7 +943,7 @@ export function TasksPage({
                   Back to list
                 </button>
               )}
-              {billingComplete ? (
+              {surfaceComplete ? (
                 /* ═══ COMPLETION, WITHOUT A NEXT DOMAIN ═══
                    `TabComplete` offered "you cleared Billing — go to Risk
                    flags", which was the surface's whole reward loop when it held
@@ -885,7 +952,9 @@ export function TasksPage({
                    caller here. Phase C's Home is where a supervisor is sent
                    next; sending them there from this card would be a cross-
                    surface CTA built before the surface exists. */
-                <TabComplete domain={activeDomain} />
+                /* NO DOMAIN — the claim is about the surface. See
+                   `surfaceComplete`. */
+                <TabComplete />
               ) : (
                 <div
                   ref={paneRef}
@@ -921,6 +990,7 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
+                      events={monitoringEvents}
                       /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
                          decision is on the record; there is nothing here to
                          decide, and a live Submit over a closed review would
