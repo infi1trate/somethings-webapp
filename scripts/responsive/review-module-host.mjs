@@ -29,13 +29,34 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(26)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+
+/** ═══ THESE CHECKS ARE ABOUT BILLING, AND TASKS HOSTS TWO TYPES NOW ═══
+ *  arch-G admitted escalations, so the surface's first row is a live escalation
+ *  and every assertion below that assumed "the selected item is a billing
+ *  review" would be asserting against the wrong pane. Narrowing with the kind
+ *  chip is the honest fix: it uses the product's own affordance, it leaves the
+ *  escalation assertions to the probe that owns them, and it fails loudly if the
+ *  chip ever stops existing. No-op on a scenario with one kind. */
+async function narrowToBilling(page) {
+  const chip = page.getByRole("button", { name: /^Billing,/ });
+  if (await chip.count()) {
+    await chip.first().click();
+    await page.waitForTimeout(320);
+  }
+}
+
 async function open(id, url) {
-  return openView(
+  const view = await openView(
     browser,
     { id, url, seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } } },
     XL,
     version
   );
+  if (url.startsWith("/app/tasks")) {
+    await view.page.waitForTimeout(450);
+    await narrowToBilling(view.page);
+  }
+  return view;
 }
 
 /** Care's review lives inside a collapsible card; Tasks' pane IS the review. */

@@ -44,7 +44,7 @@ import { TabComplete } from "@/components/tasks/completion";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { listEntriesFor, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
   preselectedFor,
@@ -58,6 +58,13 @@ import {
   type TaskItem,
 } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+
+/** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
+ *  The two domains whose work CLEARS: billing reviews and the two escalation
+ *  tasks. Declared once so the list, the chips, the counts and the surface
+ *  filter cannot disagree about what this page contains. Risk flags are
+ *  deliberately absent — they are coverage work and they live on Monitoring. */
+const TASKS_DOMAINS: readonly TaskDomain[] = ["escalation", "billing"];
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -232,18 +239,29 @@ export function TasksPage({
    *  same fixtures to build Monitoring from. `allItems` is what the scenario
    *  returns; `items` is this surface's share of it. */
   /** ═══ THE SURFACE'S OWN SET, BEFORE THE READER NARROWS IT ═══
-   *  Billing-only since arch-A. The kind filter narrows THIS, and the chips are
-   *  derived from it rather than from the filtered result — otherwise using a
-   *  chip would remove the others and a reader could not get back. */
+   *
+   *  Billing-only from arch-A to arch-F. arch-G admits ESCALATIONS as the second
+   *  task type, which is the capability E3 built the hidden chip row for.
+   *
+   *  ═══ WHY THESE TWO AND NOT THE FLAGS ═══
+   *  Tasks is a COMPLETION surface: work that clears to zero. Billing reviews do,
+   *  and so do both escalation tasks — a response is done when a disposition is
+   *  recorded, a note is done when it is submitted. Risk flags are clinical
+   *  VIGILANCE, which never reaches zero and is measured by coverage; they stay
+   *  on Monitoring. The dividing line is the success model, not the urgency.
+   *
+   *  The kind filter narrows THIS, and the chips are derived from it rather than
+   *  from the filtered result — otherwise using a chip would remove the others
+   *  and a reader could not get back. */
   const surfaceItems = useMemo(
-    () => allItems.filter((i) => i.domain === "billing"),
+    () => allItems.filter((i) => TASKS_DOMAINS.includes(i.domain)),
     [allItems]
   );
 
-  /** ═══ THE KIND FILTER (arch-E) ═══
-   *  Hidden with one task type, which is every scenario today — see
-   *  `KindFilter`'s note on why the affordance is built before the second type
-   *  lands. `ALL_KINDS` is the default and the only state reachable now. */
+  /** ═══ THE KIND FILTER — NOW WITH SOMETHING TO FILTER (arch-G, G2) ═══
+   *  Built and hidden in arch-E against the day a second task type landed. It is
+   *  live from here: two groups ("Escalations", "Billing"), counts on the chips,
+   *  and still hidden whenever a scenario happens to hold only one. */
   const [kindFilter, setKindFilter] = useState<string>(ALL_KINDS);
   const items = useMemo(
     () => filterByKind(surfaceItems, kindFilter),
@@ -259,12 +277,19 @@ export function TasksPage({
    *  and no default to derive, so it is a constant and `defaultActiveDomain`
    *  loses its only caller on this surface. Kept in `sort.ts` for Phase B, which
    *  has tiers to default between. */
+  /** ═══ THE DOMAIN IS NO LONGER SINGULAR (arch-G, G2) ═══
+   *  It was the constant `"billing"` — one domain, no choice to hold. Tasks now
+   *  spans two, so the list is built from the SET and `activeDomain` survives
+   *  only as the fallback the per-domain machinery still needs (the load plan's
+   *  partial-failure rule, the completion card, the pane's error copy). It is
+   *  derived from the SELECTED item wherever one exists, so those three cannot
+   *  claim "billing" over an escalation. */
   const activeDomain: TaskDomain = "billing";
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
   const entries = useMemo(
-    () => listEntriesFor(items, activeDomain, now),
-    [items, activeDomain, now]
+    () => listEntriesForDomains(items, TASKS_DOMAINS, now),
+    [items, now]
   );
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
@@ -272,8 +297,8 @@ export function TasksPage({
    *  a fact about the resolved ones. Filtered here rather than handing the list
    *  every domain's items, so a retiring Billing band cannot count a risk flag. */
   const domainItems = useMemo(
-    () => items.filter((i) => i.domain === activeDomain),
-    [items, activeDomain]
+    () => items.filter((i) => TASKS_DOMAINS.includes(i.domain)),
+    [items]
   );
 
   /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves

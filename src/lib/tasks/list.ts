@@ -78,6 +78,33 @@ export function listEntriesFor(
   return coalesce(listForDomain(items, domain, now), now);
 }
 
+/** ═══ MANY DOMAINS, ONE LIST (arch-G, G2) ═══
+ *
+ *  Tasks hosts more than one task type now — billing reviews and the two
+ *  escalation tasks — and those live in two DOMAINS (`billing`, `escalation`),
+ *  because the domain is what the ledger and the SLA table are keyed on. So the
+ *  surface can no longer ask for "the list for a domain".
+ *
+ *  NOTHING COALESCES ACROSS DOMAINS, and that is not a rule this function has to
+ *  enforce: coalescing keys on `(taskType, objectId)` and a task type belongs to
+ *  exactly one domain, so a group cannot span two. Asserted in the tests rather
+ *  than left as a happy accident.
+ *
+ *  ONE SORT, then one coalesce — not per-domain lists concatenated, which would
+ *  put every escalation above every billing review by construction rather than
+ *  by the comparator, and would hide a comparator regression behind a grouping. */
+export function listEntriesForDomains(
+  items: TaskItem[],
+  domains: readonly TaskDomain[],
+  now: number
+): ListEntry[] {
+  const set = new Set(domains);
+  return coalesce(
+    sortedOpen(items, now).filter((i) => set.has(i.domain)),
+    now
+  );
+}
+
 /** ═══ EVERY FLAG, ACROSS THE TIERS' TWO DOMAINS (arch-B) ═══
  *
  *  Monitoring is one surface over three tiers, and the tiers do not share a

@@ -39,19 +39,32 @@ import { itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import type { TierBand } from "@/lib/tasks/bands";
 import type { TaskItem } from "@/lib/tasks/types";
 
-export type DeadlineBucketId = "overdue" | "today" | "tomorrow" | "later";
+/** ═══ `needsResponse` IS NOT A DEADLINE (arch-G, G2) ═══
+ *  Every other bucket is a partition of the SLA clock. This one is a partition of
+ *  the TASK TYPE: a live escalation belongs at the top of the list whatever its
+ *  five-minute clock currently reads, including before it has run out. It shares
+ *  the bucket machinery because the grammar is the same — a labelled band with a
+ *  count, in fixed order — and not because it is computed the same way. */
+export type DeadlineBucketId =
+  | "needsResponse"
+  | "overdue"
+  | "today"
+  | "tomorrow"
+  | "later";
 
 /** FIXED ORDER, NEVER REORDERED. The order is the deadline's, which is the whole
  *  point — a bucket list that reordered would reintroduce problem 2 above. */
 export const DEADLINE_BUCKETS: DeadlineBucketId[] = [
+  "needsResponse",
   "overdue",
   "today",
   "tomorrow",
   "later",
 ];
 
-/** TODO-COPY, all four. */
+/** NEEDS-COPY-NICOLE, all five. */
 export const BUCKET_LABEL: Record<DeadlineBucketId, string> = {
+  needsResponse: "Needs response now",
   overdue: "Overdue",
   today: "Due today",
   tomorrow: "Due tomorrow",
@@ -84,6 +97,16 @@ export function bucketOf(deadline: number, now: number): DeadlineBucketId {
   return "later";
 }
 
+/** ═══ THE BUCKET FOR AN ITEM, WHICH IS NOT ALWAYS ITS DEADLINE'S ═══
+ *  A live escalation goes to the top regardless of its clock. Everything else
+ *  asks `bucketOf`. Separate from `bucketOf` rather than folded into it because
+ *  `bucketOf` answers a question about a DEADLINE and is tested as such — an
+ *  item-shaped argument would make its own tests about task types. */
+export function bucketForItem(item: TaskItem, now: number): DeadlineBucketId {
+  if (item.taskType === "activeEscalation") return "needsResponse";
+  return bucketOf(item.slaDeadline, now);
+}
+
 export interface DeadlineBucket {
   id: DeadlineBucketId;
   label: string;
@@ -107,7 +130,7 @@ export function deadlineBucketsFor(
 ): DeadlineBucket[] {
   const byId = new Map<DeadlineBucketId, TaskItem[]>();
   for (const item of sorted) {
-    const id = bucketOf(item.slaDeadline, now);
+    const id = bucketForItem(item, now);
     const bucket = byId.get(id);
     if (bucket) bucket.push(item);
     else byId.set(id, [item]);
@@ -145,7 +168,12 @@ export function deadlineBandsFor(
   const order: DeadlineBucketId[] = [];
 
   for (const entry of entries) {
-    const id = bucketOf(paneItemFor(entry).slaDeadline, now);
+    /* `bucketForItem`, NOT `bucketOf` — a live escalation's bucket is decided by
+       its TASK TYPE, and asking its deadline would file it under whatever its
+       five-minute clock happened to read (arch-G, G2). The first build of this
+       phase changed only `deadlineBucketsFor` and left this line, so the pinned
+       band never formed and the response rows sat in Overdue. */
+    const id = bucketForItem(paneItemFor(entry), now);
     let band = byId.get(id);
     if (!band) {
       band = { id, label: BUCKET_LABEL[id], entries: [], taskCount: 0 };
@@ -199,8 +227,19 @@ export function deadlineBandsFor(
 export function deadlineFactFor(
   deadline: number,
   now: number,
-  elapsed: (from: number, to: number) => string
+  elapsed: (from: number, to: number) => string,
+  /** ═══ A LIVE ESCALATION COUNTS UP (arch-G, G2) ═══
+   *  Not a countdown. During an incident the actionable number is how long
+   *  somebody has been waiting — the five-minute SLA is the threshold the figure
+   *  crosses, not the thing being counted to, and a countdown that has expired
+   *  reads as finished when the opposite is true. `openedAt` rather than the
+   *  deadline, because that is the instant the wait began. */
+  live?: { openedAt: number },
 ): string {
+  if (live) {
+    /* NEEDS-COPY-NICOLE */
+    return `${elapsed(live.openedAt, now)} elapsed`;
+  }
   const bucket = bucketOf(deadline, now);
   if (bucket === "overdue") {
     /* NEEDS-COPY-NICOLE. "by" rather than a bare duration: the number alone

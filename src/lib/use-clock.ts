@@ -127,3 +127,24 @@ const getSnapshot = () =>
 export function useClock(fallback: string): string {
   return useSyncExternalStore(subscribe, getSnapshot, () => fallback);
 }
+
+/** ═══ A TICKING TIMESTAMP, FOR ELAPSED COUNTERS (arch-G, G2) ═══
+ *
+ *  `useClock` returns a formatted time of day; a live elapsed counter needs the
+ *  INSTANT, not a label. Same external store, same minute boundary, so a page
+ *  using both cannot show a clock and a counter that disagree about the minute.
+ *
+ *  MINUTE GRANULARITY IS THE RIGHT GRAIN and it is a deliberate ceiling: the
+ *  counter this feeds reads "4m elapsed" against a five-minute SLA, so a second
+ *  hand would redraw sixty times per useful change and turn the one saturated
+ *  region on the surface into continuous motion — which `prefers-reduced-motion`
+ *  exists to suppress and which a supervisor cannot read anyway.
+ *
+ *  THE SERVER SNAPSHOT IS 0, never `Date.now()`: a server timestamp would differ
+ *  from the client's by the request latency and hydrate as a mismatch. Callers
+ *  treat 0 as "not mounted yet" and fall back to their own frozen clock. */
+const getTickSnapshot = () => Math.floor(Date.now() / 60_000) * 60_000;
+
+export function useMinuteTick(): number {
+  return useSyncExternalStore(subscribe, getTickSnapshot, () => 0);
+}

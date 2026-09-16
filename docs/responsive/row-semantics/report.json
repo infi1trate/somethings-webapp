@@ -130,7 +130,7 @@
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 200, pinned \"Due tomorrow — 6\", selected Later, Devon A., Billing code review, Presentation"
+      "detail": "scrollTop 248, pinned \"Due tomorrow — 6\", selected Later, Devon A., Billing code review, Presentation"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -166,7 +166,7 @@
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "18 countdown, 0 elapsed, of 18"
+      "detail": "17 countdown, 0 elapsed, of 17"
     },
     {
       "id": "sr.monitoring.group-in-name",
@@ -196,7 +196,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 1:02 AM"
+      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 1:19 AM"
     },
     {
       "id": "e.no-avatar",

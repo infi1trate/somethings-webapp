@@ -5,7 +5,7 @@
       "id": "default.subtitle",
       "label": "the subtitle counts billing, and agrees with the list",
       "ok": true,
-      "detail": "\"19 open · 2 overdue\" against 17 mounted rows"
+      "detail": "\"19 open · 2 overdue\" against 16 mounted rows"
     },
     {
       "id": "default.buckets",
@@ -15,19 +15,25 @@
     },
     {
       "id": "default.no-tabs",
-      "label": "no tab row survives",
+      "label": "no tab row survives — chips are not tabs",
       "ok": true
     },
     {
       "id": "default.first-row-top",
       "label": "y of the first row",
-      "measured": 155
+      "measured": 203
     },
     {
-      "id": "default.no-kind-filter",
-      "label": "the filter chip row stays hidden with one task type",
+      "id": "default.kind-filter",
+      "label": "the filter chip row renders now that two task types are present",
       "ok": true,
-      "detail": "0 chip row(s)"
+      "detail": "1 chip row(s)"
+    },
+    {
+      "id": "one-kind.no-chip-row",
+      "label": "a single-kind scenario still gets no chip row",
+      "ok": true,
+      "detail": "none"
     },
     {
       "id": "breach.subtitle",

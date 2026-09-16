@@ -52,10 +52,12 @@ import {
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
+import { useMinuteTick } from "@/lib/use-clock";
 import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
 import { deadlineBandsFor, deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { proposalPreview } from "@/lib/record/proposal-kind";
+import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
   deadlineLabel,
   rowEmphasisFor,
@@ -196,7 +198,16 @@ function RowChips({
     <>
       {entry.kind === "group" && <Chip>{coalesceLabel(entry.members.length)}</Chip>}
       {overdue && !suppressOverdue && <OverdueChip />}
-      {p.kind === "escalation" && (
+      {/* ═══ THE 911 CHIP IS THE STATE LINE'S JOB NOW (arch-G, G2) ═══
+          On a task-led row the caption says "911 dispatched" in full, so a "911"
+          chip beside it is the same fact abbreviated — the third time this phase
+          has removed a duplicate statement from a row. Monitoring's rows have no
+          caption and keep the chip.
+          "No 911" SURVIVES THERE FOR THE REASON `escalation-region.tsx` records:
+          on an ACTIVE escalation, "no 911" is a decision somebody made and a
+          responder needs to know it. The state line carries that too — it reads
+          "Awaiting response" or the recorded disposition. */}
+      {p.kind === "escalation" && !suppressOverdue && (
         <Chip>
           <Phone className="size-2.5 shrink-0" aria-hidden />
           {/* TODO-COPY */}
@@ -222,6 +233,9 @@ function Row({
    *  written, dimmed, with the state in WORDS beside the name — never opacity
    *  alone, which says nothing to a screen reader and nothing in high contrast. */
   resolving = false,
+  /** A ticking timestamp, minute-granular, or 0 before mount. Only the response
+   *  bucket reads it. */
+  liveNow = 0,
   group,
   now,
   selected,
@@ -251,6 +265,7 @@ function Row({
   onToggle?: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
   resolving?: boolean;
+  liveNow?: number;
 }) {
   const item = paneItemFor(entry);
   const isGroup = entry.kind === "group";
@@ -260,6 +275,8 @@ function Row({
   const KindIcon = TASK_KIND_ICON[item.taskType];
   /** JOB-FIRST ANATOMY. A child row is never task-led — see `variant`. */
   const taskLed = variant === "task" && !indent;
+  /** A LIVE ESCALATION'S ROW. Drives the elapsed counter and the fill's ink. */
+  const isResponse = taskLed && item.taskType === "activeEscalation";
   /** ═══ THE DISPOSITION PREVIEW — THE WEIGHT OF THE DECISION, BEFORE IT OPENS ═══
    *
    *  "Change proposed → F33.1" against "Renewal proposed": a renewal is a
@@ -275,10 +292,15 @@ function Row({
    *
    *  BILLING ONLY. Flags have no proposal and escalations have no code; a
    *  preview on those would be a blank segment after a separator. */
+  /** ═══ THE SAME SLOT, THREE VOCABULARIES (arch-G, G2) ═══
+   *  Billing spends it on the proposal's weight; an escalation spends it on its
+   *  STATE, which is what tells a supervisor scanning the list whether this one
+   *  is already in hand. One derivation each, both named elsewhere so the row
+   *  does not hold a vocabulary. */
   const disposition =
     item.payload.kind === "billing"
       ? proposalPreview(item.payload.current?.code ?? null, item.payload.recommended.code)
-      : null;
+      : escalationStateLine(item);
   /** TODO-COPY. "3 clinical · 2 routine" — the tiers a teen row stands for, in
    *  the band order, and only the tiers actually present. Null on a flag row and
    *  on a conversation group, where every member is the same tier by
@@ -339,7 +361,16 @@ function Row({
          `deadlineLabel`'s uniform "due in {n}" stays for Monitoring's imminent
          flags, which have no bucket above them to defer to. */
       taskLed
-      ? deadlineFactFor(item.slaDeadline, now, elapsedLabel)
+      ? deadlineFactFor(
+          item.slaDeadline,
+          /* THE LIVE CLOCK, FOR THIS BUCKET ONLY. Everything else on the page
+             reads the frozen mount clock — see the page's own note on why — and a
+             response task is the one row whose number is useless if it does not
+             move. `liveNow` falls back to the frozen value before mount. */
+          isResponse && liveNow > 0 ? liveNow : now,
+          elapsedLabel,
+          isResponse ? { openedAt: item.openedAt } : undefined
+        )
       : emphasis === "deadline"
         ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
         : `${elapsedLabel(ageAt, now)}${openSuffix}`;
@@ -426,7 +457,14 @@ function Row({
          mounted, and honestly orphans when the virtualizer has unmounted it. */
       data-anno-ref={`task-row:${item.id}`}
       data-resolving={resolving ? "true" : undefined}
-      style={{ height: ROW_H }}
+      data-response={isResponse ? "true" : undefined}
+      /* ONE `style`, BOTH FACTS. The height is the virtualizer's invariant and
+         cannot be a class; the fill is a token that Tailwind cannot compose with
+         an inline height without two attributes, which JSX refuses. */
+      style={{
+        height: ROW_H,
+        ...(isResponse ? { backgroundColor: "var(--task-respond-bg)" } : null),
+      }}
       className={cn(
         /* EXACT HEIGHT, NOT A MINIMUM — see ROW_H. `border-t` on EVERY row,
            including the first: a band header sits above it and the hairline is
@@ -437,7 +475,19 @@ function Row({
         // SELECTED AND FOCUSED ARE DISTINCT (§4): selected is a filled ground,
         // focus is the ring. A reader arrowing through a list sees the ring move
         // while the fill stays put.
-        selected ? "bg-[var(--surface-s2)]" : "hover:bg-[var(--tint-hover)]",
+        /* ═══ THE ONE SATURATED FILL IN THE TASKS LIST (arch-G, G2) ═══
+           A live escalation, and nothing else on this surface. The alarm budget
+           has room for exactly one filled treatment and this is where it is
+           spent — the same rule Monitoring's escalation region follows, and the
+           reason the Overdue bucket gets a tint rather than a fill. */
+        isResponse && "text-[var(--task-respond-fg)]",
+        selected
+          ? isResponse
+            ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
+            : "bg-[var(--surface-s2)]"
+          : isResponse
+            ? "transition-opacity hover:opacity-95"
+            : "hover:bg-[var(--tint-hover)]",
         indent && "pl-11",
         /* RESOLVING: dimmed, and the word is in the accessible name above. The
            row keeps its height and its place — the whole point is that the list
@@ -643,12 +693,20 @@ function Row({
           className={cn(
             "shrink-0 tabular-nums",
             taskLed
-              ? overdue
-                ? /* THE ONLY BREACH STATEMENT ON THE ROW NOW — so it carries the
-                     ink. Still not colour alone: the word "overdue" is in the
-                     string and in the accessible name. */
-                  "text-[13px] font-semibold text-[var(--band-clay-fg)]"
-                : "text-[13px] text-[var(--text-secondary)]"
+              ? isResponse
+                ? /* ON THE SATURATED BAND: the fact sits on the respond fill, so
+                     it takes that pair's ink rather than the clay breach ink —
+                     and goes semibold once the five minutes are gone. */
+                  cn(
+                    "text-[13px] text-[var(--task-respond-fg)]",
+                    overdue && "font-semibold"
+                  )
+                : overdue
+                  ? /* THE ONLY BREACH STATEMENT ON THE ROW NOW — so it carries
+                       the ink. Not colour alone: the word "overdue" is in the
+                       string and in the accessible name. */
+                    "text-[13px] font-semibold text-[var(--band-clay-fg)]"
+                  : "text-[13px] text-[var(--text-secondary)]"
               : emphasis === "deadline" && !indent
                 ? "text-[14px] font-bold text-[var(--text-primary)]"
                 : "text-[12px] text-[var(--text-secondary)]"
@@ -925,6 +983,12 @@ export function Worklist({
    *  effect below — this is what makes selection work ACROSS the window boundary
    *  rather than only inside it. */
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  /** ═══ THE ONE TICKING VALUE ON THE SURFACE (arch-G, G2) ═══
+   *  Minute-granular, and read by exactly one thing: the elapsed counter on a
+   *  live escalation's row. Everything else on this page measures from the
+   *  frozen mount clock, deliberately — see `tasks-page.tsx`. A response task's
+   *  number is the one that is useless if it does not move. */
+  const liveNow = useMinuteTick();
 
   const bands = useMemo(
     () => (grouping === "deadline" ? deadlineBandsFor(entries, now) : bandsFor(entries)),
@@ -1274,8 +1338,16 @@ export function Worklist({
     >
       {sections.map((section) => {
         const n = section.rows.length;
-        const first = clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
-        const last = clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
+        /** ═══ THE PINNED BUCKET IS NEVER WINDOWED (arch-G, G2) ═══
+         *  A live escalation may not leave the viewport, which means its rows
+         *  cannot be subject to the virtualizer at all: the window would unmount
+         *  them the moment a reader scrolled past, and a sticky container with
+         *  unmounted children is an empty band that claims an escalation is
+         *  visible. It holds one or two rows on every shipped fixture, so
+         *  rendering all of them costs nothing the spacers were protecting. */
+        const pinned = section.band.id === "needsResponse";
+        const first = pinned ? 0 : clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
+        const last = pinned ? n : clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
         return (
           <div
             key={section.band.id}
@@ -1286,6 +1358,13 @@ export function Worklist({
                screen reader announces it — "Imminent — 23, group". */
             role="group"
             aria-label={bandHeaderLabel(section.band)}
+            data-bucket={section.band.id}
+            className={cn(
+              /* STICKY ABOVE EVERY OTHER BAND. `top-0` with a higher z than the
+                 other headers (`z-10`), so it pins over them rather than under
+                 them as they scroll up into it. */
+              pinned && "sticky top-0 z-20"
+            )}
           >
             {showBands && (
               <WorklistGroupHeader
@@ -1313,6 +1392,7 @@ export function Worklist({
               <Row
                 key={v.id}
                 resolving={resolvingIds?.has(v.item.id) ?? false}
+                liveNow={liveNow}
                 entry={v.entry}
                 variant={rowVariant}
                 /* ═══ THE ROW SAYS WHICH GROUP IT IS IN, BECAUSE IT NO LONGER

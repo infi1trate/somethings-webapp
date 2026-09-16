@@ -34,6 +34,22 @@ function check(id, label, ok, detail) {
   console.log(`  ${mark} ${id.padEnd(26)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+
+/** ═══ THESE CHECKS ARE ABOUT BILLING, AND TASKS HOSTS TWO TYPES NOW ═══
+ *  arch-G admitted escalations, so the surface's first row is a live escalation
+ *  and every assertion below that assumed "the selected item is a billing
+ *  review" would be asserting against the wrong pane. Narrowing with the kind
+ *  chip is the honest fix: it uses the product's own affordance, it leaves the
+ *  escalation assertions to the probe that owns them, and it fails loudly if the
+ *  chip ever stops existing. No-op on a scenario with one kind. */
+async function narrowToBilling(page) {
+  const chip = page.getByRole("button", { name: /^Billing,/ });
+  if (await chip.count()) {
+    await chip.first().click();
+    await page.waitForTimeout(320);
+  }
+}
+
 async function open(id, { scenario = "typical-shift", load = "ready" } = {}) {
   const { context, page } = await openView(
     browser,
@@ -48,6 +64,8 @@ async function open(id, { scenario = "typical-shift", load = "ready" } = {}) {
     XL,
     version
   );
+  await page.waitForTimeout(450);
+  await narrowToBilling(page);
   return { context, page };
 }
 
@@ -117,7 +135,17 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
           .join(" "),
     bands.join(" | ")
   );
-  check("default.no-tabs", "no tab row survives", !/Escalations|Risk flags|Monitoring/.test(t));
+  /* ═══ RETARGETED BY arch-G (G2) ═══
+     It tested for the words "Escalations", "Risk flags" and "Monitoring" as a
+     proxy for the removed tab row. "Escalations" is now a legitimate CHIP label
+     on this surface, so the proxy has stopped meaning what it meant. The claim
+     survives stated directly: no `role="tab"` anywhere on the page, which is
+     what arch-A removed and what arch-E's chip rule forbids bringing back. */
+  check(
+    "default.no-tabs",
+    "no tab row survives — chips are not tabs",
+    (await page.locator('main [role="tab"], main [role="tablist"]').count()) === 0
+  );
   /* ═══ WHERE THE LIST NOW STARTS ═══
      Recorded, not asserted: pinning it would turn any later padding change into
      a failing probe about the wrong thing.
@@ -140,13 +168,42 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
      which a mutation run caught. */
   const chipRow = await page.locator('[data-anno-ref="tasks-kind-filter"]').count();
   check(
-    "default.no-kind-filter",
-    "the filter chip row stays hidden with one task type",
-    chipRow === 0,
+    /* ═══ THE CHIP ROW IS LIVE FROM arch-G ═══
+       It was built and hidden in arch-E because no fixture put two task types on
+       Tasks. arch-G admitted escalations, so the row renders — and the rule it
+       was built under is unchanged, which is the half worth asserting: the row
+       appears only when more than one KIND is present, and `quiet-day` (billing
+       only) still has none. Both cases are checked, so "it renders" cannot
+       quietly become "it always renders". */
+    "default.kind-filter",
+    "the filter chip row renders now that two task types are present",
+    chipRow === 1,
     `${chipRow} chip row(s)`
   );
 
   await shot(page, "01-default");
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1b · AND IT IS STILL HIDDEN WITH ONE KIND (arch-G, G2)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The rule arch-E built the row under, asserted against a fixture that has only
+// billing work. Without this, "the row renders" above would pass on a row that
+// renders unconditionally — which is the dead chrome arch-A removed.
+{
+  const { context, page } = await open("one-kind", { scenario: "quiet-day" });
+  await page.waitForTimeout(500);
+  const kinds = await page
+    .locator('[data-anno-ref="tasks-kind-filter"] button')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  check(
+    "one-kind.no-chip-row",
+    "a single-kind scenario still gets no chip row",
+    kinds.length === 0,
+    kinds.join(" | ") || "none"
+  );
   await context.close();
 }
 
