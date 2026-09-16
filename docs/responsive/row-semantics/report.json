@@ -124,13 +124,13 @@
       "id": "hdr.tasks.anatomy",
       "label": "label — count, sentence case, not mono",
       "ok": true,
-      "detail": "Due today — 2 | Due tomorrow — 6 | Later — 8"
+      "detail": "Due today — 2 | Due tomorrow — 5 | Later — 9"
     },
     {
       "id": "hdr.tasks.sticky",
       "label": "a header is pinned to the top of the list after 90 rows",
       "ok": true,
-      "detail": "scrollTop 248, pinned \"Due tomorrow — 6\", selected Later, Devon A., Billing code review, Presentation"
+      "detail": "scrollTop 248, pinned \"Due tomorrow — 5\", selected Later, Devon A., Billing code review, Presentation"
     },
     {
       "id": "hdr.monitoring.uniform",
@@ -196,7 +196,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 2:46 AM"
+      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 3:25 AM"
     },
     {
       "id": "e.no-avatar",

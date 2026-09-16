@@ -424,6 +424,12 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
     !pane.entries.some((e) => /Acknowledged by the supervisor/.test(e.body))
   );
   check(
+    "docs.states-lateness-once",
+    "the pane's meta line states the lateness once, not twice",
+    /overdue by/.test(pane.paneText) && !/\bOverdue\b/.test(pane.paneText),
+    (pane.paneText.match(/overdue by \w+/) ?? ["not found"])[0]
+  );
+  check(
     "docs.manual-seeded",
     "a hand-logged action is present on arrival, marked as hand-logged",
     pane.entries.some((e) => e.manual === true && /emergency contact/.test(e.body)),

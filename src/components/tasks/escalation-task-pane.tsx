@@ -30,7 +30,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink, FileText, MessageSquare, Phone } from "lucide-react";
-import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { EscalationNoteModule } from "@/components/record/escalation-note-module";
 import {
@@ -523,7 +522,12 @@ export function EscalationMeta({ item, now }: { item: TaskItem; now: number }) {
             : `${elapsedLabel(now, item.slaDeadline)} to respond`
           : deadlineFactFor(item.slaDeadline, now, elapsedLabel)}
       </span>
-      {breached && !isResponse && <BreachChip label="Overdue" />}
+      {/* ═══ NO CHIP. THE FACT IS ALREADY STATED, IN BREACH INK ═══
+          MEASURED on screen: "overdue by 7h" beside a chip reading "Overdue" —
+          one lateness, two statements, which is exactly the residue arch-F
+          removed from the billing pane's meta line and from the rows. The due
+          fact carries the ink; the word "overdue" is in the string, so this is
+          not colour alone. */}
       {isResponse && (
         <span className="inline-flex items-center gap-1 text-[12px]">
           <Phone className="size-3 shrink-0" aria-hidden />
