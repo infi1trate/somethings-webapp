@@ -29,13 +29,34 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(26)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+
+/** ═══ THESE CHECKS ARE ABOUT BILLING, AND TASKS HOSTS TWO TYPES NOW ═══
+ *  arch-G admitted escalations, so the surface's first row is a live escalation
+ *  and every assertion below that assumed "the selected item is a billing
+ *  review" would be asserting against the wrong pane. Narrowing with the kind
+ *  chip is the honest fix: it uses the product's own affordance, it leaves the
+ *  escalation assertions to the probe that owns them, and it fails loudly if the
+ *  chip ever stops existing. No-op on a scenario with one kind. */
+async function narrowToBilling(page) {
+  const chip = page.getByRole("button", { name: /^Billing,/ });
+  if (await chip.count()) {
+    await chip.first().click();
+    await page.waitForTimeout(320);
+  }
+}
+
 async function open(id, url) {
-  return openView(
+  const view = await openView(
     browser,
     { id, url, seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } } },
     XL,
     version
   );
+  if (url.startsWith("/app/tasks")) {
+    await view.page.waitForTimeout(450);
+    await narrowToBilling(view.page);
+  }
+  return view;
 }
 
 /** Care's review lives inside a collapsible card; Tasks' pane IS the review. */
@@ -101,8 +122,54 @@ async function openCareReview(page) {
   // The module never displays the code ON RECORD — fine on Care, where the page
   // states it, and a regression here where nothing else would. The host supplies
   // it, with the mentorship stats, in a context strip.
-  check("tasks.on-record", "the host states the code on record", /On record/.test(t));
-  check("tasks.mentorship", "and the mentorship context", /Mentorship/.test(t) && /days/.test(t));
+  /* ═══ RETARGETED BY arch-F: THE HOST NO LONGER OWES EITHER ═══
+     The module never displayed the code on record, so this host built a context
+     strip above the review to state it — which put the code and the mentorship
+     figures ABOVE the recommendation they qualify. arch-F moved both where the
+     parity spec asks: the code is a subordinate line beneath the recommendation
+     title (in the module, opt-in so Care is untouched), the figures are a
+     collapsed Record context accordion after the review. The CLAIM is unchanged —
+     both facts are still on this pane — and is now asserted where they live. */
+  /* ═══ THE LINE IS A CHANGE'S, NOT EVERY CASE'S (arch-G, G1) ═══
+     arch-F gated it on the code being present, so a RENEWAL — where the code on
+     record IS the recommendation — printed "Current · F33.1" under a title
+     already reading F33.1. The parity spec asks for no line in that case. So the
+     probe now walks to a CHANGE row to assert the line, and asserts its ABSENCE
+     on a renewal, which is the half that would otherwise regress silently. */
+  const cases = { change: null, renewal: null };
+  for (let i = 0; i < 14 && (!cases.change || !cases.renewal); i += 1) {
+    await page.getByRole("treeitem").nth(i).click();
+    await page.waitForTimeout(280);
+    const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
+    const kind = /Change proposed/.test(pt) ? "change" : /Renewal proposed/.test(pt) ? "renewal" : null;
+    if (kind && !cases[kind]) cases[kind] = pt;
+  }
+  check("tasks.cases-found", "a change and a renewal were both reachable", !!cases.change && !!cases.renewal);
+  check(
+    "tasks.current-line",
+    "a CHANGE renders the code on record as a subordinate line",
+    cases.change && /Current/.test(cases.change) && /F\d\d\.\d/.test(cases.change),
+    (cases.change ?? "").match(/Current · [A-Z0-9.]+ [^·]{0,32}/)?.[0] ?? "none"
+  );
+  check(
+    "tasks.no-line-on-renewal",
+    "and a RENEWAL renders none — the code would be stated twice",
+    cases.renewal && !/Current ·/.test(cases.renewal),
+    (cases.renewal ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
+  );
+  check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
+  const accordion = page.locator('[data-slot="record-context"]');
+  check("tasks.record-context", "the mentorship figures live in a collapsed accordion", (await accordion.count()) === 1);
+  if (await accordion.count()) {
+    check(
+      "tasks.accordion-collapsed",
+      "which starts collapsed and says what it holds",
+      (await accordion.getAttribute("aria-expanded")) === "false" &&
+        /days in mentorship/.test(await accordion.innerText()),
+      (await accordion.innerText()).replace(/\s+/g, " ")
+    );
+  }
+  check("tasks.no-mentor", "and the pane no longer names the mentor", !/to [A-Z][a-z]+ [A-Z]/.test(t));
   await page.locator('[data-slot="task-pane"]').screenshot({ path: `${OUT}/tasks-pane.png` });
   await context.close();
 }
@@ -162,17 +229,38 @@ async function openCareReview(page) {
 // artifact of a pane that does not hold OS focus. A synthetic click is not an
 // input event.
 /* ═══ THE TWO HOSTS NAME THE CODE ON RECORD DIFFERENTLY ═══
-   Tasks' context strip says "On record"; Care's spine says "Primary
+   Tasks' subordinate line says "Current"; Care's spine says "Primary
    presentation". Both are the same fact, and the module is indifferent to which
    — it marks whatever code it is handed. Recorded here rather than unified,
    because unifying the two labels is a naming decision on the record page and
    nothing in arch-E touched it: one more entry for the copy pass. */
 for (const [label, url, prep, onRecordRe] of [
-  ["tasks", "/app/tasks", null, /On record\s*([A-Z]\d+\.\d+)/],
+  /* THE HOST'S WORDING CHANGED WITH THE BLOCK (arch-F): "On record F33.1"
+     became "Current · F33.1" beneath the recommendation title. The picker's own
+     marker still reads "On record" — that string is the module's. */
+  ["tasks", "/app/tasks", null, /Current[^A-Z]*([A-Z]\d+\.\d+)/],
   ["care", "/admin/person/t19?tab=care", openCareReview, /Primary presentation[\s\S]{0,40}?([A-Z]\d+\.\d+)/],
 ]) {
   const { context, page } = await open(`picker-${label}`, url);
   if (prep) await prep(page);
+  /* ═══ WALK TO A CHANGE ROW BEFORE OPENING THE PICKER ═══
+     The subordinate line only renders when the code on record DIFFERS from the
+     recommendation (arch-G, G1), so a renewal-selected pane has no code for this
+     section to look for. It has to happen before the dialog opens: a modal
+     blocks pointer events on the list behind it, and the first version of this
+     walk timed out clicking a row under the open picker. */
+  if (label === "tasks") {
+    for (let i = 0; i < 14; i += 1) {
+      /* NORMALISED: `innerText` puts a newline between the "Current" span and
+         the "·" span, so a literal "Current ·" never matches the raw string —
+         the first version of this walk clicked fourteen rows and broke on none
+         of them. */
+      const body = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      if (/Current ·/.test(body)) break;
+      await page.getByRole("treeitem").nth(i).click();
+      await page.waitForTimeout(260);
+    }
+  }
   const btn = page.getByRole("button", { name: /^Change code$/ }).first();
   check(`picker.${label}.control`, "the module's picker control is present", await btn.count());
   if (await btn.count()) {

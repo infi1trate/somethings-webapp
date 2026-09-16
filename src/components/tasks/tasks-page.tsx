@@ -33,6 +33,7 @@ import { useMounted } from "@/lib/use-mounted";
    `elapsedLabel` is domain-neutral and still formats the list's ages. */
 import { elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
+import type { CompletedEntry } from "@/components/tasks/completed-group";
 import {
   ALL_KINDS,
   KindFilter,
@@ -43,20 +44,29 @@ import { TabComplete } from "@/components/tasks/completion";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { listEntriesFor, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
   preselectedFor,
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
+import { monitoringData } from "@/lib/monitoring/scenarios";
 import {
   asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
+  isActiveEscalation,
   type TaskDomain,
   type TaskItem,
 } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+
+/** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
+ *  The two domains whose work CLEARS: billing reviews and the two escalation
+ *  tasks. Declared once so the list, the chips, the counts and the surface
+ *  filter cannot disagree about what this page contains. Risk flags are
+ *  deliberately absent — they are coverage work and they live on Monitoring. */
+const TASKS_DOMAINS: readonly TaskDomain[] = ["escalation", "billing"];
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -133,6 +143,28 @@ export function TasksPage({
    *  on an unrelated re-render. */
   const [now] = useState(() => Date.now());
 
+  /** ═══ THE FLAG EVENTS, FOR THE ESCALATION TIMELINE'S JOIN (arch-G, G4) ═══
+   *
+   *  An escalation's timeline shows flags raised on the same teen inside the
+   *  escalation window. Those flags are Monitoring's events, and this surface
+   *  does not otherwise hold them.
+   *
+   *  DERIVED HERE WITH THE SAME CALL MONITORING MAKES, keyed on the same two
+   *  store values, so the two surfaces cannot disagree about what was flagged.
+   *  The alternatives were worse: passing `[]` would make the timeline assert
+   *  "no flags" on every escalation, which is the one thing a timeline may not
+   *  do quietly; and inventing Tasks-side flag fixtures would put two answers
+   *  to the same question in the repo.
+   *
+   *  `monitoringData` is a pure builder over (id, tasksScenarioId, now) — the
+   *  same contract Monitoring's own `useMemo` relies on — and `null` means
+   *  "derive from the task scenario", which is what Tasks wants: the escalations
+   *  in this list and the flags on the same teens come from one scenario. */
+  const monitoringEvents = useMemo(
+    () => monitoringData(null, scenarioId, now).events,
+    [scenarioId, now]
+  );
+
   /** RESOLVED IDS + PAYLOAD OVERRIDES. Resolving marks the id; the override map
    *  carries what the pane decided (`flaggedCorrectly`, the confirmed code) onto
    *  the item, which is where §5 says the open feedback question is parked until
@@ -170,6 +202,21 @@ export function TasksPage({
         details: ok ? r.details : {},
       };
     });
+  /** ═══ THE SIX SECONDS BETWEEN A PRESS AND A RECORD (arch-F, F4) ═══
+   *  A resolved row used to leave the list on the press, so the undo toast
+   *  offered to restore a row the reader could no longer see, and the item
+   *  reached "resolved" before the ledger did. It now holds its place, dimmed and
+   *  labelled, until the window closes — at which point it becomes a completion
+   *  entry and leaves. An undone item clears from here and never becomes one. */
+  const [resolvingIds, setResolvingIds] = useState<ReadonlySet<string>>(new Set());
+  /** Closed reviews, this session, in the order they closed. Newest first so the
+   *  group reads like a log. */
+  const [completed, setCompleted] = useState<CompletedEntry[]>([]);
+  /** A completed row the reader has opened. Separate from `selectedEntryId`
+   *  because a completed item is no longer IN `entries` — the same lesson gap row
+   *  365 recorded about synthetic child rows. */
+  const [completedSelectedId, setCompletedSelectedId] = useState<string | null>(null);
+
   const setDetailById = (
     fn: (
       prev: Record<string, Record<string, unknown>>
@@ -216,18 +263,29 @@ export function TasksPage({
    *  same fixtures to build Monitoring from. `allItems` is what the scenario
    *  returns; `items` is this surface's share of it. */
   /** ═══ THE SURFACE'S OWN SET, BEFORE THE READER NARROWS IT ═══
-   *  Billing-only since arch-A. The kind filter narrows THIS, and the chips are
-   *  derived from it rather than from the filtered result — otherwise using a
-   *  chip would remove the others and a reader could not get back. */
+   *
+   *  Billing-only from arch-A to arch-F. arch-G admits ESCALATIONS as the second
+   *  task type, which is the capability E3 built the hidden chip row for.
+   *
+   *  ═══ WHY THESE TWO AND NOT THE FLAGS ═══
+   *  Tasks is a COMPLETION surface: work that clears to zero. Billing reviews do,
+   *  and so do both escalation tasks — a response is done when a disposition is
+   *  recorded, a note is done when it is submitted. Risk flags are clinical
+   *  VIGILANCE, which never reaches zero and is measured by coverage; they stay
+   *  on Monitoring. The dividing line is the success model, not the urgency.
+   *
+   *  The kind filter narrows THIS, and the chips are derived from it rather than
+   *  from the filtered result — otherwise using a chip would remove the others
+   *  and a reader could not get back. */
   const surfaceItems = useMemo(
-    () => allItems.filter((i) => i.domain === "billing"),
+    () => allItems.filter((i) => TASKS_DOMAINS.includes(i.domain)),
     [allItems]
   );
 
-  /** ═══ THE KIND FILTER (arch-E) ═══
-   *  Hidden with one task type, which is every scenario today — see
-   *  `KindFilter`'s note on why the affordance is built before the second type
-   *  lands. `ALL_KINDS` is the default and the only state reachable now. */
+  /** ═══ THE KIND FILTER — NOW WITH SOMETHING TO FILTER (arch-G, G2) ═══
+   *  Built and hidden in arch-E against the day a second task type landed. It is
+   *  live from here: two groups ("Escalations", "Billing"), counts on the chips,
+   *  and still hidden whenever a scenario happens to hold only one. */
   const [kindFilter, setKindFilter] = useState<string>(ALL_KINDS);
   const items = useMemo(
     () => filterByKind(surfaceItems, kindFilter),
@@ -243,12 +301,24 @@ export function TasksPage({
    *  and no default to derive, so it is a constant and `defaultActiveDomain`
    *  loses its only caller on this surface. Kept in `sort.ts` for Phase B, which
    *  has tiers to default between. */
+  /** ═══ THE DOMAIN IS NO LONGER SINGULAR (arch-G, G2) ═══
+   *  It was the constant `"billing"` — one domain, no choice to hold. Tasks now
+   *  spans two, so the list is built from the SET and this survives only as a
+   *  FALLBACK for the per-domain machinery that still needs one: the load plan's
+   *  partial-failure rule and the pane's error copy. Both of those read
+   *  `selected?.domain ?? activeDomain`, so neither can claim "billing" over an
+   *  escalation; the fallback applies when nothing is selected, where the
+   *  question does not arise.
+   *  IT IS NOT THE COMPLETION CARD'S ANY MORE — see `surfaceComplete`: a card
+   *  reading "Billing — all reviewed." over a cleared escalation queue would
+   *  name the wrong work. Declared before `selected` exists, which is why it is
+   *  a constant rather than a derivation of it. */
   const activeDomain: TaskDomain = "billing";
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
   const entries = useMemo(
-    () => listEntriesFor(items, activeDomain, now),
-    [items, activeDomain, now]
+    () => listEntriesForDomains(items, TASKS_DOMAINS, now),
+    [items, now]
   );
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
@@ -256,8 +326,8 @@ export function TasksPage({
    *  a fact about the resolved ones. Filtered here rather than handing the list
    *  every domain's items, so a retiring Billing band cannot count a risk flag. */
   const domainItems = useMemo(
-    () => items.filter((i) => i.domain === activeDomain),
-    [items, activeDomain]
+    () => items.filter((i) => TASKS_DOMAINS.includes(i.domain)),
+    [items]
   );
 
   /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves
@@ -352,7 +422,19 @@ export function TasksPage({
 
   const activeEntry: ListEntry | null =
     entries.find((e) => e.id === selectedEntryId) ?? entries[0] ?? null;
+  /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
+   *  It carries `status: "resolved"`, so the buckets have filtered it out — and
+   *  `entries.find(...)` returns undefined for it, which is exactly the shape of
+   *  the defect gap row 365 recorded about synthetic child rows: the lookup falls
+   *  through to a DIFFERENT item and nothing errors. So the completed selection
+   *  is resolved from `items`, which still holds it, and it wins while it is
+   *  set. */
+  const completedItem: TaskItem | null = completedSelectedId
+    ? (items.find((i) => i.id === completedSelectedId) ?? null)
+    : null;
+
   const selected: TaskItem | null =
+    completedItem ??
     // An explicitly picked child wins; otherwise the entry's pane item, which for
     // a group is its head.
     (pickedId
@@ -375,10 +457,16 @@ export function TasksPage({
    *  two open windows would mean two toasts and an ambiguous `u` key. */
   /** Set when a tab's last item was just resolved, so the pane can show the
    *  completion state instead of an empty frame. */
-  /** Billing cleared to zero — the completion state. It was
-   *  `completedDomain: TaskDomain | null`, which existed to say WHICH of four
-   *  tabs had emptied; with one domain the question is only whether. */
-  const [billingComplete, setBillingComplete] = useState(false);
+  /** ═══ THE SURFACE CLEARED TO ZERO — AND IT IS THE SURFACE, NOT A DOMAIN ═══
+   *  It was `completedDomain: TaskDomain | null`, which said WHICH of four tabs
+   *  had emptied; then `billingComplete`, when there was one domain and the
+   *  question was only whether.
+   *  arch-G BROKE THAT SILENTLY and this is the fix: the flag was set when the
+   *  RESOLVED ITEM'S DOMAIN emptied, so completing the last escalation raised
+   *  "Billing — all reviewed." over a list still holding billing rows. A
+   *  completion card is a claim about what is left, and per-domain it had no way
+   *  to be true on a two-domain surface. */
+  const [surfaceComplete, setSurfaceComplete] = useState(false);
 
   /** ═══ THE SHIFT-START DIGEST BELONGS TO HOME NOW (arch-C, C2) ═══
    *
@@ -495,8 +583,16 @@ export function TasksPage({
        reader who resolves several in a row can tell which one the toast is
        about. Only billing reaches this surface now; the other verb is kept
        because the function is the domain's, not the page's. */
-    toastLabel: (item) =>
-      item.domain === "billing" ? "Billing review completed" : "Flag closed",
+    toastLabel: (item) => {
+      if (item.domain === "billing") return "Billing review completed";
+      /* NEEDS-COPY-NICOLE, both. THE VERB MATCHES WHAT WAS RECORDED, not what
+         happened to the escalation — neither of these closes it (locked decision
+         3). "Escalation closed" would be the surface claiming a lifecycle change
+         it did not make. */
+      if (item.taskType === "activeEscalation") return "Response recorded";
+      if (item.taskType === "escalationDocumentation") return "Escalation note saved";
+      return "Flag closed";
+    },
 
     onResolved: (item, detail) => {
       // WHERE SELECTION GOES: the next entry in sort order, computed BEFORE the
@@ -512,18 +608,44 @@ export function TasksPage({
       const afterResolve = items.map((i) =>
         i.id === item.id ? { ...i, status: "resolved" as const } : i
       );
-      const tabEmptied =
-        afterResolve.filter(
-          (i) => i.domain === item.domain && i.status !== "resolved"
-        ).length === 0;
+      /* EVERY OPEN ITEM ON THE SURFACE, not every open item in this item's
+         domain. `afterResolve` is already the surface's set (`items`). */
+      const surfaceEmptied =
+        afterResolve.filter((i) => i.status !== "resolved").length === 0;
 
       setDetailById((prev) => ({ ...prev, [item.id]: detail }));
-      setResolvedIds((prev) => new Set(prev).add(item.id));
+      /* RESOLVING, NOT RESOLVED. `resolvedIds` — which is what removes the row
+         and feeds the closed-today counters — is set at the window's CLOSE, in
+         `onCommitted` below, so the row stays where it is for six seconds. */
+      setResolvingIds((prev) => new Set(prev).add(item.id));
 
-      if (tabEmptied) {
-        setBillingComplete(true);
+      if (surfaceEmptied) {
+        setSurfaceComplete(true);
         setSelectedEntryId(null);
         setPickedId(null);
+      } else if (isActiveEscalation(item)) {
+        /* ═══ ESCALATION RESPONSE NEVER AUTO-ADVANCES ═══
+           Every other task type loads the next one the moment this one closes,
+           and that is right for a queue a supervisor is working through: the
+           advance is the loop, and forty reviews a shift is what it is for.
+           IT IS WRONG HERE. Recording a response is the end of a live crisis,
+           not a step in a queue — the supervisor has just decided whether
+           somebody is safe, and the next thing they do is a decision of their
+           own: call the mentor back, open the record, write the note, or stop.
+           Silently loading an unrelated teen's billing review into the pane at
+           that moment answers a question nobody asked, and it takes the thing
+           they were looking at away while they may still need it.
+           So the selection STAYS. The row is still in the list — `resolvingIds`
+           holds it there for the undo window — and the pane keeps showing the
+           escalation whose response was just recorded.
+           DOCUMENTATION IS NOT EXEMPT: an escalation note is paperwork, filed
+           after the fact, in a run of other paperwork. `isActiveEscalation` is
+           the live-phase test, which is exactly the distinction that matters. */
+        setAnnouncement(
+          /* NEEDS-COPY-NICOLE. It has to say that nothing moved, or a reader who
+             cannot see the pane will assume it did. */
+          "Response recorded. Nothing else was loaded — choose what happens next."
+        );
       } else if (nextEntry) {
         setSelectedEntryId(nextEntry.id);
         const nextItem = paneItemFor(nextEntry);
@@ -539,15 +661,53 @@ export function TasksPage({
       }
     },
 
+    /** ═══ THE WINDOW CLOSED — THE SAME INSTANT THE LEDGER IS WRITTEN ═══
+     *  §6's rule, and the rule F4 asks this group to match exactly: an item
+     *  enters "Completed today" when its close becomes a record, not when the
+     *  button was pressed. */
+    onCommitted: (item, detail) => {
+      setResolvingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      setResolvedIds((prev) => new Set(prev).add(item.id));
+      /* THE OUTCOME COMES FROM THE COMMIT DETAIL, not from the payload: the
+         supervisor may have picked a different code than the model proposed, and
+         the record is what they submitted. */
+      const code = typeof detail.code === "string" ? detail.code : null;
+      const outcome = detail.outcome === "unchanged" ? "unchanged" : "confirmed";
+      setCompleted((prev) => [
+        {
+          id: item.id,
+          teenName: item.teenDisplayName,
+          taskType: item.taskType,
+          code: code ?? "—",
+          outcome,
+          at: Date.now(),
+        },
+        ...prev,
+      ]);
+    },
+
     onRestore: (item) => {
+      /* AN UNDONE ITEM WAS NEVER COMPLETED. It clears from `resolvingIds` and
+         never reaches `completed` — the group is built only in `onCommitted`, so
+         there is no path from here into it. */
+      setResolvingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
       setResolvedIds((prev) => {
         const next = new Set(prev);
         next.delete(item.id);
         return next;
       });
-      setBillingComplete(false);
+      setSurfaceComplete(false);
       /* NO DOMAIN TO RESTORE. Undo used to re-point the tab at the undone item's
-         domain; every item on this surface is billing. */
+         domain; there are no tabs, and the list holds both of this surface's
+         domains at once — so restoring the SELECTION is the whole job. */
       setSelectedEntryId(null);
       setPickedId(item.id);
     },
@@ -583,14 +743,27 @@ export function TasksPage({
           {/* 4px under the display title — the spacing scale's first step, and
               the only value between these two lines (Part 2). */}
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {/* TODO-COPY. "20 open · 4 overdue" — and the overdue clause is
-                omitted entirely at zero rather than reading "0 overdue", which is
-                a number nobody needs to see. */}
-            {counts.open === 0
-              ? "Nothing open"
-              : counts.overdue > 0
-                ? `${counts.open} open · ${counts.overdue} overdue`
-                : `${counts.open} open`}
+            {/* ═══ THREE SEGMENTS, EVERY ZERO OMITTED (arch-F, F4) ═══
+                NEEDS-COPY-NICOLE. "19 open · 2 overdue · 3 completed today".
+                A zero segment is dropped entirely rather than rendered as "0
+                overdue" — a number nobody needs — and with nothing open at all
+                the line says so in words instead of leading with a zero.
+                NOTHING BEYOND THIS AND THE COMPLETED GROUP. No 24h/7d/30d strip:
+                the bucket headers already carry those counts, and a progress or
+                streak display on a clinical queue becomes a productivity
+                scoreboard — which is exactly what was designed out of Home. */}
+            {[
+              /* ═══ ZERO OPEN IS STATED IN WORDS, NOT OMITTED ═══
+                 "Omit any segment that is zero" read literally turned an emptied
+                 queue with one completion into "1 completed today" — which drops
+                 the fact a supervisor opens this page for. A zero NUMBER is what
+                 nobody needs ("0 open"); the state still needs saying. */
+              counts.open > 0 ? `${counts.open} open` : "Nothing open",
+              counts.overdue > 0 ? `${counts.overdue} overdue` : null,
+              completed.length > 0 ? `${completed.length} completed today` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
 
@@ -683,6 +856,8 @@ export function TasksPage({
                 selectedId={selectedEntryId ?? activeEntry?.id ?? null}
                 state={listState}
                 onSelect={(entry, item) => {
+                // THE OTHER SELECTION LETS GO — see `onSelectCompleted`.
+                setCompletedSelectedId(null);
                   setSelectedEntryId(entry.id);
                   setPickedId(item.id);
                   // AND HAND THE PANE THE SCREEN. Below `xl` the grid collapses
@@ -703,6 +878,27 @@ export function TasksPage({
                  tier IS the kind of work, and its rows are person-forward. */
                 grouping="deadline"
                 rowVariant="task"
+                completed={completed}
+                completedSelectedId={completedSelectedId}
+                onSelectCompleted={(e) => {
+                  /* THE PANE OPENS READ-ONLY. The list's own selection is
+                     cleared: two selected rows in one tree would be two
+                     `aria-selected` and a reader with no way to tell which one
+                     the footer acts on — the same rule Monitoring's two lists
+                     follow. */
+                  setCompletedSelectedId(e.id);
+                  setSelectedEntryId(null);
+                  setPickedId(e.id);
+                  setPaneTakeover(true);
+                }}
+                /* ═══ THE LEDGER LINK CANNOT CARRY THE DAY ═══
+                   Activity's filter axes are objectId, domain, scope and event —
+                   there is no date axis (gap row 371, still open), so this lands
+                   on billing + mine rather than on today. Stated in the group's
+                   own comment rather than implied by a label that promises
+                   today. */
+                activityHref="/app/activity?domain=billing&scope=mine"
+                resolvingIds={resolvingIds}
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
@@ -747,7 +943,7 @@ export function TasksPage({
                   Back to list
                 </button>
               )}
-              {billingComplete ? (
+              {surfaceComplete ? (
                 /* ═══ COMPLETION, WITHOUT A NEXT DOMAIN ═══
                    `TabComplete` offered "you cleared Billing — go to Risk
                    flags", which was the surface's whole reward loop when it held
@@ -756,7 +952,9 @@ export function TasksPage({
                    caller here. Phase C's Home is where a supervisor is sent
                    next; sending them there from this card would be a cross-
                    surface CTA built before the surface exists. */
-                <TabComplete domain={activeDomain} />
+                /* NO DOMAIN — the claim is about the surface. See
+                   `surfaceComplete`. */
+                <TabComplete />
               ) : (
                 <div
                   ref={paneRef}
@@ -792,6 +990,16 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
+                      events={monitoringEvents}
+                      /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
+                         decision is on the record; there is nothing here to
+                         decide, and a live Submit over a closed review would
+                         offer to commit it twice. */
+                      completed={
+                        completedItem
+                          ? (completed.find((c) => c.id === completedItem.id) ?? null)
+                          : null
+                      }
                     />
                   )}
                 </div>

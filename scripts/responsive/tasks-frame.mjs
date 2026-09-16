@@ -1,3 +1,13 @@
+// ═══ STALE, MEASURED AT HEAD — NOT LIVE COVERAGE (noted arch-G, G7) ═══
+//
+// 13 failing check(s) on `main`'s own code, before arch-G touched this surface.
+// It was written against the four-tab, deadline-forward Tasks page that arch-A,
+// arch-E and arch-F replaced; its pane-footer geometry predates arch-F's sticky action bar.
+// NOTHING IS RELAXED OR DELETED — a superseded assertion is evidence about what
+// the surface used to promise. Retargeting these is a gap row, because the
+// checks that still have a subject have to move to the probe that owns that
+// subject and deciding which those are is a reading of three phases.
+//
 // THE TASKS APP FRAME — Part 1.2's acceptance criteria, measured.
 //
 // "Resolve actions clickable without scrolling, at any fixture length" is the

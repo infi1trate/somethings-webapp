@@ -1,3 +1,28 @@
+// ═══ STALE — DO NOT READ THIS AS LIVE COVERAGE (noted arch-G, G4) ═══
+//
+// MEASURED at HEAD, before arch-G's own changes: 14 failing checks and one hard
+// crash (`ex.withHeader` on a null excerpt). Its three sections describe a
+// surface that three later phases replaced, and its `tab()` helper swallows the
+// missing tab with `.catch(() => {})`, so it has been asserting against
+// whatever happened to be selected rather than against its intended subject.
+//
+//   §1 the billing diff   — arch-F moved the recommendation into the shared
+//                           `ReviewBody` module. Owned now by
+//                           `review-body-parity.mjs` (17 snapshots) and
+//                           `review-module-host.mjs`.
+//   §2 the flag pane      — arch-mon gave Monitoring its own `event-pane.tsx`;
+//                           risk flags do not reach Tasks at all. Owned by the
+//                           monitoring probes.
+//   §3 the crossfade      — still Tasks', and the one section with a live
+//                           subject, but it enters through `tab(p, "Risk
+//                           flags")`, which has not existed since arch-A.
+//
+// NOTHING HERE IS RELAXED OR DELETED, because a superseded assertion is
+// evidence about what the surface used to promise. It is labelled instead, and
+// retargeting it is a gap row rather than a silent rewrite: the checks that
+// still have a subject have to move to the probe that owns that subject, and
+// deciding which those are is a reading of three phases, not a sed.
+//
 // THE PANE, PARTS 4 AND 5 — measured.
 //
 // These are presentation changes, which is exactly the category that gets

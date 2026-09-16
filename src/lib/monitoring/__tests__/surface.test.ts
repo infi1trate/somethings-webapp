@@ -20,6 +20,7 @@ import { conductEventsFor, practiceEventsFor, type MentorShiftFacts } from "@/li
 import { bandItems, bandStateFor, interrupts, type LiveItem } from "@/lib/monitoring/live";
 import { DISPOSITION_VALUES, dispositionById, resolves } from "@/lib/monitoring/disposition";
 import { MONITORING_SCENARIOS, monitoringData } from "@/lib/monitoring/scenarios";
+import { isSettled, recordLifecycleOf } from "@/lib/monitoring/escalation";
 
 const NOW = new Date("2026-09-15T18:30:00").getTime(); // inside shift hours
 const MINUTE = 60_000;
@@ -221,8 +222,12 @@ describe("flags carry age, not a deadline", () => {
 });
 
 describe("every scenario fixture", () => {
-  it("is exactly the 39 keys the phase file lists", () => {
-    expect(MONITORING_SCENARIOS).toHaveLength(39);
+  it("is exactly the 40 keys the phase file lists, plus arch-G's terminal record", () => {
+    /* 39 FROM THE PHASE FILE + `escalation-documented` (arch-G, G6), which the
+       phase file does not list because the state it reaches did not exist then:
+       nothing could be `closed · documented`, so the surface's finished state
+       was unreachable and therefore unverifiable. */
+    expect(MONITORING_SCENARIOS).toHaveLength(40);
   });
 
   it("builds without throwing, for every key", () => {
@@ -259,6 +264,19 @@ describe("every scenario fixture", () => {
     expect(monitoringData("escalation-concurrent", "typical-shift", NOW).escalations.filter((e) => e.resolvedAt == null).length)
       .toBeGreaterThanOrEqual(2);
     expect(monitoringData("escalation-no-caregiver", "typical-shift", NOW).escalations[0].caregiverInvolved).toBe(false);
+    /* THE TERMINAL RECORD. Asserted through `recordLifecycleOf` rather than by
+       reading `closeOutDone`, because the promise the key makes is the STATE —
+       a fixture that listed the right ids while the derivation disagreed would
+       pass a field check and fail the reader. */
+    {
+      const documented = monitoringData("escalation-documented", "typical-shift", NOW)
+        .escalations.find((e) => e.id === "esc-documented");
+      expect(documented, "esc-documented").toBeTruthy();
+      expect(recordLifecycleOf(documented!, NOW)).toBe("closedDocumented");
+      /* AND IT IS SETTLED, which is what takes it out of the region and makes
+         its own link the only way in — the path G6 exists to provide. */
+      expect(isSettled(documented!, NOW)).toBe(true);
+    }
     expect(monitoringData("explicit-media", "typical-shift", NOW).compliance).toBe("explicit-media");
     expect(monitoringData("suspected-death", "typical-shift", NOW).compliance).toBe("suspected-death");
     expect(monitoringData("flag-in-escalation", "typical-shift", NOW).events.some((e) => e.escalationOpen)).toBe(true);

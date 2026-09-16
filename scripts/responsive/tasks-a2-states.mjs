@@ -34,6 +34,22 @@ function check(id, label, ok, detail) {
   console.log(`  ${mark} ${id.padEnd(26)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+
+/** ═══ THESE CHECKS ARE ABOUT BILLING, AND TASKS HOSTS TWO TYPES NOW ═══
+ *  arch-G admitted escalations, so the surface's first row is a live escalation
+ *  and every assertion below that assumed "the selected item is a billing
+ *  review" would be asserting against the wrong pane. Narrowing with the kind
+ *  chip is the honest fix: it uses the product's own affordance, it leaves the
+ *  escalation assertions to the probe that owns them, and it fails loudly if the
+ *  chip ever stops existing. No-op on a scenario with one kind. */
+async function narrowToBilling(page) {
+  const chip = page.getByRole("button", { name: /^Billing,/ });
+  if (await chip.count()) {
+    await chip.first().click();
+    await page.waitForTimeout(320);
+  }
+}
+
 async function open(id, { scenario = "typical-shift", load = "ready" } = {}) {
   const { context, page } = await openView(
     browser,
@@ -48,6 +64,8 @@ async function open(id, { scenario = "typical-shift", load = "ready" } = {}) {
     XL,
     version
   );
+  await page.waitForTimeout(450);
+  await narrowToBilling(page);
   return { context, page };
 }
 
@@ -117,7 +135,17 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
           .join(" "),
     bands.join(" | ")
   );
-  check("default.no-tabs", "no tab row survives", !/Escalations|Risk flags|Monitoring/.test(t));
+  /* ═══ RETARGETED BY arch-G (G2) ═══
+     It tested for the words "Escalations", "Risk flags" and "Monitoring" as a
+     proxy for the removed tab row. "Escalations" is now a legitimate CHIP label
+     on this surface, so the proxy has stopped meaning what it meant. The claim
+     survives stated directly: no `role="tab"` anywhere on the page, which is
+     what arch-A removed and what arch-E's chip rule forbids bringing back. */
+  check(
+    "default.no-tabs",
+    "no tab row survives — chips are not tabs",
+    (await page.locator('main [role="tab"], main [role="tablist"]').count()) === 0
+  );
   /* ═══ WHERE THE LIST NOW STARTS ═══
      Recorded, not asserted: pinning it would turn any later padding change into
      a failing probe about the wrong thing.
@@ -140,13 +168,42 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
      which a mutation run caught. */
   const chipRow = await page.locator('[data-anno-ref="tasks-kind-filter"]').count();
   check(
-    "default.no-kind-filter",
-    "the filter chip row stays hidden with one task type",
-    chipRow === 0,
+    /* ═══ THE CHIP ROW IS LIVE FROM arch-G ═══
+       It was built and hidden in arch-E because no fixture put two task types on
+       Tasks. arch-G admitted escalations, so the row renders — and the rule it
+       was built under is unchanged, which is the half worth asserting: the row
+       appears only when more than one KIND is present, and `quiet-day` (billing
+       only) still has none. Both cases are checked, so "it renders" cannot
+       quietly become "it always renders". */
+    "default.kind-filter",
+    "the filter chip row renders now that two task types are present",
+    chipRow === 1,
     `${chipRow} chip row(s)`
   );
 
   await shot(page, "01-default");
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1b · AND IT IS STILL HIDDEN WITH ONE KIND (arch-G, G2)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The rule arch-E built the row under, asserted against a fixture that has only
+// billing work. Without this, "the row renders" above would pass on a row that
+// renders unconditionally — which is the dead chrome arch-A removed.
+{
+  const { context, page } = await open("one-kind", { scenario: "quiet-day" });
+  await page.waitForTimeout(500);
+  const kinds = await page
+    .locator('[data-anno-ref="tasks-kind-filter"] button')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  check(
+    "one-kind.no-chip-row",
+    "a single-kind scenario still gets no chip row",
+    kinds.length === 0,
+    kinds.join(" | ") || "none"
+  );
   await context.close();
 }
 
@@ -283,7 +340,16 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   check(
     "gate.refuses",
     "an undocumented review is refused, and told what is missing",
-    /This field is required/.test(gated) && /still need an answer/i.test(gated),
+    /* ═══ THE SENTENCE MOVED TO THE ACTION BAR (arch-F, F3) ═══
+       It was an `sr-only` region inside the review reading "3 things still need
+       an answer" — invisible to sighted readers and 600px below the button that
+       ran the gate. The bar states it now, visibly and as the one live region:
+       "3 fields still needed. Focus moved to the first." The claim is unchanged
+       and is asserted in the bar as well as in the body, so a future move
+       cannot quietly drop it from the place a reader is looking. */
+    /This field is required/.test(gated) &&
+      /still needed/i.test(gated) &&
+      /still needed/i.test(await page.locator('[data-slot="task-pane-footer"]').innerText()),
     (gated.split("\n").find((l) => /needed|before this/i.test(l)) ?? "").slice(0, 70)
   );
   await shot(page, "09-validation");
@@ -319,15 +385,64 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
     "the queue moves to the next item on its own",
     advanced !== before && advanced.length > 0
   );
+  /* ═══ RETARGETED BY arch-F (F4): THE ROW LEAVES LATER, ON PURPOSE ═══
+     It used to vanish on the press — so the undo toast offered to restore a row
+     the reader could no longer see, and the item reached "resolved" before the
+     ledger did. It now holds its place, dimmed and labelled "Closing…", for the
+     six seconds of the undo window, and leaves when the window closes and the
+     event is written. Both halves are asserted, because "the row stays" alone
+     would pass on a row that never leaves. */
   const listed = await textOf(page);
-  check("mechanics.row-gone", "the resolved row leaves the list", !listed.includes(before));
+  check(
+    "mechanics.row-holds-during-window",
+    "the resolved row holds its place while undo is still possible",
+    listed.includes(before) && (await page.locator('[data-resolving="true"]').count()) === 1,
+    (await page.locator('[data-resolving="true"]').first().innerText()).replace(/\s+/g, " ")
+  );
+  check(
+    "mechanics.says-closing",
+    "and says so in words, not only by dimming",
+    /Closing/.test(await page.locator('[data-resolving="true"]').first().innerText())
+  );
+  /* THE WINDOW IS 6s (`UNDO_WINDOW_MS`); 7 covers the commit and the re-render. */
+  await page.waitForTimeout(7000);
+  const afterWindow = await textOf(page);
+  check(
+    "mechanics.row-gone",
+    "and leaves when the window closes — the same instant the ledger is written",
+    !afterWindow.includes(before) && (await page.locator('[data-resolving="true"]').count()) === 0
+  );
+  check(
+    "mechanics.completed-group",
+    "arriving in Completed today, collapsed",
+    (await page.locator('[data-slot="completed-group"]').count()) === 1 &&
+      (await page.locator('[data-slot="completed-toggle"]').getAttribute("aria-expanded")) === "false",
+    (await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")
+  );
   await shot(page, "10-resolved");
 
+  /* ═══ UNDO NEEDS ITS OWN RESOLVE NOW (arch-F, F4) ═══
+     The section above waits out the six-second window to prove the row leaves,
+     which closes the toast — so undo cannot be tested on that resolve any more.
+     It resolves a SECOND item and undoes that one inside the window. Found by
+     this probe timing out on a button that had already gone. */
+  const second = await pane().innerText();
+  await fillReview(page);
+  await page.keyboard.press("Control+Enter");
+  await page.waitForTimeout(700);
   await page.getByRole("button", { name: /^Undo$/ }).first().click();
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(700);
   const restored = await pane().innerText();
-  check("mechanics.undo-restores", "undo puts the row back", (await textOf(page)).includes(before));
-  check("mechanics.undo-reselects", "undo reselects what it restored", restored === before, `${advanced} → ${restored}`);
+  check("mechanics.undo-restores", "undo puts the row back", (await textOf(page)).includes(second));
+  check("mechanics.undo-reselects", "undo reselects what it restored", restored === second, `${second} → ${restored}`);
+  /* AND IT NEVER REACHES THE COMPLETED GROUP. One completion from the resolve
+     above, and the undone one is not a second. */
+  check(
+    "mechanics.undo-not-completed",
+    "an undone item never enters Completed today",
+    /Completed today — 1/.test((await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")),
+    (await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")
+  );
   await shot(page, "11-undone");
   await context.close();
 }
@@ -385,12 +500,17 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   await page.waitForTimeout(300);
   await fillReview(page);
   await page.keyboard.press("Control+Enter");
-  await page.waitForTimeout(900);
+  /* THE UNDO WINDOW COMES FIRST NOW (arch-F, F4). The last row holds its place
+     while undo is possible, so the empty state is reachable only after the
+     window closes — which is also when the item becomes a completion. */
+  await page.waitForTimeout(7200);
   const empty = await textOf(page);
   check(
     "empty.copy",
     "the emptied surface says nothing is open",
-    /Nothing open/.test(empty) && /No open tasks/.test(empty),
+    /* AND THE COMPLETION SEGMENT SITS BESIDE IT (arch-F, F4): "Nothing open · 1
+       completed today". The zero NUMBER is omitted; the zero STATE is not. */
+    /Nothing open/.test(empty) && /No open tasks/.test(empty) && /1 completed today/.test(empty),
     empty.replace(/\s+/g, " ").slice(0, 80)
   );
   // A SINGLE-BAND SURFACE SKIPS RETIREMENT, measured: clearing the last item in

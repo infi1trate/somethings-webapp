@@ -5,29 +5,35 @@
       "id": "default.subtitle",
       "label": "the subtitle counts billing, and agrees with the list",
       "ok": true,
-      "detail": "\"19 open · 2 overdue\" against 17 mounted rows"
+      "detail": "\"19 open · 2 overdue\" against 16 mounted rows"
     },
     {
       "id": "default.buckets",
       "label": "the list is grouped by deadline, in fixed order",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "default.no-tabs",
-      "label": "no tab row survives",
+      "label": "no tab row survives — chips are not tabs",
       "ok": true
     },
     {
       "id": "default.first-row-top",
       "label": "y of the first row",
-      "measured": 155
+      "measured": 203
     },
     {
-      "id": "default.no-kind-filter",
-      "label": "the filter chip row stays hidden with one task type",
+      "id": "default.kind-filter",
+      "label": "the filter chip row renders now that two task types are present",
       "ok": true,
-      "detail": "0 chip row(s)"
+      "detail": "1 chip row(s)"
+    },
+    {
+      "id": "one-kind.no-chip-row",
+      "label": "a single-kind scenario still gets no chip row",
+      "ok": true,
+      "detail": "none"
     },
     {
       "id": "breach.subtitle",
@@ -68,7 +74,7 @@
       "id": "partial.billing-healthy",
       "label": "partial leaves billing fully loaded",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "loading.run1",
@@ -90,7 +96,7 @@
       "id": "gate.refuses",
       "label": "an undocumented review is refused, and told what is missing",
       "ok": true,
-      "detail": ""
+      "detail": "3 fields still needed. Focus moved to the first."
     },
     {
       "id": "mechanics.submit",
@@ -104,9 +110,26 @@
       "ok": true
     },
     {
-      "id": "mechanics.row-gone",
-      "label": "the resolved row leaves the list",
+      "id": "mechanics.row-holds-during-window",
+      "label": "the resolved row holds its place while undo is still possible",
+      "ok": true,
+      "detail": "Theo L. Billing code review Closing… overdue by 9h"
+    },
+    {
+      "id": "mechanics.says-closing",
+      "label": "and says so in words, not only by dimming",
       "ok": true
+    },
+    {
+      "id": "mechanics.row-gone",
+      "label": "and leaves when the window closes — the same instant the ledger is written",
+      "ok": true
+    },
+    {
+      "id": "mechanics.completed-group",
+      "label": "arriving in Completed today, collapsed",
+      "ok": true,
+      "detail": "Completed today — 1"
     },
     {
       "id": "mechanics.undo-restores",
@@ -117,7 +140,13 @@
       "id": "mechanics.undo-reselects",
       "label": "undo reselects what it restored",
       "ok": true,
-      "detail": "Imani C. → Theo L."
+      "detail": "Imani C. → Imani C."
+    },
+    {
+      "id": "mechanics.undo-not-completed",
+      "label": "an undone item never enters Completed today",
+      "ok": true,
+      "detail": "Completed today — 1"
     },
     {
       "id": "retire.no-bucket-retirement",
@@ -129,13 +158,13 @@
       "id": "retire.others-stay",
       "label": "and the remaining buckets are intact",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 5 | Later — 10"
+      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
     },
     {
       "id": "empty.copy",
       "label": "the emptied surface says nothing is open",
       "ok": true,
-      "detail": "Tasks Nothing open No open tasks Every queue is clear. Go to ongoing chats"
+      "detail": "Tasks Nothing open · 1 completed today No open tasks Every queue is clear. Go to"
     },
     {
       "id": "empty.skips-retirement",

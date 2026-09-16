@@ -21,9 +21,9 @@
 // pane" in §5's words — is the only filled button on the surface. It uses
 // PillButton; every other control here is a RecordButton.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ExternalLink, MessageSquare } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { ReviewBody } from "@/components/record/review-body";
@@ -34,8 +34,18 @@ import {
   type BillingCommitDetail,
   type BillingSubmitHandle,
 } from "@/components/tasks/billing-review";
-import { BreachChip } from "@/components/tasks/chips";
-import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
+import { elapsedLabel } from "@/components/tasks/strips";
+import { chatThreadHref } from "@/lib/record/chat";
+import {
+  EscalationCtas,
+  EscalationMeta,
+  EscalationTaskPane,
+  type EscalationPaneHandle,
+} from "@/components/tasks/escalation-task-pane";
+import type { CompletedEntry } from "@/components/tasks/completed-group";
+import type { MonitoringEvent } from "@/lib/monitoring/event";
+import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
+import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
 // "Notes"; the link itself is unchanged.)
@@ -48,20 +58,11 @@ import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
 import {
   isBreached,
   type BillingPayload,
-  type DocumentationPayload,
-  type EscalationPayload,
   type RiskFlagPayload,
   type TaskItem,
 } from "@/lib/tasks/types";
 import { tierLabel } from "@/lib/tasks/bands";
-import { slaLabelFor } from "@/lib/tasks/sla";
-import {
-  LIFECYCLE_LABEL,
-  closedAtOf,
-  isEscalationTask,
-  lifecycleOf,
-} from "@/lib/tasks/escalation-state";
-import { clockLabel } from "@/components/monitoring/escalation-region";
+import { isEscalationTask } from "@/lib/tasks/escalation-state";
 import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
   PANE_LABEL,
@@ -192,6 +193,84 @@ function RiskFlagBody({
    record" row in the host's context strip, which states the same two facts in
    the order a supervisor reads them. */
 
+/** ═══ THE RECORD CONTEXT ACCORDION (arch-F, F2) ═══
+ *
+ *  The mentorship figures — days, messages, video — were half of a two-cell strip
+ *  at the top of the pane, which put them above the recommendation they are
+ *  context for. They are a thing a supervisor CONSULTS when the recommendation
+ *  looks surprising, not a thing they read every time, so they are collapsed.
+ *
+ *  BUILT HERE RATHER THAN IN THE MODULE, and minimal by intent: the parity work
+ *  specifies a Record context accordion and this pane has none (arch-F's recon
+ *  confirmed the only disclosure in the module is the score strip's). This is the
+ *  Tasks-only version — one section, the figures it already had — so that when
+ *  the real one lands there is one place to replace and nothing of the old header
+ *  left behind.
+ *
+ *  A REAL <button> WITH `aria-expanded`, the whole row as the target, the caret
+ *  `aria-hidden` — the same arrangement the score strip settled on. */
+function RecordContext({ payload }: { payload: BillingPayload }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-inset)] border border-[color:var(--border-contour)]">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        data-slot="record-context"
+        className={cn(
+          "flex min-h-11 w-full items-center justify-between gap-3 px-3.5 text-left",
+          "transition-colors hover:bg-[var(--tint-hover)]",
+          RING
+        )}
+      >
+        <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
+          {/* NEEDS-COPY-NICOLE */}
+          Record context
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+          {/* THE HEADLINE FIGURE STAYS VISIBLE COLLAPSED. A disclosure whose
+              closed state says nothing is a disclosure nobody opens; the
+              mentorship length is the one figure that changes how the rest
+              reads. */}
+          <span className="tabular-nums">
+            {payload.mentorStats.daysInMentorship} days in mentorship
+          </span>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "size-4 shrink-0 transition-transform motion-reduce:transition-none",
+              open && "rotate-180"
+            )}
+          />
+        </span>
+      </button>
+      {open && (
+        <dl className="grid gap-3 border-t border-[color:var(--border-subtle)] px-3.5 py-3 sm:grid-cols-2">
+          {[
+            /* ═══ THE DURATION IS NOT REPEATED (arch-G, G1) ═══
+               The collapsed header states "140 days in mentorship" and this list
+               stated "In mentorship · 140 days" again six pixels below it. The
+               header keeps the duration — it is the figure that changes how the
+               other two read — and the body holds only what the header does not
+               say. NEEDS-COPY-NICOLE on both labels; the window is named,
+               because "62 messages" without "last 30 days" cannot be sized. */
+            ["Messages, last 30 days", `${payload.mentorStats.messagesLast30}`],
+            ["Video calls, last 30 days", `${payload.mentorStats.videoLast30}`],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt className={LABEL}>{label}</dt>
+              <dd className="mt-1 text-[14px] leading-[20px] tabular-nums text-[var(--text-primary)]">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 /** ═══ THE BILLING BODY — NOW A WRAPPER AROUND THE REVIEW ═══
  *
  *  What it still owns: the generated rationale block and the two survey /
@@ -208,6 +287,8 @@ function BillingBody({
   onDecisionChange,
   onCommit,
   handleRef,
+  onGapsChange,
+  onBlocked,
 }: {
   payload: BillingPayload;
   item: TaskItem;
@@ -216,6 +297,8 @@ function BillingBody({
   onDecisionChange: (next: ReviewDecision | null) => void;
   onCommit: (detail: BillingCommitDetail) => void;
   handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
+  onGapsChange: (gaps: number) => void;
+  onBlocked: () => void;
 }) {
   /** ═══ THE SHARED REVIEW MODULE, FINALLY HOSTED HERE ═══
    *
@@ -254,46 +337,9 @@ function BillingBody({
       recommended={recommended}
       onCommit={onCommit}
       handleRef={handleRef}
-      context={
-        <div className="grid gap-3 rounded-[var(--radius-inset)] border border-[color:var(--border-contour)] px-3.5 py-3 sm:grid-cols-2">
-          <div>
-            <p className={LABEL}>{/* TODO-COPY */}On record</p>
-            {payload.current ? (
-              <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                <span
-                  className="shrink-0 rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
-                >
-                  {payload.current.code}
-                </span>
-                <span className="min-w-0">{payload.current.statement}</span>
-              </p>
-            ) : (
-              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-                {/* TODO-COPY. AN ABSENCE, NAMED. "—" would read as missing data
-                    where this is the actual state: nothing has been assigned, and
-                    that absence is the reason the review exists. */}
-                Nothing assigned yet
-              </p>
-            )}
-          </div>
-          <div>
-            <p className={LABEL}>{/* TODO-COPY */}Mentorship</p>
-            <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-              <span className="tabular-nums">
-                {payload.mentorStats.daysInMentorship} days
-              </span>
-              <span aria-hidden className="px-1.5 opacity-40">·</span>
-              <span className="tabular-nums">
-                {payload.mentorStats.messagesLast30} messages
-              </span>
-              <span aria-hidden className="px-1.5 opacity-40">·</span>
-              <span className="tabular-nums">
-                {payload.mentorStats.videoLast30} video
-              </span>
-            </p>
-          </div>
-        </div>
-      }
+      recordContext={<RecordContext payload={payload} />}
+      onGapsChange={onGapsChange}
+      onBlocked={onBlocked}
     >
       {/* `canAct` AND `interactive` ARE BOTH TRUE, unconditionally. Care passes
           its card's `expanded` for `interactive` because its review lives inside
@@ -304,6 +350,12 @@ function BillingBody({
         review={billingReviewFor(item, payload)}
         currentCode={payload.current?.code ?? null}
         currentStatement={payload.current?.statement ?? null}
+        /* ═══ THE HOST OPTS IN (arch-F) ═══
+           The code on record now renders as a quiet line beneath the
+           recommendation title, where the parity spec always wanted it. Care does
+           not pass this: its spine states the code above the card, and the
+           seventeen parity snapshots forbid changing what that page draws. */
+        showCurrentLine
         decision={decision}
         onDecisionChange={onDecisionChange}
         canAct
@@ -313,135 +365,19 @@ function BillingBody({
   );
 }
 
-function EscalationBody({
-  payload,
-  item,
-  now,
-  excerptState,
-  onRetryExcerpt,
-}: {
-  payload: EscalationPayload | DocumentationPayload;
-  item: TaskItem;
-  now: number;
-  excerptState: ExcerptState;
-  onRetryExcerpt: () => void;
-}) {
-  const isDocs = payload.kind === "documentation";
-  const state = lifecycleOf(item, now);
-  const closedAt = closedAtOf(item);
-  /** ═══ CONTEXT, NOT EVIDENCE ═══
-   *
-   *  An escalation has no `flaggedExcerpt` — nothing here was flagged, so there is
-   *  no line to highlight and `anchorText` is null, which anchors the excerpt to
-   *  the most recent messages instead. That is the brief's fallback and it is also
-   *  the honest one: highlighting an arbitrary message would assert that it
-   *  triggered the escalation, and the payload does not say that.
-   *
-   *  NOTHING ABOUT MITIGATION MOVES. This body is read-only (§5, locked decision
-   *  3) and stays so; the excerpt is one more statement, not an action. */
-  const conversation = buildConversation(item, null, now);
-
-  /* ═══ THE CLOSED ONES GET THE SAME FIELDS NOW (arch-B) ═══
-     They used to render TWO lines — a "Closed" date and a dead-end sentence —
-     and suppress the 911 status, the responder, the emergency contact and the
-     conversation entirely. The reasoning was presumably that a escalation note is
-     paperwork, so the context does not matter. It is the opposite: somebody
-     writing up an escalation hours later needs the 911 decision, who raised it
-     and what was said MORE than the person who was in the room. */
-  return (
-    <div className="space-y-4">
-      {/* READ-ONLY (§5). Every field here is a statement; there is no control in
-          this body at all. */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}{isDocs ? "Closed" : "Opened"}</p>
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {new Date(isDocs && closedAt !== null ? closedAt : item.openedAt).toLocaleString(
-              "en-US",
-              { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
-            )}
-            <span
-              className="ml-2 text-[var(--text-secondary)] tabular-nums"
-              style={{ fontFamily: "var(--font-mono)" }}
-            >
-              {/* THE CLOCK THE READER IS ACTUALLY ON. An active escalation counts
-                  up from its start; a closed one counts down to its escalation note
-                  deadline and past it counts up again. A bare figure here used to
-                  mean "since it closed", which is the one reading that answers
-                  nobody's question. */}
-              {clockLabel(item, now)}
-            </span>
-          </p>
-        </div>
-        <div>
-          <p className={LABEL}>{/* TODO-COPY */}911 status</p>
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {/* TODO-DATA. A documentation task's payload carries only the
-                escalation id and the close time — the 911 decision lives on the
-                escalation record, which this prototype has no reader for (gap row
-                213). Saying so is the honest option; printing "No 911 call" would
-                assert a decision from an absence, on the row where that decision
-                is most consequential. */}
-            {payload.kind === "escalation"
-              ? payload.is911
-                ? "911 dispatched"
-                : "No 911 call"
-              : "On the escalation record"}
-          </p>
-        </div>
-        {payload.kind === "escalation" && (
-          <>
-            <div>
-              <p className={LABEL}>{/* TODO-COPY */}Flagged by</p>
-              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {payload.flaggedBy}
-              </p>
-            </div>
-            <div>
-              <p className={LABEL}>{/* TODO-COPY */}Emergency contact</p>
-              <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
-                {payload.emergencyContact}
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* THE EXCERPT SITS ABOVE THE CLOSING LINE, because it is the last piece of
-          CONTEXT and that line closes the body. A reader who has just been told
-          what state this is in should not then be handed more to read. */}
-      <div>
-        <p className={LABEL}>{/* TODO-COPY */}Recent conversation</p>
-        <div className="mt-2">
-          <ConversationExcerpt
-            conversation={conversation}
-            teenName={firstNameOf(item.teenDisplayName)}
-            href={conversationHref(item.teenId, conversation.anchorId)}
-            state={excerptState}
-            onRetry={onRetryExcerpt}
-            /* TODO-COPY. A different name from the flag pane's, because this
-               excerpt makes a weaker claim: nothing here is flagged. */
-            label={`Recent conversation with ${firstNameOf(item.teenDisplayName)}`}
-          />
-        </div>
-      </div>
-
-      {/* ═══ THE STATE, ITS DEADLINE, AND WHERE THE WORK IS ═══
-          THIS REPLACED A DEAD END. It read "Escalation notes are completed on the
-          escalation record." and "This escalation is handled in the escalation
-          flow. Nothing here changes its state." — both true, both useless: they
-          told a reader what this pane will NOT do and left them to find out
-          elsewhere what state the thing is in and when it is due. The footer
-          already carries the link; this carries the fact. */}
-      <p className="text-[13px] leading-[18px] text-[var(--text-muted)]">
-        {/* TODO-COPY, both. */}
-        {isDocs
-          ? `${LIFECYCLE_LABEL[state]} — ${clockLabel(item, now)}. The escalation note is completed on the escalation record.`
-          : `Active — ${clockLabel(item, now)}. Responding happens in the escalation flow; nothing here changes its state.`}
-      </p>
-    </div>
-  );
-}
+/* ═══ `EscalationBody` IS GONE (arch-G, G4) ═══
+   It was the read-only pointer: four facts, a context excerpt, and a closing
+   sentence whose job was to say that the work happened somewhere else.
+   `EscalationTaskPane` replaces all of it — the facts as `Facts`, the mentor and
+   conversation as `Record context`, and the excerpt as the timeline's TEEN
+   CONVERSATION source, which shows the same messages verbatim and, unlike the
+   excerpt, next to the flags and the system events that share their window. The
+   link out to the full thread is not lost: `EscalationCtas` carries it.
+   THE ONE THING THE SWAP COSTS, stated: the excerpt drew from
+   `buildConversation(item, …)`, the surface's own conversation builder, while the
+   timeline's teen messages are fixtures (G0: the support thread is not queryable
+   by pair or window). Two sources for one set of messages is exactly the fork
+   this file's notes warn about, and it is a gap row rather than a fix here. */
 
 // ── The frame ───────────────────────────────────────────────────────────────
 
@@ -473,6 +409,21 @@ export function TaskPane({
    *  pane's so the two can disagree — which is the point: the dev harness must be
    *  able to fail the excerpt while the pane succeeds. */
   excerptState = "ready",
+  /** ═══ THE EVENTS ARE FOR THE ESCALATION TIMELINE'S FLAG JOIN ═══
+   *  Not optional, and that is the point: `flagsInWindowFor` joins real flags on
+   *  the same teen inside the escalation window, so a default of `[]` would make
+   *  the timeline silently drop entries that exist — on the surface whose whole
+   *  claim is that it shows what happened. An empty ARRAY from the page is a
+   *  statement that there are no flags; an omitted prop is a wiring mistake, and
+   *  the two must not look the same. */
+  events,
+  /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (arch-F, F4) ═══
+   *  Set when the selection is a row from "Completed today". The review renders
+   *  with `canAct={false}` — the module's own tier gate, which already drops the
+   *  proposal chip and the picker — and the action bar is replaced by what was
+   *  submitted and when. A live Submit over a closed review would offer to commit
+   *  it a second time. */
+  completed = null,
 }: {
   item: TaskItem | null;
   now: number;
@@ -481,12 +432,36 @@ export function TaskPane({
   /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
   actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
+  events: MonitoringEvent[];
+  completed?: CompletedEntry | null;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
    *  re-render — but a reader cannot tell that, and a Retry that did nothing
    *  would be worse than none. `retryNonce` forces the excerpt to remount, which
    *  re-runs the anchor scroll and clears the error the caller set. */
   const [retryNonce, setRetryNonce] = useState(0);
+  /** ═══ THE GATE'S COUNT, FOR THE FOOTER (arch-F, F3) ═══
+   *  Published by `BillingReview`, whose gate owns the definition of "empty".
+   *  Held here because the footer is the pane's, and stated there because a
+   *  supervisor should know the commit is blocked before pressing the button
+   *  rather than after. */
+  const [gaps, setGaps] = useState(0);
+  /** Set by a blocked submit, cleared by the next keystroke that changes the
+   *  count. The difference between the two sentences is real: the count is a
+   *  standing fact, this is what just happened. */
+  const [blocked, setBlocked] = useState(false);
+  /** ═══ STABLE, AND THAT WAS A BUG ═══
+   *  These were inline arrows. `BillingReview` publishes the count from an effect
+   *  keyed on `[gaps.length, onGapsChange]`, so a new function identity every
+   *  render re-ran the effect every render — which called `setBlocked(false)`
+   *  immediately after a blocked press set it true, and the footer never showed
+   *  the blocked sentence. Measured: the status stayed "3 fields needed" through
+   *  a refused submit. */
+  const onGapsChange = useCallback((n: number) => {
+    setGaps(n);
+    setBlocked(false);
+  }, []);
+  const onBlocked = useCallback(() => setBlocked(true), []);
   const effectiveExcerptState: ExcerptState =
     retryNonce > 0 ? "ready" : excerptState;
   /* ═══ THE OVERRIDE BELONGS TO ONE ITEM, AND ONLY ONE ═══
@@ -517,6 +492,24 @@ export function TaskPane({
    *  the action is the smaller thing to move. Null whenever the mounted body is
    *  not a billing review, which is what the footer checks. */
   const billingHandle = useRef<BillingSubmitHandle | null>(null);
+  /** ═══ THE ESCALATION PANE'S, FOR THE SAME REASON (arch-G, G4) ═══
+   *  Its primary is in the footer and the state it acts on — the chosen
+   *  disposition — is inside `EscalationTaskPane`. Same trade as above. */
+  const escalationHandle = useRef<EscalationPaneHandle | null>(null);
+  /** Set by a refused press, cleared the moment a disposition is chosen. The
+   *  response has no count to state, so the only sentence it can offer is what
+   *  just happened — which is why the gate is a refused submit rather than a
+   *  disabled button: a disabled primary with no explanation is the failure
+   *  mode the billing footer already avoids. */
+  const [escalationBlocked, setEscalationBlocked] = useState(false);
+  const onDispositionChange = useCallback(() => setEscalationBlocked(false), []);
+  /** ═══ THE DOCUMENTATION NOTE'S ACTION ROW LANDS HERE ═══
+   *  State, not a ref, because the portal has to re-render once the node exists:
+   *  a ref written during commit is invisible to the render that reads it, so the
+   *  row would stay in its inline fallback until something else re-rendered the
+   *  pane. The module renders it inline while this is null, so the row is never
+   *  absent — it moves. */
+  const [actionSlot, setActionSlot] = useState<HTMLElement | null>(null);
 
   /* ═══ THE AUTO-ADVANCE CROSSFADE (Part 5) ═══
      Resolving replaces the pane's ENTIRE contents in one frame — new name, new
@@ -648,53 +641,149 @@ export function TaskPane({
     <div
       data-slot="task-pane"
       data-anno-ref="task-pane"
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+      /* ═══ `max-h-full`, NOT `h-full` (arch-F, F3) ═══
+         With `h-full` and the action bar now hugging its content, a short review
+         left ~190px of empty card BELOW the bar — the gap moved rather than
+         went away, and a card that ends 190px past its own footer reads as
+         unfinished. `max-h-full` lets the card end where the bar does and still
+         caps it at the cell, so the overflow case is unchanged. */
+      className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
     >
-      {/* ── HEADER — pinned inside the pane. ─────────────────────────────── */}
+      {/* ── HEADER — pinned inside the pane (arch-F rebuilt it) ─────────── */}
+      {/* ═══ WHAT THE OLD HEADER SAID, AND WHY EACH PART MOVED ═══
+          It was: the teen's name, an age, a breach chip, and "to {mentor}".
+          · THE MENTOR IS GONE. The same leftover the rows dropped in arch-E: the
+            mentor does not perform a billing review, is not accountable for it,
+            and cannot change its outcome — the code derives from survey data.
+            This was its last display on the surface (the transcript still uses
+            the field for its sender names).
+          · THE TASK TYPE ARRIVED, above the heading, small — the pane's
+            equivalent of the Care attention band's identifying chip, and the
+            answer to "what am I being asked to do" before "about whom".
+          · THE META LINE now carries the age AND the due fact in the same
+            expression the row used, so a supervisor who selected a row reading
+            "due 6:24 PM" sees the same words in the pane rather than a second
+            spelling of the same instant.
+          · THE TWO WAYS OUT live here. See the note on the CTAs. */}
       <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <h2 className="font-display text-[18px] font-bold leading-[26px] text-[var(--text-primary)]">
-            {item.teenDisplayName}
-          </h2>
-          {/* ═══ THE SAME "open" DEFECT LIVED HERE TOO (arch-B) ═══
-              The header printed "{elapsed} open" for every item, so a
-              documentation row's header said "20h open" directly above a body
-              whose first field read "Closed". See `escalation-state.ts` for which
-              field is authoritative; the short version is that both figures were
-              right and the word was wrong.
-              DROPPING THE WORD WAS NOT ENOUGH, and the first fix here did only
-              that: a bare "1d" over a closed escalation is worse than a wrong
-              label, because it could mean a day since it closed, a day left, or a
-              day late. Escalations take the same `clockLabel` the region and the
-              body use, so all three say one thing. */}
-          <span
-            className="text-[13px] tabular-nums text-[var(--text-muted)]"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            {isEscalationTask(item)
-              ? clockLabel(item, now)
-              : `${elapsedLabel(item.openedAt, now)} open`}
-          </span>
-          {breached && <BreachChip label={`Past ${slaLabelFor(item.taskType)}`} />}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <p className={LABEL}>
+              {/* NEEDS-COPY-NICOLE */}
+              {TASK_KIND_LABEL[item.taskType]}
+            </p>
+            <h2
+              /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance rule
+                 is a statement about which record is on screen after a resolve,
+                 and reading it off the heading is reading what a supervisor
+                 reads. */
+              data-pane-teen
+              className="mt-0.5 font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]"
+            >
+              {item.teenDisplayName}
+            </h2>
+            {isEscalationTask(item) ? (
+              /* THE THREE INSTANTS AN ESCALATION HAS — opened, closed, due —
+                 each stated once, and the response phase counts UP. Owned by the
+                 escalation pane's own module so the two task types cannot drift
+                 apart. */
+              <EscalationMeta item={item} now={now} />
+            ) : (
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+              <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+                {`${elapsedLabel(item.openedAt, now)} open`}
+              </span>
+              {!isEscalationTask(item) && (
+                <>
+                  <span aria-hidden className="opacity-40">·</span>
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      breached && "font-semibold text-[var(--band-clay-fg)]"
+                    )}
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    {deadlineFactFor(item.slaDeadline, now, elapsedLabel)}
+                  </span>
+                </>
+              )}
+              {/* ═══ THE CHIP IS GONE FROM HERE TOO (arch-G, G1) ═══
+                  arch-F replaced its misleading label (`Past 3d`, the SLA's
+                  LENGTH) with "Overdue" — still a second statement beside
+                  "overdue by 9h". The meta line reads `3d open · overdue by 9h`
+                  and the due fact carries the breach ink, which is the same rule
+                  the rows now follow. */}
+            </p>
+            )}
+          </div>
+
+          {/* ═══ THE TWO WAYS OUT, AND WHY THEY ARE HERE AND NOT ON THE ROWS ═══
+              At 19–100 rows, two or three controls per row puts 40–300 targets in
+              a column whose only job is scanning — Hick's Law, and every one of
+              them a chance to leave the queue by accident. Navigation away from
+              triage is a deliberate, occasional act; selecting a row fills this
+              pane instantly, so the pane header IS the row's control surface.
+              TERTIARY, DELIBERATELY: text buttons with icons, no fill, no border.
+              They must not compete with the recommendation title below them or
+              with the footer's Submit, which is the one primary on the pane. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
+            {/* ═══ ONE SOURCE FOR THE SET, PER TASK KIND (arch-G, G4) ═══
+                MEASURED: two "View care profile" links, identical href, side by
+                side. `EscalationCtas` carries the escalation set — care profile,
+                conversation, escalation record — and this link rendered
+                unconditionally alongside it. A duplicated way out is not
+                harmless in a cluster whose whole design note above is about not
+                competing for the eye: it doubles one destination's weight
+                against the two beside it. */}
+            {!isEscalationTask(item) && (
+              <Link
+                href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
+                className={cn(
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                  "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+                {/* NEEDS-COPY-NICOLE */}
+                View care profile
+              </Link>
+            )}
+            {/* ═══ THE CONVERSATION OPENS AT THE TOP, AND THAT IS A GAP ═══
+                `conversationHref` builds `?msg=` and nothing reads it:
+                `/app/chat` redirects through `chatThreadHref`, which takes a
+                person id only. So the anchor is dropped today — logged as a gap
+                row rather than papered over with a link that pretends to anchor.
+                FOR A BILLING REVIEW THERE IS NO ANCHOR ANYWAY: nothing here was
+                flagged, so there is no relevant message to land on, and the top
+                of the thread is the honest destination even once `?msg=` works. */}
+            {!isEscalationTask(item) && (
+              <Link
+                href={chatThreadHref(item.teenId)}
+                className={cn(
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                  "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                <MessageSquare className="size-3.5 shrink-0" aria-hidden />
+                {/* NEEDS-COPY-NICOLE */}
+                View conversation
+              </Link>
+            )}
+            {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
+                component, so the two escalation task types carry the same set. */}
+            {isEscalationTask(item) && <EscalationCtas item={item} />}
+          </div>
         </div>
-        {/* ═══ THE DOMAIN LEAVES THE SUBTITLE (Part 5) ═══
-            It read "to Maria Lopez · Risk flags · Red flag". The middle segment
-            is the name of the SELECTED TAB, sitting four inches below the tab
-            itself — a reader cannot be looking at this pane without having chosen
-            that tab, so it answers a question nobody has. What is left is the two
-            facts the header did not already carry: who the mentor is, and which
-            tier this flag is (which is header-only by §5, and now unobstructed). */}
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-          {/* TODO-COPY */}
-          <span>to {item.mentorName}</span>
-          {/* THE TIER, HEADER ONLY (§5). */}
-          {p.kind === "riskFlag" && (
-            <>
-              <span aria-hidden className="opacity-40">·</span>
-              <span>{tierLabel(p.tier)}</span>
-            </>
-          )}
-        </p>
+        {/* THE TIER, HEADER ONLY (§5) — risk flags do not reach this surface
+            today, and the line is derived rather than deleted so it cannot come
+            back wrong with the row type. */}
+        {p.kind === "riskFlag" && (
+          <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {tierLabel(p.tier)}
+          </p>
+        )}
       </div>
 
       {/* ── BODY, scrolls independently ─────────────────────────────────── */}
@@ -713,6 +802,13 @@ export function TaskPane({
         data-fade-phase={phase}
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          /* ═══ SCROLL PADDING FOR THE STICKY BAR (arch-F, F3) ═══
+             The action bar is the last child of this scroller and sticks to its
+             bottom edge, so a focus move to a field near the end would land the
+             field UNDER it. `scroll-pb-24` reserves the bar's height plus a
+             little, so browser-driven scrolling (Tab, the gate's own focus move)
+             stops short of it. WCAG 2.4.11. */
+          "scroll-pb-24",
           phase === "snap"
             ? "opacity-0 transition-none"
             : "opacity-100 transition-opacity duration-[120ms] ease-out motion-reduce:transition-none"
@@ -728,7 +824,21 @@ export function TaskPane({
             onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
           />
         )}
-        {p.kind === "billing" && recommended && (
+        {p.kind === "billing" && recommended && completed && (
+          /* ═══ THE CLOSED REVIEW, AS A RECORD ═══
+             The module with `canAct={false}`: no proposal chip, no picker, no
+             documentation gate. What a supervisor gets is what they submitted. */
+          <ReviewBody
+            review={billingReviewFor(item, p)}
+            currentCode={p.current?.code ?? null}
+            currentStatement={p.current?.statement ?? null}
+            showCurrentLine
+            decision={null}
+            canAct={false}
+            interactive
+          />
+        )}
+        {p.kind === "billing" && recommended && !completed && (
           <BillingBody
             payload={p}
             item={item}
@@ -760,32 +870,66 @@ export function TaskPane({
             }
             onCommit={(detail) => onResolve(item, detail)}
             handleRef={billingHandle}
+            onGapsChange={onGapsChange}
+            onBlocked={onBlocked}
           />
         )}
         {(p.kind === "escalation" || p.kind === "documentation") && (
-          <EscalationBody
-            payload={p}
+          /* ═══ MITIGATION HAPPENS HERE NOW (arch-G, G4) ═══
+             `EscalationBody` was a read-only pointer: facts, a context excerpt,
+             and a button that sent the reader somewhere else. That was right
+             while Tasks had no escalation task type and locked decision 3 meant
+             "escalations are not resolved on this surface" — it is wrong now
+             that the OBLIGATIONS are tasks. The record is still Monitoring's;
+             what happens here is the work the task names.
+             DECISION 3 IS NOT BROKEN BY THIS: nothing here resolves the
+             ESCALATION. The response task records a disposition and the
+             documentation task submits a note; the escalation's own lifecycle
+             belongs to the record. */
+          <EscalationTaskPane
             item={item}
             now={now}
-            excerptState={effectiveExcerptState}
-            onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
+            events={events}
+            onResolve={onResolve}
+            actionSlot={actionSlot}
+            handleRef={escalationHandle}
+            onDispositionChange={onDispositionChange}
           />
         )}
-      </div>
 
-      {/* ═══ THE FOOTER, ACTUALLY PINNED (Part 1.2) ═══
-          This comment said "sticky" and the element was not — it sat in normal
-          flow, so it stayed on screen only while the pane happened to fit. The
-          fix is not `position: sticky` but `shrink-0` in a flex column whose
-          BODY is the flexible row: the footer then sits on the pane's bottom
-          edge by construction, at any content length, with no z-index and no
-          overlap to reason about.
-          "Was this flagged correctly?" and "Confirm {code}" are the controls a
-          supervisor presses fifty times a shift. They can never leave the
-          viewport. */}
+
+      {/* ═══ THE ACTION BAR (arch-F, F3) ═══
+          IT STAYS BELOW THE DOCUMENTATION, and that is not a compromise: Submit
+          attests to the fields above it, and moving it up would make it possible
+          to commit a code before writing its justification — and would break the
+          frozen-Care behaviour it inherits. Its weakness was a TREATMENT problem.
+          WHAT CHANGED: it is now the last child of the SCROLLER, `sticky
+          bottom-0`, rather than a `shrink-0` sibling of it. The difference is the
+          short-content case, measured before this change: with a pane taller
+          than its content the flex body stretched and left a 231px gap between
+          the last field and the bar, which read as two buttons floating in
+          space. Sticky-inside-the-scroller puts the bar directly under the
+          content when there is little, and pins it to the bottom edge when there
+          is more — one rule, both cases.
+          SOLID FILL, TOP HAIRLINE, SLIGHT ELEVATION. The shadow is what makes it
+          read as a bar in front of the content rather than the end of it. */}
       <div
         data-slot="task-pane-footer"
-        className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-3.5"
+        className={cn(
+          "sticky bottom-0 -mx-5 -mb-4 mt-4 border-t border-[color:var(--border-subtle)]",
+          "bg-[var(--surface-card)] px-5 py-3.5",
+          /* ═══ AN EXISTING TOKEN, NOT A NEW VALUE ═══
+             The first two attempts were arbitrary values — `shadow-[0_-1px_3px_
+             rgba(0,0,0,0.04)]` and then the slash form — and BOTH resolved to
+             `rgba(0,0,0,0) 0px 0px 0px 0px`: the bar shipped with no elevation
+             and the probe read it back as transparent, twice. `--shadow-tile` is
+             the design system's own small raised-surface shadow (the sidebar's
+             active tile uses it), it is defined for both themes, and it needs no
+             new token. It is omnidirectional where a bar wants an upward hint —
+             noted in the report as the one place a directional elevation token
+             would earn its place. */
+          "shadow-[var(--shadow-tile)]"
+        )}
       >
         {p.kind === "riskFlag" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -824,7 +968,25 @@ export function TaskPane({
           </div>
         )}
 
-        {p.kind === "billing" && recommended && (
+        {p.kind === "billing" && completed && (
+          /* NEEDS-COPY-NICOLE. WHAT WAS SUBMITTED AND WHEN — the bar's job on a
+             closed review is to state the outcome, not to offer one. */
+          <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {completed.outcome === "unchanged"
+              ? `${completed.code} confirmed`
+              : `Changed to ${completed.code}`}
+            <span aria-hidden className="px-1.5 opacity-40">·</span>
+            <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+              {new Date(completed.at).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </span>
+          </p>
+        )}
+
+        {p.kind === "billing" && recommended && !completed && (
           /* ═══ TWO BUTTONS, AND NEITHER NAMES THE CODE ANY MORE ═══
              It was `Confirm unchanged` (tonal, re-reviews only) and
              `Confirm {code}` (primary), and the second named its object for a
@@ -853,7 +1015,31 @@ export function TaskPane({
              `unchanged`, a change as `confirmed`. Two buttons that commit the
              same three documented fields with different outcome strings was an
              invitation to press the wrong one. */
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {/* ═══ THE GATE'S STATE, OPPOSITE THE BUTTONS (arch-F, F3) ═══
+                It used to exist only as an `sr-only` sentence inside the review,
+                600px below the button that runs the gate: a sighted supervisor
+                pressed Submit and found out then. This states it before.
+                A LIVE REGION, and the only one for the gate — `role="status"` so
+                the count is announced as fields are filled, and so the blocked
+                sentence is announced on a failed press without a second region
+                competing to say the same thing.
+                CLEARED WHEN VALID: zero gaps renders nothing at all rather than
+                "0 fields needed", which is a number nobody needs.
+                SUBMIT STAYS ENABLED (no-disabled-buttons): pressing it while
+                invalid focuses the first empty field, and this line says why. */}
+            <p
+              role="status"
+              aria-live="polite"
+              className="min-w-0 text-[12.5px] leading-[17px] text-[var(--text-secondary)]"
+            >
+              {gaps === 0
+                ? ""
+                : blocked
+                  ? /* NEEDS-COPY-NICOLE */ `${gaps} field${gaps === 1 ? "" : "s"} still needed. Focus moved to the first.`
+                  : /* NEEDS-COPY-NICOLE */ `${gaps} field${gaps === 1 ? "" : "s"} needed`}
+            </p>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <RecordButton
               onClick={() => {
                 billingHandle.current?.saveAndClose();
@@ -890,32 +1076,51 @@ export function TaskPane({
               {/* TODO-COPY */}
               Submit
             </PillButton>
+            </div>
           </div>
         )}
 
         {(p.kind === "escalation" || p.kind === "documentation") && (
-          <div className="flex justify-end">
-            {/* SINGLE ACTION, AND IT ROUTES OUT. Nothing on this pane resolves —
-                locked decision 3, enforced here by there being no resolve control
-                and in resolve.ts by the utility refusing an escalation. */}
-            <Link
-              href={escalationHref(payloadEscalationId(p))}
-              className={cn(
-                "inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 text-[13px] font-semibold text-[var(--text-primary)]",
-                "transition-colors hover:bg-[var(--tint-hover)]",
-                RING
-              )}
+          /* ═══ THE ACTION BAR IS THE TASK'S, NOT A LINK OUT ═══
+             It held one button that routed to the record. The task is completed
+             HERE now: a response records its disposition, and a documentation
+             task's bar is where the note module portals its own action row —
+             which is why this branch renders only the response primary and
+             leaves the slot empty otherwise. */
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p
+              role="status"
+              aria-live="polite"
+              className="min-w-0 text-[12.5px] leading-[17px] text-[var(--text-secondary)]"
             >
-              {/* TODO-COPY */}
-              {/* TODO-COPY. THE ACTION NAMES THE WORK, NOT THE OBJECT — "Open
-                  escalation" on a closed one sends a reader looking for a crisis
-                  that is over. Matches the region's own row button exactly, so a
-                  reader who clicks either lands in the same place expecting the
-                  same thing. */}
-              {p.kind === "documentation" ? "Open documentation" : "Open escalation"}
-            </Link>
+              {/* NEEDS-COPY-NICOLE. The response's own gate, stated rather than
+                  enforced with a disabled button. */}
+              {p.kind === "escalation" && escalationBlocked
+                ? "Record what you did first."
+                : ""}
+            </p>
+            {p.kind === "escalation" ? (
+              <PillButton
+                onClick={() => {
+                  const h = escalationHandle.current;
+                  if (!h) return;
+                  /* THE REFUSAL IS THE MESSAGE. `submit` returns false when no
+                     disposition is chosen; the sentence to its left says so. */
+                  if (!h.submit()) setEscalationBlocked(true);
+                }}
+                className="h-9 shrink-0 px-5 text-[14px]"
+              >
+                {/* NEEDS-COPY-NICOLE */}
+                Record response
+              </PillButton>
+            ) : (
+              /* THE SLOT THE NOTE MODULE PORTALS INTO. */
+              <span ref={setActionSlot} className="contents" />
+            )}
           </div>
         )}
+      </div>
+      {/* ── end of the scroller, which now contains the action bar ───────── */}
       </div>
 
       {/* ═══ THE CODE PICKER LIVES IN THE SHARED MODULE NOW ═══
@@ -927,12 +1132,6 @@ export function TaskPane({
           pickers would have been two places for that rule to live. */}
     </div>
   );
-}
-
-function payloadEscalationId(
-  p: EscalationPayload | DocumentationPayload
-): string {
-  return p.escalationId;
 }
 
 /** Exported for the completion state's copy. */

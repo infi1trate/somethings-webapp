@@ -508,7 +508,14 @@ function typicalShift(now: number): TaskItem[] {
         openedAgo: 20 * HOUR,
         // Clock starts at CLOSE, 20h ago — so 4h of the 24h remain.
         clockStartAgo: 20 * HOUR,
-        payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 20 * HOUR },
+        payload: {
+          kind: "documentation",
+          escalationId: "esc-riley-1",
+          closedAt: now - 20 * HOUR,
+          /* RAISED 90 MINUTES BEFORE IT CLOSED. The window the record's timeline
+             covers — see `DocumentationPayload.triggeredAt`. */
+          triggeredAt: now - 21.5 * HOUR,
+        },
       },
       {
         // 31h against a 24h clock: the overdue escalation note, so the third state is
@@ -519,7 +526,12 @@ function typicalShift(now: number): TaskItem[] {
         objectId: "esc-theo-3",
         openedAgo: 31 * HOUR,
         clockStartAgo: 31 * HOUR,
-        payload: { kind: "documentation", escalationId: "esc-theo-3", closedAt: now - 31 * HOUR },
+        payload: {
+          kind: "documentation",
+          escalationId: "esc-theo-3",
+          closedAt: now - 31 * HOUR,
+          triggeredAt: now - 33 * HOUR,
+        },
       },
       // ── Risk flags: one BREACHED imminent (26h against a 24h SLA), two clinical.
       {
@@ -723,7 +735,12 @@ function heavyCaseload(now: number): TaskItem[] {
       objectId: "esc-riley-1",
       openedAgo: 10 * HOUR,
       clockStartAgo: 10 * HOUR,
-      payload: { kind: "documentation", escalationId: "esc-riley-1", closedAt: now - 10 * HOUR },
+      payload: {
+        kind: "documentation",
+        escalationId: "esc-riley-1",
+        closedAt: now - 10 * HOUR,
+        triggeredAt: now - 11.5 * HOUR,
+      },
     },
     {
       taskType: "escalationDocumentation",
@@ -732,7 +749,12 @@ function heavyCaseload(now: number): TaskItem[] {
       objectId: "esc-caleb-2",
       openedAgo: 27 * HOUR,
       clockStartAgo: 27 * HOUR,
-      payload: { kind: "documentation", escalationId: "esc-caleb-2", closedAt: now - 27 * HOUR },
+      payload: {
+        kind: "documentation",
+        escalationId: "esc-caleb-2",
+        closedAt: now - 27 * HOUR,
+        triggeredAt: now - 29 * HOUR,
+      },
     },
   ];
   // FIVE IMMINENT FLAGS ON ONE CONVERSATION — the group that must render as one row
@@ -881,7 +903,12 @@ function breachOvernight(now: number): TaskItem[] {
         objectId: "esc-theo-1",
         openedAgo: 30 * HOUR,
         clockStartAgo: 30 * HOUR,
-        payload: { kind: "documentation", escalationId: "esc-theo-1", closedAt: now - 30 * HOUR },
+        payload: {
+          kind: "documentation",
+          escalationId: "esc-theo-1",
+          closedAt: now - 30 * HOUR,
+          triggeredAt: now - 31 * HOUR,
+        },
       },
       {
         taskType: "routineFlagReview",

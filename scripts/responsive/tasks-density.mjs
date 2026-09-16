@@ -1,3 +1,15 @@
+// ═══ STALE, MEASURED AT HEAD — NOT LIVE COVERAGE (noted arch-G, G7) ═══
+//
+// 14 failing check(s) on `main`'s own code, before arch-G touched this surface.
+// It was written against the four-tab, deadline-forward Tasks page that arch-A,
+// arch-E and arch-F replaced; its "2 tier bands" and sticky-header assertions predate
+// deadline buckets and the pinned escalation band, and its virtualization
+// checks scroll a list whose first section is deliberately never windowed.
+// NOTHING IS RELAXED OR DELETED — a superseded assertion is evidence about what
+// the surface used to promise. Retargeting these is a gap row, because the
+// checks that still have a subject have to move to the probe that owns that
+// subject and deciding which those are is a reading of three phases.
+//
 // TASKS AT REAL VOLUME — Part 3's acceptance criteria, measured.
 //
 // Every claim in Part 3 is a claim about what happens at FIFTY rows, and none of

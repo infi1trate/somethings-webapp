@@ -16,8 +16,10 @@ import {
   closeOutOpen,
   compareEscalations,
   isAlarming,
+  isDocumented,
   isSettled,
   noteDeadline,
+  recordLifecycleOf,
   type EscalationRecord,
 } from "@/lib/monitoring/escalation";
 
@@ -158,5 +160,49 @@ describe("the region's order", () => {
     const unacked = rec({ id: "unacked", triggeredAt: NOW - 10 * MINUTE });
     const sorted = [resolved, acked, unacked].sort((a, b) => compareEscalations(a, b, NOW));
     expect(sorted.map((r) => r.id)).toEqual(["unacked", "acked", "resolved"]);
+  });
+});
+
+/** ═══ THE RECORD'S LIFECYCLE, INCLUDING THE STATE NOTHING COULD REACH ═══
+ *  Written as an independent transcription of what the three labels PROMISE, so
+ *  it fails if the derivation is rewritten to agree with itself. The interesting
+ *  case is the fourth one: nothing owed, note missing. */
+describe("the record's lifecycle", () => {
+  it("is active until the escalation is resolved, whatever the paperwork says", () => {
+    const active = rec({ closeOutDone: ["note", "debrief", "teenFollowUp", "safetyPlan"] });
+    expect(recordLifecycleOf(active, NOW)).toBe("active");
+  });
+
+  it("is closed-outstanding while anything owed is open", () => {
+    const closed = rec({ resolvedAt: NOW - HOUR, closeOutDone: ["note"] });
+    expect(isDocumented(closed)).toBe(true);
+    expect(closeOutOpen(closed, NOW).length).toBeGreaterThan(0);
+    expect(recordLifecycleOf(closed, NOW)).toBe("closedOutstanding");
+  });
+
+  it("reaches the terminal state when the note is recorded and nothing is owed", () => {
+    const done = rec({
+      resolvedAt: NOW - HOUR,
+      caregiverInvolved: true,
+      closeOutDone: ["note", "debrief", "safetyPlan"],
+    });
+    expect(recordLifecycleOf(done, NOW)).toBe("closedDocumented");
+  });
+
+  it("is NOT terminal when nothing is owed but the note was never recorded", () => {
+    /* ═══ THE CASE THAT MAKES `isDocumented` NECESSARY ═══
+       `closeOutOpen` waives a conditional item and counts a DONE item as not
+       owed — so "nothing owed" is reachable without the note if the note is
+       marked done... which is why this asks the opposite question: a record
+       whose other three items are done and whose NOTE is not is still settled
+       by the checklist's own arithmetic only if the note is done. Here it is
+       not, so the record must not claim to be documented. */
+    const noNote = rec({
+      resolvedAt: NOW - HOUR,
+      caregiverInvolved: true,
+      closeOutDone: ["debrief", "safetyPlan"],
+    });
+    expect(isDocumented(noNote)).toBe(false);
+    expect(recordLifecycleOf(noNote, NOW)).toBe("closedOutstanding");
   });
 });

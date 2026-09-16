@@ -1,3 +1,14 @@
+// ═══ STALE, MEASURED AT HEAD — NOT LIVE COVERAGE (noted arch-G, G7) ═══
+//
+// 1 hard failing check(s) on `main`'s own code, before arch-G touched this surface.
+// It was written against the four-tab, deadline-forward Tasks page that arch-A,
+// arch-E and arch-F replaced; it cannot find the dev bar's scenario
+// control at all, so it never reaches an assertion.
+// NOTHING IS RELAXED OR DELETED — a superseded assertion is evidence about what
+// the surface used to promise. Retargeting these is a gap row, because the
+// checks that still have a subject have to move to the probe that owns that
+// subject and deciding which those are is a reading of three phases.
+//
 // THE TASKS TOP REGION AFTER THE STRIP AND THE CARDS.
 //
 // Two acceptance criteria from the revision, both measurable: the space above

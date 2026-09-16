@@ -43,13 +43,41 @@
       "ok": true
     },
     {
-      "id": "tasks.on-record",
-      "label": "the host states the code on record",
+      "id": "tasks.cases-found",
+      "label": "a change and a renewal were both reachable",
       "ok": true
     },
     {
-      "id": "tasks.mentorship",
-      "label": "and the mentorship context",
+      "id": "tasks.current-line",
+      "label": "a CHANGE renders the code on record as a subordinate line",
+      "ok": true,
+      "detail": "Current · F33.0 Major depressive disorder, recur"
+    },
+    {
+      "id": "tasks.no-line-on-renewal",
+      "label": "and a RENEWAL renders none — the code would be stated twice",
+      "ok": true,
+      "detail": "Renewal proposed Change code Rationale Scores have moved"
+    },
+    {
+      "id": "tasks.no-on-record-strip",
+      "label": "and the old context strip is gone",
+      "ok": true
+    },
+    {
+      "id": "tasks.record-context",
+      "label": "the mentorship figures live in a collapsed accordion",
+      "ok": true
+    },
+    {
+      "id": "tasks.accordion-collapsed",
+      "label": "which starts collapsed and says what it holds",
+      "ok": true,
+      "detail": "Record context 140 days in mentorship"
+    },
+    {
+      "id": "tasks.no-mentor",
+      "label": "and the pane no longer names the mentor",
       "ok": true
     },
     {
@@ -67,13 +95,13 @@
       "id": "picker.tasks.host-states-code",
       "label": "the host states a code to look for",
       "ok": true,
-      "detail": "F33.1"
+      "detail": "F33.0"
     },
     {
       "id": "picker.tasks.on-record",
       "label": "and the module marks that code in the list",
       "ok": true,
-      "detail": "F33.1 · 1 marked"
+      "detail": "F33.0 · 1 marked"
     },
     {
       "id": "picker.tasks.closes",

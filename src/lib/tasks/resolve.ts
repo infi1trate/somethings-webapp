@@ -28,6 +28,7 @@ import {
   buildResolveEvent,
   eventTypeFor,
 } from "@/lib/tasks/ledger";
+import { isEscalationTask } from "@/lib/tasks/escalation-state";
 import type { TaskItem } from "@/lib/tasks/types";
 
 /** The undo window. 6s per §5. */
@@ -82,19 +83,52 @@ export interface ResolveOptions {
 
 /** START A RESOLVE. Returns the handle; nothing is written yet.
  *
- *  ESCALATIONS ARE REFUSED. Locked decision 3: escalations link out to the
- *  escalation flow and never resolve inline. Rather than trusting every caller to
- *  remember, this throws — an escalation reaching here is a bug, and a silent
- *  no-op would hide it while the row vanished from the list. */
+ *  ═══ WHAT LOCKED DECISION 3 ACTUALLY FORBIDS (revised, arch-G) ═══
+ *
+ *  This threw for EVERY item in the escalation domain: "escalations never resolve
+ *  inline". That was right while Tasks had no escalation task type — the only
+ *  thing an escalation-domain item could have meant was the escalation itself.
+ *
+ *  arch-G made the OBLIGATIONS tasks. An `activeEscalation` row is "record what
+ *  you did", an `escalationDocumentation` row is "file the note", and completing
+ *  either of those closes THE TASK. Neither closes the escalation, whose
+ *  lifecycle belongs to the record on Monitoring — which is the thing decision 3
+ *  protects, and it is still protected: nothing here can write an ESCALATION_*
+ *  event, and the surface has no control that resolves a record.
+ *
+ *  MEASURED, and this is why the guard had to change rather than be worked
+ *  around: with it in place, pressing "Record response" threw on every click.
+ *  The pane looked like it had recorded nothing because it HAD recorded nothing,
+ *  and a probe asserting "the response does not auto-advance" passed for the
+ *  wrong reason — nothing advanced because nothing resolved. A guard that turns
+ *  a feature into a no-op is worse than one that fails loudly, and this one did
+ *  both at once.
+ *
+ *  ═══ AND THEY WRITE NO LEDGER EVENT — DELIBERATELY, FOR NOW ═══
+ *
+ *  `eventTypeFor` returns null for the escalation domain and nothing here
+ *  invents a type. The three that exist are ESCALATION_RAISED / _CLOSED /
+ *  _OVERDUE, and writing any of them for a completed TASK would assert a
+ *  lifecycle change this surface did not make — precisely decision 3's
+ *  violation, arriving through the ledger instead of through the UI.
+ *
+ *  So the window runs, undo works, the row retires, and Activity shows nothing
+ *  until two event types exist for the obligations themselves. That is a gap row
+ *  and a question for the Activity surface's owner, not something to paper over
+ *  with the closest available label. */
 export function resolveWithUndo(opts: ResolveOptions): ResolveHandle {
   const { item, decidedAt, detail, windowMs = UNDO_WINDOW_MS } = opts;
 
-  if (item.domain === "escalation") {
+  if (item.domain === "escalation" && !isEscalationTask(item)) {
+    /* STILL LOUD for anything else that arrives in this domain. If a third
+       escalation task type lands without being added to `isEscalationTask`,
+       this is where it stops — rather than silently resolving something nobody
+       decided was resolvable here. */
     throw new Error(
       `resolveWithUndo: escalations never resolve inline (locked decision 3). Got ${item.taskType} (${item.id}).`
     );
   }
-  if (!eventTypeFor(item)) {
+  if (item.domain !== "escalation" && !eventTypeFor(item)) {
     throw new Error(
       `resolveWithUndo: no ledger event type for domain "${item.domain}".`
     );

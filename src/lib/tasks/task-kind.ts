@@ -84,6 +84,31 @@ export const TASK_KIND_ICON: Record<TaskType, LucideIcon> = {
  *  consequence of two types sharing a name rather than a second table that has to
  *  be kept in step with the first. A new task type gets a chip the moment it gets
  *  a label, and two types that share a label share a chip. */
+/** ═══ THE FILTER GROUP, WHICH IS COARSER THAN THE LABEL (arch-G, G2) ═══
+ *
+ *  It returned the display label, so two task types sharing a name shared a chip
+ *  — which was right for billing's intake and re-review ("Billing code review"
+ *  twice) and wrong the moment escalations arrived: "Active escalation" and
+ *  "Escalation note" are two labels for one KIND OF WORK, and a reader narrowing
+ *  to escalations wants both.
+ *
+ *  THE COST, STATED: the chip row can no longer distinguish "needs response"
+ *  from "needs documentation". That distinction is what the BUCKETS are for —
+ *  one is pinned at the top of the list and the other sits on a 24-hour clock —
+ *  so putting it in the chips as well would be the same fact twice, and the
+ *  coarser chip is the one that matches how a supervisor thinks about the
+ *  filter ("show me the escalations"). */
+export const TASK_KIND_GROUP: Record<TaskType, string> = {
+  /* NEEDS-COPY-NICOLE on both group names. */
+  activeEscalation: "Escalations",
+  escalationDocumentation: "Escalations",
+  imminentFlagReview: "Flags",
+  clinicalFlagReview: "Flags",
+  routineFlagReview: "Flags",
+  intakeBillingReview: "Billing",
+  monthlyReReview: "Billing",
+};
+
 export function taskKindKey(taskType: TaskType): string {
-  return TASK_KIND_LABEL[taskType];
+  return TASK_KIND_GROUP[taskType];
 }

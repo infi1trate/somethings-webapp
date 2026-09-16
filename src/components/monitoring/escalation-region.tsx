@@ -33,6 +33,8 @@ import {
   isActive,
   isAlarming,
   type EscalationRecord,
+  RECORD_LIFECYCLE_LABEL,
+  recordLifecycleOf,
 } from "@/lib/monitoring/escalation";
 import { RolePair } from "@/components/monitoring/event-pane";
 import { cn } from "@/lib/utils";
@@ -83,8 +85,21 @@ function stateLine(rec: EscalationRecord, now: number): string {
     if (ack === "acknowledged") return "Active · acknowledged";
     return ack === "breached" ? "Active · not acknowledged" : "Active · awaiting acknowledgement";
   }
+  /* ═══ THE TERMINAL STATE IS NAMED (arch-G, G6) ═══
+     It read "Closed · close-out complete" for a finished record — true, and it
+     described the CHECKLIST rather than the record. `closedDocumented` is the
+     shared label, so this row and the pane cannot spell one state two ways. */
+  if (recordLifecycleOf(rec, now) === "closedDocumented") {
+    return RECORD_LIFECYCLE_LABEL.closedDocumented;
+  }
   const open = closeOutOpen(rec, now).length;
-  return open === 0 ? "Closed · close-out complete" : `Closed · ${open} close-out item${open === 1 ? "" : "s"} open`;
+  return open === 0
+    ? /* CLOSED, EVERYTHING OWED DONE, AND THE NOTE IS NOT ONE OF THEM — which
+         is a real state: `closeOutOpen` waives a conditional item, so "nothing
+         owed" can be true while the note is still missing. Saying "documented"
+         here would be the surface asserting a note nobody wrote. */
+      "Closed · note not recorded"
+    : `Closed · ${open} close-out item${open === 1 ? "" : "s"} open`;
 }
 
 function Row({

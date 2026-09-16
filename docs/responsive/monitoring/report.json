@@ -1,5 +1,5 @@
 {
-  "at": 1789502494285,
+  "at": 1789575534064,
   "rows": [
     {
       "id": "input.headers",
@@ -430,7 +430,7 @@
       "id": "fixtures.wired",
       "label": "every key is wired into the dev bar's switcher",
       "ok": true,
-      "detail": "39 of 39"
+      "detail": "40 of 40"
     },
     {
       "id": "fixtures.exact-keys",
@@ -446,9 +446,9 @@
     },
     {
       "id": "fixtures.all-render",
-      "label": "all 39 scenario keys render without error",
+      "label": "all 40 scenario keys render without error",
       "ok": true,
-      "detail": "39 keys"
+      "detail": "40 keys"
     }
   ]
 }

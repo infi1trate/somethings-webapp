@@ -171,9 +171,16 @@ export function MonitoringPage({
    *  `?region=escalations` still works and still selects the first escalation. */
   focusBand = null,
   focusRegion = null,
+  /** ═══ `?escalation=<id>` — THE RECORD'S OWN DEEP LINK (arch-G, G6) ═══
+   *  Every "Open the escalation record" on every surface used to land on a
+   *  placeholder route. They land here now, with that record selected. A region
+   *  link is a link to a WORKLIST ROW; this is a link to an OBJECT, which is why
+   *  it resolves against the whole set rather than the region's contents. */
+  focusEscalation = null,
 }: {
   focusBand?: string | null;
   focusRegion?: string | null;
+  focusEscalation?: string | null;
 } = {}) {
   void focusBand;
   const mounted = useMounted();
@@ -233,10 +240,20 @@ export function MonitoringPage({
   /** ═══ A SETTLED ESCALATION FINALLY LEAVES ═══
    *  Resolved AND every owed close-out item done. Anything less stays on screen
    *  and keeps aging. */
-  const escalations = useMemo(() => {
-    const all = [...(data?.escalations ?? []), ...raised];
-    return all.filter((r) => !isSettled(r, now)).sort((a, b) => compareEscalations(a, b, now));
-  }, [data, raised, now]);
+  /** EVERY RECORD THIS PAGE KNOWS ABOUT, settled or not. The region shows a
+   *  subset; a deep link addresses an object, and an object does not stop
+   *  existing because its paperwork is finished. */
+  const allEscalations = useMemo(
+    () => [...(data?.escalations ?? []), ...raised],
+    [data, raised]
+  );
+  const escalations = useMemo(
+    () =>
+      allEscalations
+        .filter((r) => !isSettled(r, now))
+        .sort((a, b) => compareEscalations(a, b, now)),
+    [allEscalations, now]
+  );
 
   /** MEMOISED SEPARATELY so the `?? []` fallback is not a new array identity on
    *  every render — which would make every memo below it recompute. */
@@ -259,12 +276,30 @@ export function MonitoringPage({
   // ── Selection ─────────────────────────────────────────────────────────────
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEscalationId, setSelectedEscalationId] = useState<string | null>(
-    () => (focusRegion === "escalations" ? PENDING_ESCALATION : null)
+    () =>
+      /* AN ID BEATS A REGION. `?escalation=` names one record; `?region=` says
+         "whichever is most urgent". A link carrying both means the specific
+         one. */
+      focusEscalation ?? (focusRegion === "escalations" ? PENDING_ESCALATION : null)
   );
   const selectedEscalation =
     selectedEscalationId === PENDING_ESCALATION
       ? (escalations[0] ?? null)
-      : (escalations.find((e) => e.id === selectedEscalationId) ?? null);
+      : /* THE WHOLE SET, NOT THE REGION'S. A documented record is filtered out of
+           the region — that is the region's job — and is still openable by its
+           own link. Reading the region here is how a link to a finished record
+           would silently land on somebody else's flag. */
+        (allEscalations.find((e) => e.id === selectedEscalationId) ?? null);
+  /** ═══ A LINK TO A RECORD THIS DATA SET DOES NOT HOLD ═══
+   *  The prototype's escalations are built per scenario, so an id from another
+   *  scenario — or from yesterday — resolves to nothing. Falling through to the
+   *  first flag would show a reader somebody else's teen under a link they
+   *  followed for a named escalation. Stated instead. */
+  const missedLink =
+    focusEscalation != null &&
+    !allEscalations.some((e) => e.id === focusEscalation)
+      ? focusEscalation
+      : null;
   const selectedEvent = selectedEscalation
     ? null
     : (filtered.find((e) => e.id === selectedEventId) ?? filtered[0] ?? null);
@@ -417,6 +452,27 @@ export function MonitoringPage({
         />
       )}
 
+      {missedLink && (
+        /* ═══ THE LINK THAT COULD NOT BE HONOURED (arch-G, G6) ═══
+           NEEDS-COPY-NICOLE. It names the id, because an honest miss reads as
+           unbuilt while a generic one reads as broken — the same reasoning the
+           placeholder route was written with. */
+        <p
+          role="status"
+          className="mt-4 shrink-0 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-2.5 text-[13px] leading-[19px] text-[var(--text-secondary)]"
+        >
+          {/* `{" "}` BECAUSE JSX EATS THE NEWLINE. Measured: the page read
+              "Escalation esc-documentedisn’t in this data set" — the whitespace
+              between an expression and the text after it is stripped when it
+              spans a line break. */}
+          Escalation {missedLink}{" "}
+          isn&rsquo;t in this data set, so its record
+          can&rsquo;t be opened here. Escalations in this prototype are built per
+          scenario; anything from another scenario or an earlier day has no
+          record to show.
+        </p>
+      )}
+
       {mounted && (
         <EscalationRegion
           records={escalations}
@@ -562,6 +618,10 @@ export function MonitoringPage({
                 <EventPane
                   event={selectedEvent}
                   escalation={selectedEscalation}
+                  /* THE WHOLE SET, for the record's timeline join. Not
+                     `filtered` — the chips narrow what a READER is looking at,
+                     and a narrowed queue must not narrow a record's history. */
+                  events={events}
                   now={now}
                   compliance={data?.compliance ?? null}
                   deactivated={

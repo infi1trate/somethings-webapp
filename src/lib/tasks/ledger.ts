@@ -25,9 +25,21 @@ import { ACTIVITY_DOMAIN_OF, type TaskItem } from "@/lib/tasks/types";
  *  and every event already carries the right shape. */
 export const TASKS_ACTOR_ID = "sup-lydia";
 
-/** The event a resolved task writes. Escalations are absent DELIBERATELY: they
- *  never resolve on this surface (locked decision 3), so there is no event type
- *  here that could be emitted for one. */
+/** The event a resolved task writes.
+ *
+ *  ═══ ESCALATIONS ARE STILL ABSENT, FOR A DIFFERENT REASON NOW (arch-G) ═══
+ *
+ *  It was because they could not be resolved here at all. They can — the two
+ *  OBLIGATIONS are tasks and they complete on Tasks — and the reason there is
+ *  no row for them is that no event type fits: ESCALATION_RAISED, _CLOSED and
+ *  _OVERDUE are all statements about the escalation's LIFECYCLE, and a completed
+ *  response or a filed note changes none of it.
+ *
+ *  Writing `ESCALATION_CLOSED` because it is the nearest label would put a
+ *  lifecycle change nobody made into an append-only store that never retracts.
+ *  Absence is recoverable; a false event is not. Gap row: the ledger needs an
+ *  event for each obligation, which is a decision about the Activity surface's
+ *  vocabulary rather than one this phase can take. */
 const EVENT_FOR_DOMAIN: Partial<Record<TaskItem["domain"], ActivityEventType>> = {
   riskFlag: "RISK_FLAG_CLOSED",
   // THE ROUTINE TIER IS a risk-flag event in the ledger — the tier differs, not

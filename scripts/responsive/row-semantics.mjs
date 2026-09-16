@@ -38,8 +38,24 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(30)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+
+/** ═══ THESE CHECKS ARE ABOUT BILLING, AND TASKS HOSTS TWO TYPES NOW ═══
+ *  arch-G admitted escalations, so the surface's first row is a live escalation
+ *  and every assertion below that assumed "the selected item is a billing
+ *  review" would be asserting against the wrong pane. Narrowing with the kind
+ *  chip is the honest fix: it uses the product's own affordance, it leaves the
+ *  escalation assertions to the probe that owns them, and it fails loudly if the
+ *  chip ever stops existing. No-op on a scenario with one kind. */
+async function narrowToBilling(page) {
+  const chip = page.getByRole("button", { name: /^Billing,/ });
+  if (await chip.count()) {
+    await chip.first().click();
+    await page.waitForTimeout(320);
+  }
+}
+
 async function open(id, url, { scenario = "typical-shift", monitoring = null } = {}) {
-  return openView(
+  const view = await openView(
     browser,
     {
       id,
@@ -52,6 +68,11 @@ async function open(id, url, { scenario = "typical-shift", monitoring = null } =
     XL,
     version
   );
+  if (url.startsWith("/app/tasks")) {
+    await view.page.waitForTimeout(450);
+    await narrowToBilling(view.page);
+  }
+  return view;
 }
 
 async function scrollToTeen(page) {
@@ -113,7 +134,15 @@ const rowReport = `(row) => {
     emph.every((e) => e.length === 1),
     emph.map((e) => e.length).join(",")
   );
-  /* ═══ SUPERSEDED BY arch-E: THE EMPHASIS MOVED FROM THE CLOCK TO THE JOB ═══
+  /* ═══ SUPERSEDED TWICE: CLOCK → JOB (arch-E) → TEEN (arch-F) ═══
+     arch-E moved the emphasis off the countdown and onto the job. arch-F moved
+     it again, and for a reason arch-E could not see from inside one task type:
+     the job string is IDENTICAL on every row, so emphasising it emphasised no
+     information. The teen is what varies. The job survives as a chip, and the
+     rule became one emphasised element PER ZONE — identity left, deadline right.
+     The original note is kept below because the reasoning about FACES (Avantt vs
+     mono, the only two real weight channels here) is what still constrains this. */
+  /* ═══ arch-E's NOTE: THE EMPHASIS MOVED FROM THE CLOCK TO THE JOB ═══
      This asserted the emphasised element was the countdown. arch-D was right for
      the row it had — a name and a clock, where the clock is the only actionable
      half. arch-E leads with the JOB, so the emphasis is the task name and the
@@ -121,19 +150,33 @@ const rowReport = `(row) => {
      tabular, right-aligned. A column of figures is scannable without winning the
      weight channel from the thing that names the row. */
   check(
-    "tasks.job-leads",
-    "and it is the task name",
-    emph.every((e) => e[0]?.text === "Billing code review" && /avantt/.test(e[0].fam)),
+    "tasks.teen-leads",
+    "and it is the teen, which is what varies row to row",
+    emph.length > 0 && emph.every((e) => /^[A-Z][a-z]+ [A-Z][.]$/.test(e[0]?.text ?? "") && /avantt/.test(e[0].fam)),
     emph[0]?.[0] && `${emph[0][0].text} · ${emph[0][0].px}px/${emph[0][0].weight} ${emph[0][0].fam}`
+  );
+  /* THE JOB IS STILL THERE, AS A CHIP — asserted separately so "the emphasis
+     moved" cannot quietly become "the row no longer says what it is". */
+  const chips = data.map((r) => r.parts.find((p) => p.text === "Billing code review"));
+  check(
+    "tasks.job-chip",
+    "the task type is present on every row, subordinate",
+    chips.every((c) => c && !c.emphasised && c.px <= 12),
+    chips[0] && `${chips[0].text} · ${chips[0].px}px/${chips[0].weight} ${chips[0].fam}`
   );
   /* THE COUNTDOWN IS STILL THERE AND STILL THE SCANNABLE COLUMN — asserted
      separately, so "the emphasis moved" cannot quietly become "the countdown
      went quiet". */
-  const clocks = data.map((r) => r.parts.find((p) => /^(due in|overdue by) /.test(p.text)));
+  /* ═══ arch-F: THE DEADLINE INFORMS RATHER THAN ALARMS ═══
+     arch-E asserted 14px primary ink, when the countdown was the row's other
+     emphasis. arch-F gives the bucket header the urgency and the row the
+     detail, so the column is mono, tabular and SECONDARY — still the one
+     element in its zone, no longer competing with the breach chip beside it. */
+  const clocks = data.map((r) => r.parts.find((p) => /^(due |overdue )/.test(p.text)));
   check(
-    "tasks.countdown-prominent",
-    "and the countdown keeps its column at full size and primary ink",
-    clocks.every((c) => c && c.px >= 14 && /mono/.test(c.fam)),
+    "tasks.deadline-column",
+    "the deadline keeps its mono tabular column, in secondary ink",
+    clocks.every((c) => c && /mono/.test(c.fam) && c.px >= 12),
     clocks[0] && `${clocks[0].text} · ${clocks[0].px}px/${clocks[0].weight} ${clocks[0].fam}`
   );
   check(
@@ -145,7 +188,7 @@ const rowReport = `(row) => {
   check(
     "tasks.one-temporal",
     "one temporal fact per row",
-    data.every((r) => r.parts.filter((p) => /(due in|overdue by|\d+[mhd] open)/.test(p.text)).length === 1)
+    data.every((r) => r.parts.filter((p) => /(^due |^overdue |\d+[mhd] open)/.test(p.text)).length === 1)
   );
   /* WAS a standalone-leaf match on the teen name. arch-E puts the subject on
      line 2 beside its disposition — "Theo L. · Renewal proposed" — so the name is
@@ -160,11 +203,15 @@ const rowReport = `(row) => {
     `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => { const describe = ${EMPHASIS_FN}; return [...row.querySelectorAll("span")].map(describe); })`
   );
   check("tasks.spans-read", "the row's spans were readable at all", (spans[0]?.length ?? 0) > 0, `${spans[0]?.length ?? 0} spans`);
-  const caption = spans[0]?.find((p) => /^[A-Z][a-z]+ [A-Z]\./.test(p.text));
+  /* ═══ arch-F: THE CAPTION IS THE DISPOSITION ALONE ═══
+     arch-E put the teen name here beside its disposition. The name moved to line
+     1 with the emphasis, so repeating it in the caption would spend the line on
+     a string six pixels above it. */
+  const caption = spans[0]?.find((p) => /proposed/.test(p.text) && !/^[A-Z][a-z]+ [A-Z][.]/.test(p.text));
   check(
-    "tasks.subject-demoted",
-    "the subject leads the caption, with its disposition, and is not the emphasis",
-    caption && !caption.emphasised && caption.px < 14 && /proposed/.test(caption.text),
+    "tasks.caption-disposition",
+    "the caption carries the disposition, and not the name again",
+    caption && !caption.emphasised && caption.px < 14,
     caption && `${caption.text.replace(/\s+/g, " ")} · ${caption.px}px/${caption.weight} ${caption.fam}`
   );
   check("tasks.height", "row height", true, `${data[0]?.height}px`);
@@ -173,15 +220,41 @@ const rowReport = `(row) => {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 2 · TASKS, OVERDUE — the breach chip AND the countdown.
+// 2 · TASKS, OVERDUE — ONE STATEMENT, NOT THREE (arch-G, G1 superseded F1.2).
+//
+// The row carried a breach chip AND the countdown, under a bucket header already
+// reading "Overdue" — three statements about one lateness. The BUCKET owns the
+// treatment now; the row states how late, in breach ink, and drops the chip.
 // ═══════════════════════════════════════════════════════════════════════════
 {
   const { context, page } = await open("tasks-overdue", "/app/tasks", { scenario: "breach-overnight" });
   const t = await page.locator('[role="treeitem"]').first().innerText();
+  const header = await page.evaluate(`(() => { const h = document.querySelector('[role="group"] > div[aria-hidden]');
+    if (!h) return null; const cs = getComputedStyle(h);
+    return { text: (h.innerText||"").replace(/\\s+/g," ").trim(), bg: cs.backgroundColor, fg: cs.color }; })()`);
+  check("tasks.overdue-input", "the bucket header was readable", !!header, JSON.stringify(header));
+  check(
+    "tasks.overdue-header-carries-breach",
+    "the bucket header carries the breach treatment",
+    header && /Overdue/.test(header.text) && header.bg !== "rgba(0, 0, 0, 0)" && header.bg !== "rgb(255, 255, 255)",
+    header && `${header.text} · ${header.bg}`
+  );
+  const deadlineInk = await page.evaluate(`(() => {
+    /* THE LEAF, not an ancestor that happens to contain the text — a wrapper
+       inherits primary/400 and made this read as unstyled. */
+    const el = [...document.querySelectorAll('[role="treeitem"] span')].find((e) => !e.querySelector("span") && /^overdue by /.test((e.innerText||"").trim()));
+    if (!el) return null; const cs = getComputedStyle(el);
+    return { text: el.innerText.trim(), color: cs.color, weight: cs.fontWeight }; })()`);
+  check(
+    "tasks.overdue-row-states-how-late",
+    "and the row states how late, in breach ink, with no chip of its own",
+    deadlineInk && !/\bOverdue\b/.test(t.replace(/overdue by/gi, "")) && Number(deadlineInk.weight) >= 600,
+    deadlineInk && `${deadlineInk.text} · ${deadlineInk.color}/${deadlineInk.weight}`
+  );
   check(
     "tasks.overdue",
-    "an overdue row carries the breach chip and says how late",
-    /Overdue/.test(t) && /overdue by \d+[mhd]/.test(t),
+    "and the lateness is still stated exactly once",
+    /overdue by \d+[mhd]/.test(t) && t.match(/[Oo]verdue/g)?.length === 1,
     t.replace(/\s+/g, " ")
   );
   await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-overdue.png` });
@@ -377,7 +450,7 @@ for (const [url, name, scroller, monitoring] of [
      "2d open" on a row whose column read "due in 15h" — one item, two different
      facts, one for each reader. A probe that only inspected rendered spans would
      have reported the surface clean. */
-  const countdown = tops.filter((d) => /due in|overdue by/.test(d.label));
+  const countdown = tops.filter((d) => /due in|due \d|due [A-Z]|overdue by/.test(d.label));
   /* ═══ TWO SPELLINGS OF "HOW OLD" ═══
      Tasks says "2d open" (age since the review opened); Monitoring says "2h ago"
      (age since the flagged message) — arch-mon Phase 1 replaced its countdown
@@ -435,16 +508,19 @@ for (const [url, name, scroller, monitoring] of [
   );
 
   check(
-    "e.job-first",
-    "line 1 is the job, in the display face",
-    rows.every((r) => r.line1?.text === "Billing code review" && /avantt/.test(r.line1.fam)),
+    "e.teen-first",
+    "line 1 is the teen, in the display face (arch-F revised arch-E here)",
+    /* LINE 1 NOW HOLDS TWO SPANS — the name and the chip — so this reads the
+       NAME rather than the line, and the chip has its own check in section 1. */
+    rows.every((r) => /^[A-Z][a-z]+ [A-Z][.]/.test(r.line1?.text ?? "")),
     rows[0]?.line1 && `${rows[0].line1.text} · ${rows[0].line1.px}px/${rows[0].line1.weight} ${rows[0].line1.fam}`
   );
   check(
-    "e.subject-caption",
-    "line 2 carries the subject and the disposition preview",
-    rows.every((r) => /^[A-Z][a-z]+ [A-Z]\./.test(r.line2?.text ?? "")) &&
-      rows.some((r) => /proposed/.test(r.line2?.text ?? "")),
+    "e.disposition-caption",
+    "line 2 carries the disposition preview, and not the name a second time",
+    rows.length > 0 &&
+      rows.every((r) => /proposed/.test(r.line2?.text ?? "")) &&
+      !rows.some((r) => /^[A-Z][a-z]+ [A-Z][.]/.test(r.line2?.text ?? "")),
     rows[0]?.line2?.text
   );
   /* ═══ THE MENTOR IS GONE FROM TASKS ═══

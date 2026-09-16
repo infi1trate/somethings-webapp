@@ -23,6 +23,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, EyeOff, FileText, ShieldAlert } from "lucide-react";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
+import { EscalationNoteModule } from "@/components/record/escalation-note-module";
+import {
+  EscalationTimeline,
+  type ConversationSource,
+} from "@/components/monitoring/escalation-timeline";
+import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline";
+import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
 import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { PANE_LABEL, PaneChip, SystemBlock } from "@/components/ui/evidence-primitives";
@@ -42,6 +49,8 @@ import {
   closeOutOf,
   isActive,
   type EscalationRecord,
+  RECORD_LIFECYCLE_LABEL,
+  recordLifecycleOf,
 } from "@/lib/monitoring/escalation";
 import type { CompliancePath } from "@/lib/monitoring/scenarios";
 import { ageLabel } from "@/components/monitoring/event-list";
@@ -270,11 +279,56 @@ function PracticeBody({ event: e, now }: { event: MonitoringEvent; now: number }
  *  Read-only (locked decision 3): nothing here mutates the escalation, and the
  *  close-out items link to where the work actually happens rather than offering
  *  a tickbox that would let a supervisor mark paperwork done from a list. */
-function EscalationBody({ rec, now }: { rec: EscalationRecord; now: number }) {
+function EscalationBody({
+  rec,
+  now,
+  events,
+}: {
+  rec: EscalationRecord;
+  now: number;
+  /** The surface's own events, for the timeline's flag join — a real join here,
+   *  because this page is where those events live. */
+  events: MonitoringEvent[];
+}) {
   const ack = ackStateFor(rec, now);
   const items = closeOutOf(rec, now);
+  const lifecycle = recordLifecycleOf(rec, now);
+  const [source, setSource] = useState<ConversationSource>("supportThread");
+  /** KEYED BY RECORD, DERIVED — see the same note in `escalation-task-pane`.
+   *  An initialiser would run once for the first record this pane ever showed,
+   *  and every later record would inherit its entries. This pane does not
+   *  unmount between selections either. */
+  const [added, setAdded] = useState<Record<string, TimelineEntry[]>>({});
+  const entries = assembleTimeline(
+    timelineSourcesFor(
+      rec,
+      events,
+      [...manualFixturesFor(rec), ...(added[rec.id] ?? [])],
+      now
+    ),
+    source
+  );
   return (
     <div className="space-y-4">
+      {/* ═══ THE STATE, FIRST AND ONCE (arch-G, G6) ═══
+          The pane opened with the acknowledgement clock, which answers a
+          question only an ACTIVE record has. A reader arriving from a link has
+          to be told what this record IS before being told what is owed — and on
+          a terminal record the answer is "nothing", which no clock can say. */}
+      <p
+        data-record-lifecycle={lifecycle}
+        className="text-[13px] leading-[18px] text-[var(--text-secondary)]"
+      >
+        {RECORD_LIFECYCLE_LABEL[lifecycle]}
+        {lifecycle === "closedDocumented" && (
+          <span className="ml-1.5 text-[var(--text-muted)]">
+            {/* NEEDS-COPY-NICOLE. THE TERMINAL STATE SAYS IT IS TERMINAL, because
+                "Closed · documented" alone still reads like a status that might
+                change. */}
+            — nothing further is owed on this escalation.
+          </span>
+        )}
+      </p>
       <div>
         <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Acknowledgement</p>
         <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[14px] leading-[20px] text-[var(--text-primary)]">
@@ -321,6 +375,17 @@ function EscalationBody({ rec, now }: { rec: EscalationRecord; now: number }) {
               </span>
               {i.done ? (
                 <span className="text-[11.5px] text-[var(--text-secondary)]">{/* NEEDS-COPY-NICOLE */}done</span>
+              ) : i.condition && !i.condition.applies ? (
+                /* ═══ NO CLOCK ON AN ITEM THAT IS NOT OWED (arch-G, G6) ═══
+                   MEASURED on the record: "Teen follow-up · 40m left · not
+                   required — caregiver involved in treatment". Two statements
+                   that contradict each other, and the countdown is the one a
+                   reader acts on. `closeOutOf` computes `dueAt` for every item
+                   regardless of its condition — correctly, because the
+                   condition can change — so the suppression belongs here, at
+                   the render, where the reason is already being stated.
+                   The waiver line renders below either way. */
+                null
               ) : i.overdue ? (
                 <BreachChip label={`Overdue by ${elapsedLabel(i.dueAt ?? now, now)}`} />
               ) : i.dueAt != null ? (
@@ -352,6 +417,72 @@ function EscalationBody({ rec, now }: { rec: EscalationRecord; now: number }) {
           ))}
         </ul>
       </div>
+
+      {/* ═══ THE MITIGATION MODULE, HOSTED (arch-G, G3) ═══
+          The record is the escalation note's durable home, so the module renders
+          HERE — inline, with its action row in the flow, which is the layout a
+          record wants. The Tasks documentation pane hosts the same component and
+          portals the action row into its sticky bar. One implementation, two
+          hosts: the principle billing established with `ReviewBody`.
+          ONLY ONCE THE CRISIS IS OVER. An active escalation has nothing to
+          document yet and a form on screen during an incident invites a
+          supervisor to write instead of act — the response task is what exists
+          during the live phase. */}
+      {/* ═══ THE TIMELINE — THE SAME COMPONENT THE TASK PANE HOSTS (G5/G6) ═══
+          Assembled from the record, the support thread, the teen's conversation,
+          this page's own flags and hand-logged actions. Not summarised, and
+          every entry names its source. The record is the timeline's durable
+          home; the task pane borrows it for the window it is working in. */}
+      <div>
+        <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Timeline</p>
+        <div className="mt-2">
+          <EscalationTimeline
+            entries={entries}
+            source={source}
+            onSourceChange={setSource}
+            teenName={rec.teenName}
+            onLog={({ actionType, detail }) =>
+              setAdded((prev) => ({
+                ...prev,
+                [rec.id]: [
+                  ...(prev[rec.id] ?? []),
+                  {
+                    id: `manual-${Date.now()}`,
+                    at: Date.now(),
+                    source: "manual",
+                    text: detail.trim() || "No detail recorded",
+                    author: "You",
+                    actionType,
+                  },
+                ],
+              }))
+            }
+          />
+        </div>
+      </div>
+
+      {!isActive(rec) &&
+        (lifecycle === "closedDocumented" ? (
+          /* ═══ A TERMINAL RECORD DOES NOT OFFER A FORM ═══
+             The note is recorded, so a live module here would invite a second
+             one — and the prototype holds no note BODY, so rendering the fields
+             read-only would show nine empty rows on a documented escalation and
+             assert that nothing was written. Saying what is true and what cannot
+             be shown is the honest third option. Gap row: the note body is not
+             stored anywhere, so it cannot be read back. */
+          <SystemBlock label="Escalation note">
+            {/* NEEDS-COPY-NICOLE */}
+            The escalation note is recorded. This prototype stores no note body,
+            so its fields cannot be read back here.
+          </SystemBlock>
+        ) : (
+          <div>
+            <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Escalation note</p>
+            <div className="mt-2">
+              <EscalationNoteModule idPrefix={`rec-${rec.id}`} />
+            </div>
+          </div>
+        ))}
 
       <Link
         href={escalationHref(rec.id)}
@@ -501,6 +632,7 @@ export interface PaneHandle {
 export function EventPane({
   event,
   escalation,
+  events,
   now,
   compliance,
   deactivated,
@@ -510,6 +642,11 @@ export function EventPane({
 }: {
   event: MonitoringEvent | null;
   escalation: EscalationRecord | null;
+  /** THE WHOLE EVENT SET, not the selected one. The escalation record's timeline
+   *  joins flags on the same teen inside the escalation's window, so it needs the
+   *  set rather than the selection. Required, not defaulted: `[]` would make the
+   *  timeline state "no flags" on a record that had them. */
+  events: MonitoringEvent[];
   now: number;
   compliance: CompliancePath;
   /** The record changed under the reader. */
@@ -624,7 +761,7 @@ export function EventPane({
           </div>
         )}
         {escalation ? (
-          <EscalationBody rec={escalation} now={now} />
+          <EscalationBody rec={escalation} now={now} events={events} />
         ) : event?.subject === "teenSafety" ? (
           <FlagBody event={event} now={now} compliance={compliance} />
         ) : event ? (
@@ -642,9 +779,18 @@ export function EventPane({
       >
         {escalation ? (
           <p className="text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
-            {/* LOCKED DECISION 3. Nothing about an escalation is decided here. */}
-            Escalations are not resolved from this page. Its close-out items are
-            above; the record is where the work happens.
+            {/* ═══ IT POINTED AT ITSELF (arch-G, G6) ═══
+                It read "the record is where the work happens" — written when
+                this pane was a summary and the record was somewhere else. Since
+                G6 this IS the record: the note module is above, the timeline is
+                above, and every "Open the escalation record" lands here. A
+                sentence sending a reader where they already are is worse than
+                no sentence.
+                WHAT IS STILL TRUE is the part decision 3 actually protects, and
+                that is what it says. NEEDS-COPY-NICOLE, both. */}
+            {recordLifecycleOf(escalation, now) === "closedDocumented"
+              ? "Nothing further is owed on this escalation. The record stays here as it ages."
+              : "The escalation's own state is not changed from a queue. What is owed is above, and the note is filed here."}
           </p>
         ) : deactivated ? (
           <p className="text-[12.5px] leading-[17px] text-[var(--text-secondary)]">

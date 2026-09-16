@@ -160,7 +160,17 @@ export function BillingReview({
   recommended,
   onCommit,
   handleRef,
-  context,
+  recordContext,
+  /** ═══ THE GATE'S STATE GOES UP TO THE FOOTER (arch-F, F3) ═══
+   *  The footer is the host's and the gate is this component's, so the count
+   *  travels rather than the state. Called with the number of fields still
+   *  empty, whenever that number changes — the footer states it, and states it
+   *  as a live region so a reader who cannot see the blocks turn red is told
+   *  before they press Submit rather than after. */
+  onGapsChange,
+  /** Called when a submit press is refused by the gate — the footer turns its
+   *  standing count into "…still needed. Focus moved to the first." */
+  onBlocked,
   children,
 }: {
   item: TaskItem;
@@ -168,10 +178,17 @@ export function BillingReview({
   recommended: { code: string; statement: string };
   onCommit: (detail: BillingCommitDetail) => void;
   handleRef: React.MutableRefObject<BillingSubmitHandle | null>;
-  /** THE HOST'S CONTEXT STRIP — the code on record and the mentorship stats.
-   *  Neither belongs to the shared review module: on the Care page the page
-   *  supplies them, and this pane has no page. See the note at `BillingBody`. */
-  context: React.ReactNode;
+  /** ═══ THE RECORD CONTEXT, AND IT MOVED BELOW THE REVIEW (arch-F) ═══
+   *  This was a two-cell strip ABOVE the review holding the code on record and
+   *  the mentorship figures. The code went where the parity spec always wanted
+   *  it — a subordinate line under the recommendation title, inside the module —
+   *  and the figures went into a collapsed accordion, which is what this slot
+   *  now carries. Below the review, because it is context a supervisor consults
+   *  rather than reads: above it, it was the first thing on the pane and the
+   *  recommendation was the second. */
+  recordContext: React.ReactNode;
+  onGapsChange?: (gaps: number) => void;
+  onBlocked?: () => void;
   /** THE SHARED REVIEW MODULE. Passed in rather than rendered here so this
    *  component owns exactly one thing — the documentation gate and its commit —
    *  and the review stays the caller's to compose. */
@@ -275,28 +292,40 @@ export function BillingReview({
         ? diagnosticRef.current
         : assessmentRef.current;
 
+  /** ═══ THE GAPS, DERIVED — THE ONE DEFINITION ═══
+   *  `attemptCommit` used to compute this inline. It is read in two places now
+   *  (the commit gate and the footer's status), and two `filter`s over
+   *  `FIELD_ORDER` would be two chances to disagree about what "empty" means. */
+  const gaps = FIELD_ORDER.filter((id) =>
+    id === "assessment" ? !body.assessment : !body[id].trim()
+  );
+
+  /* PUBLISHED TO THE FOOTER whenever the count changes. In an effect rather than
+     in render: calling a parent's setter during render is a write to another
+     component's state mid-render, which React rejects outright. */
+  useEffect(() => {
+    onGapsChange?.(gaps.length);
+  }, [gaps.length, onGapsChange]);
+
   const attemptCommit = () => {
     /* GAPS IN RENDER ORDER — see `FIELD_ORDER`. This is the one place this pane
        knowingly differs from the Care page's implementation, and it differs by
        being right: focus lands on the first field a reader would reach, which on
        an empty form is the assessment select at the top. */
-    const gaps = FIELD_ORDER.filter((id) =>
-      id === "assessment" ? !body.assessment : !body[id].trim()
-    );
-
     if (gaps.length) {
       setErrors({
         assessment: gaps.includes("assessment"),
         clinical: gaps.includes("clinical"),
         diagnostic: gaps.includes("diagnostic"),
       });
-      /* TODO-COPY — the Care page's wording, verbatim. It says how many and
-         where focus went, for a reader who cannot see which blocks turned red. */
-      setAnnounce(
-        gaps.length === 1
-          ? "One thing still needs an answer. Focus moved to it."
-          : `${gaps.length} things still need an answer. Focus moved to the first.`
-      );
+      /* ═══ THE ANNOUNCEMENT MOVED TO THE FOOTER (arch-F) ═══
+         It was an sr-only region inside this component, which meant the only
+         statement of the gate's state lived 600px below the button that ran it
+         and was invisible to everyone. The footer's status line is the live
+         region now: one region, one voice, and a SIGHTED reader gets the same
+         sentence a screen-reader user does. The focus move stays here, where the
+         refs are. */
+      onBlocked?.();
       refFor(gaps[0])?.focus();
       return;
     }
@@ -338,18 +367,24 @@ export function BillingReview({
   return (
     <div data-slot="billing-review" className="space-y-4">
       {/* ═══ THE SPINE'S ORDER ═══
-          Context → review → documentation. A supervisor reads what is on record
-          and what the mentorship looks like, then the review itself — which
-          carries its own order, recommendation → rationale → evidence, settled on
-          the Care page — and then writes their own account of it. The thing they
+          Review → context → documentation (arch-F reordered the first two). The
+          review carries its own order — recommendation → rationale → evidence,
+          settled on the Care page — and the code on record is now a subordinate
+          line inside it rather than a strip above it. What is left of the old
+          context strip is the mentorship figures, which are a thing to consult
+          rather than to read, so they sit after the claim in a collapsed
+          accordion and before the documentation the supervisor has to write. The thing they
           have to produce is last, where a decision belongs.
           THE ORDER USED TO BE "rationale → diff → documentation" and the middle
           term is gone with `PresentationDiff`: the shared module states the
           recommendation and the proposal kind itself, and the code on record
           moved up into the context strip where the rest of the context is. */}
-      {context}
-
       {children}
+
+      {/* CONTEXT AFTER THE CLAIM, BEFORE THE DOCUMENTATION. A supervisor reads
+          the recommendation, consults the mentorship figures if they want them,
+          then writes. */}
+      {recordContext}
 
       {/* ═══ ALWAYS VISIBLE, NEVER BEHIND A DISCLOSURE (A5) ═══
           A form the supervisor has to open is a form that reads as optional, and
@@ -400,9 +435,12 @@ export function BillingReview({
         notes={null}
       />
 
-      {/* THE LIVE REGION FOR THE GATE. `sr-only`, polite, and it carries the
-          same sentence the Care page announces — a reader who cannot see which
-          blocks turned red is told how many and that focus moved. */}
+      {/* ═══ THE GATE'S LIVE REGION MOVED TO THE FOOTER (arch-F) ═══
+          It was an `sr-only` paragraph here: the only statement of the gate's
+          state, 600px below the button that runs it, and invisible to sighted
+          readers. The footer's status line carries it now — visible AND
+          announced, one region and one voice. `announce` survives for the
+          save-and-close path, which has nothing to do with the gate. */}
       <p aria-live="polite" className="sr-only">
         {announce}
       </p>

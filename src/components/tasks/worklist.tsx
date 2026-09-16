@@ -52,9 +52,12 @@ import {
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
-import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
+import { useMinuteTick } from "@/lib/use-clock";
+import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
+import { deadlineBandsFor, deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { proposalPreview } from "@/lib/record/proposal-kind";
+import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
   deadlineLabel,
   rowEmphasisFor,
@@ -172,7 +175,20 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 /** Every differentiator a row carries, in one place so the "no tier chips" rule is
  *  enforced by there being nowhere to put one. */
-function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
+function RowChips({
+  entry,
+  now,
+  /** ═══ THE BUCKET ALREADY SAID IT (arch-G, G1) ═══
+   *  On a task-led row the bucket header carries the breach treatment, so a chip
+   *  here would be the second of three statements about one lateness. The
+   *  deadline column keeps the number and takes the breach ink. Monitoring's
+   *  rows have no bucket above them and keep their chip. */
+  suppressOverdue = false,
+}: {
+  entry: ListEntry;
+  now: number;
+  suppressOverdue?: boolean;
+}) {
   const item = paneItemFor(entry);
   const all = itemsOf(entry);
   // A GROUP IS OVERDUE IF ANY MEMBER IS — the row stands for all of them.
@@ -181,8 +197,17 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
   return (
     <>
       {entry.kind === "group" && <Chip>{coalesceLabel(entry.members.length)}</Chip>}
-      {overdue && <OverdueChip />}
-      {p.kind === "escalation" && (
+      {overdue && !suppressOverdue && <OverdueChip />}
+      {/* ═══ THE 911 CHIP IS THE STATE LINE'S JOB NOW (arch-G, G2) ═══
+          On a task-led row the caption says "911 dispatched" in full, so a "911"
+          chip beside it is the same fact abbreviated — the third time this phase
+          has removed a duplicate statement from a row. Monitoring's rows have no
+          caption and keep the chip.
+          "No 911" SURVIVES THERE FOR THE REASON `escalation-region.tsx` records:
+          on an ACTIVE escalation, "no 911" is a decision somebody made and a
+          responder needs to know it. The state line carries that too — it reads
+          "Awaiting response" or the recorded disposition. */}
+      {p.kind === "escalation" && !suppressOverdue && (
         <Chip>
           <Phone className="size-2.5 shrink-0" aria-hidden />
           {/* TODO-COPY */}
@@ -201,6 +226,16 @@ function RowChips({ entry, now }: { entry: ListEntry; now: number }) {
 function Row({
   entry,
   variant,
+  /** ═══ THE UNDO WINDOW IS SIX SECONDS AND THE ROW STAYS PUT (arch-F, F4) ═══
+   *  A resolved row used to vanish the instant the button was pressed, so the
+   *  undo toast offered to restore something the reader could no longer see. It
+   *  now holds its place until the window closes and the ledger event is
+   *  written, dimmed, with the state in WORDS beside the name — never opacity
+   *  alone, which says nothing to a screen reader and nothing in high contrast. */
+  resolving = false,
+  /** A ticking timestamp, minute-granular, or 0 before mount. Only the response
+   *  bucket reads it. */
+  liveNow = 0,
   group,
   now,
   selected,
@@ -229,6 +264,8 @@ function Row({
   onSelect: () => void;
   onToggle?: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
+  resolving?: boolean;
+  liveNow?: number;
 }) {
   const item = paneItemFor(entry);
   const isGroup = entry.kind === "group";
@@ -238,6 +275,8 @@ function Row({
   const KindIcon = TASK_KIND_ICON[item.taskType];
   /** JOB-FIRST ANATOMY. A child row is never task-led — see `variant`. */
   const taskLed = variant === "task" && !indent;
+  /** A LIVE ESCALATION'S ROW. Drives the elapsed counter and the fill's ink. */
+  const isResponse = taskLed && item.taskType === "activeEscalation";
   /** ═══ THE DISPOSITION PREVIEW — THE WEIGHT OF THE DECISION, BEFORE IT OPENS ═══
    *
    *  "Change proposed → F33.1" against "Renewal proposed": a renewal is a
@@ -253,10 +292,15 @@ function Row({
    *
    *  BILLING ONLY. Flags have no proposal and escalations have no code; a
    *  preview on those would be a blank segment after a separator. */
+  /** ═══ THE SAME SLOT, THREE VOCABULARIES (arch-G, G2) ═══
+   *  Billing spends it on the proposal's weight; an escalation spends it on its
+   *  STATE, which is what tells a supervisor scanning the list whether this one
+   *  is already in hand. One derivation each, both named elsewhere so the row
+   *  does not hold a vocabulary. */
   const disposition =
     item.payload.kind === "billing"
       ? proposalPreview(item.payload.current?.code ?? null, item.payload.recommended.code)
-      : null;
+      : escalationStateLine(item);
   /** TODO-COPY. "3 clinical · 2 routine" — the tiers a teen row stands for, in
    *  the band order, and only the tiers actually present. Null on a flag row and
    *  on a conversation group, where every member is the same tier by
@@ -311,9 +355,25 @@ function Row({
   const openSuffix = item.taskType === "escalationDocumentation" ? "" : " open";
   const temporal = indent
     ? childTimeLabel(item.openedAt)
-    : emphasis === "deadline"
-      ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
-      : `${elapsedLabel(ageAt, now)}${openSuffix}`;
+    : /* ═══ PER BUCKET ON A TASK-LED ROW (arch-F, F1.2) ═══
+         A task-led row sits under a bucket header that already names the day, so
+         the row states what the header cannot — the hour, the date, or how late.
+         `deadlineLabel`'s uniform "due in {n}" stays for Monitoring's imminent
+         flags, which have no bucket above them to defer to. */
+      taskLed
+      ? deadlineFactFor(
+          item.slaDeadline,
+          /* THE LIVE CLOCK, FOR THIS BUCKET ONLY. Everything else on the page
+             reads the frozen mount clock — see the page's own note on why — and a
+             response task is the one row whose number is useless if it does not
+             move. `liveNow` falls back to the frozen value before mount. */
+          isResponse && liveNow > 0 ? liveNow : now,
+          elapsedLabel,
+          isResponse ? { openedAt: item.openedAt } : undefined
+        )
+      : emphasis === "deadline"
+        ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
+        : `${elapsedLabel(ageAt, now)}${openSuffix}`;
 
   /** TODO-COPY. The full row, spoken — group, teen, mentor, differentiators,
    *  and the one temporal fact.
@@ -329,8 +389,12 @@ function Row({
     /* THE JOB FIRST ON A DEADLINE ROW, matching what the row draws. A name-first
        accessible label on a task-led row would tell a screen-reader user they
        are in a directory while a sighted reader sees a work queue. */
+    /* THE NAME FIRST ON A TASK-LED ROW NOW, matching what the row draws —
+       arch-E led with the job because the job was the emphasis. The task type
+       follows immediately, so a screen-reader user gets both in the order a
+       sighted reader's eye takes them. */
     ...(taskLed
-      ? [TASK_KIND_LABEL[item.taskType], item.teenDisplayName, disposition]
+      ? [item.teenDisplayName, TASK_KIND_LABEL[item.taskType], disposition]
       : [item.teenDisplayName, `to ${item.mentorName}`]),
     isGroup ? coalesceLabel(entry.members.length) : null,
     composition,
@@ -363,6 +427,8 @@ function Row({
        age is what a reader scans and a clock time in that column would be a
        second format in one line of figures. */
     !isGroup && !indent ? childTimeLabel(item.openedAt) : null,
+    /* THE STATE IN THE NAME, not only in the opacity. */
+    resolving ? /* NEEDS-COPY-NICOLE */ "closing" : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -390,7 +456,15 @@ function Row({
          rather than a row TYPE — so a pin resolves exactly when its row is
          mounted, and honestly orphans when the virtualizer has unmounted it. */
       data-anno-ref={`task-row:${item.id}`}
-      style={{ height: ROW_H }}
+      data-resolving={resolving ? "true" : undefined}
+      data-response={isResponse ? "true" : undefined}
+      /* ONE `style`, BOTH FACTS. The height is the virtualizer's invariant and
+         cannot be a class; the fill is a token that Tailwind cannot compose with
+         an inline height without two attributes, which JSX refuses. */
+      style={{
+        height: ROW_H,
+        ...(isResponse ? { backgroundColor: "var(--task-respond-bg)" } : null),
+      }}
       className={cn(
         /* EXACT HEIGHT, NOT A MINIMUM — see ROW_H. `border-t` on EVERY row,
            including the first: a band header sits above it and the hairline is
@@ -401,8 +475,24 @@ function Row({
         // SELECTED AND FOCUSED ARE DISTINCT (§4): selected is a filled ground,
         // focus is the ring. A reader arrowing through a list sees the ring move
         // while the fill stays put.
-        selected ? "bg-[var(--surface-s2)]" : "hover:bg-[var(--tint-hover)]",
+        /* ═══ THE ONE SATURATED FILL IN THE TASKS LIST (arch-G, G2) ═══
+           A live escalation, and nothing else on this surface. The alarm budget
+           has room for exactly one filled treatment and this is where it is
+           spent — the same rule Monitoring's escalation region follows, and the
+           reason the Overdue bucket gets a tint rather than a fill. */
+        isResponse && "text-[var(--task-respond-fg)]",
+        selected
+          ? isResponse
+            ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
+            : "bg-[var(--surface-s2)]"
+          : isResponse
+            ? "transition-opacity hover:opacity-95"
+            : "hover:bg-[var(--tint-hover)]",
         indent && "pl-11",
+        /* RESOLVING: dimmed, and the word is in the accessible name above. The
+           row keeps its height and its place — the whole point is that the list
+           does not move while the undo window is open. */
+        resolving && "opacity-55",
         RING
       )}
     >
@@ -477,17 +567,53 @@ function Row({
             one emphasised ELEMENT per row on each axis, and the row has one of
             each.
             PERSON-FORWARD: unchanged from arch-D — the teen name in Avantt. */}
-        <span
-          className={cn(
-            "block truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
-            /* EMPHASISED WHEN LINE 1 IS THE POINT — the job on a task-led row,
-               the person on a coalesced one. A deadline-forward SUBJECT row (a
-               Monitoring imminent flag) leaves it regular, because there the
-               countdown is the emphasis. */
-            (taskLed || emphasis === "person") && "font-display"
+        {/* ═══ arch-F REVISES arch-E: EMPHASIS FOLLOWS WHAT VARIES ═══
+            arch-E made the task name the row's strongest element. With one task
+            type on the surface that string is IDENTICAL on every row — an
+            emphasis carrying no information, and a column of nineteen rows all
+            shouting the same three words. Emphasis belongs on the varying
+            content, which is the teen.
+            THE TASK NAME STAYS, as a chip: without it the row reads as a
+            directory entry, and the day a second task type lands the chip is
+            already the place that says which. Small, neutral, secondary — a
+            label, not the focal point.
+            AND THE RULE IS NOW ONE EMPHASISED ELEMENT PER ZONE, not per row:
+            identity on the left, deadline on the right. Two scan zones, one
+            focal point each. Recorded here so it is not read as drift from
+            arch-D's per-row rule — it is a refinement of it, and the thing both
+            versions forbid is two focal points competing inside one zone. */}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span
+            className={cn(
+              "truncate text-[14px] leading-[20px]",
+              /* ═══ THE FILL CHANGES THE GROUND, SO IT CHANGES THE INK ═══
+                 MEASURED by axe: `--text-primary` (#1f1e1d) on the respond fill
+                 (#c9351d) is 3.17:1 — a WCAG failure on the most urgent row on
+                 the surface. The row root already sets `--task-respond-fg`; this
+                 element was overriding it with the ink for the ground it is NOT
+                 on. Inheriting instead of restating is the fix. */
+              isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-primary)]",
+              (taskLed || emphasis === "person") && "font-display"
+            )}
+          >
+            {item.teenDisplayName}
+          </span>
+          {taskLed && (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-px text-[11px] leading-[15px]",
+                /* THE CHIP'S OWN GROUND IS THE FILL, not `--surface-s1`: a pale
+                   chip on the escalation red would be a second ground inside a
+                   saturated row, which reads as a badge rather than a label. A
+                   hairline in the fill's own ink instead. */
+                isResponse
+                  ? "border border-[color:var(--task-respond-fg)] text-[var(--task-respond-fg)]"
+                  : "bg-[var(--surface-s1)] text-[var(--text-secondary)]"
+              )}
+            >
+              {TASK_KIND_LABEL[item.taskType]}
+            </span>
           )}
-        >
-          {taskLed ? TASK_KIND_LABEL[item.taskType] : item.teenDisplayName}
         </span>
         {/* ═══ LINE 2 — THE CAPTION ═══
             `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit
@@ -503,21 +629,31 @@ function Row({
             from survey data. It remains on Monitoring's rows, where it is
             load-bearing, and on the pane header and the transcript, where it
             attributes who said what. */}
-        <span className="block truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
+        <span
+          className={cn(
+            "block truncate text-[12px] leading-[16px]",
+            /* ═══ 1.45:1 — THE WORST PAIR ON THE SURFACE (arch-G, G6) ═══
+               MEASURED by axe: `--text-secondary` (#58534b) on the respond fill
+               (#c9351d). At 12px. On the line that says "911 dispatched".
+               Same cause as line 1: an explicit ink for the default ground,
+               restated on a row whose ground is not the default. */
+            isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-secondary)]"
+          )}
+        >
           {taskLed ? (
+            /* ═══ THE DISPOSITION ALONE (arch-F) ═══
+               arch-E put the teen name here with the disposition beside it. The
+               name moved up to line 1 where the emphasis went, so repeating it
+               here would spend the caption on a string already six pixels above.
+               THE MENTOR IS STILL GONE — removed in arch-E, and for the same
+               reason: they do not perform a billing review, are not accountable
+               for it, and cannot change the decision. */
             <>
-              {/* TEEN NAME FIRST, and it is a judgment call rather than a
-                  derivation: identification is the more common need than
-                  batching by disposition, so the row is scannable by who before
-                  it is scannable by what kind of decision. Noted here because the
-                  other order is defensible and somebody may want it. */}
-              {item.teenDisplayName}
-              {disposition && (
-                <>
-                  <span aria-hidden className="px-1 opacity-40">·</span>
-                  {disposition}
-                </>
-              )}
+              {resolving
+                ? /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
+                     is a state nobody can read (SC 1.4.1). */
+                  "Closing…"
+                : (disposition ?? TASK_KIND_LABEL[item.taskType])}
             </>
           ) : (
             /* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
@@ -531,7 +667,7 @@ function Row({
       </span>
 
       <span className="flex shrink-0 items-center gap-1.5">
-        <RowChips entry={entry} now={now} />
+        <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION MOVED TO THE RIGHT (arch-D, D3) ═══
             It shared the mentor caption, which put the row's PRIMARY fact — how
             much signal this teen is carrying — in the quietest line on the row,
@@ -574,11 +710,31 @@ function Row({
             A SUBJECT ROW KEEPS THE BOLD — on Monitoring's imminent flags the
             countdown is still the only emphasis, because line 1 is a name at
             regular weight there. */}
+        {/* ═══ THE RIGHT ZONE'S ONE ELEMENT (arch-F) ═══
+            Mono, tabular, SECONDARY ink. The bucket header carries the urgency —
+            "Overdue" and "Due today" are the alarm — so this fact informs rather
+            than alarms: it answers "which hour" and "how late", questions the
+            header cannot. Primary ink at 14px made it the loudest thing in the
+            row's right half and put it in competition with the breach chip
+            beside it. */}
         <span
           className={cn(
             "shrink-0 tabular-nums",
             taskLed
-              ? "text-[14px] text-[var(--text-primary)]"
+              ? isResponse
+                ? /* ON THE SATURATED BAND: the fact sits on the respond fill, so
+                     it takes that pair's ink rather than the clay breach ink —
+                     and goes semibold once the five minutes are gone. */
+                  cn(
+                    "text-[13px] text-[var(--task-respond-fg)]",
+                    overdue && "font-semibold"
+                  )
+                : overdue
+                  ? /* THE ONLY BREACH STATEMENT ON THE ROW NOW — so it carries
+                       the ink. Not colour alone: the word "overdue" is in the
+                       string and in the accessible name. */
+                    "text-[13px] font-semibold text-[var(--band-clay-fg)]"
+                  : "text-[13px] text-[var(--text-secondary)]"
               : emphasis === "deadline" && !indent
                 ? "text-[14px] font-bold text-[var(--text-primary)]"
                 : "text-[12px] text-[var(--text-secondary)]"
@@ -742,6 +898,17 @@ export function Worklist({
   grouping = "tier",
   rowVariant = "subject",
   headersState = "ready",
+  /** ═══ THE BUCKET BEHIND YOU (arch-F, F4) ═══
+   *  Closed reviews whose undo window has shut, and where a link to the ledger
+   *  goes. Empty by default and absent entirely on Monitoring, which has its own
+   *  list — a surface that never empties has no completion to rest. */
+  completed = [],
+  completedSelectedId = null,
+  onSelectCompleted,
+  activityHref = "",
+  /** Items whose undo window is still open. They stay in their bucket, visibly
+   *  resolving — see the row's own note. */
+  resolvingIds,
   now,
   selectedId,
   state,
@@ -816,6 +983,11 @@ export function Worklist({
    *  label with the COUNT withheld rather than a placeholder count, which would
    *  be a number that is wrong for 240ms. */
   headersState?: SurfaceState;
+  completed?: CompletedEntry[];
+  completedSelectedId?: string | null;
+  onSelectCompleted?: (entry: CompletedEntry) => void;
+  activityHref?: string;
+  resolvingIds?: ReadonlySet<string>;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
    *  otherwise. */
@@ -839,6 +1011,12 @@ export function Worklist({
    *  effect below — this is what makes selection work ACROSS the window boundary
    *  rather than only inside it. */
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  /** ═══ THE ONE TICKING VALUE ON THE SURFACE (arch-G, G2) ═══
+   *  Minute-granular, and read by exactly one thing: the elapsed counter on a
+   *  live escalation's row. Everything else on this page measures from the
+   *  frozen mount clock, deliberately — see `tasks-page.tsx`. A response task's
+   *  number is the one that is useless if it does not move. */
+  const liveNow = useMinuteTick();
 
   const bands = useMemo(
     () => (grouping === "deadline" ? deadlineBandsFor(entries, now) : bandsFor(entries)),
@@ -1170,7 +1348,42 @@ export function Worklist({
       </div>
     );
 
+  /** ═══ THE PINNED BUCKET HAS TO BE HEARD, NOT ONLY SEEN (arch-G, G7) ═══
+   *
+   *  Everything that makes a live escalation impossible to miss is visual: the
+   *  saturated fill, the sticky position at the top of the scroller, the bucket
+   *  that never windows. A screen-reader user gets none of it — they meet the
+   *  pinned rows as the first two `treeitem`s of a list of twenty-eight, in a
+   *  group whose label is the only thing distinguishing them.
+   *
+   *  SO THE COUNT IS ANNOUNCED. Polite, not assertive: this is a standing fact
+   *  about the list a reader has just arrived at, not an interruption — and
+   *  Monitoring's escalation region already holds the surface's one assertive
+   *  region, which its own probe asserts is the only one.
+   *  IT ALSO UPDATES, which is the part a static label could not do: an
+   *  escalation arriving or being recorded changes this sentence, and that
+   *  change is exactly what a reader working through the list needs to hear. */
+  const pinnedCount =
+    sections.find((sec) => sec.band.id === "needsResponse")?.rows.length ?? 0;
+
   return (
+    <>
+      {pinnedCount > 0 && (
+        /* ═══ OUTSIDE THE TREE, AND THAT IS NOT A STYLE CHOICE ═══
+           MEASURED by axe: `aria-required-children`. `role="tree"` accepts
+           `treeitem` and `group` and nothing else, so a `<p role="status">`
+           inside it invalidates the whole widget's content model — the same
+           trap this file's header records for `<h3>` band headings and for a
+           nested `<button>`. It is a SIBLING, and `sr-only` takes it out of
+           flow so the scroller's layout is untouched. */
+        <p className="sr-only" role="status" aria-live="polite">
+          {/* NEEDS-COPY-NICOLE. NAMES THE WORK, not the treatment: "highlighted
+              in red" would describe a thing this reader cannot see. */}
+          {`${pinnedCount} escalation${pinnedCount === 1 ? "" : "s"} need${
+            pinnedCount === 1 ? "s" : ""
+          } a response now, at the top of the list.`}
+        </p>
+      )}
     <div
       ref={scrollerRef}
       role="tree"
@@ -1188,8 +1401,16 @@ export function Worklist({
     >
       {sections.map((section) => {
         const n = section.rows.length;
-        const first = clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
-        const last = clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
+        /** ═══ THE PINNED BUCKET IS NEVER WINDOWED (arch-G, G2) ═══
+         *  A live escalation may not leave the viewport, which means its rows
+         *  cannot be subject to the virtualizer at all: the window would unmount
+         *  them the moment a reader scrolled past, and a sticky container with
+         *  unmounted children is an empty band that claims an escalation is
+         *  visible. It holds one or two rows on every shipped fixture, so
+         *  rendering all of them costs nothing the spacers were protecting. */
+        const pinned = section.band.id === "needsResponse";
+        const first = pinned ? 0 : clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
+        const last = pinned ? n : clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
         return (
           <div
             key={section.band.id}
@@ -1200,11 +1421,30 @@ export function Worklist({
                screen reader announces it — "Imminent — 23, group". */
             role="group"
             aria-label={bandHeaderLabel(section.band)}
+            data-bucket={section.band.id}
+            className={cn(
+              /* STICKY ABOVE EVERY OTHER BAND. `top-0` with a higher z than the
+                 other headers (`z-10`), so it pins over them rather than under
+                 them as they scroll up into it. */
+              pinned && "sticky top-0 z-20"
+            )}
           >
             {showBands && (
               <WorklistGroupHeader
                 label={section.band.label}
                 count={headersState === "ready" ? section.band.taskCount : null}
+                /* THE BUCKET'S OWN URGENCY (arch-G). Only the deadline grouping
+                   has tones — Monitoring's tier bands stay quiet, because there
+                   the tier is a kind of work rather than a clock. */
+                tone={
+                  grouping !== "deadline"
+                    ? "quiet"
+                    : section.band.id === "needsResponse"
+                      ? "respond"
+                      : section.band.id === "overdue"
+                        ? "breach"
+                        : "quiet"
+                }
               />
             )}
             {/* SPACERS, NOT RENDERED ROWS. Two divs stand in for everything
@@ -1214,6 +1454,8 @@ export function Worklist({
             {section.rows.slice(first, last).map((v) => (
               <Row
                 key={v.id}
+                resolving={resolvingIds?.has(v.item.id) ?? false}
+                liveNow={liveNow}
                 entry={v.entry}
                 variant={rowVariant}
                 /* ═══ THE ROW SAYS WHICH GROUP IT IS IN, BECAUSE IT NO LONGER
@@ -1255,7 +1497,22 @@ export function Worklist({
           height={r.height}
         />
       ))}
+
+      {/* AFTER EVERY BUCKET AND AFTER THE RETIRING BANDS — the last thing in the
+          scroller, which is where "behind you" belongs. Outside the virtualizer
+          on purpose: it is collapsed by default and holds a shift's worth of
+          rows, not a hundred, so the spacer arithmetic has nothing to gain here
+          and everything to lose. */}
+      {onSelectCompleted && (
+        <CompletedGroup
+          entries={completed}
+          selectedId={completedSelectedId}
+          onSelect={onSelectCompleted}
+          activityHref={activityHref}
+        />
+      )}
     </div>
+    </>
   );
 }
 

@@ -122,6 +122,15 @@ work, measured by ink density: **Avantt** (`font-display`, Bold-only, +19% ink
 over Lausanne 400) and the **mono stack at 700** (+41% over its own 400). Those
 are the two emphasis channels.
 
+**arch-F refined the rule to one per ZONE.** A Tasks row has two scan zones —
+identity on the left, deadline on the right — and one focal point each: the teen
+name in Avantt, the deadline in mono. That is not drift from the per-row rule; it
+is the same prohibition applied at the scale the row actually has, and what both
+versions forbid is two focal points competing *inside one zone*. arch-E's own
+mistake is the reason the rule moved: it emphasised the task NAME, which is
+identical on every row while one task type exists, so the strongest element on
+nineteen rows carried no information. Emphasis follows what varies.
+
 **arch-E changed which one Tasks spends.** arch-D gave Tasks the mono-bold
 countdown and Monitoring the Avantt name, one channel each. With rows leading
 with the job, Tasks' emphasis is the job in Avantt — so the countdown gave up
