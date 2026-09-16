@@ -249,6 +249,21 @@ export interface DocumentationPayload {
   /** When the escalation closed — the 24h documentation clock starts here, not at
    *  the escalation's open time. */
   closedAt: number;
+  /** ═══ WHEN THE ESCALATION WAS RAISED (arch-G, G6) ═══
+   *
+   *  TODO-DATA. Added because the record's timeline needs the escalation's
+   *  WINDOW, and this payload carried only its close. MEASURED before the field
+   *  existed: a documentation pane's timeline held three entries and no
+   *  messages, and it stamped "Escalation opened" and "Acknowledged by the
+   *  supervisor" at the CLOSE instant — the window was `[closedAt, closedAt]`,
+   *  a single point, so every message and every flag fell outside it and the two
+   *  system entries asserted a moment that was 20 hours wrong.
+   *
+   *  OPTIONAL, AND ABSENCE IS HANDLED RATHER THAN DEFAULTED. A task whose data
+   *  does not carry the trigger instant cannot state when the escalation opened,
+   *  so the timeline says so instead of borrowing the close time. Defaulting was
+   *  the bug. */
+  triggeredAt?: number;
 }
 
 export type TaskPayload =

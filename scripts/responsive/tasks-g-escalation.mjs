@@ -262,6 +262,26 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
     !!teenBefore,
     teenBefore ?? "no [data-pane-teen]"
   );
+  /* ═══ THE CHECK THAT WAS MISSING, AND IT MATTERED ═══
+     `advance.response-holds` passed for six commits while "Record response"
+     THREW on every click: `resolveWithUndo` refused the whole escalation domain,
+     so nothing resolved and therefore nothing advanced. A hold-still assertion
+     cannot tell "held correctly" from "did nothing". So the resolve is asserted
+     FIRST — the row goes into its undo window and says so — and only then is the
+     selection's stillness meaningful. */
+  const recorded = await page.evaluate(() => {
+    const t = document.body.innerText;
+    return {
+      toast: /Response recorded/.test(t),
+      closing: /Closing/.test(t),
+    };
+  });
+  check(
+    "advance.response-recorded",
+    "pressing it actually records — the row enters its undo window",
+    recorded.toast || recorded.closing,
+    `toast ${recorded.toast}, closing row ${recorded.closing}`
+  );
   check(
     "advance.response-holds",
     "an escalation response does NOT auto-advance",
@@ -339,10 +359,28 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
     pane.dispositions.length === 0
   );
   check(
-    "docs.911-stated",
-    "the 911 gap is stated rather than left as an absence",
+    "docs.gaps-stated",
+    "the 911 decision AND the acknowledgement time are named as absent",
     /On the escalation record/.test(pane.paneText) &&
-      /does not carry it/.test(pane.paneText)
+      /carries neither/.test(pane.paneText) &&
+      /acknowledgement entry appears either way/.test(pane.paneText)
+  );
+  check(
+    "docs.window",
+    "the timeline covers the escalation's own window, not just its close",
+    pane.entries.filter((e) => e.source === "supportThread").length >= 2,
+    `${pane.entries.length} entries, ${pane.entries.filter((e) => e.source === "supportThread").length} messages`
+  );
+  check(
+    "docs.no-invented-ack",
+    "and it does not stamp an acknowledgement nobody recorded",
+    !pane.entries.some((e) => /Acknowledged by the supervisor/.test(e.body))
+  );
+  check(
+    "docs.manual-seeded",
+    "a hand-logged action is present on arrival, marked as hand-logged",
+    pane.entries.some((e) => e.manual === true && /emergency contact/.test(e.body)),
+    pane.entries.filter((e) => e.manual).length + " manual entries"
   );
   check(
     "docs.completeness",
@@ -350,6 +388,41 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
     /of \d+ fields recorded/.test(pane.paneText),
     (pane.paneText.match(/\d+ of \d+ fields recorded/) ?? ["not found"])[0]
   );
+  /* ═══ A LOGGED ACTION MUST NOT FOLLOW THE READER ═══
+     The pane does not unmount between selections, so page-local state keyed to
+     nothing leaks from one escalation to the next — MEASURED as the opposite
+     failure first: a `useState` initialiser meant the seeded entry never
+     appeared at all, because it ran once against a live escalation. */
+  await page.getByRole("button", { name: /Log an action/i }).click();
+  await page.waitForTimeout(200);
+  await page
+    .getByRole("textbox", { name: /What happened/i })
+    .fill("Leak canary — belongs to this task only");
+  await page.getByRole("button", { name: /^Log it$/i }).click();
+  await page.waitForTimeout(300);
+  const mine = await readPane(page);
+  check(
+    "docs.manual-lands",
+    "a logged action lands on the task it was logged on",
+    mine.entries.some((e) => /Leak canary/.test(e.body))
+  );
+  check(
+    "docs.manual-says-late",
+    "and on a CLOSED escalation it says the time is when it was logged",
+    mine.entries.some(
+      (e) => /Leak canary/.test(e.body) && /logged after the escalation closed/.test(e.label)
+    ),
+    mine.entries.find((e) => /Leak canary/.test(e.body))?.label
+  );
+  await selectRow(page, /Active escalation/);
+  const other = await readPane(page);
+  check(
+    "docs.manual-no-leak",
+    "and does NOT appear on another escalation",
+    other.entries.length > 0 && !other.entries.some((e) => /Leak canary/.test(e.body)),
+    `${other.entries.length} entries on the other record`
+  );
+
   await context.close();
 }
 
@@ -629,6 +702,133 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
       .map((p) => `"${p.text}" ${p.r}:1 @${p.size}`)
       .join(" · ") || (ink?.pairs ?? []).map((p) => `${p.r}:1`).join(" ")
   );
+  await context.close();
+}
+
+// ── 8. WHAT A READER WHO CANNOT SEE THE PAGE IS TOLD (G7) ─────────────────
+//
+// Everything that makes a live escalation unmissable is visual — the fill, the
+// sticky pin, the never-windowed bucket — and none of it reaches a screen
+// reader. Same for the note module's conditional fields, which are reserved with
+// `invisible` + `aria-hidden` precisely so the layout does not jump.
+{
+  const { context, page } = await open("g-announce");
+  const said = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="status"], [aria-live]')].map((el) => ({
+      live: el.getAttribute("aria-live") ?? "status",
+      text: (el.innerText ?? el.textContent ?? "").replace(/\s+/g, " ").trim(),
+    }))
+  );
+  check(
+    "a11y.pinned-announced",
+    "the pinned bucket's count is announced, politely",
+    said.some((s) => /needs? a response now/.test(s.text)),
+    said.filter((s) => s.text).map((s) => `${s.live}: ${s.text.slice(0, 48)}`).join(" | ")
+  );
+  check(
+    "a11y.no-second-assertive",
+    "and nothing on Tasks claims assertive",
+    said.every((s) => s.live !== "assertive"),
+    said.filter((s) => s.live === "assertive").length + " assertive"
+  );
+  check(
+    "a11y.pinned-names-work",
+    "it names the work rather than the treatment",
+    !said.some((s) => /red|highlighted|colour|color/i.test(s.text))
+  );
+
+  // ── the note module's reveal
+  await selectRow(page, /Escalation note/);
+  const before = await page.evaluate(
+    () => document.querySelector('[data-slot="note-reveals"]')?.textContent?.trim() ?? null
+  );
+  check(
+    "a11y.reveal-silent-when-nothing",
+    "the reveal region is empty while nothing is revealed",
+    before === "",
+    JSON.stringify(before)
+  );
+  /* CHOOSE THE VALUE THAT REVEALS THE CONDITIONAL. `crisis` is the one type that
+     opens the crisis-type field — `CRISIS_TYPE_REVEALS_ON` in the module's
+     contract. */
+  const type = page.locator("select").first();
+  await type.selectOption({ label: "Crisis" }).catch(async () => {
+    await type.selectOption("crisis");
+  });
+  await page.waitForTimeout(250);
+  const after = await page.evaluate(
+    () => document.querySelector('[data-slot="note-reveals"]')?.textContent?.trim() ?? null
+  );
+  check(
+    "a11y.reveal-announced",
+    "and it names the field once that field starts being asked",
+    !!after && /Crisis type is now being asked/.test(after),
+    after ?? "nothing said"
+  );
+
+  /* ═══ FOCUS-VISIBLE ON EVERY CONTROL THIS PHASE ADDED ═══
+     Measured by focusing each one and asking for its computed outline AND its
+     box-shadow: the shared `RING` helper draws an outline, and Radix-style
+     controls draw a ring in `box-shadow`. A test that asked for only one of the
+     two reported a correctly-ringed control as unringed (gap 382). */
+  /* ═══ THE FOCUS HAS TO ARRIVE BY KEYBOARD ═══
+     PROBE ARTIFACT, corrected rather than accepted: the first version called
+     `el.focus()` and read the computed outline, which reported all four
+     controls as unringed. The ring is a `:focus-visible` rule, and Chromium
+     does not match `:focus-visible` for a button focused programmatically with
+     no preceding keyboard interaction — so the measurement was of the BASE
+     state on a correctly-ringed control. Focusing, then Shift+Tab, then Tab
+     puts the same element back under keyboard focus, which is how a reader
+     reaches it. */
+  const TARGETS = [
+    ['[role="tab"]', "source tab"],
+    ["[data-action='log']", "log an action"],
+    ['[data-slot="escalation-note"] select', "note select"],
+    ['[role="group"][aria-label="Escalation timeline"]', "timeline scroller"],
+  ];
+  const ringed = [];
+  for (const [sel, what] of TARGETS) {
+    const el = page.locator(sel).first();
+    if (!(await el.count())) {
+      ringed.push({ what, found: false });
+      continue;
+    }
+    await el.evaluate((n) => n.focus());
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    ringed.push(
+      await el.evaluate((n, what) => {
+        const cs = getComputedStyle(n);
+        const width = parseFloat(cs.outlineWidth) || 0;
+        const shadow = cs.boxShadow && cs.boxShadow !== "none" ? cs.boxShadow : "";
+        return {
+          what,
+          found: true,
+          focused: n === document.activeElement,
+          /* BOTH CHANNELS. The shared helper draws an outline; a Radix-style
+             control draws its ring in `box-shadow`, and a test that asked for
+             only the outline once reported a 4px-ringed control as unringed
+             (gap 382). */
+          ring:
+            (width > 0 && cs.outlineStyle !== "none") || shadow.length > 0,
+          detail: `${cs.outlineStyle} ${cs.outlineWidth}${shadow ? " +shadow" : ""}`,
+        };
+      }, what)
+    );
+  }
+  check(
+    "a11y.focus-inputs",
+    "every control this phase added was found (the input to the next check)",
+    ringed.every((r) => r.found),
+    ringed.filter((r) => !r.found).map((r) => r.what).join(", ") || "all four"
+  );
+  check(
+    "a11y.focus-visible",
+    "and each takes a visible focus ring under keyboard focus",
+    ringed.every((r) => r.found && r.focused && r.ring),
+    ringed.map((r) => `${r.what}: ${r.detail ?? "missing"}`).join(" · ")
+  );
+
   await context.close();
 }
 

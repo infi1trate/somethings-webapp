@@ -59,6 +59,14 @@ export interface TimelineEntry {
   verbatim?: boolean;
   /** Manually logged entries carry the action type the author picked. */
   actionType?: string;
+  /** ═══ LOGGED AFTER THE ESCALATION CLOSED (arch-G, G7) ═══
+   *  Set by the assembler, not by the author. A hand-logged action is stamped
+   *  with the LOGGING time, so anything written up after the escalation ended
+   *  falls outside its window — which is most of them. The entry is kept and
+   *  marked rather than filtered, and the renderer says so: an entry at 9am
+   *  today on an escalation that closed yesterday would otherwise imply the
+   *  action itself happened this morning. */
+  afterWindow?: boolean;
 }
 
 /** NEEDS-COPY-NICOLE, all five. What a supervisor can log by hand. Named rather
@@ -203,9 +211,19 @@ export function assembleTimeline(
     });
   }
 
+  /* ═══ MANUAL ENTRIES ARE NOT WINDOW-FILTERED, AND THAT IS THE FIX ═══
+     MEASURED: logging an action on a documentation task produced nothing. The
+     entry is stamped `Date.now()` and the escalation closed 20 hours ago, so
+     the window filter dropped it — on the one entry type whose whole purpose is
+     recording something afterwards, on the surface whose standing caveat says
+     out-of-band actions appear only when logged BY HAND.
+     Every other source is filtered because its membership is a question of
+     fact: a message either was or was not sent during the escalation. A manual
+     entry's membership is the AUTHOR'S assertion — they attached it to this
+     record — so the window cannot overrule it. What the window still decides is
+     whether the entry says it came later. */
   for (const e of s.manual) {
-    if (!withinWindow(e.at, w)) continue;
-    out.push(e);
+    out.push(withinWindow(e.at, w) ? e : { ...e, afterWindow: true });
   }
 
   return out.sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));

@@ -179,17 +179,61 @@ describe("§6 invariant — once written, never retracted by this surface", () =
   });
 });
 
-describe("locked decision 3 — escalations never resolve inline", () => {
-  it("resolveWithUndo refuses an escalation loudly rather than no-opping", () => {
-    // A silent no-op would hide the bug while the row vanished from the list.
-    expect(() => resolveWithUndo({ item: anEscalation(), decidedAt: NOW })).toThrow(
+describe("locked decision 3 — what it forbids, after arch-G", () => {
+  /* ═══ RETARGETED, NOT RELAXED ═══
+     The old test asserted that `resolveWithUndo` THROWS for anything in the
+     escalation domain, which was the right reading while the only escalation
+     item was the escalation. arch-G made the two OBLIGATIONS tasks, and they
+     complete on Tasks — so what decision 3 forbids is now tested directly: no
+     ESCALATION_* event may ever reach the ledger from this surface, and nothing
+     that is not one of the two known task types may resolve at all. */
+
+  it("completes an escalation TASK, because the task is not the escalation", () => {
+    const h = resolveWithUndo({ item: anEscalation(), decidedAt: NOW });
+    expect(h.phase).toBe("pending");
+    vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    expect(h.phase).toBe("emitted");
+  });
+
+  it("and writes NOTHING to the ledger, because no event type fits", () => {
+    /* The three that exist are lifecycle statements about the escalation.
+       Absence is recoverable; a false ESCALATION_CLOSED in an append-only store
+       is not. */
+    resolveWithUndo({ item: anEscalation(), decidedAt: NOW });
+    vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    expect(activityLedger()).toHaveLength(0);
+    expect(eventTypeFor(anEscalation())).toBeNull();
+  });
+
+  it("reports the empty commit rather than pretending an event was written", () => {
+    /* `onCommitted(null)` is how a caller learns the window closed with nothing
+       recorded. A caller that assumed an event would silently mis-report. */
+    const seen: unknown[] = [];
+    resolveWithUndo({
+      item: anEscalation(),
+      decidedAt: NOW,
+      onCommitted: (e) => seen.push(e),
+    });
+    vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    expect(seen).toEqual([null]);
+  });
+
+  it("still refuses loudly for an escalation item that is neither task type", () => {
+    /* THE GUARD THAT REMAINS. A third escalation row arriving without being
+       added to `isEscalationTask` stops here rather than resolving something
+       nobody decided was resolvable on this surface. */
+    const rogue = { ...anEscalation(), taskType: "escalationDebrief" } as unknown as TaskItem;
+    expect(() => resolveWithUndo({ item: rogue, decidedAt: NOW })).toThrow(
       /never resolve inline/
     );
     expect(activityLedger()).toHaveLength(0);
   });
 
-  it("there is no ledger event type for the escalation domain", () => {
-    expect(eventTypeFor(anEscalation())).toBeNull();
+  it("no ESCALATION_* event type is reachable from any task", () => {
+    for (const i of items()) {
+      const t = eventTypeFor(i);
+      expect(String(t)).not.toMatch(/^ESCALATION_/);
+    }
   });
 });
 

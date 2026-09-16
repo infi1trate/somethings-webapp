@@ -131,6 +131,38 @@ export function noteEventsFor(rec: EscalationRecord, now: number): { at: number;
     .map((i) => ({ at, label: `${CLOSE_OUT_LABEL[i.id]} recorded complete` }));
 }
 
+/** ═══ ONE HAND-LOGGED ACTION, SEEDED (arch-G, G7) ═══
+ *
+ *  The seeds ask for at least one manual entry, and until this existed there was
+ *  none: a hand-logged action was only ever created by a reader using the form,
+ *  so the treatment that distinguishes remembered evidence from assembled
+ *  evidence was invisible on arrival — on the surface whose whole claim is that
+ *  you can tell the two apart.
+ *
+ *  ONLY ON A CLOSED RECORD, and this is not arbitrary: an out-of-band action is
+ *  something somebody typed up afterwards, so a live escalation that has one
+ *  already would be asserting that the supervisor stopped to write during the
+ *  incident. A phone call is also the exact case the standing caveat names.
+ *
+ *  ATTRIBUTED TO THE SUPERVISOR WHO WOULD HAVE LOGGED IT — not to "System",
+ *  which is the one author a manual entry can never have. */
+export function manualFixturesFor(rec: EscalationRecord): TimelineSources["manual"] {
+  if (rec.resolvedAt == null) return [];
+  const at = Math.round((rec.triggeredAt + rec.resolvedAt) / 2);
+  return [
+    {
+      id: `manual-seed-${rec.id}`,
+      at,
+      source: "manual",
+      /* NEEDS-COPY-NICOLE. Coordination, not assessment — the same line the
+         message fixtures hold. */
+      text: "Called the emergency contact — guardian was already with her.",
+      author: "You",
+      actionType: "phoneCall",
+    },
+  ];
+}
+
 /** Everything the assembler needs for one escalation. */
 export function timelineSourcesFor(
   rec: EscalationRecord,

@@ -1348,7 +1348,42 @@ export function Worklist({
       </div>
     );
 
+  /** ═══ THE PINNED BUCKET HAS TO BE HEARD, NOT ONLY SEEN (arch-G, G7) ═══
+   *
+   *  Everything that makes a live escalation impossible to miss is visual: the
+   *  saturated fill, the sticky position at the top of the scroller, the bucket
+   *  that never windows. A screen-reader user gets none of it — they meet the
+   *  pinned rows as the first two `treeitem`s of a list of twenty-eight, in a
+   *  group whose label is the only thing distinguishing them.
+   *
+   *  SO THE COUNT IS ANNOUNCED. Polite, not assertive: this is a standing fact
+   *  about the list a reader has just arrived at, not an interruption — and
+   *  Monitoring's escalation region already holds the surface's one assertive
+   *  region, which its own probe asserts is the only one.
+   *  IT ALSO UPDATES, which is the part a static label could not do: an
+   *  escalation arriving or being recorded changes this sentence, and that
+   *  change is exactly what a reader working through the list needs to hear. */
+  const pinnedCount =
+    sections.find((sec) => sec.band.id === "needsResponse")?.rows.length ?? 0;
+
   return (
+    <>
+      {pinnedCount > 0 && (
+        /* ═══ OUTSIDE THE TREE, AND THAT IS NOT A STYLE CHOICE ═══
+           MEASURED by axe: `aria-required-children`. `role="tree"` accepts
+           `treeitem` and `group` and nothing else, so a `<p role="status">`
+           inside it invalidates the whole widget's content model — the same
+           trap this file's header records for `<h3>` band headings and for a
+           nested `<button>`. It is a SIBLING, and `sr-only` takes it out of
+           flow so the scroller's layout is untouched. */
+        <p className="sr-only" role="status" aria-live="polite">
+          {/* NEEDS-COPY-NICOLE. NAMES THE WORK, not the treatment: "highlighted
+              in red" would describe a thing this reader cannot see. */}
+          {`${pinnedCount} escalation${pinnedCount === 1 ? "" : "s"} need${
+            pinnedCount === 1 ? "s" : ""
+          } a response now, at the top of the list.`}
+        </p>
+      )}
     <div
       ref={scrollerRef}
       role="tree"
@@ -1477,6 +1512,7 @@ export function Worklist({
         />
       )}
     </div>
+    </>
   );
 }
 

@@ -29,7 +29,7 @@ import {
   type ConversationSource,
 } from "@/components/monitoring/escalation-timeline";
 import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline";
-import { timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
+import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
 import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { PANE_LABEL, PaneChip, SystemBlock } from "@/components/ui/evidence-primitives";
@@ -294,9 +294,18 @@ function EscalationBody({
   const items = closeOutOf(rec, now);
   const lifecycle = recordLifecycleOf(rec, now);
   const [source, setSource] = useState<ConversationSource>("supportThread");
-  const [manual, setManual] = useState<TimelineEntry[]>([]);
+  /** KEYED BY RECORD, DERIVED — see the same note in `escalation-task-pane`.
+   *  An initialiser would run once for the first record this pane ever showed,
+   *  and every later record would inherit its entries. This pane does not
+   *  unmount between selections either. */
+  const [added, setAdded] = useState<Record<string, TimelineEntry[]>>({});
   const entries = assembleTimeline(
-    timelineSourcesFor(rec, events, manual, now),
+    timelineSourcesFor(
+      rec,
+      events,
+      [...manualFixturesFor(rec), ...(added[rec.id] ?? [])],
+      now
+    ),
     source
   );
   return (
@@ -422,17 +431,20 @@ function EscalationBody({
             onSourceChange={setSource}
             teenName={rec.teenName}
             onLog={({ actionType, detail }) =>
-              setManual((prev) => [
+              setAdded((prev) => ({
                 ...prev,
-                {
-                  id: `manual-${Date.now()}`,
-                  at: Date.now(),
-                  source: "manual",
-                  text: detail.trim() || "No detail recorded",
-                  author: "You",
-                  actionType,
-                },
-              ])
+                [rec.id]: [
+                  ...(prev[rec.id] ?? []),
+                  {
+                    id: `manual-${Date.now()}`,
+                    at: Date.now(),
+                    source: "manual",
+                    text: detail.trim() || "No detail recorded",
+                    author: "You",
+                    actionType,
+                  },
+                ],
+              }))
             }
           />
         </div>

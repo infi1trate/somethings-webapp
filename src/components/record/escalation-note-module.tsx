@@ -184,6 +184,12 @@ export function EscalationNoteModule({
    *  below them, which would move everything a supervisor was reading. */
   const showCrisis = body.type === CRISIS_TYPE_REVEALS_ON;
   const showReferralType = body.wasReferral === true;
+  /** Which conditional fields are currently asked, for the announcement below.
+   *  Derived rather than tracked, so it cannot disagree with what is rendered. */
+  const revealed = [
+    showCrisis ? "Crisis type" : null,
+    showReferralType ? "Referral type" : null,
+  ].filter((v): v is string => v !== null);
 
   const actionRow = (
     /* `data-note-action-row` IS HOW THE PORTAL IS VERIFIED. Whether this row is
@@ -221,6 +227,20 @@ export function EscalationNoteModule({
 
   return (
     <div data-slot="escalation-note" className="space-y-4">
+      {/* ═══ A REVEAL THAT NOBODY HEARS IS NOT A REVEAL (arch-G, G7) ═══
+          Both conditionals are reserved with `invisible` + `aria-hidden` so the
+          layout does not jump — which also means a screen-reader user gets no
+          signal at all when a new field starts being asked. The field they were
+          on did not change and the one that appeared is two elements away.
+          SO THE CHANGE IS STATED. Polite, one sentence, and it names the field
+          rather than saying "a field appeared". Empty when nothing is revealed,
+          so it announces the transition rather than repeating a standing fact. */}
+      <p className="sr-only" role="status" aria-live="polite" data-slot="note-reveals">
+        {/* NEEDS-COPY-NICOLE */}
+        {revealed.length === 0
+          ? ""
+          : `${revealed.join(" and ")} ${revealed.length === 1 ? "is" : "are"} now being asked.`}
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Choice
           id={id("type")}

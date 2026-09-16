@@ -88,6 +88,14 @@ function Entry({ e }: { e: TimelineEntry }) {
           {e.author && (
             <span className="shrink-0 text-[12px] text-[var(--text-secondary)]">{e.author}</span>
           )}
+          {e.afterWindow && (
+            <span className="shrink-0 text-[11.5px] text-[var(--text-muted)]">
+              {/* NEEDS-COPY-NICOLE. The timestamp is when it was LOGGED, and on a
+                  closed escalation that is not when it happened. Saying so is
+                  the difference between a record and a guess. */}
+              logged after the escalation closed
+            </span>
+          )}
         </span>
         <span
           data-timeline-text

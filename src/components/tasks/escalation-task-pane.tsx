@@ -43,7 +43,7 @@ import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { RESPONSE_DISPOSITIONS } from "@/lib/tasks/escalation-response";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline";
-import { timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
+import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
 import type { EscalationRecord } from "@/lib/monitoring/escalation";
 import type { MonitoringEvent } from "@/lib/monitoring/event";
 import type { DocumentationPayload, EscalationPayload, TaskItem } from "@/lib/tasks/types";
@@ -69,8 +69,27 @@ export function recordFromTask(item: TaskItem): EscalationRecord {
     mentorId: item.mentorId,
     mentorName: item.mentorName,
     conversationId: item.objectId,
-    triggeredAt: closed ?? item.openedAt,
-    acknowledgedAt: p.kind === "documentation" ? (closed ?? item.openedAt) : null,
+    /* ═══ THE WINDOW'S START, AND IT USED TO BE THE CLOSE (arch-G, G6) ═══
+       This read `closed ?? item.openedAt`, which for a documentation task meant
+       the escalation "opened" at the instant it closed — a one-point window that
+       filtered out every message and every flag, and stamped "Escalation opened"
+       and "Acknowledged by the supervisor" 20 hours wrong. MEASURED: three
+       entries on a documentation pane, none of them a message.
+       THE FALLBACK IS STILL THE CLOSE, because `EscalationRecord.triggeredAt` is
+       a plain number with no value for "unknown" — and the pane states the
+       absence rather than letting the degenerate window read as a quiet
+       escalation. See `triggerKnown`. */
+    triggeredAt:
+      p.kind === "documentation" ? (p.triggeredAt ?? p.closedAt) : item.openedAt,
+    /* ═══ NULL, BECAUSE NOTHING HERE KNOWS WHEN IT WAS ACKNOWLEDGED ═══
+       It was `closed ?? item.openedAt`, which put "Acknowledged by the
+       supervisor" on the timeline at the CLOSE instant — after every message in
+       the escalation, which is the one ordering that cannot be right. The
+       payload has no ack field.
+       THE ENTRY DISAPPEARS RATHER THAN LYING, and the caveat below names the
+       absence so a reader does not take it for "nobody acknowledged it". Same
+       trade as the 911 decision, one field over. */
+    acknowledgedAt: null,
     resolvedAt: closed,
     /* COERCED, NOT KNOWN, for a documentation task — the payload has no 911
        field and this type's is a plain boolean. Every reader that would print or
@@ -211,9 +230,32 @@ export function EscalationTaskPane({
   onDispositionChange?: () => void;
 }) {
   const isResponse = item.taskType === "activeEscalation";
+  /** Whether this task's data says when the escalation was RAISED. A response
+   *  task's own `openedAt` is that instant; a documentation payload carries it
+   *  only since G6, and without it the timeline's window is a single point. */
+  const triggerKnown =
+    isResponse || (item.payload as DocumentationPayload).triggeredAt != null;
   const rec = useMemo(() => recordFromTask(item), [item]);
   const [source, setSource] = useState<ConversationSource>("supportThread");
-  const [manual, setManual] = useState<TimelineEntry[]>([]);
+  /** ═══ HAND-LOGGED ENTRIES BELONG TO ONE TASK, AND ONLY ONE ═══
+   *
+   *  This was `useState(() => manualFixturesFor(...))`, and MEASURED it produced
+   *  a documentation pane with no hand-logged entry at all: the pane does not
+   *  unmount between selections, so the initialiser ran once — against the FIRST
+   *  selected item, a live escalation with no seeded entry — and the state then
+   *  persisted across every later record.
+   *  The same shape as the `override` bug in `task-pane`, and the same fix:
+   *  KEYED BY ITEM ID AND DERIVED, not reset in an effect. A reset runs one
+   *  render late, which leaves a frame where one escalation's timeline is
+   *  showing another's logged actions. */
+  const [added, setAdded] = useState<Record<string, TimelineEntry[]>>({});
+  /* The seeded entry is derived per record; what a reader logs is merged on top.
+     So the fixture cannot be "used up" by a selection change, and nothing
+     logged here can leak onto a different escalation. */
+  const manual = useMemo(
+    () => [...manualFixturesFor(rec), ...(added[item.id] ?? [])],
+    [rec, added, item.id]
+  );
   const [disposition, setDisposition] = useState<string | null>(null);
 
   const entries = useMemo(
@@ -247,6 +289,17 @@ export function EscalationTaskPane({
 
       <div>
         <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Timeline</p>
+        {!triggerKnown && (
+          /* ═══ A ONE-POINT WINDOW LOOKS EXACTLY LIKE A QUIET ESCALATION ═══
+             Both render as a timeline with the system entries and nothing else.
+             So when the trigger instant is missing the pane says so, rather than
+             letting an empty timeline read as "nothing was said". */
+          <p className="mt-1 text-[12px] leading-[17px] text-[var(--text-muted)]">
+            {/* NEEDS-COPY-NICOLE */}
+            This task&rsquo;s data doesn&rsquo;t record when the escalation was
+            raised, so the timeline covers only its close.
+          </p>
+        )}
         {!isResponse && (
           /* ═══ THE SAME GAP, STATED WHERE IT WOULD OTHERWISE BE INVISIBLE ═══
              `assembleTimeline` emits the dispatch entry from `record.is911`,
@@ -256,8 +309,9 @@ export function EscalationTaskPane({
              dispatch would be missing with nothing said about it. */
           <p className="mt-1 text-[12px] leading-[17px] text-[var(--text-muted)]">
             {/* NEEDS-COPY-NICOLE */}
-            The 911 decision is held on the escalation record; this task&rsquo;s data
-            does not carry it, so no dispatch entry appears either way.
+            The 911 decision and the acknowledgement time are held on the
+            escalation record; this task&rsquo;s data carries neither, so no
+            dispatch or acknowledgement entry appears either way.
           </p>
         )}
         <div className="mt-2">
@@ -267,20 +321,23 @@ export function EscalationTaskPane({
             onSourceChange={setSource}
             teenName={rec.teenName}
             onLog={({ actionType, detail }) =>
-              setManual((prev) => [
+              setAdded((prev) => ({
                 ...prev,
-                {
-                  id: `manual-${Date.now()}`,
-                  at: Date.now(),
-                  source: "manual",
-                  /* THE AUTHOR'S OWN WORDS, and the action type beside them. No
-                     detail is a legitimate entry: "phone call, 4:12pm" is a fact
-                     worth having even without a description. */
-                  text: detail.trim() || "No detail recorded",
-                  author: "You",
-                  actionType,
-                },
-              ])
+                [item.id]: [
+                  ...(prev[item.id] ?? []),
+                  {
+                    id: `manual-${Date.now()}`,
+                    at: Date.now(),
+                    source: "manual",
+                    /* THE AUTHOR'S OWN WORDS, and the action type beside them.
+                       No detail is a legitimate entry: "phone call, 4:12pm" is
+                       a fact worth having even without a description. */
+                    text: detail.trim() || "No detail recorded",
+                    author: "You",
+                    actionType,
+                  },
+                ],
+              }))
             }
           />
         </div>
