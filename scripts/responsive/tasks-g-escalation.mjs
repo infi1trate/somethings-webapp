@@ -236,6 +236,53 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
       !/Response recorded/.test(refused.paneText)
   );
 
+  /* ═══ THE REFUSAL HAS TO LEAVE A ROUTE TO YES ═══
+     The primary is in the sticky bar and the question can be scrolled out of
+     sight, so a sentence alone tells a keyboard reader "no" and nothing else.
+     Billing's gate moves focus to the first missing field; this asserts the
+     same. */
+  const focusedAfterRefusal = await page.evaluate(
+    () => document.activeElement?.getAttribute("data-response-disposition") ?? null
+  );
+  check(
+    "response.blocked-focuses",
+    "and it moves focus to the question it wants answered",
+    focusedAfterRefusal !== null,
+    focusedAfterRefusal ?? document.title
+  );
+
+  /* ═══ A radiogroup PROMISES ARROW KEYS ═══
+     One tab stop, arrows move and choose. Asserted because the role is what
+     tells a screen-reader user to expect it. */
+  /* TWICE. The first press from an unchecked group selects the member focus is
+     already on, which would let a no-op pass this check: with nothing chosen
+     `indexOf` is -1 and "next" is the first. The second press has to MOVE. */
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(120);
+  const firstPress = await page.evaluate(
+    () => document.activeElement?.getAttribute("data-response-disposition") ?? null
+  );
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(150);
+  const arrowed = await page.evaluate(() => ({
+    focused: document.activeElement?.getAttribute("data-response-disposition") ?? null,
+    checked: [...document.querySelectorAll("[data-response-disposition]")]
+      .filter((b) => b.getAttribute("aria-checked") === "true")
+      .map((b) => b.getAttribute("data-response-disposition")),
+    stops: [...document.querySelectorAll("[data-response-disposition]")].filter(
+      (b) => b.getAttribute("tabindex") === "0"
+    ).length,
+  }));
+  check(
+    "response.radiogroup-arrows",
+    "the arrows MOVE the selection, and the group is one tab stop",
+    arrowed.focused === arrowed.checked[0] &&
+      arrowed.checked.length === 1 &&
+      arrowed.stops === 1 &&
+      arrowed.focused !== firstPress,
+    `${firstPress} → ${arrowed.focused}, checked ${arrowed.checked.join("/")}, ${arrowed.stops} tab stop(s)`
+  );
+
   // 2b. Choosing one clears the sentence.
   await page.locator('[data-response-disposition="guidingMentor"]').click();
   await page.waitForTimeout(200);
@@ -829,6 +876,59 @@ console.log("\nTasks — escalations (arch-G, G4 + G5)\n");
     ringed.map((r) => `${r.what}: ${r.detail ?? "missing"}`).join(" · ")
   );
 
+  await context.close();
+}
+
+// ── 9. THE OLDER DEEP LINKS STILL LAND (G7 regression) ────────────────────
+//
+// `?escalation=` was added beside two existing params, and it takes precedence
+// over one of them. Home links here with `?region=escalations` and `?band=`, so
+// both are asserted rather than assumed: a new param that quietly broke an old
+// link would only be noticed from Home.
+{
+  const { context, page } = await openView(
+    browser,
+    {
+      id: "g-links",
+      url: "/app/monitoring?region=escalations",
+      seed: {
+        persona: "supervisor",
+        extra: { tasksScenarioId: "typical-shift", monitoringScenarioId: "escalation-closeout" },
+      },
+    },
+    XL,
+    version
+  );
+  await page.waitForTimeout(600);
+  const region = await page.evaluate(() => ({
+    selected: !!document.querySelector('[aria-current="true"]'),
+    lifecycle: document.querySelector("[data-record-lifecycle]")?.getAttribute("data-record-lifecycle") ?? null,
+    missed: /isn.t in this data set/.test(document.body.innerText),
+  }));
+  check(
+    "links.region-still-selects",
+    "`?region=escalations` still opens the most urgent escalation",
+    region.selected && region.lifecycle !== null,
+    `selected ${region.selected}, lifecycle ${region.lifecycle}`
+  );
+  check(
+    "links.region-no-false-miss",
+    "and it does not trip the unreachable-id notice",
+    region.missed === false
+  );
+
+  await page.goto(`${BASE}/app/monitoring?band=imminentFlagReview`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const band = await page.evaluate(() => ({
+    rows: document.querySelectorAll('[role="treeitem"]').length,
+    missed: /isn.t in this data set/.test(document.body.innerText),
+  }));
+  check(
+    "links.band-accepted-ignored",
+    "`?band=` still lands on a working page — accepted and ignored since arch-mon",
+    band.rows > 0 && band.missed === false,
+    `${band.rows} rows`
+  );
   await context.close();
 }
 

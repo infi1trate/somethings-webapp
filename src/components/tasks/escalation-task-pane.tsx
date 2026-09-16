@@ -27,7 +27,7 @@
 // timeline, and the note module with its action row portalled into the sticky
 // bar.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink, FileText, MessageSquare, Phone } from "lucide-react";
 import { BreachChip } from "@/components/tasks/chips";
@@ -40,7 +40,10 @@ import {
 import { chatThreadHref } from "@/lib/record/chat";
 import { PANE_LABEL } from "@/components/ui/evidence-primitives";
 import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
-import { RESPONSE_DISPOSITIONS } from "@/lib/tasks/escalation-response";
+import {
+  RESPONSE_DISPOSITIONS,
+  responseDispositionById,
+} from "@/lib/tasks/escalation-response";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline";
 import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
@@ -257,6 +260,10 @@ export function EscalationTaskPane({
     [rec, added, item.id]
   );
   const [disposition, setDisposition] = useState<string | null>(null);
+  /** The radiogroup, for the arrow keys and for the refused submit's focus
+   *  move. A ref rather than ids, so the group can be rendered from the list
+   *  without the pane inventing a naming scheme for its members. */
+  const dispositionsRef = useRef<HTMLDivElement | null>(null);
 
   const entries = useMemo(
     () => assembleTimeline(timelineSourcesFor(rec, events, manual, now), source),
@@ -265,7 +272,16 @@ export function EscalationTaskPane({
 
   const submit = (): boolean => {
     if (isResponse) {
-      if (!disposition) return false;
+      if (!disposition) {
+        /* ═══ THE REFUSAL MOVES FOCUS TO THE ANSWER IT WANTS ═══
+           The billing gate does exactly this and says so ("Focus moved to the
+           first"), for the same reason: the primary is in the sticky bar and
+           the question can be scrolled out of sight, so a sentence alone leaves
+           a reader — especially a keyboard reader — told "no" with no route to
+           yes. */
+        dispositionsRef.current?.querySelector<HTMLButtonElement>("[data-response-disposition]")?.focus();
+        return false;
+      }
       /* THE RESPONSE RECORDS A DISPOSITION AND A TIMESTAMP, nothing else. The
          note is the documentation task's, 24 hours later. */
       onResolve(item, { responseDisposition: disposition, respondedAt: Date.now() });
@@ -355,6 +371,39 @@ export function EscalationTaskPane({
           <div
             role="radiogroup"
             aria-label="What did you do?"
+            ref={dispositionsRef}
+            /* ═══ ARROW KEYS, BECAUSE role="radio" PROMISES THEM ═══
+               A radiogroup is ONE tab stop whose members are reached with the
+               arrows — that is the pattern a screen-reader user is told they
+               are in the moment the role is announced. Three separate tab stops
+               works, and it works differently from what the role claims.
+               ROVING `tabIndex` below, and Home/End because a three-item group
+               is exactly where "jump to the last one" is cheapest to offer. */
+            onKeyDown={(e) => {
+              const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"];
+              if (!keys.includes(e.key)) return;
+              e.preventDefault();
+              const ids: string[] = RESPONSE_DISPOSITIONS.map((d) => d.id);
+              const at = disposition ? ids.indexOf(disposition) : -1;
+              const next =
+                e.key === "Home"
+                  ? 0
+                  : e.key === "End"
+                    ? ids.length - 1
+                    : e.key === "ArrowRight" || e.key === "ArrowDown"
+                      ? (at + 1 + ids.length) % ids.length
+                      : (at <= 0 ? ids.length : at) - 1;
+              setDisposition(ids[next]);
+              onDispositionChange?.();
+              /* SELECTION MOVES FOCUS WITH IT — in a radiogroup the two are the
+                 same act, which is why arrowing also CHOOSES rather than only
+                 highlighting. */
+              dispositionsRef.current
+                ?.querySelector<HTMLButtonElement>(
+                  `[data-response-disposition="${ids[next]}"]`
+                )
+                ?.focus();
+            }}
             className="mt-1.5 flex flex-wrap gap-1.5"
           >
             {RESPONSE_DISPOSITIONS.map((d) => (
@@ -363,6 +412,13 @@ export function EscalationTaskPane({
                 type="button"
                 role="radio"
                 aria-checked={disposition === d.id}
+                /* ONE TAB STOP. The checked member holds it; with nothing chosen
+                   the first does, so the group is always reachable. */
+                tabIndex={
+                  disposition === d.id || (disposition === null && d.id === RESPONSE_DISPOSITIONS[0].id)
+                    ? 0
+                    : -1
+                }
                 data-response-disposition={d.id}
                 onClick={() => {
                   setDisposition(d.id);
@@ -381,7 +437,10 @@ export function EscalationTaskPane({
             ))}
           </div>
           <p className="mt-1.5 min-h-[17px] text-[12px] leading-[17px] text-[var(--text-secondary)]" aria-live="polite">
-            {RESPONSE_DISPOSITIONS.find((d) => d.id === disposition)?.consequence ?? ""}
+            {/* THE MODULE'S OWN LOOKUP, not a second `.find` over the same
+                list — the row's state line already uses it, and two ways of
+                resolving one id is how the two disagree. */}
+            {responseDispositionById(disposition)?.consequence ?? ""}
           </p>
         </div>
       ) : (
