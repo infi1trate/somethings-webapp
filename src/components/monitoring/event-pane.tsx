@@ -375,6 +375,17 @@ function EscalationBody({
               </span>
               {i.done ? (
                 <span className="text-[11.5px] text-[var(--text-secondary)]">{/* NEEDS-COPY-NICOLE */}done</span>
+              ) : i.condition && !i.condition.applies ? (
+                /* ═══ NO CLOCK ON AN ITEM THAT IS NOT OWED (arch-G, G6) ═══
+                   MEASURED on the record: "Teen follow-up · 40m left · not
+                   required — caregiver involved in treatment". Two statements
+                   that contradict each other, and the countdown is the one a
+                   reader acts on. `closeOutOf` computes `dueAt` for every item
+                   regardless of its condition — correctly, because the
+                   condition can change — so the suppression belongs here, at
+                   the render, where the reason is already being stated.
+                   The waiver line renders below either way. */
+                null
               ) : i.overdue ? (
                 <BreachChip label={`Overdue by ${elapsedLabel(i.dueAt ?? now, now)}`} />
               ) : i.dueAt != null ? (
@@ -768,9 +779,18 @@ export function EventPane({
       >
         {escalation ? (
           <p className="text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
-            {/* LOCKED DECISION 3. Nothing about an escalation is decided here. */}
-            Escalations are not resolved from this page. Its close-out items are
-            above; the record is where the work happens.
+            {/* ═══ IT POINTED AT ITSELF (arch-G, G6) ═══
+                It read "the record is where the work happens" — written when
+                this pane was a summary and the record was somewhere else. Since
+                G6 this IS the record: the note module is above, the timeline is
+                above, and every "Open the escalation record" lands here. A
+                sentence sending a reader where they already are is worse than
+                no sentence.
+                WHAT IS STILL TRUE is the part decision 3 actually protects, and
+                that is what it says. NEEDS-COPY-NICOLE, both. */}
+            {recordLifecycleOf(escalation, now) === "closedDocumented"
+              ? "Nothing further is owed on this escalation. The record stays here as it ages."
+              : "The escalation's own state is not changed from a queue. What is owed is above, and the note is filed here."}
           </p>
         ) : deactivated ? (
           <p className="text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
