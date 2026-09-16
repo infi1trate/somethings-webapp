@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, EyeOff, FileText, ShieldAlert } from "lucide-react";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
+import { EscalationNoteModule } from "@/components/record/escalation-note-module";
 import { BreachChip } from "@/components/tasks/chips";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { PANE_LABEL, PaneChip, SystemBlock } from "@/components/ui/evidence-primitives";
@@ -352,6 +353,25 @@ function EscalationBody({ rec, now }: { rec: EscalationRecord; now: number }) {
           ))}
         </ul>
       </div>
+
+      {/* ═══ THE MITIGATION MODULE, HOSTED (arch-G, G3) ═══
+          The record is the escalation note's durable home, so the module renders
+          HERE — inline, with its action row in the flow, which is the layout a
+          record wants. The Tasks documentation pane hosts the same component and
+          portals the action row into its sticky bar. One implementation, two
+          hosts: the principle billing established with `ReviewBody`.
+          ONLY ONCE THE CRISIS IS OVER. An active escalation has nothing to
+          document yet and a form on screen during an incident invites a
+          supervisor to write instead of act — the response task is what exists
+          during the live phase. */}
+      {!isActive(rec) && (
+        <div>
+          <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Escalation note</p>
+          <div className="mt-2">
+            <EscalationNoteModule idPrefix={`rec-${rec.id}`} />
+          </div>
+        </div>
+      )}
 
       <Link
         href={escalationHref(rec.id)}
