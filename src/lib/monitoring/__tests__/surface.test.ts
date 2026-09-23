@@ -117,10 +117,15 @@ describe("the live band", () => {
 });
 
 describe("the disposition model", () => {
-  it("has a path that escalates rather than resolving", () => {
-    const escalate = DISPOSITION_VALUES.find((d) => d.effect === "escalate");
-    expect(escalate).toBeTruthy();
-    expect(resolves(escalate ?? null)).toBe(false);
+  it("has a value that neither closes nor escalates, and it is the open question", () => {
+    /* WAS "has a path that escalates rather than resolving", over a fourth
+       disposition value that §2.8 removed — escalating is a button now. The
+       property worth keeping is that not every value closes the event, which
+       `watching` carries. */
+    const watch = DISPOSITION_VALUES.find((d) => d.effect === "watch");
+    expect(watch).toBeTruthy();
+    expect(resolves(watch ?? null)).toBe(false);
+    expect(watch?.unresolvedQuestion).toBe(true);
   });
 
   it("only a resolving disposition closes anything", () => {
@@ -157,12 +162,13 @@ describe("every scenario fixture", () => {
        which the phase file does not list because the state it reaches did not
        exist then — nothing could be `closed · documented`, so the surface's
        finished state was unreachable and therefore unverifiable.
-       NOW 32. The addendum drops the seven `mentor-*` practice fixtures with
+       NOW 33. The addendum drops the seven `mentor-*` practice fixtures with
        the destination (§2.1) and `coverage-debt` with the coverage surface
-       (§2.2). The count is asserted rather than the list because a fixture
-       arriving unannounced is the thing worth catching, and eight leaving at
-       once is the thing worth writing down. */
-    expect(MONITORING_SCENARIOS).toHaveLength(32);
+       (§2.2), and adds `flag-user-reported` (§2.8) — because the axis-2
+       suppression it exercises is exactly the rule that would otherwise be
+       asserted over an empty set. The count is asserted rather than the list
+       because a fixture arriving unannounced is the thing worth catching. */
+    expect(MONITORING_SCENARIOS).toHaveLength(33);
     /* AND NONE OF THE REMOVED ONES IS STILL REACHABLE. A key left in the
        switch with no group entry is a fixture nobody can select and nobody
        will notice is broken. */

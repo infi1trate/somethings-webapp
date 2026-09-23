@@ -43,8 +43,10 @@ import {
   monitoringLoadPlanFor,
 } from "@/lib/tasks/load-plan";
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
-import { sortEvents } from "@/lib/monitoring/event";
+import { sortEvents, type MonitoringEvent } from "@/lib/monitoring/event";
+import { DISPOSITION_VALUES } from "@/lib/monitoring/disposition";
 import {
+  autoLinkedFor,
   groupByConversation,
   sortGroups,
   type FlagGroup,
@@ -218,6 +220,23 @@ const K_ACCURACY = [
   { keys: ["y"], what: "Classifier was right (records accuracy only)" },
   { keys: ["n"], what: "Classifier was wrong (records accuracy only)" },
 ];
+/** ═══ THE DIGITS AND `e` (addendum §2.8, §3.3) ═══
+ *  THE ROWS ARE BUILT FROM `DISPOSITION_VALUES`, not written out: the array
+ *  is blocked on Dr. Nissan, and a sheet that hardcoded three labels would be
+ *  the one place a fourth value did not reach. It also keeps the digit and
+ *  the label in the order the control renders them, which is the only reason
+ *  a digit is learnable at all. */
+const K_DISPOSITION = DISPOSITION_VALUES.map((d, i) => ({
+  keys: [String(i + 1)],
+  /* ═══ THE ROW SAYS WHAT THE KEY DOES, WHICH IS NOT THE SAME FOR ALL THREE ═══
+     The first version appended "— and mark reviewed" to every value, and the
+     sheet read "Watching — not resolved — and mark reviewed": a row teaching
+     that the key closes an event the value explicitly keeps open. Measured in
+     the sheet, not reasoned about. The effect is the discriminator, and it is
+     the same one `commitDisposition` branches on. */
+  what: d.effect === "resolve" ? `${d.label} — and mark reviewed` : d.label,
+}));
+const K_ESCALATE = [{ keys: ["e"], what: "Open an escalation from this flag" }];
 const K_PANE = [{ keys: ["↵"], what: "Move focus to the review pane" }];
 const K_UNDO = [{ keys: ["u"], what: "Undo the last close" }];
 const K_HELP = [{ keys: ["?"], what: "This list" }];
@@ -226,6 +245,8 @@ const K_HELP = [{ keys: ["?"], what: "This list" }];
  *  and nothing routes to it. */
 const MONITORING_SHORTCUTS = [
   ...K_QUEUE,
+  ...K_DISPOSITION,
+  ...K_ESCALATE,
   ...K_ACCURACY,
   ...K_UNDO,
   ...K_PANE,
@@ -239,7 +260,15 @@ const SCOPE_SHORTCUTS: Record<
   /* THE REGION IS NOT A `role="tree"`, so the queue keys and Enter-to-pane do
      not reach it. Undo stays: a resolved escalation can be undone. */
   escalations: [...K_UNDO, ...K_HELP],
-  "risk-flags": [...K_QUEUE, ...K_ACCURACY, ...K_UNDO, ...K_PANE, ...K_HELP],
+  "risk-flags": [
+    ...K_QUEUE,
+    ...K_DISPOSITION,
+    ...K_ESCALATE,
+    ...K_ACCURACY,
+    ...K_UNDO,
+    ...K_PANE,
+    ...K_HELP,
+  ],
 };
 
 /** ═══ TWO SCOPES, AND WHAT A SCOPE STILL PINS (addendum §2.1, §2.2) ═══
@@ -355,10 +384,17 @@ export function MonitoringPage({
   const [announcement, setAnnouncement] = useState("");
   const [listOverride, setListOverride] = useState<"ready" | null>(null);
 
-  const events = useMemo(() => {
-    const live = (data?.events ?? []).filter((e) => !resolvedIds.has(e.id));
-    return sortEvents(live);
-  }, [data, resolvedIds]);
+  /** ═══ EVERY EVENT THE FIXTURE HOLDS, resolved or not ═══
+   *  The QUEUE is the open subset below. This set is what a RECORD is joined
+   *  against — its timeline, and the flags attached to it — because a record's
+   *  history does not change because a supervisor closed something in this
+   *  session. Before §2.8 nothing needed the difference: an escalated flag
+   *  stayed open, so the queue and the join were the same list. */
+  const allEvents = useMemo(() => sortEvents(data?.events ?? []), [data]);
+  const events = useMemo(
+    () => allEvents.filter((e) => !resolvedIds.has(e.id)),
+    [allEvents, resolvedIds]
+  );
 
   /* `filtered` WAS THE SUBJECT-FILTERED VIEW OF `events`. With one subject the
      two are the same set, and the alias stays only because it names what the
@@ -571,6 +607,66 @@ export function MonitoringPage({
      is still stated at `creditsCoverage` in `lib/monitoring/coverage.ts`, which
      is dormant rather than deleted. */
 
+  /** ═══ ESCALATE — ONE PATH, TWO CALLERS ═══
+   *  The pane's button and the keyboard's `e`. Defined here rather than
+   *  inline in the JSX because a key binding that duplicated this would be
+   *  a second place for the link-and-close semantics to drift. */
+  const onEscalateEvent = (e: MonitoringEvent) => {
+    /* ═══ THE FLAG BECOMES PART OF AN ESCALATION RECORD ═══
+       ═══ AND IT LEAVES THE QUEUE (addendum §2.8) ═══
+       Phase 6 built this so the flag STAYED — "escalating is
+       the moment it stopped being handled", so resolving would
+       file it as handled. §2.8 reverses that, and the reversal
+       is coherent rather than a change of mind: the flag is
+       LINKED to the record now and renders inside it, so it has
+       not stopped being handled — it has moved to where the
+       handling is. Leaving it in the queue as well would ask a
+       supervisor to disposition a flag whose escalation they
+       are already working. */
+    setResolvedIds((prev) => new Set(prev).add(e.id));
+    setRaised((prev) => [
+      ...prev,
+      {
+        id: `esc-from-${e.id}`,
+        teenId: e.teenId,
+        teenName: e.teenName,
+        mentorId: e.mentorId,
+        mentorName: e.mentorName,
+        conversationId: e.conversationId,
+        triggeredAt: now,
+        acknowledgedAt: now,
+        resolvedAt: null,
+        is911: false,
+        caregiverInvolved: null,
+        closeOutDone: [],
+        /* ═══ NULL, BECAUSE A FLAG DOES NOT KNOW EITHER (Phase 6) ═══
+           An escalation raised from a flag's disposition has no
+           "opened by" other than the supervisor who just raised
+           it — which the pane would be telling them — and no
+           emergency contact, because nothing on the flag payload
+           carries one. The pane states both as not on file,
+           which is the true thing and also the prompt: an
+           escalation with no contact on file is a fact worth
+           seeing at the moment it is opened. */
+        flaggedBy: null,
+        emergencyContact: null,
+        /* THE FLAG THAT RAISED IT, ATTACHED. Plus anything the
+           interim auto-link rule catches on the same
+           conversation — see `autoLinkedFor`. */
+        linkedFlagIds: autoLinkedFor(e, groups),
+      },
+    ]);
+    setSelectedEscalationId(`esc-from-${e.id}`);
+    /* NEEDS-COPY-NICOLE. It says where the flag WENT, because
+       "escalation opened" alone leaves a reader looking for a
+       row that is no longer in the queue. */
+    setAnnouncement(
+      "Escalation opened. The flag is marked reviewed and attached to it."
+    );
+    }
+
+;
+
   useTaskShortcuts({
     /* `y`/`n` RECORD CLASSIFIER ACCURACY AND RESOLVE NOTHING. The old binding
        resolved the event from a key, which is the one-tap closure Phase 2
@@ -578,6 +674,18 @@ export function MonitoringPage({
     onAnswer: (accurate) => {
       paneHandle.current.accuracy?.(accurate);
       return;
+    },
+    /* ═══ `1`/`2`/`3` DO WHAT `y`/`n` ARE FORBIDDEN TO DO, AND THAT IS NOT A
+       CONTRADICTION (addendum §3.3) ═══
+       The rule Phase 2 established is that a clinical disposition cannot come
+       from a keystroke that does not NAME one. `y` means "the classifier was
+       right", and resolving on it closed a record on a judgment about a
+       model. A digit selects a specific clinical value and commits that
+       value — the sheet says which — so the record carries the statement the
+       supervisor chose. */
+    onDigit: (index) => paneHandle.current.commitDisposition?.(index),
+    onEscalate: () => {
+      if (selectedEvent) onEscalateEvent(selectedEvent);
     },
     onEnter: () => false,
     onSubmit: () => false,
@@ -842,10 +950,10 @@ export function MonitoringPage({
                       : null
                   }
                   escalation={selectedEscalation}
-                  /* THE WHOLE SET, for the record's timeline join. Not
-                     `filtered` — the chips narrow what a READER is looking at,
-                     and a narrowed queue must not narrow a record's history. */
-                  events={events}
+                  /* THE WHOLE SET, for the record's timeline join and its
+                     linked flags — not the queue, because a record's history
+                     must not shrink as a supervisor works through the list. */
+                  events={allEvents}
                   now={now}
                   compliance={data?.compliance ?? null}
                   deactivated={
@@ -871,43 +979,33 @@ export function MonitoringPage({
                       classifierAccuracy: detail.accuracy,
                     });
                   }}
-                  onEscalate={(e) => {
-                    /* ═══ THE FLAG BECOMES AN ESCALATION RECORD ═══
-                       It does NOT resolve: the event stays in the queue until a
-                       clinical disposition closes it, because escalating is the
-                       moment it stopped being handled. */
-                    setRaised((prev) => [
-                      ...prev,
-                      {
-                        id: `esc-from-${e.id}`,
-                        teenId: e.teenId,
-                        teenName: e.teenName,
-                        mentorId: e.mentorId,
-                        mentorName: e.mentorName,
-                        conversationId: e.conversationId,
-                        triggeredAt: now,
-                        acknowledgedAt: now,
-                        resolvedAt: null,
-                        is911: false,
-                        caregiverInvolved: null,
-                        closeOutDone: [],
-                        /* ═══ NULL, BECAUSE A FLAG DOES NOT KNOW EITHER (Phase 6) ═══
-                           An escalation raised from a flag's disposition has no
-                           "opened by" other than the supervisor who just raised
-                           it — which the pane would be telling them — and no
-                           emergency contact, because nothing on the flag payload
-                           carries one. The pane states both as not on file,
-                           which is the true thing and also the prompt: an
-                           escalation with no contact on file is a fact worth
-                           seeing at the moment it is opened. */
-                        flaggedBy: null,
-                        emergencyContact: null,
-                      },
-                    ]);
-                    setSelectedEscalationId(`esc-from-${e.id}`);
+                  /** Attach an existing flag to the record on screen
+                   *  (addendum §2.8). It marks the flag reviewed in the same
+                   *  action — a linked flag has left the queue by definition,
+                   *  and leaving it in both places is the double-disposition
+                   *  the linkage exists to prevent. */
+                  onLinkFlag={(flagId) => {
+                    const rec = selectedEscalation;
+                    if (!rec) return;
+                    setResolvedIds((prev) => new Set(prev).add(flagId));
+                    setRaised((prev) => {
+                      const has = prev.some((r) => r.id === rec.id);
+                      const link = (r: EscalationRecord) =>
+                        r.id === rec.id
+                          ? { ...r, linkedFlagIds: [...r.linkedFlagIds, flagId] }
+                          : r;
+                      /* A FIXTURE RECORD IS NOT IN `raised`, so linking to one
+                         copies it in — the same shape as every other
+                         page-local decision on this surface, which layers over
+                         an immutable fixture rather than editing it. */
+                      return has
+                        ? prev.map(link)
+                        : [...prev, link({ ...rec })];
+                    });
                     /* NEEDS-COPY-NICOLE */
-                    setAnnouncement("Escalation opened. The flag stays in the queue.");
+                    setAnnouncement("Flag attached to this escalation and marked reviewed.");
                   }}
+                  onEscalate={onEscalateEvent}
                 />
               )}
             </div>

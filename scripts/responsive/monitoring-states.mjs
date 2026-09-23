@@ -40,6 +40,8 @@ const EXPECTED_KEYS = [
   "explicit-media", "suspected-death",
   // Risk flags
   "flag-in-escalation", "flag-repeat-pattern", "flag-no-mentor-reply", "flag-false-positive-cluster",
+  /* ADDED BY §2.8 — the one fixture with a flag no classifier produced. */
+  "flag-user-reported",
   /* THE SEVEN `mentor-*` FIXTURES AND `coverage-debt` ARE GONE (addendum §2.1,
      §2.2) — with the destinations they exercised. The list shrinks rather than
      the count being loosened, which is the same rule the arch-G addition
@@ -289,11 +291,21 @@ const rowText = (page) =>
     els.map((e) => ({ id: e.getAttribute("data-disposition"), effect: e.getAttribute("data-effect"), text: e.innerText.trim() }))
   );
   check("input.dispositions", "the disposition axis rendered", dispositions.length >= 3, dispositions.map((d) => d.id).join(","));
+  /* ═══ INVERTED BY §2.8, AND THE ASSERTION IS NOW THE ABSENCE ═══
+     It asserted that one disposition VALUE opened an escalation instead of
+     resolving — the path the original control did not have at all. That path
+     still exists and is checked at `footer.two-ctas`; what changed is that it
+     is a button rather than a radio, because a disposition is a statement
+     about the teen and escalating is a thing a supervisor DOES.
+     CHECKED ON THE LABELS TOO: re-adding it as a `watch`-effect value called
+     "Escalate now" would satisfy an effects-only check while putting the verb
+     straight back in the required question. */
   check(
-    "axis1.has-escalate-path",
-    "one value opens an escalation instead of resolving",
-    dispositions.some((d) => d.effect === "escalate"),
-    dispositions.find((d) => d.effect === "escalate")?.text
+    "axis1.holds-no-verb",
+    "the required clinical question cannot be answered with an action",
+    !dispositions.some((d) => d.effect === "escalate") &&
+      !dispositions.some((d) => /escalat/i.test(d.text)),
+    dispositions.map((d) => `${d.text} [${d.effect}]`).join(" · ")
   );
   check(
     "axis.no-disabled-button",
@@ -409,8 +421,12 @@ const rowText = (page) =>
     beforeRows > 0,
     `${beforeRows} rows`
   );
-  await page.locator('[data-effect="escalate"]').first().click();
-  await page.locator('[data-action="record"]').click();
+  /* ═══ ONE CONTROL, NOT TWO (addendum §2.8) ═══
+     It was `[data-effect="escalate"]` — a disposition radio — followed by the
+     primary. Escalating is a button now and is never gated on the radiogroup,
+     which is the whole point: under-escalation is the expensive error on this
+     surface and it should not cost two interactions. */
+  await page.locator('[data-action="escalate"]').click();
   await page.waitForTimeout(700);
   const after = await page.evaluate(() => {
     const pane = document.querySelector('[data-slot="event-pane"]');
@@ -444,10 +460,17 @@ const rowText = (page) =>
     /Escalation opened/i.test(after.announcement),
     after.announcement.replace(/\s+/g, " ").slice(0, 80) || "nothing announced"
   );
+  /* ═══ THIS CHECK IS INVERTED, AND THE INVERSION IS THE PHASE (§2.8) ═══
+     It asserted the flag STAYED in the queue: "escalating is when it stopped
+     being handled", so resolving it would have filed it as handled. §2.8
+     links the flag to the record instead, where it renders in full — so it
+     has not stopped being handled, it has moved to where the handling is, and
+     leaving it in the queue would ask for a second disposition on an incident
+     already being worked. */
   check(
-    "escalate.does-not-resolve",
-    "and does not close the event — escalating is when it stopped being handled",
-    (await rowText(page)).length === beforeRows,
+    "escalate.leaves-the-queue",
+    "and the flag leaves the queue, because it is attached to the record now",
+    (await rowText(page)).length === beforeRows - 1,
     `${beforeRows} rows before, ${(await rowText(page)).length} after`
   );
   await context.close();
@@ -649,12 +672,16 @@ for (const [scenario, id, want] of [
           .querySelector('[data-slot="event-pane"] [data-action="record"]')
           ?.textContent?.trim() ?? ""
     );
+    /* ═══ THE PRIMARY IS THE COMMIT NOW, AND ITS NOUN IS THE ACT (§2.8) ═══
+       It read "Record disposition" — the noun of the axis above it — and the
+       check asserted that the noun followed the axis. Splitting the control
+       changed what the button IS: the disposition is the what, this is the
+       commit, and "Mark reviewed" names the commit rather than restating the
+       question. */
     check(
-      `axes.${name}.primary-noun`,
-      "and the primary's noun follows the axis it commits",
-      ownsAxis1 === "What you did"
-        ? primary === "Record what you did"
-        : primary === "Record disposition",
+      `axes.${name}.primary-is-the-commit`,
+      "and the primary names the commit rather than restating the axis",
+      primary === "Mark reviewed",
       primary || "no primary"
     );
     /* THE HEADING AND THE BUTTONS MUST AGREE. Asserted on the word each subject
@@ -988,6 +1015,226 @@ for (const [scenario, id, want] of [
     "and it does not follow the reader to the next teen's flag",
     carried.length === 0,
     carried.length ? `still checked: ${carried.join(",")}` : "cleared"
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7b · THE FOOTER SPLIT, AND THE FLAG→ESCALATION LINK (addendum §2.8)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("footer", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(400);
+  const seen = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    const b = (sel) => {
+      const el = pane?.querySelector(sel);
+      return el ? { text: (el.textContent ?? "").trim(), disabled: !!el.disabled } : null;
+    };
+    return {
+      dispositions: [...(pane?.querySelectorAll("[data-disposition]") ?? [])].map((e) =>
+        (e.textContent ?? "").trim()
+      ),
+      record: b('[data-action="record"]'),
+      escalate: b('[data-action="escalate"]'),
+    };
+  });
+  check(
+    "footer.three-dispositions",
+    "the required axis offers three clinical values and no verb",
+    seen.dispositions.length === 3 &&
+      !seen.dispositions.some((t) => /escalat/i.test(t)),
+    seen.dispositions.join(" · ") || "none"
+  );
+  check(
+    "footer.two-ctas",
+    "the commit and the action are separate controls, and NEITHER is disabled",
+    seen.record?.text === "Mark reviewed" &&
+      seen.escalate?.text === "Escalate now" &&
+      !seen.record.disabled &&
+      !seen.escalate.disabled,
+    `${seen.record?.text ?? "no commit"} / ${seen.escalate?.text ?? "no action"}`
+  );
+  /* ═══ NOT DISABLED, SO PRESSING IT HAS TO SAY WHY ═══
+     §2.8 is explicit that the primary is not disabled: a disabled button
+     announces nothing and gives no reason. The obligation that creates is
+     this one — the refusal has to be legible AND nothing may resolve. */
+  const rowsBefore = await page.locator('[role="treeitem"]').count();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(350);
+  const refused = await page.evaluate(() => ({
+    hint: document.querySelector("#disposition-hint")?.textContent ?? null,
+    rows: document.querySelectorAll('[role="treeitem"]').length,
+  }));
+  check(
+    "footer.ungated-press-explains",
+    "pressing the commit with no disposition explains itself and closes nothing",
+    !!refused.hint && refused.rows === rowsBefore,
+    `${refused.hint ?? "no hint"} · rows ${rowsBefore} → ${refused.rows}`
+  );
+  await context.close();
+}
+
+/* ═══ AXIS 2 ASKS ABOUT A CLASSIFIER, SO IT GOES WHERE ONE DID NOT RUN ═══
+   `flag-user-reported` exists for this check: every other fixture is
+   classifier-only, so the rule would otherwise be asserted over an empty set.
+   THE FIRST VERSION OF THE GATE NEVER FIRED — it compared `reportedBy`
+   against `"user-report"`, a value the field cannot hold — and this is the
+   check that found it. */
+{
+  const { context, page } = await open("user-reported", { scenario: "flag-user-reported" });
+  await page.waitForTimeout(900);
+  const rows = await page.locator('[role="treeitem"]').count();
+  const reads = [];
+  for (let i = 0; i < rows; i += 1) {
+    await page.locator('[role="treeitem"]').nth(i).click();
+    await page.waitForTimeout(260);
+    reads.push(
+      await page.evaluate(() => {
+        const pane = document.querySelector('[data-slot="event-pane"]');
+        const text = (pane?.innerText ?? "").toLowerCase();
+        return {
+          axis2: (pane?.querySelectorAll("[data-accuracy]") ?? []).length,
+          person: text.includes("reported by a person"),
+          classifier: text.includes("classifier rationale"),
+        };
+      })
+    );
+  }
+  const person = reads.filter((r) => r.person);
+  const model = reads.filter((r) => r.classifier);
+  check(
+    "axis2.input",
+    "the queue holds both a classifier flag and a person's report",
+    person.length > 0 && model.length > 0,
+    `${person.length} reported by a person · ${model.length} by the classifier`
+  );
+  check(
+    "axis2.suppressed-for-people",
+    "a flag a person raised does not ask whether the classifier was right",
+    person.every((r) => r.axis2 === 0),
+    person.map((r) => `${r.axis2} control(s)`).join(" · ") || "no person-reported flag"
+  );
+  check(
+    "axis2.present-for-the-classifier",
+    "and a flag the classifier raised still does",
+    model.every((r) => r.axis2 === 2),
+    model.map((r) => `${r.axis2} control(s)`).join(" · ") || "no classifier flag"
+  );
+  await context.close();
+}
+
+/* ═══ ESCALATING LINKS THE FLAG AND TAKES IT OUT OF THE QUEUE ═══ */
+{
+  const { context, page } = await open("escalate-links", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  const before = await page.locator('[role="treeitem"]').count();
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(300);
+  await page.locator('[data-action="escalate"]').click();
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => {
+    const sec = document.querySelector('[data-anno-ref="escalation-linked-flags"]');
+    return {
+      rows: document.querySelectorAll('[role="treeitem"]').length,
+      linked: document.querySelectorAll("[data-linked-flag]").length,
+      text: (sec?.innerText ?? "").replace(/\s+/g, " ").slice(0, 160),
+    };
+  });
+  check(
+    "link.leaves-the-queue",
+    "escalating a flag takes it out of the queue rather than leaving it to be dispositioned twice",
+    after.rows === before - 1,
+    `${before} → ${after.rows} row(s)`
+  );
+  check(
+    "link.renders-inside-the-record",
+    "and it renders inside the record with its evidence intact",
+    after.linked === 1 &&
+      /Playbook match/.test(after.text) &&
+      /Classifier rationale/.test(after.text),
+    after.text || "no linked-flag section"
+  );
+  /* ═══ THE PICKER'S ONLY REACHABLE STATE IN THESE FIXTURES ═══
+     Every flag on a teen is on that teen's ONE conversation — `objectId` is
+     the teen id throughout the seed — so the interim auto-link rule has
+     already claimed anything the picker could offer. The case it exists for
+     (a flag on the teen's OTHER thread) needs a fixture with two
+     conversations per teen, which the data model does not currently express.
+     Reported rather than faked: what is checkable is that the empty state
+     names its scope instead of reading as a broken list. */
+  await page.locator('[data-action="attach-flag"]').click();
+  await page.waitForTimeout(300);
+  const picker = await page.evaluate(() => {
+    const sec = document.querySelector('[data-anno-ref="escalation-linked-flags"]');
+    return {
+      options: sec?.querySelectorAll("[data-attach]").length ?? 0,
+      text: (sec?.innerText ?? "").replace(/\s+/g, " "),
+    };
+  });
+  check(
+    "link.picker-states-its-scope",
+    "the attach picker names what it searched when it finds nothing",
+    picker.options > 0 || /No other open flags on \w/.test(picker.text),
+    picker.options > 0
+      ? `${picker.options} attachable flag(s)`
+      : picker.text.slice(0, 120)
+  );
+  await context.close();
+}
+
+/* ═══ THE KEYBOARD PATH IS ONE KEYSTROKE, AND ONLY WHERE IT SHOULD BE ═══ */
+{
+  const { context, page } = await open("digits", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  const before = await page.locator('[role="treeitem"]').count();
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("1");
+  await page.waitForTimeout(800);
+  const afterResolve = await page.locator('[role="treeitem"]').count();
+  check(
+    "keys.digit-commits",
+    "a digit selects a disposition AND commits it, in one keystroke",
+    afterResolve === before - 1,
+    `${before} → ${afterResolve} row(s)`
+  );
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("3");
+  await page.waitForTimeout(800);
+  const watch = await page.evaluate(() => ({
+    rows: document.querySelectorAll('[role="treeitem"]').length,
+    checked: [...document.querySelectorAll('[data-slot="event-pane"] [role="radio"][aria-checked="true"]')].map(
+      (e) => e.getAttribute("data-disposition")
+    ),
+  }));
+  check(
+    "keys.watch-does-not-close",
+    "and the watch value records itself without closing anything",
+    watch.rows === afterResolve && watch.checked.includes("watching"),
+    `${afterResolve} → ${watch.rows} row(s) · checked ${watch.checked.join(",") || "nothing"}`
+  );
+  /* THE SHEET HAS TO SAY THAT. A row reading "Watching — not resolved — and
+     mark reviewed" teaches that the key closes an event the value keeps
+     open, which is what the first version printed. */
+  await page.keyboard.press("?");
+  await page.waitForTimeout(400);
+  const sheet = await page.evaluate(
+    () => document.querySelector('[role="dialog"]')?.innerText ?? ""
+  );
+  check(
+    "keys.sheet-teaches-the-effect",
+    "the sheet distinguishes the keys that close from the one that does not",
+    /Watching — not resolved(?! — and mark reviewed)/.test(sheet) &&
+      /No clinical concern — and mark reviewed/.test(sheet) &&
+      /Open an escalation from this flag/.test(sheet),
+    sheet
+      .split("\n")
+      .filter((l) => /mark reviewed|Watching|escalation/.test(l))
+      .join(" · ") || "teaches none of them"
   );
   await context.close();
 }

@@ -56,6 +56,7 @@ function item(taskType: TaskType, openedAgo: number, over?: Partial<TaskItem>): 
     payload: {
       kind: "riskFlag",
       sourceType: "Message",
+      reportedBy: "classifier",
       categories: [],
       flaggedExcerpt: "",
       aiRationale: "",

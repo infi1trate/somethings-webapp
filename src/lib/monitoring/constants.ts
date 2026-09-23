@@ -128,6 +128,30 @@ export const FLAG_PATTERN_WINDOW: number | null = null;
  *  blocked — it is the pack's own "two or more". */
 export const FLAG_PATTERN_MIN = 2;
 
+/** ═══ BLOCKED · Meg — HOW LONG AN OPEN ESCALATION CLAIMS NEW FLAGS ═══
+ *
+ *  A flag arriving on a conversation that already has an open escalation is
+ *  almost certainly part of it, and attaching it automatically saves a
+ *  supervisor from dispositioning the same incident twice. "Almost certainly"
+ *  is the part that needs a number: an escalation open for six hours and a
+ *  flag arriving in its fifth are a different case from one arriving ninety
+ *  seconds after the trigger.
+ *
+ *  ═══ THE INTERIM RULE, AND WHY IT IS THE WIDE ONE ═══
+ *
+ *  While this is null, ANY flag on a conversation with a currently open
+ *  escalation is attached — no window at all. That is the widest possible
+ *  reading and it is deliberate, on the same argument `FLAG_PATTERN_WINDOW`
+ *  makes: attaching a flag that turns out to be separate leaves it visible
+ *  inside the record a supervisor is already reading, while NOT attaching one
+ *  that belongs leaves it in a queue as an apparently unrelated event during
+ *  a live incident. The failure modes are not symmetric.
+ *
+ *  It will only ever NARROW when the number arrives, which is why the interim
+ *  is safe to ship: nothing that is attached today would be un-attached by a
+ *  window, only the reverse. */
+export const FLAG_AUTOLINK_WINDOW: number | null = null;
+
 // ── Escalations ─────────────────────────────────────────────────────────────
 
 /** REAL, AND THE ONLY PUBLISHED RESPONSE SLA ON THE SURFACE. Five minutes from

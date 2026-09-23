@@ -96,6 +96,26 @@ export interface EscalationRecord {
    *  and a pane that printed "—" would be asserting there is nobody to call. */
   flaggedBy: string | null;
   emergencyContact: string | null;
+  /** ═══ THE RISK FLAGS ATTACHED TO THIS RECORD (addendum §2.8) ═══
+   *
+   *  Task ids, not events: an event is a view the Monitoring page assembles,
+   *  and a record outlives the page that is showing it. The pane joins them
+   *  back against its own event set, which is the same shape the timeline's
+   *  flag join already uses.
+   *
+   *  THREE WAYS IN, and the record cannot tell them apart on purpose — a flag
+   *  linked by a supervisor and one linked by the interim auto-rule are the
+   *  same fact about the same escalation:
+   *   · escalating FROM a flag attaches that flag,
+   *   · a supervisor attaches an existing flag by hand,
+   *   · a flag arriving on a conversation with an open escalation is attached
+   *     by `FLAG_AUTOLINK_WINDOW`'s interim rule.
+   *
+   *  PAGE-LOCAL, exactly as `closeOutDone` and flag resolutions are: nothing
+   *  in this prototype persists a supervisor's decision across a navigation.
+   *  Gap row 430 records that, and this inherits it rather than adding a
+   *  second persistence story. */
+  linkedFlagIds: readonly string[];
 }
 
 /** ═══ THE ACKNOWLEDGEMENT CLOCK — THE ONLY PUBLISHED RESPONSE SLA ═══

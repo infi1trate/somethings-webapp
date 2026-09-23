@@ -8,9 +8,24 @@
 //
 // So: a required clinical disposition, and an optional, de-emphasised note about
 // whether the classifier was right. The second never resolves anything.
+//
+// ═══ AND ESCALATING IS AN ACTION, NOT A DISPOSITION (addendum §2.8) ═══
+//
+// `Escalate now` was a fourth value in this array with `effect: "escalate"`.
+// It does not belong: a disposition is a STATEMENT ABOUT THE TEEN that a
+// supervisor is recorded as having made, and "escalate" is a thing they DO.
+// Putting it in the radiogroup meant the required question could be answered
+// with a verb, and it meant escalating cost two interactions — pick the radio,
+// then press the primary — on the path where under-escalation is the expensive
+// error.
+//
+// It is a secondary button now, always enabled, never gated on the radiogroup.
+// `DispositionEffect` loses its `escalate` arm with it.
+
+import type { RiskFlagPayload } from "@/lib/tasks/types";
 
 /** What a disposition DOES, which is the part the page has to branch on. */
-export type DispositionEffect = "resolve" | "watch" | "escalate";
+export type DispositionEffect = "resolve" | "watch";
 
 export interface DispositionValue {
   id: string;
@@ -58,16 +73,6 @@ export const DISPOSITION_VALUES: readonly DispositionValue[] = [
     effect: "watch",
     unresolvedQuestion: true,
   },
-  {
-    /* ═══ THE PATH THE OLD CONTROL DID NOT HAVE ═══
-       A flag that turns out to be a crisis must become an escalation RECORD, not
-       a closed flag with a note. It does not resolve: resolving would file the
-       event as handled at the moment it stopped being handled. */
-    id: "escalate",
-    label: "Escalate now",
-    consequence: "Opens an escalation record. Does not close this event.",
-    effect: "escalate",
-  },
 ];
 
 export function dispositionById(id: string | null): DispositionValue | null {
@@ -91,11 +96,36 @@ export const ACCURACY_VALUES: readonly AccuracyValue[] = [
   { id: "inaccurate", label: "Classifier was wrong" },
 ];
 
-/** NEEDS-COPY-NICOLE. The inline guidance when somebody tries to resolve with no
- *  disposition. Inline AT THE CONTROL — not a toast, which would be gone before
- *  a reader looked back at the thing it was about, and not a disabled button,
- *  which announces nothing and gives no reason. */
+/** NEEDS-COPY-NICOLE. The inline guidance when somebody presses `Mark reviewed`
+ *  with no disposition. Inline AT THE CONTROL — not a toast, which would be gone
+ *  before a reader looked back at the thing it was about, and not a disabled
+ *  button, which announces nothing and gives no reason. §2.8 is explicit that
+ *  the primary is not disabled. */
 export const DISPOSITION_REQUIRED_HINT = "Record a clinical disposition first.";
+
+/** ═══ WHERE AXIS 2 DOES NOT BELONG (addendum §2.8) ═══
+ *
+ *  A user-reported flag had no classifier in it. Asking whether the classifier
+ *  was right about a flag a PERSON raised is the same category error Phase 5
+ *  removed from practice events: a question about a producer that did not
+ *  produce this.
+ *
+ *  KEYED ON THE PAYLOAD'S OWN `reportedBy`, not on the absence of a rationale —
+ *  a classifier flag with an empty rationale is a pipeline defect, and
+ *  treating it as user-reported would hide that behind a missing control.
+ *
+ *  ═══ IT TAKES THE FIELD'S TYPE, AND THAT IS THE BUG THIS CAUGHT ═══
+ *  The first version took a `string | null` and compared against
+ *  `"user-report"` — a value `RiskFlagPayload.reportedBy` cannot hold, so the
+ *  gate never fired and the axis rendered on the user-reported flag anyway.
+ *  MEASURED by the probe, not by the compiler, because a wider parameter type
+ *  is exactly what stops the compiler seeing it. Narrowed, so a future typo
+ *  is a type error. */
+export function asksAboutClassifier(
+  reportedBy: RiskFlagPayload["reportedBy"] | null
+): boolean {
+  return reportedBy !== "user";
+}
 
 /** Does this disposition close the event? The single place the question is
  *  asked, so "recording classifier accuracy alone resolves nothing" is a

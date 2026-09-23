@@ -49,12 +49,32 @@ describe("only a clinical disposition can close an event", () => {
     }
   });
 
-  it("does not resolve on the escalate value", () => {
-    // Resolving here would file the event as handled at the moment it stopped
-    // being handled — the path the old control did not have at all.
-    const esc = DISPOSITION_VALUES.find((d) => d.effect === "escalate");
-    expect(esc, "an escalate value exists").toBeDefined();
-    expect(resolves(esc!)).toBe(false);
+  it("holds no verb at all — escalating is an action, not a disposition", () => {
+    /* ═══ THE INVERSION (addendum §2.8) ═══
+       This used to assert that an `escalate` value EXISTED and did not
+       resolve. It exists no longer: a disposition is a statement about the
+       teen that a supervisor is recorded as having made, and putting a verb
+       in the radiogroup meant the required clinical question could be
+       answered with an action.
+       WHAT IS ASSERTED NOW IS THE ABSENCE, and it is asserted over the LABELS
+       as well as the effects — re-adding it as a `watch`-effect value called
+       "Escalate now" would satisfy an effects-only check while putting the
+       verb straight back on the control. */
+    expect(DISPOSITION_VALUES.map((d) => d.effect)).not.toContain("escalate");
+    for (const d of DISPOSITION_VALUES) {
+      expect(d.label.toLowerCase(), d.id).not.toContain("escalat");
+    }
+  });
+
+  it("offers exactly the three values §2.8 names", () => {
+    /* THE COUNT AND THE IDS, because the primary is gated on this array being
+       answerable and a fourth value would change what "required" costs. Still
+       BLOCKED · Dr. Nissan — these three are proposed, not signed off. */
+    expect(DISPOSITION_VALUES.map((d) => d.id)).toEqual([
+      "no-concern",
+      "support-in-place",
+      "watching",
+    ]);
   });
 
   it("does not resolve on the watch value, which is the open question", () => {
@@ -130,8 +150,9 @@ describe("the blocked values stay one edit away", () => {
   it("covers every effect the page branches on, and no others", () => {
     // `DispositionEffect` is the union the page switches over. A value with an
     // effect nothing handles would fall through to doing nothing at all.
+    /* TWO ARMS SINCE §2.8 — `escalate` went with the value that carried it. */
     const effects = new Set(DISPOSITION_VALUES.map((d) => d.effect));
-    expect([...effects].sort()).toEqual(["escalate", "resolve", "watch"]);
+    expect([...effects].sort()).toEqual(["resolve", "watch"]);
   });
 
   it("carries a reader-facing label on every value", () => {

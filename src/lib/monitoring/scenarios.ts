@@ -105,6 +105,7 @@ export const MONITORING_SCENARIO_GROUPS: MonitoringScenarioGroup[] = [
       { id: "flag-repeat-pattern", label: "Repeat pattern" },
       { id: "flag-no-mentor-reply", label: "No mentor reply" },
       { id: "flag-false-positive-cluster", label: "False-positive cluster" },
+      { id: "flag-user-reported", label: "Raised by a person" },
     ],
   },
   {
@@ -206,6 +207,10 @@ function escalation(
     mentorId: o.mentorId ?? mentor.id,
     mentorName: o.mentorName ?? mentor.name,
     conversationId: o.conversationId ?? (o.teenId ?? teen.id),
+    /* NO FIXTURE ATTACHES A FLAG. Linking is a supervisor's action or the
+       interim auto-rule's, both page-local — a fixture that shipped linked
+       flags would be asserting a decision nobody made. */
+    linkedFlagIds: o.linkedFlagIds ?? [],
     triggeredAt: o.triggeredAt ?? triggeredAt,
     acknowledgedAt: o.acknowledgedAt ?? null,
     resolvedAt: o.resolvedAt ?? null,
@@ -347,6 +352,7 @@ export function escalationsFromTasks(
       is911: p.kind === "escalation" ? p.is911 : false,
       caregiverInvolved: null,
       closeOutDone: [],
+    linkedFlagIds: [],
       /* ═══ THE PAYLOAD IS THE ONLY THING THAT KNOWS WHETHER IT KNOWS ═══
          A DOCUMENTATION task carries the escalation id and the close time and
          nothing else — so both of these are genuinely unknown for a record
@@ -649,6 +655,33 @@ const BUILDERS: Record<string, Builder> = {
       category: "Low mood",
     }));
     return base(now, events, 0.4);
+  },
+
+  /* ═══ A FLAG NO CLASSIFIER PRODUCED (addendum §2.8) ═══
+     The axis-2 suppression is the kind of rule that is easy to assert over an
+     empty set: every flag in every other fixture comes from the classifier, so
+     a check that "user-reported flags hide the accuracy axis" would have
+     passed on a queue with no user-reported flag in it.
+     THE FIRST ROW ONLY, so one queue holds both kinds and the pane can be
+     compared against its neighbour in a single run. */
+  "flag-user-reported": (now, ts) => {
+    const flags = flagPool(ts, now).slice(0, 6);
+    const [first, ...rest] = flags;
+    const reported: TaskItem = {
+      ...first,
+      payload: {
+        ...(first.payload as RiskFlagPayload),
+        reportedBy: "user",
+        /* NEEDS-COPY-NICOLE. NOT AN "AI RATIONALE" — a person raised this, so
+           the prose is theirs and the pane attributes it as such. Leaving the
+           classifier's paragraph in place would put machine-written text under
+           a human's report, which is the provenance error this whole surface
+           is built to avoid. */
+        aiRationale:
+          "Reported by Priscilla Vance: teen mentioned not wanting to wake up, twice in one call.",
+      },
+    };
+    return base(now, eventsFromFlags([reported, ...rest], now), 0.4);
   },
 };
 

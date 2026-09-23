@@ -24,9 +24,11 @@ import { playbookMatchFor } from "@/lib/monitoring/surfacing";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   EyeOff,
+  PlusCircle,
   ShieldAlert,
 } from "lucide-react";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
@@ -52,6 +54,7 @@ import {
   ACCURACY_VALUES,
   DISPOSITION_REQUIRED_HINT,
   DISPOSITION_VALUES,
+  asksAboutClassifier,
   dispositionById,
   type DispositionValue,
 } from "@/lib/monitoring/disposition";
@@ -219,6 +222,7 @@ function FlagBody({
   const payload = item.payload as RiskFlagPayload;
   const conversation = buildConversation(item, payload.flaggedExcerpt, now);
   const match = playbookMatchFor(payload);
+  const byClassifier = asksAboutClassifier(payload.reportedBy);
   return (
     <div className="space-y-4">
       {/* ═══ ONE BLOCK, ABOVE THE CONVERSATION (Phase 5, from arch-H H7) ═══
@@ -259,7 +263,28 @@ function FlagBody({
               way loses something real — "Playbook match" over the prose would
               dress generated text as clinical authorship, and "AI rationale"
               over the chips would hand the taxonomy to the model. */}
-          <SystemBlock label="Classifier rationale">{match.rationale}</SystemBlock>
+          {/* ═══ THE LABEL NAMES THE AUTHOR, AND SOMETIMES IT IS A PERSON ═══
+              NEEDS-COPY-NICOLE. A user-reported flag's prose was written by a
+              mentor, and `SystemBlock`'s whole job is marking text as
+              machine-written. Putting a human's report under "Classifier
+              rationale" — inside a block that says "generated" — is the
+              provenance error this surface exists to prevent, told backwards.
+              THE PLAYBOOK MATCH ABOVE IS UNCHANGED: the categories are a
+              published clinical taxonomy either way, and who noticed the
+              message does not change which category it falls under. */}
+          {byClassifier ? (
+            <SystemBlock label="Classifier rationale">{match.rationale}</SystemBlock>
+          ) : (
+            <div className="rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-s1)] p-3">
+              <p className="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                {/* NEEDS-COPY-NICOLE */}
+                Reported by a person
+              </p>
+              <p className="mt-1 text-[13px] leading-[19px] text-[var(--text-primary)]">
+                {match.rationale}
+              </p>
+            </div>
+          )}
         </div>
         {/* NO CONFIDENCE INDICATOR AND NO EVIDENCE CHIPS. `match.confidence` is
             null and `match.features` is empty, and both are declared absences
@@ -297,12 +322,17 @@ function EscalationBody({
   rec,
   now,
   events,
+  compliance,
+  onLinkFlag,
 }: {
   rec: EscalationRecord;
   now: number;
   /** The surface's own events, for the timeline's flag join — a real join here,
    *  because this page is where those events live. */
   events: MonitoringEvent[];
+  compliance: CompliancePath;
+  /** Attach an existing flag by hand (addendum §2.8). */
+  onLinkFlag: (flagId: string) => void;
 }) {
   const ack = ackStateFor(rec, now);
   const items = closeOutOf(rec, now);
@@ -561,6 +591,14 @@ function EscalationBody({
           </div>
         ))}
 
+      <LinkedFlags
+        rec={rec}
+        events={events}
+        now={now}
+        compliance={compliance}
+        onLinkFlag={onLinkFlag}
+      />
+
       {/* ═══ "Open the escalation record" IS GONE — IT LINKED TO THIS PAGE ═══
           It pointed at `escalationHref(rec.id)`, which redirects to
           `/app/escalations?escalation={id}`: the route the reader is standing on,
@@ -570,6 +608,196 @@ function EscalationBody({
           survives a move because nobody re-reads it.
           `escalationHref` IS STILL RIGHT ELSEWHERE — the region's rows and
           Today's escalation strip both use it, and they are not on this route. */}
+    </div>
+  );
+}
+
+/** ═══ THE FLAGS ATTACHED TO THIS ESCALATION (addendum §2.8) ═══
+ *
+ *  ═══ WHY THE WHOLE FLAG AND NOT A LINE PER FLAG ═══
+ *
+ *  §2.8 asks for the playbook match, the classifier rationale and the flagged
+ *  message to be intact INSIDE the record. A list of "Passive suicidal
+ *  ideation · 2h ago" rows would be a second index into evidence that is one
+ *  click away — and the click leaves the escalation a supervisor is working.
+ *  The whole flag renders here, through `FlagBody`, which is the same
+ *  component Risk Flags uses: one rendering of a flag's evidence, wherever a
+ *  reader meets it.
+ *
+ *  COLLAPSED BY DEFAULT ABOVE ONE. A live escalation's pane already holds two
+ *  clocks, four close-out obligations, a timeline and a note module; three
+ *  expanded flags below that would bury the thing the pane is for. The first
+ *  is open because a record with exactly one attached flag is the common case
+ *  and the flag is why the record exists.
+ *
+ *  ═══ A FLAG THAT IS LINKED HAS LEFT THE QUEUE ═══
+ *
+ *  Every path in — escalating from it, attaching it by hand, the interim
+ *  auto-link rule — marks it reviewed in the same action. So this section
+ *  reads from the UNFILTERED event set: the flags it shows are precisely the
+ *  ones the queue no longer has.
+ */
+function LinkedFlags({
+  rec,
+  events,
+  now,
+  compliance,
+  onLinkFlag,
+}: {
+  rec: EscalationRecord;
+  events: MonitoringEvent[];
+  now: number;
+  compliance: CompliancePath;
+  onLinkFlag: (flagId: string) => void;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const linked = rec.linkedFlagIds
+    .map((id) => events.find((e) => e.id === id))
+    .filter((e): e is MonitoringEvent => !!e);
+
+  /** ═══ THE PICKER IS SCOPED TO THIS TEEN (addendum §2.8) ═══
+   *  Not to the conversation: a supervisor attaching by hand is making a
+   *  judgment the auto-rule could not, and the case that judgment exists for
+   *  is a flag on the teen's OTHER thread that turns out to be the same
+   *  incident. Anything already attached is excluded, so the list cannot
+   *  offer a link that would do nothing. */
+  const attachable = events.filter(
+    (e) => e.teenId === rec.teenId && !rec.linkedFlagIds.includes(e.id)
+  );
+
+  const shown = open ?? (linked.length === 1 ? linked[0]?.id : null);
+
+  return (
+    <div data-anno-ref="escalation-linked-flags">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={LABEL}>
+          {/* NEEDS-COPY-NICOLE. The count is in the heading because an empty
+              section and a one-flag section are different facts, and the
+              heading is where a reader looks for which they have. */}
+          Linked flags{linked.length > 0 ? ` · ${linked.length}` : ""}
+        </p>
+        <button
+          type="button"
+          onClick={() => setPicking((v) => !v)}
+          aria-expanded={picking}
+          data-action="attach-flag"
+          className={cn(
+            "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[12.5px] font-semibold text-[var(--text-primary)]",
+            "hover:bg-[var(--tint-hover)]",
+            RING
+          )}
+        >
+          <PlusCircle className="size-3.5 shrink-0" aria-hidden />
+          {/* NEEDS-COPY-NICOLE */}
+          Attach a flag
+        </button>
+      </div>
+
+      {picking && (
+        <div className="mt-2 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-s1)] p-3">
+          {attachable.length === 0 ? (
+            <p className="text-[12.5px] leading-[18px] text-[var(--text-secondary)]">
+              {/* ═══ IT NAMES THE SCOPE, BECAUSE THE SCOPE IS THE ANSWER ═══
+                  NEEDS-COPY-NICOLE. "Nothing to attach" would leave a reader
+                  wondering whether the list is empty or broken; this says what
+                  was searched. */}
+              {/* NO TRAILING PERIOD. The teen's display name already ends in
+                  one ("Jordan P."), and the first render read "…on Jordan P..".
+                  Measured in the probe's own detail string. */}
+              No other open flags on {rec.teenName}
+            </p>
+          ) : (
+            <ul role="list" className="flex flex-col gap-1.5">
+              {attachable.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    data-attach={e.id}
+                    onClick={() => {
+                      onLinkFlag(e.id);
+                      setPicking(false);
+                    }}
+                    className={cn(
+                      "flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 text-left text-[13px] leading-[18px]",
+                      "text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
+                      RING
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {e.category ? riskCategoryLabel(e.category) : "Uncategorised"}
+                    </span>
+                    <span
+                      className="shrink-0 tabular-nums text-[12px] text-[var(--text-secondary)]"
+                      style={{ fontFamily: "var(--font-mono)" }}
+                    >
+                      {ageLabel(e.at, now)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {linked.length === 0 ? (
+        <p className="mt-2 text-[12.5px] leading-[18px] text-[var(--text-secondary)]">
+          {/* ═══ AN EMPTY SECTION IS A REAL STATE, NOT A MISSING ONE ═══
+              NEEDS-COPY-NICOLE. An escalation raised from the region or from a
+              fixture has no flag behind it, and saying so is different from
+              rendering nothing — which on a record reads as a load that failed. */}
+          No risk flags are attached to this escalation.
+        </p>
+      ) : (
+        <ul role="list" className="mt-2 flex flex-col gap-2">
+          {linked.map((e) => {
+            const expanded = shown === e.id;
+            return (
+              <li
+                key={e.id}
+                data-linked-flag={e.id}
+                className="rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-s1)]"
+              >
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setOpen(expanded ? "" : e.id)}
+                  className={cn(
+                    "flex min-h-11 w-full items-center gap-2 px-3 text-left",
+                    RING
+                  )}
+                >
+                  <ChevronDown
+                    aria-hidden
+                    className={cn(
+                      "size-4 shrink-0 text-[var(--text-secondary)] transition-transform duration-150",
+                      "motion-reduce:transition-none",
+                      expanded ? "" : "-rotate-90"
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-[var(--text-primary)]">
+                    {e.category ? riskCategoryLabel(e.category) : "Uncategorised"}
+                  </span>
+                  <span
+                    className="shrink-0 tabular-nums text-[12px] text-[var(--text-secondary)]"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    {ageLabel(e.at, now)}
+                  </span>
+                </button>
+                {expanded && (
+                  <div className="border-t border-[color:var(--border-subtle)] px-3 py-3">
+                    {/* THE SAME COMPONENT RISK FLAGS RENDERS. One rendering of
+                        a flag's evidence, wherever a reader meets it. */}
+                    <FlagBody event={e} now={now} compliance={compliance} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -723,6 +951,22 @@ export interface PaneHandle {
   /** The keyboard's `y`/`n`. ON THIS SURFACE THEY ANSWER AXIS 2 AND RESOLVE
    *  NOTHING — the old binding resolved the event, which is the defect. */
   accuracy?: (accurate: boolean) => void;
+  /** ═══ `1`/`2`/`3` — SELECT AND COMMIT, IN ONE KEYSTROKE (addendum §3.3) ═══
+   *
+   *  §2.8 split one control into two: a disposition, then `Mark reviewed`.
+   *  That is one more tap on the highest-volume surface in the product — 123
+   *  items on a heavy shift — and at that volume one extra tap is real.
+   *
+   *  THE MITIGATION IS THIS, and it is not a shortcut for the same two steps:
+   *  the key selects the value AND commits it, so the keyboard path is one
+   *  keystroke where the mouse path is two. The commit still runs the same
+   *  gate — a digit outside the array does nothing rather than committing
+   *  whatever is selected.
+   *
+   *  DIGITS RATHER THAN INITIALS because the labels collide: "No clinical
+   *  concern" and "Watching — not resolved" both want `n`, and `n` already
+   *  answers axis 2. */
+  commitDisposition?: (index: number) => void;
 }
 
 export function EventPane({
@@ -734,6 +978,7 @@ export function EventPane({
   deactivated,
   onResolve,
   onEscalate,
+  onLinkFlag,
   within = null,
   handleRef,
 }: {
@@ -750,6 +995,8 @@ export function EventPane({
   deactivated: boolean;
   onResolve: (e: MonitoringEvent, detail: { disposition: DispositionValue; accuracy: string | null }) => void;
   onEscalate: (e: MonitoringEvent) => void;
+  /** Attach an existing flag to the record on screen (addendum §2.8). */
+  onLinkFlag: (flagId: string) => void;
   /** ═══ WHERE THIS FLAG SITS IN ITS CONVERSATION (addendum §3.1) ═══
    *  The list's unit is a conversation now, so a row can stand for three
    *  flags and the pane is where a supervisor moves between them. Null on an
@@ -766,6 +1013,16 @@ export function EventPane({
   const [accuracy, setAccuracy] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
   const hintRef = useRef<HTMLParagraphElement | null>(null);
+  /** ═══ DOES A CLASSIFIER'S ACCURACY MEAN ANYTHING HERE (addendum §2.8) ═══
+   *  Read off the payload's own `reportedBy` rather than off the absence of a
+   *  rationale: a classifier flag with an empty rationale is a pipeline
+   *  defect, and treating it as user-reported would hide that behind a missing
+   *  control. */
+  const showAccuracy = asksAboutClassifier(
+    event?.flag?.payload.kind === "riskFlag"
+      ? event.flag.payload.reportedBy
+      : null
+  );
 
   /** ═══ THE HANDLE IS PUBLISHED IN AN EFFECT, NOT DURING RENDER ═══
    *  A ref write in render scope is impure and the React Compiler rejects it —
@@ -785,8 +1042,19 @@ export function EventPane({
       accuracy: (accurate: boolean) => {
         setAccuracy(accurate ? "accurate" : "inaccurate");
       },
+      commitDisposition: (index: number) => {
+        const d = DISPOSITION_VALUES[index];
+        /* OUT OF RANGE DOES NOTHING. `4` is bound by the hook and there are
+           three values; committing "whatever is selected" on an unbound digit
+           would be a clinical record written by a mis-key. */
+        if (!d || !event) return;
+        setDisposition(d.id);
+        setHint(false);
+        if (d.effect === "watch") return;
+        onResolve(event, { disposition: d, accuracy });
+      },
     };
-  }, [handleRef]);
+  }, [handleRef, event, accuracy, onResolve]);
 
   /* NEEDS-COPY-NICOLE. It read `EVENT_KIND_LABEL[event.kind]`, which over one
      event kind is the constant "Flag" — so the table went and the word stayed. */
@@ -815,10 +1083,12 @@ export function EventPane({
       return;
     }
     setHint(false);
-    if (d.effect === "escalate") {
-      onEscalate(event);
-      return;
-    }
+    /* ═══ ESCALATING IS NO LONGER REACHABLE FROM HERE (addendum §2.8) ═══
+       `Escalate now` was a disposition with `effect: "escalate"`, so committing
+       it went through this function. It is a secondary BUTTON now, calling
+       `onEscalate` directly and never gated on the radiogroup — under-
+       escalation is the expensive error on this surface and it should not cost
+       two interactions. */
     if (d.effect === "watch") {
       /* WATCHING IS NOT A RESOLUTION. It records that the event was seen and
          leaves it in the queue — which is the state whose clinical existence is
@@ -927,7 +1197,13 @@ export function EventPane({
           </div>
         )}
         {escalation ? (
-          <EscalationBody rec={escalation} now={now} events={events} />
+          <EscalationBody
+            rec={escalation}
+            now={now}
+            events={events}
+            compliance={compliance}
+            onLinkFlag={onLinkFlag}
+          />
         ) : event ? (
           <FlagBody event={event} now={now} compliance={compliance} />
         ) : null}
@@ -973,48 +1249,83 @@ export function EventPane({
               hintRef={hintRef}
             />
             <div className="flex flex-wrap items-end justify-between gap-4">
-              {/* ═══ AXIS 2 IS ONLY A FLAG'S QUESTION (Phase 5) ═══
-                  It rendered on every event. Measured on `/app/mentor-practice`
-                  with the `mentor-note-overdue` fixture: a row reading "Video
-                  progress note overdue — 5h 0m overdue · Measured against note
-                  SLA" offered "Classifier was right / Classifier was wrong".
-                  NO CLASSIFIER IS INVOLVED. The five practice rules in
-                  `lib/monitoring/practice.ts` are deterministic — they compare a
-                  timestamp to a constant — so the question is not merely
-                  irrelevant there, it is unanswerable, and a supervisor who
-                  answered it would be recorded as having judged a model that
-                  never ran.
+              {/* ═══ AXIS 2 ASKS ABOUT A CLASSIFIER, SO IT RENDERS WHERE ONE RAN ═══
+                  Phase 5 removed it from practice events, where the producer
+                  was a deterministic rule and the question was unanswerable.
+                  §2.8 removes it from USER-REPORTED flags for the same reason
+                  one layer along: a person put this in the queue, and asking
+                  whether the classifier was right about it is a question about
+                  a producer that did not produce it.
                   AN EMPTY SLOT RATHER THAN A DISABLED CONTROL: a greyed axis
                   announces itself to a screen reader and gives no reason. */}
-              {/* ═══ AXIS 2 ASKS ABOUT THE PRODUCER, AND EACH SUBJECT HAS ONE ═══
-                  Phase 5 removed the CLASSIFIER axis from practice events,
-                  because the five rules are deterministic and there is no model
-                  to be right or wrong. Phase 8 puts the analogous question
-                  back — about the RULE. Every constant those rules read carries a
-                  `_PROVISIONAL` flag, and a supervisor watching them fire
-                  against real shifts is the only source of the feedback that
-                  could settle one.
-                  IT IS NOT AXIS 1 RESTATED: "Rule didn't apply here" is about
-                  this instance (a mentor on PTO); "Threshold looks wrong" is
-                  about the constant (a cutoff that trips everybody daily).
-                  Conflating them would lose the only signal that can
-                  un-provisional a number. */}
-              <AccuracyAxis value={accuracy} onChange={setAccuracy} />
-              <button
-                type="button"
-                onClick={submit}
-                data-action="record"
-                className={cn(
-                  "inline-flex min-h-11 items-center rounded-full bg-[var(--text-primary)] px-5 text-[14px] font-semibold text-[var(--surface-card)]",
-                  "transition-opacity hover:opacity-90",
-                  RING
-                )}
-              >
-                {/* ═══ NOT "Resolve" ═══
-                    NEEDS-COPY-NICOLE. The verb is about RECORDING rather than
-                    closing, because one value does not close the event. */}
-                Record disposition
-              </button>
+              {showAccuracy ? (
+                <AccuracyAxis value={accuracy} onChange={setAccuracy} />
+              ) : (
+                <span />
+              )}
+              {/* ═══ TWO CONTROLS, AND ONLY ONE OF THEM IS GATED (§2.8) ═══
+                  `Mark reviewed` is the COMMIT: it requires a disposition and
+                  says so inline when it does not have one. `Escalate now` is an
+                  ACTION and is always enabled — it was a fourth radio value,
+                  which meant the required clinical question could be answered
+                  with a verb and escalating cost two interactions.
+                  ORDER: the commit last, in the primary position at the end of
+                  the row, with the action to its left. A reader scanning right
+                  to left off the transcript meets the escalation first, which
+                  is the one that must not be missed under pressure. */}
+              <span className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => event && onEscalate(event)}
+                  data-action="escalate"
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold",
+                    /* ═══ TONAL, NOT A SATURATED RED FILL (§3.2) ═══
+                       Red means two things on this surface already — an active
+                       escalation, and a breached clock — and both are states
+                       the SYSTEM is reporting. Putting saturated red on a
+                       button a supervisor presses from any of 123 flag details
+                       changes red from "something is wrong" to "something is
+                       here", and the state meaning dilutes.
+                       MORE IMPORTANTLY, escalating is the correct conservative
+                       action. Red reads as destructive across every convention
+                       a supervisor brings with them (Jakob's Law), and a
+                       danger-styled button gets pressed less — the wrong thumb
+                       on the scale where under-escalation is the expensive
+                       error.
+                       THE TRADE, STATED: less visual separation from the
+                       commit, so the tonal fill has to do real work. It carries
+                       a border AND a fill AND an icon, against the commit's
+                       solid ink. */
+                    "border border-[color:var(--state-error)]/35 bg-[var(--state-error)]/10 text-[var(--state-error)]",
+                    "hover:bg-[var(--state-error)]/15",
+                    RING
+                  )}
+                >
+                  <ShieldAlert className="size-4 shrink-0" aria-hidden />
+                  {/* NEEDS-COPY-NICOLE */}
+                  Escalate now
+                </button>
+                <button
+                  type="button"
+                  onClick={submit}
+                  data-action="record"
+                  className={cn(
+                    "inline-flex min-h-11 items-center rounded-full bg-[var(--text-primary)] px-5 text-[14px] font-semibold text-[var(--surface-card)]",
+                    "transition-opacity hover:opacity-90",
+                    RING
+                  )}
+                >
+                  {/* ═══ "Mark reviewed", NOT "Record disposition" ═══
+                      NEEDS-COPY-NICOLE. The disposition is the WHAT and this is
+                      the COMMIT — two steps, which is one more tap than the
+                      single control it replaces on the highest-volume surface
+                      in the product. The mitigation is the keyboard: `1`/`2`/`3`
+                      select AND commit in one keystroke, so the mouse path is
+                      two steps and the keyboard path stays one. */}
+                  Mark reviewed
+                </button>
+              </span>
             </div>
           </div>
         )}

@@ -136,3 +136,29 @@ export function compareGroups(a: FlagGroup, b: FlagGroup): number {
 export function sortGroups(groups: FlagGroup[]): FlagGroup[] {
   return [...groups].sort(compareGroups);
 }
+
+/** ═══ WHICH FLAGS AN ESCALATION CLAIMS WHEN IT OPENS (addendum §2.8) ═══
+ *
+ *  Escalating from a flag attaches that flag. It also attaches every OTHER
+ *  open flag on the same conversation, which is the interim rule
+ *  `FLAG_AUTOLINK_WINDOW` stands in for while the window is unset — see that
+ *  constant for why the interim is the widest reading rather than the
+ *  narrowest.
+ *
+ *  KEYED ON THE CONVERSATION, not on the teen. A teen with two conversations
+ *  has two threads a flag could be about, and claiming both would attach
+ *  evidence from a conversation nobody has read to a record somebody is about
+ *  to act on.
+ *
+ *  A PURE FUNCTION over the group list, so the rule is testable without a
+ *  page and so the day the window lands it is one file's change.
+ */
+export function autoLinkedFor(
+  from: MonitoringEvent,
+  groups: FlagGroup[]
+): string[] {
+  const g = groups.find((x) => x.id === from.conversationId);
+  if (!g) return [from.id];
+  const ids = g.events.map((e) => e.id);
+  return ids.includes(from.id) ? ids : [from.id, ...ids];
+}

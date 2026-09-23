@@ -183,12 +183,19 @@ function assertPlaybookCategories(categories: string[]): void {
 function flagPayload(
   categories: string[],
   excerpt: string,
-  rationale: string
+  rationale: string,
+  /** ═══ THE CLASSIFIER IS THE DEFAULT, AND IT IS A DEFAULT NOT AN ASSUMPTION ═══
+   *  Every flag in the shipped fixtures comes from the classifier. A
+   *  user-reported one is built by passing this, and `flag-user-reported`
+   *  exists so the axis-2 suppression is exercised rather than asserted over
+   *  an empty set. */
+  reportedBy: "classifier" | "user" = "classifier"
 ): TaskPayload {
   assertPlaybookCategories(categories);
   return {
     kind: "riskFlag",
     sourceType: "Message",
+    reportedBy,
     categories,
     flaggedExcerpt: excerpt,
     aiRationale: rationale,

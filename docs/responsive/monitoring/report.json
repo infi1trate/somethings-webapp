@@ -1,5 +1,5 @@
 {
-  "at": 1790201730906,
+  "at": 1790203230506,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
@@ -101,13 +101,13 @@
       "id": "input.dispositions",
       "label": "the disposition axis rendered",
       "ok": true,
-      "detail": "no-concern,support-in-place,watching,escalate"
+      "detail": "no-concern,support-in-place,watching"
     },
     {
-      "id": "axis1.has-escalate-path",
-      "label": "one value opens an escalation instead of resolving",
+      "id": "axis1.holds-no-verb",
+      "label": "the required clinical question cannot be answered with an action",
       "ok": true,
-      "detail": "Escalate now"
+      "detail": "No clinical concern [resolve] · Support already in place [resolve] · Watching — not resolved [watch]"
     },
     {
       "id": "axis.no-disabled-button",
@@ -186,13 +186,13 @@
       "id": "escalate.says-so",
       "label": "and says so, rather than leaving the reader to notice",
       "ok": true,
-      "detail": "Escalation opened. The flag stays in the queue."
+      "detail": "Escalation opened. The flag is marked reviewed and attached to it."
     },
     {
-      "id": "escalate.does-not-resolve",
-      "label": "and does not close the event — escalating is when it stopped being handled",
+      "id": "escalate.leaves-the-queue",
+      "label": "and the flag leaves the queue, because it is attached to the record now",
       "ok": true,
-      "detail": "12 rows before, 12 after"
+      "detail": "12 rows before, 11 after"
     },
     {
       "id": "ack.ack-pending",
@@ -294,10 +294,10 @@
       "detail": "Clinical disposition | Classifier accuracy — optional"
     },
     {
-      "id": "axes.risk-flags.primary-noun",
-      "label": "and the primary's noun follows the axis it commits",
+      "id": "axes.risk-flags.primary-is-the-commit",
+      "label": "and the primary names the commit rather than restating the axis",
       "ok": true,
-      "detail": "Record disposition"
+      "detail": "Mark reviewed"
     },
     {
       "id": "axes.risk-flags.axis2-values-agree",
@@ -432,6 +432,78 @@
       "detail": "cleared"
     },
     {
+      "id": "footer.three-dispositions",
+      "label": "the required axis offers three clinical values and no verb",
+      "ok": true,
+      "detail": "No clinical concern · Support already in place · Watching — not resolved"
+    },
+    {
+      "id": "footer.two-ctas",
+      "label": "the commit and the action are separate controls, and NEITHER is disabled",
+      "ok": true,
+      "detail": "Mark reviewed / Escalate now"
+    },
+    {
+      "id": "footer.ungated-press-explains",
+      "label": "pressing the commit with no disposition explains itself and closes nothing",
+      "ok": true,
+      "detail": "Record a clinical disposition first. · rows 12 → 12"
+    },
+    {
+      "id": "axis2.input",
+      "label": "the queue holds both a classifier flag and a person's report",
+      "ok": true,
+      "detail": "1 reported by a person · 5 by the classifier"
+    },
+    {
+      "id": "axis2.suppressed-for-people",
+      "label": "a flag a person raised does not ask whether the classifier was right",
+      "ok": true,
+      "detail": "0 control(s)"
+    },
+    {
+      "id": "axis2.present-for-the-classifier",
+      "label": "and a flag the classifier raised still does",
+      "ok": true,
+      "detail": "2 control(s) · 2 control(s) · 2 control(s) · 2 control(s) · 2 control(s)"
+    },
+    {
+      "id": "link.leaves-the-queue",
+      "label": "escalating a flag takes it out of the queue rather than leaving it to be dispositioned twice",
+      "ok": true,
+      "detail": "12 → 11 row(s)"
+    },
+    {
+      "id": "link.renders-inside-the-record",
+      "label": "and it renders inside the record with its evidence intact",
+      "ok": true,
+      "detail": "Linked flags · 1 Attach a flag Unsafe home environment 1d ago Playbook match Unsafe home environment Classifier rationale The message describes conflict at home"
+    },
+    {
+      "id": "link.picker-states-its-scope",
+      "label": "the attach picker names what it searched when it finds nothing",
+      "ok": true,
+      "detail": "Linked flags · 1 Attach a flag No other open flags on Jordan P.. Unsafe home environment 1d ago Playbook match Unsafe ho"
+    },
+    {
+      "id": "keys.digit-commits",
+      "label": "a digit selects a disposition AND commits it, in one keystroke",
+      "ok": true,
+      "detail": "12 → 11 row(s)"
+    },
+    {
+      "id": "keys.watch-does-not-close",
+      "label": "and the watch value records itself without closing anything",
+      "ok": true,
+      "detail": "11 → 11 row(s) · checked watching"
+    },
+    {
+      "id": "keys.sheet-teaches-the-effect",
+      "label": "the sheet distinguishes the keys that close from the one that does not",
+      "ok": true,
+      "detail": "No clinical concern — and mark reviewed · Support already in place — and mark reviewed · Watching — not resolved · Open an escalation from this flag"
+    },
+    {
       "id": "live.off-by-default",
       "label": "the Now band does not render while the flag is off",
       "ok": true
@@ -446,7 +518,7 @@
       "id": "structure.footer-static",
       "label": "the pane footer is not an overlay, so focus cannot hide under it",
       "ok": true,
-      "detail": "{\"position\":\"static\",\"top\":665,\"bottom\":919,\"left\":674,\"right\":1231}"
+      "detail": "{\"position\":\"static\",\"top\":655,\"bottom\":919,\"left\":674,\"right\":1231}"
     },
     {
       "id": "input.focus",
@@ -482,7 +554,7 @@
       "id": "targets.escalations-44",
       "label": "every escalation control clears HIG's 44px",
       "ok": true,
-      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Escalation timeline:260x910"
+      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Escalation timeline:260x910 · Attach a flag:44x117"
     },
     {
       "id": "targets.rows",
@@ -506,7 +578,7 @@
       "id": "fixtures.wired",
       "label": "every key is wired into the dev bar's switcher",
       "ok": true,
-      "detail": "32 of 32"
+      "detail": "33 of 33"
     },
     {
       "id": "fixtures.exact-keys",
@@ -522,9 +594,9 @@
     },
     {
       "id": "fixtures.all-render",
-      "label": "all 32 scenario keys render without error",
+      "label": "all 33 scenario keys render without error",
       "ok": true,
-      "detail": "32 keys"
+      "detail": "33 keys"
     }
   ]
 }

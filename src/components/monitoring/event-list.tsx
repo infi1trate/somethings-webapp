@@ -54,7 +54,6 @@ import {
   isRepeatPattern,
   type FlagGroup,
 } from "@/lib/monitoring/flag-group";
-import { FLAG_PATTERN_MIN } from "@/lib/monitoring/constants";
 import { cn } from "@/lib/utils";
 
 const RING =
