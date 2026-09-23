@@ -29,9 +29,10 @@
 // feel like one broken one.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, MessageSquare, RefreshCw } from "lucide-react";
+import { MessageSquare, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { startsCluster } from "@/lib/chat/clustering";
+import { TranscriptBubble } from "@/components/chat/transcript-bubble";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationMessage } from "@/lib/tasks/conversation";
 
@@ -50,12 +51,10 @@ const REGION_H = "h-[340px]";
 const SHELL =
   "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-s1)]";
 
-function timeOf(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+/* `timeOf` AND `Bubble` MOVED to `chat/transcript-bubble.tsx` (addendum §2.4),
+   so the escalation timeline renders the same transcript this does rather than
+   a second one. `needsHeader` below stays here — see that module's note on why
+   the flagged-message break is this surface's alone. */
 
 /** ═══ TIMESTAMP CLUSTERING (Part 5) ═══
  *
@@ -93,110 +92,6 @@ function needsHeader(
 ): boolean {
   if (m.flagged) return true;
   return startsCluster(m, prev);
-}
-
-/** ═══ THE BUBBLE ═══
- *
- *  Simplified deliberately: sender, time, text. No avatars, no reactions, no read
- *  receipts — this is evidence for a decision, not a chat client, and every
- *  affordance that suggests otherwise invites a supervisor to try to reply from
- *  here.
- *
- *  ROLE IS A TINT AND A SIDE, not a label repeated on every line. The teen's
- *  messages sit left on the card surface; the mentor's sit right in a quieter
- *  fill. The name is still printed on every bubble because tint alone cannot
- *  carry it (1.4.1) and because a reader scanning for one speaker should not have
- *  to infer from alignment. */
-function Bubble({
-  m,
-  header,
-  blooming,
-  flaggedRef,
-}: {
-  m: ConversationMessage;
-  /** False for a message clustered under the one above it. See `needsHeader`. */
-  header: boolean;
-  /** The one-shot highlight when this excerpt is anchored. See `bloom`. */
-  blooming?: boolean;
-  flaggedRef?: React.Ref<HTMLLIElement>;
-}) {
-  const mine = m.sender === "mentor";
-  return (
-    <li
-      ref={flaggedRef}
-      className={cn(
-        "flex flex-col gap-1",
-        mine ? "items-end" : "items-start",
-        // A clustered message sits closer to the one it continues than to the
-        // next turn — the spacing is what makes the cluster read as one block,
-        // and it is the reason dropping the header does not just leave a gap.
-        !header && "-mt-2.5"
-      )}
-    >
-      {header && (
-        <p className="flex items-center gap-1.5 px-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-          <span className="font-medium text-[var(--text-secondary)]">
-            {m.senderName}
-          </span>
-          {/* `tabular-nums`: the times sit in a column down one edge of the
-              transcript, and proportional figures make that column ragged. */}
-          <time className="tabular-nums" dateTime={new Date(m.at).toISOString()}>
-            {timeOf(m.at)}
-          </time>
-        </p>
-      )}
-      <div
-        className={cn(
-          "relative max-w-[85%] rounded-[var(--radius-control)] px-3 py-2 text-[13.5px] leading-[19px]",
-          mine
-            ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
-            : "bg-[var(--surface-card)] text-[var(--text-primary)]",
-          // ═══ THE FLAGGED MESSAGE, MARKED THREE WAYS ═══
-          // Tint, a gutter marker, and text in the accessible name. Colour is
-          // never the only carrier (SC 1.4.1) — and here that is not a formality:
-          // the whole point of the highlight is to say WHICH line the decision is
-          // about, so a reader who cannot see the tint would otherwise be reading
-          // an undifferentiated transcript.
-          // `--band-amber-*` — THE RECORD'S OWN RISK-FLAG BAND, and an existing
-          // token pair (7.24:1 in light, 5.73:1 in dark). The first version of
-          // this reached for `--status-warning-bg`, WHICH DOES NOT EXIST: an
-          // undefined custom property makes `background-color` resolve to
-          // `rgba(0,0,0,0)`, so the "highlight" was transparent and the flagged
-          // message looked like every other bubble. Nothing errors, nothing warns
-          // — measured, not noticed. Zero new tokens is the rule; this is why.
-          m.flagged &&
-            "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)] ring-1 ring-[color:var(--band-amber-fg)]/25",
-          /* ═══ THE ANCHOR BLOOM (Part 5) ═══
-             The excerpt opens already scrolled to the flagged line, which means
-             the reader's eye arrives with no idea that anything moved — the
-             transcript simply starts in the middle. A single soft ring, widened
-             for ~200ms and eased away, says "this is the line, and this is where
-             you were put". Once per selection: it fires on the anchor effect, not
-             on every render, so a re-render never re-blooms and a supervisor
-             working through fifty flags sees it once each, not repeatedly.
-             `motion-reduce` drops it entirely rather than shortening it. */
-          m.flagged && "transition-[box-shadow] duration-200 ease-out motion-reduce:transition-none",
-          m.flagged && blooming && "shadow-[0_0_0_6px_var(--band-amber-bg)]"
-        )}
-      >
-        {/* THE GUTTER MARKER. `-left-6` put it 24px left of the bubble — which is
-            OUTSIDE the region's own padding, so it was clipped away entirely
-            (measured: marker at x=657, region edge at x=664). The region now
-            carries `pl-9` to give the gutter real room, and the marker sits
-            inside it. A marker nobody can see is not a second carrier. */}
-        {m.flagged && (
-          <span className="absolute -left-[26px] top-1.5">
-            <AlertTriangle
-              className="size-4 text-[var(--band-amber-fg)]"
-              aria-hidden
-            />
-          </span>
-        )}
-        {m.flagged && <span className="sr-only">Flagged message. </span>}
-        {m.text}
-      </div>
-    </li>
-  );
 }
 
 /** Three bubble placeholders, at the heights real bubbles occupy — so resolving
@@ -423,7 +318,7 @@ export function ConversationExcerpt({
         )}
         <ul className="space-y-4">
           {shown.map((m, i) => (
-            <Bubble
+            <TranscriptBubble
               key={m.id}
               m={m}
               header={needsHeader(m, shown[i - 1])}

@@ -18,7 +18,7 @@
 // manual entries are marked as manually entered — an assembled fact and a
 // remembered one are different kinds of evidence.
 
-import type { ConversationMessage } from "@/lib/tasks/conversation";
+import type { ConversationMessage, MessageSender } from "@/lib/tasks/conversation";
 import type { EscalationRecord } from "@/lib/monitoring/escalation";
 
 export type TimelineSource =
@@ -54,9 +54,18 @@ export interface TimelineEntry {
   text: string;
   /** Who, when a person is attributable. Null for a system event. */
   author: string | null;
-  /** Message content is preserved VERBATIM — the standing rule — and is marked
-   *  so the renderer can quote it rather than restate it. */
+  /** ═══ THIS ENTRY IS A MESSAGE, NOT A RECORD EVENT (addendum §2.4) ═══
+   *  Message content is preserved VERBATIM — the standing rule — and the flag
+   *  is what tells the renderer it is looking at a TRANSCRIPT rather than at
+   *  the escalation's ledger. The two are different kinds of thing and the
+   *  renderer draws them differently: messages as bubbles, identical to Risk
+   *  Flags; record events as timestamped rows. */
   verbatim?: boolean;
+  /** Who said it, as a ROLE — set only on verbatim entries. `author` is the
+   *  name and cannot carry this: a transcript sides and tints by role, and
+   *  inferring the role from a name would be a string comparison standing in
+   *  for a field the source already has. */
+  sender?: MessageSender;
   /** Manually logged entries carry the action type the author picked. */
   actionType?: string;
   /** ═══ LOGGED AFTER THE ESCALATION CLOSED (arch-G, G7) ═══
@@ -208,6 +217,7 @@ export function assembleTimeline(
       text: m.text,
       author: m.senderName,
       verbatim: true,
+      sender: m.sender,
     });
   }
 
