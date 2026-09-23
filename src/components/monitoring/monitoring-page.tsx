@@ -151,15 +151,58 @@ function ListSkeleton() {
 const PENDING_ESCALATION = "__first__";
 
 /** NEEDS-COPY-NICOLE. `y`/`n` DO NOT RESOLVE HERE — see the sheet's own note. */
-const MONITORING_SHORTCUTS = [
+/** ═══ THE SHEET'S ROWS ARE PER SCOPE, NOT PER PAGE (Phase 5) ═══
+ *
+ *  `ShortcutSheet` already took its rows per SURFACE — arch-mon's note: "a sheet
+ *  that described the Tasks binding on Monitoring would be teaching a shortcut
+ *  that does not exist". Phase 2 turned one surface into four destinations and
+ *  left one list behind them, so the rule needed applying one level deeper.
+ *
+ *  WHAT WAS WRONG WITH ONE LIST. On `/app/coverage` there is no queue and no
+ *  review pane, so five of the seven rows named keys that do nothing. On
+ *  `/app/mentor-practice` the `y`/`n` rows advertised a classifier judgment on
+ *  events no classifier produced — the same defect the accuracy axis itself had,
+ *  in the one place a reader goes to LEARN the bindings.
+ *
+ *  THE ROWS ARE COMPOSED FROM PIECES rather than written out four times, so a
+ *  new binding cannot land in three lists and be forgotten in the fourth. */
+const K_QUEUE = [
   { keys: ["↑", "↓"], what: "Move through the queue" },
   { keys: ["j", "k"], what: "Move through the queue" },
+];
+const K_ACCURACY = [
   { keys: ["y"], what: "Classifier was right (records accuracy only)" },
   { keys: ["n"], what: "Classifier was wrong (records accuracy only)" },
-  { keys: ["u"], what: "Undo the last close" },
-  { keys: ["↵"], what: "Move focus to the review pane" },
-  { keys: ["?"], what: "This list" },
 ];
+const K_PANE = [{ keys: ["↵"], what: "Move focus to the review pane" }];
+const K_UNDO = [{ keys: ["u"], what: "Undo the last close" }];
+const K_HELP = [{ keys: ["?"], what: "This list" }];
+
+/** The unscoped page keeps every row — it is the surface these were written for
+ *  and nothing routes to it. */
+const MONITORING_SHORTCUTS = [
+  ...K_QUEUE,
+  ...K_ACCURACY,
+  ...K_UNDO,
+  ...K_PANE,
+  ...K_HELP,
+];
+
+const SCOPE_SHORTCUTS: Record<
+  MonitoringScope,
+  Array<{ keys: string[]; what: string }>
+> = {
+  /* THE REGION IS NOT A `role="tree"`, so the queue keys and Enter-to-pane do
+     not reach it. Undo stays: a resolved escalation can be undone. */
+  escalations: [...K_UNDO, ...K_HELP],
+  "risk-flags": [...K_QUEUE, ...K_ACCURACY, ...K_UNDO, ...K_PANE, ...K_HELP],
+  /* NO ACCURACY ROW. A practice event's producer is a deterministic rule; there
+     is nothing to judge a classifier on, and the axis is not rendered either. */
+  "mentor-practice": [...K_QUEUE, ...K_UNDO, ...K_PANE, ...K_HELP],
+  /* COVERAGE HAS NO QUEUE AND NO PANE. `?` is the whole of its keyboard layer,
+     and saying so is more useful than listing five keys that do nothing. */
+  coverage: [...K_HELP],
+};
 
 /** ═══ THE FOUR SCOPES, AND THE TWO THINGS A SCOPE PINS ═══
  *
@@ -852,7 +895,7 @@ export function MonitoringPage({
       <ShortcutSheet
         open={shortcutsOpen}
         onOpenChange={setShortcutsOpen}
-        rows={MONITORING_SHORTCUTS}
+        rows={scope ? SCOPE_SHORTCUTS[scope] : MONITORING_SHORTCUTS}
       />
     </div>
   );

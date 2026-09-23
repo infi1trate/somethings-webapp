@@ -20,6 +20,7 @@
 // reader looked back at the thing it was about.
 
 import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
+import { playbookMatchFor } from "@/lib/monitoring/surfacing";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, EyeOff, FileText, ShieldAlert } from "lucide-react";
@@ -204,18 +205,54 @@ function FlagBody({
   if (!item) return null;
   const payload = item.payload as RiskFlagPayload;
   const conversation = buildConversation(item, payload.flaggedExcerpt, now);
+  const match = playbookMatchFor(payload);
   return (
     <div className="space-y-4">
-      <div>
-        <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Category</p>
+      {/* ═══ ONE BLOCK, ABOVE THE CONVERSATION (Phase 5, from arch-H H7) ═══
+          `Category` and `Why this was flagged` were two blocks with a
+          ninety-message transcript between them. They are the same statement in
+          two registers — the chips are WHAT matched, the paragraph is WHY — and
+          read apart the chips are a label with no argument and the paragraph is
+          an argument whose subject scrolled off the top.
+          THE CLAIM COMES BEFORE THE EVIDENCE, which is not a reversal of the
+          escalation pane's rule that a judgment pane leads with its evidence:
+          there the alternative was a timeline, a second body of comparable
+          length answering its own question. This is two chips and a paragraph
+          stating what the transcript is being read AGAINST, and a supervisor who
+          scrolls ninety messages before learning what was matched is reading
+          without a question. */}
+      <div data-anno-ref="flag-playbook-match">
+        <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Playbook match</p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {/* KEYED ON THE ID, LABELLED FROM THE PLAYBOOK. The key has to stay
               the id — two categories can share neither an id nor a label, but a
               label is the one a copy change could collide. */}
-          {payload.categories.map((c) => (
+          {match.categories.map((c) => (
             <PaneChip key={c}>{riskCategoryLabel(c)}</PaneChip>
           ))}
+          {/* ═══ THE SOURCE ONLY WHEN IT SAYS SOMETHING ═══
+              `sourceType` is "Message" on every flag in the system, so
+              `playbookMatchFor` nulls it out. As a chip beside the categories it
+              appears the day a flag arrives from a video note or a journal
+              entry — where a reader is already looking for what makes this flag
+              different — and costs nothing until then. */}
+          {match.sourceType && <PaneChip>{match.sourceType}</PaneChip>}
         </div>
+        <div className="mt-2">
+          {/* ═══ TWO ATTRIBUTIONS, AND NOT THE SAME ONE TWICE ═══
+              The eyebrow above says `Playbook match` and this badge says
+              `Classifier rationale`. The categories are a published clinical
+              taxonomy; the paragraph is machine-written. Collapsing it either
+              way loses something real — "Playbook match" over the prose would
+              dress generated text as clinical authorship, and "AI rationale"
+              over the chips would hand the taxonomy to the model. */}
+          <SystemBlock label="Classifier rationale">{match.rationale}</SystemBlock>
+        </div>
+        {/* NO CONFIDENCE INDICATOR AND NO EVIDENCE CHIPS. `match.confidence` is
+            null and `match.features` is empty, and both are declared absences
+            rather than missing fields — see `FLAG_CONFIDENCE_PUBLISHED` and
+            `FLAG_EVIDENCE_FEATURES_PUBLISHED`. Nothing is parsed out of the
+            prose, which would be a claim about what the model weighed. */}
       </div>
 
       {compliance === "explicit-media" && <ExplicitMedia />}
@@ -233,15 +270,6 @@ function FlagBody({
             href={conversationHref(item.teenId, conversation.anchorId)}
             scroll={false}
           />
-        </div>
-      </div>
-
-      <div>
-        <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Why this was flagged</p>
-        <div className="mt-2">
-          {/* ATTRIBUTED AS GENERATED. The rationale is the classifier's, which is
-              the whole reason axis 2 exists. */}
-          <SystemBlock label="Classifier rationale">{payload.aiRationale}</SystemBlock>
         </div>
       </div>
     </div>
@@ -672,9 +700,26 @@ export function EventPane({
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
-      accuracy: (accurate: boolean) => setAccuracy(accurate ? "accurate" : "inaccurate"),
+      /* ═══ THE KEY IS INERT WHERE THE AXIS IS ABSENT (Phase 5) ═══
+         `y`/`n` reach this handle from the page's keyboard layer, which does not
+         know what kind of event is selected. Without the guard a supervisor on
+         `/app/mentor-practice` could record a classifier judgment through a
+         keystroke against a control that is deliberately not on screen — state
+         with no rendering, which is the worst version of this bug because
+         nothing shows it happened. */
+      accuracy: (accurate: boolean) => {
+        if (event?.kind !== "riskFlag") return;
+        setAccuracy(accurate ? "accurate" : "inaccurate");
+      },
     };
-  }, [handleRef]);
+  }, [handleRef, event?.kind]);
+
+  /** ═══ ONLY A FLAG HAS A CLASSIFIER BEHIND IT (Phase 5) ═══
+   *  Derived from the KIND, not from whether `event.flag` happens to be
+   *  populated: the two are the same today and the kind is the thing that is
+   *  actually being asked about. A practice event's producer is a deterministic
+   *  rule, so axis 2 has nothing to be right or wrong about. */
+  const isFlag = event?.kind === "riskFlag";
 
   const title = escalation
     ? /* NEEDS-COPY-NICOLE */ "Escalation"
@@ -813,7 +858,24 @@ export function EventPane({
               hintRef={hintRef}
             />
             <div className="flex flex-wrap items-end justify-between gap-4">
-              <AccuracyAxis value={accuracy} onChange={setAccuracy} />
+              {/* ═══ AXIS 2 IS ONLY A FLAG'S QUESTION (Phase 5) ═══
+                  It rendered on every event. Measured on `/app/mentor-practice`
+                  with the `mentor-note-overdue` fixture: a row reading "Video
+                  progress note overdue — 5h 0m overdue · Measured against note
+                  SLA" offered "Classifier was right / Classifier was wrong".
+                  NO CLASSIFIER IS INVOLVED. The five practice rules in
+                  `lib/monitoring/practice.ts` are deterministic — they compare a
+                  timestamp to a constant — so the question is not merely
+                  irrelevant there, it is unanswerable, and a supervisor who
+                  answered it would be recorded as having judged a model that
+                  never ran.
+                  AN EMPTY SLOT RATHER THAN A DISABLED CONTROL: a greyed axis
+                  announces itself to a screen reader and gives no reason. */}
+              {isFlag ? (
+                <AccuracyAxis value={accuracy} onChange={setAccuracy} />
+              ) : (
+                <span />
+              )}
               <button
                 type="button"
                 onClick={submit}

@@ -79,6 +79,36 @@ const UNRANKED = TIER_ORDER.length;
  *  `event.ts` for the read that deliberately does not happen. */
 export const FLAG_REVIEW_SLA: number | null = null;
 
+/** ═══ BLOCKED · Meg — THE CLASSIFIER PUBLISHES NO CONFIDENCE ═══
+ *
+ *  Brought forward from arch-H, H7, with the Playbook match block it belongs to.
+ *  H7 asked the surfacing block to carry a confidence indicator. `RiskFlagPayload`
+ *  has `categories`, `sourceType`, `flaggedExcerpt`, `aiRationale`,
+ *  `flaggedCorrectly` and `conversationFlagCount` — and no confidence, anywhere,
+ *  in any scenario. (It also had a `tier`, which Phase 4 removed; that was never
+ *  a confidence either, which is half of why it had to go.)
+ *
+ *  SO NO INDICATOR IS DESIGNED, and that is the decision rather than an omission:
+ *  an honest confidence treatment is a real design question — a bare percentage
+ *  invites arithmetic the model cannot support, a band needs thresholds nobody
+ *  has set — and answering it against no data would settle the treatment before
+ *  the number exists. `playbookMatchFor` publishes `confidence: null` while this
+ *  is false, so the day it lands the compiler names the one site to change. */
+export const FLAG_CONFIDENCE_PUBLISHED: boolean = false;
+
+/** ═══ BLOCKED · Meg — AND NO STRUCTURED EVIDENCE FEATURES EITHER ═══
+ *
+ *  H7's evidence chips (`indicator: intent`, `context: 2 prior mentions`,
+ *  `tone: flattened`) want per-flag features. The classifier emits ONE prose
+ *  paragraph. Synthesising chips by parsing that paragraph is explicitly what the
+ *  pack forbids and would be a claim about what the model weighed.
+ *
+ *  WHAT DOES EXIST is the category list, which is genuinely structured classifier
+ *  output — and since Phase 4 it is a list of PUBLISHED playbook ids rather than
+ *  free text, so the block renders those as its chips and says, by labelling the
+ *  section `Playbook match`, exactly what they are. */
+export const FLAG_EVIDENCE_FEATURES_PUBLISHED: boolean = false;
+
 /** ═══ BLOCKED · Meg ═══
  *
  *  The window inside which repeat flags on one conversation count as a pattern

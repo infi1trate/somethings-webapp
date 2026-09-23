@@ -528,6 +528,196 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 6b · THE TWO AXES, PER DESTINATION (Phase 5)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The unit tests own the axes' MODEL — only a disposition closes an event, the
+// escalate value does not resolve, the two arrays share no id. What only the DOM
+// can answer is WHERE each axis renders, and that is where Phase 5 found two
+// defects: the accuracy axis on events no classifier produced, and a shortcut
+// sheet teaching those keys on the destination where they do nothing.
+{
+  const cases = [
+    ["risk-flags", "/app/risk-flags", "normal-day", true],
+    ["mentor-practice", "/app/mentor-practice", "mentor-note-overdue", false],
+  ];
+  for (const [name, url, scenario, wantAccuracy] of cases) {
+    const { context, page } = await open(`axes-${name}`, { scenario, url });
+    await page.waitForTimeout(900);
+    await page.locator('[role="treeitem"]').first().click();
+    await page.waitForTimeout(500);
+    const seen = await page.evaluate(() => {
+      const pane = document.querySelector('[data-slot="event-pane"]');
+      return {
+        rows: document.querySelectorAll('[role="treeitem"]').length,
+        disposition: !!pane?.querySelector(
+          '[role="radiogroup"][aria-label*="disposition" i]'
+        ),
+        accuracy: !!pane?.querySelector(
+          '[role="radiogroup"][aria-label*="Classifier accuracy" i]'
+        ),
+        /* PRE-SELECTION IS A CLINICAL STATEMENT NOBODY MADE, so it is checked on
+           both axes rather than asserted of the model. */
+        checked: [
+          ...(pane?.querySelectorAll('[role="radio"][aria-checked="true"]') ?? []),
+        ].length,
+      };
+    });
+    /* THE INPUT FIRST. Every assertion below is about a pane, and a destination
+       with no rows renders none — which would read as "no accuracy axis". */
+    check(
+      `axes.${name}.input`,
+      "an event was selectable and its pane opened",
+      seen.rows > 0 && seen.disposition,
+      `${seen.rows} row(s), disposition ${seen.disposition}`
+    );
+    check(
+      `axes.${name}.accuracy`,
+      wantAccuracy
+        ? "the classifier-accuracy axis is offered on a flag"
+        : "and is ABSENT where no classifier produced the event",
+      seen.accuracy === wantAccuracy,
+      `accuracy axis ${seen.accuracy ? "present" : "absent"}`
+    );
+    check(
+      `axes.${name}.nothing-preselected`,
+      "and neither axis arrives with an answer already recorded",
+      seen.checked === 0,
+      `${seen.checked} pre-selected`
+    );
+
+    /* ═══ AND THE SHEET TEACHES ONLY WHAT THIS DESTINATION BINDS ═══
+       `y`/`n` advertised a classifier judgment on practice events in the one
+       place a reader goes to LEARN the bindings. */
+    await page.keyboard.press("?");
+    await page.waitForTimeout(400);
+    const sheet = await page.evaluate(
+      () => document.querySelector('[role="dialog"]')?.innerText ?? ""
+    );
+    check(
+      `axes.${name}.sheet-input`,
+      "the shortcut sheet opened",
+      /Keyboard shortcuts/i.test(sheet),
+      sheet.slice(0, 40).replace(/\s+/g, " ")
+    );
+    check(
+      `axes.${name}.sheet-matches`,
+      wantAccuracy
+        ? "and it teaches the accuracy keys"
+        : "and it does not teach keys this destination does not bind",
+      /Classifier was right/.test(sheet) === wantAccuracy,
+      /* THE DETAIL REPORTS THE MEASUREMENT, NOT THE EXPECTATION. First version
+         printed `wantAccuracy ? "taught" : "not taught"` — so a mutation run
+         that made the sheet teach the keys on Mentor Practice failed with the
+         message "not taught", sending the reader to look for the opposite of the
+         defect. A failure detail that restates the assertion is worse than
+         none. */
+      `sheet ${/Classifier was right/.test(sheet) ? "teaches" : "omits"} the accuracy keys`
+    );
+    await context.close();
+  }
+}
+
+/* ═══ THE PLAYBOOK MATCH — ONE ARTIFACT, BEFORE THE EVIDENCE (Phase 5) ═══
+   Brought forward from arch-H H7 with the block. `Category` and `Why this was
+   flagged` were two sections with a ninety-message transcript between them.
+   ASSERTED IN DOM AND IN GEOMETRY, because either alone can be satisfied while
+   a reader still sees the wrong thing: DOM order without geometry passes on an
+   absolutely-positioned block, and geometry without DOM order passes on a
+   layout that reads correctly for a sighted reader and wrongly for a screen
+   reader. */
+{
+  const { context, page } = await open("playbook-match", {
+    scenario: "normal-day",
+    url: "/app/risk-flags",
+  });
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(500);
+  const seen = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    const match = pane?.querySelector('[data-anno-ref="flag-playbook-match"]');
+    const convo = [...(pane?.querySelectorAll("p") ?? [])].find(
+      (p) => p.innerText.trim() === "Conversation"
+    );
+    if (!match || !convo) return null;
+    const t = match.innerText.replace(/\s+/g, " ");
+    return {
+      /* `Node.DOCUMENT_POSITION_FOLLOWING` — the match precedes the heading in
+         document order, which is what a screen reader walks. */
+      domFirst: !!(
+        match.compareDocumentPosition(convo) & Node.DOCUMENT_POSITION_FOLLOWING
+      ),
+      geomFirst:
+        match.getBoundingClientRect().top < convo.getBoundingClientRect().top,
+      eyebrow: /Playbook match/.test(t),
+      badge: /Classifier rationale/.test(t),
+      chips: match.querySelectorAll("span, div").length > 0,
+      /* NO CONFIDENCE, NO EVIDENCE CHIPS. The model publishes neither and
+         nothing is parsed out of the prose — asserted on the rendered block so
+         "declines to invent" is a property of the page and not only of the
+         model, which `surfacing.test.ts` owns. */
+      noConfidence: !/\b\d{1,3}\s?%|confiden/i.test(t),
+    };
+  });
+  check(
+    "match.input",
+    "the flag pane opened with a playbook-match block",
+    seen != null,
+    seen ? "present" : "no block or no Conversation heading"
+  );
+  if (seen) {
+    check(
+      "match.one-artifact",
+      "the categories and the rationale are one block, before the conversation",
+      seen.domFirst && seen.geomFirst,
+      `dom ${seen.domFirst} · geometry ${seen.geomFirst}`
+    );
+    check(
+      "match.two-attributions",
+      "and it carries both attributions — the taxonomy's and the machine's",
+      seen.eyebrow && seen.badge,
+      `eyebrow ${seen.eyebrow} · badge ${seen.badge}`
+    );
+    check(
+      "match.invents-nothing",
+      "and states no confidence, because the classifier publishes none",
+      seen.noConfidence,
+      seen.noConfidence ? "clean" : "a confidence-shaped string is rendered"
+    );
+  }
+  await context.close();
+}
+
+/* COVERAGE BINDS ONE KEY, and a sheet listing five that do nothing is worse
+   than a short one. Its own case, because it has no queue to select from. */
+{
+  const { context, page } = await open("axes-coverage", {
+    scenario: "coverage-debt",
+    url: "/app/coverage",
+  });
+  await page.waitForTimeout(900);
+  await page.keyboard.press("?");
+  await page.waitForTimeout(400);
+  const sheet = await page.evaluate(
+    () => document.querySelector('[role="dialog"]')?.innerText ?? ""
+  );
+  check(
+    "axes.coverage.sheet-input",
+    "the shortcut sheet opened on Coverage",
+    /Keyboard shortcuts/i.test(sheet),
+    sheet.slice(0, 40).replace(/\s+/g, " ")
+  );
+  check(
+    "axes.coverage.sheet-minimal",
+    "and teaches no queue, pane or accuracy key — Coverage binds none of them",
+    !/queue|review pane|Classifier/i.test(sheet),
+    sheet.replace(/\s+/g, " ").slice(0, 120)
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 7 · MENTOR PRACTICE (Phase 5)
 // ═══════════════════════════════════════════════════════════════════════════
 {
