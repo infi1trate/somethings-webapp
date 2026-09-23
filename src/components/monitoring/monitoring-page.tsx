@@ -45,10 +45,8 @@ import {
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
 import { groupEvents, sortEvents, type ReviewSubject } from "@/lib/monitoring/event";
 import {
-  ackStateFor,
-  closeOutOpen,
   compareEscalations,
-  isActive,
+  escalationObligations,
   isSettled,
   type EscalationRecord,
 } from "@/lib/monitoring/escalation";
@@ -357,15 +355,14 @@ export function MonitoringPage({
     [conversations, credited]
   );
 
-  const obligations = useMemo(() => {
-    let ackOutstanding = 0;
-    let closeOutOverdue = 0;
-    for (const r of escalations) {
-      if (isActive(r) && ackStateFor(r, now) !== "acknowledged") ackOutstanding += 1;
-      closeOutOverdue += closeOutOpen(r, now).filter((i) => i.overdue).length;
-    }
-    return { ackOutstanding, closeOutOverdue };
-  }, [escalations, now]);
+  /** ═══ THE SHARED COUNT, NOT A LOCAL ONE (Phase 3) ═══
+   *  This was eight lines inlined here, which meant Today could not call it and
+   *  counted the same obligations a different way — and the two disagreed on
+   *  screen. `escalationObligations` has the finding. */
+  const obligations = useMemo(
+    () => escalationObligations(escalations, now),
+    [escalations, now]
+  );
 
   // ── Selection ─────────────────────────────────────────────────────────────
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);

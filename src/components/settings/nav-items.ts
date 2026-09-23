@@ -370,7 +370,30 @@ export function barItems(persona: Persona): SidebarItemDef[] {
   if (isMentor(persona)) {
     return [NAV.home, NAV.chat, NAV.tasks, NAV.mentees];
   }
-  return [NAV.home, NAV.chat, NAV.tasks, NAV.people];
+  /** ═══ A SUPERVISOR'S BAR NAMES THE ROUTES IT GOES TO (Phase 3) ═══
+   *
+   *  It was `[home, chat, tasks, people]`, and two of those cells lied by
+   *  Phase 2. `home` already resolved to `/app/today` through `hrefFor` while
+   *  the cell still read "Home" — the header-disagreement defect, in the one
+   *  place a supervisor on a phone has to navigate from. And `tasks` pointed at
+   *  a RETIRED HOP, labelled with a retired name, carrying a live badge of 16:
+   *  tapping it bounced through `/app/tasks` to Care Reviews.
+   *
+   *  ═══ AND ROW 361'S COST IS NOW MITIGATED, WHICH IS WHY FOUR IS STILL FOUR ═══
+   *
+   *  That row records the real gap: four cells is a designed cap (HIG and
+   *  Material 3 both top out near five, and the seven-cell bar this replaced is
+   *  what produced the cramped labels) so a supervisor below the tablet
+   *  breakpoint could not reach Monitoring at all.
+   *
+   *  Today is a MIRROR now — five destination cards, each a link, each carrying
+   *  that destination's own state — so the first cell reaches all five in two
+   *  taps and surfaces their obligations in one. That does not close row 361
+   *  (Escalations is still not one tap away on a phone) but it does mean the
+   *  answer is no longer "add a fifth cell", and a fifth cell would undo the
+   *  phase that fixed the labels. Stated so the trade is visible rather than
+   *  inherited. */
+  return [NAV.today, NAV.chat, NAV.careReviews, NAV.people];
 }
 
 /** id → href. ONE MAP for both shells, replacing the mentor shell's generic

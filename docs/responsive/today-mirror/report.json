@@ -1,0 +1,180 @@
+{
+  "generated": "2026-09-23T03:24:29.348Z",
+  "rows": [
+    {
+      "id": "store.present",
+      "label": "the persisted store exists, so a diff of it means something",
+      "ok": true,
+      "detail": "50 keys"
+    },
+    {
+      "id": "store.baseline-off-today",
+      "label": "and the baseline was taken before Today ever mounted",
+      "ok": true,
+      "detail": "/app/coverage"
+    },
+    {
+      "id": "mount.writes-nothing",
+      "label": "mounting Today writes no key but the visit stamp",
+      "ok": true,
+      "detail": "only shiftLastSeenAt"
+    },
+    {
+      "id": "controls.all-named",
+      "label": "every non-link control on Today is declared page chrome",
+      "ok": true,
+      "detail": "BUTTON:dismiss(Dismiss the shift summary)"
+    },
+    {
+      "id": "controls.write-nothing",
+      "label": "and activating all of them changes no record",
+      "ok": true,
+      "detail": "1 control(s), 0 record writes"
+    },
+    {
+      "id": "controls.stayed",
+      "label": "and none of them navigated away, so the diff above was measured on Today",
+      "ok": true,
+      "detail": "/app/today"
+    },
+    {
+      "id": "links.present",
+      "label": "Today offers links at all",
+      "ok": true,
+      "detail": "10 link(s)"
+    },
+    {
+      "id": "links.leave",
+      "label": "every link leaves the Today route",
+      "ok": true,
+      "detail": "all off-route"
+    },
+    {
+      "id": "links.no-retired",
+      "label": "and none of them points at a route being emptied",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "id": "links.known-targets",
+      "label": "and every target is a destination, the record route, or the ledger",
+      "ok": true,
+      "detail": "all known"
+    },
+    {
+      "id": "cards.five",
+      "label": "one card per destination, in the rail's order",
+      "ok": true,
+      "detail": "escalations > risk-flags > mentor-practice > coverage > care-reviews"
+    },
+    {
+      "id": "cards.one-directive",
+      "label": "and exactly one carries the ladder's answer",
+      "ok": true,
+      "detail": "1 directive · escalations"
+    },
+    {
+      "id": "strip.agrees.degraded",
+      "label": "the escalation strip and the Escalations card state the same number",
+      "ok": true,
+      "detail": "strip 0 row(s) · card claims 0 active"
+    },
+    {
+      "id": "strip.agrees.live",
+      "label": "the escalation strip and the Escalations card state the same number",
+      "ok": true,
+      "detail": "strip 2 row(s) · card claims 2 active"
+    },
+    {
+      "id": "strip.exercised",
+      "label": "and at least one fixture actually rendered a strip, so the above is not zero-vs-zero",
+      "ok": true,
+      "detail": "1 of 2 pair(s) had a non-empty strip"
+    },
+    {
+      "id": "cards.no-tiers",
+      "label": "and no tier name or fabricated flag deadline appears on the page",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "id": "agree.cards-read",
+      "label": "the cards were read off Today, so the comparisons below mean something",
+      "ok": true,
+      "detail": "5 card(s)"
+    },
+    {
+      "id": "agree.coverage",
+      "label": "Coverage's own sentence appears verbatim on the card",
+      "ok": true,
+      "detail": "destination \"9 of 31 conversations reviewed this shift\" · today \"9 of 31 conversations reviewed this shift\""
+    },
+    {
+      "id": "agree.risk-flags",
+      "label": "Risk Flags' queue count equals the card's",
+      "ok": true,
+      "detail": "destination 123 · today 123"
+    },
+    {
+      "id": "agree.care-reviews",
+      "label": "Care Reviews' open count equals the card's",
+      "ok": true,
+      "detail": "destination 16 · today 16"
+    },
+    {
+      "id": "agree.escalations.ack",
+      "label": "the acknowledgement count is the same on both, and in the same words",
+      "ok": true,
+      "detail": "destination 2 · today 2"
+    },
+    {
+      "id": "agree.escalations.reachable",
+      "label": "and the destination has at least as many records as the card claims are active",
+      "ok": true,
+      "detail": "4 record(s) · card claims 2 active"
+    },
+    {
+      "id": "agree.mentor-practice",
+      "label": "Mentor Practice's queue count equals the card's",
+      "ok": true,
+      "detail": "destination 0 · today 0"
+    }
+  ],
+  "cards": [
+    {
+      "id": "escalations",
+      "tone": "breach",
+      "directive": true,
+      "href": "/app/escalations",
+      "text": "Escalations 2 active · 2 awaiting acknowledgement · 3 close-out items overdue 2 Escalations. 2 active · 2 awaiting acknowledgement · 3 close-out items overdue. Start here."
+    },
+    {
+      "id": "risk-flags",
+      "tone": "attention",
+      "directive": false,
+      "href": "/app/risk-flags",
+      "text": "Risk Flags 123 open · oldest 8d ago 123 Risk Flags. 123 open · oldest 8d ago."
+    },
+    {
+      "id": "mentor-practice",
+      "tone": "clear",
+      "directive": false,
+      "href": "/app/mentor-practice",
+      "text": "Mentor Practice No practice breaches Mentor Practice. No practice breaches."
+    },
+    {
+      "id": "coverage",
+      "tone": "clear",
+      "directive": false,
+      "href": "/app/coverage",
+      "text": "Coverage 9 of 31 conversations reviewed this shift Coverage. 9 of 31 conversations reviewed this shift."
+    },
+    {
+      "id": "care-reviews",
+      "tone": "attention",
+      "directive": false,
+      "href": "/app/care-reviews",
+      "text": "Care Reviews 16 open 16 Care Reviews. 16 open."
+    }
+  ]
+}

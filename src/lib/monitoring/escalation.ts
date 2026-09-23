@@ -234,3 +234,69 @@ export function compareEscalations(
   if (a.triggeredAt !== b.triggeredAt) return a.triggeredAt - b.triggeredAt;
   return a.id.localeCompare(b.id);
 }
+
+
+/** ═══ WHAT THE OPEN ESCALATIONS OWE — ONE FUNCTION, EVERY CALLER ═══
+ *
+ *  ═══ EXTRACTED BECAUSE TWO SURFACES DISAGREED ON SCREEN (Phase 3) ═══
+ *
+ *  This was a `useMemo` inside `monitoring-page.tsx`, so Today could not call it
+ *  and counted the same obligations from TASK ITEMS instead. Measured by the §4
+ *  mirror probe: the Escalations destination said "2 escalations awaiting
+ *  acknowledgement" while Today's card said "1 past acknowledgement".
+ *
+ *  BOTH NUMBERS WERE CORRECT FOR THEIR OWN WORDS, which is what made it worth
+ *  fixing rather than explaining. "Awaiting" is every active record nobody has
+ *  acknowledged yet — `pending` and `breached` together. "Past" is only the
+ *  subset whose five minutes have already gone. Two true sentences about
+ *  escalation acknowledgement, two different numbers, one reader moving between
+ *  them in the same minute. A supervisor cannot be expected to hold that
+ *  distinction, and nothing on either surface explained it.
+ *
+ *  So there is one function and one quantity, and it lives with the record type
+ *  rather than inside a page. A caller that wants the narrower "already breached"
+ *  reading has `ackBreached` below it, named for what it is.
+ *
+ *  `homeObligations` IS NOT THIS and does not become it: it counts DEBT for a nav
+ *  BADGE — things a named person has already failed to do by a time that has
+ *  already passed — and a badge that lit up for an escalation still inside its
+ *  acknowledgement window would never be zero. Different job, different
+ *  quantity, stated in its own file. */
+export interface EscalationObligations {
+  /** Active records nobody has acknowledged — `pending` and `breached` both.
+   *  This is the figure the destination's header states. */
+  ackOutstanding: number;
+  /** Of those, the ones whose five minutes have already passed. A SUBSET, never
+   *  added to the first — adding it counts one escalation twice. */
+  ackBreached: number;
+  /** Close-out items past their own deadlines, across every record. Items, not
+   *  records: one escalation can owe four. */
+  closeOutOverdue: number;
+  /** Records that are open right now, acknowledged or not. */
+  active: number;
+}
+
+export function escalationObligations(
+  /** The UNSETTLED records — the same list the region renders. A settled record
+   *  owes nothing by definition, so passing the full set would count finished
+   *  paperwork. */
+  records: EscalationRecord[],
+  now: number
+): EscalationObligations {
+  let ackOutstanding = 0;
+  let ackBreached = 0;
+  let closeOutOverdue = 0;
+  let active = 0;
+  for (const r of records) {
+    if (isActive(r)) {
+      active += 1;
+      const ack = ackStateFor(r, now);
+      if (ack !== "acknowledged") {
+        ackOutstanding += 1;
+        if (ack === "breached") ackBreached += 1;
+      }
+    }
+    closeOutOverdue += closeOutOpen(r, now).filter((i) => i.overdue).length;
+  }
+  return { ackOutstanding, ackBreached, closeOutOverdue, active };
+}
