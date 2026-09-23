@@ -4,28 +4,27 @@
 // If you are about to write `24 * 60 * 60 * 1000` anywhere in the tasks surface,
 // the answer is `slaMsFor(taskType)`.
 
-import { BILLING_REVIEW_SLA_HOURS } from "@/lib/activity/sla";
 import type { TaskType } from "@/lib/tasks/types";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
-/** ═══ THE BILLING SLA CONFLICT — CARRIED, NOT RESOLVED ═══
+/** ═══ THE BILLING SLA CONFLICT IS MOOT — CARE REVIEWS HAVE NO DEADLINE ═══
  *
- *  §2.2 and §8.1: the MO-8 framework table says billing is overdue at 48h, the
- *  Tasks spec says 72h. Unresolved, and it blocks correct breach behaviour in T4
- *  rather than the build.
+ *  §2.2 and §8.1 of the original pack disagreed: the MO-8 framework table said
+ *  billing was overdue at 48h, the Tasks spec said 72h. It was carried as
+ *  `BILLING_REVIEW_SLA_HOURS` with the conflict cited, blocked on Meg.
  *
- *  THE CONSTANT ALREADY EXISTS AND IS REUSED RATHER THAN REDEFINED.
- *  `BILLING_REVIEW_SLA_HOURS` was created for the Activity ledger's own billing
- *  SLA (lib/activity/sla.ts) with the same conflict cited. §2.2 says "implement as
- *  a single named constant" and "do not hardcode the number anywhere else" — a
- *  second constant with the same name in a second file would satisfy the letter of
- *  that and break its point, because the day the conflict is settled someone would
- *  fix one and not the other.
+ *  THE ADDENDUM RETIRES THE QUESTION rather than answering it (§1, §2.9): care
+ *  reviews have no deadline concept at all. So there is nothing for the two
+ *  numbers to disagree about on this surface, and `CARE_REVIEW_SLA` — which
+ *  was the blocked constant standing in for the choice — is gone.
  *
- *  So this re-exports it. One edit settles both surfaces. */
-export { BILLING_REVIEW_SLA_HOURS };
+ *  THE ACTIVITY LEDGER STILL RE-EXPORTS ITS OWN. `lib/activity/sla.ts` owns
+ *  `BILLING_REVIEW_SLA_HOURS` and uses it for the ledger's billing timeliness
+ *  reading, which is a different surface with a different claim. Left alone
+ *  and no longer re-exported from here: a constant re-exported by a file that
+ *  does not use it is a pointer to a dependency that no longer exists. */
 
 /** SLA PER TASK TYPE, in milliseconds. The single source (§2.3).
  *
@@ -55,12 +54,30 @@ export { BILLING_REVIEW_SLA_HOURS };
  *
  *  THE ESCALATION ROWS ARE REAL: five minutes and 24 hours, both published, both
  *  enforced. Billing's is published too, even with 48h-vs-72h open. */
+/** ═══ AND THE TWO BILLING ROWS ARE `null` NOW TOO (addendum §2.9) ═══
+ *
+ *  Care reviews have no deadline. That is not "the number is unknown", which
+ *  is what `riskFlagReview: null` means while `FLAG_REVIEW_SLA` waits on Meg —
+ *  it is that the concept does not apply, and §1 retires `CARE_REVIEW_SLA`
+ *  outright rather than leaving it blocked.
+ *
+ *  WHAT THIS DOES TO THE ORDER, WHICH IS THE ELEGANT PART: `compareTasks`
+ *  falls through breach (never, with no deadline), the urgency ladder (flat
+ *  within a domain) and `slaRemaining` (Infinity for both) to `openedAt`
+ *  ascending — which IS §2.9's "oldest-first by age". The ordering rule did
+ *  not need a special case; removing the deadline produced it.
+ *
+ *  THE ESCALATION ROWS ARE THE ONLY REAL ONES LEFT: five minutes to
+ *  acknowledge and 24 hours to write the note, both published, both enforced.
+ *  After this file, breach treatment belongs to escalation obligations alone —
+ *  which is what arch-mon said when it took breach off flags, now true of the
+ *  whole surface. */
 export const TASK_SLA_MS: Record<TaskType, number | null> = {
   activeEscalation: 5 * MINUTE,
   escalationDocumentation: 24 * HOUR,
   riskFlagReview: null,
-  intakeBillingReview: BILLING_REVIEW_SLA_HOURS * HOUR,
-  monthlyReReview: BILLING_REVIEW_SLA_HOURS * HOUR,
+  intakeBillingReview: null,
+  monthlyReReview: null,
 };
 
 export function slaMsFor(taskType: TaskType): number | null {

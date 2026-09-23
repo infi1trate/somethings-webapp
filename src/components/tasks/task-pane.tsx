@@ -37,8 +37,6 @@ import {
 import { elapsedLabel } from "@/components/tasks/strips";
 import { chatThreadHref } from "@/lib/record/chat";
 import type { CompletedEntry } from "@/components/tasks/completed-group";
-import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
-import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
 // "Notes"; the link itself is unchanged.)
@@ -49,7 +47,6 @@ import {
 } from "@/lib/tasks/conversation";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
 import {
-  isBreached,
   type BillingPayload,
   type RiskFlagPayload,
   type TaskItem,
@@ -600,7 +597,8 @@ export function TaskPane({
   }
 
   const p = item.payload;
-  const breached = isBreached(item, now);
+  /* `breached` IS GONE WITH THE DUE FACT (addendum §2.9). It coloured the
+     deadline clay when the clock had passed; there is no clock. */
   const recommended =
     p.kind === "billing" ? (activeOverride ?? p.recommended) : null;
 
@@ -646,10 +644,12 @@ export function TaskPane({
       <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="min-w-0">
-            <p className={LABEL}>
-              {/* NEEDS-COPY-NICOLE */}
-              {TASK_KIND_LABEL[item.taskType]}
-            </p>
+            {/* ═══ THE EYEBROW IS GONE (addendum §2.9) ═══
+                It read "Billing code review" above every record on a
+                destination where every record is one — the same string the row
+                chip carried, removed for the same reason. The page title three
+                inches up says what surface this is; the pane's job is to say
+                WHICH one, which is the heading below. */}
             <h2
               /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance rule
                  is a statement about which record is on screen after a resolve,
@@ -673,20 +673,14 @@ export function TaskPane({
               <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
                 {`${elapsedLabel(item.openedAt, now)} open`}
               </span>
-              {(
-                <>
-                  <span aria-hidden className="opacity-40">·</span>
-                  <span
-                    className={cn(
-                      "tabular-nums",
-                      breached && "font-semibold text-[var(--band-clay-fg)]"
-                    )}
-                    style={{ fontFamily: "var(--font-mono)" }}
-                  >
-                    {deadlineFactFor(item.slaDeadline, now, elapsedLabel)}
-                  </span>
-                </>
-              )}
+              {/* ═══ AND SO IS THE DUE FACT (addendum §2.9) ═══
+                  The meta line read "2d open · due 6:24 PM", and with
+                  `TASK_SLA_MS` null for both billing types the second half
+                  became the literal "no review deadline" — a clause announcing
+                  the absence of a concept the destination no longer has.
+                  THE AGE STAYS, and it is now the whole line: it is what the
+                  list is ordered by, so the pane and the row agree on the one
+                  figure that explains the queue. */}
               {/* ═══ THE CHIP IS GONE FROM HERE TOO (arch-G, G1) ═══
                   arch-F replaced its misleading label (`Past 3d`, the SLA's
                   LENGTH) with "Overdue" — still a second statement beside

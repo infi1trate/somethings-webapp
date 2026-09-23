@@ -203,8 +203,16 @@ export function closedTodayInBand(
 }
 
 /** TODO-COPY. The header line: "Imminent — 12". An em dash, not a hyphen. */
-export function bandHeaderLabel(band: TierBand): string {
-  return `${band.label} — ${band.taskCount}`;
+export function bandHeaderLabel(band: TierBand, listName?: string): string {
+  /* ═══ AN UNLABELLED BAND TAKES THE LIST'S NAME (addendum §2.9) ═══
+     Care Reviews groups by nothing — one band, no visible header — and the
+     group still needs a name: a `role="group"` inside a tree is announced on
+     entry, and " — 19" is a count of nothing. The band has no label to give,
+     so the caller supplies the list's.
+     THE COUNT STAYS in both forms. It is the thing a screen-reader user
+     cannot get from the header, because the header is `aria-hidden`. */
+  const name = band.label || listName || "";
+  return name ? `${name} — ${band.taskCount}` : `${band.taskCount}`;
 }
 
 /** Present only so a caller can name the domain in an accessible label without

@@ -123,12 +123,22 @@ describe("the model has one flag type and no tier domain", () => {
     }
   });
 
-  it("gives the flag type no SLA, and every other type one", () => {
+  it("gives the flag type no SLA, for a reason that is still its own", () => {
+    /* ═══ THIS CHECK NARROWED WHEN BILLING LOST ITS DEADLINE TOO (§2.9) ═══
+       It asserted the flag was the ONLY type without an SLA, which was the
+       right claim while every other type had one: it stopped "no flag SLA"
+       from being satisfied by a build where nothing had a deadline at all.
+       Two billing types are null now, and for a DIFFERENT REASON — theirs is
+       "the concept does not apply" (§1 retires `CARE_REVIEW_SLA`), while the
+       flag's is "the number is not published yet" (`FLAG_REVIEW_SLA`, blocked
+       on Meg). The distinction is not expressible in this table, so the
+       surviving claim is the flag's own null plus the two clocks that must
+       NOT have gone: if both escalation SLAs were also null, the thing this
+       file is about — a fabricated flag deadline — would be indistinguishable
+       from a surface with no deadlines anywhere. */
     expect(TASK_SLA_MS.riskFlagReview).toBeNull();
-    for (const [t, ms] of Object.entries(TASK_SLA_MS)) {
-      if (t === "riskFlagReview") continue;
-      expect(ms, `${t} SLA`).toBeGreaterThan(0);
-    }
+    expect(TASK_SLA_MS.activeEscalation, "the acknowledgement clock").toBeGreaterThan(0);
+    expect(TASK_SLA_MS.escalationDocumentation, "the note clock").toBeGreaterThan(0);
   });
 
   it("ranks the flag type without ranking a tier", () => {

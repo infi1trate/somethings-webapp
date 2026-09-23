@@ -14,22 +14,22 @@
       "detail": "Theo L. · 14px/400 avantt"
     },
     {
-      "id": "tasks.job-chip",
-      "label": "the task type is present on every row, subordinate",
+      "id": "tasks.no-job-chip",
+      "label": "the task type is not repeated on every row",
       "ok": true,
-      "detail": "Billing code review · 11px/400 lausanne"
+      "detail": "Theo L. | F33.1 | Renewal proposed | 3d open"
     },
     {
-      "id": "tasks.deadline-column",
-      "label": "the deadline keeps its mono tabular column, in secondary ink",
+      "id": "tasks.age-column",
+      "label": "the temporal column is mono and tabular, and it is an age",
       "ok": true,
-      "detail": "overdue by 9h · 13px/600 ui-monospace"
+      "detail": "3d open · 13px/400 ui-monospace"
     },
     {
-      "id": "tasks.no-elapsed",
-      "label": "elapsed age is gone from the row",
+      "id": "tasks.no-deadline",
+      "label": "and no row states a deadline, because the destination has none",
       "ok": true,
-      "detail": "Theo L. | Billing code review | Renewal proposed | overdue by 9h"
+      "detail": "Theo L. | F33.1 | Renewal proposed | 3d open"
     },
     {
       "id": "tasks.one-temporal",
@@ -40,43 +40,25 @@
       "id": "tasks.spans-read",
       "label": "the row's spans were readable at all",
       "ok": true,
-      "detail": "9 spans"
+      "detail": "11 spans"
     },
     {
-      "id": "tasks.caption-disposition",
-      "label": "the caption carries the disposition, and not the name again",
+      "id": "tasks.caption-codes",
+      "label": "the caption carries the billing code as a lozenge, in the mono face",
       "ok": true,
-      "detail": "Renewal proposed · 12px/400 lausanne"
+      "detail": "F33.1[proposed]"
+    },
+    {
+      "id": "tasks.caption-not-the-name",
+      "label": "and not the name a second time",
+      "ok": true,
+      "detail": "Theo L. | F33.1 | Renewal proposed | 3d open"
     },
     {
       "id": "tasks.height",
       "label": "row height",
       "ok": true,
       "detail": "56px"
-    },
-    {
-      "id": "tasks.overdue-input",
-      "label": "the bucket header was readable",
-      "ok": true,
-      "detail": "{\"text\":\"Overdue — 1\",\"bg\":\"rgb(246, 211, 198)\",\"fg\":\"rgb(117, 48, 31)\"}"
-    },
-    {
-      "id": "tasks.overdue-header-carries-breach",
-      "label": "the bucket header carries the breach treatment",
-      "ok": true,
-      "detail": "Overdue — 1 · rgb(246, 211, 198)"
-    },
-    {
-      "id": "tasks.overdue-row-states-how-late",
-      "label": "and the row states how late, in breach ink, with no chip of its own",
-      "ok": true,
-      "detail": "overdue by 8h · rgb(117, 48, 31)/600"
-    },
-    {
-      "id": "tasks.overdue",
-      "label": "and the lateness is still stated exactly once",
-      "ok": true,
-      "detail": "Riley T. Billing code review Presentation proposed overdue by 8h"
     },
     {
       "id": "mon.rows-read",
@@ -106,97 +88,55 @@
       "id": "mon.no-tier-composition",
       "label": "no row carries a tier composition line any more",
       "ok": true,
-      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Family conflict, "
+      "detail": "teen Naomi R., mentor Brandy Forrestor, Unsafe home environment, escal"
     },
     {
-      "id": "hdr.tasks.uniform",
-      "label": "every header on the surface has one treatment",
+      "id": "sr.tasks.no-group-prefix",
+      "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "sticky|0px|1px|rgb(255, 255, 255)|12px|none|34"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 10:33 "
     },
     {
-      "id": "hdr.tasks.own-hairline",
-      "label": "every header draws its own separator rather than borrowing the card's",
+      "id": "sr.tasks.row-names-its-kind",
+      "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "1px, 1px, 1px"
-    },
-    {
-      "id": "hdr.tasks.anatomy",
-      "label": "label — count, sentence case, not mono",
-      "ok": true,
-      "detail": "Due today — 2 | Due tomorrow — 5 | Later — 9"
-    },
-    {
-      "id": "hdr.tasks.sticky",
-      "label": "a header is pinned to the top of the list after 90 rows",
-      "ok": true,
-      "detail": "scrollTop 248, pinned \"Due tomorrow — 5\", selected Later, Devon A., Billing code review, Presentation"
-    },
-    {
-      "id": "hdr.monitoring.uniform",
-      "label": "every header on the surface has one treatment",
-      "ok": true,
-      "detail": "sticky|0px|1px|rgb(255, 255, 255)|12px|none|34"
-    },
-    {
-      "id": "hdr.monitoring.own-hairline",
-      "label": "every header draws its own separator rather than borrowing the card's",
-      "ok": true,
-      "detail": "1px, 1px"
-    },
-    {
-      "id": "hdr.monitoring.anatomy",
-      "label": "label — count, sentence case, not mono",
-      "ok": true,
-      "detail": "Teen safety — 3 | Mentor practice — 1"
-    },
-    {
-      "id": "hdr.monitoring.sticky",
-      "label": "a header is pinned to the top of the list after 90 rows",
-      "ok": true,
-      "detail": "scrollTop 2868, pinned \"Teen safety — 64\", selected Teen safety, teen Jordan P., mentor Maria Lopez, F"
-    },
-    {
-      "id": "sr.tasks.group-in-name",
-      "label": "every row names the group it is in",
-      "ok": true,
-      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, ove"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 10:33 AM"
     },
     {
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "17 countdown, 0 elapsed, of 17"
+      "detail": "0 countdown, 19 elapsed, of 19"
     },
     {
-      "id": "sr.monitoring.group-in-name",
-      "label": "every row names the group it is in",
+      "id": "sr.monitoring.no-group-prefix",
+      "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Teen safety, teen Jordan P., mentor Maria Lopez, Family conf"
+      "detail": "teen Jordan P., mentor Maria Lopez, Unsafe home environment, 1d ago"
     },
     {
       "id": "sr.monitoring.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "0 countdown, 4 elapsed, of 4"
+      "detail": "0 countdown, 12 elapsed, of 12"
     },
     {
       "id": "e.teen-first",
       "label": "line 1 is the teen, in the display face (arch-F revised arch-E here)",
       "ok": true,
-      "detail": "Theo L. Billing code review · 16px/400 lausanne"
+      "detail": "Theo L. · 16px/400 lausanne"
     },
     {
-      "id": "e.disposition-caption",
-      "label": "line 2 carries the disposition preview, and not the name a second time",
+      "id": "e.code-caption",
+      "label": "line 2 carries the billing code, and not the name a second time",
       "ok": true,
-      "detail": "Renewal proposed"
+      "detail": "F33.1 Renewal proposed"
     },
     {
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Overdue, Theo L., Billing code review, Renewal proposed, overdue, overdue by 9h, 3:25 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 10:33 AM"
     },
     {
       "id": "e.no-avatar",
@@ -210,34 +150,22 @@
       "detail": "56px"
     },
     {
-      "id": "e.buckets-monotonic",
-      "label": "buckets appear in fixed order and never repeat",
+      "id": "e.one-sorted-sequence",
+      "label": "the list is one sequence, oldest first, with nothing restarting inside it",
       "ok": true,
-      "detail": "Overdue > Due today > Due tomorrow > Later"
+      "detail": "19 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
     },
     {
-      "id": "e.buckets-present",
-      "label": "the buckets that exist are labelled with counts",
+      "id": "e.monitoring-no-invented-bands",
+      "label": "Monitoring groups by nothing, and never by a tier or a deadline",
       "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
-    },
-    {
-      "id": "e.bucket-in-name",
-      "label": "and every row's accessible name starts with its bucket",
-      "ok": true,
-      "detail": "Overdue, Theo L., Billing code review, Renewal propose"
-    },
-    {
-      "id": "e.monitoring-subjects",
-      "label": "Monitoring groups by review subject — never by tier, never by deadline",
-      "ok": true,
-      "detail": "Teen safety — 69"
+      "detail": "no group headers"
     },
     {
       "id": "e.monitoring-mentor",
       "label": "and still names the mentor — with its role, not after a preposition",
       "ok": true,
-      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Family conf"
+      "detail": "teen Naomi R., mentor Brandy Forrestor, Unsafe home environment,"
     },
     {
       "id": "e.monitoring-avatar",

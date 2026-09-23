@@ -227,25 +227,41 @@ describe("the model's own shape", () => {
     expect(TYPE_URGENCY_RANK.activeEscalation).toBe(Math.min(...ranks));
   });
 
-  it("every task type has an urgency rank, and only a flag lacks an SLA", () => {
+  it("every task type has an urgency rank, and only the escalations have an SLA", () => {
+    /* ═══ THE EXCEPTION LIST GREW AND THE SHAPE OF THE CHECK INVERTED (§2.9) ═══
+       Phase 4 wrote this as "only a flag lacks an SLA", with the one exception
+       named rather than skipped — a loop that allowed null everywhere would
+       have passed on a build where billing lost its deadline too.
+       BILLING HAS NOW LOST ITS DEADLINE, deliberately: §1 retires
+       `CARE_REVIEW_SLA` and §2.9 removes the deadline concept from that
+       destination. So the named set flips — the two escalation types are the
+       ones that HAVE a clock, and everything else is null. Still named rather
+       than skipped, for the same reason: a null on `activeEscalation` would be
+       the five-minute acknowledgement clock quietly disappearing. */
+    const WITH_A_CLOCK = ["activeEscalation", "escalationDocumentation"];
     for (const t of Object.keys(DOMAIN_OF_TYPE) as Array<
       keyof typeof DOMAIN_OF_TYPE
     >) {
       expect(TYPE_URGENCY_RANK[t], t).toBeGreaterThan(0);
-      /* THE ONE EXCEPTION IS NAMED, NOT SKIPPED (Phase 4). A loop that just
-         allowed null everywhere would pass on a build where billing lost its
-         deadline too. */
-      if (t === "riskFlagReview") {
-        expect(TASK_SLA_MS[t], t).toBeNull();
-      } else {
+      if (WITH_A_CLOCK.includes(t)) {
         expect(TASK_SLA_MS[t], t).toBeGreaterThan(0);
+      } else {
+        expect(TASK_SLA_MS[t], t).toBeNull();
       }
     }
   });
 
-  it("both billing types share one SLA — the 48h/72h conflict is carried in one place", () => {
-    expect(TASK_SLA_MS.intakeBillingReview).toBe(TASK_SLA_MS.monthlyReReview);
-    expect(TASK_SLA_MS.intakeBillingReview).toBe(72 * 60 * 60 * 1000);
+  it("makes the oldest care review sort first, without a rule that says so", () => {
+    /* ═══ WHY THIS IS A TEST OF THE SLA TABLE AND NOT OF THE COMPARATOR ═══
+       §2.9 asks for oldest-first on Care Reviews. Nothing was added to
+       `compareTasks` to do it: with no deadline, breach is never true, the
+       urgency ladder is flat within the domain and `slaRemaining` is Infinity
+       on both sides — so the comparator falls through to `openedAt` ascending,
+       which is oldest-first. Pinned here because the behaviour is a
+       CONSEQUENCE of two nulls, and somebody restoring a billing SLA would
+       change the order without touching anything that mentions it. */
+    expect(TASK_SLA_MS.intakeBillingReview).toBeNull();
+    expect(TASK_SLA_MS.monthlyReReview).toBeNull();
   });
 
   it("the three domains are fixed and in spec order", () => {

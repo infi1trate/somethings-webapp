@@ -906,8 +906,18 @@ export function TasksPage({
                  header, so scanning for what was about to breach meant merging
                  two sorted lists by eye on the surface whose whole job is
                  deadline awareness. Monitoring keeps its tier bands: there the
-                 tier IS the kind of work, and its rows are person-forward. */
-                grouping="deadline"
+                 tier IS the kind of work, and its rows are person-forward.
+                 ═══ AND NOW IT GROUPS BY NOTHING (addendum §2.9) ═══
+                 The deadline buckets went with the deadline concept. What is
+                 left is one task type with no clock, which is nothing to group
+                 by — so the list is flat, in the comparator's order, which
+                 without an SLA is oldest-first. `AGENTS.md`'s "Tasks groups by
+                 when" section is rewritten to say so. */
+                grouping="none"
+                /* THE LIST'S OWN NAME, for the unlabelled band's accessible
+                   name — `DOMAIN_LABEL` would say "Billing", which is the word
+                   this destination was renamed away from. */
+                subject={scope ? SCOPE_TITLE[scope] : undefined}
                 rowVariant="task"
                 completed={completed}
                 completedSelectedId={completedSelectedId}
