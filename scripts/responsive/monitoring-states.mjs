@@ -864,6 +864,135 @@ for (const [scenario, id, want] of [
 // lost with the block that happened to hold it.
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 7 · ONE ROW PER CONVERSATION (addendum §3.1)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The unit tests own the grouping's MODEL — which member answers each of the
+// comparator's five keys, all four mutation-tested. What only the DOM can
+// answer is whether the row a supervisor reads describes the set it stands
+// for, which is where the defect was: three separate Marcus L. rows, each
+// reading "3 in this conversation".
+{
+  const { context, page } = await open("coalesce", { scenario: "flag-repeat-pattern" });
+  await page.waitForTimeout(900);
+  const rows = await page.locator('[role="treeitem"]').evaluateAll((els) =>
+    els.map((e) => ({
+      n: Number(e.getAttribute("data-flag-count") ?? 0),
+      text: (e.innerText || "").replace(/\s+/g, " ").trim(),
+      name: (e.getAttribute("aria-label") || "").replace(/\s+/g, " "),
+    }))
+  );
+  check(
+    "coalesce.input",
+    "the fixture renders a queue, and one of its rows stands for several flags",
+    rows.length > 0 && rows.some((r) => r.n > 1),
+    `${rows.length} row(s), largest set ${Math.max(0, ...rows.map((r) => r.n))}`
+  );
+  /* ═══ THE DEFECT, AS AN ASSERTION ═══
+     Two rows for one conversation is the un-coalesced state. Identity is the
+     teen-and-mentor pair as the row prints it, because that is what a reader
+     compares — the conversation id is not on screen. */
+  const leads = rows.map((r) => r.text.split(" · ")[0]);
+  const dupes = leads.filter((l, i) => leads.indexOf(l) !== i);
+  check(
+    "coalesce.one-row-each",
+    "no conversation appears twice in the queue",
+    dupes.length === 0,
+    dupes.length ? `repeated: ${[...new Set(dupes)].join(" · ")}` : `${leads.length} distinct`
+  );
+  /* ═══ AND THE COUNT DESCRIBES THE ROW IT IS ON ═══
+     The marker said "3 in this conversation" on a row standing for one flag.
+     Checked against `data-flag-count`, which is the row's own set size. */
+  const wrong = rows.filter((r) => {
+    const m = r.text.match(/(\d+) in this conversation/);
+    return m ? Number(m[1]) !== r.n : r.n > 1 && r.n >= 2;
+  });
+  check(
+    "coalesce.count-matches-row",
+    "and where a row states a count, it is that row's own",
+    wrong.length === 0,
+    wrong.length
+      ? wrong.map((r) => `says ${r.text.match(/(\d+) in this/)?.[1]}, holds ${r.n}`).join(" · ")
+      : rows.filter((r) => r.n > 1).map((r) => `${r.n} flags`).join(" · ") || "no multi-flag rows"
+  );
+  check(
+    "coalesce.name-says-set",
+    "a multi-flag row says so in its accessible name, not only in a marker",
+    rows.filter((r) => r.n > 1).every((r) => /\d+ flags in this conversation/.test(r.name)),
+    rows.find((r) => r.n > 1)?.name.slice(0, 110) ?? "no multi-flag row"
+  );
+
+  /* ═══ THE PANE MOVES WITHIN THE CONVERSATION ═══
+     A row standing for three flags is only honest if all three are reachable. */
+  await page.locator('[role="treeitem"][data-flag-count="3"]').first().click();
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => ({
+    pos: document.querySelector("[data-within-conversation]")?.getAttribute("data-within-conversation") ?? null,
+    steps: document.querySelectorAll("[data-within-step]").length,
+  }));
+  check(
+    "coalesce.stepper",
+    "the pane states which flag of the set it is showing",
+    before.pos === "1/3" && before.steps === 2,
+    `position ${before.pos} · ${before.steps} step control(s)`
+  );
+  await page.locator('[data-within-step="1"]').click();
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => ({
+    pos: document.querySelector("[data-within-conversation]")?.getAttribute("data-within-conversation") ?? null,
+  }));
+  check(
+    "coalesce.stepper-moves",
+    "and stepping shows the next one",
+    after.pos === "2/3",
+    `${before.pos} → ${after.pos}`
+  );
+  await context.close();
+}
+
+/* ═══ A DISPOSITION DOES NOT SURVIVE A CHANGE OF SUBJECT ═══
+   FOUND WHILE WIRING §3.1, and it predates it: the pane's axis state is
+   `useState` and nothing reset it between events, so picking "No clinical
+   concern" on one teen's flag left the radio CHECKED on the next teen's. The
+   unit tests assert nothing is pre-selected; they cannot see this, because
+   the model was never wrong — the component's lifetime was.
+   THE FIX IS A KEY on the pane, and this is the check that would catch its
+   removal. */
+{
+  const { context, page } = await open("pane-reset", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  const rows = page.locator('[role="treeitem"]');
+  const n = await rows.count();
+  await rows.first().click();
+  await page.waitForTimeout(300);
+  await page.locator("[data-disposition]").first().click();
+  await page.waitForTimeout(200);
+  const picked = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-slot="event-pane"] [role="radio"][aria-checked="true"]')]
+      .map((e) => e.getAttribute("data-disposition"))
+  );
+  check(
+    "pane.reset-input",
+    "a disposition was selectable, so the check below has something to clear",
+    n > 1 && picked.length === 1,
+    `${n} row(s), picked ${picked.join(",") || "nothing"}`
+  );
+  await rows.nth(1).click();
+  await page.waitForTimeout(400);
+  const carried = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-slot="event-pane"] [role="radio"][aria-checked="true"]')]
+      .map((e) => e.getAttribute("data-disposition") ?? e.getAttribute("data-accuracy"))
+  );
+  check(
+    "pane.no-carried-disposition",
+    "and it does not follow the reader to the next teen's flag",
+    carried.length === 0,
+    carried.length ? `still checked: ${carried.join(",")}` : "cleared"
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 8 · THE LIVE LAYER (Phase 6)
 // ═══════════════════════════════════════════════════════════════════════════
 {

@@ -1,5 +1,5 @@
 {
-  "at": 1790199787709,
+  "at": 1790201730906,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
@@ -11,7 +11,7 @@
       "id": "input.rows",
       "label": "rows were readable at all",
       "ok": true,
-      "detail": "69 rows"
+      "detail": "47 rows"
     },
     {
       "id": "tier.no-flag-deadline",
@@ -382,6 +382,54 @@
       "label": "and does not carry a neighbour's",
       "ok": true,
       "detail": "clean"
+    },
+    {
+      "id": "coalesce.input",
+      "label": "the fixture renders a queue, and one of its rows stands for several flags",
+      "ok": true,
+      "detail": "7 row(s), largest set 3"
+    },
+    {
+      "id": "coalesce.one-row-each",
+      "label": "no conversation appears twice in the queue",
+      "ok": true,
+      "detail": "7 distinct"
+    },
+    {
+      "id": "coalesce.count-matches-row",
+      "label": "and where a row states a count, it is that row's own",
+      "ok": true,
+      "detail": "3 flags"
+    },
+    {
+      "id": "coalesce.name-says-set",
+      "label": "a multi-flag row says so in its accessible name, not only in a marker",
+      "ok": true,
+      "detail": "teen Marcus L., mentor Brandon Forant, Passive suicidal ideation, 3 flags in this conversation, 8h ago"
+    },
+    {
+      "id": "coalesce.stepper",
+      "label": "the pane states which flag of the set it is showing",
+      "ok": true,
+      "detail": "position 1/3 · 2 step control(s)"
+    },
+    {
+      "id": "coalesce.stepper-moves",
+      "label": "and stepping shows the next one",
+      "ok": true,
+      "detail": "1/3 → 2/3"
+    },
+    {
+      "id": "pane.reset-input",
+      "label": "a disposition was selectable, so the check below has something to clear",
+      "ok": true,
+      "detail": "12 row(s), picked no-concern"
+    },
+    {
+      "id": "pane.no-carried-disposition",
+      "label": "and it does not follow the reader to the next teen's flag",
+      "ok": true,
+      "detail": "cleared"
     },
     {
       "id": "live.off-by-default",

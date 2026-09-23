@@ -45,6 +45,11 @@ import {
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
 import { sortEvents } from "@/lib/monitoring/event";
 import {
+  groupByConversation,
+  sortGroups,
+  type FlagGroup,
+} from "@/lib/monitoring/flag-group";
+import {
   compareEscalations,
   escalationObligations,
   isSettled,
@@ -360,6 +365,14 @@ export function MonitoringPage({
      pane and the keyboard read: the list as the reader sees it. */
   const filtered = events;
 
+  /** ═══ THE LIST'S UNIT IS A CONVERSATION (addendum §3.1) ═══
+   *  Built from the already-filtered, already-resolve-filtered events, so a
+   *  row disappears when its last member is closed and shrinks when one is. */
+  const groups = useMemo(
+    () => sortGroups(groupByConversation(filtered)),
+    [filtered]
+  );
+
   /** ═══ A SETTLED ESCALATION FINALLY LEAVES ═══
    *  Resolved AND every owed close-out item done. Anything less stays on screen
    *  and keeps aging. */
@@ -389,6 +402,8 @@ export function MonitoringPage({
   );
 
   // ── Selection ─────────────────────────────────────────────────────────────
+  /** THE SELECTED CONVERSATION, not the selected flag. The pane steps between
+   *  a conversation's flags on its own; the list's selection is the row. */
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEscalationId, setSelectedEscalationId] = useState<string | null>(
     () =>
@@ -431,9 +446,24 @@ export function MonitoringPage({
     !allEscalations.some((e) => e.id === focusEscalation)
       ? focusEscalation
       : null;
-  const selectedEvent = selectedEscalation
+  const selectedGroup: FlagGroup | null = selectedEscalation
     ? null
-    : (filtered.find((e) => e.id === selectedEventId) ?? filtered[0] ?? null);
+    : (groups.find((g) => g.id === selectedEventId) ?? groups[0] ?? null);
+  /** ═══ WHICH FLAG WITHIN THE CONVERSATION (addendum §3.1) ═══
+   *  Held as an ID rather than an index, and READ THROUGH THE GROUP rather
+   *  than reset when the row changes: an index would point at a different
+   *  flag after a resolve shortened the list, and a reset in an effect runs
+   *  one render late — the same reasoning the scope derivation uses.
+   *  The fallback is the group's first member, which is the one the queue's
+   *  own ordering would have put first. */
+  const [selectedFlagId, setSelectedFlagId] = useState<string | null>(null);
+  const selectedEvent =
+    selectedGroup?.events.find((e) => e.id === selectedFlagId) ??
+    selectedGroup?.events[0] ??
+    null;
+  const flagIdx = selectedGroup
+    ? selectedGroup.events.findIndex((e) => e.id === selectedEvent?.id)
+    : -1;
 
   const [takeoverWanted, setPaneTakeover] = useState(false);
   /** ═══ `Escalations` HAS NO LEFT COLUMN, AND THAT IS NOT AN EMPTY ONE ═══
@@ -454,7 +484,7 @@ export function MonitoringPage({
      detail column had nothing to hold. Both remaining destinations review their
      unit in the pane. */
   const paneTakeover =
-    paneOnly || (takeoverWanted && (filtered.length > 0 || escalations.length > 0));
+    paneOnly || (takeoverWanted && (groups.length > 0 || escalations.length > 0));
   const paneRef = useRef<HTMLDivElement | null>(null);
   const paneHandle = useRef<PaneHandle>({});
 
@@ -501,14 +531,25 @@ export function MonitoringPage({
     toastLabel: () => "Event closed",
     onResolved: (item) => {
       setResolvedIds((prev) => new Set(prev).add(item.id));
-      const idx = filtered.findIndex((e) => e.id === item.id);
-      const next = filtered.filter((e) => e.id !== item.id)[Math.max(0, Math.min(idx, filtered.length - 2))] ?? null;
+      /* ═══ ADVANCING IS PER CONVERSATION NOW (addendum §3.1) ═══
+         Closing one flag of three does not leave the conversation: the row
+         stays, one member lighter, and the pane shows the next one. Only when
+         the LAST member closes does the row go, and only then does the
+         selection move — which is also when an announcement is warranted,
+         because before that nothing changed about where the reader is. */
+      const g = groups.find((x) => x.events.some((e) => e.id === item.id));
+      if (g && g.events.length > 1) return;
+      const idx = groups.findIndex((x) => x.id === g?.id);
+      const next =
+        groups.filter((x) => x.id !== g?.id)[
+          Math.max(0, Math.min(idx, groups.length - 2))
+        ] ?? null;
       setSelectedEventId(next?.id ?? null);
       if (next) {
         /* NEEDS-COPY-NICOLE. THE ANNOUNCEMENT NAMES THE SUBJECT AND THE AGE —
            never a tier, which no longer exists, and never a deadline. */
         setAnnouncement(
-          `Next: ${next.teenName}, ${next.category ? riskCategoryLabel(next.category) : ""}, ${ageLabel(next.at, now)}`
+          `Next: ${next.teenName}, ${next.worstCategory ? riskCategoryLabel(next.worstCategory) : ""}, ${ageLabel(next.oldestAt, now)}`
         );
       }
     },
@@ -697,11 +738,15 @@ export function MonitoringPage({
                 </div>
               ) : (
                 <EventList
-                  events={filtered}
+                  groups={groups}
                   now={now}
-                  selectedId={selectedEvent?.id ?? null}
-                  onSelect={(e) => {
-                    setSelectedEventId(e.id);
+                  selectedId={selectedGroup?.id ?? null}
+                  onSelect={(g) => {
+                    setSelectedEventId(g.id);
+                    /* A NEW ROW OPENS AT ITS FIRST FLAG. Clearing rather than
+                       setting, so the fallback above stays the single
+                       definition of "which one". */
+                    setSelectedFlagId(null);
                     setSelectedEscalationId(null);
                     setPaneTakeover(true);
                   }}
@@ -767,7 +812,35 @@ export function MonitoringPage({
                 <PaneSkeleton />
               ) : (
                 <EventPane
+                  /* ═══ KEYED ON THE SUBJECT, AND THIS IS A DEFECT FIX ═══
+                     MEASURED before the key: pick "No clinical concern" on
+                     Marcus L.'s flag, click another teen's row, and the
+                     radio is STILL CHECKED — `data-disposition="no-concern"`
+                     on a flag nobody had read. The pane's axis state is
+                     `useState` and nothing reset it, so a clinical
+                     disposition carried across teens.
+                     A KEY RATHER THAN AN EFFECT: remounting is exactly the
+                     semantics wanted — every piece of pane state is about the
+                     subject in front of the reader — and a reset effect would
+                     run one render late, leaving a frame with the previous
+                     answer showing. */
+                  key={selectedEscalation?.id ?? selectedEvent?.id ?? "empty"}
                   event={selectedEvent}
+                  /** Where this flag sits in its conversation, for the pane's
+                   *  stepper. `total: 1` hides it — see the pane. */
+                  within={
+                    selectedGroup
+                      ? {
+                          index: flagIdx,
+                          total: selectedGroup.events.length,
+                          onStep: (d: number) => {
+                            const next =
+                              selectedGroup.events[flagIdx + d] ?? null;
+                            if (next) setSelectedFlagId(next.id);
+                          },
+                        }
+                      : null
+                  }
                   escalation={selectedEscalation}
                   /* THE WHOLE SET, for the record's timeline join. Not
                      `filtered` — the chips narrow what a READER is looking at,

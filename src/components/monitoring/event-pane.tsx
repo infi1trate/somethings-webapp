@@ -24,6 +24,8 @@ import { playbookMatchFor } from "@/lib/monitoring/surfacing";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   EyeOff,
   ShieldAlert,
 } from "lucide-react";
@@ -732,6 +734,7 @@ export function EventPane({
   deactivated,
   onResolve,
   onEscalate,
+  within = null,
   handleRef,
 }: {
   event: MonitoringEvent | null;
@@ -747,6 +750,16 @@ export function EventPane({
   deactivated: boolean;
   onResolve: (e: MonitoringEvent, detail: { disposition: DispositionValue; accuracy: string | null }) => void;
   onEscalate: (e: MonitoringEvent) => void;
+  /** ═══ WHERE THIS FLAG SITS IN ITS CONVERSATION (addendum §3.1) ═══
+   *  The list's unit is a conversation now, so a row can stand for three
+   *  flags and the pane is where a supervisor moves between them. Null on an
+   *  escalation, and `total: 1` renders nothing — a stepper offering no step
+   *  is the same dead chrome as a one-value filter. */
+  within?: {
+    index: number;
+    total: number;
+    onStep: (delta: number) => void;
+  } | null;
   handleRef?: React.MutableRefObject<PaneHandle>;
 }) {
   const [disposition, setDisposition] = useState<string | null>(null);
@@ -831,13 +844,65 @@ export function EventPane({
             mentorName={escalation ? escalation.mentorName : (event?.mentorName ?? "")}
           />
         </div>
-        <p className="mt-1 text-[12px] leading-[17px] text-[var(--text-secondary)]">
-          {escalation
-            ? `${/* NEEDS-COPY-NICOLE */ "Triggered"} ${ageLabel(escalation.triggeredAt, now)}`
-            : event
-              ? ageLabel(event.at, now)
-              : ""}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[12px] leading-[17px] text-[var(--text-secondary)]">
+            {escalation
+              ? `${/* NEEDS-COPY-NICOLE */ "Triggered"} ${ageLabel(escalation.triggeredAt, now)}`
+              : event
+                ? ageLabel(event.at, now)
+                : ""}
+          </p>
+          {within && within.total > 1 && (
+            /* ═══ THE STEPPER — POSITION, THEN THE TWO MOVES ═══
+               NEEDS-COPY-NICOLE. It states WHERE the reader is before offering
+               to move them, because "‹ ›" alone on a pane that just changed
+               subject is two arrows with no referent. The figures are mono and
+               tabular so the label does not reflow as the index passes 9.
+               DISABLED AT THE ENDS rather than wrapping: a queue a supervisor
+               is working through top to bottom should not silently return them
+               to the first flag they already dispositioned. */
+            <span
+              data-within-conversation={`${within.index + 1}/${within.total}`}
+              className="flex shrink-0 items-center gap-1"
+            >
+              <span
+                className="text-[12px] leading-[17px] tabular-nums text-[var(--text-secondary)]"
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
+                {within.index + 1} of {within.total} in this conversation
+              </span>
+              {([
+                [-1, "Previous flag in this conversation", ChevronLeft],
+                [1, "Next flag in this conversation", ChevronRight],
+              ] as const).map(([d, label, Icon]) => {
+                const at = within.index + d;
+                const off = at < 0 || at >= within.total;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    disabled={off}
+                    onClick={() => within.onStep(d)}
+                    aria-label={label}
+                    data-within-step={d}
+                    className={cn(
+                      /* 44px: this is the escalation-tier floor the whole
+                         surface holds, and a 28px chevron beside a 44px row
+                         is the control a reader misses under pressure. */
+                      "inline-flex size-11 items-center justify-center rounded-full",
+                      off
+                        ? "text-[var(--text-muted)] opacity-40"
+                        : "text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
+                      RING
+                    )}
+                  >
+                    <Icon className="size-4" aria-hidden />
+                  </button>
+                );
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* THE PANE'S OWN SCROLL — one of the surface's two regions. */}

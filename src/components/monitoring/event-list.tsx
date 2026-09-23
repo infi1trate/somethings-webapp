@@ -50,6 +50,10 @@ import { MessageSquareOff, Repeat2, ShieldAlert } from "lucide-react";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
 import { type MonitoringEvent } from "@/lib/monitoring/event";
+import {
+  isRepeatPattern,
+  type FlagGroup,
+} from "@/lib/monitoring/flag-group";
 import { FLAG_PATTERN_MIN } from "@/lib/monitoring/constants";
 import { cn } from "@/lib/utils";
 
@@ -88,15 +92,20 @@ export function ageLabel(at: number, now: number): string {
  *
  *  IT BRANCHED ON SUBJECT until §2.1 — a mentor-practice row led with the
  *  mentor. One subject, one rule. */
-function ariaFor(e: MonitoringEvent, now: number): string {
+function ariaFor(g: FlagGroup, now: number): string {
   const parts = [
-    `teen ${e.teenName}`,
-    `mentor ${e.mentorName}`,
-    categoryTextFor(e),
-    e.escalationOpen ? "escalation open for this teen" : null,
-    e.patternCount >= FLAG_PATTERN_MIN ? `${e.patternCount} flags in this conversation` : null,
-    !e.mentorReplied ? "no mentor reply" : null,
-    ageLabel(e.at, now),
+    `teen ${g.teenName}`,
+    `mentor ${g.mentorName}`,
+    categoryTextFor(g.events[0]),
+    /* ═══ THE COUNT IS IN THE ACCESSIBLE NAME WHENEVER IT IS MORE THAN ONE ═══
+       The visible marker only appears at `FLAG_PATTERN_MIN`, because below that
+       it is not a pattern. But a row standing for two flags is standing for two
+       flags whether or not that is a pattern, and a screen-reader user choosing
+       between rows needs to know the row is a set before they open it. */
+    g.events.length > 1 ? `${g.events.length} flags in this conversation` : null,
+    g.escalationOpen ? "escalation open for this teen" : null,
+    g.anyUnanswered ? "no mentor reply" : null,
+    ageLabel(g.oldestAt, now),
   ];
   return parts.filter(Boolean).join(", ");
 }
@@ -114,21 +123,20 @@ function Marker({ icon: Icon, children }: { icon: typeof Repeat2; children: Reac
 }
 
 function Row({
-  event: e,
+  group: g,
   now,
   selected,
   active,
   onSelect,
 }: {
-  event: MonitoringEvent;
+  group: FlagGroup;
   now: number;
   selected: boolean;
   active: boolean;
   onSelect: () => void;
 }) {
-  const lead = e.teenName;
-  const counterpart = e.mentorName;
-  const disc = discFor(e.teenId);
+  const disc = discFor(g.teenId);
+  const n = g.events.length;
   return (
     <div
       /* ═══ TREE / GROUP / TREEITEM, AND NOT LISTBOX / OPTION ═══
@@ -142,7 +150,10 @@ function Row({
       role="treeitem"
       aria-selected={selected}
       tabIndex={active ? 0 : -1}
-      data-anno-ref={`event-row:${e.id}`}
+      /* THE CONVERSATION IS THE ROW'S IDENTITY, not the flag. A row survives
+         its members being resolved one at a time. */
+      data-anno-ref={`event-row:${g.id}`}
+      data-flag-count={n}
       onClick={onSelect}
       onKeyDown={(ev) => {
         if (ev.key === " " || ev.key === "Enter") {
@@ -150,7 +161,7 @@ function Row({
           onSelect();
         }
       }}
-      aria-label={ariaFor(e, now)}
+      aria-label={ariaFor(g, now)}
       className={cn(
         "flex h-14 cursor-pointer items-center gap-3 px-3",
         "border-t border-[color:var(--border-subtle)] first:border-t-0",
@@ -163,46 +174,49 @@ function Row({
         className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
         style={{ backgroundColor: disc.bg, color: disc.fg }}
       >
-        {lead.charAt(0)}
+        {g.teenName.charAt(0)}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-1.5">
           {/* THE ONE EMPHASISED ELEMENT. */}
           <span className="truncate font-display text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {lead}
+            {g.teenName}
           </span>
-          {counterpart && (
-            <>
-              <span aria-hidden className="shrink-0 text-[12px] text-[var(--text-muted)]">
-                ↔
-              </span>
-              <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                {counterpart}
-              </span>
-            </>
-          )}
+          <span aria-hidden className="shrink-0 text-[12px] text-[var(--text-muted)]">
+            ↔
+          </span>
+          <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {g.mentorName}
+          </span>
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-          {/* CATEGORY, THEN AGE. No repeated noun phrase: the header says what
-              these are, so the row never says "flag" again. */}
-          <span className="truncate">{categoryTextFor(e)}</span>
+          {/* ═══ THE WORST CATEGORY, AND THE OLDEST AGE ═══
+              Both are the comparator's own answers — see `flag-group.ts` on why
+              a set's category is its highest-ranking member and its age is its
+              oldest. A row that sorted on one member and displayed another
+              would be a queue whose order cannot be read off it. */}
+          <span className="truncate">
+            {categoryTextFor({ ...g.events[0], category: g.worstCategory })}
+          </span>
           <span aria-hidden className="shrink-0 opacity-40">·</span>
           <span
             className="shrink-0 tabular-nums"
             style={{ fontFamily: "var(--font-mono)" }}
           >
-            {ageLabel(e.at, now)}
+            {ageLabel(g.oldestAt, now)}
           </span>
         </span>
       </span>
       {/* WHAT THE COMPARATOR ACTED ON, SAID OUT LOUD. A queue whose order cannot
           be explained from the rows is a queue a supervisor learns to distrust. */}
       <span className="flex shrink-0 items-center gap-1.5">
-        {e.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
-        {e.patternCount >= FLAG_PATTERN_MIN && (
-          <Marker icon={Repeat2}>{e.patternCount} in this conversation</Marker>
-        )}
-        {!e.mentorReplied && <Marker icon={MessageSquareOff}>No reply</Marker>}
+        {g.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
+        {/* ═══ THE MARKER FINALLY DESCRIBES ITS OWN ROW ═══
+            It read "3 in this conversation" on each of three separate rows for
+            the same conversation. One row per conversation, so the count is a
+            fact about the row a reader is looking at. */}
+        {isRepeatPattern(g) && <Marker icon={Repeat2}>{n} in this conversation</Marker>}
+        {g.anyUnanswered && <Marker icon={MessageSquareOff}>No reply</Marker>}
       </span>
     </div>
   );
@@ -224,16 +238,18 @@ function Row({
  *  chip pattern is `kind-filter.tsx`, which is where it was copied from. */
 
 export function EventList({
-  events,
+  groups,
   now,
   selectedId,
   onSelect,
   emptyLine,
 }: {
-  events: MonitoringEvent[];
+  /** ONE PER CONVERSATION, pre-sorted by `compareGroups`. */
+  groups: FlagGroup[];
   now: number;
+  /** The selected CONVERSATION's id — see the row's note on identity. */
   selectedId: string | null;
-  onSelect: (e: MonitoringEvent) => void;
+  onSelect: (g: FlagGroup) => void;
   /** NEEDS-COPY-NICOLE. What an empty queue says — and it never says "you're
    *  done", because coverage is the floor and the queue emptying is weather. */
   emptyLine: string;
@@ -244,7 +260,7 @@ export function EventList({
      twice and a count that, per §3.1, was counting the wrong unit anyway. The
      count moved to the page header's metric pair, which is where §2.10 puts it,
      and stating it in both places would be the clock told twice. */
-  const flat = events;
+  const flat = groups;
   const [activeIdx, setActiveIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -296,16 +312,16 @@ export function EventList({
         }
       }}
     >
-      {flat.map((e, i) => (
+      {flat.map((g, i) => (
         <Row
-          key={e.id}
-          event={e}
+          key={g.id}
+          group={g}
           now={now}
-          selected={selectedId === e.id}
+          selected={selectedId === g.id}
           active={i === idx}
           onSelect={() => {
             setActiveIdx(i);
-            onSelect(e);
+            onSelect(g);
           }}
         />
       ))}
