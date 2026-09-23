@@ -269,12 +269,43 @@ export function RailFooterItem({ item }: { item: SidebarItemDef }) {
 export function RailThemeToggle({
   theme,
   onToggle,
+  /** ═══ ONE CONTROL, TWO RAIL ANATOMIES ═══
+   *  `row` is this rail's 248px labelled row. `tile` is the ICON rail's
+   *  utility cluster — a 40px circle beside Settings and Help, which is where
+   *  that rail puts its non-destination controls.
+   *  NOT TWO CONTROLS: a reader sees exactly one theme toggle, because they
+   *  see exactly one rail. The variants exist because the rails do, and §2.3's
+   *  "role differences are items, never structure" is about the three staff
+   *  roles — all of which are on the labelled rail. */
+  variant = "row",
 }: {
   theme: "light" | "dark";
   onToggle: () => void;
+  variant?: "row" | "tile";
 }) {
   const dark = theme === "dark";
   const Icon = dark ? Moon : Sun;
+  /* THE ACCESSIBLE NAME IS THE SAME IN BOTH, because a screen-reader user gets
+     no benefit from the tile's brevity — and a switch with no words at all is
+     the thing `aria-label` exists to prevent. NEEDS-COPY-NICOLE. */
+  const label = `Dark mode ${dark ? "on" : "off"}`;
+  if (variant === "tile") {
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={dark}
+        aria-label={label}
+        data-anno-ref="rail-theme-toggle"
+        onClick={onToggle}
+        className={cn("flex size-11 items-center justify-center rounded-full", RING)}
+      >
+        <span className="flex size-[var(--sidebar-utility)] items-center justify-center rounded-full bg-[var(--surface-card)] text-[var(--text-secondary)] shadow-[var(--shadow-tile)] transition-colors hover:text-[var(--text-primary)]">
+          <Icon className="size-4" aria-hidden />
+        </span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -291,7 +322,7 @@ export function RailThemeToggle({
     >
       <Icon aria-hidden className="size-[18px] shrink-0 text-[var(--text-secondary)]" />
       {/* NEEDS-COPY-NICOLE. The target nav's phrasing, which states the state. */}
-      <span className="min-w-0 truncate">Dark mode {dark ? "on" : "off"}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }

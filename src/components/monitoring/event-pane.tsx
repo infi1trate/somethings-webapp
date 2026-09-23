@@ -32,6 +32,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
+import { CONTEXT_BEFORE, OLDER_PAGE } from "@/lib/tasks/conversation";
 import { EscalationNoteModule } from "@/components/record/escalation-note-module";
 import {
   EscalationTimeline,
@@ -212,15 +213,29 @@ function FlagBody({
   event: e,
   now,
   compliance,
+  scrollHostRef,
 }: {
   event: MonitoringEvent;
   now: number;
   compliance: CompliancePath;
+  /** ═══ THE PANE'S OWN SCROLLER (addendum §2.7) ═══
+   *  Present when this body IS the pane's contents, which is where the
+   *  transcript scrolls continuously. Absent inside a linked-flag disclosure,
+   *  where the flag is evidence attached to a record rather than the thing
+   *  being reviewed — there it renders as the window it has always been, and
+   *  a second continuous transcript inside an escalation would be a third
+   *  scroll region wearing a different hat. */
+  scrollHostRef?: React.RefObject<HTMLElement | null>;
 }) {
   const item = e.flag;
+  /** ═══ HOW FAR BACK THE TRANSCRIPT HAS LOADED ═══
+   *  Page-local and reset by the pane's key on every change of subject, which
+   *  is what stops a reader who scrolled sixty messages into one teen's
+   *  history from opening the next flag mid-thread. */
+  const [before, setBefore] = useState(CONTEXT_BEFORE);
   if (!item) return null;
   const payload = item.payload as RiskFlagPayload;
-  const conversation = buildConversation(item, payload.flaggedExcerpt, now);
+  const conversation = buildConversation(item, payload.flaggedExcerpt, now, before);
   const match = playbookMatchFor(payload);
   const byClassifier = asksAboutClassifier(payload.reportedBy);
   return (
@@ -299,14 +314,23 @@ function FlagBody({
       <div>
         <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Conversation</p>
         <div className="mt-2">
-          {/* `scroll={false}` — THE THIRD SCROLL REGION IS GONE. The window holds
-              the flagged message and three turns either side; the pane's own
-              scroll carries it, and locked decision 4's two regions hold. */}
+          {/* ═══ THE TRANSCRIPT IS THE PANE'S SCROLL REGION (§2.7) ═══
+              `scroll={false}` so the excerpt adds no overflow of its own, and
+              `hostRef` so it anchors, observes and loads against the pane's
+              scroller instead. That is the reconciliation locked decision 4
+              needs: two regions on the page — the list and the pane — with
+              the pane's being the transcript itself, and nothing nested. */}
           <ConversationExcerpt
             conversation={conversation}
             teenName={firstNameOf(item.teenDisplayName)}
             href={conversationHref(item.teenId, conversation.anchorId)}
             scroll={false}
+            hostRef={scrollHostRef}
+            onNeedOlder={
+              scrollHostRef && conversation.truncatedStart
+                ? () => setBefore((n) => n + OLDER_PAGE)
+                : undefined
+            }
           />
         </div>
       </div>
@@ -1013,6 +1037,9 @@ export function EventPane({
   const [accuracy, setAccuracy] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
   const hintRef = useRef<HTMLParagraphElement | null>(null);
+  /** The pane's scroll region — handed to the transcript, which is what
+   *  scrolls inside it. See §2.7's reconciliation with locked decision 4. */
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   /** ═══ DOES A CLASSIFIER'S ACCURACY MEAN ANYTHING HERE (addendum §2.8) ═══
    *  Read off the payload's own `reportedBy` rather than off the absence of a
    *  rationale: a classifier flag with an empty rationale is a pipeline
@@ -1175,8 +1202,11 @@ export function EventPane({
         </div>
       </div>
 
-      {/* THE PANE'S OWN SCROLL — one of the surface's two regions. */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      {/* ═══ THE PANE'S OWN SCROLL — one of the surface's two regions ═══
+          AND THE TRANSCRIPT'S, since §2.7: `bodyRef` is handed to the excerpt
+          so it scrolls, anchors and loads against this element rather than
+          opening one of its own. */}
+      <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {deactivated && (
           <div
             role="alert"
@@ -1205,7 +1235,12 @@ export function EventPane({
             onLinkFlag={onLinkFlag}
           />
         ) : event ? (
-          <FlagBody event={event} now={now} compliance={compliance} />
+          <FlagBody
+            event={event}
+            now={now}
+            compliance={compliance}
+            scrollHostRef={bodyRef}
+          />
         ) : null}
       </div>
 

@@ -1,5 +1,5 @@
 {
-  "at": 1790203230506,
+  "at": 1790205116115,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
@@ -483,7 +483,7 @@
       "id": "link.picker-states-its-scope",
       "label": "the attach picker names what it searched when it finds nothing",
       "ok": true,
-      "detail": "Linked flags · 1 Attach a flag No other open flags on Jordan P.. Unsafe home environment 1d ago Playbook match Unsafe ho"
+      "detail": "Linked flags · 1 Attach a flag No other open flags on Jordan P. Unsafe home environment 1d ago Playbook match Unsafe hom"
     },
     {
       "id": "keys.digit-commits",
@@ -502,6 +502,42 @@
       "label": "the sheet distinguishes the keys that close from the one that does not",
       "ok": true,
       "detail": "No clinical concern — and mark reviewed · Support already in place — and mark reviewed · Watching — not resolved · Open an escalation from this flag"
+    },
+    {
+      "id": "transcript.one-region",
+      "label": "the pane has exactly one scroll region and the transcript is in it",
+      "ok": true,
+      "detail": "1 scrollable element(s) inside the pane"
+    },
+    {
+      "id": "transcript.loads-older",
+      "label": "scrolling to the top loads older messages",
+      "ok": true,
+      "detail": "19 → 39 message(s)"
+    },
+    {
+      "id": "transcript.anchored",
+      "label": "and the reader's line moves only by the amount they scrolled",
+      "ok": true,
+      "detail": "the watched line moved 160px; the reader scrolled 160"
+    },
+    {
+      "id": "transcript.return-names-its-direction",
+      "label": "with the flagged message off screen, the control says which way it is",
+      "ok": true,
+      "detail": "below"
+    },
+    {
+      "id": "transcript.return-goes-there",
+      "label": "and pressing it puts the flagged message back on screen, which dismisses it",
+      "ok": true,
+      "detail": "in view · control gone"
+    },
+    {
+      "id": "transcript.edge-is-honest",
+      "label": "the edge marker says more is coming, then says this is the beginning",
+      "ok": true,
+      "detail": "opened with \"Loading earlier messages as you scroll\" · ended with \"The start of this conversation\""
     },
     {
       "id": "live.off-by-default",
@@ -554,7 +590,7 @@
       "id": "targets.escalations-44",
       "label": "every escalation control clears HIG's 44px",
       "ok": true,
-      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Escalation timeline:260x910 · Attach a flag:44x117"
+      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Attach a flag:44x117"
     },
     {
       "id": "targets.rows",

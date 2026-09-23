@@ -336,16 +336,25 @@ export function EscalationTimeline({
         </div>
       )}
 
-      {/* BOUNDED: ~260px, about eight entries, and it scrolls rather than
-          growing — the action row below it must stay reachable at any length. */}
+      {/* ═══ IT WAS BOUNDED AND SCROLLED; NOW IT GROWS (addendum §2.7) ═══
+          `max-h-[260px] overflow-y-auto overscroll-contain` made this a THIRD
+          scroll region on Escalations — measured at 1280×900: the page, the
+          pane, and this. §2.7's reconciliation is that the pane's scroll
+          carries its contents and nothing nests inside it, which is the rule
+          the flag transcript now follows; the same rule applies here.
+          THE REASON IT WAS BOUNDED DOES NOT SURVIVE INSPECTION: "the action
+          row below it must stay reachable at any length" — the action row
+          (`Log an action`) is ABOVE this block, not below, so a fifty-entry
+          crisis never pushed it anywhere. The bound was protecting a control
+          that was never at risk, at the cost of a scroll region the page's own
+          locked decision does not allow.
+          `role="group"` AND `tabIndex` GO WITH IT: they exist to make a
+          SCROLLABLE region operable by keyboard (`scrollable-region-focusable`).
+          A block that does not scroll has nothing to operate, and a focus stop
+          that does nothing is noise in the tab order — the same reasoning the
+          conversation excerpt already applies to its unscrolled mode. */}
       <div
-        tabIndex={0}
-        role="group"
-        aria-label="Escalation timeline"
-        className={cn(
-          "mt-2 max-h-[260px] overflow-y-auto overscroll-contain rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
-          RING
-        )}
+        className="mt-2 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
       >
         {entries.length === 0 ? (
           <p className="px-3 py-4 text-[12.5px] leading-[18px] text-[var(--text-secondary)]">

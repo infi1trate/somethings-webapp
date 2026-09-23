@@ -458,20 +458,27 @@ console.log("\n§4 · the mirror agrees with the destination\n");
   /* ── RISK FLAGS · the group header's count against the card's figure ────── */
   {
     const { context, page } = await open("mirror-flags", "/app/risk-flags");
-    /* ═══ THE ROWS, NOT A HEADER STRING (addendum §2.1) ═══
-       It read the group header's count ("Teen safety — 9"). That header is
-       gone: with one review subject it restated the page title, and per §3.1
-       it was counting flags while describing conversations.
-       COUNTING THE ROWS IS THE STRONGER FORM ANYWAY — it compares the card's
-       figure against the queue a supervisor can actually see, rather than
-       against another rendering of the same number. */
-    const dest = await page.evaluate(
-      () => document.querySelectorAll('[role="treeitem"]').length || null
-    );
+    /* ═══ THE FLAGS THE ROWS STAND FOR, NOT THE ROWS (addendum §2.1, §3.1) ═══
+       It read the group header's count ("Teen safety — 9"), which §2.1
+       removed. Counting the ROWS replaced it and was wrong within one phase:
+       §3.1 made a row a CONVERSATION, so the destination showed 60 rows while
+       the card said 123 flags — two true numbers in different units, and this
+       check failed on a disagreement that was not one.
+       THE UNIT HAS TO MATCH THE CARD'S, and the card counts open flags. Each
+       row carries its own set size, so the destination's flag count is
+       readable without a header to parse. */
+    const dest = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[role="treeitem"]')];
+      if (rows.length === 0) return null;
+      return rows.reduce(
+        (n, r) => n + Number(r.getAttribute("data-flag-count") ?? 1),
+        0
+      );
+    });
     const onToday = Number(byId["risk-flags"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
     check(
       "agree.risk-flags",
-      "Risk Flags' queue count equals the card's",
+      "Risk Flags' open flag count equals the card's",
       dest != null && dest === onToday,
       `destination ${dest} · today ${onToday}`
     );

@@ -84,6 +84,7 @@ export function AppChrome({
   const persona = mounted ? storePersona : "mentor";
   const staff = isStaff(persona);
   const { theme, setTheme } = useAppearance();
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   // ── Identity ──────────────────────────────────────────────────────────────
   const firstName = useOnboardingStore((s) => s.draft.firstName);
@@ -182,15 +183,27 @@ export function AppChrome({
     <AppShell
       activeId={active}
       bottomInset={bottomInset}
-      /** UNCONDITIONAL. `railGroups` returns one unlabelled group holding
-       *  exactly `railItems(persona)` for every persona without a grouped rail,
-       *  which renders as the flat rail did — so this is one code path rather
-       *  than a per-persona branch, and a persona that grows groups later needs
-       *  no change here. */
-      railGroups={railGroups(persona)}
-      /** Still passed, and still unused while `railGroups` is present. It is the
-       *  icon rail's input and `AppShell` keeps that path for the settings
-       *  sidebar, which is not this shell. */
+      /** ═══ STAFF GET THE LABELLED RAIL; A MENTOR KEEPS THE ICON RAIL ═══
+       *
+       *  §2.3's scope is explicit — Lead Mentor, Supervisor and Admin — and it
+       *  is the fork BETWEEN THOSE THREE that it forbids. A mentor is not in
+       *  it, and the two rails are not cosmetic variants of each other:
+       *  `SettingsSidebar` is a 92px ICON rail and `GroupedRail` is 248px of
+       *  labelled rows.
+       *
+       *  THE FIRST VERSION PASSED THIS UNCONDITIONALLY and I recorded that it
+       *  "renders as the flat rail did". It does not. MEASURED: it moved every
+       *  mentor and new-mentor onto the 248px rail, taking 156px off the chat
+       *  thread — and the `chat-thread` probe caught it as a reaction menu that
+       *  could no longer be clicked, because the narrower thread column put the
+       *  menu over the conversation list.
+       *
+       *  A PROBE ON A SURFACE THIS PHASE DOES NOT TOUCH is what found it, which
+       *  is the argument for running all of them rather than the ones a change
+       *  is "about". */
+      railGroups={staff ? railGroups(persona) : undefined}
+      /** The icon rail's input, used when `railGroups` is absent — which is the
+       *  mentor personas. */
       railItems={railItems(persona)}
       /** ═══ TWO ROWS, AND THEY ARE DIFFERENT KINDS OF THING ═══
        *  `Announcements` is in the supervisor's target nav with no brief and no
@@ -202,11 +215,13 @@ export function AppChrome({
       railFooter={
         <>
           {isSupervisorTier(persona) && <RailFooterItem item={NAV.announcements} />}
-          <RailThemeToggle
-            theme={theme}
-            onToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
-          />
+          <RailThemeToggle theme={theme} onToggle={toggleTheme} />
         </>
+      }
+      /** THE ICON RAIL'S COPY OF THE SAME CONTROL. Only one of the two rails
+       *  renders at a time, so only one of these is ever on screen. */
+      railThemeToggle={
+        <RailThemeToggle theme={theme} onToggle={toggleTheme} variant="tile" />
       }
       barItems={barItems(persona)}
       navLabel={staff ? "Supervisor sections" : "Mentor navigation"}

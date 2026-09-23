@@ -1240,6 +1240,160 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 7c · THE TRANSCRIPT SCROLLS, AND IT DOES NOT JUMP (addendum §2.7)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("transcript", { scenario: "normal-day" });
+  const BODY = '[data-slot="event-pane"] .overflow-y-auto';
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(700);
+
+  /* ═══ ONE REGION IN THE PANE, AND IT IS THE TRANSCRIPT ═══
+     `structure.two-scrollers` already counts the page's regions. This is the
+     narrower claim §2.7 makes: nothing nests INSIDE the pane. */
+  const nested = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    return [...(pane?.querySelectorAll("*") ?? [])].filter((e) => {
+      const oy = getComputedStyle(e).overflowY;
+      return oy === "auto" || oy === "scroll";
+    }).length;
+  });
+  check(
+    "transcript.one-region",
+    "the pane has exactly one scroll region and the transcript is in it",
+    nested === 1,
+    `${nested} scrollable element(s) inside the pane`
+  );
+
+  /* ═══ SCROLL ANCHORING, MEASURED AGAINST A MARKED LINE ═══
+     The arithmetic is the whole check: a line is marked while the transcript
+     is parked ABOVE the load threshold, the reader then scrolls 160px up,
+     which crosses it — so the line must move exactly 160px and not one pixel
+     more. The first implementation moved it 1400. */
+  await page.evaluate((B) => {
+    document.querySelector(B).scrollTop = 200;
+  }, BODY);
+  await page.waitForTimeout(400);
+  const mark = await page.evaluate((B) => {
+    const b = document.querySelector(B);
+    const r = b.getBoundingClientRect();
+    const li = [...b.querySelectorAll("li")].find(
+      (e) => e.getBoundingClientRect().top >= r.top - 2
+    );
+    if (!li) return null;
+    li.setAttribute("data-watch", "1");
+    return {
+      offset: Math.round(li.getBoundingClientRect().top - r.top),
+      n: b.querySelectorAll("li").length,
+    };
+  }, BODY);
+  await page.evaluate((B) => {
+    document.querySelector(B).scrollTop = 40;
+  }, BODY);
+  await page.waitForTimeout(1100);
+  const moved = await page.evaluate((B) => {
+    const b = document.querySelector(B);
+    const li = b.querySelector("[data-watch]");
+    if (!li) return null;
+    return {
+      offset: Math.round(li.getBoundingClientRect().top - b.getBoundingClientRect().top),
+      n: b.querySelectorAll("li").length,
+    };
+  }, BODY);
+  check(
+    "transcript.loads-older",
+    "scrolling to the top loads older messages",
+    !!mark && !!moved && moved.n > mark.n,
+    mark && moved ? `${mark.n} → ${moved.n} message(s)` : "could not mark a line"
+  );
+  check(
+    "transcript.anchored",
+    "and the reader's line moves only by the amount they scrolled",
+    !!mark && !!moved && Math.abs(moved.offset - mark.offset - 160) <= 4,
+    mark && moved
+      ? `the watched line moved ${moved.offset - mark.offset}px; the reader scrolled 160`
+      : "could not measure"
+  );
+
+  /* ═══ THE RETURN CONTROL APPEARS ONLY WHEN IT HAS SOMEWHERE TO GO ═══ */
+  await page.evaluate((B) => {
+    document.querySelector(B).scrollTop = 0;
+  }, BODY);
+  await page.waitForTimeout(700);
+  const away = await page.evaluate(
+    () => document.querySelector("[data-return-to-flag]")?.getAttribute("data-return-to-flag") ?? null
+  );
+  check(
+    "transcript.return-names-its-direction",
+    "with the flagged message off screen, the control says which way it is",
+    away === "below" || away === "above",
+    away ?? "no control"
+  );
+  if (away) {
+    await page.locator("[data-return-to-flag]").click();
+    await page.waitForTimeout(900);
+    const back = await page.evaluate(() => ({
+      pill: document.querySelector("[data-return-to-flag]") ? "still there" : "gone",
+      visible: (() => {
+        const b = document.querySelector('[data-slot="event-pane"] .overflow-y-auto');
+        const li = b?.querySelector("[data-anno-ref], li");
+        const flagged = [...(b?.querySelectorAll("li") ?? [])].find((e) =>
+          (e.textContent ?? "").includes("Flagged message")
+        );
+        if (!b || !flagged) return "no flagged line";
+        const r = b.getBoundingClientRect();
+        const f = flagged.getBoundingClientRect();
+        void li;
+        return f.top >= r.top - 2 && f.bottom <= r.bottom + 2 ? "in view" : "out of view";
+      })(),
+    }));
+    check(
+      "transcript.return-goes-there",
+      "and pressing it puts the flagged message back on screen, which dismisses it",
+      back.visible === "in view" && back.pill === "gone",
+      `${back.visible} · control ${back.pill}`
+    );
+  }
+  await context.close();
+}
+
+/* ═══ THE EDGE MARKER STOPS PROMISING WHAT IS NOT COMING ═══
+   It read "Earlier messages not shown" unconditionally, which is true of a
+   window and a lie at the beginning of a conversation. */
+{
+  const { context, page } = await open("transcript-start", { scenario: "normal-day" });
+  const BODY = '[data-slot="event-pane"] .overflow-y-auto';
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(700);
+  const edge = () =>
+    page.evaluate((B) => {
+      const b = document.querySelector(B);
+      return (
+        [...(b?.querySelectorAll("p") ?? [])]
+          .map((e) => e.innerText)
+          .find((t) => /earlier|start of this/i.test(t)) ?? null
+      );
+    }, BODY);
+  const opening = await edge();
+  for (let i = 0; i < 6; i += 1) {
+    await page.evaluate((B) => {
+      document.querySelector(B).scrollTop = 0;
+    }, BODY);
+    await page.waitForTimeout(420);
+  }
+  const atStart = await edge();
+  check(
+    "transcript.edge-is-honest",
+    "the edge marker says more is coming, then says this is the beginning",
+    /as you scroll/i.test(opening ?? "") && /start of this conversation/i.test(atStart ?? ""),
+    `opened with "${opening ?? "nothing"}" · ended with "${atStart ?? "nothing"}"`
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 8 · THE LIVE LAYER (Phase 6)
 // ═══════════════════════════════════════════════════════════════════════════
 {
