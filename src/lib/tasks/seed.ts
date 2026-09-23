@@ -25,10 +25,11 @@
 // TEEN NAMES ARE FIRST NAME + LAST INITIAL (locked decision 11). No surname
 // exists in this file to render.
 
+import { riskCategory } from "@/lib/record/risk-taxonomy";
 import { deadlineFor } from "@/lib/tasks/sla";
 import {
   DOMAIN_OF_TYPE,
-  TIER_RANK,
+  TYPE_URGENCY_RANK,
   type TaskItem,
   type TaskPayload,
   type TaskType,
@@ -148,15 +149,45 @@ export interface Mentor {
 // ── Payload builders ────────────────────────────────────────────────────────
 // TODO-COPY / TODO-DATA on every string.
 
+/** ═══ A FIXTURE CATEGORY MUST BE A PLAYBOOK CATEGORY (Phase 4) ═══
+ *
+ *  The categories were free text and nothing checked them, which is how
+ *  "Self-harm language" and "Low mood" ended up in the data alongside a playbook
+ *  holding 21 ids that look nothing like them. Two consequences followed: the
+ *  clinical ranking had nothing to key on, and `unknownCategories` — the function
+ *  whose whole job is surfacing a category outside the playbook — would have
+ *  flagged every flag in every fixture.
+ *
+ *  THIS THROWS. A fixture is developer input, so a bad id should stop the build
+ *  rather than reach a supervisor as a raw enum or an empty label. It runs at
+ *  module scope through the payload builders, so it cannot be skipped. */
+function assertPlaybookCategories(categories: string[]): void {
+  const bad = categories.filter((c) => riskCategory(c) == null);
+  if (bad.length > 0) {
+    throw new Error(
+      `seed: not playbook category ids — ${bad.join(", ")}. ` +
+        `Use RISK_CATEGORIES[].id from lib/record/risk-taxonomy.ts.`
+    );
+  }
+}
+
+/** ═══ NO TIER, AND THE CATEGORIES ARE PLAYBOOK IDS (Phase 4) ═══
+ *
+ *  The first parameter was the tier — a severity this file assigned, which every
+ *  surface downstream then rendered as clinical fact. It is gone, and the
+ *  CATEGORY is what carries the difference between one fixture and another.
+ *
+ *  THE IDS ARE ASSERTED AT BUILD TIME (`assertPlaybookCategories` below), so a
+ *  typo is a thrown error in development rather than a row that quietly renders
+ *  a raw enum to a supervisor. */
 function flagPayload(
-  tier: "imminent" | "clinicalReview" | "routine",
   categories: string[],
   excerpt: string,
   rationale: string
 ): TaskPayload {
+  assertPlaybookCategories(categories);
   return {
     kind: "riskFlag",
-    tier,
     sourceType: "Message",
     categories,
     flaggedExcerpt: excerpt,
@@ -212,6 +243,35 @@ interface Spec {
   status?: TaskItem["status"];
   /** Resolved fixtures feed the "Closed today" counters. */
   resolvedAgo?: number;
+  /** ═══ A FRACTION OF THE DAY SO FAR, NOT A FIXED AGE (Phase 10) ═══
+   *  `closedFill` used `resolvedAgo: 30m + (0–6)h` with the note "always inside
+   *  today" — true during a day shift and false after midnight. MEASURED:
+   *  Today's "Closed today" read 21 at one point in a session and 4 later on the
+   *  same scenario, because `closedToday` counts only resolutions on the same
+   *  CALENDAR day as `now`, and at 01:00 most of a 6.5-hour window is yesterday.
+   *  Resolved in `build`, which is the only place that knows `now`. At 14:00 the
+   *  closures spread across the last ~7 hours exactly as before; at 01:00 across
+   *  the last hour — which is the honest reading, since nothing can have been
+   *  closed today longer ago than today has been running. Gap row 419. */
+  resolvedFracOfDay?: number;
+}
+
+/** ═══ HOW LONG TODAY HAS BEEN RUNNING — NO FLOOR ═══
+ *
+ *  A first attempt floored this at 45 minutes so the first minutes of a day
+ *  still produced a plausible spread. MEASURED at 00:30: the floor exceeded the
+ *  elapsed day, so the oldest closures landed BEFORE midnight and `closedToday`
+ *  counted 18 of 26 — reintroducing the very drift the change exists to remove,
+ *  in a narrower window.
+ *
+ *  So there is no floor. In the first minutes of a day the closures bunch
+ *  together, which is the honest shape: nothing can have been closed today
+ *  longer ago than today has been running, and a fixture that says otherwise is
+ *  the fixture lying rather than the clock being awkward. */
+function elapsedToday(now: number): number {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return now - midnight.getTime();
 }
 
 function build(specs: Spec[], now: number): TaskItem[] {
@@ -223,7 +283,7 @@ function build(specs: Spec[], now: number): TaskItem[] {
       id: `task-${i + 1}`,
       domain: DOMAIN_OF_TYPE[s.taskType],
       taskType: s.taskType,
-      tierRank: TIER_RANK[s.taskType],
+      urgencyRank: TYPE_URGENCY_RANK[s.taskType],
       teenId: s.teen.id,
       teenDisplayName: s.teen.name,
       mentorId: s.mentor.id,
@@ -232,7 +292,11 @@ function build(specs: Spec[], now: number): TaskItem[] {
       openedAt,
       slaDeadline: deadlineFor(s.taskType, clockStart),
       status: s.status ?? "open",
-      ...(s.resolvedAgo !== undefined ? { resolvedAt: now - s.resolvedAgo } : {}),
+      ...(s.resolvedAgo !== undefined
+        ? { resolvedAt: now - s.resolvedAgo }
+        : s.resolvedFracOfDay !== undefined
+          ? { resolvedAt: now - Math.round(elapsedToday(now) * s.resolvedFracOfDay) }
+          : {}),
       payload: s.payload,
     };
   });
@@ -264,26 +328,42 @@ function withCoalesceCounts(items: TaskItem[]): TaskItem[] {
 
 // ── Reusable payload fixtures ───────────────────────────────────────────────
 
-const IMMINENT = () =>
+/** ═══ THE FIXTURE VARIETY IS CATEGORY VARIETY NOW (Phase 4) ═══
+ *
+ *  These three were `IMMINENT` / `CLINICAL` / `ROUTINE` — named for the tier they
+ *  asserted, each carrying one free-text category ("Self-harm language", "Family
+ *  conflict", "Low mood") that matched nothing in the playbook. That is why
+ *  `FLAG_CATEGORY_RANK` had nothing to key on and comparator step 2 was a no-op
+ *  with no way out of it.
+ *
+ *  They are named for their CATEGORY now, and the ids are the playbook's. Their
+ *  playbook tier is still derivable through `tierOf` — one draws from each of the
+ *  three groupings, deliberately, so a surface that reads the derivation has
+ *  something to read. The difference from what was removed: the grouping is a
+ *  clinical judgment over published categories that somebody owns, and it is
+ *  computed at the point of use rather than stamped onto the row.
+ *
+ *  THE EXCERPTS AND RATIONALES ARE UNCHANGED, and each still matches its
+ *  category — `PASSIVE_SUICIDAL_IDEATION` for the self-harm language,
+ *  `UNSAFE_ENVIRONMENT_BELOW_CPS` for the home conflict,
+ *  `ASSESSMENT_BELOW_THRESHOLD` for the low mood. TODO-DATA on all three. */
+const SELF_HARM = () =>
   flagPayload(
-    "imminent",
-    ["Self-harm language"],
+    ["PASSIVE_SUICIDAL_IDEATION"],
     "i don't know how much longer i can keep doing this",
     "The message contains language the playbook treats as a self-harm indicator, in a conversation where the previous two exchanges also referenced sleeplessness. Escalating rather than monitoring is the conservative read.",
   );
-const CLINICAL = () =>
+const HOME_CONFLICT = () =>
   flagPayload(
-    "clinicalReview",
-    ["Family conflict"],
+    ["UNSAFE_ENVIRONMENT_BELOW_CPS"],
     "things at home got bad again last night",
     "The message describes conflict at home without naming a specific risk. Flagged for review rather than escalation because no immediate danger is stated.",
   );
-const ROUTINE = () =>
+const LOW_MOOD = () =>
   flagPayload(
-    "routine",
-    ["Low mood"],
+    ["ASSESSMENT_BELOW_THRESHOLD"],
     "kind of a rough week honestly",
-    "Routine low-mood language with no risk indicators. Surfaced for routine review only.",
+    "Low-mood language with no risk indicators.",
   );
 
 const CODES = {
@@ -390,7 +470,8 @@ function fill(o: FillOptions): Spec[] {
 /** Resolved fixtures, so a fifty-row board also has a plausible number of things
  *  already closed today — the tab cards' closed segment reads "· 14 closed" at
  *  volume, and a band that clears reports a real figure rather than "1 today".
- *  All resolved within the last eight hours, so `closedToday` counts them. */
+ *  ALL RESOLVED INSIDE TODAY AT ANY HOUR — see `Spec.resolvedFracOfDay` for why
+ *  a fixed window was not enough. */
 function closedFill(
   taskType: TaskType,
   count: number,
@@ -405,27 +486,30 @@ function closedFill(
     openedAgo: (10 + (spread(i, seed) % 20)) * HOUR,
     payload: payload(),
     status: "resolved" as const,
-    // Spread across the shift so the figure is not obviously synthetic, and
-    // always inside today.
-    resolvedAgo: 30 * MINUTE + (spread(i, seed + 5) % 7) * HOUR,
+    /* 8% IN, SO NOTHING READS AS CLOSED AT THIS EXACT INSTANT, and spread over
+       the rest of the day so far. `% 1000 / 1000` rather than the old `% 7`
+       hours, because the window is no longer a whole number of hours.
+       Deterministic in `(i, seed)` like every other spread here. */
+    resolvedFracOfDay: 0.08 + ((spread(i, seed + 5) % 1000) / 1000) * 0.88,
   }));
 }
 
 // ── The five scenarios ──────────────────────────────────────────────────────
 
-/** QUIET DAY — a handful of low-tier items, nothing breached, no escalation.
- *  Proves the surface reads calm when there is little to do, and that the
- *  Routine-review empty/near-empty state does not celebrate. */
+/** QUIET DAY — a handful of items, nothing breached, no escalation. Proves the
+ *  surface reads calm when there is little to do, and that a near-empty state
+ *  does not celebrate. ("low-tier" and "the Routine-review state" went with the
+ *  tiers in Phase 4.) */
 function quietDay(now: number): TaskItem[] {
   return build(
     [
       {
-        taskType: "routineFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-1",
         openedAgo: 2 * DAY,
-        payload: ROUTINE(),
+        payload: LOW_MOOD(),
       },
       {
         taskType: "monthlyReReview",
@@ -436,22 +520,33 @@ function quietDay(now: number): TaskItem[] {
         payload: billingPayload(true, now, CODES.mddMild, CODES.mddMild, 8),
       },
       {
-        taskType: "clinicalFlagReview",
-        teen: TEENS.caleb,
-        mentor: MENTORS.maria,
-        objectId: "conv-caleb-2",
+        /* ═══ SIMONE'S, NOT CALEB'S — AND THE FIXTURE NEEDS IT (Phase 4) ═══
+           §2.4 requires a teen to appear in more than one DOMAIN inside a
+           scenario, which is how the fixtures prove the same person shows up on
+           more than one surface. Caleb used to satisfy it by accident: this item
+           was a `clinicalFlagReview` (domain `riskFlag`) and his other was a
+           `routineFlagReview` (domain `routineFlag`) — two domains for one teen
+           purely because the tiers were split across them.
+           Collapsing the domains collapsed that coverage, and the seed test
+           caught it. Moved to Simone, who has the monthly re-review above, so
+           the requirement is met by a teen genuinely spanning flags and
+           billing — which is what it was always meant to assert. */
+        taskType: "riskFlagReview",
+        teen: TEENS.simone,
+        mentor: MENTORS.omar,
+        objectId: "conv-simone-1",
         openedAgo: 3 * HOUR,
-        payload: CLINICAL(),
+        payload: HOME_CONFLICT(),
       },
       // CLOSED TODAY — one per domain that has any, so the header counters have
       // matching resolved items (§2.4).
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-3",
         openedAgo: 9 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
         status: "resolved",
         resolvedAgo: 7 * HOUR,
       },
@@ -535,28 +630,28 @@ function typicalShift(now: number): TaskItem[] {
       },
       // ── Risk flags: one BREACHED imminent (26h against a 24h SLA), two clinical.
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.marcus,
         mentor: MENTORS.brandon,
         objectId: "conv-marcus-1",
         openedAgo: 26 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
       },
       {
-        taskType: "clinicalFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-1",
         openedAgo: 9 * HOUR,
-        payload: CLINICAL(),
+        payload: HOME_CONFLICT(),
       },
       {
-        taskType: "clinicalFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.jordan,
         mentor: MENTORS.maria,
         objectId: "conv-jordan-1",
         openedAgo: 30 * HOUR,
-        payload: CLINICAL(),
+        payload: HOME_CONFLICT(),
       },
       // ── Billing: one intake, one re-review.
       {
@@ -631,29 +726,29 @@ function typicalShift(now: number): TaskItem[] {
       },
       // ── Routine review.
       {
-        taskType: "routineFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.simone,
         mentor: MENTORS.omar,
         objectId: "conv-simone-1",
         openedAgo: 3 * DAY,
-        payload: ROUTINE(),
+        payload: LOW_MOOD(),
       },
       {
-        taskType: "routineFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-1",
         openedAgo: 5 * DAY,
-        payload: ROUTINE(),
+        payload: LOW_MOOD(),
       },
       // ── Closed today, one per domain.
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-9",
         openedAgo: 12 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
         status: "resolved",
         resolvedAgo: 4 * HOUR,
       },
@@ -690,14 +785,14 @@ function typicalShift(now: number): TaskItem[] {
      nothing is breached never proves that. The clinical window (6h → 44h against
      48h) stays inside its SLA, so the two bands differ in more than their label. */
   specs.push(
-    ...fill({ taskType: "imminentFlagReview", count: 22, conversations: 12, minAgo: 2 * HOUR, maxAgo: 26 * HOUR, payload: IMMINENT, seed: 1 }),
-    ...fill({ taskType: "clinicalFlagReview", count: 24, conversations: 16, minAgo: 6 * HOUR, maxAgo: 44 * HOUR, payload: CLINICAL, seed: 2 }),
+    ...fill({ taskType: "riskFlagReview", count: 22, conversations: 12, minAgo: 2 * HOUR, maxAgo: 26 * HOUR, payload: SELF_HARM, seed: 1 }),
+    ...fill({ taskType: "riskFlagReview", count: 24, conversations: 16, minAgo: 6 * HOUR, maxAgo: 44 * HOUR, payload: HOME_CONFLICT, seed: 2 }),
     ...fill({ taskType: "intakeBillingReview", count: 7, conversations: 7, minAgo: 4 * HOUR, maxAgo: 60 * HOUR, payload: () => billingPayload(false, now, null, CODES.gad, 12), seed: 3 }),
     ...fill({ taskType: "monthlyReReview", count: 6, conversations: 6, minAgo: 8 * HOUR, maxAgo: 66 * HOUR, payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15), seed: 4 }),
-    ...fill({ taskType: "routineFlagReview", count: 18, conversations: 14, minAgo: 1 * DAY, maxAgo: 6 * DAY, payload: ROUTINE, seed: 5 }),
+    ...fill({ taskType: "riskFlagReview", count: 18, conversations: 14, minAgo: 1 * DAY, maxAgo: 6 * DAY, payload: LOW_MOOD, seed: 5 }),
     // Closed today, at a volume that matches the open one.
-    ...closedFill("imminentFlagReview", 6, IMMINENT, 6),
-    ...closedFill("clinicalFlagReview", 5, CLINICAL, 7),
+    ...closedFill("riskFlagReview", 6, SELF_HARM, 6),
+    ...closedFill("riskFlagReview", 5, HOME_CONFLICT, 7),
     ...closedFill("intakeBillingReview", 4, () => billingPayload(false, now, null, CODES.adjustment, 9), 8),
   );
   return build(specs, now);
@@ -761,33 +856,33 @@ function heavyCaseload(now: number): TaskItem[] {
   // with a count and expand to five children.
   for (let i = 0; i < 5; i++) {
     specs.push({
-      taskType: "imminentFlagReview",
+      taskType: "riskFlagReview",
       teen: TEENS.marcus,
       mentor: MENTORS.brandon,
       objectId: "conv-marcus-heavy",
       openedAgo: 20 * HOUR + i * 12 * MINUTE,
-      payload: IMMINENT(),
+      payload: SELF_HARM(),
     });
   }
   // Three clinical on a second conversation, so there are two groups of different
   // sizes and one ungrouped row for contrast.
   for (let i = 0; i < 3; i++) {
     specs.push({
-      taskType: "clinicalFlagReview",
+      taskType: "riskFlagReview",
       teen: TEENS.naomi,
       mentor: MENTORS.brandy,
       objectId: "conv-naomi-heavy",
       openedAgo: 30 * HOUR + i * 20 * MINUTE,
-      payload: CLINICAL(),
+      payload: HOME_CONFLICT(),
     });
   }
   specs.push({
-    taskType: "clinicalFlagReview",
+    taskType: "riskFlagReview",
     teen: TEENS.jordan,
     mentor: MENTORS.maria,
     objectId: "conv-jordan-solo",
     openedAgo: 5 * HOUR,
-    payload: CLINICAL(),
+    payload: HOME_CONFLICT(),
   });
   // Billing and routine review, several each.
   for (let i = 0; i < 4; i++) {
@@ -804,22 +899,22 @@ function heavyCaseload(now: number): TaskItem[] {
   for (let i = 0; i < 6; i++) {
     const teen = [TEENS.caleb, TEENS.simone, TEENS.imani, TEENS.theo, TEENS.naomi, TEENS.jordan][i];
     specs.push({
-      taskType: "routineFlagReview",
+      taskType: "riskFlagReview",
       teen,
       mentor: MENTORS.omar,
       objectId: `conv-${teen.id}-mon`,
       openedAgo: (2 + i) * DAY,
-      payload: ROUTINE(),
+      payload: LOW_MOOD(),
     });
   }
   // Closed today.
   specs.push({
-    taskType: "imminentFlagReview",
+    taskType: "riskFlagReview",
     teen: TEENS.simone,
     mentor: MENTORS.omar,
     objectId: "conv-simone-done",
     openedAgo: 14 * HOUR,
-    payload: IMMINENT(),
+    payload: SELF_HARM(),
     status: "resolved",
     resolvedAgo: 3 * HOUR,
   });
@@ -833,13 +928,13 @@ function heavyCaseload(now: number): TaskItem[] {
      Marcus's five-flag conversation above is still in here, and still findable —
      if it stops being findable at this volume, the density work failed. */
   specs.push(
-    ...fill({ taskType: "imminentFlagReview", count: 40, conversations: 14, minAgo: 1 * HOUR, maxAgo: 34 * HOUR, payload: IMMINENT, seed: 11 }),
-    ...fill({ taskType: "clinicalFlagReview", count: 48, conversations: 22, minAgo: 4 * HOUR, maxAgo: 3 * DAY, payload: CLINICAL, seed: 12 }),
+    ...fill({ taskType: "riskFlagReview", count: 40, conversations: 14, minAgo: 1 * HOUR, maxAgo: 34 * HOUR, payload: SELF_HARM, seed: 11 }),
+    ...fill({ taskType: "riskFlagReview", count: 48, conversations: 22, minAgo: 4 * HOUR, maxAgo: 3 * DAY, payload: HOME_CONFLICT, seed: 12 }),
     ...fill({ taskType: "intakeBillingReview", count: 7, conversations: 7, minAgo: 6 * HOUR, maxAgo: 70 * HOUR, payload: () => billingPayload(false, now, null, CODES.gad, 13), seed: 13 }),
     ...fill({ taskType: "monthlyReReview", count: 5, conversations: 5, minAgo: 12 * HOUR, maxAgo: 80 * HOUR, payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 17), seed: 14 }),
-    ...fill({ taskType: "routineFlagReview", count: 20, conversations: 15, minAgo: 2 * DAY, maxAgo: 8 * DAY, payload: ROUTINE, seed: 15 }),
-    ...closedFill("imminentFlagReview", 11, IMMINENT, 16),
-    ...closedFill("clinicalFlagReview", 9, CLINICAL, 17),
+    ...fill({ taskType: "riskFlagReview", count: 20, conversations: 15, minAgo: 2 * DAY, maxAgo: 8 * DAY, payload: LOW_MOOD, seed: 15 }),
+    ...closedFill("riskFlagReview", 11, SELF_HARM, 16),
+    ...closedFill("riskFlagReview", 9, HOME_CONFLICT, 17),
     ...closedFill("intakeBillingReview", 5, () => billingPayload(false, now, null, CODES.adjustment, 10), 18),
   );
   return build(specs, now);
@@ -851,28 +946,28 @@ function breachOvernight(now: number): TaskItem[] {
   return build(
     [
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.marcus,
         mentor: MENTORS.brandon,
         objectId: "conv-marcus-1",
         openedAgo: 31 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
       },
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-1",
         openedAgo: 28 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
       },
       {
-        taskType: "clinicalFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.jordan,
         mentor: MENTORS.maria,
         objectId: "conv-jordan-1",
         openedAgo: 54 * HOUR,
-        payload: CLINICAL(),
+        payload: HOME_CONFLICT(),
       },
       {
         taskType: "intakeBillingReview",
@@ -889,12 +984,12 @@ function breachOvernight(now: number): TaskItem[] {
       // whose billing has been sitting for 80 hours plausibly has an overdue flag
       // too, and now the worklist shows that.
       {
-        taskType: "clinicalFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.riley,
         mentor: MENTORS.brandon,
         objectId: "conv-riley-1",
         openedAgo: 60 * HOUR,
-        payload: CLINICAL(),
+        payload: HOME_CONFLICT(),
       },
       {
         taskType: "escalationDocumentation",
@@ -911,12 +1006,12 @@ function breachOvernight(now: number): TaskItem[] {
         },
       },
       {
-        taskType: "routineFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.caleb,
         mentor: MENTORS.maria,
         objectId: "conv-caleb-1",
         openedAgo: 9 * DAY,
-        payload: ROUTINE(),
+        payload: LOW_MOOD(),
       },
     ],
     now
@@ -948,20 +1043,20 @@ function activeEscalation(now: number): TaskItem[] {
       },
       // SAME TEENS, OTHER DOMAINS — Riley's flag history and billing.
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.riley,
         mentor: MENTORS.brandon,
         objectId: "conv-riley-1",
         openedAgo: 20 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
       },
       {
-        taskType: "clinicalFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.marcus,
         mentor: MENTORS.brandy,
         objectId: "conv-marcus-2",
         openedAgo: 40 * HOUR,
-        payload: CLINICAL(),
+        payload: HOME_CONFLICT(),
       },
       {
         taskType: "monthlyReReview",
@@ -972,20 +1067,20 @@ function activeEscalation(now: number): TaskItem[] {
         payload: billingPayload(true, now, CODES.gad, CODES.mddModerate, 16),
       },
       {
-        taskType: "routineFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.simone,
         mentor: MENTORS.omar,
         objectId: "conv-simone-1",
         openedAgo: 4 * DAY,
-        payload: ROUTINE(),
+        payload: LOW_MOOD(),
       },
       {
-        taskType: "imminentFlagReview",
+        taskType: "riskFlagReview",
         teen: TEENS.naomi,
         mentor: MENTORS.brandy,
         objectId: "conv-naomi-done",
         openedAgo: 10 * HOUR,
-        payload: IMMINENT(),
+        payload: SELF_HARM(),
         status: "resolved",
         resolvedAgo: 1 * HOUR,
       },
@@ -1010,7 +1105,10 @@ export const TASK_SCENARIOS: TaskScenario[] = [
   { id: "quiet-day", label: "Quiet day", description: "Three open, nothing breached.", build: quietDay },
   { id: "typical-shift", label: "Typical shift", description: "46 open flags, 13 billing, a few breached.", build: typicalShift },
   { id: "heavy-caseload", label: "Heavy caseload", description: "97 open flags across two bands.", build: heavyCaseload },
-  { id: "breach-overnight", label: "Breach overnight", description: "Everything past its SLA.", build: breachOvernight },
+  /* THE DESCRIPTION NARROWED IN PHASE 4, and the narrowing is the finding: a
+     flag has no published review deadline, so "everything" cannot include one.
+     What this scenario stresses is every item that HAS a clock, past it. */
+  { id: "breach-overnight", label: "Breach overnight", description: "Every deadline past its SLA.", build: breachOvernight },
   { id: "active-escalation", label: "Active escalation", description: "Two open escalations, one 911.", build: activeEscalation },
 ];
 

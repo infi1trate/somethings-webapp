@@ -11,7 +11,7 @@ import {
   subjectOf,
   type MonitoringEvent,
 } from "@/lib/monitoring/event";
-import { FLAG_CATEGORY_RANK, FLAG_PATTERN_WINDOW } from "@/lib/monitoring/constants";
+import { FLAG_PATTERN_WINDOW } from "@/lib/monitoring/constants";
 
 const NOW = 1_760_000_000_000;
 const HOUR = 3_600_000;
@@ -84,15 +84,59 @@ describe("the comparator", () => {
     ]);
   });
 
-  it("2 · category rank is a NO-OP while the clinical ranking is unset, and says so", () => {
-    /* BLOCKED ON Dr. Nissan. The test asserts the CURRENT contract — an empty
-       ranking cannot reorder anything — and it is written to fail the day
-       somebody fills the table without revisiting the comparator's tests. */
-    expect(Object.keys(FLAG_CATEGORY_RANK)).toHaveLength(0);
-    const a = ev({ id: "a", category: "Self-harm language", at: NOW - HOUR });
-    const b = ev({ id: "b", category: "Low mood", at: NOW - 2 * HOUR });
-    // Age decides, because step 2 cannot.
-    expect(sortEvents([a, b]).map((e) => e.id)).toEqual(["b", "a"]);
+  /* ═══ RETARGETED — THE NO-OP ENDED (Phase 4) ═══
+     This asserted `Object.keys(FLAG_CATEGORY_RANK)).toHaveLength(0)` and was
+     written, in its own words, "to fail the day somebody fills the table without
+     revisiting the comparator's tests". It did exactly that. The table is gone
+     and the rank is DERIVED from the playbook's tier grouping over the 21
+     published categories, so the contract to assert is the new one — in two
+     halves, because the step is live between groups and still flat inside one. */
+  it("2 · category rank orders the playbook's three groups, oldest-first be damned", () => {
+    // An imminent category, 1h old, against a below-threshold one 2h old. Step 2
+    // decides, so the NEWER event leads — which is the whole point of the step
+    // and is the opposite of what step 5 would have done.
+    const a = ev({
+      id: "imminent",
+      category: "ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS",
+      at: NOW - HOUR,
+    });
+    const b = ev({
+      id: "routine",
+      category: "ASSESSMENT_BELOW_THRESHOLD",
+      at: NOW - 2 * HOUR,
+    });
+    expect(sortEvents([a, b]).map((e) => e.id)).toEqual(["imminent", "routine"]);
+  });
+
+  it("2 · and is flat WITHIN a group, so age still decides there", () => {
+    // Two imminent categories. The within-group ranking is the non-blocking
+    // refinement still with Dr. Nissan, so the step must not invent one.
+    const a = ev({
+      id: "newer",
+      category: "ACTIVE_SUICIDAL_IDEATION_WITH_PLAN_OR_MEANS",
+      at: NOW - HOUR,
+    });
+    const b = ev({
+      id: "older",
+      category: "ABUSE_DISCLOSURE",
+      at: NOW - 2 * HOUR,
+    });
+    expect(sortEvents([a, b]).map((e) => e.id)).toEqual(["older", "newer"]);
+  });
+
+  it("2 · ranks a category outside the playbook LAST, not first", () => {
+    // A classifier change or a data fault is not a reason to promote something
+    // above a reviewed imminent category.
+    const known = ev({
+      id: "known",
+      category: "ASSESSMENT_BELOW_THRESHOLD",
+      at: NOW - HOUR,
+    });
+    const unknown = ev({ id: "unknown", category: "WAT", at: NOW - 5 * HOUR });
+    expect(sortEvents([known, unknown]).map((e) => e.id)).toEqual([
+      "known",
+      "unknown",
+    ]);
   });
 
   it("3 · is unwindowed while the pattern window is unset, which is the wider test", () => {

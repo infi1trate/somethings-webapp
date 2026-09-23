@@ -51,7 +51,6 @@ import {
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
-import { monitoringData } from "@/lib/monitoring/scenarios";
 import {
   asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
@@ -67,6 +66,46 @@ import { cn } from "@/lib/utils";
  *  filter cannot disagree about what this page contains. Risk flags are
  *  deliberately absent — they are coverage work and they live on Monitoring. */
 const TASKS_DOMAINS: readonly TaskDomain[] = ["escalation", "billing"];
+
+/** ═══ AND WHAT `Care Reviews` HOSTS (supervisor IA restructure, Phase 2) ═══
+ *
+ *  BILLING ONLY. `escalation` was here because both domains CLEAR, and a shared
+ *  success model was the right dividing line when the alternative was Monitoring
+ *  — flags never reach zero. It is the wrong line now: escalations have their own
+ *  destination, their own lifecycle and their own clocks, and `destinations.ts`
+ *  already says `escalations` owns `activeEscalation` and `escalationDocumentation`.
+ *
+ *  ═══ NOTHING IS LOST, AND HERE IS THE CHECK ═══
+ *  Every escalation obligation this page held is one of the RECORDS the
+ *  `/app/escalations` region already renders, with its acknowledgement clock and
+ *  its close-out count — verified against this scenario: Simone B., Imani C. and
+ *  Caleb O. appear in both, the region additionally showing Riley T.
+ *
+ *  WHAT DOES CHANGE is the presentation: the obligations sat in this page's
+ *  deadline buckets (`Needs response now`, `Overdue`) and the region groups by
+ *  lifecycle state instead. Phase 6 owns that lifecycle and is where the two
+ *  representations become one. Stated because a presentation change that nobody
+ *  writes down is indistinguishable from a regression.
+ *
+ *  ═══ A SCOPE, FOR THE SAME REASON MONITORING HAS ONE ═══
+ *  A `domains` narrowing rather than a second page. Everything downstream — the
+ *  chips, the counts, the buckets, the pane, the keyboard layer — is derived from
+ *  `surfaceItems`, so one filter at the top is the whole change and the escalation
+ *  machinery simply receives no items. The unscoped default is unchanged, which
+ *  is what makes this parameterisation provably not the thing that moved. */
+export type TasksScope = "care-reviews";
+
+const SCOPE_DOMAINS: Record<TasksScope, readonly TaskDomain[]> = {
+  "care-reviews": ["billing"],
+};
+
+/** THE HEADING IS THE DESTINATION'S OWN NAME — the rail's label, the same string
+ *  deliberately. A rail item reading `Care Reviews` over an h1 reading `Tasks` is
+ *  the header-disagreement defect the production audit recorded; one name per
+ *  destination reaches the reader. TODO-COPY stays on the unscoped `Tasks`. */
+const SCOPE_TITLE: Record<TasksScope, string> = {
+  "care-reviews": "Care Reviews",
+};
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -127,9 +166,14 @@ export function TasksPage({
   /** arch-C's stage link — a band to land on. Validated here rather than at the
    *  route, so a stale bookmark falls back to the default view. */
   focusBand = null,
+  /** Which destination is mounting this. `null` is the old whole-surface
+   *  behaviour, which `/app/tasks` is a redirect away from reaching. */
+  scope = null,
 }: {
   focusBand?: string | null;
+  scope?: TasksScope | null;
 } = {}) {
+  const domains = scope ? SCOPE_DOMAINS[scope] : TASKS_DOMAINS;
   const mounted = useMounted();
   /** ═══ THE SCENARIO LIVES IN THE STORE (v42, gap row 311) ═══
    *  It was `useState` here, driven by a panel pinned bottom-right — which sat
@@ -143,27 +187,15 @@ export function TasksPage({
    *  on an unrelated re-render. */
   const [now] = useState(() => Date.now());
 
-  /** ═══ THE FLAG EVENTS, FOR THE ESCALATION TIMELINE'S JOIN (arch-G, G4) ═══
-   *
-   *  An escalation's timeline shows flags raised on the same teen inside the
-   *  escalation window. Those flags are Monitoring's events, and this surface
-   *  does not otherwise hold them.
-   *
-   *  DERIVED HERE WITH THE SAME CALL MONITORING MAKES, keyed on the same two
-   *  store values, so the two surfaces cannot disagree about what was flagged.
-   *  The alternatives were worse: passing `[]` would make the timeline assert
-   *  "no flags" on every escalation, which is the one thing a timeline may not
-   *  do quietly; and inventing Tasks-side flag fixtures would put two answers
-   *  to the same question in the repo.
-   *
-   *  `monitoringData` is a pure builder over (id, tasksScenarioId, now) — the
-   *  same contract Monitoring's own `useMemo` relies on — and `null` means
-   *  "derive from the task scenario", which is what Tasks wants: the escalations
-   *  in this list and the flags on the same teens come from one scenario. */
-  const monitoringEvents = useMemo(
-    () => monitoringData(null, scenarioId, now).events,
-    [scenarioId, now]
-  );
+  /* ═══ `monitoringEvents` IS GONE (Phase 6) ═══
+     It derived the flag events this page passed to `TaskPane` for the escalation
+     timeline's join, and the comment it carried was worth keeping: `monitoringData`
+     is a pure builder over (id, tasksScenarioId, now), and passing `null` means
+     "derive from the task scenario" — so the escalations in this list and the
+     flags on the same teens came from ONE scenario rather than two answers to
+     the same question. That property is why `event-pane.tsx` can do the same
+     join on `/app/escalations` without inventing a second fixture source. This
+     page has no timeline to feed. */
 
   /** RESOLVED IDS + PAYLOAD OVERRIDES. Resolving marks the id; the override map
    *  carries what the pane decided (`flaggedCorrectly`, the confirmed code) onto
@@ -278,8 +310,8 @@ export function TasksPage({
    *  from the filtered result — otherwise using a chip would remove the others
    *  and a reader could not get back. */
   const surfaceItems = useMemo(
-    () => allItems.filter((i) => TASKS_DOMAINS.includes(i.domain)),
-    [allItems]
+    () => allItems.filter((i) => domains.includes(i.domain)),
+    [allItems, domains]
   );
 
   /** ═══ THE KIND FILTER — NOW WITH SOMETHING TO FILTER (arch-G, G2) ═══
@@ -317,8 +349,8 @@ export function TasksPage({
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
   const entries = useMemo(
-    () => listEntriesForDomains(items, TASKS_DOMAINS, now),
-    [items, now]
+    () => listEntriesForDomains(items, domains, now),
+    [items, domains, now]
   );
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
@@ -326,8 +358,8 @@ export function TasksPage({
    *  a fact about the resolved ones. Filtered here rather than handing the list
    *  every domain's items, so a retiring Billing band cannot count a risk flag. */
   const domainItems = useMemo(
-    () => items.filter((i) => TASKS_DOMAINS.includes(i.domain)),
-    [items]
+    () => items.filter((i) => domains.includes(i.domain)),
+    [items, domains]
   );
 
   /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves
@@ -737,8 +769,7 @@ export function TasksPage({
       <div data-anno-ref="tasks-header" className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-            {/* TODO-COPY */}
-            Tasks
+            {scope ? SCOPE_TITLE[scope] : /* TODO-COPY */ "Tasks"}
           </h1>
           {/* 4px under the display title — the spacing scale's first step, and
               the only value between these two lines (Part 2). */}
@@ -990,7 +1021,6 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
-                      events={monitoringEvents}
                       /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
                          decision is on the record; there is nothing here to
                          decide, and a live Submit over a closed review would

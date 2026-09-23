@@ -362,6 +362,27 @@ export function recurringThemes(
 /** Every category id the fixtures use that this taxonomy does not know.
  *  Reported, never hidden — the same doctrine `unmappedCategories` already
  *  applies to the display map. */
+/** ═══ THE READER-FACING NAME FOR A CATEGORY ID (Phase 4) ═══
+ *
+ *  Phase 4 replaced the fixtures' free text ("Low mood") with playbook ids
+ *  (`ASSESSMENT_BELOW_THRESHOLD`), which is what made the clinical ranking
+ *  possible — and immediately put a raw enum on a supervisor's screen, because
+ *  three render sites passed `event.category` straight through.
+ *
+ *  NOT `?? id`. A fallback to the raw string is the same defect with a shrug in
+ *  front of it: the reader still sees `ASSESSMENT_BELOW_THRESHOLD` and now
+ *  nothing anywhere records that something is wrong. An unrecognised id gets a
+ *  stated label, and `unknownCategories` is how the id itself gets surfaced to
+ *  somebody who can fix it.
+ *
+ *  NEEDS-COPY-NICOLE on the unknown case. */
+export const UNKNOWN_CATEGORY_LABEL = "Category not recognised";
+
+export function riskCategoryLabel(id: string | null): string {
+  if (id == null) return UNKNOWN_CATEGORY_LABEL;
+  return BY_ID.get(id)?.label ?? UNKNOWN_CATEGORY_LABEL;
+}
+
 export function unknownCategories(ids: string[]): string[] {
   return [...new Set(ids.filter((i) => !BY_ID.has(i)))];
 }

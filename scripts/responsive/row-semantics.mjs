@@ -68,7 +68,14 @@ async function open(id, url, { scenario = "typical-shift", monitoring = null } =
     XL,
     version
   );
-  if (url.startsWith("/app/tasks")) {
+  /* THE TASKS SURFACE IS `/app/care-reviews` NOW, and both spellings are listed
+     because `/app/tasks` is still a live hop a check may reach it through.
+     `narrowToBilling` is a NO-OP on Care Reviews, by its own design: the chip
+     row hides itself when one kind is present, and after Phase 2 billing is the
+     only kind here. Kept rather than deleted — it is what makes the unscoped
+     surface assertable, and its own note says it fails loudly if the chip ever
+     stops existing on a surface that has two kinds. */
+  if (url.startsWith("/app/care-reviews") || url.startsWith("/app/tasks")) {
     await view.page.waitForTimeout(450);
     await narrowToBilling(view.page);
   }
@@ -122,7 +129,7 @@ const rowReport = `(row) => {
 // 1 · TASKS — DEADLINE-FORWARD.
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("tasks", "/app/tasks");
+  const { context, page } = await open("tasks", "/app/care-reviews");
   const data = await page.evaluate(
     `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map(${rowReport})`
   );
@@ -227,7 +234,7 @@ const rowReport = `(row) => {
 // treatment now; the row states how late, in breach ink, and drops the chip.
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("tasks-overdue", "/app/tasks", { scenario: "breach-overnight" });
+  const { context, page } = await open("tasks-overdue", "/app/care-reviews", { scenario: "breach-overnight" });
   const t = await page.locator('[role="treeitem"]').first().innerText();
   const header = await page.evaluate(`(() => { const h = document.querySelector('[role="group"] > div[aria-hidden]');
     if (!h) return null; const cs = getComputedStyle(h);
@@ -275,7 +282,7 @@ const rowReport = `(row) => {
 // Monitoring it is the subject of review. The rest of Monitoring's anatomy is
 // asserted in `monitoring-states.mjs`, which owns that surface.
 {
-  const { context, page } = await open("monitoring", "/app/monitoring");
+  const { context, page } = await open("monitoring", "/app/risk-flags");
   const rows = await page.evaluate(
     `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 6).map(${rowReport})`
   );
@@ -313,15 +320,34 @@ const rowReport = `(row) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // 4 · THE GROUP HEADER — ONE COMPONENT, ONE TREATMENT, STICKY ON BOTH.
 // ═══════════════════════════════════════════════════════════════════════════
-for (const [url, name, scroller, monitoring, monitoringLong] of [
-  ["/app/tasks", "tasks", "tasks-worklist-scroller", null, null],
-  /* ═══ TWO FIXTURES, BECAUSE THE TWO CHECKS NEED DIFFERENT THINGS ═══
-     Uniformity needs TWO headers to compare, and Monitoring's groups are the two
-     review subjects — so it needs the practice fixture. Stickiness needs a list
-     LONGER THAN THE VIEWPORT, which the practice fixture is not (four rows: 90
-     `j` presses left scrollTop at 0 and the check passed vacuously on a header
-     that had never moved). `surge` is the long one. */
-  ["/app/monitoring", "monitoring", "monitoring-scroller", "mentor-note-overdue", "surge"],
+/** ═══ RETARGETED OFF THE RETIRED ROUTES (supervisor IA restructure, Phase 2) ═══
+ *
+ *  `/app/tasks` and `/app/monitoring` are `replace` hops now. A probe that
+ *  navigates to a hop still LANDS on the destination, so these checks kept
+ *  passing — which is the problem: a hop with the wrong target would also pass,
+ *  and the probe would be asserting about a surface it cannot name.
+ *
+ *  ═══ AND `hdr.monitoring.uniform` WAS A REAL FAILURE, NOT A HOP ARTIFACT ═══
+ *
+ *  It asserted `headers.length > 1`, because Monitoring's two groups were the two
+ *  review subjects and uniformity needs two things to compare. THE SUBJECT SPLIT
+ *  IS A ROUTE BOUNDARY NOW — Risk Flags is teen safety, Mentor Practice is
+ *  mentor practice — so a scoped queue has exactly ONE subject group and can
+ *  never have two. The old assertion is unsatisfiable on the surface that
+ *  replaced the one it was written for.
+ *
+ *  RETARGETED STRICTER. `expectHeaders` pins the number the scope implies rather
+ *  than accepting "more than one": Care Reviews' deadline buckets are still many
+ *  (so a regression that collapsed them fails), and Risk Flags is asserted at
+ *  exactly one (so a regression that RE-INTRODUCED a second grouping — a tier
+ *  band, say, which Phase 4 is removing — fails loudly here). Uniformity is
+ *  still compared across whatever headers exist.
+ *
+ *  The `monitoringLong` fixture split stays: stickiness needs a list longer than
+ *  the viewport and `surge` is the long one. */
+for (const [url, name, scroller, monitoring, monitoringLong, expectHeaders] of [
+  ["/app/care-reviews", "tasks", "tasks-worklist-scroller", null, null, "many"],
+  ["/app/risk-flags", "monitoring", "monitoring-scroller", "mentor-note-overdue", "surge", 1],
 ]) {
   let { context, page } = await open(`hdr-${name}`, url, { scenario: "heavy-caseload", monitoring });
   const headers = await page.evaluate(() =>
@@ -343,10 +369,50 @@ for (const [url, name, scroller, monitoring, monitoringLong] of [
       })
   );
   const sig = (h) => `${h.position}|${h.top}|${h.borderTop}|${h.bg}|${h.px}|${h.transform}|${h.h}`;
+  /* THE INPUT IS ASSERTED BEFORE THE PROPERTY OF IT. Without this, a surface
+     that stopped grouping altogether would take `uniform` and `anatomy` with a
+     clean pass over an empty list — the vacuous-assertion failure this probe has
+     already been bitten by twice. */
+  /* ═══ NO RAW ENUM REACHES A READER (Phase 4) ═══
+     The fixtures carry playbook CATEGORY IDS now — `ASSESSMENT_BELOW_THRESHOLD`
+     — which is what made the clinical ranking possible and immediately put the
+     id itself on screen, because three render sites passed `event.category`
+     straight through. Measured on `/app/risk-flags`: every row's secondary line.
+     A UNIT TEST COULD NOT CATCH IT. `risk-taxonomy` had labels for all 21
+     categories and the assertion that it did passed the whole time — the defect
+     was a renderer not asking. So this reads the DOM, on both surfaces, and it
+     is deliberately a SHAPE test rather than a list of known ids: anything
+     SHOUTING_IN_SNAKE_CASE is a machine identifier whatever it is called. */
+  const shouted = await page.evaluate(() => {
+    const out = [];
+    const walk = document.createTreeWalker(
+      document.querySelector("main") ?? document.body,
+      NodeFilter.SHOW_TEXT
+    );
+    let n;
+    while ((n = walk.nextNode())) {
+      const t = (n.textContent ?? "").trim();
+      if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+){2,}$/.test(t)) out.push(t);
+    }
+    return [...new Set(out)];
+  });
+  check(
+    `hdr.${name}.no-raw-enum`,
+    "no machine identifier is rendered where a label belongs",
+    shouted.length === 0,
+    shouted.length ? shouted.slice(0, 3).join(", ") : "clean"
+  );
+
+  check(
+    `hdr.${name}.count`,
+    `the surface groups, and by as many keys as its scope implies (${expectHeaders})`,
+    expectHeaders === "many" ? headers.length > 1 : headers.length === expectHeaders,
+    `${headers.length} header(s): ${headers.map((h) => h.text).join(" | ") || "none"}`
+  );
   check(
     `hdr.${name}.uniform`,
     "every header on the surface has one treatment",
-    headers.length > 1 && new Set(headers.map(sig)).size === 1,
+    headers.length > 0 && new Set(headers.map(sig)).size === 1,
     headers.length ? sig(headers[0]) : "none"
   );
   /* ═══ EACH HEADER BRINGS ITS OWN SEPARATION ═══
@@ -421,8 +487,8 @@ for (const [url, name, scroller, monitoring, monitoringLong] of [
 // to know which tier they are in — which is a fact arch-D deliberately removed
 // from the row's own surface.
 for (const [url, name, scroller, monitoring] of [
-  ["/app/tasks", "tasks", "tasks-worklist-scroller", null],
-  ["/app/monitoring", "monitoring", "monitoring-scroller", "mentor-note-overdue"],
+  ["/app/care-reviews", "tasks", "tasks-worklist-scroller", null],
+  ["/app/risk-flags", "monitoring", "monitoring-scroller", "mentor-note-overdue"],
 ]) {
   const { context, page } = await open(`sr-${name}`, url, { monitoring });
   /* SCROLL TO THE COALESCED ROWS FIRST on Monitoring. Only Imminent rows are
@@ -478,7 +544,7 @@ for (const [url, name, scroller, monitoring] of [
 // screenshot cannot show — that deadline order survives end to end, and that the
 // mentor is gone from Tasks while still present on Monitoring.
 {
-  const { context, page } = await open("task-led", "/app/tasks");
+  const { context, page } = await open("task-led", "/app/care-reviews");
 
   const rows = await page.evaluate(() =>
     [...document.querySelectorAll('[role="treeitem"]')].map((r) => {
@@ -585,7 +651,7 @@ for (const [url, name, scroller, monitoring] of [
 // and is still checked below.
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("mon-intact", "/app/monitoring");
+  const { context, page } = await open("mon-intact", "/app/risk-flags");
   const bands = await page.evaluate(() =>
     [...document.querySelectorAll('[role="group"]')]
       .map((g) => g.getAttribute("aria-label"))

@@ -15,15 +15,36 @@
 // how silent per-screen forks start. What it does NOT duplicate is the part
 // worth sharing — the group header component, the chips, the identity disc and
 // the excerpt all still come from one place. What it deliberately does not
-// inherit is `Worklist`'s virtualizer: at the measured ceiling (64 rows on
-// `surge`) a plain list costs nothing, and the virtualizer's invariants —
-// ROW_H exact, spacer arithmetic — are the most fragile thing in that file.
+// inherit is `Worklist`'s virtualizer, and the reason has been RE-MEASURED
+// because Phase 10 invalidated the old one.
+//
+// ═══ THE PREMISE MOVED, AND THE DECISION DID NOT ═══
+//
+// This said "at the measured ceiling (64 rows on `surge`) a plain list costs
+// nothing". Phase 10 raised `surge` from 64 to 420 — the production audit asked
+// for 400+ — which made that sentence false, and a decision resting on a stale
+// measurement is indistinguishable from one nobody checked.
+//
+// RE-MEASURED AT THE NEW CEILING, xl, every row mounted:
+//
+//    420 rows -> 7,721 DOM nodes -> 1.0ms for ten forced layouts
+//    123 rows -> 2,636 DOM nodes -> 0.2ms   (the unscoped default)
+//     12 rows ->   703 DOM nodes -> 0.1ms
+//
+// So a plain list still costs nothing at four hundred rows, and the trade stands
+// for the original reason: the virtualizer's invariants — ROW_H exact, spacer
+// arithmetic — are the most fragile thing in that file, and inheriting them to
+// save a millisecond would be buying fragility with no return.
+//
+// WHAT WOULD CHANGE IT is a row whose height is not fixed, or a fixture past a
+// few thousand rows. The number to beat is in this comment.
 //
 // ═══ ONE EMPHASISED ELEMENT PER ROW ═══
 // The subject of review, in the display face. Age is mono and tabular and does
 // not take the weight channel — the same rule arch-D and arch-E settled for
 // Tasks, applied to a different anatomy.
 
+import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
 import { useEffect, useRef, useState } from "react";
 import { MessageSquareOff, Repeat2, ShieldAlert } from "lucide-react";
 import { WorklistGroupHeader } from "@/components/tasks/group-header";
@@ -44,6 +65,24 @@ const RING =
 
 /** NEEDS-COPY-NICOLE. Age, from the event's own moment — the flagged message for
  *  a flag, the breach for a practice event. "2h ago", never "due in". */
+/** ═══ ONLY A FLAG'S CATEGORY IS A PLAYBOOK ID ═══
+ *
+ *  `MonitoringEvent.category` is documented as two things: "the classifier's
+ *  category for a flag; THE RULE'S OWN NAME for practice". Phase 4 mapped every
+ *  event's category through `riskCategoryLabel`, which is right for the first and
+ *  wrong for the second — measured on `/app/mentor-practice`, every practice row
+ *  read "Category not recognised", because a rule name is correctly not in the
+ *  risk playbook.
+ *
+ *  The lookup is therefore gated on the KIND, not on whether the lookup happens
+ *  to succeed. A `?? e.category` fallback would have hidden this: practice rows
+ *  would have rendered fine and a genuinely unrecognised FLAG category would
+ *  have leaked its raw id, which is the defect the mapping exists to prevent. */
+function categoryTextFor(e: MonitoringEvent): string {
+  if (e.category == null) return EVENT_KIND_LABEL[e.kind];
+  return e.kind === "riskFlag" ? riskCategoryLabel(e.category) : e.category;
+}
+
 export function ageLabel(at: number, now: number): string {
   return `${elapsedLabel(at, now)} ago`;
 }
@@ -72,7 +111,7 @@ function ariaFor(e: MonitoringEvent, now: number, groupLabel: string): string {
         ? `teen ${e.teenName}`
         : null
       : `mentor ${e.mentorName}`,
-    e.category,
+    e.category ? categoryTextFor(e) : null,
     e.practice?.measure ?? null,
     e.escalationOpen ? "escalation open for this teen" : null,
     e.patternCount >= FLAG_PATTERN_MIN ? `${e.patternCount} flags in this conversation` : null,
@@ -169,7 +208,7 @@ function Row({
           {/* CATEGORY, THEN AGE. No repeated noun phrase: the header says what
               these are, so the row never says "flag" again. */}
           <span className="truncate">
-            {e.category ?? EVENT_KIND_LABEL[e.kind]}
+            {e.category ? categoryTextFor(e) : EVENT_KIND_LABEL[e.kind]}
           </span>
           <span aria-hidden className="shrink-0 opacity-40">·</span>
           <span

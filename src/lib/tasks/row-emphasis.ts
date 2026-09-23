@@ -72,10 +72,18 @@ export function rowEmphasisFor(taskType: TaskType): RowEmphasis {
  *  they have two days and has two and a half loses nothing, and the reverse
  *  costs a breach. */
 export function deadlineLabel(
-  slaDeadline: number,
+  /** ═══ NULL IS A REAL INPUT NOW (Phase 4) ═══
+   *  A risk flag has no published review deadline. This used to be
+   *  non-nullable, which is why every surface could render one. */
+  slaDeadline: number | null,
   now: number,
   elapsed: (from: number, to: number) => string
 ): string {
+  /* NEEDS-COPY-NICOLE. IT STATES THE ABSENCE rather than returning "" — a
+     dangling empty label is the defect the production audit recorded ("never
+     render a label with no value"), and a `?? 0` fallback would have rendered
+     "overdue by 56 years" on every flag. */
+  if (slaDeadline == null) return "no review deadline";
   return slaDeadline > now
     ? `due in ${elapsed(now, slaDeadline)}`
     : `overdue by ${elapsed(slaDeadline, now)}`;

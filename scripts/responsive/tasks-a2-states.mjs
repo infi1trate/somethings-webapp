@@ -18,6 +18,12 @@
 import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
+
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/tasks-a2-states";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 900 };
 const version = await readStoreVersion();
@@ -55,7 +61,7 @@ async function open(id, { scenario = "typical-shift", load = "ready" } = {}) {
     browser,
     {
       id,
-      url: "/app/tasks",
+      url: "/app/care-reviews",
       seed: {
         persona: "supervisor",
         extra: { tasksScenarioId: scenario, devLoadState: load },

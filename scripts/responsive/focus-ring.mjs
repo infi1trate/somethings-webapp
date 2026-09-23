@@ -36,6 +36,13 @@
 
 import { launch, BASE, STORE_KEY, buildStoreSeed, readStoreVersion } from "./harness.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 /** Containers that still clip, with the reason they were not simply padded.
  *  A new entry here should be a decision, not a shrug. */
 const KNOWN = [
@@ -88,7 +95,7 @@ const VIEWS = [
   ["/admin/person/t17?tab=care", "record · Care", OPEN_REVIEW],
   ["/admin/person/t17?tab=care", "record · Care · compose modal", OPEN_COMPOSE],
   ["/admin/person/t17?tab=overview", "record · Overview"],
-  ["/app/tasks", "Tasks"],
+  ["/app/care-reviews", "Care Reviews"],
   ["/app/activity", "Activity"],
   ["/app/settings", "Settings"],
   ["/app/mentees", "Mentees"],

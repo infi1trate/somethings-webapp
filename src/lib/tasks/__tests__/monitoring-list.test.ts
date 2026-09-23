@@ -1,75 +1,60 @@
-/* ═══ TRIMMED BY arch-mon PHASE 1 ═══
-   The suites for the hybrid unit of review, the teen-group ordering and
-   `monitoringEntriesFor` tested Monitoring's tier grouping, which no longer
-   exists — their subject was deleted, not their assertions weakened. What is
-   left covers the two functions Tasks still uses. Monitoring's own event model,
-   comparator and escalation lifecycle are tested in
-   `src/lib/monitoring/__tests__/`. */
-// THE HYBRID UNIT OF REVIEW.
-//
-// What is left is the COMPOSITION LINE, which Tasks still draws on a coalesced
-// row: worst tier first, and silent when there is only one tier to name.
+/* ═══ TRIMMED TWICE, AND THIS IS THE SECOND TIME ═══
+ *
+ *  arch-mon Phase 1 deleted the suites for the hybrid unit of review, the
+ *  teen-group ordering and `monitoringEntriesFor` — their subject was the tier
+ *  grouping, which that phase removed. What it left was the COMPOSITION LINE:
+ *  "1 clinical · 3 routine" on a coalesced row, worst tier first.
+ *
+ *  PHASE 4 DELETED THAT TOO, and for a reason worth recording rather than just
+ *  dropping the file. With one flag task type a coalesced flag group holds one
+ *  type by construction, so `compositionLabel`'s own `counts.size < 2` guard
+ *  returned null on every call it could receive. A function that can only return
+ *  null is worse than an absent one: it reads as a feature somebody switched off.
+ *
+ *  THE OLD TESTS ARE WORTH READING ONCE before they go, because one of them
+ *  records a real mutation-testing lesson. The lopsided fixture — one clinical
+ *  against three routine — existed because the original "2 clinical · 1 routine"
+ *  had tier order and count order AGREEING, so a mutant that sorted by count
+ *  produced the same string and ran green. That habit outlives the function.
+ *
+ *  WHAT IS LEFT is `coalescesByTeen`, which `row-emphasis.ts` keys its whole
+ *  derivation on — so it is not a leftover, it is the thing that decides whether
+ *  a row leads with a person or a clock.
+ */
 
 import { describe, expect, it } from "vitest";
-import { compositionLabel } from "@/lib/tasks/monitoring-list";
-import { deadlineFor } from "@/lib/tasks/sla";
-import { DOMAIN_OF_TYPE, TIER_RANK } from "@/lib/tasks/types";
-import type { TaskItem, TaskType } from "@/lib/tasks/types";
+import { coalescesByTeen } from "@/lib/tasks/monitoring-list";
+import { DOMAIN_OF_TYPE, type TaskType } from "@/lib/tasks/types";
+import { rowEmphasisFor } from "@/lib/tasks/row-emphasis";
 
-const NOW = 1_800_000_000_000;
-const HOUR = 3_600_000;
+const TYPES = Object.keys(DOMAIN_OF_TYPE) as TaskType[];
 
-let n = 0;
-function flag(taskType: TaskType, teenId: string, openedAgo: number): TaskItem {
-  n += 1;
-  const openedAt = NOW - openedAgo;
-  return {
-    id: `f${n}`,
-    domain: DOMAIN_OF_TYPE[taskType],
-    taskType,
-    tierRank: TIER_RANK[taskType],
-    teenId,
-    teenDisplayName: `${teenId} X.`,
-    mentorId: "m1",
-    mentorName: "Mentor One",
-    objectId: `conv-${teenId}`,
-    openedAt,
-    slaDeadline: deadlineFor(taskType, openedAt),
-    status: "open",
-    payload: {
-      kind: "riskFlag",
-      tier: taskType === "imminentFlagReview" ? "imminent" : taskType === "clinicalFlagReview" ? "clinicalReview" : "routine",
-      sourceType: "Message",
-      categories: ["Low mood"],
-      flaggedExcerpt: "…",
-      aiRationale: "…",
-      flaggedCorrectly: null,
-      conversationFlagCount: 1,
-    },
-  } as TaskItem;
-}
-
-describe("the composition line", () => {
-  it("reads worst tier first, even when the worst is the smaller count", () => {
-    /* ═══ THE COUNTS ARE LOPSIDED THE OTHER WAY ON PURPOSE ═══
-       This was "2 clinical · 1 routine", where tier order and count order agree
-       — so ordering by count instead of by tier produced the same string and the
-       mutation ran green. One clinical against three routine is the case that
-       tells them apart: by count it would read "3 routine · 1 clinical" and bury
-       the more serious half behind the bigger number. */
-    const members = [
-      flag("routineFlagReview", "t1", HOUR),
-      flag("routineFlagReview", "t1", HOUR),
-      flag("routineFlagReview", "t1", HOUR),
-      flag("clinicalFlagReview", "t1", HOUR),
-    ];
-    expect(compositionLabel(members)).toBe("1 clinical · 3 routine");
+describe("what coalesces by teen", () => {
+  it("is the flag type, and only the flag type", () => {
+    // THE INPUT IS ASSERTED: without this the loop below would pass on an empty
+    // type table, which is how a collapsed union reads as a clean bill of health.
+    expect(TYPES.length).toBeGreaterThan(3);
+    expect(TYPES.filter(coalescesByTeen)).toEqual(["riskFlagReview"]);
   });
 
-  it("says nothing when there is only one tier to say", () => {
-    // The band header and the count badge already carry both facts.
-    const members = [flag("routineFlagReview", "t1", HOUR), flag("routineFlagReview", "t1", HOUR)];
-    expect(compositionLabel(members)).toBeNull();
+  it("no longer carves an exception out of the flag types", () => {
+    // ═══ WHAT THIS REPLACED ═══
+    // The set was {clinicalFlagReview, routineFlagReview} with the note
+    // "Imminent is absent BY DESIGN": an imminent flag was individual work with
+    // a clock; the other two accumulated into a picture of a teen. That
+    // distinction WAS the severity tier. With one flag type there is one answer,
+    // so the exception cannot be reintroduced without adding a type back.
+    const flagTypes = TYPES.filter((t) => DOMAIN_OF_TYPE[t] === "riskFlag");
+    expect(flagTypes).toHaveLength(1);
+    expect(flagTypes.every(coalescesByTeen)).toBe(true);
   });
 
+  it("is what decides whether a row leads with a person or a clock", () => {
+    // arch-D's rule, and the reason this predicate is still exported: emphasis
+    // follows obligation, derived rather than set per surface.
+    expect(rowEmphasisFor("riskFlagReview")).toBe("person");
+    for (const t of TYPES.filter((x) => !coalescesByTeen(x))) {
+      expect(rowEmphasisFor(t), t).toBe("deadline");
+    }
+  });
 });

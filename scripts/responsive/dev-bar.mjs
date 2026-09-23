@@ -12,6 +12,13 @@ const BASE = process.env.BASE ?? "http://localhost:3003";
 const KEY = "somethings.mentor-onboarding";
 import { STORE_VERSION as VERSION } from "./store-version.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 let fails = 0;
 const check = (ok, label, extra = "") => {
   if (!ok) fails++;
@@ -39,7 +46,7 @@ for (const [label, width, height] of [
     [KEY, { state: { persona: "supervisor" }, version: VERSION }]
   );
   const p = await ctx.newPage();
-  await p.goto(`${BASE}/app/tasks`, { waitUntil: "networkidle" });
+  await p.goto(`${BASE}/app/care-reviews`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1400);
   console.log(`\n═══ ${label} · ${width}px ═══`);
 
@@ -104,7 +111,7 @@ for (const [label, width, height] of [
 
   // 6 · and it SURVIVES navigation, which the page-local version did not.
   await p.goto(`${BASE}/app/activity`, { waitUntil: "networkidle" });
-  await p.goto(`${BASE}/app/tasks`, { waitUntil: "networkidle" });
+  await p.goto(`${BASE}/app/care-reviews`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1100);
   const after = await p.evaluate((k) => JSON.parse(localStorage.getItem(k)).state.tasksScenarioId, KEY);
   check(after === "breach-overnight", "and survives a round trip through another screen", String(after));

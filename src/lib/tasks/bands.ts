@@ -45,7 +45,7 @@
 import { paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import { itemsOf } from "@/lib/tasks/list";
 import type {
-  RiskFlagPayload,
+
   TaskDomain,
   TaskItem,
   TaskType,
@@ -62,50 +62,38 @@ import type {
  *  `task-pane.tsx` reads its tier label from THIS TABLE instead of holding a
  *  second one that said "Red flag" under a header saying "Imminent". This is the
  *  one place the three tiers are named. */
-/** ═══ TASKS-FACING SINCE arch-mon PHASE 1 ═══
- *  The three flag-tier labels below are no longer rendered anywhere: Monitoring
- *  groups by review subject and names its groups from `SUBJECT_LABEL`. What still
- *  reads this table is Tasks (its deadline buckets take their treatment from the
- *  same header component) and Home's stage labels. Nothing in
- *  `lib/monitoring/` or `components/monitoring/` imports it. */
+/** ═══ THE THREE TIER LABELS ARE GONE (Phase 4) ═══
+ *  `Imminent` · `Clinical review` · `Routine review` were the band names for the
+ *  three flag task types, and this table's own note already said they "are no
+ *  longer rendered anywhere" — Monitoring names its groups from `SUBJECT_LABEL`
+ *  and Care Reviews groups by deadline. They were the last place the per-flag
+ *  tiers were spelled for a reader, so they go with the types.
+ *  ONE FLAG LABEL REMAINS and it names the work, not a severity. */
 export const BAND_LABEL: Record<TaskType, string> = {
   activeEscalation: "Active",
   escalationDocumentation: "Documentation",
-  imminentFlagReview: "Imminent",
-  clinicalFlagReview: "Clinical review",
+  riskFlagReview: "Risk flag",
   intakeBillingReview: "Intake",
   monthlyReReview: "Monthly re-review",
-  routineFlagReview: "Routine review",
 };
 
-/** TODO-COPY. The tier, shown IN THE HEADER ONLY (§5) — all three tiers share
- *  one body anatomy, and the tier is not repeated inside it.
+/** ═══ `TIER_BAND_TYPE` AND `tierLabel` ARE DELETED (Phase 4) ═══
  *
- *  ═══ THESE ARE THE BAND'S WORDS NOW, NOT A SECOND SET (arch-B) ═══
+ *  They mapped `RiskFlagPayload["tier"]` to a task type and then to a word, and
+ *  `task-pane.tsx` rendered the result under the flag's header. Both ends of that
+ *  mapping are gone: the payload has no tier and there is one flag type.
  *
- *  They were "Red flag" / "Orange flag" / "Standard flag" while the band headers
- *  four inches away said "Imminent" / "Clinical review" / "Monitoring" — two
- *  vocabularies for one judgement, on one screen, with the colour-named half
- *  sitting in the pane. `bands.ts` had already made the argument for the other
- *  half: the band "names the URGENCY, not the colour chip that used to sit on the
- *  row… a reader who is colourblind gets the same sentence, and the word survives
- *  being read aloud." That reasoning never reached the data or this table.
+ *  THEIR REASONING IS WORTH KEEPING, because it is why this table is still one
+ *  table. The pane used to hold its own labels — "Red flag" / "Orange flag" /
+ *  "Standard flag" — while the band header four inches away said "Imminent" /
+ *  "Clinical review" / "Monitoring": two vocabularies for one judgement on one
+ *  screen. The fix was that the pane read from `BAND_LABEL` rather than holding a
+ *  second table, and that rule still binds anything that names a band.
  *
- *  So the pane reads from `BAND_LABEL` rather than holding a second table. One
- *  vocabulary, and a tier label that cannot drift from the header above it.
- *
- *  IT LIVES HERE, not in the pane, because `BAND_LABEL` does: a mapping whose
- *  whole job is "do not restate these three words" should not sit in the file
- *  that would otherwise restate them. */
-export const TIER_BAND_TYPE: Record<RiskFlagPayload["tier"], TaskType> = {
-  imminent: "imminentFlagReview",
-  clinicalReview: "clinicalFlagReview",
-  routine: "routineFlagReview",
-};
-
-export function tierLabel(tier: RiskFlagPayload["tier"]): string {
-  return BAND_LABEL[TIER_BAND_TYPE[tier]];
-}
+ *  A FLAG'S TIER IS STILL ANSWERABLE and the answer is not here: `tierOf` in
+ *  `lib/record/risk-taxonomy.ts`, derived from the category, with the Care page's
+ *  own `TIER_LABEL` for the words. That table is a clinical grouping of published
+ *  categories; this one was a display name for a guess. */
 
 export interface TierBand {
   /** ═══ THE BAND KEY — A TASK TYPE, OR A DEADLINE BUCKET (arch-E) ═══

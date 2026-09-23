@@ -113,20 +113,37 @@ function Entry({ e }: { e: TimelineEntry }) {
   );
 }
 
+/** ═══ THE SOURCE IS THIS COMPONENT'S STATE NOW (Phase 6) ═══
+ *
+ *  It was `source` + `onSourceChange`, lifted into the caller — and TWO callers
+ *  each kept their own copy, along with their own `added` map and their own
+ *  `assembleTimeline(timelineSourcesFor(...))` call. Lifting state is right when
+ *  something else needs to read it; nothing did. Both copies existed because the
+ *  escalation record had two panes.
+ *
+ *  THE DE-FORK WAS TRIED BEFORE AND BACKED OUT, because both panes passed the
+ *  props and changing one broke the other. Phase 6 retired the unrouted pane, so
+ *  there is one caller and the state can live where it is used.
+ *
+ *  THE CALLER STILL SUPPLIES THE ENTRIES, and that split is deliberate: which
+ *  SOURCE a reader is looking at is a view preference and belongs here, while
+ *  WHAT the timeline contains is a join over the record, the flags and the
+ *  manual log — and that is the page's data, not this component's. */
 export function EscalationTimeline({
-  entries,
-  source,
-  onSourceChange,
+  /** A function rather than an array: the entries depend on the source, which is
+   *  now local, so the caller is handed the source and returns its assembly.
+   *  Keeps the join in the page without putting the view state there. */
+  entriesFor,
   onLog,
   /** NEEDS-COPY-NICOLE. Named so the empty state can say which source is empty. */
   teenName,
 }: {
-  entries: TimelineEntry[];
-  source: ConversationSource;
-  onSourceChange: (s: ConversationSource) => void;
+  entriesFor: (source: ConversationSource) => TimelineEntry[];
   onLog: (entry: { actionType: string; detail: string }) => void;
   teenName: string | null;
 }) {
+  const [source, setSource] = useState<ConversationSource>("supportThread");
+  const entries = entriesFor(source);
   const [logging, setLogging] = useState(false);
   const [actionType, setActionType] = useState<string>(MANUAL_ACTION_TYPES[0].id);
   const [detail, setDetail] = useState("");
@@ -151,9 +168,13 @@ export function EscalationTimeline({
               role="tab"
               aria-selected={source === id}
               data-source-tab={id}
-              onClick={() => onSourceChange(id)}
+              onClick={() => setSource(id)}
               className={cn(
-                "inline-flex min-h-9 items-center rounded-full px-3 text-[12.5px] font-semibold",
+                /* 44px — HIG's floor, not WCAG's 24px. This is the escalation
+                   surface: every control a supervisor reaches for during an
+                   incident clears the platform minimum, which the region's rows
+                   already did and the pane's did not. Measured at 36. */
+                "inline-flex min-h-11 items-center rounded-full px-3 text-[12.5px] font-semibold",
                 source === id
                   ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
@@ -171,7 +192,7 @@ export function EscalationTimeline({
           aria-expanded={logging}
           data-action="log"
           className={cn(
-            "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[12.5px] font-semibold text-[var(--text-primary)]",
+            "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3 text-[12.5px] font-semibold text-[var(--text-primary)]",
             "hover:bg-[var(--tint-hover)]",
             RING
           )}

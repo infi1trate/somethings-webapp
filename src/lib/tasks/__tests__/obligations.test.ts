@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { monitoringObligations } from "@/lib/tasks/obligations";
 import { deadlineFor } from "@/lib/tasks/sla";
 import type { TaskItem, TaskStatus, TaskType } from "@/lib/tasks/types";
-import { DOMAIN_OF_TYPE, TIER_RANK } from "@/lib/tasks/types";
+import { DOMAIN_OF_TYPE, TYPE_URGENCY_RANK } from "@/lib/tasks/types";
 
 const NOW = 1_800_000_000_000;
 const HOUR = 3_600_000;
@@ -28,7 +28,7 @@ function item(
     id: `t${n}`,
     domain: DOMAIN_OF_TYPE[taskType],
     taskType,
-    tierRank: TIER_RANK[taskType],
+    urgencyRank: TYPE_URGENCY_RANK[taskType],
     teenId: `teen-${n}`,
     teenDisplayName: "A. B.",
     mentorId: "m1",
@@ -42,20 +42,20 @@ function item(
 }
 
 describe("what Monitoring owes", () => {
-  /* ═══ RETARGETED BY arch-mon PHASE 1 ═══
-     This asserted that a breached imminent flag is debt the badge reports. The
-     tier and the flag SLA were both the severity taxonomy Phase 1 removed, so
-     the CLAIM changed rather than the assertion being relaxed: the count is
-     still computed for Home's digest, and it no longer reaches `total`. */
-  it("still reports a breached imminent flag for Home, and keeps it out of the badge", () => {
-    const onTrack = monitoringObligations([item("imminentFlagReview", 23 * HOUR)], NOW);
-    expect(onTrack.imminentBreached).toBe(0);
-    expect(onTrack.total).toBe(0);
-
-    const late = monitoringObligations([item("imminentFlagReview", 25 * HOUR)], NOW);
-    expect(late.imminentBreached).toBe(1);
-    // NOT debt any more: nothing published states a review deadline for a flag.
-    expect(late.total).toBe(0);
+  /* ═══ RETARGETED TWICE, AND THE SECOND TIME IT GOT STRICTER ═══
+     arch-mon Phase 1 kept `imminentBreached` computed-but-not-debt, for Home's
+     digest to read. Phase 3 replaced that surface and Phase 4 deleted the field,
+     the flag tiers it was keyed on, and the fabricated 24h SLA it measured.
+     SO THE CLAIM IS NOW THE STRONGER ONE: a flag of ANY age is not debt, and it
+     cannot be, because it has no deadline to breach. The old form asserted a
+     number stayed out of one total; this asserts the input cannot produce one. */
+  it("never treats a flag as debt, at any age, because a flag has no deadline", () => {
+    for (const ago of [HOUR, 25 * HOUR, 40 * 24 * HOUR]) {
+      const o = monitoringObligations([item("riskFlagReview", ago)], NOW);
+      expect(o.total, `${ago}ms old`).toBe(0);
+      expect(o.ackOutstanding).toBe(0);
+      expect(o.documentationOpen).toBe(0);
+    }
   });
 
   it("counts documentation from the moment it is due, not only when it is late", () => {
@@ -88,10 +88,10 @@ describe("what Monitoring owes", () => {
       [
         // Both breached, on purpose: 48h and 7d SLAs are the normal rhythm of a
         // worked queue, and badging them would bury the Imminent signal.
-        item("clinicalFlagReview", 60 * HOUR),
-        item("routineFlagReview", 9 * 24 * HOUR),
-        item("imminentFlagReview", 2 * HOUR),
-        item("routineFlagReview", HOUR),
+        item("riskFlagReview", 60 * HOUR),
+        item("riskFlagReview", 9 * 24 * HOUR),
+        item("riskFlagReview", 2 * HOUR),
+        item("riskFlagReview", HOUR),
       ],
       NOW
     );
@@ -134,25 +134,23 @@ describe("what Monitoring owes", () => {
   it("adds the two kinds of debt and nothing else", () => {
     const o = monitoringObligations(
       [
-        item("imminentFlagReview", 30 * HOUR),
-        item("imminentFlagReview", 40 * HOUR),
+        item("riskFlagReview", 30 * HOUR),
+        item("riskFlagReview", 40 * HOUR),
         item("escalationDocumentation", 3 * HOUR),
-        item("clinicalFlagReview", 60 * HOUR),
-        item("routineFlagReview", 9 * 24 * HOUR),
+        item("riskFlagReview", 60 * HOUR),
+        item("riskFlagReview", 9 * 24 * HOUR),
         item("activeEscalation", HOUR),
         item("intakeBillingReview", 90 * HOUR),
       ],
       NOW
     );
     expect(o).toMatchObject({
-      /* STILL COUNTED, STILL REPORTED, AND NO LONGER DEBT — Home reads these. */
-      imminentBreached: 2,
       documentationOpen: 1,
       documentationOverdue: 0,
       /* THE ONE REAL OBLIGATION IN THAT LIST: the active escalation is an hour
          old against a five-minute acknowledgement window. The note is owed and
-         not yet late; the two breached lower-tier flags and the billing review
-         are somebody else's surface or nobody's deadline. */
+         not yet late; the three flags have no deadline at all and the billing
+         review is inside its own. */
       ackOutstanding: 1,
       total: 1,
     });

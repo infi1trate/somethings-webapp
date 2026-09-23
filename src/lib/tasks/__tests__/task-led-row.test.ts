@@ -87,11 +87,11 @@ describe("the task-kind vocabulary", () => {
     const types: TaskType[] = [
       "activeEscalation",
       "escalationDocumentation",
-      "imminentFlagReview",
-      "clinicalFlagReview",
+      "riskFlagReview",
+      "riskFlagReview",
       "intakeBillingReview",
       "monthlyReReview",
-      "routineFlagReview",
+      "riskFlagReview",
     ];
     for (const t of types) expect(TASK_KIND_LABEL[t], t).toBeTruthy();
   });
@@ -112,7 +112,7 @@ describe("the kind filter", () => {
   it("offers one chip per KIND once a second type arrives", () => {
     const simulated = [
       ...billing("typical-shift"),
-      { ...billing("typical-shift")[0], id: "sim-1", taskType: "routineFlagReview" as TaskType },
+      { ...billing("typical-shift")[0], id: "sim-1", taskType: "riskFlagReview" as TaskType },
     ] as TaskItem[];
     /* ═══ THE CHIP IS A GROUP, NOT A LABEL (arch-G, G2) ═══
        It keyed on the display label, which was right while two billing types
@@ -123,16 +123,16 @@ describe("the kind filter", () => {
     const chips = kindChipsFor(simulated);
     expect(chips).toHaveLength(2);
     expect(chips).toContain(TASK_KIND_GROUP.intakeBillingReview);
-    expect(chips).toContain(TASK_KIND_GROUP.routineFlagReview);
+    expect(chips).toContain(TASK_KIND_GROUP.riskFlagReview);
   });
 
   it("filters to a kind, and All returns everything", () => {
     const simulated = [
       ...billing("typical-shift"),
-      { ...billing("typical-shift")[0], id: "sim-1", taskType: "routineFlagReview" as TaskType },
+      { ...billing("typical-shift")[0], id: "sim-1", taskType: "riskFlagReview" as TaskType },
     ] as TaskItem[];
     expect(filterByKind(simulated, ALL_KINDS)).toHaveLength(simulated.length);
-    expect(filterByKind(simulated, TASK_KIND_GROUP.routineFlagReview)).toHaveLength(1);
+    expect(filterByKind(simulated, TASK_KIND_GROUP.riskFlagReview)).toHaveLength(1);
     expect(filterByKind(simulated, TASK_KIND_GROUP.intakeBillingReview)).toHaveLength(
       simulated.length - 1
     );

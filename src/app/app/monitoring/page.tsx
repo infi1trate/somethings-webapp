@@ -1,89 +1,42 @@
 "use client";
 
-// /app/monitoring — static route, wins over /app/[section]. Same arrangement
-// /app/tasks and /app/activity use.
+// /app/monitoring — RETIRED. Monitoring is a GROUP LABEL now — a category of destinations rather than a destination.
 //
-// SUPERVISOR TIER ONLY (arch-B). Adding a static route shadows the dynamic one
-// for EVERYBODY, so the non-supervisor branch has to render what
-// `/app/[section]` would have rendered — otherwise a mentor who follows a stale
-// link gets a blank shell instead of the honest unbuilt-section placeholder, and
-// that is a regression for them dressed up as a feature for someone else.
+// The mapping is `retiredRouteTarget` (`lib/ia/retired-routes.ts`), unit-tested
+// there and opened in a browser by this phase's probe — a URL assertion cannot
+// tell a live destination from a dead one, which the previous restructure
+// learned the expensive way.
 //
-// The nav item is supervisor-only too (`railItems`), so no mentor is offered
-// this route. This branch is for the link that arrives from somewhere else.
+// THE FILE IS NOT DELETED. The strangler rule this codebase follows keeps a
+// retired route until every link to it is gone, and a 404 under a bookmark is
+// worse than a hop.
 //
 // STANDING NEXT-16 RULES: no page-root <Suspense>, the use(searchParams) prop
-// pattern rather than useSearchParams, and every store read behind useMounted.
-// These three fail with ZERO console output, so they are followed by
-// pattern-match against the existing pages rather than by reasoning.
+// pattern rather than useSearchParams.
 
 import { use } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
-import { MonitoringPage } from "@/components/monitoring/monitoring-page";
-import { useOnboardingStore } from "@/lib/onboarding/store";
-import { isSupervisorTier } from "@/lib/record/permission-map";
-import { useMounted } from "@/lib/use-mounted";
+import { RetiredRoute } from "@/components/ia/retired-route";
+import { retiredRouteTarget } from "@/lib/ia/retired-routes";
 
 export default function MonitoringRoute({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  /** ═══ `?band=<taskType>` AND `?region=escalations` — arch-C's stage links ═══
-   *
-   *  Home's sequence asks two different questions of this surface — "the imminent
-   *  tier" and "the escalations" — and they land in two different regions of one
-   *  page, so one param could not express both. `band` scrolls the flags view to
-   *  a tier; `region` targets the escalation region above it.
-   *
-   *  A BAND, NOT AN ITEM. A stage is a kind of work; a link to one flag would go
-   *  stale the moment somebody else resolved it. Both are validated in the page,
-   *  so a stale bookmark lands on the default view rather than on nothing. */
   const query = use(searchParams);
-  const band = typeof query.band === "string" ? query.band : null;
-  const region = typeof query.region === "string" ? query.region : null;
-  /** ═══ `?escalation=<id>` — AN OBJECT, NOT A REGION (arch-G, G6) ═══
-   *  The one deep link here that names a specific thing, and it is allowed to
-   *  because an escalation RECORD is durable: it does not go stale the way a
-   *  link to one flag would, and the page says so plainly when the id is not in
-   *  the current data set. `/app/escalation/[escalationId]` sends every
-   *  link-out here. */
-  const escalation =
-    typeof query.escalation === "string" ? query.escalation : null;
-  const mounted = useMounted();
-  const persona = useOnboardingStore((s) => s.persona);
-
-  // GATED BEHIND `mounted`: persona lives in persisted state, so branching on it
-  // before hydration renders the placeholder for one frame and then swaps — a
-  // mismatch that produces no error at all.
-  const supervisor = mounted && isSupervisorTier(persona);
-
-  if (supervisor) {
-    return (
-      <AdminShell active="monitoring">
-        <MonitoringPage
-          focusBand={band}
-          focusRegion={region}
-          focusEscalation={escalation}
-        />
-      </AdminShell>
-    );
-  }
-
-  // THE EXISTING EXPERIENCE, UNCHANGED. Copy and structure lifted from
-  // /app/[section]/page.tsx's placeholder so the two are indistinguishable.
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  const target = retiredRouteTarget("monitoring", {
+    band: str(query.band),
+    region: str(query.region),
+    escalation: str(query.escalation),
+    queue: str(query.queue),
+  });
   return (
-    <MentorShell active="monitoring">
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-        <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-          Monitoring
-        </h1>
-        <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          Nothing here yet. When there&apos;s something new, it&apos;ll show up
-          here.
-        </p>
-      </div>
-    </MentorShell>
+    <RetiredRoute
+      target={target}
+      destinationLabel="Risk Flags"
+      fallbackTitle="Monitoring"
+      fallbackActive="monitoring"
+    />
   );
 }

@@ -14,6 +14,13 @@ import AxeBuilder from "@axe-core/playwright";
 import { mkdir, writeFile } from "node:fs/promises";
 import { VIEWPORTS, launch, openView, readStoreVersion, BASE } from "./harness.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 const OUT = "docs/responsive/monitoring";
 const version = await readStoreVersion();
 const browser = await launch();
@@ -54,7 +61,7 @@ for (const label of TIERS) {
       browser,
       {
         id: `monitoring-${label}-${theme}`,
-        url: "/app/monitoring",
+        url: "/app/risk-flags",
         seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } },
       },
       vp,

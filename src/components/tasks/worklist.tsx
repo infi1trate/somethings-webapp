@@ -63,7 +63,6 @@ import {
   rowEmphasisFor,
   type RowEmphasis,
 } from "@/lib/tasks/row-emphasis";
-import { compositionLabel } from "@/lib/tasks/monitoring-list";
 import { DOMAIN_LABEL, isBreached, type TaskDomain, type TaskItem, type TaskType } from "@/lib/tasks/types";
 import type { SurfaceState } from "@/lib/tasks/load-plan";
 import {
@@ -306,7 +305,14 @@ function Row({
    *  on a conversation group, where every member is the same tier by
    *  construction (taskType is half that key) and the line would restate the
    *  header. */
-  const composition = isTeenGroup ? compositionLabel(entry.members) : null;
+  /* ═══ THE COMPOSITION LINE IS GONE (Phase 4) ═══
+     It read "3 clinical · 2 routine" — the MIX OF TIERS a coalesced teen row
+     stood for. With one flag type a flag group is one type by construction, so
+     `compositionLabel` could only ever return null and was deleted with the
+     tiers it described.
+     WHAT THE ROW STILL CARRIES is the coalesce count ("2 in this conversation"),
+     which is a fact about the set rather than a claim about severity — see
+     `coalesceLabel` below, unchanged. */
   /** ═══ THE AGE ON A TEEN ROW IS THE OLDEST FLAG'S ═══
    *  Not the head's. The head is the most URGENT flag, which on a teen carrying
    *  three clinical and two routine is usually not the one that has been waiting
@@ -397,7 +403,6 @@ function Row({
       ? [item.teenDisplayName, TASK_KIND_LABEL[item.taskType], disposition]
       : [item.teenDisplayName, `to ${item.mentorName}`]),
     isGroup ? coalesceLabel(entry.members.length) : null,
-    composition,
     overdue ? "overdue" : null,
     item.payload.kind === "escalation"
       ? item.payload.is911
@@ -668,21 +673,14 @@ function Row({
 
       <span className="flex shrink-0 items-center gap-1.5">
         <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
-        {/* ═══ THE COMPOSITION MOVED TO THE RIGHT (arch-D, D3) ═══
-            It shared the mentor caption, which put the row's PRIMARY fact — how
-            much signal this teen is carrying — in the quietest line on the row,
-            behind a `to {mentor}` that is only identification. On a person-
-            forward row the count and the composition ARE the point, so they sit
-            with the other facts where the eye already goes.
-            STILL TEXT, NEVER COLOUR ALONE: the alarm budget spends colour on the
-            escalation treatment and nothing else, and a row encoding its tier mix
-            in hue would be unreadable to anyone who cannot separate two pale
-            tints. */}
-        {composition && (
-          <span className="shrink-0 truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
-            {composition}
-          </span>
-        )}
+        {/* ═══ THE COMPOSITION SPAN IS GONE WITH THE TIERS (Phase 4) ═══
+            arch-D moved it here from the mentor caption, on the reasoning that
+            "on a person-forward row the count and the composition ARE the
+            point". The COUNT still is and still sits here. The composition was
+            the tier mix, so it went with the tiers.
+            THE RULE THAT SURVIVES: never colour alone. The alarm budget spends
+            colour on the escalation treatment and nothing else, which is why the
+            count beside this is text. */}
         {/* ═══ THE ONE TEMPORAL FACT ═══
             MONO AND TABULAR ON BOTH PATHS, so the column reads as a column and a
             live figure does not jitter as its digits change width.
@@ -820,12 +818,13 @@ function ListError({ subject, onRetry }: { subject: string; onRetry: () => void 
  *  written anything worth reading, which is neither an achievement nor a problem.
  *  The other three are allowed to read as relief; this one reads as a fact. */
 function EmptyList({ domain, line }: { domain: TaskDomain | null; line?: string }) {
-  /* TODO-COPY on all four. */
+  /* TODO-COPY on all three. `routineFlag`'s line — "Nothing in routine review
+     right now" — went with the domain in Phase 4; "No open flags" covers every
+     flag, which is what one flag type means. */
   const copy: Record<TaskDomain, string> = {
     escalation: "No active escalations.",
     riskFlag: "No open flags.",
     billing: "No billing reviews open.",
-    routineFlag: "Nothing in routine review right now.",
   };
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">

@@ -36,14 +36,7 @@ import {
 } from "@/components/tasks/billing-review";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { chatThreadHref } from "@/lib/record/chat";
-import {
-  EscalationCtas,
-  EscalationMeta,
-  EscalationTaskPane,
-  type EscalationPaneHandle,
-} from "@/components/tasks/escalation-task-pane";
 import type { CompletedEntry } from "@/components/tasks/completed-group";
-import type { MonitoringEvent } from "@/lib/monitoring/event";
 import { deadlineFactFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 // Still used by the BILLING pane's Notes link — a different block from the
@@ -61,8 +54,6 @@ import {
   type RiskFlagPayload,
   type TaskItem,
 } from "@/lib/tasks/types";
-import { tierLabel } from "@/lib/tasks/bands";
-import { isEscalationTask } from "@/lib/tasks/escalation-state";
 import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
   PANE_LABEL,
@@ -409,14 +400,13 @@ export function TaskPane({
    *  pane's so the two can disagree — which is the point: the dev harness must be
    *  able to fail the excerpt while the pane succeeds. */
   excerptState = "ready",
-  /** ═══ THE EVENTS ARE FOR THE ESCALATION TIMELINE'S FLAG JOIN ═══
-   *  Not optional, and that is the point: `flagsInWindowFor` joins real flags on
-   *  the same teen inside the escalation window, so a default of `[]` would make
-   *  the timeline silently drop entries that exist — on the surface whose whole
-   *  claim is that it shows what happened. An empty ARRAY from the page is a
-   *  statement that there are no flags; an omitted prop is a wiring mistake, and
-   *  the two must not look the same. */
-  events,
+  /* ═══ THE `events` PROP IS GONE (Phase 6) ═══
+     It existed for one reader: the escalation timeline's flag join, inside
+     `EscalationTaskPane`. Its note was about the difference between an empty
+     ARRAY ("there are no flags") and an omitted prop ("a wiring mistake"), and
+     that distinction still matters — it matters on `event-pane.tsx`, which does
+     the join now and takes the prop with the same reasoning. Here there is
+     nothing left to join. */
   /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (arch-F, F4) ═══
    *  Set when the selection is a row from "Completed today". The review renders
    *  with `canAct={false}` — the module's own tier gate, which already drops the
@@ -432,7 +422,6 @@ export function TaskPane({
   /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
   actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
-  events: MonitoringEvent[];
   completed?: CompletedEntry | null;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
@@ -492,24 +481,13 @@ export function TaskPane({
    *  the action is the smaller thing to move. Null whenever the mounted body is
    *  not a billing review, which is what the footer checks. */
   const billingHandle = useRef<BillingSubmitHandle | null>(null);
-  /** ═══ THE ESCALATION PANE'S, FOR THE SAME REASON (arch-G, G4) ═══
-   *  Its primary is in the footer and the state it acts on — the chosen
-   *  disposition — is inside `EscalationTaskPane`. Same trade as above. */
-  const escalationHandle = useRef<EscalationPaneHandle | null>(null);
-  /** Set by a refused press, cleared the moment a disposition is chosen. The
-   *  response has no count to state, so the only sentence it can offer is what
-   *  just happened — which is why the gate is a refused submit rather than a
-   *  disabled button: a disabled primary with no explanation is the failure
-   *  mode the billing footer already avoids. */
-  const [escalationBlocked, setEscalationBlocked] = useState(false);
-  const onDispositionChange = useCallback(() => setEscalationBlocked(false), []);
-  /** ═══ THE DOCUMENTATION NOTE'S ACTION ROW LANDS HERE ═══
-   *  State, not a ref, because the portal has to re-render once the node exists:
-   *  a ref written during commit is invisible to the render that reads it, so the
-   *  row would stay in its inline fallback until something else re-rendered the
-   *  pane. The module renders it inline while this is null, so the row is never
-   *  absent — it moves. */
-  const [actionSlot, setActionSlot] = useState<HTMLElement | null>(null);
+  /* ═══ THE ESCALATION HANDLE AND ITS GATE ARE GONE (Phase 6) ═══
+     `escalationHandle`, `escalationBlocked` and `onDispositionChange` existed so
+     the footer's `Record response` primary could act on state inside
+     `EscalationTaskPane`. Both ends of that arrangement are retired: the pane
+     had no route and the primary had no reachable branch. The escalation
+     record's pane on `/app/escalations` owns its own footer, so nothing has to
+     be lifted across a component boundary there. */
 
   /* ═══ THE AUTO-ADVANCE CROSSFADE (Part 5) ═══
      Resolving replaces the pane's ENTIRE contents in one frame — new name, new
@@ -682,18 +660,20 @@ export function TaskPane({
             >
               {item.teenDisplayName}
             </h2>
-            {isEscalationTask(item) ? (
-              /* THE THREE INSTANTS AN ESCALATION HAS — opened, closed, due —
-                 each stated once, and the response phase counts UP. Owned by the
-                 escalation pane's own module so the two task types cannot drift
-                 apart. */
-              <EscalationMeta item={item} now={now} />
-            ) : (
+            {/* ═══ EVERY ESCALATION BRANCH IS GONE (Phase 6) ═══
+                This pane is Care Reviews', and Care Reviews has held billing
+                alone since Phase 2 — so `isEscalationTask(item)` was false on
+                every item that can reach here and each branch was unreachable
+                code. `EscalationMeta`, `EscalationCtas` and `EscalationTaskPane`
+                retire with them; the escalation record's own pane on
+                `/app/escalations` is the surviving representation, and Phase 6
+                moved the facts row and the link-outs onto it rather than letting
+                them die with the duplicate. */}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
                 {`${elapsedLabel(item.openedAt, now)} open`}
               </span>
-              {!isEscalationTask(item) && (
+              {(
                 <>
                   <span aria-hidden className="opacity-40">·</span>
                   <span
@@ -714,7 +694,6 @@ export function TaskPane({
                   and the due fact carries the breach ink, which is the same rule
                   the rows now follow. */}
             </p>
-            )}
           </div>
 
           {/* ═══ THE TWO WAYS OUT, AND WHY THEY ARE HERE AND NOT ON THE ROWS ═══
@@ -735,7 +714,7 @@ export function TaskPane({
                 harmless in a cluster whose whole design note above is about not
                 competing for the eye: it doubles one destination's weight
                 against the two beside it. */}
-            {!isEscalationTask(item) && (
+            {(
               <Link
                 href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
                 className={cn(
@@ -757,7 +736,7 @@ export function TaskPane({
                 FOR A BILLING REVIEW THERE IS NO ANCHOR ANYWAY: nothing here was
                 flagged, so there is no relevant message to land on, and the top
                 of the thread is the honest destination even once `?msg=` works. */}
-            {!isEscalationTask(item) && (
+            {(
               <Link
                 href={chatThreadHref(item.teenId)}
                 className={cn(
@@ -773,17 +752,18 @@ export function TaskPane({
             )}
             {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
                 component, so the two escalation task types carry the same set. */}
-            {isEscalationTask(item) && <EscalationCtas item={item} />}
           </div>
         </div>
-        {/* THE TIER, HEADER ONLY (§5) — risk flags do not reach this surface
-            today, and the line is derived rather than deleted so it cannot come
-            back wrong with the row type. */}
-        {p.kind === "riskFlag" && (
-          <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-            {tierLabel(p.tier)}
-          </p>
-        )}
+        {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══
+            It rendered `tierLabel(p.tier)` under a flag's header — the per-flag
+            severity, stated to a reader as fact. The payload has no tier and
+            there is no label table to read one from.
+            NOTHING REPLACES IT HERE. A flag's playbook tier is derivable from its
+            category (`tierOf`), but this pane is Care Reviews' and flags do not
+            reach it; adding a derived line to a surface that renders no flags
+            would be inventing a consumer for the derivation. The Risk Flags pane
+            is where a category — and, if it earns it, its playbook grouping —
+            belongs, and that is Phase 5's. */}
       </div>
 
       {/* ── BODY, scrolls independently ─────────────────────────────────── */}
@@ -874,28 +854,18 @@ export function TaskPane({
             onBlocked={onBlocked}
           />
         )}
-        {(p.kind === "escalation" || p.kind === "documentation") && (
-          /* ═══ MITIGATION HAPPENS HERE NOW (arch-G, G4) ═══
-             `EscalationBody` was a read-only pointer: facts, a context excerpt,
-             and a button that sent the reader somewhere else. That was right
-             while Tasks had no escalation task type and locked decision 3 meant
-             "escalations are not resolved on this surface" — it is wrong now
-             that the OBLIGATIONS are tasks. The record is still Monitoring's;
-             what happens here is the work the task names.
-             DECISION 3 IS NOT BROKEN BY THIS: nothing here resolves the
-             ESCALATION. The response task records a disposition and the
-             documentation task submits a note; the escalation's own lifecycle
-             belongs to the record. */
-          <EscalationTaskPane
-            item={item}
-            now={now}
-            events={events}
-            onResolve={onResolve}
-            actionSlot={actionSlot}
-            handleRef={escalationHandle}
-            onDispositionChange={onDispositionChange}
-          />
-        )}
+        {/* ═══ THE ESCALATION PANE MOUNT IS GONE (Phase 6) ═══
+            `p.kind` is `"billing"` on every item this pane can receive, so this
+            branch was unreachable. It hosted the mitigation work arch-G G4 moved
+            onto Tasks "now that the OBLIGATIONS are tasks" — and that sentence
+            is what Phase 2 reversed: the obligations are the RECORD's again, and
+            the record has exactly one pane.
+            arch-G's DECISION 3 SURVIVES INTACT, which is worth stating because
+            this looks like its undoing: nothing resolved the ESCALATION here
+            either. The response task recorded a disposition and the
+            documentation task submitted a note, while the escalation's own
+            lifecycle belonged to the record. Phase 6 removes the second place
+            that work could be done from, not the rule. */}
 
 
       {/* ═══ THE ACTION BAR (arch-F, F3) ═══
@@ -1093,30 +1063,25 @@ export function TaskPane({
               aria-live="polite"
               className="min-w-0 text-[12.5px] leading-[17px] text-[var(--text-secondary)]"
             >
-              {/* NEEDS-COPY-NICOLE. The response's own gate, stated rather than
-                  enforced with a disabled button. */}
-              {p.kind === "escalation" && escalationBlocked
-                ? "Record what you did first."
-                : ""}
+              {/* THE RESPONSE GATE'S SENTENCE WENT WITH ITS BUTTON (Phase 6).
+                  It read "Record what you did first." beside a `Record response`
+                  primary that only an escalation task could reach. */}
+              {""}
             </p>
-            {p.kind === "escalation" ? (
-              <PillButton
-                onClick={() => {
-                  const h = escalationHandle.current;
-                  if (!h) return;
-                  /* THE REFUSAL IS THE MESSAGE. `submit` returns false when no
-                     disposition is chosen; the sentence to its left says so. */
-                  if (!h.submit()) setEscalationBlocked(true);
-                }}
-                className="h-9 shrink-0 px-5 text-[14px]"
-              >
-                {/* NEEDS-COPY-NICOLE */}
-                Record response
-              </PillButton>
-            ) : (
-              /* THE SLOT THE NOTE MODULE PORTALS INTO. */
-              <span ref={setActionSlot} className="contents" />
-            )}
+            {/* ═══ AND `Record response` IS GONE, WHICH CLOSES A KNOWN DEFECT ═══
+                The Phase 0 audit measured it at 144×36 — below the 44px minimum
+                — and it was still on the fix list. It is resolved by DELETION
+                rather than by resizing, because the control had no route: only
+                `p.kind === "escalation"` reached it and Care Reviews holds
+                billing alone. Resizing an unreachable button would have closed
+                the audit item without changing anything a reader can touch.
+                The escalation record's own pane carries the disposition footer,
+                and its controls were measured at 44px in Phase 4. */}
+            {/* ═══ AND THE PORTAL SLOT WITH IT ═══
+                The escalation NOTE module portalled its action row into this
+                span. The module is alive and well — `event-pane.tsx` renders it
+                on the record — but it renders its row inline there, so nothing
+                needs a slot lifted across a component boundary any more. */}
           </div>
         )}
       </div>

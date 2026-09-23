@@ -69,7 +69,16 @@ export function escalationHref(escalationId: string): string {
  *  ever gets a page of its own. Rewriting forty call sites to Monitoring's
  *  query string would bake this phase's hosting decision into every caller. */
 export function escalationRecordHref(escalationId: string): string {
-  return `/app/monitoring?escalation=${encodeURIComponent(escalationId)}`;
+  /* ═══ IT POINTED AT A RETIRED ROUTE, AND THAT WAS AN INFINITE LOOP ═══
+     Phase 1 turned `/app/monitoring` into a hop whose `?escalation=` branch
+     maps to `/app/escalation/{id}` — which is the hop that calls THIS function.
+     So a reader opening any escalation record bounced
+     `/app/escalation/X` → `/app/monitoring?escalation=X` → `/app/escalation/X`
+     forever, both legs a `router.replace`, so Back could not escape it either.
+     Phase 1's probe opened the retired routes and asserted the FIRST hop's URL,
+     which is exactly the assertion a two-hop cycle passes.
+     The record's destination is `/app/escalations` now. */
+  return `/app/escalations?escalation=${encodeURIComponent(escalationId)}`;
 }
 
 // ── Respond strip (§3.2) ────────────────────────────────────────────────────

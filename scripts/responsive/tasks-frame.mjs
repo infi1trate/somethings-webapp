@@ -19,6 +19,12 @@ const BASE = process.env.BASE ?? "http://localhost:3000";
 const KEY = "somethings.mentor-onboarding";
 import { STORE_VERSION as VERSION } from "./store-version.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
+
 let fails = 0;
 const check = (ok, label, extra = "") => {
   if (!ok) fails++;
@@ -34,7 +40,7 @@ async function tasks(scenario, width, height) {
     [KEY, { state: { persona: "supervisor", tasksScenarioId: scenario }, version: VERSION }]
   );
   const p = await ctx.newPage();
-  await p.goto(`${BASE}/app/tasks`, { waitUntil: "networkidle" });
+  await p.goto(`${BASE}/app/care-reviews`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1500);
   return p;
 }

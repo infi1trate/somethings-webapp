@@ -223,8 +223,8 @@ export const VIEWS = [
   { id: "D7", cluster: "D", url: "/app/team", seed: PUBLISHED },
   { id: "D8", cluster: "D", url: "/app/team", seed: { persona: "lead-mentor" } },
   { id: "D9", cluster: "D", url: "/app/team", seed: { persona: "supervisor" } },
-  { id: "D10", cluster: "D", url: "/app/tasks", seed: { persona: "supervisor" } },
-  { id: "D11", cluster: "D", url: "/app/tasks", seed: PUBLISHED },
+  { id: "D10", cluster: "D", url: "/app/care-reviews", seed: { persona: "supervisor" } },
+  { id: "D11", cluster: "D", url: "/app/care-reviews", seed: PUBLISHED },
   // D12 is five placeholder sections plus the `?with=` named variant. The
   // tracker counts it as ONE row; captured as its most-populated instance plus
   // the named-person variant, because they are different renderings.

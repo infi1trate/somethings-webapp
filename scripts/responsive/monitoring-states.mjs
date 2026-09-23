@@ -15,6 +15,12 @@
 import { launch, openView, VIEWPORTS, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
+
 /** ═══ THE PACK'S 39 KEYS, TRANSCRIBED ═══
  *  Duplicated here on purpose: the probe is the independent check, so it must not
  *  import the list it is checking. Grouped and ordered as the phase file lists
@@ -58,7 +64,46 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(30)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
-async function open(id, { scenario = null, tasks = "typical-shift", load = "ready", url = "/app/monitoring" } = {}) {
+/** ═══ A CLAIM THIS PROBE CANNOT CURRENTLY VERIFY, SAID OUT LOUD ═══
+ *
+ *  NOT a skip and NOT a pass. A check whose subject has moved out of reach is
+ *  the most dangerous thing in a probe file: deleted it leaves a claim nobody
+ *  asserts, commented out it rots, and relaxed to green it is a rubber stamp.
+ *
+ *  So it prints `⊘`, names its owner, counts separately, and the summary reports
+ *  the count — which can never be silently zero, because a run with no blocked
+ *  checks says "0 blocked" and a run that grew one says so. Exit code is
+ *  unaffected: a blocked check is not a failure, it is an absence of evidence. */
+let blockedCount = 0;
+/* ═══ UNUSED AS OF PHASE 6, AND KEPT ON PURPOSE ═══
+   Its only caller was `escalate.creates-record`, which Phase 6 unblocked by
+   retiring the second escalation pane. An unused helper normally goes — this one
+   stays because the alternative to having it is what this file did before it
+   existed: a check whose subject moved out of reach gets commented out, and a
+   commented-out check is a claim nobody asserts and nobody can see is missing.
+   The summary prints "0 BLOCKED" either way, which is the actual guard. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function blocked(id, label, why) {
+  blockedCount += 1;
+  rows.push({ id, label, blocked: true, why });
+  console.log(`  ⊘ ${id.padEnd(30)} ${label} — BLOCKED: ${why}`);
+}
+
+/** ═══ THE DEFAULT IS THE FLAG QUEUE; THE ESCALATION CHECKS ASK FOR THEIRS ═══
+ *
+ *  Phase 2 split this probe's single subject across two routes: the flag queue
+ *  is `/app/risk-flags` and the escalation REGION moved to `/app/escalations`.
+ *  Phase 2's retarget pointed everything at the queue, so every check waiting on
+ *  `li[data-escalation-state]` timed out against a page that no longer renders
+ *  it — measured on HEAD before Phase 4 as well, so this is that retarget's
+ *  residue rather than something the tier removal broke.
+ *
+ *  `ESC` IS SPELLED AT EACH CALL rather than inferred from the scenario name:
+ *  two of these fixtures ("normal-day") are used by both halves, so a name-based
+ *  guess would send one of them to the wrong surface. */
+const ESC = "/app/escalations";
+
+async function open(id, { scenario = null, tasks = "typical-shift", load = "ready", url = "/app/risk-flags" } = {}) {
   return openView(
     browser,
     {
@@ -115,9 +160,15 @@ const rowText = (page) =>
     texts.length > 0 && texts.every((x) => / ago\b/.test(x)),
     texts[0]
   );
-  /* THE BREACH TREATMENT STILL EXISTS, and belongs to exactly one thing. Asserted
-     positively so "no breach on flags" cannot quietly become "no breach at all". */
-  const breachChips = await page
+  /* ═══ THE POSITIVE HALF MOVED ROUTES (Phase 2) ═══
+     "Breach treatment still exists" is asserted so "no breach on flags" cannot
+     quietly become "no breach at all" — and the thing it looks for is the
+     escalation region, which is `/app/escalations` now. Read on ITS page, in its
+     own context, rather than on the flag queue where it would always find zero
+     and the assertion would invert. */
+  const escView = await open("tiers-breach", { url: ESC });
+  await escView.page.waitForTimeout(700);
+  const breachChips = await escView.page
     .locator("li[data-escalation-state] span, [data-slot='event-pane'] span")
     .evaluateAll((els) => els.filter((e) => /Overdue|overdue/.test(e.textContent ?? "")).length);
   check(
@@ -126,6 +177,7 @@ const rowText = (page) =>
     breachChips > 0,
     `${breachChips} breach chips, all escalation-linked`
   );
+  await escView.context.close();
   await page.screenshot({ path: `${OUT}/01-queue.png` });
   await context.close();
 }
@@ -316,21 +368,81 @@ const rowText = (page) =>
   await context.close();
 }
 {
-  // ── THE ESCALATE PATH ───────────────────────────────────────────────────
-  const { context, page } = await open("escalate-path", { scenario: "normal-day" });
-  await page.waitForTimeout(700);
+  // ── THE ESCALATE PATH (unblocked in Phase 6) ────────────────────────────
+  //
+  // ═══ WHY IT WAS BLOCKED, AND WHAT CHANGED ═══
+  //
+  // Phase 4 marked this `⊘`: the old check escalated a flag and then counted
+  // rows in the escalation REGION, and Phase 2 had moved the region to
+  // `/app/escalations` while the flag stayed on `/app/risk-flags`. The record is
+  // created in page-local `raised` state, which does not survive the navigation
+  // between them, so the claim was unverifiable from either page alone.
+  //
+  // PHASE 6 RETIRED THE SECOND ESCALATION PANE, and with one representation the
+  // observable behaviour on the flag queue is clear: escalating opens the record
+  // IN THE PANE — `selectedEscalation` is derived from the full record set,
+  // `raised` included — announces that it happened, and leaves the flag in the
+  // queue. All three are checkable on one route.
+  //
+  // WHAT IS STILL NOT CHECKED, and is a decision rather than a gap in this file:
+  // the raised record does not survive a navigation to `/app/escalations`,
+  // because nothing in this prototype persists a supervisor's decision — flag
+  // resolutions, close-out completions and coverage credit are all page-local by
+  // the same design. Gap row 430 states it with the store analysis.
+  const { context, page } = await open("escalate-path", {
+    scenario: "normal-day",
+    url: "/app/risk-flags",
+  });
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(400);
   const beforeRows = (await rowText(page)).length;
-  const beforeEsc = await page.locator("li[data-escalation-state]").count();
+  check(
+    "escalate.input",
+    "a flag was selected and the queue has rows to leave it in",
+    beforeRows > 0,
+    `${beforeRows} rows`
+  );
   await page.locator('[data-effect="escalate"]').first().click();
   await page.locator('[data-action="record"]').click();
-  await page.waitForTimeout(600);
-  const afterEsc = await page.locator("li[data-escalation-state]").count();
-  check("escalate.creates-record", "escalating creates an escalation record", afterEsc === beforeEsc + 1, `${beforeEsc} → ${afterEsc}`);
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    return {
+      paneText: (pane?.innerText ?? "").replace(/\s+/g, " "),
+      /* THE RECORD'S OWN PANE HAS A LIFECYCLE ATTRIBUTE; a flag's does not. */
+      lifecycle: pane
+        ?.querySelector("[data-record-lifecycle]")
+        ?.getAttribute("data-record-lifecycle"),
+      /* ═══ THE PAGE'S OWN STATUS LINE, NOT EVERY LIVE REGION ═══
+         A broad `[aria-live]` query also catches the PANE, whose wrapper is
+         `aria-live="polite"` so an auto-advance announces the event that
+         arrived. Joining both made the check's detail print the pane's whole
+         text while the assertion was matching the status line buried in it —
+         the reporting flaw gap row 424 records, reintroduced within one phase.
+         The sr-only status element is the one the page writes announcements to. */
+      announcement:
+        document.querySelector('p[role="status"][aria-live="polite"]')
+          ?.textContent ?? "",
+    };
+  });
+  check(
+    "escalate.opens-the-record",
+    "escalating opens the escalation record in the pane",
+    after.lifecycle != null,
+    `lifecycle ${after.lifecycle ?? "none — the pane is still showing a flag"}`
+  );
+  check(
+    "escalate.says-so",
+    "and says so, rather than leaving the reader to notice",
+    /Escalation opened/i.test(after.announcement),
+    after.announcement.replace(/\s+/g, " ").slice(0, 80) || "nothing announced"
+  );
   check(
     "escalate.does-not-resolve",
-    "and does not close the event",
+    "and does not close the event — escalating is when it stopped being handled",
     (await rowText(page)).length === beforeRows,
-    `${beforeRows} rows`
+    `${beforeRows} rows before, ${(await rowText(page)).length} after`
   );
   await context.close();
 }
@@ -342,7 +454,7 @@ for (const [scenario, id, want] of [
   ["escalation-unacked", "ack-pending", /ack in/],
   ["escalation-breach", "ack-breached", /ack .* overdue/],
 ]) {
-  const { context, page } = await open(id, { scenario });
+  const { context, page } = await open(id, { scenario, url: ESC });
   await page.waitForTimeout(600);
   const row = await page.locator("li[data-escalation-state]").first().innerText();
   check(`ack.${id}`, `the five-minute clock reads correctly (${scenario})`, want.test(row.replace(/\s+/g, " ")), row.replace(/\s+/g, " ").slice(0, 90));
@@ -351,7 +463,7 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("closeout", { scenario: "escalation-closeout" });
+  const { context, page } = await open("closeout", { scenario: "escalation-closeout" , url: ESC });
   await page.waitForTimeout(700);
   await page.locator("li[data-escalation-state] button").first().click();
   await page.waitForTimeout(500);
@@ -398,7 +510,7 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("no-caregiver", { scenario: "escalation-no-caregiver" });
+  const { context, page } = await open("no-caregiver", { scenario: "escalation-no-caregiver" , url: ESC });
   await page.waitForTimeout(700);
   await page.locator("li[data-escalation-state] button").first().click();
   await page.waitForTimeout(500);
@@ -412,7 +524,7 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("roles", { scenario: "escalation-911" });
+  const { context, page } = await open("roles", { scenario: "escalation-911" , url: ESC });
   await page.waitForTimeout(600);
   const row = (await page.locator("li[data-escalation-state]").first().innerText()).replace(/\s+/g, " ");
   check("roles.strip-labels", "the escalation strip labels both roles", /TEEN|Teen/.test(row) && /MENTOR|Mentor/.test(row), row.slice(0, 70));
@@ -444,13 +556,34 @@ for (const [scenario, id, want] of [
     "and does not lead with an open flag count",
     !/\d+ flags? in review/.test(header)
   );
-  await page.getByRole("tab", { name: /Coverage/ }).click();
-  await page.waitForTimeout(400);
-  const convos = await page.locator("[data-anno-ref^='coverage-row:']").count();
+  /* ═══ COVERAGE IS A ROUTE, NOT A TAB (Phase 2) ═══
+     The segmented control is hidden under a scope — the URL says which view this
+     is, and a one-tab row offering no choice is dead chrome. So the coverage
+     half opens its own destination instead of clicking for a control that is
+     deliberately not there. The header checks above stay on the queue, which is
+     whose header they are about. */
+  const covView = await open("coverage-view", {
+    scenario: "coverage-debt",
+    url: "/app/coverage",
+  });
+  await covView.page.waitForTimeout(700);
+  const convos = await covView.page
+    .locator("[data-anno-ref^='coverage-row:']")
+    .count();
   check("coverage.view-exists", "a coverage view lists supervised conversations", convos > 0, `${convos} conversations`);
-  const unreviewedFirst = await page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
-  check("coverage.unreviewed-first", "unreviewed conversations sort first", unreviewedFirst === "false", unreviewedFirst);
+  const unreviewedFirst = await covView.page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
+  /* THE DETAIL SAYS WHAT THE VALUE MEANS. It printed the raw `data-reviewed`
+     attribute, so a PASSING check reported "false" — correct, and it reads as a
+     failure at a glance. Third instance of this family (gap rows 424, and the
+     escalate announcement in Phase 6): a detail has to be legible on its own. */
+  check(
+    "coverage.unreviewed-first",
+    "unreviewed conversations sort first",
+    unreviewedFirst === "false",
+    `first row is ${unreviewedFirst === "false" ? "unreviewed" : "reviewed"}`
+  );
   await page.screenshot({ path: `${OUT}/03-coverage.png` });
+  await covView.context.close();
   await context.close();
 }
 {
@@ -475,27 +608,433 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 6b · THE TWO AXES, PER DESTINATION (Phase 5)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The unit tests own the axes' MODEL — only a disposition closes an event, the
+// escalate value does not resolve, the two arrays share no id. What only the DOM
+// can answer is WHERE each axis renders, and that is where Phase 5 found two
+// defects: the accuracy axis on events no classifier produced, and a shortcut
+// sheet teaching those keys on the destination where they do nothing.
+{
+  /* ═══ PHASE 8 CHANGED THE PRACTICE EXPECTATION FROM ABSENT TO DIFFERENT ═══
+     Phase 5 asserted the accuracy axis was ABSENT on a practice event, because
+     the five rules are deterministic and there was no classifier to judge.
+     Phase 8 gave that destination an axis 2 with a different producer — the
+     rule's provisional THRESHOLD — so the claim is no longer "no second axis"
+     but "the second axis asks about this subject's own producer".
+     CHECKED BY THE LABEL, in both directions: each destination must name its own
+     producer AND must not name the other's. A presence check alone would pass on
+     a practice pane that had simply kept the classifier wording. */
+  const cases = [
+    ["risk-flags", "/app/risk-flags", "normal-day", "Classifier accuracy", "Rule threshold", "Clinical disposition", "What you did"],
+    ["mentor-practice", "/app/mentor-practice", "mentor-note-overdue", "Rule threshold", "Classifier accuracy", "What you did", "Clinical disposition"],
+  ];
+  for (const [name, url, scenario, ownsAxis2, otherAxis2, ownsAxis1, otherAxis1] of cases) {
+    const { context, page } = await open(`axes-${name}`, { scenario, url });
+    await page.waitForTimeout(900);
+    await page.locator('[role="treeitem"]').first().click();
+    await page.waitForTimeout(500);
+    const seen = await page.evaluate(() => {
+      const pane = document.querySelector('[data-slot="event-pane"]');
+      const groups = [
+        ...(pane?.querySelectorAll('[role="radiogroup"]') ?? []),
+      ].map((g) => g.getAttribute("aria-label") ?? "");
+      return {
+        rows: document.querySelectorAll('[role="treeitem"]').length,
+        groups,
+        disposition: groups.length >= 2,
+        /* ═══ THE VALUES, NOT ONLY THE HEADINGS ═══
+           A mutation run changed `RULE_FEEDBACK_VALUES`' first label from
+           "Threshold looks right" to "Classifier was right" and every check
+           passed: `own-axis2` reads the radiogroup's `aria-label` (built from a
+           separate `name`) and `sheet-matches` reads the shortcut sheet (built
+           from a separate row list). Neither looked at what the buttons SAY. So
+           the axis could have offered classifier wording under a threshold
+           heading and nothing would have noticed. */
+        axisLabels: [
+          ...(pane?.querySelectorAll('[role="radiogroup"] [role="radio"]') ?? []),
+        ].map((b) => (b.textContent ?? "").trim()),
+        /* PRE-SELECTION IS A CLINICAL STATEMENT NOBODY MADE, so it is checked on
+           both axes rather than asserted of the model. */
+        checked: [
+          ...(pane?.querySelectorAll('[role="radio"][aria-checked="true"]') ?? []),
+        ].length,
+      };
+    });
+    /* THE INPUT FIRST. Every assertion below is about a pane, and a destination
+       with no rows renders none — which would read as "no accuracy axis". */
+    check(
+      `axes.${name}.input`,
+      "an event was selectable and its pane opened",
+      seen.rows > 0 && seen.disposition,
+      `${seen.rows} row(s), disposition ${seen.disposition}`
+    );
+    const labels = seen.groups.join(" | ");
+    check(
+      `axes.${name}.own-axis1`,
+      "axis 1 names this subject's own question",
+      labels.includes(ownsAxis1) && !labels.includes(otherAxis1),
+      labels || "no radiogroups"
+    );
+    check(
+      `axes.${name}.own-axis2`,
+      "and axis 2 names this subject's own producer, not the other's",
+      labels.includes(ownsAxis2) && !labels.includes(otherAxis2),
+      labels || "no radiogroups"
+    );
+    /* AND THE PRIMARY'S NOUN FOLLOWS THE AXIS. "Disposition" is the clinical
+       word and the practice hint deliberately avoids it, so a primary keeping it
+       would put the rejected vocabulary on the loudest element in the pane. */
+    const primary = await page.evaluate(
+      () =>
+        document
+          .querySelector('[data-slot="event-pane"] [data-action="record"]')
+          ?.textContent?.trim() ?? ""
+    );
+    check(
+      `axes.${name}.primary-noun`,
+      "and the primary's noun follows the axis it commits",
+      ownsAxis1 === "What you did"
+        ? primary === "Record what you did"
+        : primary === "Record disposition",
+      primary || "no primary"
+    );
+    /* THE HEADING AND THE BUTTONS MUST AGREE. Asserted on the word each subject
+       owns — "threshold" for a rule, "classifier" for a model — because the
+       heading is built from one string and the buttons from another array, and
+       the mutation run proved they can diverge silently. */
+    const ownWord = ownsAxis2 === "Rule threshold" ? "threshold" : "classifier";
+    const otherWord = ownWord === "threshold" ? "classifier" : "threshold";
+    const axis2Buttons = seen.axisLabels.filter((t) =>
+      /right|wrong/i.test(t)
+    );
+    check(
+      `axes.${name}.axis2-values-agree`,
+      "and its buttons say the same thing its heading does",
+      axis2Buttons.length === 2 &&
+        axis2Buttons.every((t) => t.toLowerCase().includes(ownWord)) &&
+        !axis2Buttons.some((t) => t.toLowerCase().includes(otherWord)),
+      axis2Buttons.join(" · ") || "no axis-2 buttons"
+    );
+    check(
+      `axes.${name}.nothing-preselected`,
+      "and neither axis arrives with an answer already recorded",
+      seen.checked === 0,
+      `${seen.checked} pre-selected`
+    );
+
+    /* ═══ AND THE SHEET TEACHES ONLY WHAT THIS DESTINATION BINDS ═══
+       `y`/`n` advertised a classifier judgment on practice events in the one
+       place a reader goes to LEARN the bindings. */
+    await page.keyboard.press("?");
+    await page.waitForTimeout(400);
+    const sheet = await page.evaluate(
+      () => document.querySelector('[role="dialog"]')?.innerText ?? ""
+    );
+    check(
+      `axes.${name}.sheet-input`,
+      "the shortcut sheet opened",
+      /Keyboard shortcuts/i.test(sheet),
+      sheet.slice(0, 40).replace(/\s+/g, " ")
+    );
+    check(
+      `axes.${name}.sheet-matches`,
+      "and the sheet teaches this destination's own axis-2 keys",
+      sheet.includes(ownsAxis2 === "Rule threshold" ? "Threshold looks right" : "Classifier was right") &&
+        !sheet.includes(ownsAxis2 === "Rule threshold" ? "Classifier was right" : "Threshold looks right"),
+      /* THE DETAIL REPORTS THE MEASUREMENT, NOT THE EXPECTATION. First version
+         printed `wantAccuracy ? "taught" : "not taught"` — so a mutation run
+         that made the sheet teach the keys on Mentor Practice failed with the
+         message "not taught", sending the reader to look for the opposite of the
+         defect. A failure detail that restates the assertion is worse than
+         none. */
+      sheet
+        .split("\n")
+        .filter((l) => /right|wrong/i.test(l))
+        .join(" · ") || "teaches no axis-2 key"
+    );
+    await context.close();
+  }
+}
+
+/* ═══ THE PLAYBOOK MATCH — ONE ARTIFACT, BEFORE THE EVIDENCE (Phase 5) ═══
+   Brought forward from arch-H H7 with the block. `Category` and `Why this was
+   flagged` were two sections with a ninety-message transcript between them.
+   ASSERTED IN DOM AND IN GEOMETRY, because either alone can be satisfied while
+   a reader still sees the wrong thing: DOM order without geometry passes on an
+   absolutely-positioned block, and geometry without DOM order passes on a
+   layout that reads correctly for a sighted reader and wrongly for a screen
+   reader. */
+{
+  const { context, page } = await open("playbook-match", {
+    scenario: "normal-day",
+    url: "/app/risk-flags",
+  });
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(500);
+  const seen = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    const match = pane?.querySelector('[data-anno-ref="flag-playbook-match"]');
+    const convo = [...(pane?.querySelectorAll("p") ?? [])].find(
+      (p) => p.innerText.trim() === "Conversation"
+    );
+    if (!match || !convo) return null;
+    const t = match.innerText.replace(/\s+/g, " ");
+    return {
+      /* `Node.DOCUMENT_POSITION_FOLLOWING` — the match precedes the heading in
+         document order, which is what a screen reader walks. */
+      domFirst: !!(
+        match.compareDocumentPosition(convo) & Node.DOCUMENT_POSITION_FOLLOWING
+      ),
+      geomFirst:
+        match.getBoundingClientRect().top < convo.getBoundingClientRect().top,
+      eyebrow: /Playbook match/.test(t),
+      badge: /Classifier rationale/.test(t),
+      chips: match.querySelectorAll("span, div").length > 0,
+      /* NO CONFIDENCE, NO EVIDENCE CHIPS. The model publishes neither and
+         nothing is parsed out of the prose — asserted on the rendered block so
+         "declines to invent" is a property of the page and not only of the
+         model, which `surfacing.test.ts` owns. */
+      noConfidence: !/\b\d{1,3}\s?%|confiden/i.test(t),
+    };
+  });
+  check(
+    "match.input",
+    "the flag pane opened with a playbook-match block",
+    seen != null,
+    seen ? "present" : "no block or no Conversation heading"
+  );
+  if (seen) {
+    check(
+      "match.one-artifact",
+      "the categories and the rationale are one block, before the conversation",
+      seen.domFirst && seen.geomFirst,
+      `dom ${seen.domFirst} · geometry ${seen.geomFirst}`
+    );
+    check(
+      "match.two-attributions",
+      "and it carries both attributions — the taxonomy's and the machine's",
+      seen.eyebrow && seen.badge,
+      `eyebrow ${seen.eyebrow} · badge ${seen.badge}`
+    );
+    check(
+      "match.invents-nothing",
+      "and states no confidence, because the classifier publishes none",
+      seen.noConfidence,
+      seen.noConfidence ? "clean" : "a confidence-shaped string is rendered"
+    );
+  }
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6d · EVERY DESTINATION'S HEADER STATES ITS OWN CLOCKS (Phase 7, gap 406)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// One subtitle rendered on all four destinations, so the flag queue led with
+// another destination's acknowledgement clocks. Checked per destination, and
+// checked in BOTH directions — that each owns its clause and that it does not
+// carry a neighbour's — because a check for absence alone passes on a header
+// that says nothing at all.
+{
+  const CASES = [
+    ["escalations", "/app/escalations", /escalation|close-out/i, /pipeline/i],
+    ["risk-flags", "/app/risk-flags", /pipeline|flags are arriving/i, /acknowledgement|close-out/i],
+  ];
+  for (const [name, url, owns, borrows] of CASES) {
+    const { context, page } = await open(`hdr-own-${name}`, {
+      scenario: "classifier-degraded",
+      url,
+    });
+    await page.waitForTimeout(800);
+    const header = await page.evaluate(
+      () =>
+        (
+          document.querySelector('[data-anno-ref="monitoring-header"]')
+            ?.innerText ?? ""
+        ).replace(/\s+/g, " ")
+    );
+    check(
+      `hdr.own.${name}.input`,
+      "the header rendered a subtitle at all",
+      header.length > 20,
+      header.slice(0, 90)
+    );
+    check(
+      `hdr.own.${name}.states-its-own`,
+      "it states the clause this destination owns",
+      owns.test(header),
+      header.slice(0, 110)
+    );
+    check(
+      `hdr.own.${name}.borrows-none`,
+      "and does not carry a neighbour's",
+      !borrows.test(header),
+      borrows.test(header)
+        ? `found a neighbour's clause: ${header.slice(0, 90)}`
+        : "clean"
+    );
+    await context.close();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6c · COVERAGE AS A DESTINATION (Phase 7)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The checks above verify coverage's CONTENTS — the list, the sort, the credit
+// path. These verify it as a ROUTE, which is what Phase 2 made it and nothing
+// had checked: its width, its header, and the absence of a control that records
+// having looked at something without opening it.
+{
+  const { context, page } = await open("coverage-dest", {
+    scenario: "coverage-debt",
+    url: "/app/coverage",
+  });
+  await page.waitForTimeout(900);
+  const seen = await page.evaluate(() => {
+    const grid = document.querySelector("main .grid");
+    const header =
+      document.querySelector('[data-anno-ref="monitoring-header"]')?.innerText ??
+      "";
+    const rows = [
+      ...document.querySelectorAll('[data-anno-ref^="coverage-row:"]'),
+    ];
+    return {
+      cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 0,
+      /* A DETAIL PANE ON THIS ROUTE IS PERMANENTLY EMPTY — the scope pins the
+         subject to nothing, so it cannot ever hold an event. */
+      chooseAnEvent: /Choose an event/i.test(
+        document.querySelector("main")?.innerText ?? ""
+      ),
+      header: header.replace(/\s+/g, " "),
+      rowCount: rows.length,
+      /* EVERY FOCUSABLE THING INSIDE A ROW. A control here would be one that
+         acts on a conversation, and the two destinations it could act TOWARD
+         are a mentor route and an id namespace this roster is not in. */
+      rowControls: rows.flatMap((r) =>
+        [...r.querySelectorAll("a, button, [role=button]")].map((e) =>
+          (e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)
+        )
+      ),
+      rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
+    };
+  });
+
+  check(
+    "coverage.input",
+    "the destination rendered its roster",
+    seen.rowCount > 0,
+    `${seen.rowCount} rows`
+  );
+  check(
+    "coverage.one-column",
+    "it takes the full width — its unit opens as a route, not in a pane",
+    seen.cols === 1 && !seen.chooseAnEvent,
+    `${seen.cols} column(s)` +
+      (seen.chooseAnEvent ? ' · still renders "Choose an event"' : "")
+  );
+  check(
+    "coverage.own-header",
+    "and its header states its own subject, not another destination's",
+    !/escalation|close-out|pipeline/i.test(seen.header),
+    seen.header.slice(0, 110)
+  );
+  check(
+    "coverage.no-remainder",
+    "and never states what is left — progress with its unit, never an inbox count",
+    /\d+ of \d+ conversations reviewed/.test(seen.header) &&
+      !/unreviewed|remaining|left|to go/i.test(seen.header),
+    seen.header.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? "no progress line"
+  );
+  /* ═══ THE CONTROL THAT RECORDED "LOOKED" WITHOUT LOOKING ═══
+     It was a button whose accessible name was "Open the conversation between
+     teen X and mentor Y", wired to a handler that credited the conversation and
+     navigated nowhere. Asserted as an ABSENCE of row controls, not as an absence
+     of that one label, because the defect is the pattern: any control here that
+     credits without leaving is the same fabricated measurement under a new name. */
+  check(
+    "coverage.no-credit-without-looking",
+    "and offers no row control — a credit that fires without leaving is a fabricated measurement",
+    seen.rowControls.length === 0,
+    seen.rowControls.length
+      ? `${seen.rowControls.length}: ${seen.rowControls.slice(0, 2).join(" · ")}`
+      : "read-only"
+  );
+  check(
+    "coverage.uniform-rows",
+    "and every row is one height, so the list reads as a roster",
+    seen.rowHeights.length === 1 && seen.rowHeights[0] === 56,
+    seen.rowHeights.join("/")
+  );
+  await context.close();
+}
+
+/* COVERAGE BINDS ONE KEY, and a sheet listing five that do nothing is worse
+   than a short one. Its own case, because it has no queue to select from. */
+{
+  const { context, page } = await open("axes-coverage", {
+    scenario: "coverage-debt",
+    url: "/app/coverage",
+  });
+  await page.waitForTimeout(900);
+  await page.keyboard.press("?");
+  await page.waitForTimeout(400);
+  const sheet = await page.evaluate(
+    () => document.querySelector('[role="dialog"]')?.innerText ?? ""
+  );
+  check(
+    "axes.coverage.sheet-input",
+    "the shortcut sheet opened on Coverage",
+    /Keyboard shortcuts/i.test(sheet),
+    sheet.slice(0, 40).replace(/\s+/g, " ")
+  );
+  check(
+    "axes.coverage.sheet-minimal",
+    "and teaches no queue, pane or accuracy key — Coverage binds none of them",
+    !/queue|review pane|Classifier/i.test(sheet),
+    sheet.replace(/\s+/g, " ").slice(0, 120)
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 7 · MENTOR PRACTICE (Phase 5)
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("practice", { scenario: "mentor-note-overdue" });
-  await page.waitForTimeout(700);
+  /* ═══ THE SUBJECT SPLIT IS A ROUTE BOUNDARY NOW (Phase 2) ═══
+     Practice events used to share one queue with flags, narrowed by a chip row.
+     They are two destinations: `/app/risk-flags` pins teen safety and
+     `/app/mentor-practice` pins mentor practice. So this opens the practice
+     destination rather than clicking a chip that is deliberately hidden.
+     THE TWO CHIP CHECKS BELOW ARE RETIRED, not relaxed — `practice.one-queue`
+     asserted both subjects in one list and `practice.filter-chips` asserted the
+     control that narrowed it. Both describe a surface Phase 2 replaced; the
+     claim that survived is that the practice queue holds ONLY practice events,
+     which `practice.filter-works` already makes and which the route now
+     guarantees rather than a chip. */
+  const { context, page } = await open("practice", {
+    scenario: "mentor-note-overdue",
+    url: "/app/mentor-practice",
+  });
+  await page.waitForTimeout(800);
   const headers = await page.locator('[role="group"][aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  /* PREFIX MATCH: the group's accessible name carries its count ("Teen safety —
-     3"), which is what a screen-reader user needs on entry. */
+  /* PREFIX MATCH: the group's accessible name carries its count ("Mentor
+     practice — 3"), which is what a screen-reader user needs on entry. */
   const named = (want) => headers.some((h) => (h ?? "").startsWith(want));
-  check("practice.one-queue", "practice events share the queue with flags", named("Mentor practice") && named("Teen safety"), headers.join(" | "));
-  const chips = await page.locator('[role="group"][aria-label*="review subject"] button').evaluateAll((els) =>
-    els.map((e) => ({ text: e.innerText.trim(), pressed: e.getAttribute("aria-pressed") }))
-  );
-  check("practice.filter-chips", "a subject filter appears, as chips", chips.length === 3, chips.map((c) => c.text).join(","));
   check(
-    "practice.not-a-tablist",
-    "and it is not a tablist",
-    (await page.locator('[role="tablist"][aria-label*="subject"]').count()) === 0
+    "practice.own-destination",
+    "the practice queue names its subject and holds nothing else",
+    named("Mentor practice") && !named("Teen safety"),
+    headers.join(" | ") || "no groups"
   );
-  await page.getByRole("button", { name: "Mentor practice" }).click();
-  await page.waitForTimeout(400);
+  check(
+    "practice.no-dead-chip-row",
+    "and offers no subject filter, because the route already chose",
+    (await page.locator('[role="group"][aria-label*="review subject"] button:visible').count()) === 0
+  );
   const subjects = await page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-event-subject")));
   check("practice.filter-works", "the chip narrows the one queue", subjects.length > 0 && subjects.every((s) => s === "mentorPractice"), subjects.join(","));
   const row = await page.locator('[role="treeitem"]').first().innerText();
@@ -508,10 +1047,11 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("practice-stub", { scenario: "mentor-conduct-flag" });
-  await page.waitForTimeout(700);
-  await page.getByRole("button", { name: "Mentor practice" }).click();
-  await page.waitForTimeout(300);
+  const { context, page } = await open("practice-stub", {
+    scenario: "mentor-conduct-flag",
+    url: "/app/mentor-practice",
+  });
+  await page.waitForTimeout(800);
   await page.locator('[role="treeitem"]').first().click();
   await page.waitForTimeout(400);
   const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
@@ -617,12 +1157,47 @@ for (const [scenario, id, want] of [
   );
   /* AND THE SAFETY-CRITICAL ONES AGAINST THE PLATFORM GUIDANCE, separately:
      44×44 is HIG's floor and 24×24 is only the WCAG minimum. */
-  const escTargets = targets.filter((d) => d.zone === "escalations");
+  /* ═══ MEASURED ON THE ESCALATIONS ROUTE, WHICH IS WHERE THE ZONE IS ═══
+     This filtered `zone === "escalations"` out of a tab sequence taken on the
+     flag queue. Phase 2 moved the escalation region to `/app/escalations`, so
+     the filter matched nothing and the check failed on its own input-absence
+     rule — which is the rule working, and the fix is to measure where the
+     controls are rather than to drop the `length > 0` guard. */
+  const escTargets = await (async () => {
+    const v = await open("targets-esc", { scenario: "escalation-breach", url: ESC });
+    await v.page.waitForTimeout(800);
+    const out = [];
+    for (let i = 0; i < 30; i++) {
+      await v.page.keyboard.press("Tab");
+      const d = await v.page.evaluate(`(() => { const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        /* THE REGION *AND* THE RECORD PANE (Phase 6). This filtered to the
+           region alone, so the pane controls were never measured — and they
+           were 36px: the timeline two source tabs and its log-an-action button.
+           Both halves of this route are the escalation surface, and HIG 44px
+           applies to everything a supervisor reaches for during an incident.
+           NO BACKTICKS IN HERE: this comment lives inside a template literal
+           passed to page.evaluate, and one backtick ends the string. */
+        if (
+          !el.closest('[data-anno-ref="escalation-region"]') &&
+          !el.closest('[data-slot="event-pane"]')
+        )
+          return null;
+        const r = el.getBoundingClientRect();
+        return { name: (el.getAttribute('aria-label') || el.innerText || el.tagName).replace(/\\s+/g, ' ').trim().slice(0, 28),
+                 h: Math.round(r.height), w: Math.round(r.width) }; })()`);
+      if (d) out.push(d);
+    }
+    await v.context.close();
+    return out;
+  })();
   check(
     "targets.escalations-44",
     "every escalation control clears HIG's 44px",
     escTargets.length > 0 && escTargets.every((d) => d.h >= 44),
-    escTargets.map((d) => `${d.name}:${d.h}`).join(" ")
+    escTargets.length
+      ? escTargets.map((d) => `${d.name}:${d.h}x${d.w}`).join(" · ")
+      : "no escalation controls reached — the zone is not on this route"
   );
   const rowBox = await page.locator('[role="treeitem"]').first().evaluate((e) => {
     const r = e.getBoundingClientRect();
@@ -703,5 +1278,14 @@ for (const [scenario, id, want] of [
 
 await writeFile(`${OUT}/report.json`, JSON.stringify({ at: Date.now(), rows }, null, 2));
 await browser.close();
-console.log(failed ? `\n${failed} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
+/* ═══ THE BLOCKED COUNT IS ALWAYS PRINTED, EVEN AT ZERO ═══
+   A summary that mentioned blocked checks only when there were some would let a
+   run with three of them read the same as a clean one to anybody skimming. The
+   first attempt at this line silently failed to apply — the string it searched
+   for had different capitalisation — so the count existed and was reported
+   nowhere, which is precisely the silent-zero this is guarding against. */
+console.log(
+  `\n${blockedCount} BLOCKED · ` +
+    (failed ? `${failed} CHECK(S) FAILED` : "ALL RUNNABLE CHECKS PASSED")
+);
 process.exit(failed ? 1 : 0);

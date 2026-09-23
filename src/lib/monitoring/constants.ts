@@ -12,29 +12,60 @@
 // number they still get one constant each, because they are answerable
 // separately and will diverge the moment one of them is answered.
 
+import { TIER_ORDER, tierOf } from "@/lib/record/risk-taxonomy";
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
 // ── Risk flags ──────────────────────────────────────────────────────────────
 
-/** ═══ BLOCKED · Dr. Nissan ═══
+/** ═══ UNBLOCKED — DERIVED FROM THE PLAYBOOK'S OWN GROUPING (Phase 4) ═══
  *
- *  The clinical ranking of the classifier's EXISTING categories — the honest
- *  replacement for the severity tiers this phase removed. Ranking real output is
- *  a clinical judgment about categories that exist; the tier taxonomy was a
- *  severity assertion this page could not compute.
+ *  It was `{}` and blocked on Dr. Nissan, with the note that ranking real output
+ *  is a clinical judgment while "the tier taxonomy was a severity assertion this
+ *  page could not compute". Both halves of that still hold, and the resolution is
+ *  that the judgment ALREADY EXISTS and this file was not reading it:
+ *  `lib/record/risk-taxonomy.ts` groups the playbook's 21 categories into three
+ *  tiers, reviewed and owned, and `TIER_ORDER` states their order.
  *
- *  EMPTY UNTIL IT LANDS, and empty is load-bearing: `rankOf` returns the same
- *  value for every category, so comparator step 2 is a NO-OP and ordering falls
- *  through to the steps below it. It does not guess an order from the strings. */
-export const FLAG_CATEGORY_RANK: Readonly<Record<string, number>> = {};
-
-/** The rank of a category, or the shared fallback when the ranking is unset.
- *  One number for everything = step 2 cannot reorder anything. */
+ *  ═══ WHY THIS IS NOT THE THING PHASE 4 REMOVED ═══
+ *
+ *  What was removed was a tier ASSIGNED TO AN INDIVIDUAL FLAG by this codebase,
+ *  from no upstream signal. What this reads is a tier assigned to a CATEGORY by
+ *  the playbook. The flag's category comes from the classifier, which is real
+ *  output; the category's grouping comes from a clinical document. Nothing here
+ *  decides which tier anything is in.
+ *
+ *  IT COULD ONLY BE DONE NOW. Ranking is keyed on category ids, and the seed
+ *  emitted free text ("Low mood") until this phase adopted the playbook ids — so
+ *  the table would have matched nothing and step 2 would have stayed a no-op with
+ *  a lookup in front of it, which is worse than an honest empty.
+ *
+ *  ═══ WITHIN-GROUP ORDER IS FLAT, AND THAT IS THE OPEN PART ═══
+ *
+ *  Every category in a tier shares one rank, so step 2 separates the three groups
+ *  and orders WITHIN a group not at all — falling through to steps 3-5 (repeat
+ *  pattern, no mentor reply, age) exactly as it did before. That refinement is
+ *  non-blocking and stays with Dr. Nissan: six ways to order six imminent
+ *  categories is a clinical question, and guessing one would be the same mistake
+ *  at a smaller scale.
+ *
+ *  A CATEGORY OUTSIDE THE PLAYBOOK RANKS LAST, not first. An unrecognised string
+ *  is either a classifier change or a data fault, and neither is a reason to
+ *  promote it above a reviewed imminent category. `unknownCategories` is how it
+ *  gets surfaced. */
 export function flagCategoryRank(category: string | null): number {
-  if (category == null) return 0;
-  return FLAG_CATEGORY_RANK[category] ?? 0;
+  if (category == null) return UNRANKED;
+  const tier = tierOf(category);
+  if (tier == null || tier === "unassigned") return UNRANKED;
+  const i = TIER_ORDER.indexOf(tier);
+  return i < 0 ? UNRANKED : i;
 }
+
+/** Past the last real tier, so an unknown sorts after every known one. Derived
+ *  rather than written as `3`, so adding a tier cannot silently make it rank
+ *  equal to the new last one. */
+const UNRANKED = TIER_ORDER.length;
 
 /** ═══ BLOCKED · Meg — AND THE DEFAULT IS "NONE", DELIBERATELY ═══
  *
@@ -47,6 +78,36 @@ export function flagCategoryRank(category: string | null): number {
  *  every task type including the three flag types. It is IGNORED here. See
  *  `event.ts` for the read that deliberately does not happen. */
 export const FLAG_REVIEW_SLA: number | null = null;
+
+/** ═══ BLOCKED · Meg — THE CLASSIFIER PUBLISHES NO CONFIDENCE ═══
+ *
+ *  Brought forward from arch-H, H7, with the Playbook match block it belongs to.
+ *  H7 asked the surfacing block to carry a confidence indicator. `RiskFlagPayload`
+ *  has `categories`, `sourceType`, `flaggedExcerpt`, `aiRationale`,
+ *  `flaggedCorrectly` and `conversationFlagCount` — and no confidence, anywhere,
+ *  in any scenario. (It also had a `tier`, which Phase 4 removed; that was never
+ *  a confidence either, which is half of why it had to go.)
+ *
+ *  SO NO INDICATOR IS DESIGNED, and that is the decision rather than an omission:
+ *  an honest confidence treatment is a real design question — a bare percentage
+ *  invites arithmetic the model cannot support, a band needs thresholds nobody
+ *  has set — and answering it against no data would settle the treatment before
+ *  the number exists. `playbookMatchFor` publishes `confidence: null` while this
+ *  is false, so the day it lands the compiler names the one site to change. */
+export const FLAG_CONFIDENCE_PUBLISHED: boolean = false;
+
+/** ═══ BLOCKED · Meg — AND NO STRUCTURED EVIDENCE FEATURES EITHER ═══
+ *
+ *  H7's evidence chips (`indicator: intent`, `context: 2 prior mentions`,
+ *  `tone: flattened`) want per-flag features. The classifier emits ONE prose
+ *  paragraph. Synthesising chips by parsing that paragraph is explicitly what the
+ *  pack forbids and would be a claim about what the model weighed.
+ *
+ *  WHAT DOES EXIST is the category list, which is genuinely structured classifier
+ *  output — and since Phase 4 it is a list of PUBLISHED playbook ids rather than
+ *  free text, so the block renders those as its chips and says, by labelling the
+ *  section `Playbook match`, exactly what they are. */
+export const FLAG_EVIDENCE_FEATURES_PUBLISHED: boolean = false;
 
 /** ═══ BLOCKED · Meg ═══
  *

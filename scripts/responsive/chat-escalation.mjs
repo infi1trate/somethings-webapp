@@ -9,6 +9,13 @@
 import { chromium } from "playwright";
 import { STORE_VERSION } from "./store-version.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const KEY = "somethings.mentor-onboarding";
 const RAIL = '[data-slot="chat-rail"]';
@@ -363,7 +370,7 @@ console.log("\n── raising one @ active-mentorship");
   /* ═══ IT SURVIVES NAVIGATION ═══
      This is the requirement, not a nicety: an escalation stays open until somebody
      explicitly resolves it. */
-  await p.goto(BASE + "/app/tasks", { waitUntil: "networkidle" });
+  await p.goto(BASE + "/app/care-reviews", { waitUntil: "networkidle" });
   await p.waitForTimeout(1200);
   await p.goto(BASE + "/app/chat", { waitUntil: "networkidle" });
   await p.waitForTimeout(1900);

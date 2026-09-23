@@ -17,14 +17,22 @@
 // data-model fact about task types that Tasks still consumes, and which nothing
 // on Monitoring renders or sorts by.
 
-import { BAND_LABEL } from "@/lib/tasks/bands";
-import { TIER_RANK, type TaskItem, type TaskType } from "@/lib/tasks/types";
+import type { TaskType } from "@/lib/tasks/types";
 
-/** The tiers that coalesce. Imminent is absent BY DESIGN — see the module note. */
-const COALESCED_TYPES: ReadonlySet<TaskType> = new Set([
-  "clinicalFlagReview",
-  "routineFlagReview",
-]);
+/** ═══ THE FLAG TYPE COALESCES — AND THE EXCEPTION IS GONE (Phase 4) ═══
+ *
+ *  This was `{clinicalFlagReview, routineFlagReview}` with the note "Imminent is
+ *  absent BY DESIGN": an imminent flag was individual work with a clock, the
+ *  other two accumulated into a picture of a teen. That distinction WAS the
+ *  severity tier, and the module note above already called the whole arrangement
+ *  "a consequence of the SEVERITY TIERS" that arch-mon removed.
+ *
+ *  With one flag type there is one answer, and `row-emphasis.ts` keys its whole
+ *  derivation on it: a row whose type coalesces by teen is a PICTURE and leads
+ *  with the person; one that does not is a DEADLINE and leads with the clock.
+ *  Flags coalesce, so flag rows stay person-forward — which is what the Risk
+ *  Flags destination already renders. */
+const COALESCED_TYPES: ReadonlySet<TaskType> = new Set(["riskFlagReview"]);
 
 export function coalescesByTeen(taskType: TaskType): boolean {
   return COALESCED_TYPES.has(taskType);
@@ -85,23 +93,19 @@ export function coalescesByTeen(taskType: TaskType): boolean {
  *  ONE TIER PRESENT MEANS NO LINE. A teen carrying only routine flags gets `null`
  *  — the band header has already said "Routine review" and the count badge has
  *  already said how many, so "5 routine" is both facts a third time. */
-/** How many of each type a coalesced group holds. Local since arch-mon Phase 1:
- *  `compositionLabel` is its only reader now that Monitoring builds its own
- *  events. */
-function tierCounts(members: TaskItem[]): Map<TaskType, number> {
-  const counts = new Map<TaskType, number>();
-  for (const m of members) counts.set(m.taskType, (counts.get(m.taskType) ?? 0) + 1);
-  return counts;
-}
+/** ═══ `compositionLabel` AND `tierCounts` ARE DELETED (Phase 4) ═══
+ *
+ *  They rendered "3 clinical · 2 routine" on a coalesced teen row — the mix of
+ *  TIERS the row stood for. With one flag type a flag group is one type by
+ *  construction, so the function's own `counts.size < 2` guard returns null on
+ *  every call it can now receive. A helper that can only return null is worse
+ *  than absent: it reads as a feature somebody disabled.
+ *
+ *  WHAT THE COALESCED ROW STILL SAYS is "2 in this conversation", from
+ *  `conversationFlagCount` — a count of the SET behind the row, which is a fact
+ *  about the conversation rather than a claim about severity. That is the label
+ *  the Risk Flags destination renders and it is unaffected. */
 
-export function compositionLabel(members: TaskItem[]): string | null {
-  const counts = tierCounts(members);
-  if (counts.size < 2) return null;
-  return [...counts.entries()]
-    .sort((a, b) => TIER_RANK[a[0]] - TIER_RANK[b[0]])
-    .map(([type, n]) => `${n} ${BAND_LABEL[type].split(" ")[0].toLowerCase()}`)
-    .join(" · ");
-}
 
 /** ═══ THE MONITORING LIST ═══
  *

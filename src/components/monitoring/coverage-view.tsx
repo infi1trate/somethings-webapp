@@ -22,8 +22,9 @@ import {
 } from "@/lib/monitoring/coverage";
 import { cn } from "@/lib/utils";
 
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+/* `RING` WENT WITH THE ROW'S CONTROL (Phase 7). Coverage is read-only, so it has
+   no focusable element of its own — see the row's note. The moment it gains one,
+   the ring comes back with it rather than being remembered. */
 
 export function CoverageMeter({
   conversations,
@@ -61,16 +62,33 @@ export function CoverageList({
   credited,
   liveIds,
   now,
-  onOpen,
 }: {
   conversations: SupervisedConversation[];
   credited: ReadonlySet<string>;
   /** Conversations the live layer says are active right now. */
   liveIds: ReadonlySet<string>;
   now: number;
-  onOpen: (c: SupervisedConversation) => void;
 }) {
   const rows = [...conversations].sort((a, b) => compareConversations(a, b, credited));
+  /* ═══ NO CONVERSATIONS IS NOT THE SAME AS NONE REVIEWED (Phase 7) ═══
+     An empty `<ul>` rendered a blank column on the destination — and on a
+     surface whose claim is "this is the denominator", a blank space is
+     indistinguishable from a load that produced nothing. It says which it is.
+     AND IT DOES NOT CONGRATULATE: an empty caseload is a fact about the roster,
+     not an achievement, and "all caught up" here would be praise for having no
+     teens. NEEDS-COPY-NICOLE. */
+  if (rows.length === 0) {
+    return (
+      <div
+        data-anno-ref="coverage-empty"
+        className="px-4 py-6"
+      >
+        <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+          No supervised conversations in this period.
+        </p>
+      </div>
+    );
+  }
   return (
     <ul role="list" /* NEEDS-COPY-NICOLE */ aria-label="Supervised conversations" className="min-w-0">
       {rows.map((c) => {
@@ -148,19 +166,34 @@ export function CoverageList({
                   </>
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() => onOpen(c)}
-                className={cn(
-                  "inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-contour)] px-3 text-[12.5px] font-semibold text-[var(--text-primary)]",
-                  "hover:bg-[var(--tint-hover)]",
-                  RING
-                )}
-                /* NEEDS-COPY-NICOLE */
-                aria-label={`Open the conversation between teen ${c.teenName} and mentor ${c.mentorName}`}
-              >
-                Open
-              </button>
+              {/* ═══ THE ROW HAS NO ACTION, AND THAT IS THE HONEST STATE ═══
+                  IT WAS A BUTTON THAT LIED. Accessible name "Open the
+                  conversation between teen X and mentor Y", wired to a handler
+                  that called `credit(c.id, "conversation-open")` and navigated
+                  nowhere — so it RECORDED "LOOKED" WITHOUT LOOKING. On the one
+                  surface whose job is answering "have I looked at my teens",
+                  that is a fabricated measurement of the number a supervisor
+                  would defend themselves with.
+                  MAKING IT A REAL LINK WAS TRIED AND IS NOT AVAILABLE, for two
+                  measured reasons:
+                   · `chatThreadHref` is a MENTOR route. Followed as a
+                     supervisor it renders `MentorShell` — "Mentor navigation",
+                     and a rail still offering `Tasks` and `Monitoring`, both
+                     retired. Fourteen supervisor call sites already have this
+                     defect; mentor navigation is out of this restructure's
+                     stated scope.
+                   · THE TEEN DOES NOT EXIST ON EITHER TARGET. These rows carry
+                     `tk-*` ids from the tasks roster; the record and chat
+                     surfaces know `t*` ids from the demo people. Measured:
+                     `/app/chat/tk-omari` lands on a mentor's thread list, and
+                     `/admin/person/tk-omari?tab=care` says "We couldn't find
+                     that person." Two namespaces, no overlap.
+                  SO COVERAGE IS READ-ONLY, which is what it is: the floor, the
+                  denominator, a measure rather than a queue. Credit comes from
+                  reviewing a flag on Risk Flags, where the reader stays on the
+                  page and it is observable. The row still states everything the
+                  question needs — reviewed or not, how long since activity, and
+                  how many events it is carrying. Gap rows 431 and 432. */}
             </span>
           </li>
         );

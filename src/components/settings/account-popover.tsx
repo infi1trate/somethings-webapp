@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, LogOut, Moon, Pencil, Sun } from "lucide-react";
+import { ChevronRight, LogOut, Pencil } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -38,7 +38,6 @@ import {
   useSignOut,
 } from "@/components/settings/sign-out";
 import { roleForPersona } from "@/components/settings/tabs-config";
-import { useAppearance } from "@/lib/use-appearance";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
@@ -110,7 +109,6 @@ export function AccountPopover({
   const persona = useOnboardingStore((s) => s.persona);
   const firstName = useOnboardingStore((s) => s.draft.firstName);
   const displayName = useOnboardingStore((s) => s.draft.displayName);
-  const { theme, setTheme } = useAppearance();
   const signOut = useSignOut();
 
   const [open, setOpen] = useState(false);
@@ -128,12 +126,6 @@ export function AccountPopover({
         ? "Lead mentor"
         : "Mentor";
 
-  const isDark =
-    mounted &&
-    (theme === "dark" ||
-      (theme === "system" &&
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches));
 
   const nav = (href: string) => {
     setOpen(false);
@@ -252,26 +244,13 @@ export function AccountPopover({
 
               <div className="h-px bg-[var(--border-subtle)]" />
 
-              {/* Footer: theme quick toggle + sign out */}
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={() => setTheme(isDark ? "light" : "dark")}
-                  aria-label={
-                    isDark ? "Switch to light mode" : "Switch to dark mode"
-                  }
-                  className={cn(
-                    "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                    RING,
-                  )}
-                >
-                  {isDark ? (
-                    <Sun className="size-4" aria-hidden />
-                  ) : (
-                    <Moon className="size-4" aria-hidden />
-                  )}
-                  {isDark ? "Light mode" : "Dark mode"}
-                </button>
+              {/* ═══ THE THEME QUICK TOGGLE IS GONE (supervisor IA restructure) ═══
+                  Light is forced — see `lib/use-appearance.ts` for why a `"system"`
+                  default was a live accessibility risk rather than a preference.
+                  THE ROW KEEPS ITS SHAPE: `justify-end` rather than `justify-between`,
+                  so sign-out stays exactly where it was instead of sliding left into
+                  the space a removed control left behind. */}
+              <div className="flex items-center justify-end pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -415,26 +394,13 @@ export function AccountPopover({
 
             <div className="h-px bg-[var(--border-subtle)]" />
 
-            {/* Footer: theme quick toggle + sign out */}
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={() => setTheme(isDark ? "light" : "dark")}
-                aria-label={
-                  isDark ? "Switch to light mode" : "Switch to dark mode"
-                }
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2.5 py-2 text-[14px] leading-[20px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                  RING,
-                )}
-              >
-                {isDark ? (
-                  <Sun className="size-4" aria-hidden />
-                ) : (
-                  <Moon className="size-4" aria-hidden />
-                )}
-                {isDark ? "Light mode" : "Dark mode"}
-              </button>
+            {/* ═══ THE THEME QUICK TOGGLE IS GONE (supervisor IA restructure) ═══
+                Light is forced — see `lib/use-appearance.ts` for why a `"system"`
+                default was a live accessibility risk rather than a preference.
+                THE ROW KEEPS ITS SHAPE: `justify-end` rather than `justify-between`,
+                so sign-out stays exactly where it was instead of sliding left into
+                the space a removed control left behind. */}
+            <div className="flex items-center justify-end pt-1">
               <button
                 type="button"
                 onClick={() => {

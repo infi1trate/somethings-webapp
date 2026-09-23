@@ -43,7 +43,7 @@
 // uses. They swap a panel in place; they are not links.
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, ClipboardCheck, Receipt, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Receipt, ShieldAlert } from "lucide-react";
 import type { DomainSummary } from "@/lib/tasks/sort";
 import { DOMAIN_LABEL, TASK_DOMAINS, type TaskDomain } from "@/lib/tasks/types";
 import Link from "next/link";
@@ -74,11 +74,9 @@ const DOMAIN_VISUAL: Record<
     bg: "var(--task-tint-billing-bg)",
     fg: "var(--task-tint-billing-fg)",
   },
-  routineFlag: {
-    icon: ClipboardCheck,
-    bg: "var(--task-tint-routine-bg)",
-    fg: "var(--task-tint-routine-fg)",
-  },
+  /* `routineFlag` IS GONE (Phase 4) — it was the lowest severity tier wearing a
+     domain, with its own tint pair to say so. The tokens stay defined; nothing
+     reads them. */
 };
 
 /* `BreachChip` MOVED TO `chips.tsx` (arch-A). It is required to be one pattern

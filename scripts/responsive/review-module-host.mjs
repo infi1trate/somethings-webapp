@@ -15,6 +15,13 @@
 import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/review-module";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1000 };
 const version = await readStoreVersion();
@@ -52,7 +59,7 @@ async function open(id, url) {
     XL,
     version
   );
-  if (url.startsWith("/app/tasks")) {
+  if (url.startsWith("/app/care-reviews")) {
     await view.page.waitForTimeout(450);
     await narrowToBilling(view.page);
   }
@@ -72,7 +79,7 @@ async function openCareReview(page) {
 // 1 · THE TASKS PANE RENDERS THE MODULE, NOT THE COMPOSITION IT REPLACED.
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("tasks", "/app/tasks");
+  const { context, page } = await open("tasks", "/app/care-reviews");
   const t = await page.locator('[data-slot="task-pane"]').innerText();
 
   // WHAT THE MODULE BRINGS. Each of these was absent from the hand-built
@@ -198,7 +205,7 @@ async function openCareReview(page) {
         .map(([id]) => id);
     }, scope);
 
-  const a = await open("order-tasks", "/app/tasks");
+  const a = await open("order-tasks", "/app/care-reviews");
   const tasksOrder = await order(a.page, '[data-slot="task-pane"]');
   await a.context.close();
 
@@ -238,7 +245,7 @@ for (const [label, url, prep, onRecordRe] of [
   /* THE HOST'S WORDING CHANGED WITH THE BLOCK (arch-F): "On record F33.1"
      became "Current · F33.1" beneath the recommendation title. The picker's own
      marker still reads "On record" — that string is the module's. */
-  ["tasks", "/app/tasks", null, /Current[^A-Z]*([A-Z]\d+\.\d+)/],
+  ["tasks", "/app/care-reviews", null, /Current[^A-Z]*([A-Z]\d+\.\d+)/],
   ["care", "/admin/person/t19?tab=care", openCareReview, /Primary presentation[\s\S]{0,40}?([A-Z]\d+\.\d+)/],
 ]) {
   const { context, page } = await open(`picker-${label}`, url);

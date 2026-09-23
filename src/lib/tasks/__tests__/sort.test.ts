@@ -21,7 +21,13 @@ import {
   sortedOpen,
 } from "@/lib/tasks/sort";
 import { deadlineFor } from "@/lib/tasks/sla";
-import { TASK_DOMAINS, TIER_RANK, type TaskItem, type TaskType } from "@/lib/tasks/types";
+import {
+  TASK_DOMAINS,
+  TYPE_URGENCY_RANK,
+  slaRemaining,
+  type TaskItem,
+  type TaskType,
+} from "@/lib/tasks/types";
 import { DOMAIN_OF_TYPE } from "@/lib/tasks/types";
 import { tasksScenario } from "@/lib/tasks/seed";
 
@@ -38,7 +44,7 @@ function item(taskType: TaskType, openedAgo: number, over?: Partial<TaskItem>): 
     id: `t${seq}`,
     domain: DOMAIN_OF_TYPE[taskType],
     taskType,
-    tierRank: TIER_RANK[taskType],
+    urgencyRank: TYPE_URGENCY_RANK[taskType],
     teenId: `teen-${seq}`,
     teenDisplayName: `Teen ${seq}.`,
     mentorId: "m1",
@@ -49,7 +55,6 @@ function item(taskType: TaskType, openedAgo: number, over?: Partial<TaskItem>): 
     status: "open",
     payload: {
       kind: "riskFlag",
-      tier: "imminent",
       sourceType: "Message",
       categories: [],
       flaggedExcerpt: "",
@@ -66,46 +71,62 @@ const ids = (items: TaskItem[]) => items.map((i) => i.id);
 describe("§3 — the sort key, one level at a time", () => {
   it("1 · an active escalation outranks everything, even a breached imminent flag", () => {
     const esc = item("activeEscalation", 1 * 60_000); // 1m old, not breached
-    const breachedRed = item("imminentFlagReview", 40 * HOUR); // very breached
+    const breachedRed = item("riskFlagReview", 40 * HOUR); // very breached
     expect(compareTasks(esc, breachedRed, NOW)).toBeLessThan(0);
   });
 
   it("2 · breach outranks tier — a breached clinical flag beats an on-track imminent one", () => {
     // THE CASE THAT LOOKS LIKE A BUG. The ladder says what matters in the
     // abstract; breach says what has already been failed.
-    const breachedOrange = item("clinicalFlagReview", 50 * HOUR); // 48h SLA → breached
-    const onTrackRed = item("imminentFlagReview", 2 * HOUR); // 24h SLA → fine
+    const breachedOrange = item("riskFlagReview", 50 * HOUR); // 48h SLA → breached
+    const onTrackRed = item("riskFlagReview", 2 * HOUR); // 24h SLA → fine
     expect(compareTasks(breachedOrange, onTrackRed, NOW)).toBeLessThan(0);
     expect(sortedOpen([onTrackRed, breachedOrange], NOW)[0].id).toBe(
       breachedOrange.id
     );
   });
 
-  it("3 · tier decides between two items in the same breach state", () => {
-    const imminent = item("imminentFlagReview", 2 * HOUR);
-    const clinical = item("clinicalFlagReview", 2 * HOUR);
+  /* ═══ RETARGETED — THE THIRD KEY WAS THE TIER LADDER (Phase 4) ═══
+     It ordered `imminent · clinical · billing · routine · docs`, which is three
+     flag TIERS interleaved with billing. With one flag type the key ranks task
+     TYPES: flag before billing before documentation. The claim that mattered is
+     unchanged and still asserted — documentation LAST, below everything, which
+     is the tail that looks like a bug and is not. */
+  it("3 · the type's urgency decides between two items in the same breach state", () => {
+    const flag = item("riskFlagReview", 2 * HOUR);
     const billing = item("intakeBillingReview", 2 * HOUR);
-    const routine = item("routineFlagReview", 2 * HOUR);
     const docs = item("escalationDocumentation", 2 * HOUR);
-    expect(ids(sortedOpen([docs, routine, billing, clinical, imminent], NOW))).toEqual([
-      imminent.id,
-      clinical.id,
+    expect(ids(sortedOpen([docs, billing, flag], NOW))).toEqual([
+      flag.id,
       billing.id,
-      routine.id,
-      // Documentation LAST, below routine review — deliberate, see types.ts.
       docs.id,
     ]);
   });
 
-  it("4 · within a tier, the soonest deadline wins", () => {
-    const older = item("imminentFlagReview", 20 * HOUR); // 4h left
-    const newer = item("imminentFlagReview", 2 * HOUR); // 22h left
+  /* ═══ AND THE FOURTH KEY CANNOT SEPARATE TWO FLAGS ANY MORE ═══
+     It read "within a tier, the soonest deadline wins" over two flags with 4h
+     and 22h left. A flag has NO deadline now, so `slaRemaining` returns
+     `Infinity` for both and the step falls through — which is the correct
+     behaviour and the opposite of what the old fixture asserted.
+     THE KEY IS STILL LIVE, so it is tested on items that have deadlines. */
+  it("4 · the soonest deadline wins, among items that have one", () => {
+    const older = item("intakeBillingReview", 60 * HOUR);
+    const newer = item("intakeBillingReview", 2 * HOUR);
     expect(ids(sortedOpen([newer, older], NOW))).toEqual([older.id, newer.id]);
   });
 
+  it("4c · and it cannot separate two flags, because neither has a deadline", () => {
+    const a = item("riskFlagReview", 20 * HOUR);
+    const b = item("riskFlagReview", 2 * HOUR);
+    expect(slaRemaining(a, NOW)).toBe(Infinity);
+    expect(slaRemaining(b, NOW)).toBe(Infinity);
+    // Falls through to the stable tiebreak — oldest first — not to a deadline.
+    expect(ids(sortedOpen([b, a], NOW))).toEqual([a.id, b.id]);
+  });
+
   it("4b · among breached items, the MOST overdue comes first", () => {
-    const veryLate = item("imminentFlagReview", 60 * HOUR);
-    const justLate = item("imminentFlagReview", 25 * HOUR);
+    const veryLate = item("riskFlagReview", 60 * HOUR);
+    const justLate = item("riskFlagReview", 25 * HOUR);
     expect(ids(sortedOpen([justLate, veryLate], NOW))).toEqual([
       veryLate.id,
       justLate.id,
@@ -116,8 +137,8 @@ describe("§3 — the sort key, one level at a time", () => {
     // Two items identical on every other key. The sort must be deterministic, and
     // it must not be doing anything else with openedAt — test 4 already showed a
     // NEWER item sorting after an older one when the deadline says so.
-    const a = item("routineFlagReview", 3 * HOUR, { id: "zzz" });
-    const b = item("routineFlagReview", 3 * HOUR, { id: "aaa" });
+    const a = item("riskFlagReview", 3 * HOUR, { id: "zzz" });
+    const b = item("riskFlagReview", 3 * HOUR, { id: "aaa" });
     // Same openedAt → falls through to the id, so the order is total.
     expect(ids(sortedOpen([a, b], NOW))).toEqual(["aaa", "zzz"]);
   });
@@ -185,7 +206,11 @@ describe("locked decision 7 — cards never reorder, breach is treatment not pos
 
   it("zero-count domains are still present, not dropped", () => {
     const summaries = domainSummaries(tasksScenario("quiet-day", NOW), NOW);
-    expect(summaries).toHaveLength(4);
+    /* DERIVED, NOT 4 (Phase 4 removed a domain). Asserting against
+       `TASK_DOMAINS` is also the stronger form: it says "one summary per
+       domain", which is the actual claim, rather than pinning a count that has
+       to be edited every time the set changes. */
+    expect(summaries).toHaveLength(TASK_DOMAINS.length);
     // Quiet day has no escalations — the card must still exist to be
     // de-emphasized rather than hidden.
     expect(summaries.find((s) => s.domain === "escalation")!.openCount).toBe(0);
@@ -210,8 +235,20 @@ describe("header counts and Closed today (§1)", () => {
     const items = tasksScenario("breach-overnight", NOW);
     const c = headerCounts(items, NOW);
     expect(c.open).toBe(sortedOpen(items, NOW).length);
-    // Breach-overnight is entirely breached, so the two are equal there.
-    expect(c.overdue).toBe(c.open);
+    /* ═══ RETARGETED — "ENTIRELY BREACHED" IS NO LONGER POSSIBLE (Phase 4) ═══
+       It asserted `c.overdue === c.open`, on the scenario whose description was
+       "Everything past its SLA". A flag has no published review deadline now, so
+       a flag cannot be overdue and this scenario cannot be entirely so.
+       THE REPLACEMENT IS STRICTER, not looser: every item that HAS a deadline is
+       past it, AND the scenario genuinely contains flags that are not — so it
+       exercises both halves rather than asserting a single equality that a
+       fixture with no flags at all would also satisfy. */
+    const open = sortedOpen(items, NOW);
+    const withDeadline = open.filter((i) => i.slaDeadline != null);
+    const without = open.filter((i) => i.slaDeadline == null);
+    expect(withDeadline.length).toBeGreaterThan(0);
+    expect(without.length).toBeGreaterThan(0);
+    expect(c.overdue).toBe(withDeadline.length);
   });
 
   it("Closed today only reports domains with matching resolved items", () => {
@@ -223,9 +260,19 @@ describe("header counts and Closed today (§1)", () => {
       );
       expect(matching.length, domain).toBeGreaterThanOrEqual(n as number);
     }
-    // §1 names escalations, flags and billing — the routine tier is deliberately
-    // not a header counter.
-    expect(Object.keys(closed)).not.toContain("routineFlag");
+    /* ═══ THE EXCLUSION IS RETIRED, NOT RELAXED (Phase 4) ═══
+       This asserted `not.toContain("routineFlag")`, because §1 named escalations,
+       flags and billing and "closing a routine review is not an achievement worth
+       a counter". That domain no longer exists, so the assertion could only ever
+       pass — which is a vacuous check, not a satisfied one.
+       WHAT IS ASSERTED INSTEAD is the positive form the old one implied: the
+       counters are exactly the three domains, so a fourth appearing is a failure
+       whatever it is called. */
+    expect(Object.keys(closed).sort()).toEqual(
+      Object.keys(closed).filter((d) =>
+        ["escalation", "riskFlag", "billing"].includes(d)
+      ).sort()
+    );
   });
 });
 

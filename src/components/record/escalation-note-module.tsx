@@ -39,6 +39,7 @@ import {
   noteCompleteness,
   type EscalationNoteBody,
 } from "@/lib/record/escalation-note";
+import { PANE_LABEL } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -48,10 +49,28 @@ const RING =
  *  The legacy UI marked required fields with `*`. Nothing here is required, and
  *  the design system's own convention is the word rather than the glyph — an
  *  asterisk is unreadable to a screen reader without a legend nobody writes. */
-const LABEL = "text-[12px] font-semibold uppercase tracking-[0.04em] text-[var(--text-secondary)]";
+/** ═══ THE SHARED FIELD-LABEL TOKEN, NOT A FOURTH HAND-ROLLED ONE (arch-H, H10) ═══
+ *
+ *  This was `text-[12px] font-semibold uppercase tracking-[0.04em]`, and it was
+ *  wrong three ways at once — the three `PANE_LABEL`'s own note enumerates:
+ *
+ *   · UPPERCASE. A pane with nine all-caps eyebrows reads as nine shouts between
+ *     the fields a supervisor is there to fill in; some screen readers spell
+ *     short all-caps strings letter by letter; and caps remove the ascenders and
+ *     descenders that make a word recognisable at a glance.
+ *   · `font-semibold` ON LAUSANNE, where only the 400 face ships — a weight
+ *     declaration with nothing rendering behind it (gap rows 330 and 354).
+ *   · A HARDCODED STOP where `--type-field-label` has existed all along, at
+ *     exactly 12/16. This file was the last one still minting its own.
+ *
+ *  H10 asks for these to match the billing module's label token EXACTLY, so it
+ *  is the token and not a copy of its values — including the `--text-muted` ink,
+ *  which is what separates label from value by colour rather than by a weight
+ *  that does not exist. */
+const LABEL = PANE_LABEL;
 
 const FIELD =
-  "mt-1.5 w-full rounded-[var(--radius-control)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-3 py-2 text-[13.5px] leading-[19px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]";
+  "mt-1.5 w-full rounded-[var(--radius-control)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-3 py-2 text-[14px] leading-[20px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]";
 
 function Prose({
   id,
@@ -74,7 +93,7 @@ function Prose({
         {label}
       </label>
       {hint && (
-        <p className="mt-0.5 text-[12px] leading-[17px] text-[var(--text-secondary)]">{hint}</p>
+        <p className="mt-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">{hint}</p>
       )}
       <textarea
         id={id}
@@ -208,7 +227,7 @@ export function EscalationNoteModule({
         role="status"
         aria-live="polite"
         data-slot="note-completeness"
-        className="min-w-0 text-[12.5px] leading-[17px] text-[var(--text-secondary)]"
+        className="min-w-0 text-[12px] leading-[16px] text-[var(--text-secondary)]"
       >
         {/* NEEDS-COPY-NICOLE */}
         {completeness.empty.length === 0
@@ -289,7 +308,7 @@ export function EscalationNoteModule({
                   })
                 }
                 className={cn(
-                  "inline-flex min-h-9 items-center rounded-full px-3.5 text-[13px] font-semibold",
+                  "inline-flex min-h-11 items-center rounded-full px-3.5 text-[14px] font-semibold",
                   body.wasReferral === o.v
                     ? "bg-[var(--text-primary)] text-[var(--surface-card)]"
                     : "border border-[color:var(--border-contour)] text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",

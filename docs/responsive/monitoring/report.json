@@ -1,5 +1,5 @@
 {
-  "at": 1789575534064,
+  "at": 1790177957867,
   "rows": [
     {
       "id": "input.headers",
@@ -34,7 +34,7 @@
       "id": "tier.age-not-deadline",
       "label": "every flag row states an age instead",
       "ok": true,
-      "detail": "N Naomi R. ↔ Brandy Forrestor Family conflict · 9h ago Escalation open"
+      "detail": "N Naomi R. ↔ Brandy Forrestor Unsafe home environment · 9h ago Escalation open"
     },
     {
       "id": "tier.breach-is-escalations-only",
@@ -70,7 +70,7 @@
       "id": "row.roles-in-name",
       "label": "the accessible name labels both roles",
       "ok": true,
-      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Family conflict, escalation"
+      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Unsafe home environment, es"
     },
     {
       "id": "row.no-message-content",
@@ -88,13 +88,13 @@
       "id": "cmp.escalation-first",
       "label": "an event on an escalated teen sorts to the top",
       "ok": true,
-      "detail": "S Simone B. ↔ Omar Haddad Low mood · 3d ago Escalation open"
+      "detail": "S Simone B. ↔ Omar Haddad Assessment scores below threshold · 3d ago Escalation open"
     },
     {
       "id": "cmp.pattern-before-single",
       "label": "a repeat-flagged conversation sorts above a single flag",
       "ok": true,
-      "detail": "M Marcus L. ↔ Brandon Forant Self-harm language · 8h ago 3 in this conversation"
+      "detail": "M Marcus L. ↔ Brandon Forant Passive suicidal ideation · 8h ago 3 in this conversation"
     },
     {
       "id": "input.noreply",
@@ -106,7 +106,7 @@
       "id": "cmp.silence-beats-age",
       "label": "an unanswered flagged message outranks older answered ones",
       "ok": true,
-      "detail": "M Marcus L. ↔ Brandon Forant Self-harm language · 1d ago No reply  ||  C Caleb O. ↔ Maria Lopez Low mood · 5d ago"
+      "detail": "M Marcus L. ↔ Brandon Forant Passive suicidal ideation · 1d ago No reply  ||  J Jordan P. ↔ Maria Lopez Unsafe home environment · 1d ago"
     },
     {
       "id": "input.dispositions",
@@ -182,16 +182,28 @@
       "detail": "12 rows"
     },
     {
-      "id": "escalate.creates-record",
-      "label": "escalating creates an escalation record",
+      "id": "escalate.input",
+      "label": "a flag was selected and the queue has rows to leave it in",
       "ok": true,
-      "detail": "0 → 1"
+      "detail": "12 rows"
+    },
+    {
+      "id": "escalate.opens-the-record",
+      "label": "escalating opens the escalation record in the pane",
+      "ok": true,
+      "detail": "lifecycle active"
+    },
+    {
+      "id": "escalate.says-so",
+      "label": "and says so, rather than leaving the reader to notice",
+      "ok": true,
+      "detail": "Escalation opened. The flag stays in the queue."
     },
     {
       "id": "escalate.does-not-resolve",
-      "label": "and does not close the event",
+      "label": "and does not close the event — escalating is when it stopped being handled",
       "ok": true,
-      "detail": "12 rows"
+      "detail": "12 rows before, 12 after"
     },
     {
       "id": "ack.ack-pending",
@@ -278,7 +290,7 @@
       "id": "header.coverage-is-progress",
       "label": "the header states coverage as progress against a period",
       "ok": true,
-      "detail": "Monitoring No escalation clocks outstanding 3 of 24 conversations reviewed this shift"
+      "detail": "Risk Flags No escalation clocks outstanding 3 of 24 conversations reviewed this shift"
     },
     {
       "id": "header.no-backlog-count",
@@ -315,20 +327,110 @@
       "detail": "11 → 12"
     },
     {
-      "id": "practice.one-queue",
-      "label": "practice events share the queue with flags",
+      "id": "axes.risk-flags.input",
+      "label": "an event was selectable and its pane opened",
       "ok": true,
-      "detail": "Filter by review subject | Teen safety — 3 | Mentor practice — 1"
+      "detail": "12 row(s), disposition true"
     },
     {
-      "id": "practice.filter-chips",
-      "label": "a subject filter appears, as chips",
+      "id": "axes.risk-flags.accuracy",
+      "label": "the classifier-accuracy axis is offered on a flag",
       "ok": true,
-      "detail": "All,Teen safety,Mentor practice"
+      "detail": "accuracy axis present"
     },
     {
-      "id": "practice.not-a-tablist",
-      "label": "and it is not a tablist",
+      "id": "axes.risk-flags.nothing-preselected",
+      "label": "and neither axis arrives with an answer already recorded",
+      "ok": true,
+      "detail": "0 pre-selected"
+    },
+    {
+      "id": "axes.risk-flags.sheet-input",
+      "label": "the shortcut sheet opened",
+      "ok": true,
+      "detail": "Keyboard shortcuts These work anywhere "
+    },
+    {
+      "id": "axes.risk-flags.sheet-matches",
+      "label": "and it teaches the accuracy keys",
+      "ok": true,
+      "detail": "sheet teaches the accuracy keys"
+    },
+    {
+      "id": "axes.mentor-practice.input",
+      "label": "an event was selectable and its pane opened",
+      "ok": true,
+      "detail": "1 row(s), disposition true"
+    },
+    {
+      "id": "axes.mentor-practice.accuracy",
+      "label": "and is ABSENT where no classifier produced the event",
+      "ok": true,
+      "detail": "accuracy axis absent"
+    },
+    {
+      "id": "axes.mentor-practice.nothing-preselected",
+      "label": "and neither axis arrives with an answer already recorded",
+      "ok": true,
+      "detail": "0 pre-selected"
+    },
+    {
+      "id": "axes.mentor-practice.sheet-input",
+      "label": "the shortcut sheet opened",
+      "ok": true,
+      "detail": "Keyboard shortcuts These work anywhere "
+    },
+    {
+      "id": "axes.mentor-practice.sheet-matches",
+      "label": "and it does not teach keys this destination does not bind",
+      "ok": true,
+      "detail": "sheet omits the accuracy keys"
+    },
+    {
+      "id": "match.input",
+      "label": "the flag pane opened with a playbook-match block",
+      "ok": true,
+      "detail": "present"
+    },
+    {
+      "id": "match.one-artifact",
+      "label": "the categories and the rationale are one block, before the conversation",
+      "ok": true,
+      "detail": "dom true · geometry true"
+    },
+    {
+      "id": "match.two-attributions",
+      "label": "and it carries both attributions — the taxonomy's and the machine's",
+      "ok": true,
+      "detail": "eyebrow true · badge true"
+    },
+    {
+      "id": "match.invents-nothing",
+      "label": "and states no confidence, because the classifier publishes none",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "id": "axes.coverage.sheet-input",
+      "label": "the shortcut sheet opened on Coverage",
+      "ok": true,
+      "detail": "Keyboard shortcuts These work anywhere "
+    },
+    {
+      "id": "axes.coverage.sheet-minimal",
+      "label": "and teaches no queue, pane or accuracy key — Coverage binds none of them",
+      "ok": true,
+      "detail": "Keyboard shortcuts These work anywhere on this page, except while you are typing. ? This list Close"
+    },
+    {
+      "id": "practice.own-destination",
+      "label": "the practice queue names its subject and holds nothing else",
+      "ok": true,
+      "detail": "Mentor practice — 1"
+    },
+    {
+      "id": "practice.no-dead-chip-row",
+      "label": "and offers no subject filter, because the route already chose",
       "ok": true
     },
     {
@@ -370,7 +472,7 @@
       "id": "structure.footer-static",
       "label": "the pane footer is not an overlay, so focus cannot hide under it",
       "ok": true,
-      "detail": "{\"position\":\"static\",\"top\":693,\"bottom\":919,\"left\":580,\"right\":1231}"
+      "detail": "{\"position\":\"static\",\"top\":693,\"bottom\":919,\"left\":674,\"right\":1231}"
     },
     {
       "id": "input.focus",
@@ -382,7 +484,7 @@
       "id": "focus.order",
       "label": "escalations → list → pane → footer, in that order",
       "ok": true,
-      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,escalations,escalations,escalations,escalations,escalations,escalations,escalations,escalations,shell,shell,list,pane,pane,footer,footer,footer,footer,footer,footer,footer"
+      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell,shell,shell,shell"
     },
     {
       "id": "focus.always-visible",
@@ -400,31 +502,31 @@
       "id": "targets.24px-floor",
       "label": "every new control clears the 24×24 floor (WCAG 2.5.8)",
       "ok": true,
-      "detail": "18 controls, smallest 16px high"
+      "detail": "10 controls, smallest 16px high"
     },
     {
       "id": "targets.escalations-44",
       "label": "every escalation control clears HIG's 44px",
       "ok": true,
-      "detail": "teen Theo L., mentor Brandy Forres:44 Open escalation:44 teen Naomi R., mentor Maria Lopez,:44 Open escalation:44 teen Theo L., mentor Brandy Forres:44 Open the record:44 teen Riley T., mentor Brandon Fora:44 Open the record:44"
+      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · View care profile:44x131 · View conversation:44x140 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Escalation timeline:260x910"
     },
     {
       "id": "targets.rows",
       "label": "a queue row is a comfortable target",
       "ok": true,
-      "detail": "56x433"
+      "detail": "56x371"
     },
     {
       "id": "a11y.live-inventory",
       "label": "every live region on the route is accounted for",
       "ok": true,
-      "detail": "assertive:Escalations | polite:FLAG TEEN Naomi R. MENTOR  | polite:(empty) | polite:(empty) | polite:Notifications alt+T"
+      "detail": "polite:FLAG TEEN Naomi R. MENTOR  | polite:(empty) | polite:(empty) | polite:Notifications alt+T"
     },
     {
       "id": "a11y.one-assertive",
       "label": "only the escalation region is assertive",
       "ok": true,
-      "detail": "assertive:Escalations"
+      "detail": "none"
     },
     {
       "id": "fixtures.wired",
