@@ -72,6 +72,33 @@ describe("what the rule actually does to the shipped chat fixtures", () => {
     expect(sameSenderGaps().length).toBeGreaterThan(0);
   });
 
+  it("has a pair on BOTH sides of the threshold, so five minutes is decidable", () => {
+    /* ═══ THE FIXTURE PHASE 10 ADDED, AND WHY IT WAS NEEDED ═══
+       Before it the gaps were 2, 2, 2450, 3860 and 4320 minutes — so every pair
+       was either obviously inside the window or obviously outside it, and
+       `CLUSTER_MS` could have been any value from ~3 minutes to ~40 hours
+       without a single test or snapshot moving. The threshold was not verified,
+       it was merely not contradicted.
+       ONE PAIR EITHER SIDE is the minimum that makes it decidable, and it is
+       asserted as a RANGE rather than the exact fixture values so re-timing a
+       line by a minute does not fail the test for no reason. */
+    const gaps = sameSenderGaps();
+    const near = (lo: number, hi: number) =>
+      gaps.some((g) => g > lo && g <= hi);
+    expect(
+      near(3 * 60_000, CLUSTER_MS),
+      `no same-sender gap sits just INSIDE the window — gaps(min): ${gaps
+        .map((g) => Math.round(g / 60_000))
+        .join(", ")}`
+    ).toBe(true);
+    expect(
+      near(CLUSTER_MS, 10 * 60_000),
+      `no same-sender gap sits just OUTSIDE the window — gaps(min): ${gaps
+        .map((g) => Math.round(g / 60_000))
+        .join(", ")}`
+    ).toBe(true);
+  });
+
   it("has pairs that straddle the threshold, so the rule is load-bearing here", () => {
     /* ═══ THIS TEST IS WHY THE DOM COMPARISON IS TRUSTWORTHY ═══
        The de-fork was verified by snapshotting the mentor thread before and

@@ -243,6 +243,35 @@ interface Spec {
   status?: TaskItem["status"];
   /** Resolved fixtures feed the "Closed today" counters. */
   resolvedAgo?: number;
+  /** ═══ A FRACTION OF THE DAY SO FAR, NOT A FIXED AGE (Phase 10) ═══
+   *  `closedFill` used `resolvedAgo: 30m + (0–6)h` with the note "always inside
+   *  today" — true during a day shift and false after midnight. MEASURED:
+   *  Today's "Closed today" read 21 at one point in a session and 4 later on the
+   *  same scenario, because `closedToday` counts only resolutions on the same
+   *  CALENDAR day as `now`, and at 01:00 most of a 6.5-hour window is yesterday.
+   *  Resolved in `build`, which is the only place that knows `now`. At 14:00 the
+   *  closures spread across the last ~7 hours exactly as before; at 01:00 across
+   *  the last hour — which is the honest reading, since nothing can have been
+   *  closed today longer ago than today has been running. Gap row 419. */
+  resolvedFracOfDay?: number;
+}
+
+/** ═══ HOW LONG TODAY HAS BEEN RUNNING — NO FLOOR ═══
+ *
+ *  A first attempt floored this at 45 minutes so the first minutes of a day
+ *  still produced a plausible spread. MEASURED at 00:30: the floor exceeded the
+ *  elapsed day, so the oldest closures landed BEFORE midnight and `closedToday`
+ *  counted 18 of 26 — reintroducing the very drift the change exists to remove,
+ *  in a narrower window.
+ *
+ *  So there is no floor. In the first minutes of a day the closures bunch
+ *  together, which is the honest shape: nothing can have been closed today
+ *  longer ago than today has been running, and a fixture that says otherwise is
+ *  the fixture lying rather than the clock being awkward. */
+function elapsedToday(now: number): number {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return now - midnight.getTime();
 }
 
 function build(specs: Spec[], now: number): TaskItem[] {
@@ -263,7 +292,11 @@ function build(specs: Spec[], now: number): TaskItem[] {
       openedAt,
       slaDeadline: deadlineFor(s.taskType, clockStart),
       status: s.status ?? "open",
-      ...(s.resolvedAgo !== undefined ? { resolvedAt: now - s.resolvedAgo } : {}),
+      ...(s.resolvedAgo !== undefined
+        ? { resolvedAt: now - s.resolvedAgo }
+        : s.resolvedFracOfDay !== undefined
+          ? { resolvedAt: now - Math.round(elapsedToday(now) * s.resolvedFracOfDay) }
+          : {}),
       payload: s.payload,
     };
   });
@@ -437,7 +470,8 @@ function fill(o: FillOptions): Spec[] {
 /** Resolved fixtures, so a fifty-row board also has a plausible number of things
  *  already closed today — the tab cards' closed segment reads "· 14 closed" at
  *  volume, and a band that clears reports a real figure rather than "1 today".
- *  All resolved within the last eight hours, so `closedToday` counts them. */
+ *  ALL RESOLVED INSIDE TODAY AT ANY HOUR — see `Spec.resolvedFracOfDay` for why
+ *  a fixed window was not enough. */
 function closedFill(
   taskType: TaskType,
   count: number,
@@ -452,9 +486,11 @@ function closedFill(
     openedAgo: (10 + (spread(i, seed) % 20)) * HOUR,
     payload: payload(),
     status: "resolved" as const,
-    // Spread across the shift so the figure is not obviously synthetic, and
-    // always inside today.
-    resolvedAgo: 30 * MINUTE + (spread(i, seed + 5) % 7) * HOUR,
+    /* 8% IN, SO NOTHING READS AS CLOSED AT THIS EXACT INSTANT, and spread over
+       the rest of the day so far. `% 1000 / 1000` rather than the old `% 7`
+       hours, because the window is no longer a whole number of hours.
+       Deterministic in `(i, seed)` like every other spread here. */
+    resolvedFracOfDay: 0.08 + ((spread(i, seed + 5) % 1000) / 1000) * 0.88,
   }));
 }
 

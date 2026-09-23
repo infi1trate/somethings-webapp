@@ -371,6 +371,20 @@ const ACTIVE: ScenarioBuild = {
       reactions: [{ emoji: "😂", by: "them" }],
     },
     { from: "them", after: 10, text: "olive" },
+    /* ═══ THE PAIR THAT STRADDLES THE CLUSTERING THRESHOLD (Phase 10) ═══
+       TODO-DATA on both lines. `CLUSTER_MS` is five minutes, and MEASURED before
+       this: the shipped chat fixtures held six consecutive same-sender pairs,
+       with gaps of 2, 2, 2450, 3860 and 4320 MINUTES. Nothing anywhere near
+       five — so no test in this repo could tell five minutes from six, and the
+       Phase 6 de-fork's "the mentor thread is byte-identical" was verified on a
+       snapshot that could not see a threshold change at all (gap row 429).
+       FOUR THEN SIX, both from `them`: the first continues the cluster and drops
+       its header, the second crosses the window and takes one. One pair, both
+       sides of the line, on the thread the surface is meant to be judged on.
+       THIS DOES CHANGE THE RENDERED THREAD, deliberately — Phase 6's constraint
+       was that the DE-FORK not change it, which it did not. */
+    { from: "them", after: 4, text: "she sits on whatever im reading" },
+    { from: "them", after: 6, text: "anyway. thanks for the practice problem thing" },
     { from: "them", after: 2450, voice: 34 },
     {
       from: "mentor",

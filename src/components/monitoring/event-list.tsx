@@ -15,9 +15,29 @@
 // how silent per-screen forks start. What it does NOT duplicate is the part
 // worth sharing — the group header component, the chips, the identity disc and
 // the excerpt all still come from one place. What it deliberately does not
-// inherit is `Worklist`'s virtualizer: at the measured ceiling (64 rows on
-// `surge`) a plain list costs nothing, and the virtualizer's invariants —
-// ROW_H exact, spacer arithmetic — are the most fragile thing in that file.
+// inherit is `Worklist`'s virtualizer, and the reason has been RE-MEASURED
+// because Phase 10 invalidated the old one.
+//
+// ═══ THE PREMISE MOVED, AND THE DECISION DID NOT ═══
+//
+// This said "at the measured ceiling (64 rows on `surge`) a plain list costs
+// nothing". Phase 10 raised `surge` from 64 to 420 — the production audit asked
+// for 400+ — which made that sentence false, and a decision resting on a stale
+// measurement is indistinguishable from one nobody checked.
+//
+// RE-MEASURED AT THE NEW CEILING, xl, every row mounted:
+//
+//    420 rows -> 7,721 DOM nodes -> 1.0ms for ten forced layouts
+//    123 rows -> 2,636 DOM nodes -> 0.2ms   (the unscoped default)
+//     12 rows ->   703 DOM nodes -> 0.1ms
+//
+// So a plain list still costs nothing at four hundred rows, and the trade stands
+// for the original reason: the virtualizer's invariants — ROW_H exact, spacer
+// arithmetic — are the most fragile thing in that file, and inheriting them to
+// save a millisecond would be buying fragility with no return.
+//
+// WHAT WOULD CHANGE IT is a row whose height is not fixed, or a fixture past a
+// few thousand rows. The number to beat is in this comment.
 //
 // ═══ ONE EMPHASISED ELEMENT PER ROW ═══
 // The subject of review, in the display face. Age is mono and tabular and does

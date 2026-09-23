@@ -22,12 +22,9 @@
 import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
 import { playbookMatchFor } from "@/lib/monitoring/surfacing";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   AlertTriangle,
-  ExternalLink,
   EyeOff,
-  MessageSquare,
   ShieldAlert,
 } from "lucide-react";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
@@ -39,14 +36,13 @@ import {
 import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline";
 import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
 import { BreachChip } from "@/components/tasks/chips";
-import { chatThreadHref } from "@/lib/record/chat";
 import { elapsedLabel } from "@/components/tasks/strips";
 
-/** The record pane's link-out treatment — quiet, because these are context and
- *  the disposition footer is the pane's one primary. Lifted verbatim from the
- *  retired `EscalationCtas` so the geometry does not change with the move. */
-const RECORD_CTA =
-  "inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]";
+/* `RECORD_CTA` WENT WITH THE LINK-OUTS (Phase 10) — see the pane's own note on
+   why they could not land. It was lifted verbatim from the retired
+   `EscalationCtas` so the geometry would not change with the move; nothing needs
+   it now, and the moment a reachable destination exists the treatment comes back
+   with the link rather than being remembered. */
 import { PANE_LABEL, PaneChip, SystemBlock } from "@/components/ui/evidence-primitives";
 import { buildConversation, conversationHref, firstNameOf } from "@/lib/tasks/conversation";
 import type { RiskFlagPayload } from "@/lib/tasks/types";
@@ -519,25 +515,24 @@ function EscalationBody({
         ))}
       </dl>
 
-      {/* ═══ THE LINK-OUTS, ALSO FROM THE RETIRED PANE (Phase 6) ═══
-          What a supervisor reaches for during an incident. `View escalation
-          record` is gone from the set: this IS the record, and a link to the
-          page you are on is the kind of chrome that survives a move without
-          anybody re-reading it. */}
-      <div className="flex flex-wrap items-center gap-1">
-        <Link
-          href={`/admin/person/${encodeURIComponent(rec.teenId)}?tab=care`}
-          className={cn(RECORD_CTA, RING)}
-        >
-          <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-          {/* NEEDS-COPY-NICOLE */}
-          View care profile
-        </Link>
-        <Link href={chatThreadHref(rec.teenId)} className={cn(RECORD_CTA, RING)}>
-          <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-          View conversation
-        </Link>
-      </div>
+      {/* ═══ THE LINK-OUTS ARE GONE, AND THEY WERE DEAD (Phase 10) ═══
+          Phase 6 moved `View care profile` and `View conversation` onto this
+          pane from the retired `EscalationCtas`, and Phase 7 then measured why
+          neither can land: the records here carry `tk-*` ids from the tasks
+          roster, while the record and chat surfaces know `t*` ids from the demo
+          people. MEASURED on a rendered record —
+          `/admin/person/tk-simone?tab=care` shows "We couldn't find that
+          person", and `/app/chat/tk-simone` lands on a mentor's thread list in
+          mentor chrome.
+          SAME CALL PHASE 7 MADE FOR COVERAGE: do not offer a door that cannot
+          open. On an incident surface a link that costs a click and produces
+          "couldn't find that person" is worse than no link, because it spends
+          the one thing a supervisor has least of.
+          THE PANE IS NOT A DEAD END WITHOUT THEM — it carries the record, the
+          facts row, the acknowledgement clock, the close-out set, the timeline
+          with its manual log, the note module and the disposition footer. What
+          it cannot do is send a reader to the teen, and gap row 432 now has that
+          cost attached to it: two link-outs here and one control on Coverage. */}
 
       {/* ═══ THE MITIGATION MODULE, HOSTED (arch-G, G3) ═══
           The record is the escalation note's durable home, so the module renders

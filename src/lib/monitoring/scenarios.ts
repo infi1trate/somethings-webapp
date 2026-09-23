@@ -331,13 +331,34 @@ function atHour(now: number, hour: number): number {
  *  become ONE record each: an `activeEscalation` is unresolved, an
  *  `escalationDocumentation` is the same event after it closed — which is the
  *  pairing this phase replaced with a lifecycle. */
-function fromTasksScenario(tasksScenarioId: string, now: number): MonitoringData {
+/** ═══ THE ROSTER'S OWN ESCALATIONS, AS RECORDS (extracted in Phase 10) ═══
+ *
+ *  It was inline in `fromTasksScenario`, so only the UNSCOPED default could
+ *  produce escalation records from the task roster. MEASURED: 28 of the 40 named
+ *  scenarios had zero records, and for most of them that is right — a
+ *  `mentor-offline` fixture has no escalation. The defect was the six
+ *  volume-and-coverage scenarios, which are the general-purpose ones a reader
+ *  lands on: on `normal-day`, `/app/escalations` and Today's escalation strip
+ *  were EMPTY while the task scenario underneath carried two live
+ *  `activeEscalation` items.
+ *
+ *  So the fixture most likely to be read as "the normal state" said two
+ *  escalations were running on one surface and none on another. Gap row 409
+ *  recorded the symptom and recommended this shape.
+ *
+ *  EXPORTED AS A NAMED SOURCE RATHER THAN A DEFAULT INSIDE `base`, so each
+ *  builder SAYS where its escalations come from. A builder that wants none still
+ *  writes none, and "no escalations" stays sayable and visibly a choice — which
+ *  matters most for `clean-day`, whose whole point is that nothing is open. */
+export function escalationsFromTasks(
+  tasksScenarioId: string,
+  now: number
+): EscalationRecord[] {
   const all = tasksScenario(tasksScenarioId, now);
-  const flags = all.filter((i) => isFlagTask(i.taskType) && i.status !== "resolved");
   const escItems = all.filter(
     (i) => i.taskType === "activeEscalation" || i.taskType === "escalationDocumentation"
   );
-  const records: EscalationRecord[] = escItems.map((i) => {
+  return escItems.map((i) => {
     const p = i.payload;
     const active = i.taskType === "activeEscalation";
     const closedAt = p.kind === "documentation" ? p.closedAt : null;
@@ -370,6 +391,12 @@ function fromTasksScenario(tasksScenarioId: string, now: number): MonitoringData
       emergencyContact: p.kind === "escalation" ? p.emergencyContact : null,
     };
   });
+}
+
+function fromTasksScenario(tasksScenarioId: string, now: number): MonitoringData {
+  const all = tasksScenario(tasksScenarioId, now);
+  const flags = all.filter((i) => isFlagTask(i.taskType) && i.status !== "resolved");
+  const records = escalationsFromTasks(tasksScenarioId, now);
   const escalatedTeens = new Set(records.filter((r) => r.resolvedAt == null).map((r) => r.teenId));
   return {
     ...base(now, eventsFromFlags(flags, now, escalatedTeens), 0.35),
@@ -380,13 +407,31 @@ function fromTasksScenario(tasksScenarioId: string, now: number): MonitoringData
 type Builder = (now: number, tasksScenarioId: string) => MonitoringData;
 
 const BUILDERS: Record<string, Builder> = {
+  /* ═══ THE VOLUME SCENARIOS CARRY THE ROSTER'S ESCALATIONS (Phase 10) ═══
+     These six are the general-purpose fixtures, and all six had zero escalation
+     records while the task scenario underneath carried two live ones — see
+     `escalationsFromTasks`. `clean-day` is the deliberate exception below. */
   // ── Volume and coverage ───────────────────────────────────────────────────
+
+  /* THE ONE THAT KEEPS ITS EMPTY SET, AND IT IS THE POINT OF THE FIXTURE: every
+     conversation reviewed, nothing flagged, nothing open. An escalation here
+     would make the only "genuinely clear" state in the list not clear. */
   "clean-day": (now) => ({ ...base(now, [], 1) }),
 
   /* THE HIGHEST-VALUE FIXTURE ON THE LIST, and the reason it exists: zero flags
      is otherwise ambiguous between a quiet shift and a broken safety pipe. The
      page must say which. */
-  "classifier-degraded": (now) => ({ ...base(now, [], 0.4), classifier: "degraded" }),
+  "classifier-degraded": (now, ts) => ({
+    ...base(now, [], 0.4),
+    /* THE ESCALATIONS STAY WHILE THE FLAGS GO. That is the fixture's whole
+       claim: the flag pipeline is down, not the shift. An escalation is raised
+       by a person and does not arrive through the classifier, so a degraded
+       pipeline has no reason to empty the escalation region — and Phase 2
+       measured exactly that contradiction on Today, where the strip showed two
+       escalations above a card reading "Nothing open". */
+    escalations: escalationsFromTasks(ts, now),
+    classifier: "degraded",
+  }),
 
   "shift-start-backlog": (now, ts) => {
     /* OVERNIGHT: mentors reviewed off-hours messages at shift start, so the
@@ -394,20 +439,65 @@ const BUILDERS: Record<string, Builder> = {
     const flags = flagPool(ts, now)
       .slice(0, 14)
       .map((f, i) => aged(f, now - (8 * HOUR + i * 17 * MINUTE)));
-    return base(now, eventsFromFlags(flags, now), 0.1);
+    return {
+      ...base(now, eventsFromFlags(flags, now), 0.1),
+      escalations: escalationsFromTasks(ts, now),
+    };
   },
 
-  "normal-day": (now, ts) => base(now, eventsFromFlags(flagPool(ts, now).slice(0, 12), now), 0.45),
+  "normal-day": (now, ts) => ({
+    ...base(now, eventsFromFlags(flagPool(ts, now).slice(0, 12), now), 0.45),
+    escalations: escalationsFromTasks(ts, now),
+  }),
 
+  /** ═══ A SURGE THAT WAS SMALLER THAN THE DEFAULT (Phase 10) ═══
+   *
+   *  MEASURED at 64 events, against 123 on the unscoped `heavy-caseload`
+   *  default — so the fixture named `surge` was the second-quietest flag queue in
+   *  the product, and the row-recycling path it exists to exercise was never
+   *  reached by it. The production audit asked for 400+ and to verify the
+   *  virtualizer; both are here.
+   *
+   *  THE POOL IS 123, SO IT IS REPEATED. Not a synthetic generator: each copy is
+   *  a real seeded flag with a fresh id, a fresh `objectId` and a re-stamped age,
+   *  so every field a row or a pane reads is one the product produces. What is
+   *  fabricated is the VOLUME, which is the fixture's entire subject.
+   *
+   *  FRESH `objectId` PER COPY, and that is the part worth getting right: the
+   *  coalescing key is `(taskType, objectId)`, so repeating the pool without
+   *  re-keying would collapse 400 flags into 123 groups of four and the queue
+   *  would render a third of the rows the fixture claims. Measured after the
+   *  change rather than assumed.
+   *
+   *  AGES SPREAD ACROSS A WEEK so the comparator's fifth key has real work to
+   *  do — a surge where every flag is the same age sorts by id, which is not a
+   *  sort anybody is testing. */
   "surge": (now, ts) => {
     const pool = flagPool("heavy-caseload", now);
-    const flags = pool.length >= 60 ? pool.slice(0, 64) : [...pool, ...flagPool(ts, now)].slice(0, 64);
-    return base(now, eventsFromFlags(flags, now), 0.08);
+    const source = pool.length > 0 ? pool : flagPool(ts, now);
+    const TARGET = 420;
+    const flags: TaskItem[] = [];
+    for (let i = 0; flags.length < TARGET; i += 1) {
+      const src = source[i % source.length];
+      const copy = Math.floor(i / source.length);
+      flags.push({
+        ...aged(src, now - (30 * MINUTE + (i % 240) * 40 * MINUTE)),
+        id: copy === 0 ? src.id : `${src.id}-surge${copy}`,
+        objectId: copy === 0 ? src.objectId : `${src.objectId}-surge${copy}`,
+      });
+    }
+    return {
+      ...base(now, eventsFromFlags(flags, now), 0.08),
+      escalations: escalationsFromTasks(ts, now),
+    };
   },
 
   /* FLAGS CLEARED, CONVERSATIONS UNREVIEWED — the state coverage exists to make
      visible, and the one an event-only queue reports as "done". */
-  "coverage-debt": (now) => base(now, [], 0.12),
+  "coverage-debt": (now, ts) => ({
+    ...base(now, [], 0.12),
+    escalations: escalationsFromTasks(ts, now),
+  }),
 
   // ── Escalation lifecycle ──────────────────────────────────────────────────
   "escalation-unacked": (now, ts) => ({
