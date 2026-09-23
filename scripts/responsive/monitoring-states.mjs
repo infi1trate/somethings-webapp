@@ -617,25 +617,44 @@ for (const [scenario, id, want] of [
 // defects: the accuracy axis on events no classifier produced, and a shortcut
 // sheet teaching those keys on the destination where they do nothing.
 {
+  /* ═══ PHASE 8 CHANGED THE PRACTICE EXPECTATION FROM ABSENT TO DIFFERENT ═══
+     Phase 5 asserted the accuracy axis was ABSENT on a practice event, because
+     the five rules are deterministic and there was no classifier to judge.
+     Phase 8 gave that destination an axis 2 with a different producer — the
+     rule's provisional THRESHOLD — so the claim is no longer "no second axis"
+     but "the second axis asks about this subject's own producer".
+     CHECKED BY THE LABEL, in both directions: each destination must name its own
+     producer AND must not name the other's. A presence check alone would pass on
+     a practice pane that had simply kept the classifier wording. */
   const cases = [
-    ["risk-flags", "/app/risk-flags", "normal-day", true],
-    ["mentor-practice", "/app/mentor-practice", "mentor-note-overdue", false],
+    ["risk-flags", "/app/risk-flags", "normal-day", "Classifier accuracy", "Rule threshold", "Clinical disposition", "What you did"],
+    ["mentor-practice", "/app/mentor-practice", "mentor-note-overdue", "Rule threshold", "Classifier accuracy", "What you did", "Clinical disposition"],
   ];
-  for (const [name, url, scenario, wantAccuracy] of cases) {
+  for (const [name, url, scenario, ownsAxis2, otherAxis2, ownsAxis1, otherAxis1] of cases) {
     const { context, page } = await open(`axes-${name}`, { scenario, url });
     await page.waitForTimeout(900);
     await page.locator('[role="treeitem"]').first().click();
     await page.waitForTimeout(500);
     const seen = await page.evaluate(() => {
       const pane = document.querySelector('[data-slot="event-pane"]');
+      const groups = [
+        ...(pane?.querySelectorAll('[role="radiogroup"]') ?? []),
+      ].map((g) => g.getAttribute("aria-label") ?? "");
       return {
         rows: document.querySelectorAll('[role="treeitem"]').length,
-        disposition: !!pane?.querySelector(
-          '[role="radiogroup"][aria-label*="disposition" i]'
-        ),
-        accuracy: !!pane?.querySelector(
-          '[role="radiogroup"][aria-label*="Classifier accuracy" i]'
-        ),
+        groups,
+        disposition: groups.length >= 2,
+        /* ═══ THE VALUES, NOT ONLY THE HEADINGS ═══
+           A mutation run changed `RULE_FEEDBACK_VALUES`' first label from
+           "Threshold looks right" to "Classifier was right" and every check
+           passed: `own-axis2` reads the radiogroup's `aria-label` (built from a
+           separate `name`) and `sheet-matches` reads the shortcut sheet (built
+           from a separate row list). Neither looked at what the buttons SAY. So
+           the axis could have offered classifier wording under a threshold
+           heading and nothing would have noticed. */
+        axisLabels: [
+          ...(pane?.querySelectorAll('[role="radiogroup"] [role="radio"]') ?? []),
+        ].map((b) => (b.textContent ?? "").trim()),
         /* PRE-SELECTION IS A CLINICAL STATEMENT NOBODY MADE, so it is checked on
            both axes rather than asserted of the model. */
         checked: [
@@ -651,13 +670,52 @@ for (const [scenario, id, want] of [
       seen.rows > 0 && seen.disposition,
       `${seen.rows} row(s), disposition ${seen.disposition}`
     );
+    const labels = seen.groups.join(" | ");
     check(
-      `axes.${name}.accuracy`,
-      wantAccuracy
-        ? "the classifier-accuracy axis is offered on a flag"
-        : "and is ABSENT where no classifier produced the event",
-      seen.accuracy === wantAccuracy,
-      `accuracy axis ${seen.accuracy ? "present" : "absent"}`
+      `axes.${name}.own-axis1`,
+      "axis 1 names this subject's own question",
+      labels.includes(ownsAxis1) && !labels.includes(otherAxis1),
+      labels || "no radiogroups"
+    );
+    check(
+      `axes.${name}.own-axis2`,
+      "and axis 2 names this subject's own producer, not the other's",
+      labels.includes(ownsAxis2) && !labels.includes(otherAxis2),
+      labels || "no radiogroups"
+    );
+    /* AND THE PRIMARY'S NOUN FOLLOWS THE AXIS. "Disposition" is the clinical
+       word and the practice hint deliberately avoids it, so a primary keeping it
+       would put the rejected vocabulary on the loudest element in the pane. */
+    const primary = await page.evaluate(
+      () =>
+        document
+          .querySelector('[data-slot="event-pane"] [data-action="record"]')
+          ?.textContent?.trim() ?? ""
+    );
+    check(
+      `axes.${name}.primary-noun`,
+      "and the primary's noun follows the axis it commits",
+      ownsAxis1 === "What you did"
+        ? primary === "Record what you did"
+        : primary === "Record disposition",
+      primary || "no primary"
+    );
+    /* THE HEADING AND THE BUTTONS MUST AGREE. Asserted on the word each subject
+       owns — "threshold" for a rule, "classifier" for a model — because the
+       heading is built from one string and the buttons from another array, and
+       the mutation run proved they can diverge silently. */
+    const ownWord = ownsAxis2 === "Rule threshold" ? "threshold" : "classifier";
+    const otherWord = ownWord === "threshold" ? "classifier" : "threshold";
+    const axis2Buttons = seen.axisLabels.filter((t) =>
+      /right|wrong/i.test(t)
+    );
+    check(
+      `axes.${name}.axis2-values-agree`,
+      "and its buttons say the same thing its heading does",
+      axis2Buttons.length === 2 &&
+        axis2Buttons.every((t) => t.toLowerCase().includes(ownWord)) &&
+        !axis2Buttons.some((t) => t.toLowerCase().includes(otherWord)),
+      axis2Buttons.join(" · ") || "no axis-2 buttons"
     );
     check(
       `axes.${name}.nothing-preselected`,
@@ -682,17 +740,19 @@ for (const [scenario, id, want] of [
     );
     check(
       `axes.${name}.sheet-matches`,
-      wantAccuracy
-        ? "and it teaches the accuracy keys"
-        : "and it does not teach keys this destination does not bind",
-      /Classifier was right/.test(sheet) === wantAccuracy,
+      "and the sheet teaches this destination's own axis-2 keys",
+      sheet.includes(ownsAxis2 === "Rule threshold" ? "Threshold looks right" : "Classifier was right") &&
+        !sheet.includes(ownsAxis2 === "Rule threshold" ? "Classifier was right" : "Threshold looks right"),
       /* THE DETAIL REPORTS THE MEASUREMENT, NOT THE EXPECTATION. First version
          printed `wantAccuracy ? "taught" : "not taught"` — so a mutation run
          that made the sheet teach the keys on Mentor Practice failed with the
          message "not taught", sending the reader to look for the opposite of the
          defect. A failure detail that restates the assertion is worse than
          none. */
-      `sheet ${/Classifier was right/.test(sheet) ? "teaches" : "omits"} the accuracy keys`
+      sheet
+        .split("\n")
+        .filter((l) => /right|wrong/i.test(l))
+        .join(" · ") || "teaches no axis-2 key"
     );
     await context.close();
   }

@@ -219,6 +219,15 @@ const K_ACCURACY = [
   { keys: ["y"], what: "Classifier was right (records accuracy only)" },
   { keys: ["n"], what: "Classifier was wrong (records accuracy only)" },
 ];
+/** ═══ THE SAME TWO KEYS, A DIFFERENT QUESTION (Phase 8) ═══
+ *  Practice events have an axis 2 again — the RULE's threshold rather than a
+ *  classifier — so `y`/`n` are live on that destination and the sheet says what
+ *  they record there. Phase 5 removed the rows because the keys were inert; a
+ *  sheet teaching a binding that does nothing was the defect, not the keys. */
+const K_THRESHOLD = [
+  { keys: ["y"], what: "Threshold looks right (records feedback only)" },
+  { keys: ["n"], what: "Threshold looks wrong (records feedback only)" },
+];
 const K_PANE = [{ keys: ["↵"], what: "Move focus to the review pane" }];
 const K_UNDO = [{ keys: ["u"], what: "Undo the last close" }];
 const K_HELP = [{ keys: ["?"], what: "This list" }];
@@ -233,6 +242,14 @@ const MONITORING_SHORTCUTS = [
   ...K_HELP,
 ];
 
+/** Which destinations carry the coverage meter — see the header's own note.
+ *  `null` is the unscoped page, which keeps everything. */
+const METER_SCOPES = new Set<MonitoringScope | null>([
+  null,
+  "coverage",
+  "risk-flags",
+]);
+
 const SCOPE_SHORTCUTS: Record<
   MonitoringScope,
   Array<{ keys: string[]; what: string }>
@@ -241,9 +258,13 @@ const SCOPE_SHORTCUTS: Record<
      not reach it. Undo stays: a resolved escalation can be undone. */
   escalations: [...K_UNDO, ...K_HELP],
   "risk-flags": [...K_QUEUE, ...K_ACCURACY, ...K_UNDO, ...K_PANE, ...K_HELP],
-  /* NO ACCURACY ROW. A practice event's producer is a deterministic rule; there
-     is nothing to judge a classifier on, and the axis is not rendered either. */
-  "mentor-practice": [...K_QUEUE, ...K_UNDO, ...K_PANE, ...K_HELP],
+  "mentor-practice": [
+    ...K_QUEUE,
+    ...K_THRESHOLD,
+    ...K_UNDO,
+    ...K_PANE,
+    ...K_HELP,
+  ],
   /* COVERAGE HAS NO QUEUE AND NO PANE. `?` is the whole of its keyboard layer,
      and saying so is more useful than listing five keys that do nothing. */
   coverage: [...K_HELP],
@@ -659,7 +680,23 @@ export function MonitoringPage({
                 its period. Stating anything else beside it would be the same
                 defect the monitoring header was built to fix: two clauses in
                 incompatible units, three centimetres apart. */}
-            {scope === "coverage"
+            {scope === "mentor-practice"
+              ? /* ═══ MENTOR PRACTICE'S SUBTITLE NAMES WHAT PRODUCED THE ROWS ═══
+                   NEEDS-COPY-NICOLE. Phase 7 left this destination with no
+                   subtitle on purpose, rather than inheriting one — an inherited
+                   subtitle is a placeholder nobody reads as temporary.
+                   IT STATES THE PROVENANCE, AND IT IS THE THING A READER HERE
+                   MOST NEEDS. Every one of the five rules compares a timestamp to
+                   a constant, and every one of those constants carries a
+                   `_PROVISIONAL` flag — so a supervisor is judging a mentor
+                   against a number nobody has ratified. Saying so is what makes
+                   the second axis ("Threshold looks wrong") legible as an
+                   invitation rather than a trick question.
+                   AND IT IS NOT A COUNT. A tally of practice breaches over a
+                   named mentor is the performance surface the standing rule
+                   forbids; this names the producer instead. */
+                "Five timing rules, each measured against a threshold that is still provisional"
+              : scope === "coverage"
               ? /* ═══ COVERAGE'S SUBTITLE SAYS WHAT THE SURFACE IS ═══
                    NEEDS-COPY-NICOLE. Not what it owes — the meter beside it
                    already states the progress, and restating a fraction in
@@ -681,7 +718,25 @@ export function MonitoringPage({
               : ""}
           </p>
         </div>
-        {mounted && (
+        {/* ═══ THE METER RENDERS WHERE TEEN COVERAGE IS THE SUBJECT, OR ITS FLOOR ═══
+            It rendered on all four destinations. Phase 7 scoped the SUBTITLE's
+            clauses and left this element, which is the same defect in a
+            different node — measured on `/app/mentor-practice`: "10 of 25
+            conversations reviewed this shift", above a queue about MENTORS.
+            WHERE IT BELONGS:
+             · COVERAGE — it is the page.
+             · RISK FLAGS — arch-mon's stated reason, that coverage is the floor
+               under the queue: a supervisor working what a model noticed should
+               see progress against everything it did not.
+            WHERE IT DOES NOT:
+             · MENTOR PRACTICE — a different subject entirely. Teen coverage says
+               nothing about a mentor's timing, and a second fraction in the
+               header is the two-incompatible-units defect this header was
+               rebuilt to remove.
+             · ESCALATIONS — one incident, with its own clocks. Shift progress
+               beside a live escalation is the least actionable thing that could
+               occupy that space. */}
+        {mounted && METER_SCOPES.has(scope) && (
           <div className="w-full max-w-[18rem] shrink-0">
             <CoverageMeter conversations={conversations} credited={credited} />
           </div>
@@ -915,25 +970,40 @@ export function MonitoringPage({
                     selectedEvent.teenId === data.teenDeactivated
                   }
                   handleRef={paneHandle}
+                  /** ═══ THE FLAG PATH — AND IT IS ONLY THE FLAG PATH NOW ═══
+                   *  It had an `else` arm for practice events, which is why the
+                   *  pane had to hand a CLINICAL-shaped detail for an event that
+                   *  has no clinical disposition. `onResolvePractice` below took
+                   *  that arm, so the two subjects no longer share a handler that
+                   *  only one of them fits.
+                   *  `e.flag` STAYS AS THE GUARD rather than becoming an
+                   *  assertion: the pane routes by SUBJECT and this reads the
+                   *  payload, so the two agreeing is worth keeping checkable
+                   *  rather than assumed. */
                   onResolve={(e, detail) => {
+                    if (!e.flag) return;
                     credit(e.teenId, "event-review");
-                    if (e.flag) {
-                      /* THE LEDGER PATH, UNCHANGED. The disposition and the
-                         optional accuracy answer both travel as detail. */
-                      resolve(e.flag, {
-                        disposition: detail.disposition.id,
-                        classifierAccuracy: detail.accuracy,
-                      });
-                    } else {
-                      /* ═══ BLOCKER: NO LEDGER EVENT TYPE FOR MENTOR PRACTICE ═══
-                         `buildResolveEvent` maps a task DOMAIN to an activity
-                         event type, and mentor practice is not a domain. So a
-                         practice event closes locally with no ledger write, and
-                         that gap is reported rather than papered over with a
-                         flag-shaped event that would file a teen-safety record
-                         for a mentor's late note. */
-                      setResolvedIds((prev) => new Set(prev).add(e.id));
-                    }
+                    /* THE LEDGER PATH, UNCHANGED. The disposition and the
+                       optional accuracy answer both travel as detail. */
+                    resolve(e.flag, {
+                      disposition: detail.disposition.id,
+                      classifierAccuracy: detail.accuracy,
+                    });
+                  }}
+                  /** ═══ THE PRACTICE PATH, NAMED AND STILL LEDGER-LESS ═══
+                   *  It was the `else` arm of `onResolve`, which is why the pane
+                   *  had to hand a clinical-shaped detail for an event that has
+                   *  none. Its own handler now, and the blocker it carries is
+                   *  unchanged and stated: `buildResolveEvent` maps a task
+                   *  DOMAIN to an activity event type, and mentor practice is not
+                   *  a domain — so this closes locally and writes no ledger
+                   *  event. Papering over it with a flag-shaped event would file
+                   *  a teen-safety record for a mentor's late note. Gap row 436.
+                   *  NO COVERAGE CREDIT EITHER: coverage counts conversations a
+                   *  supervisor has looked at, and a practice breach is about a
+                   *  mentor's timing, not about having read a teen's thread. */
+                  onResolvePractice={(e) => {
+                    setResolvedIds((prev) => new Set(prev).add(e.id));
                   }}
                   onEscalate={(e) => {
                     /* ═══ THE FLAG BECOMES AN ESCALATION RECORD ═══
