@@ -1,68 +1,42 @@
 "use client";
 
-// /app/home — a static route, so it wins over /app/[section].
+// /app/home — RETIRED. Work moved to the three destinations and orientation moved to `Today`, so this route has nothing left to be.
 //
-// SUPERVISOR TIER ONLY. Every other persona gets what `/app/[section]` would
-// have rendered, reproduced here: a static route shadows the dynamic one for
-// EVERYBODY, and a mentor following a stale link to a blank shell would be a
-// regression for them dressed up as a feature for someone else.
+// The mapping is `retiredRouteTarget` (`lib/ia/retired-routes.ts`), unit-tested
+// there and opened in a browser by this phase's probe — a URL assertion cannot
+// tell a live destination from a dead one, which the previous restructure
+// learned the expensive way.
 //
-// ═══ THE SHELL IS THE FIX arch-C INHERITED ═══
-//
-// `/app/[section]` hardcodes `MentorShell`, so before this route a supervisor's
-// Home sat inside a nav landmark announced as "Mentor navigation" — measured on
-// all four personas. The comment at that placeholder says `/app/home` exists
-// precisely so staff are not handed "a mentor's home in a mentor's chrome"; the
-// URL moved and the chrome did not. `AdminShell` is what closes that.
+// THE FILE IS NOT DELETED. The strangler rule this codebase follows keeps a
+// retired route until every link to it is gone, and a 404 under a bookmark is
+// worse than a hop.
 //
 // STANDING NEXT-16 RULES: no page-root <Suspense>, the use(searchParams) prop
-// pattern rather than useSearchParams, and every store read behind useMounted.
-// These three fail with ZERO console output, so they are followed by
-// pattern-match against the existing pages rather than by reasoning.
+// pattern rather than useSearchParams.
 
 import { use } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
-import { HomePage } from "@/components/home/home-page";
-import { useOnboardingStore } from "@/lib/onboarding/store";
-import { isSupervisorTier } from "@/lib/record/permission-map";
-import { useMounted } from "@/lib/use-mounted";
+import { RetiredRoute } from "@/components/ia/retired-route";
+import { retiredRouteTarget } from "@/lib/ia/retired-routes";
 
 export default function HomeRoute({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  void use(searchParams);
-  const mounted = useMounted();
-  const persona = useOnboardingStore((s) => s.persona);
-
-  // GATED BEHIND `mounted`: persona lives in persisted state, so branching on it
-  // before hydration renders the placeholder for one frame and then swaps — a
-  // mismatch that produces no error at all.
-  const supervisor = mounted && isSupervisorTier(persona);
-
-  if (supervisor) {
-    return (
-      <AdminShell active="home">
-        <HomePage />
-      </AdminShell>
-    );
-  }
-
-  // THE EXISTING EXPERIENCE, UNCHANGED. Copy and structure lifted from
-  // /app/[section]/page.tsx's placeholder so the two are indistinguishable.
+  const query = use(searchParams);
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  const target = retiredRouteTarget("home", {
+    band: str(query.band),
+    region: str(query.region),
+    escalation: str(query.escalation),
+    queue: str(query.queue),
+  });
   return (
-    <MentorShell active="home">
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-        <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-          Home
-        </h1>
-        <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          Nothing here yet. When there&apos;s something new, it&apos;ll show up
-          here.
-        </p>
-      </div>
-    </MentorShell>
+    <RetiredRoute
+      target={target}
+      destinationLabel="Today"
+      fallbackTitle="Home"
+      fallbackActive="home"
+    />
   );
 }

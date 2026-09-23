@@ -11,10 +11,15 @@
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import {
+  NAV,
   barItems,
   hrefFor as navHrefFor,
+  railGroups,
   railItems,
 } from "@/components/settings/nav-items";
+import { RailFooterItem } from "@/components/app-shell/grouped-rail";
+import { DESTINATION_TYPES } from "@/lib/ia/destinations";
+import { homeObligations } from "@/lib/home/obligations";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { tasksScenario } from "@/lib/tasks/seed";
@@ -134,9 +139,50 @@ export function AdminShell({
     [scenarioItems, badgeNow]
   );
 
+  /** ═══ THE DESTINATION BADGES (supervisor IA restructure, Phase 1) ═══
+   *
+   *  One per destination, each counting what THAT destination holds — which is a
+   *  different kind of thing per badge, and the reason `badgeStyleFor` gives each
+   *  one a shape as well as a tone:
+   *
+   *   · ESCALATIONS counts live escalations. An obligation against a
+   *     five-minute clock, so red and bare.
+   *   · RISK FLAGS counts open flags. Volume with no deadline — amber, and
+   *     deliberately not a breach count, because no flag deadline is published.
+   *   · CARE REVIEWS counts what is DUE. The only destination with a real
+   *     published SLA, so the only one that earns a clock.
+   *   · TODAY counts the time-critical set only, and nothing when it is empty.
+   *
+   *  ZERO HIDES EVERY ONE OF THEM. The shared `count > 0` gate is what makes a
+   *  lit badge mean something — see `homeObligations` for the measurement that
+   *  argument rests on. */
+  const owed = useMemo(
+    () => homeObligations(scenarioItems, badgeNow),
+    [scenarioItems, badgeNow]
+  );
+  const openBy = useMemo(() => {
+    const count = (id: keyof typeof DESTINATION_TYPES) =>
+      openTasks(scenarioItems).filter((i) =>
+        DESTINATION_TYPES[id].includes(i.taskType)
+      ).length;
+    return {
+      escalations: openTasks(scenarioItems).filter(
+        (i) => i.taskType === "activeEscalation"
+      ).length,
+      "risk-flags": count("risk-flags"),
+      "care-reviews": count("care-reviews"),
+    };
+  }, [scenarioItems]);
+
   const badges = {
     activity: 4,
     ...(billingOpen > 0 ? { tasks: billingOpen } : {}),
+    ...(owed.total > 0 ? { today: owed.total } : {}),
+    ...(openBy.escalations > 0 ? { escalations: openBy.escalations } : {}),
+    ...(openBy["risk-flags"] > 0 ? { "risk-flags": openBy["risk-flags"] } : {}),
+    ...(openBy["care-reviews"] > 0
+      ? { "care-reviews": openBy["care-reviews"] }
+      : {}),
     // ZERO HIDES IT, and here that is right rather than a compromise: nothing
     // owed is the resting state of a vigilance surface, and the shared rail's
     // `badge > 0` gate says so for free. Contrast the Tasks badge, where zero is
@@ -158,6 +204,20 @@ export function AdminShell({
     <AppShell
       activeId={active}
       railItems={railItems(persona)}
+      /* SUPERVISOR ONLY — `railGroups` returns one unlabelled group for every
+         other persona, and `AppShell` renders the icon rail when the prop is
+         absent. Passing it unconditionally would put the grouped rail on the
+         ADMIN persona too, whose rail this pass does not touch. */
+      railGroups={persona === "supervisor" ? railGroups(persona) : undefined}
+      /* THE FOOTER IS ONE INERT ROW. `Announcements` is in the target nav with
+         no brief and no route — see `NAV.announcements`. `Dark mode off` is in
+         the target nav too and is NOT here: light is forced and both controls
+         are gone. */
+      railFooter={
+        persona === "supervisor" ? (
+          <RailFooterItem item={NAV.announcements} />
+        ) : undefined
+      }
       barItems={barItems(persona)}
       navLabel="Supervisor sections"
       avatarInitial={avatarInitial}

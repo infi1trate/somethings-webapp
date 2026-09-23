@@ -1,103 +1,72 @@
 "use client";
 
-// Appearance/theme control. Wires the EXISTING theme system — the `.dark`
-// Tailwind variant + the light/dark token blocks in globals.css — via a
-// self-contained module store rather than a root next-themes provider, so no
-// layout.tsx edit is needed. The choice persists in its own localStorage key
-// (no store version bump), and "System" follows prefers-color-scheme live.
+// ═══════════════════════════════════════════════════════════════════════════
+// APPEARANCE — LIGHT, FORCED, AND THE PLUMBING LEFT STANDING
 //
-// settings-04: this is now a SHARED store (useSyncExternalStore over a
-// module-level value + listener set), so every consumer — the Appearance
-// section's segmented control AND the sidebar account popover's quick toggle —
-// reflects one another in real time. That two-way sync is what design-system-
-// gaps.md #98 deferred here. Cross-tab and OS-preference changes propagate too.
+// This was a real three-way control (light / dark / system) with `"system"` as
+// its default, a blocking script in `layout.tsx` that read
+// `prefers-color-scheme` before hydration, a segmented control in Settings and a
+// quick toggle in the account popover. It worked.
+//
+// ═══ WHY IT IS OFF, AND WHY THAT IS NOT A STYLE PREFERENCE ═══
+//
+// A `"system"` default means any supervisor whose OS is in dark mode got an
+// INVERTED CLINICAL SURFACE, automatically, with no action and no way to know it
+// had happened — on the surface where a missed flag has the highest cost. The
+// dark tokens carry measured contrast ratios in `settings-tokens.css`, so they
+// are not arbitrary; what was never done is testing the SURFACES in dark. A
+// theme nobody audited, shipped by default to a subset of users nobody can
+// identify, is a live accessibility risk rather than a constraint violation.
+//
+// ═══ WHAT IS REMOVED, AND WHAT IS DELIBERATELY NOT ═══
+//
+// REMOVED: the two controls (Settings' segmented control, the account popover's
+// quick toggle) and the pre-hydration script that applied the OS preference.
+//
+// NOT REMOVED: the `.dark` token blocks, the `@custom-variant dark` declaration,
+// and this module's API. Ripping out theme infrastructure is a larger change
+// than this pass, and reversing the decision later should stay cheap — one
+// constant here and two controls back. MEASURED before deciding it was safe to
+// leave: ZERO dark-only tokens across both CSS files (142 light / 91 dark in
+// `settings-tokens.css`, 95 / 19 in `globals.css`), so nothing in the product
+// resolves correctly only under dark tokens and forcing light cannot leave
+// anything unresolved.
+//
+// `useAppearance` KEEPS ITS SHAPE so `ui/sonner.tsx` compiles unchanged and
+// reads `"light"` for its toasts. `setTheme` is a no-op that says so.
+// ═══════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { useMounted } from "@/lib/use-mounted";
 
 export type ThemeChoice = "light" | "dark" | "system";
-const KEY = "somethings.theme";
 
-// Module singleton — the one source of truth every hook instance reads.
-let current: ThemeChoice | null = null;
-const listeners = new Set<() => void>();
-
-function read(): ThemeChoice {
-  if (current !== null) return current;
-  current =
-    typeof localStorage === "undefined"
-      ? "system"
-      : ((localStorage.getItem(KEY) as ThemeChoice | null) ?? "system");
-  return current;
-}
-
-function prefersDark() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
-}
-
-function applyTheme(choice: ThemeChoice) {
-  if (typeof document === "undefined") return;
-  const dark = choice === "dark" || (choice === "system" && prefersDark());
-  document.documentElement.classList.toggle("dark", dark);
-}
-
-function setThemeGlobal(choice: ThemeChoice) {
-  current = choice;
-  if (typeof localStorage !== "undefined") localStorage.setItem(KEY, choice);
-  applyTheme(choice);
-  listeners.forEach((l) => l());
-}
-
-// One subscription per mounted consumer: React re-renders it on any theme
-// change, and we also keep the class in sync with OS changes (while "system")
-// and cross-tab writes.
-function subscribe(onChange: () => void) {
-  listeners.add(onChange);
-  const mq =
-    typeof window !== "undefined"
-      ? window.matchMedia("(prefers-color-scheme: dark)")
-      : null;
-  const onMedia = () => {
-    if (read() === "system") {
-      applyTheme("system");
-      onChange();
-    }
-  };
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) {
-      current = (e.newValue as ThemeChoice | null) ?? "system";
-      applyTheme(current);
-      onChange();
-    }
-  };
-  mq?.addEventListener?.("change", onMedia);
-  window?.addEventListener?.("storage", onStorage);
-  return () => {
-    listeners.delete(onChange);
-    mq?.removeEventListener?.("change", onMedia);
-    window?.removeEventListener?.("storage", onStorage);
-  };
-}
-
-const getSnapshot = () => read();
-const getServerSnapshot = (): ThemeChoice => "system";
+/** THE ONE LEVER. Flip this and restore the two controls to bring the choice
+ *  back; nothing else about the token system changed. */
+export const THEME_FORCED: ThemeChoice = "light";
 
 export function useAppearance() {
-  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const mounted = useMounted();
 
-  // Keep the `.dark` class in sync with the current choice on mount (SSR paints
-  // no class) and whenever it changes. Idempotent across consumers.
+  /** ═══ BELT AND BRACES, AND THE BRACES ARE THE POINT ═══
+   *  `layout.tsx` no longer applies `.dark`, so in a clean session nothing adds
+   *  it. This strips it anyway: a browser that visited an earlier build has a
+   *  `somethings.theme` value in localStorage and — more to the point — may have
+   *  the class already on `<html>` from a cached document. One line, and it
+   *  cannot be the thing that ships an inverted clinical surface. */
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
-
-  const setTheme = useCallback((choice: ThemeChoice) => {
-    setThemeGlobal(choice);
+    document.documentElement.classList.remove("dark");
   }, []);
 
-  return { theme, setTheme, mounted };
+  return {
+    theme: THEME_FORCED,
+    /** A NO-OP, NOT AN ABSENT FUNCTION. Keeping the signature means a caller
+     *  that still asks for a theme change compiles and does nothing visible,
+     *  rather than the build breaking somewhere unrelated — and the two callers
+     *  that used to exist are removed in the same commit, so today there are
+     *  none. */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setTheme: (_choice: ThemeChoice) => {},
+    mounted,
+  };
 }

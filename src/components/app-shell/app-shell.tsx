@@ -41,6 +41,8 @@ import {
   SettingsSidebar,
   type SidebarItemDef,
 } from "@/components/settings/sidebar";
+import { GroupedRail } from "@/components/app-shell/grouped-rail";
+import type { NavGroup } from "@/components/settings/nav-items";
 import { BottomNav } from "@/components/app-shell/bottom-nav";
 import { TopBar } from "@/components/app-shell/top-bar";
 import { usePathname } from "next/navigation";
@@ -49,6 +51,8 @@ import { cn } from "@/lib/utils";
 export function AppShell({
   activeId,
   railItems,
+  railGroups,
+  railFooter,
   barItems,
   navLabel,
   badges,
@@ -70,6 +74,15 @@ export function AppShell({
    *  Activity move to the top-bar bell and Team fold into People without
    *  touching the desktop rail. Both come from `nav-items.ts`. */
   railItems: SidebarItemDef[];
+  /** ═══ THE GROUPED RAIL, WHEN A CALLER HAS ONE (supervisor IA restructure) ═══
+   *  Present only for the supervisor. When it is here the shell renders
+   *  `GroupedRail` and `railItems` is unused; when it is absent nothing about
+   *  the icon rail's code path changes, which is what keeps the mentor, lead and
+   *  admin rails byte-identical while their own pass has not happened. */
+  railGroups?: NavGroup[];
+  /** Pinned below the grouped rail's nav. Ignored by the icon rail, which has
+   *  no room for it. */
+  railFooter?: React.ReactNode;
   barItems: SidebarItemDef[];
   navLabel: string;
   badges?: Record<string, number>;
@@ -155,17 +168,31 @@ export function AppShell({
     >
       {/* THE RAIL — `md` and up only. Unchanged visually; it now takes `hrefFor`
           so its items are links. */}
-      <SettingsSidebar
-        activeId={activeId}
-        items={railItems}
-        navLabel={navLabel}
-        avatarInitial={avatarInitial}
-        avatarSrc={avatarSrc}
-        badges={badges}
-        hrefFor={hrefFor}
-        onSelect={onSelect}
-        className="hidden shrink-0 overflow-y-auto md:flex"
-      />
+      {railGroups ? (
+        <GroupedRail
+          activeId={activeId}
+          groups={railGroups}
+          navLabel={navLabel}
+          avatarInitial={avatarInitial}
+          avatarSrc={avatarSrc}
+          badges={badges}
+          hrefFor={hrefFor}
+          footer={railFooter}
+          className="hidden shrink-0 md:flex"
+        />
+      ) : (
+        <SettingsSidebar
+          activeId={activeId}
+          items={railItems}
+          navLabel={navLabel}
+          avatarInitial={avatarInitial}
+          avatarSrc={avatarSrc}
+          badges={badges}
+          hrefFor={hrefFor}
+          onSelect={onSelect}
+          className="hidden shrink-0 overflow-y-auto md:flex"
+        />
+      )}
 
       {/* ═══ THE MOBILE COLUMN: top bar, then the panel ═══
           

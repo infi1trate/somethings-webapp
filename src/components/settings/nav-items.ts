@@ -48,10 +48,17 @@
 
 import {
   Bell,
+  CalendarDays,
+  FileText,
+  Flag,
   Home,
   ListChecks,
+  Megaphone,
   MessageCircle,
+  MessagesSquare,
   Radar,
+  ShieldAlert,
+  UserCog,
   Users,
   UsersRound,
 } from "lucide-react";
@@ -98,7 +105,107 @@ export const NAV = {
    *  identically to the other three cells: no chevron, no disclosure affordance.
    *  The design's own grammar says destination. */
   people: { id: "people", label: "People", icon: Users },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE SUPERVISOR'S DESTINATIONS (supervisor IA restructure, Phase 1)
+  //
+  // Home absorbed Monitoring and Tasks and became the place work LIVES rather
+  // than the place work is oriented. These are where the work goes, and `Today`
+  // is what is left when you take the work out of it.
+  //
+  // `Tasks` AND `Monitoring` ARE NOT HERE. Work is owned by three destinations;
+  // "task" survives as an object noun only, and Monitoring is a GROUP LABEL — a
+  // category of destinations, not a destination. Both entries above are kept
+  // for the other personas, who still have a Tasks item pointing where it
+  // always pointed.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** ORIENTATION ONLY. It mirrors; it never contains — see the mirror rule. */
+  today: { id: "today", label: "Today", icon: CalendarDays },
+  escalations: { id: "escalations", label: "Escalations", icon: ShieldAlert },
+  /** ONE destination, no tiers. The three-way split was a severity taxonomy
+   *  this system stamped onto individual flags without computing it. */
+  riskFlags: { id: "risk-flags", label: "Risk Flags", icon: Flag },
+  /** THE MENTOR'S PRACTICE, not the teen's safety. Same event primitive, a
+   *  different review subject and a different disposition meaning — which is
+   *  why it is a destination rather than a second tab inside Risk Flags. */
+  mentorPractice: {
+    id: "mentor-practice",
+    label: "Mentor Practice",
+    icon: UserCog,
+  },
+  /** ═══ THE NAME IS BLOCKED ON NICOLE, AND THE ROUTE IS NOT ═══
+   *  `chat`, `messages` and every messaging synonym are prohibited site-wide —
+   *  visible copy, aria labels, alt text, component names. The Figma mockup
+   *  nests `Chat` under Monitoring, where it is the COVERAGE surface, and
+   *  `Conversations` is arguably the same violation: the surface is named for
+   *  the medium when its object is the supervised mentor-mentee relationship.
+   *  Candidates with Nicole, in order of preference: Mentorships (names the
+   *  object) · Coverage (names the work) · Pairs (names the unit).
+   *  The ROUTE is `/app/coverage` and does not wait for her. */
+  coverage: {
+    id: "coverage",
+    // NEEDS-COPY-NICOLE — see above. Placeholder names the work.
+    label: "Coverage",
+    icon: MessagesSquare,
+  },
+  /** `Care review`, not `Billing code review`. The work is clinical
+   *  presentation review that produces a billing artifact, not code entry — and
+   *  it moves billing off the safety surface, which was the naming pass's own
+   *  resolution. */
+  careReviews: { id: "care-reviews", label: "Care Reviews", icon: FileText },
+  /** ═══ IN THE TARGET NAV, AND WITH NO BRIEF ═══
+   *  The rail's footer shows `Announcements` below every group. It appears in no
+   *  distribution row, no destination brief and no blocked-copy list, so there
+   *  is nothing to say about what it holds — and `/app/announcements` does not
+   *  exist. It renders as an INERT row rather than an anchor, on the rail's own
+   *  rule that a link to nowhere looks like it will work and is therefore worse
+   *  than a row that plainly does not. Reported as needing a brief. */
+  announcements: {
+    id: "announcements",
+    label: "Announcements",
+    icon: Megaphone,
+  },
 } as const satisfies Record<string, SidebarItemDef>;
+
+/** ═══ THE BADGE TAXONOMY — SHAPE CARRIES THE OBLIGATION TYPE ═══
+ *
+ *  The mockup got this accidentally right and it is worth writing down as a
+ *  rule rather than leaving as a coincidence: colour is never the sole carrier
+ *  (SC 1.4.1), so the badge's SHAPE says what kind of obligation it is.
+ *
+ *   · `count`      red      — an escalation. An unacknowledged obligation
+ *                             against a five-minute clock.
+ *   · `count`      amber    — risk flags. Volume, and no deadline exists.
+ *   · `clockCount` neutral  — Care Reviews. The ONLY destination with a real
+ *                             published deadline, so the only one that earns a
+ *                             clock.
+ *
+ *  AND `Today` HAS NO VARIANT HERE, deliberately. The mockup shows 30, which is
+ *  2 + 20 + 8: it double-counts every child badge, sums incommensurate units,
+ *  and renders coverage work as a thirty-item inbox — the exact framing this
+ *  restructure exists to escape. Today's badge counts the TIME-CRITICAL set
+ *  only and renders nothing when that set is empty; see `homeObligations`. */
+export type BadgeShape = "count" | "clockCount";
+
+export interface BadgeStyle {
+  shape: BadgeShape;
+  tone: "alarm" | "attention" | "neutral";
+}
+
+export const BADGE_STYLE: Record<string, BadgeStyle> = {
+  escalations: { shape: "count", tone: "alarm" },
+  "risk-flags": { shape: "count", tone: "attention" },
+  "care-reviews": { shape: "clockCount", tone: "neutral" },
+  /* Today's is the time-critical count. Alarm tone because every member of that
+     set is either an unacknowledged escalation or something already breached —
+     there is no non-urgent way for this badge to be non-zero. */
+  today: { shape: "count", tone: "alarm" },
+};
+
+export function badgeStyleFor(itemId: string): BadgeStyle {
+  return BADGE_STYLE[itemId] ?? { shape: "count", tone: "neutral" };
+}
 
 /** ═══ WHAT A BADGE COUNTS DEPENDS ON THE DESTINATION (arch-A) ═══
  *
@@ -114,6 +221,16 @@ export const NAV = {
 const BADGE_NOUN: Record<string, string> = {
   /* TODO-COPY — both placeholders pending Nicole. */
   tasks: "open",
+  /* NEEDS-COPY-NICOLE, all four. Each noun names what the number COUNTS, which
+     is a different thing per destination and the reason a shared "unread" was
+     wrong: an escalation badge counts obligations against a clock, a risk-flag
+     badge counts volume with no deadline, and Today counts only what is
+     already late or already unacknowledged. */
+  escalations: "needing a response",
+  "risk-flags": "open",
+  "mentor-practice": "open",
+  "care-reviews": "due",
+  today: "needing attention now",
   /* NOT "open" — Monitoring's badge counts what is OWED, not what is open, and
    *  the two differ by two orders of magnitude on this surface. See
    *  `monitoringObligations`. */
@@ -149,6 +266,88 @@ export function railItems(persona: Persona): SidebarItemDef[] {
   return persona === "lead-mentor"
     ? base.filter((i) => i.id !== NAV.mentees.id)
     : base;
+}
+
+/** ═══ THE GROUPED RAIL (supervisor IA restructure, Phase 1) ═══
+ *
+ *  The supervisor's rail gains GROUP LABELS, because it gained destinations: one
+ *  flat list of nine items is a list a reader scans linearly every time, and the
+ *  three groups answer three different questions —
+ *
+ *    MONITORING  what is happening now, that I judge
+ *    CASEWORK    what I owe, that has a deadline
+ *    DIRECTORY   who the people are
+ *
+ *  `Today` IS OUTSIDE EVERY GROUP AND FIRST. It is not a peer of the
+ *  destinations: it mirrors them. A group label over it would make it a fourth
+ *  category of work, which is the collapse this restructure is undoing.
+ *
+ *  ═══ ACTIVITY IS UNDER MONITORING, ON INSTRUCTION, AND THE OBJECTION IS KEPT ═══
+ *
+ *  Activity is a retrospective LEDGER — a self-audit of what was closed.
+ *  Monitoring is present-tense vigilance. Grouping them teaches the reader that
+ *  the label means "things about events" rather than "things I watch now", which
+ *  is the distinction that makes a group label earn its place at all. The
+ *  product owner took the Figma mockup as the target and this is a one-line
+ *  change to revisit, so it is built where the mockup puts it and the reasoning
+ *  is recorded rather than discarded.
+ *
+ *  ═══ EVERY OTHER PERSONA GETS ONE UNGROUPED GROUP ═══
+ *
+ *  Mentor, lead-mentor and admin rails are OUT OF SCOPE this pass, so they
+ *  resolve to a single group with no label holding exactly `railItems(persona)`.
+ *  Byte-identical rendering, one code path. */
+export interface NavGroup {
+  /** Null for the ungrouped leading group — `Today`, and every other persona's
+   *  whole rail. A null id is not collapsible and renders no label. */
+  id: string | null;
+  label: string | null;
+  items: SidebarItemDef[];
+}
+
+export function railGroups(persona: Persona): NavGroup[] {
+  const supervisorTier = isStaff(persona) && persona !== "lead-mentor";
+  /* ADMIN KEEPS THE FLAT RAIL TOO. `isStaff` is true for admin, and §11 puts
+     the admin rail out of scope — so the grouped rail is gated on the
+     supervisor persona alone rather than on the tier. */
+  if (persona !== "supervisor") {
+    void supervisorTier;
+    return [{ id: null, label: null, items: railItems(persona) }];
+  }
+  return [
+    { id: null, label: null, items: [NAV.today] },
+    {
+      id: "monitoring",
+      // NEEDS-COPY-NICOLE. A category of destinations, never a destination.
+      label: "Monitoring",
+      items: [
+        NAV.escalations,
+        NAV.riskFlags,
+        /* BELOW RISK FLAGS, per the target nav. The three judgment destinations
+           sit together and the two reading surfaces follow them. */
+        NAV.mentorPractice,
+        NAV.coverage,
+        NAV.activity,
+      ],
+    },
+    {
+      id: "casework",
+      /* ═══ NEEDS-COPY-NICOLE, AND THE NAME IS A KNOWN PROBLEM ═══
+         `caseload` is on the prohibited list and `casework` reads as the same
+         family. The group ships anyway, on instruction, with one child — a
+         label over a single item is chrome, and the argument for keeping it is
+         that the second child is coming rather than that one child needs a
+         heading. */
+      label: "Casework",
+      items: [NAV.careReviews],
+    },
+    {
+      id: "directory",
+      // NEEDS-COPY-NICOLE
+      label: "Directory",
+      items: [NAV.mentees, NAV.team],
+    },
+  ];
 }
 
 /** THE BOTTOM BAR, below the tablet breakpoint. FOUR ITEMS, NO OVERFLOW.
@@ -188,7 +387,21 @@ export function barItems(persona: Persona): SidebarItemDef[] {
  *  sending staff there would hand them a mentor's home in a mentor's chrome.
  *  They get `/app/home`, which the section placeholder now serves. */
 export function hrefFor(persona: Persona, id: string): string {
-  if (id === NAV.home.id) return isStaff(persona) ? "/app/home" : "/app";
+  /** ═══ A SUPERVISOR'S `home` IS `Today` NOW (supervisor IA restructure) ═══
+   *
+   *  `/app/home` still resolves — it redirects — so this is not about
+   *  correctness, it is about not spending a navigation on a hop. The
+   *  supervisor's RAIL has no `home` item at all; what still asks for one is
+   *  the mobile BAR, whose four cells are out of scope this pass.
+   *
+   *  ADMIN AND LEAD KEEP `/app/home`, and take the hop. Their rails are
+   *  explicitly unchanged here, so their items are left pointing exactly where
+   *  they pointed and the redirect does the work — see the phase report for the
+   *  stale-label cost that leaves on the admin rail. */
+  if (id === NAV.home.id) {
+    if (persona === "supervisor") return "/app/today";
+    return isStaff(persona) ? "/app/home" : "/app";
+  }
   return `/app/${id}`;
 }
 

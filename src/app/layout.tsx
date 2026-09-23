@@ -52,14 +52,19 @@ export const metadata: Metadata = {
 // a second symptom of a mismatch somewhere else in the tree, and the fix is
 // there rather than here.
 //
-// Measured, not reasoned about: `dev-bar.tsx` seeded state from
-// `window.location.search` in a lazy initialiser, which never runs during SSR
-// but does run on the client's FIRST render — the one React compares against
-// the server's HTML. Every URL carrying `?scenario=…` failed hydration, React
-// regenerated the tree, the regeneration re-rendered this script element, and
-// the notice appeared pointing at this file. Gating that component on `mounted`
-// removed BOTH, on the same URL, on the same dev server.
-const THEME_SCRIPT = `(function(){try{var c=localStorage.getItem("somethings.theme")||"system";var d=c==="dark"||(c==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})();`;
+// ═══ THE PRE-HYDRATION THEME SCRIPT IS GONE (supervisor IA restructure) ═══
+//
+// It read `localStorage["somethings.theme"]`, defaulted to `"system"`, and
+// toggled `.dark` on `<html>` before React hydrated. That default is what
+// handed an inverted clinical surface to every supervisor on a dark OS, so the
+// script's whole job is a decision that has been reversed — see
+// `lib/use-appearance.ts` for the reasoning and for what was deliberately left
+// standing.
+//
+// `suppressHydrationWarning` STAYS on `<html>`. It is harmless with no script
+// mutating the class, and `useAppearance`'s effect still strips a `.dark` that a
+// cached document may carry — which is a client-only write and exactly the kind
+// of thing the attribute exists for.
 
 export default function RootLayout({
   children,
@@ -70,13 +75,11 @@ export default function RootLayout({
     <html
       lang="en"
       // The script above mutates <html>'s class before React hydrates, which
-      // would otherwise be reported as a hydration mismatch.
+      // `useAppearance`'s effect strips a `.dark` a cached document may carry,
+      // which is a client-only write on <html>.
       suppressHydrationWarning
       className={`${lausanne.variable} ${avantt.variable} h-full antialiased`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-      </head>
       {/* THE BAR'S HEIGHT AS BOTTOM PADDING, so the strip does NOT overlay the
           product. Three floating dev docks used to sit on top of the UI at
           different corners, each dodging the last; one bar with the page padded
