@@ -112,6 +112,17 @@ export function clockFor(item: TaskItem, now: number): EscalationClock {
   if (item.taskType === "activeEscalation") {
     return { kind: "elapsed", at: item.openedAt };
   }
+  /* ═══ NO DEADLINE, SO THE CLOCK COUNTS UP FROM THE START (Phase 4) ═══
+     Both escalation types have published clocks, so this is unreachable today —
+     but an "elapsed" fallback is the only honest one: a `remaining` or `over`
+     clock is a claim about a deadline, and there isn't one. Counting up from
+     `openedAt` states how long the thing has been open, which is always true.
+     THE ALTERNATIVE WOULD HAVE BEEN SILENT: `null > now` is `false`, so without
+     this the function returned `{ kind: "over", at: null }` and the renderer
+     printed an age measured from the epoch. */
+  if (item.slaDeadline == null) {
+    return { kind: "elapsed", at: item.openedAt };
+  }
   return item.slaDeadline > now
     ? { kind: "remaining", at: item.slaDeadline }
     : { kind: "over", at: item.slaDeadline };

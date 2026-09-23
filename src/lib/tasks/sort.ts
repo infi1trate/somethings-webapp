@@ -29,7 +29,7 @@ import { TASK_DOMAINS, isActiveEscalation, isBreached, slaRemaining, type TaskDo
  *
  *    isActiveEscalation DESC   an active escalation outranks everything
  *    isBreached         DESC   then anything past its SLA
- *    tierRank           ASC    then the tier ladder
+ *    urgencyRank        ASC    then the task type's urgency
  *    slaRemaining       ASC    then whatever runs out soonest
  *    openedAt           ASC    stable tiebreak
  *
@@ -54,7 +54,7 @@ export function compareTasks(a: TaskItem, b: TaskItem, now: number): number {
   if (brA !== brB) return brB - brA;
 
   // 3 · Tier ladder.
-  if (a.tierRank !== b.tierRank) return a.tierRank - b.tierRank;
+  if (a.urgencyRank !== b.urgencyRank) return a.urgencyRank - b.urgencyRank;
 
   // 4 · Soonest deadline. For two breached items this puts the MOST overdue
   //     first, because `slaRemaining` is negative and more negative is smaller.
@@ -136,8 +136,15 @@ export function domainSummaries(items: TaskItem[], now: number): DomainSummary[]
       domain,
       openCount: mine.length,
       breachedCount: breached.length,
+      /* `isBreached` ALREADY EXCLUDED THE NULLS — it returns false without a
+         deadline — so this map only ever sees real ones. The assertion is here
+         rather than a `!`: a non-null cast would keep compiling if that
+         predicate ever loosened, and `NaN` in a `Math.max` propagates silently
+         to the whole result. */
       worstBreachMs: breached.length
-        ? Math.max(...breached.map((i) => now - i.slaDeadline))
+        ? Math.max(
+            ...breached.map((i) => now - (i.slaDeadline as number))
+          )
         : null,
     };
   });

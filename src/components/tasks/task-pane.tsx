@@ -61,7 +61,6 @@ import {
   type RiskFlagPayload,
   type TaskItem,
 } from "@/lib/tasks/types";
-import { tierLabel } from "@/lib/tasks/bands";
 import { isEscalationTask } from "@/lib/tasks/escalation-state";
 import { dispositionDetail, dispositionFor } from "@/lib/tasks/disposition";
 import {
@@ -776,14 +775,16 @@ export function TaskPane({
             {isEscalationTask(item) && <EscalationCtas item={item} />}
           </div>
         </div>
-        {/* THE TIER, HEADER ONLY (§5) — risk flags do not reach this surface
-            today, and the line is derived rather than deleted so it cannot come
-            back wrong with the row type. */}
-        {p.kind === "riskFlag" && (
-          <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-            {tierLabel(p.tier)}
-          </p>
-        )}
+        {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══
+            It rendered `tierLabel(p.tier)` under a flag's header — the per-flag
+            severity, stated to a reader as fact. The payload has no tier and
+            there is no label table to read one from.
+            NOTHING REPLACES IT HERE. A flag's playbook tier is derivable from its
+            category (`tierOf`), but this pane is Care Reviews' and flags do not
+            reach it; adding a derived line to a surface that renders no flags
+            would be inventing a consumer for the derivation. The Risk Flags pane
+            is where a category — and, if it earns it, its playbook grouping —
+            belongs, and that is Phase 5's. */}
       </div>
 
       {/* ── BODY, scrolls independently ─────────────────────────────────── */}

@@ -20,7 +20,7 @@ import { TASK_SLA_MS, deadlineFor } from "@/lib/tasks/sla";
 import {
   DOMAIN_OF_TYPE,
   TASK_DOMAINS,
-  TIER_RANK,
+  TYPE_URGENCY_RANK,
   isBreached,
   type TaskItem,
 } from "@/lib/tasks/types";
@@ -169,13 +169,28 @@ describe("§2.1 / §2.3 — deadlines and breach", () => {
     }
   });
 
-  it("breach is derived, and the breach-overnight scenario is entirely breached", () => {
+  /* ═══ RETARGETED — "ENTIRELY" STOPPED BEING REACHABLE (Phase 4) ═══
+     A flag has no published review deadline, so a scenario cannot put every item
+     past one. The scenario's own description narrowed with it, from "Everything
+     past its SLA" to "Every deadline past its SLA".
+     STRICTER, NOT LOOSER: the old form was one universal quantifier. This
+     asserts BOTH halves — every deadline-bearing item breached, and every flag
+     not — so a fixture that quietly stopped containing flags, or one that
+     re-acquired a flag deadline, both fail. */
+  it("breaches every deadline in breach-overnight, and no flag", () => {
     const items = tasksScenario("breach-overnight", NOW).filter(
       (i) => i.status !== "resolved"
     );
-    expect(items.length).toBeGreaterThan(0);
-    for (const it of items) {
+    const withDeadline = items.filter((i) => i.slaDeadline != null);
+    const flags = items.filter((i) => i.payload.kind === "riskFlag");
+    expect(withDeadline.length).toBeGreaterThan(0);
+    expect(flags.length).toBeGreaterThan(0);
+    for (const it of withDeadline) {
       expect(isBreached(it, NOW), `${it.id} should be breached`).toBe(true);
+    }
+    for (const it of flags) {
+      expect(it.slaDeadline, `${it.id} deadline`).toBeNull();
+      expect(isBreached(it, NOW), `${it.id} must not breach`).toBe(false);
     }
   });
 
@@ -200,22 +215,31 @@ describe("§2.1 / §2.3 — deadlines and breach", () => {
 });
 
 describe("the model's own shape", () => {
-  it("documentation ranks below routine review, deliberately", () => {
+  it("documentation ranks below every other task type, deliberately", () => {
     // The tail that looks like a bug: paperwork for a closed escalation is the
-    // least urgent thing on the page, even though it lives in the highest-tier
+    // least urgent thing on the page, even though it lives in the escalation
     // domain. Pinned so a future "fix" has to argue with a test.
-    expect(TIER_RANK.escalationDocumentation).toBeGreaterThan(
-      TIER_RANK.routineFlagReview
-    );
-    expect(TIER_RANK.activeEscalation).toBe(1);
+    // RETARGETED (Phase 4): it compared against `routineFlagReview`, the lowest
+    // TIER, which no longer exists. Comparing against the max is stronger — the
+    // claim was always "last", and the old form only proved "below one type".
+    const ranks = Object.values(TYPE_URGENCY_RANK);
+    expect(TYPE_URGENCY_RANK.escalationDocumentation).toBe(Math.max(...ranks));
+    expect(TYPE_URGENCY_RANK.activeEscalation).toBe(Math.min(...ranks));
   });
 
-  it("every task type has an SLA and a tier rank", () => {
+  it("every task type has an urgency rank, and only a flag lacks an SLA", () => {
     for (const t of Object.keys(DOMAIN_OF_TYPE) as Array<
       keyof typeof DOMAIN_OF_TYPE
     >) {
-      expect(TASK_SLA_MS[t], t).toBeGreaterThan(0);
-      expect(TIER_RANK[t], t).toBeGreaterThan(0);
+      expect(TYPE_URGENCY_RANK[t], t).toBeGreaterThan(0);
+      /* THE ONE EXCEPTION IS NAMED, NOT SKIPPED (Phase 4). A loop that just
+         allowed null everywhere would pass on a build where billing lost its
+         deadline too. */
+      if (t === "riskFlagReview") {
+        expect(TASK_SLA_MS[t], t).toBeNull();
+      } else {
+        expect(TASK_SLA_MS[t], t).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -224,13 +248,11 @@ describe("the model's own shape", () => {
     expect(TASK_SLA_MS.intakeBillingReview).toBe(72 * 60 * 60 * 1000);
   });
 
-  it("the four domains are fixed and in spec order", () => {
-    expect(TASK_DOMAINS).toEqual([
-      "escalation",
-      "riskFlag",
-      "billing",
-      "routineFlag",
-    ]);
+  it("the three domains are fixed and in spec order", () => {
+    /* FOUR UNTIL PHASE 4. `routineFlag` was the lowest severity tier wearing a
+       domain, and the ledger never believed in it — `ACTIVITY_DOMAIN_OF` mapped
+       it and `riskFlag` to the same event type. */
+    expect(TASK_DOMAINS).toEqual(["escalation", "riskFlag", "billing"]);
   });
 });
 

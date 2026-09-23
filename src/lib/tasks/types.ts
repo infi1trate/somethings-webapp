@@ -34,7 +34,19 @@
  *
  *  So: these names follow §2.1, and `ACTIVITY_DOMAIN_OF` below is the explicit
  *  mapping used for every Activity deep link. See design-system-gaps.md row 208. */
-export type TaskDomain = "escalation" | "riskFlag" | "billing" | "routineFlag";
+/** ═══ `routineFlag` IS GONE — IT WAS A TIER WEARING A DOMAIN (Phase 4) ═══
+ *
+ *  This union held FOUR domains and one of them was not a domain. `routineFlag`
+ *  existed because the old four-tab Tasks page gave the lowest severity tier its
+ *  own tab; `riskFlag` held the other two tiers. So the same event — a message
+ *  the classifier flagged — landed in one of two "workflow domains" according to
+ *  a severity this system assigned it and could not compute.
+ *
+ *  The ledger never believed it: `ACTIVITY_DOMAIN_OF` mapped BOTH to Activity's
+ *  single `risk`, with the note "a routine-tier flag review IS a risk flag event
+ *  — the tier is what differs, not the domain". That note was the argument for
+ *  this change, written two phases before it. */
+export type TaskDomain = "escalation" | "riskFlag" | "billing";
 
 /** THE DOMAIN ORDER. Fixed, and the only place it is written down.
  *  Escalations · Risk flags · Billing · Routine review.
@@ -43,30 +55,18 @@ export type TaskDomain = "escalation" | "riskFlag" | "billing" | "routineFlag";
  *  Tasks; arch-B's Monitoring has no tab row by design. The order still governs
  *  every fixed-order render (the count table, the partial-failure list), so the
  *  constant stays and only the sentence describing it moves. */
-export const TASK_DOMAINS: TaskDomain[] = [
-  "escalation",
-  "riskFlag",
-  "billing",
-  "routineFlag",
-];
+export const TASK_DOMAINS: TaskDomain[] = ["escalation", "riskFlag", "billing"];
 
 /** TODO-COPY. Domain labels.
  *
- *  ═══ `routineFlag` WAS `monitoring`, AND THE RENAME WAS NOT COSMETIC (arch-B) ═══
- *
- *  This domain has only ever meant ONE thing: the lowest flag tier. It was called
- *  `monitoring` because the old four-tab Tasks page gave that tier its own tab and
- *  named the tab after the activity. arch-B builds a SURFACE called Monitoring
- *  which holds every flag tier and the escalation lifecycle — so keeping the name
- *  here would have meant a page called Monitoring whose Imminent rows are, in the
- *  data model, not monitoring. One word, two scopes, in the same reader's head.
- *
- *  So the domain is named for what it holds and the surface keeps the word. */
+ *  `Risk flags` IS THE RAIL'S DESTINATION NAME, lowercased for a sentence. One
+ *  name per destination reaches the reader — the rule that fixed four page
+ *  headings this restructure — and with `routineFlag` gone there is no second
+ *  flag label to disagree with it. */
 export const DOMAIN_LABEL: Record<TaskDomain, string> = {
   escalation: "Escalations",
   riskFlag: "Risk flags",
   billing: "Billing",
-  routineFlag: "Routine review",
 };
 
 /** TODO-COPY. The same labels for a count of one, lowercase.
@@ -83,7 +83,6 @@ export const DOMAIN_LABEL_ONE: Record<TaskDomain, string> = {
   escalation: "escalation",
   riskFlag: "risk flag",
   billing: "billing",
-  routineFlag: "routine review",
 };
 
 /** TODO-COPY. A count and its domain, in agreement. */
@@ -96,31 +95,46 @@ export function domainCountLabel(domain: TaskDomain, n: number): string {
  *  here rather than passing a Tasks domain string that Activity would silently
  *  fail to match.
  *
- *  `routineFlag` maps to Activity's `risk`: a routine-tier flag review IS a risk
- *  flag event in the ledger — the tier is what differs, not the domain. Tasks
- *  split it into its own tab because the lowest tier is a different job; the
- *  ledger does not, because it is the same event. */
+ *  ═══ THE TWO-TO-ONE ROW IS GONE, AND IT IS WHY THIS PHASE HAPPENED ═══
+ *  This table used to map BOTH `riskFlag` and `routineFlag` to Activity's single
+ *  `risk`, under the note "the tier is what differs, not the domain". The ledger
+ *  had the right model the whole time; Tasks had a severity taxonomy promoted to
+ *  IA. Now both sides have three domains and the mapping is one-to-one. */
 export const ACTIVITY_DOMAIN_OF: Record<TaskDomain, string> = {
   escalation: "escalation",
   riskFlag: "risk",
   billing: "billing",
-  routineFlag: "risk",
 };
 
 /** Task types. A DOMAIN CAN HOLD MULTIPLE TYPES (locked decision 6) — the tab is
  *  a workflow domain, not a task type. */
+/** ═══ ONE FLAG TYPE, WHERE THERE WERE THREE (Phase 4) ═══
+ *
+ *  `imminentFlagReview` · `clinicalFlagReview` · `routineFlagReview` were the
+ *  severity tiers this system assigned to individual flags, promoted to the data
+ *  model. They drove four queues, a tier rank, a set of tier bands and two
+ *  domains — the whole of what this restructure calls tier-as-IA.
+ *
+ *  THE CLASSIFIER EMITS CATEGORIES, NOT SEVERITY. That is arch-mon's finding and
+ *  nothing has changed it: no upstream signal distinguished these three, so the
+ *  seed picked one per fixture and every surface downstream treated the pick as
+ *  clinical fact. One flag type is the honest shape.
+ *
+ *  ═══ THE PLAYBOOK'S TIER SURVIVES, AND IT IS A DIFFERENT THING ═══
+ *  `lib/record/risk-taxonomy.ts` groups 21 REAL categories into three tiers. That
+ *  is a clinical grouping of published categories, reviewed and owned, and a
+ *  flag's tier is now DERIVED from its category through `tierOf` — read-only,
+ *  never assigned, never stored on the payload. The difference is the difference
+ *  between reading a taxonomy and inventing one. */
 export type TaskType =
   // ── Escalations
   | "activeEscalation"
   | "escalationDocumentation"
-  // ── Risk flags
-  | "imminentFlagReview"
-  | "clinicalFlagReview"
+  // ── Risk flags — one type, whatever the category
+  | "riskFlagReview"
   // ── Billing
   | "intakeBillingReview"
-  | "monthlyReReview"
-  // ── Routine review — the lowest flag tier, its own domain.
-  | "routineFlagReview";
+  | "monthlyReReview";
 
 /** ═══ A STRING FROM OUTSIDE THE PROGRAM, CHECKED ═══
  *
@@ -143,17 +157,14 @@ export const DOMAIN_OF_TYPE: Record<TaskType, TaskDomain> = {
   // lives in Escalations and monthly re-reviews live in Billing. There is no
   // fifth tab and there must not be one.
   escalationDocumentation: "escalation",
-  imminentFlagReview: "riskFlag",
-  clinicalFlagReview: "riskFlag",
+  riskFlagReview: "riskFlag",
   intakeBillingReview: "billing",
   monthlyReReview: "billing",
-  routineFlagReview: "routineFlag",
 };
 
 /** TIER RANK — the ladder the priority sort reads (§3), ASC.
  *
- *  1 escalation · 2 imminent · 3 clinical review · 4 billing · 5 routine review ·
- *  6 documentation
+ *  1 escalation · 2 risk flag · 3 billing · 4 documentation
  *
  *  NOTE THE TAIL, because it looks like a mistake and is not: escalation
  *  DOCUMENTATION ranks 6 — BELOW routine review — while living in the
@@ -161,49 +172,56 @@ export const DOMAIN_OF_TYPE: Record<TaskType, TaskDomain> = {
  *  urgent thing on the page; the domain it belongs to says nothing about the
  *  urgency of finishing its paperwork. Anyone "fixing" this to 1 or 2 has
  *  confused the domain with the task. */
-export const TIER_RANK: Record<TaskType, number> = {
+/** ═══ RENAMED, BECAUSE IT NEVER RANKED TIERS AGAIN (Phase 4) ═══
+ *  It was `TIER_RANK`, and three of its six rows were the flag tiers. With one
+ *  flag type it ranks TASK TYPES by urgency and the name says so. The tail's
+ *  reasoning is unchanged and still looks like a mistake: escalation
+ *  DOCUMENTATION ranks last while living in the escalation domain, because
+ *  writing up a closed escalation is genuinely the least urgent thing here.
+ *  Anyone "fixing" that has confused the domain with the task. */
+export const TYPE_URGENCY_RANK: Record<TaskType, number> = {
   activeEscalation: 1,
-  imminentFlagReview: 2,
-  clinicalFlagReview: 3,
-  intakeBillingReview: 4,
-  monthlyReReview: 4,
-  routineFlagReview: 5,
-  escalationDocumentation: 6,
+  riskFlagReview: 2,
+  intakeBillingReview: 3,
+  monthlyReReview: 3,
+  escalationDocumentation: 4,
 };
 
 export type TaskStatus = "open" | "inProgress" | "resolved";
 
 // ── Payloads (§5) ───────────────────────────────────────────────────────────
 
-/** A RISK FLAG, AT ANY TIER. One anatomy for all three — the TIER IS SHOWN IN THE
- *  HEADER ONLY (§5), never as a per-row chip inside a tier-filtered list (alarm
- *  budget, §3.3).
+/** A RISK FLAG. ONE ANATOMY, NO TIER.
  *
- *  ═══ THE TIER IS NOT A COLOUR ANY MORE (arch-B) ═══
+ *  ═══ THE `tier` FIELD IS GONE (Phase 4) ═══
  *
- *  It was `"red" | "orange" | "green"`. `bands.ts` had already rejected that
- *  vocabulary at the display layer — "the band names the URGENCY, not the colour
- *  chip… a reader who is colourblind gets the same sentence" — but the DATA kept
- *  the colours, so every consumer translated one to the other and the pane ended
- *  up printing "Red flag" under a header reading "Imminent".
+ *  It was `"imminent" | "clinicalReview" | "routine"`, and before that
+ *  `"red" | "orange" | "green"`. Its history is the whole argument for removing
+ *  it rather than renaming it a fourth time: the display layer rejected the
+ *  colours, so the data kept them and every consumer translated; arch-mon
+ *  rejected the severity, so the data kept it and the field's own comment
+ *  admitted "Monitoring no longer reads this… recommend it move to the seed's
+ *  own shape when Home has its pass". This is that pass, and the recommendation
+ *  was too generous — nothing should write it anywhere, because nothing upstream
+ *  produces it.
  *
- *  Two of these three values now match `lib/record/risk-taxonomy.ts` exactly
- *  (`imminent`, `clinicalReview`). The third is `routine` where the record says
- *  `generalMonitoring`, because arch-B renamed this tier and the record is out of
- *  scope — logged rather than reconciled. */
+ *  ═══ A FLAG'S TIER IS STILL ANSWERABLE, AND IT IS A DERIVATION ═══
+ *  `tierOf(categoryId)` from `lib/record/risk-taxonomy.ts`, over the 21
+ *  published categories. Read-only, computed at the point of use, never stored.
+ *  The playbook's grouping is a clinical judgment somebody owns; the old field
+ *  was a guess this file made. */
 export interface RiskFlagPayload {
   kind: "riskFlag";
-  /** ═══ MONITORING NO LONGER READS THIS (arch-mon Phase 1) ═══
-   *  The tier was a severity assertion the classifier does not make — it emits
-   *  categories — so Monitoring removed it from its headers, its rows, its pane
-   *  and its ordering. The field stays because the SEED writes it and because
-   *  `TIER_RANK` (below) still orders Tasks and Home; `lib/monitoring/` never
-   *  imports it. Recommend it move to the seed's own shape when Home has its
-   *  pass, since nothing that renders would miss it. */
-  tier: "imminent" | "clinicalReview" | "routine";
   /** "Message" — the surface the flag came from. */
   sourceType: string;
-  /** PLAIN-LANGUAGE playbook categories. Raw enum values never reach here. */
+  /** ═══ PLAYBOOK CATEGORY IDS (Phase 4) ═══
+   *  `RISK_CATEGORIES[].id` — `"PASSIVE_SUICIDAL_IDEATION"`, not "Low mood".
+   *  These were free text ("Self-harm language", "Family conflict"), which is why
+   *  `FLAG_CATEGORY_RANK` could not be keyed on them and comparator step 2 was a
+   *  no-op with nothing to rank.
+   *  RAW IDS NEVER REACH A READER: `riskCategory(id).label` is the rendered
+   *  string, and `unknownCategories` is how a value outside the playbook is
+   *  surfaced rather than printed. */
   categories: string[];
   /** THE QUOTED EXCERPT. Renders ONLY inside the detail pane (locked decision
    *  12) — no message snippets in list rows, ever. Held on the payload rather
@@ -278,7 +296,10 @@ export interface TaskItem {
   id: string;
   domain: TaskDomain;
   taskType: TaskType;
-  tierRank: number;
+  /** ═══ RENAMED FROM `tierRank` (Phase 4) ═══
+   *  It was never a tier rank for three of its values and stopped being one for
+   *  any of them when the flag types collapsed. `TYPE_URGENCY_RANK`. */
+  urgencyRank: number;
   teenId: string;
   /** FIRST NAME + LAST INITIAL, MAXIMUM (locked decision 11). "Riley T." — never
    *  a surname. Stored pre-formatted so no renderer has to remember the rule and
@@ -294,8 +315,15 @@ export interface TaskItem {
   openedAt: number;
   /** COMPUTED AT CREATION from the taskType's SLA (see sla.ts). Stored because it
    *  is a fact about when the clock started; BREACH is not stored, because that is
-   *  a fact about now. */
-  slaDeadline: number;
+   *  a fact about now.
+   *
+   *  ═══ NULL FOR A RISK FLAG (Phase 4) ═══
+   *  Nothing published states a review deadline for a flag. It used to carry one
+   *  anyway — 24h / 48h / 7d by tier — and the field's presence is what let five
+   *  surfaces render a breach off a number this codebase invented. `null` means
+   *  the question has no answer yet, not that the answer is far away, and
+   *  `isBreached` returns false rather than guessing. */
+  slaDeadline: number | null;
   status: TaskStatus;
   /** Set when resolved — drives the "Closed today" counters. */
   resolvedAt?: number;
@@ -305,12 +333,26 @@ export interface TaskItem {
 /** BREACH, DERIVED. The only definition, so a card, a row and a pane header can
  *  never disagree about whether something is late. */
 export function isBreached(item: TaskItem, now: number): boolean {
+  /* NO DEADLINE, NO BREACH. `now > null` coerces to `now > 0` — true for every
+     item ever — so the absence has to be checked before the comparison rather
+     than after it. That coercion is exactly how a null SLA would have silently
+     marked every flag breached. */
+  if (item.slaDeadline == null) return false;
   return now > item.slaDeadline;
 }
 
 /** Milliseconds until the SLA runs out; negative once breached. The priority
- *  sort's fourth key. */
+ *  sort's fourth key.
+ *
+ *  ═══ `Infinity` FOR AN ITEM WITH NO DEADLINE (Phase 4) ═══
+ *  Not 0, and not null. This is a comparator key: an item with no deadline can
+ *  never be more urgent by deadline than one that has a real one, so it sorts
+ *  LAST among its peers and the step falls through to the key below it. Zero
+ *  would have put every flag at the head of the queue as though it breached this
+ *  instant — which is what `null - now` would also have produced (`NaN`, and a
+ *  NaN comparator is a silently unstable sort). */
 export function slaRemaining(item: TaskItem, now: number): number {
+  if (item.slaDeadline == null) return Infinity;
   return item.slaDeadline - now;
 }
 

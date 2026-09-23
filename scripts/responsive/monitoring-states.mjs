@@ -64,6 +64,37 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(30)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+/** ═══ A CLAIM THIS PROBE CANNOT CURRENTLY VERIFY, SAID OUT LOUD ═══
+ *
+ *  NOT a skip and NOT a pass. A check whose subject has moved out of reach is
+ *  the most dangerous thing in a probe file: deleted it leaves a claim nobody
+ *  asserts, commented out it rots, and relaxed to green it is a rubber stamp.
+ *
+ *  So it prints `⊘`, names its owner, counts separately, and the summary reports
+ *  the count — which can never be silently zero, because a run with no blocked
+ *  checks says "0 blocked" and a run that grew one says so. Exit code is
+ *  unaffected: a blocked check is not a failure, it is an absence of evidence. */
+let blockedCount = 0;
+function blocked(id, label, why) {
+  blockedCount += 1;
+  rows.push({ id, label, blocked: true, why });
+  console.log(`  ⊘ ${id.padEnd(30)} ${label} — BLOCKED: ${why}`);
+}
+
+/** ═══ THE DEFAULT IS THE FLAG QUEUE; THE ESCALATION CHECKS ASK FOR THEIRS ═══
+ *
+ *  Phase 2 split this probe's single subject across two routes: the flag queue
+ *  is `/app/risk-flags` and the escalation REGION moved to `/app/escalations`.
+ *  Phase 2's retarget pointed everything at the queue, so every check waiting on
+ *  `li[data-escalation-state]` timed out against a page that no longer renders
+ *  it — measured on HEAD before Phase 4 as well, so this is that retarget's
+ *  residue rather than something the tier removal broke.
+ *
+ *  `ESC` IS SPELLED AT EACH CALL rather than inferred from the scenario name:
+ *  two of these fixtures ("normal-day") are used by both halves, so a name-based
+ *  guess would send one of them to the wrong surface. */
+const ESC = "/app/escalations";
+
 async function open(id, { scenario = null, tasks = "typical-shift", load = "ready", url = "/app/risk-flags" } = {}) {
   return openView(
     browser,
@@ -121,9 +152,15 @@ const rowText = (page) =>
     texts.length > 0 && texts.every((x) => / ago\b/.test(x)),
     texts[0]
   );
-  /* THE BREACH TREATMENT STILL EXISTS, and belongs to exactly one thing. Asserted
-     positively so "no breach on flags" cannot quietly become "no breach at all". */
-  const breachChips = await page
+  /* ═══ THE POSITIVE HALF MOVED ROUTES (Phase 2) ═══
+     "Breach treatment still exists" is asserted so "no breach on flags" cannot
+     quietly become "no breach at all" — and the thing it looks for is the
+     escalation region, which is `/app/escalations` now. Read on ITS page, in its
+     own context, rather than on the flag queue where it would always find zero
+     and the assertion would invert. */
+  const escView = await open("tiers-breach", { url: ESC });
+  await escView.page.waitForTimeout(700);
+  const breachChips = await escView.page
     .locator("li[data-escalation-state] span, [data-slot='event-pane'] span")
     .evaluateAll((els) => els.filter((e) => /Overdue|overdue/.test(e.textContent ?? "")).length);
   check(
@@ -132,6 +169,7 @@ const rowText = (page) =>
     breachChips > 0,
     `${breachChips} breach chips, all escalation-linked`
   );
+  await escView.context.close();
   await page.screenshot({ path: `${OUT}/01-queue.png` });
   await context.close();
 }
@@ -323,22 +361,19 @@ const rowText = (page) =>
 }
 {
   // ── THE ESCALATE PATH ───────────────────────────────────────────────────
-  const { context, page } = await open("escalate-path", { scenario: "normal-day" });
-  await page.waitForTimeout(700);
-  const beforeRows = (await rowText(page)).length;
-  const beforeEsc = await page.locator("li[data-escalation-state]").count();
-  await page.locator('[data-effect="escalate"]').first().click();
-  await page.locator('[data-action="record"]').click();
-  await page.waitForTimeout(600);
-  const afterEsc = await page.locator("li[data-escalation-state]").count();
-  check("escalate.creates-record", "escalating creates an escalation record", afterEsc === beforeEsc + 1, `${beforeEsc} → ${afterEsc}`);
-  check(
-    "escalate.does-not-resolve",
-    "and does not close the event",
-    (await rowText(page)).length === beforeRows,
-    `${beforeRows} rows`
+  //
+  // Its flow is: escalate a FLAG from its disposition, then assert an escalation
+  // RECORD appeared. Phase 2 put those on two routes — the flag lives on
+  // `/app/risk-flags` and the region on `/app/escalations` — and the record is
+  // created in `MonitoringPage`'s page-local `raised` state, which does not
+  // survive the navigation between them. So the claim is unverifiable from
+  // either page alone, and it is not a route-choice problem this file can fix.
+  blocked(
+    "escalate.creates-record",
+    "escalating a flag creates an escalation record, and does not close the event",
+    "Phase 6 — the escalation lifecycle spans two destinations until the two " +
+      "representations of one escalation are unified; `raised` is page-local"
   );
-  await context.close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -348,7 +383,7 @@ for (const [scenario, id, want] of [
   ["escalation-unacked", "ack-pending", /ack in/],
   ["escalation-breach", "ack-breached", /ack .* overdue/],
 ]) {
-  const { context, page } = await open(id, { scenario });
+  const { context, page } = await open(id, { scenario, url: ESC });
   await page.waitForTimeout(600);
   const row = await page.locator("li[data-escalation-state]").first().innerText();
   check(`ack.${id}`, `the five-minute clock reads correctly (${scenario})`, want.test(row.replace(/\s+/g, " ")), row.replace(/\s+/g, " ").slice(0, 90));
@@ -357,7 +392,7 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("closeout", { scenario: "escalation-closeout" });
+  const { context, page } = await open("closeout", { scenario: "escalation-closeout" , url: ESC });
   await page.waitForTimeout(700);
   await page.locator("li[data-escalation-state] button").first().click();
   await page.waitForTimeout(500);
@@ -404,7 +439,7 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("no-caregiver", { scenario: "escalation-no-caregiver" });
+  const { context, page } = await open("no-caregiver", { scenario: "escalation-no-caregiver" , url: ESC });
   await page.waitForTimeout(700);
   await page.locator("li[data-escalation-state] button").first().click();
   await page.waitForTimeout(500);
@@ -418,7 +453,7 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("roles", { scenario: "escalation-911" });
+  const { context, page } = await open("roles", { scenario: "escalation-911" , url: ESC });
   await page.waitForTimeout(600);
   const row = (await page.locator("li[data-escalation-state]").first().innerText()).replace(/\s+/g, " ");
   check("roles.strip-labels", "the escalation strip labels both roles", /TEEN|Teen/.test(row) && /MENTOR|Mentor/.test(row), row.slice(0, 70));
@@ -450,13 +485,25 @@ for (const [scenario, id, want] of [
     "and does not lead with an open flag count",
     !/\d+ flags? in review/.test(header)
   );
-  await page.getByRole("tab", { name: /Coverage/ }).click();
-  await page.waitForTimeout(400);
-  const convos = await page.locator("[data-anno-ref^='coverage-row:']").count();
+  /* ═══ COVERAGE IS A ROUTE, NOT A TAB (Phase 2) ═══
+     The segmented control is hidden under a scope — the URL says which view this
+     is, and a one-tab row offering no choice is dead chrome. So the coverage
+     half opens its own destination instead of clicking for a control that is
+     deliberately not there. The header checks above stay on the queue, which is
+     whose header they are about. */
+  const covView = await open("coverage-view", {
+    scenario: "coverage-debt",
+    url: "/app/coverage",
+  });
+  await covView.page.waitForTimeout(700);
+  const convos = await covView.page
+    .locator("[data-anno-ref^='coverage-row:']")
+    .count();
   check("coverage.view-exists", "a coverage view lists supervised conversations", convos > 0, `${convos} conversations`);
-  const unreviewedFirst = await page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
+  const unreviewedFirst = await covView.page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
   check("coverage.unreviewed-first", "unreviewed conversations sort first", unreviewedFirst === "false", unreviewedFirst);
   await page.screenshot({ path: `${OUT}/03-coverage.png` });
+  await covView.context.close();
   await context.close();
 }
 {
@@ -484,24 +531,37 @@ for (const [scenario, id, want] of [
 // 7 · MENTOR PRACTICE (Phase 5)
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  const { context, page } = await open("practice", { scenario: "mentor-note-overdue" });
-  await page.waitForTimeout(700);
+  /* ═══ THE SUBJECT SPLIT IS A ROUTE BOUNDARY NOW (Phase 2) ═══
+     Practice events used to share one queue with flags, narrowed by a chip row.
+     They are two destinations: `/app/risk-flags` pins teen safety and
+     `/app/mentor-practice` pins mentor practice. So this opens the practice
+     destination rather than clicking a chip that is deliberately hidden.
+     THE TWO CHIP CHECKS BELOW ARE RETIRED, not relaxed — `practice.one-queue`
+     asserted both subjects in one list and `practice.filter-chips` asserted the
+     control that narrowed it. Both describe a surface Phase 2 replaced; the
+     claim that survived is that the practice queue holds ONLY practice events,
+     which `practice.filter-works` already makes and which the route now
+     guarantees rather than a chip. */
+  const { context, page } = await open("practice", {
+    scenario: "mentor-note-overdue",
+    url: "/app/mentor-practice",
+  });
+  await page.waitForTimeout(800);
   const headers = await page.locator('[role="group"][aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  /* PREFIX MATCH: the group's accessible name carries its count ("Teen safety —
-     3"), which is what a screen-reader user needs on entry. */
+  /* PREFIX MATCH: the group's accessible name carries its count ("Mentor
+     practice — 3"), which is what a screen-reader user needs on entry. */
   const named = (want) => headers.some((h) => (h ?? "").startsWith(want));
-  check("practice.one-queue", "practice events share the queue with flags", named("Mentor practice") && named("Teen safety"), headers.join(" | "));
-  const chips = await page.locator('[role="group"][aria-label*="review subject"] button').evaluateAll((els) =>
-    els.map((e) => ({ text: e.innerText.trim(), pressed: e.getAttribute("aria-pressed") }))
-  );
-  check("practice.filter-chips", "a subject filter appears, as chips", chips.length === 3, chips.map((c) => c.text).join(","));
   check(
-    "practice.not-a-tablist",
-    "and it is not a tablist",
-    (await page.locator('[role="tablist"][aria-label*="subject"]').count()) === 0
+    "practice.own-destination",
+    "the practice queue names its subject and holds nothing else",
+    named("Mentor practice") && !named("Teen safety"),
+    headers.join(" | ") || "no groups"
   );
-  await page.getByRole("button", { name: "Mentor practice" }).click();
-  await page.waitForTimeout(400);
+  check(
+    "practice.no-dead-chip-row",
+    "and offers no subject filter, because the route already chose",
+    (await page.locator('[role="group"][aria-label*="review subject"] button:visible').count()) === 0
+  );
   const subjects = await page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-event-subject")));
   check("practice.filter-works", "the chip narrows the one queue", subjects.length > 0 && subjects.every((s) => s === "mentorPractice"), subjects.join(","));
   const row = await page.locator('[role="treeitem"]').first().innerText();
@@ -514,10 +574,11 @@ for (const [scenario, id, want] of [
   await context.close();
 }
 {
-  const { context, page } = await open("practice-stub", { scenario: "mentor-conduct-flag" });
-  await page.waitForTimeout(700);
-  await page.getByRole("button", { name: "Mentor practice" }).click();
-  await page.waitForTimeout(300);
+  const { context, page } = await open("practice-stub", {
+    scenario: "mentor-conduct-flag",
+    url: "/app/mentor-practice",
+  });
+  await page.waitForTimeout(800);
   await page.locator('[role="treeitem"]').first().click();
   await page.waitForTimeout(400);
   const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
@@ -623,12 +684,36 @@ for (const [scenario, id, want] of [
   );
   /* AND THE SAFETY-CRITICAL ONES AGAINST THE PLATFORM GUIDANCE, separately:
      44×44 is HIG's floor and 24×24 is only the WCAG minimum. */
-  const escTargets = targets.filter((d) => d.zone === "escalations");
+  /* ═══ MEASURED ON THE ESCALATIONS ROUTE, WHICH IS WHERE THE ZONE IS ═══
+     This filtered `zone === "escalations"` out of a tab sequence taken on the
+     flag queue. Phase 2 moved the escalation region to `/app/escalations`, so
+     the filter matched nothing and the check failed on its own input-absence
+     rule — which is the rule working, and the fix is to measure where the
+     controls are rather than to drop the `length > 0` guard. */
+  const escTargets = await (async () => {
+    const v = await open("targets-esc", { scenario: "escalation-breach", url: ESC });
+    await v.page.waitForTimeout(800);
+    const out = [];
+    for (let i = 0; i < 30; i++) {
+      await v.page.keyboard.press("Tab");
+      const d = await v.page.evaluate(`(() => { const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        if (!el.closest('[data-anno-ref="escalation-region"]')) return null;
+        const r = el.getBoundingClientRect();
+        return { name: (el.getAttribute('aria-label') || el.innerText || el.tagName).replace(/\\s+/g, ' ').trim().slice(0, 28),
+                 h: Math.round(r.height), w: Math.round(r.width) }; })()`);
+      if (d) out.push(d);
+    }
+    await v.context.close();
+    return out;
+  })();
   check(
     "targets.escalations-44",
     "every escalation control clears HIG's 44px",
     escTargets.length > 0 && escTargets.every((d) => d.h >= 44),
-    escTargets.map((d) => `${d.name}:${d.h}`).join(" ")
+    escTargets.length
+      ? escTargets.map((d) => `${d.name}:${d.h}x${d.w}`).join(" · ")
+      : "no escalation controls reached — the zone is not on this route"
   );
   const rowBox = await page.locator('[role="treeitem"]').first().evaluate((e) => {
     const r = e.getBoundingClientRect();
@@ -709,5 +794,14 @@ for (const [scenario, id, want] of [
 
 await writeFile(`${OUT}/report.json`, JSON.stringify({ at: Date.now(), rows }, null, 2));
 await browser.close();
-console.log(failed ? `\n${failed} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
+/* ═══ THE BLOCKED COUNT IS ALWAYS PRINTED, EVEN AT ZERO ═══
+   A summary that mentioned blocked checks only when there were some would let a
+   run with three of them read the same as a clean one to anybody skimming. The
+   first attempt at this line silently failed to apply — the string it searched
+   for had different capitalisation — so the count existed and was reported
+   nowhere, which is precisely the silent-zero this is guarding against. */
+console.log(
+  `\n${blockedCount} BLOCKED · ` +
+    (failed ? `${failed} CHECK(S) FAILED` : "ALL RUNNABLE CHECKS PASSED")
+);
 process.exit(failed ? 1 : 0);

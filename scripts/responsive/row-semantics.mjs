@@ -373,6 +373,36 @@ for (const [url, name, scroller, monitoring, monitoringLong, expectHeaders] of [
      that stopped grouping altogether would take `uniform` and `anatomy` with a
      clean pass over an empty list — the vacuous-assertion failure this probe has
      already been bitten by twice. */
+  /* ═══ NO RAW ENUM REACHES A READER (Phase 4) ═══
+     The fixtures carry playbook CATEGORY IDS now — `ASSESSMENT_BELOW_THRESHOLD`
+     — which is what made the clinical ranking possible and immediately put the
+     id itself on screen, because three render sites passed `event.category`
+     straight through. Measured on `/app/risk-flags`: every row's secondary line.
+     A UNIT TEST COULD NOT CATCH IT. `risk-taxonomy` had labels for all 21
+     categories and the assertion that it did passed the whole time — the defect
+     was a renderer not asking. So this reads the DOM, on both surfaces, and it
+     is deliberately a SHAPE test rather than a list of known ids: anything
+     SHOUTING_IN_SNAKE_CASE is a machine identifier whatever it is called. */
+  const shouted = await page.evaluate(() => {
+    const out = [];
+    const walk = document.createTreeWalker(
+      document.querySelector("main") ?? document.body,
+      NodeFilter.SHOW_TEXT
+    );
+    let n;
+    while ((n = walk.nextNode())) {
+      const t = (n.textContent ?? "").trim();
+      if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+){2,}$/.test(t)) out.push(t);
+    }
+    return [...new Set(out)];
+  });
+  check(
+    `hdr.${name}.no-raw-enum`,
+    "no machine identifier is rendered where a label belongs",
+    shouted.length === 0,
+    shouted.length ? shouted.slice(0, 3).join(", ") : "clean"
+  );
+
   check(
     `hdr.${name}.count`,
     `the surface groups, and by as many keys as its scope implies (${expectHeaders})`,

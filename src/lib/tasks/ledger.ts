@@ -43,8 +43,6 @@ export const TASKS_ACTOR_ID = "sup-lydia";
 const EVENT_FOR_DOMAIN: Partial<Record<TaskItem["domain"], ActivityEventType>> = {
   riskFlag: "RISK_FLAG_CLOSED",
   // THE ROUTINE TIER IS a risk-flag event in the ledger — the tier differs, not
-  // the domain. Same reasoning as ACTIVITY_DOMAIN_OF's routineFlag → risk mapping.
-  routineFlag: "RISK_FLAG_CLOSED",
   billing: "BILLING_REVIEW_COMPLETE",
 };
 

@@ -20,7 +20,7 @@ import {
 } from "@/lib/tasks/escalation-state";
 import { deadlineFor } from "@/lib/tasks/sla";
 import { tasksScenario } from "@/lib/tasks/seed";
-import { DOMAIN_OF_TYPE, TIER_RANK } from "@/lib/tasks/types";
+import { DOMAIN_OF_TYPE, TYPE_URGENCY_RANK } from "@/lib/tasks/types";
 import type { TaskItem, TaskType } from "@/lib/tasks/types";
 
 const NOW = 1_800_000_000_000;
@@ -32,7 +32,7 @@ function esc(taskType: TaskType, agoH: number): TaskItem {
     id: `e-${taskType}-${agoH}`,
     domain: DOMAIN_OF_TYPE[taskType],
     taskType,
-    tierRank: TIER_RANK[taskType],
+    urgencyRank: TYPE_URGENCY_RANK[taskType],
     teenId: "t1",
     teenDisplayName: "A. B.",
     mentorId: "m1",
@@ -105,7 +105,7 @@ describe("the escalation lifecycle", () => {
   it("knows which tasks are escalations at all", () => {
     expect(isEscalationTask(esc("activeEscalation", 1))).toBe(true);
     expect(isEscalationTask(esc("escalationDocumentation", 1))).toBe(true);
-    expect(isEscalationTask(esc("imminentFlagReview", 1))).toBe(false);
+    expect(isEscalationTask(esc("riskFlagReview", 1))).toBe(false);
   });
 });
 

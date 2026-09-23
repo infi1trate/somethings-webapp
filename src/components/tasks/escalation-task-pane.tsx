@@ -48,7 +48,12 @@ import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline"
 import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
 import type { EscalationRecord } from "@/lib/monitoring/escalation";
 import type { MonitoringEvent } from "@/lib/monitoring/event";
-import type { DocumentationPayload, EscalationPayload, TaskItem } from "@/lib/tasks/types";
+import {
+  isBreached,
+  type DocumentationPayload,
+  type EscalationPayload,
+  type TaskItem,
+} from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -491,7 +496,13 @@ export function EscalationCtas({ item }: { item: TaskItem }) {
 export function EscalationMeta({ item, now }: { item: TaskItem; now: number }) {
   const p = item.payload as EscalationPayload | DocumentationPayload;
   const closed = p.kind === "documentation" ? p.closedAt : null;
-  const breached = now > item.slaDeadline;
+  /* ═══ THE SHARED PREDICATE, NOT A BARE COMPARISON (Phase 4) ═══
+     `now > item.slaDeadline` coerces a null deadline to `now > 0` — true for
+     every item ever — so an inline comparison is how a missing SLA silently
+     becomes a universal breach. `isBreached` checks the absence first.
+     UNREACHABLE HERE: both escalation types have published clocks. Kept correct
+     anyway, because the next type to arrive on this pane may not. */
+  const breached = isBreached(item, now);
   const isResponse = item.taskType === "activeEscalation";
   return (
     <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
@@ -514,7 +525,10 @@ export function EscalationMeta({ item, now }: { item: TaskItem; now: number }) {
         className={cn("tabular-nums", breached && "font-semibold text-[var(--band-clay-fg)]")}
         style={{ fontFamily: "var(--font-mono)" }}
       >
-        {isResponse
+        {/* THE NULL CHECK IS THE NARROWING, and the fallback is the shared
+            helper that already states an absence. Unreachable on this pane —
+            both escalation types have published clocks — and correct anyway. */}
+        {isResponse && item.slaDeadline != null
           ? breached
             ? /* NEEDS-COPY-NICOLE. The five minutes are the threshold, so past it
                  the fact is how far past. */

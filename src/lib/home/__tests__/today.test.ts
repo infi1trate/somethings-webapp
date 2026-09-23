@@ -32,16 +32,12 @@ import type { TaskItem } from "@/lib/tasks/types";
 const NOW = 1_800_000_000_000;
 const MIN = 60_000;
 
+/** `ShiftFacts` LOST FIVE FIELDS IN PHASE 4 — `imminentOpen`,
+ *  `imminentBreached`, `clinicalOpen`, `clinicalBreached`, `routineOpen` — which
+ *  were the per-flag tier taxonomy, plus three the ladder read. What is left is
+ *  what Today reads. */
 const FACTS: ShiftFacts = {
-  activeEscalations: 0,
-  documentationOpen: 0,
-  documentationOverdue: 0,
   billing: { open: 0, overdue: 0 },
-  imminentOpen: 0,
-  imminentBreached: 0,
-  clinicalOpen: 0,
-  clinicalBreached: 0,
-  routineOpen: 0,
   closedToday: {},
 };
 
@@ -68,9 +64,17 @@ function esc(over: Partial<EscalationRecord> = {}): EscalationRecord {
 function flagEvent(over: Partial<MonitoringEvent> = {}): MonitoringEvent {
   const item = {
     id: "task-1",
-    taskType: "imminentFlagReview",
+    taskType: "riskFlagReview",
     status: "open",
     openedAt: NOW - 30 * 24 * 60 * MIN,
+    /* ═══ A DEADLINE THAT SHOULD NO LONGER EXIST, KEPT ON PURPOSE ═══
+       Phase 4 made `TASK_SLA_MS.riskFlagReview` null, so the seed cannot produce
+       this any more. It is HAND-WRITTEN here, 29 days in the past, because the
+       assertion below is that no card breaches on it — and an input the
+       production path can no longer build is exactly the input worth testing.
+       If somebody re-introduces a flag SLA, the card must still not breach on
+       it: that decision belongs to `FLAG_REVIEW_SLA` and a review, not to a
+       field quietly becoming non-null again. */
     slaDeadline: NOW - 29 * 24 * 60 * MIN,
   } as unknown as TaskItem;
   return {

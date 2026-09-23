@@ -16,14 +16,13 @@
 // no tiers, ordered by the single comparator), `care-reviews` (the one thing
 // here with a published deadline).
 //
-// ═══ THE FLAG TYPES ARE STILL THREE, AND THAT IS PHASE 4's JOB NOT THIS ONE'S ═══
+// ═══ AND THE FLAG TYPES ARE ONE NOW (Phase 4) ═══
 //
-// `imminentFlagReview` / `clinicalFlagReview` / `routineFlagReview` remain as
-// TASK TYPES in the data model, and all three map to the one `risk-flags`
-// destination. That mapping is the whole point at this phase: the IA collapses
-// first, so the destination is real before the schema change lands, and Phase 4
-// can then prove the per-flag tier gone with a grep rather than against a
-// half-built surface.
+// The three tier types collapsed into `riskFlagReview`. The order the
+// restructure ran in was deliberate and worth recording: the IA collapsed FIRST,
+// so `risk-flags` was a real destination holding a real queue before the schema
+// changed, and Phase 4 then proved the per-flag tier gone by grep against a
+// finished surface rather than a half-built one.
 //
 // `mentor-practice` and `coverage` HAVE NO TASK TYPES. Practice events are a
 // different primitive (`lib/monitoring/practice.ts`) and coverage is a roster of
@@ -54,12 +53,14 @@ export const DESTINATION_ORDER: readonly DestinationId[] = [
  *  not task items map to nothing, deliberately — see the note above. */
 export const DESTINATION_TYPES: Record<DestinationId, readonly TaskType[]> = {
   escalations: ["activeEscalation", "escalationDocumentation"],
-  /** ALL THREE FLAG TYPES, ONE DESTINATION. */
-  "risk-flags": [
-    "imminentFlagReview",
-    "clinicalFlagReview",
-    "routineFlagReview",
-  ],
+  /** ═══ ONE FLAG TYPE, ONE DESTINATION (Phase 4 landed) ═══
+   *  This listed all three tier types with the note "That mapping is the whole
+   *  point at this phase: the IA collapses first, so the destination is real
+   *  before the schema change lands, and Phase 4 can then prove the per-flag tier
+   *  gone with a grep rather than against a half-built surface."
+   *  The schema change has landed. The three-to-one mapping was the scaffolding
+   *  and this is what it was scaffolding for. */
+  "risk-flags": ["riskFlagReview"],
   "care-reviews": ["intakeBillingReview", "monthlyReReview"],
   "mentor-practice": [],
   coverage: [],

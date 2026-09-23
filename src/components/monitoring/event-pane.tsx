@@ -19,6 +19,7 @@
 // guidance AT the control instead — not a toast, which would be gone before a
 // reader looked back at the thing it was about.
 
+import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, EyeOff, FileText, ShieldAlert } from "lucide-react";
@@ -208,8 +209,11 @@ function FlagBody({
       <div>
         <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Category</p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {/* KEYED ON THE ID, LABELLED FROM THE PLAYBOOK. The key has to stay
+              the id — two categories can share neither an id nor a label, but a
+              label is the one a copy change could collide. */}
           {payload.categories.map((c) => (
-            <PaneChip key={c}>{c}</PaneChip>
+            <PaneChip key={c}>{riskCategoryLabel(c)}</PaneChip>
           ))}
         </div>
       </div>

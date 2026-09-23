@@ -21,9 +21,9 @@ describe("the destination map", () => {
     const all: TaskType[] = [
       "activeEscalation",
       "escalationDocumentation",
-      "imminentFlagReview",
-      "clinicalFlagReview",
-      "routineFlagReview",
+      "riskFlagReview",
+      "riskFlagReview",
+      "riskFlagReview",
       "intakeBillingReview",
       "monthlyReReview",
     ];
@@ -37,9 +37,9 @@ describe("the destination map", () => {
   });
 
   it("puts all three flag tiers in ONE destination, which is the whole point", () => {
-    expect(destinationOf("imminentFlagReview")).toBe("risk-flags");
-    expect(destinationOf("clinicalFlagReview")).toBe("risk-flags");
-    expect(destinationOf("routineFlagReview")).toBe("risk-flags");
+    expect(destinationOf("riskFlagReview")).toBe("risk-flags");
+    expect(destinationOf("riskFlagReview")).toBe("risk-flags");
+    expect(destinationOf("riskFlagReview")).toBe("risk-flags");
   });
 
   it("gives the two non-task destinations no types rather than an empty promise", () => {
@@ -65,9 +65,9 @@ describe("the retired routes", () => {
 
   it("maps every band the old digest could send", () => {
     const cases: [string, string][] = [
-      ["imminentFlagReview", "/app/risk-flags"],
-      ["clinicalFlagReview", "/app/risk-flags"],
-      ["routineFlagReview", "/app/risk-flags"],
+      ["riskFlagReview", "/app/risk-flags"],
+      ["riskFlagReview", "/app/risk-flags"],
+      ["riskFlagReview", "/app/risk-flags"],
       ["intakeBillingReview", "/app/care-reviews"],
       ["monthlyReReview", "/app/care-reviews"],
       ["activeEscalation", "/app/escalations"],
@@ -110,7 +110,7 @@ describe("the retired routes", () => {
   it("prefers the record over a band when a link carries both", () => {
     expect(
       retiredRouteTarget("monitoring", {
-        band: "imminentFlagReview",
+        band: "riskFlagReview",
         escalation: "esc-1",
       })
     ).toBe("/app/escalation/esc-1");

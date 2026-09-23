@@ -104,6 +104,16 @@ export function bucketOf(deadline: number, now: number): DeadlineBucketId {
  *  item-shaped argument would make its own tests about task types. */
 export function bucketForItem(item: TaskItem, now: number): DeadlineBucketId {
   if (item.taskType === "activeEscalation") return "needsResponse";
+  /* ═══ NO DEADLINE MEANS `later`, AND IT SHOULD NEVER BE REACHED (Phase 4) ═══
+     A risk flag has no published review deadline. The surfaces that bucket by
+     deadline — Care Reviews and the escalation panes — hold billing and
+     escalation items, all of which have real ones, so this branch is a
+     correctness floor rather than a display decision.
+     `later` RATHER THAN `overdue`: those are the two ends a missing value could
+     land on, and one of them would put every flag at the top of the list under a
+     breach header. `bucketOf` keeps its non-null signature because it answers a
+     question about a DEADLINE and is tested as such. */
+  if (item.slaDeadline == null) return "later";
   return bucketOf(item.slaDeadline, now);
 }
 
@@ -225,7 +235,8 @@ export function deadlineBandsFor(
  *  convention on one surface would be the worse of the two available mistakes.
  *  The inconsistency is reported rather than resolved here. */
 export function deadlineFactFor(
-  deadline: number,
+  /** NULL FOR AN ITEM WITH NO PUBLISHED DEADLINE — see `TaskItem.slaDeadline`. */
+  deadline: number | null,
   now: number,
   elapsed: (from: number, to: number) => string,
   /** ═══ A LIVE ESCALATION COUNTS UP (arch-G, G2) ═══
@@ -240,6 +251,13 @@ export function deadlineFactFor(
     /* NEEDS-COPY-NICOLE */
     return `${elapsed(live.openedAt, now)} elapsed`;
   }
+  /* ═══ THE ABSENCE IS STATED, NOT SUBSTITUTED (Phase 4) ═══
+     NEEDS-COPY-NICOLE. A risk flag has no published review deadline. Returning
+     "" would leave a dangling figure in the row's temporal slot — the
+     empty-label-stack defect the production audit recorded — and a `?? now`
+     fallback would render "overdue by 0m" on every flag, which is a breach claim
+     manufactured out of a missing value. */
+  if (deadline == null) return "no review deadline";
   const bucket = bucketOf(deadline, now);
   if (bucket === "overdue") {
     /* NEEDS-COPY-NICOLE. "by" rather than a bare duration: the number alone

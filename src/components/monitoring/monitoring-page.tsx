@@ -29,6 +29,7 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
@@ -480,7 +481,7 @@ export function MonitoringPage({
         /* NEEDS-COPY-NICOLE. THE ANNOUNCEMENT NAMES THE SUBJECT AND THE AGE —
            never a tier, which no longer exists, and never a deadline. */
         setAnnouncement(
-          `Next: ${next.subject === "mentorPractice" ? next.mentorName : (next.teenName ?? next.mentorName)}, ${next.category ?? ""}, ${ageLabel(next.at, now)}`
+          `Next: ${next.subject === "mentorPractice" ? next.mentorName : (next.teenName ?? next.mentorName)}, ${next.category ? (next.kind === "riskFlag" ? riskCategoryLabel(next.category) : next.category) : ""}, ${ageLabel(next.at, now)}`
         );
       }
     },

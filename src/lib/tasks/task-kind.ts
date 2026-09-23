@@ -26,7 +26,7 @@
 
 import {
   BadgeCheck,
-  ClipboardCheck,
+
   FileText,
   Flag,
   Phone,
@@ -42,13 +42,14 @@ export const TASK_KIND_LABEL: Record<TaskType, string> = {
      because their SLAs and their ledger events differ. */
   intakeBillingReview: "Billing code review",
   monthlyReReview: "Billing code review",
-  /* FLAGS name the tier, because on Monitoring the tier IS the job — an imminent
-     flag and a routine one are different work at different speeds. These are here
-     for completeness rather than use: Monitoring groups by tier and its rows do
-     not state the type. */
-  imminentFlagReview: "Imminent flag review",
-  clinicalFlagReview: "Clinical flag review",
-  routineFlagReview: "Routine flag review",
+  /* ═══ ONE FLAG LABEL, AND IT NAMES THE WORK (Phase 4) ═══
+     It was three — "Imminent flag review" / "Clinical flag review" / "Routine
+     flag review" — on the reasoning that "on Monitoring the tier IS the job: an
+     imminent flag and a routine one are different work at different speeds".
+     That was the tier taxonomy's strongest-sounding argument and it rested on a
+     severity nothing upstream assigns. The work is the same work: read the
+     flagged message in its conversation and record a disposition. */
+  riskFlagReview: "Risk flag review",
   activeEscalation: "Active escalation",
   escalationDocumentation: "Escalation note",
 };
@@ -66,9 +67,10 @@ export const TASK_KIND_LABEL: Record<TaskType, string> = {
 export const TASK_KIND_ICON: Record<TaskType, LucideIcon> = {
   intakeBillingReview: BadgeCheck,
   monthlyReReview: BadgeCheck,
-  imminentFlagReview: Flag,
-  clinicalFlagReview: Flag,
-  routineFlagReview: ClipboardCheck,
+  /* ONE GLYPH, AS TWO OF THE THREE ALREADY WERE. `ClipboardCheck` was the
+     routine tier's, which is the icon saying "this is the low-severity one" —
+     precisely the assertion this phase removes. */
+  riskFlagReview: Flag,
   activeEscalation: Phone,
   escalationDocumentation: FileText,
 };
@@ -102,9 +104,9 @@ export const TASK_KIND_GROUP: Record<TaskType, string> = {
   /* NEEDS-COPY-NICOLE on both group names. */
   activeEscalation: "Escalations",
   escalationDocumentation: "Escalations",
-  imminentFlagReview: "Flags",
-  clinicalFlagReview: "Flags",
-  routineFlagReview: "Flags",
+  /* ALL THREE ALREADY SHARED THIS CHIP, which was the clearest evidence the
+     tiers were not a filter a reader wanted. */
+  riskFlagReview: "Flags",
   intakeBillingReview: "Billing",
   monthlyReReview: "Billing",
 };

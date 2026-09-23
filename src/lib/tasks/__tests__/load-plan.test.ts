@@ -61,10 +61,13 @@ describe("loadPlanFor", () => {
   });
 
   describe("partial failure", () => {
-    it("fails the risk-flag domains and spares Billing", () => {
+    it("fails the flag pipeline's domains and spares Billing", () => {
+      /* THE THIRD ASSERTION WAS `routineFlag` (Phase 4 removed that domain).
+         Dropped rather than duplicated: the claim is about which SYSTEM an
+         outage takes down — the flag pipeline, not the billing ledger — and
+         `riskFlag` is now the whole of the first. */
       expect(domainFailsUnderPartial("riskFlag")).toBe(true);
       expect(domainFailsUnderPartial("escalation")).toBe(true);
-      expect(domainFailsUnderPartial("routineFlag")).toBe(true);
       expect(domainFailsUnderPartial("billing")).toBe(false);
     });
 

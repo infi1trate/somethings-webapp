@@ -28,12 +28,12 @@
 import { compareTasks, listForDomain, sortedOpen } from "@/lib/tasks/sort";
 import type { TaskDomain, TaskItem, TaskType } from "@/lib/tasks/types";
 
-/** The flag task types — the only ones that coalesce. */
-const FLAG_TASK_TYPES: ReadonlySet<TaskType> = new Set([
-  "imminentFlagReview",
-  "clinicalFlagReview",
-  "routineFlagReview",
-]);
+/** The flag task type — the only one that coalesces.
+ *
+ *  A SET OF ONE, KEPT AS A SET. It held the three tier types; a single `===`
+ *  would read as cheaper and would have to be found and widened the moment a
+ *  second coalescing type exists. The predicate is the authority either way. */
+const FLAG_TASK_TYPES: ReadonlySet<TaskType> = new Set(["riskFlagReview"]);
 
 export function isFlagTask(taskType: TaskType): boolean {
   return FLAG_TASK_TYPES.has(taskType);
@@ -105,18 +105,19 @@ export function listEntriesForDomains(
   );
 }
 
-/** ═══ EVERY FLAG, ACROSS THE TIERS' TWO DOMAINS (arch-B) ═══
+/** ═══ EVERY FLAG — AND THERE IS ONE DOMAIN NOW (Phase 4) ═══
  *
- *  Monitoring is one surface over three tiers, and the tiers do not share a
- *  domain: imminent and clinical review are `riskFlag`, routine is its own
- *  `routineFlag`. That split is the old four-tab Tasks page's, kept because the
- *  routine tier's SLA and its ledger mapping genuinely differ — not because
- *  anyone believes a supervisor thinks of them as two kinds of thing.
+ *  This said "Monitoring is one surface over three tiers, and the tiers do not
+ *  share a domain… kept because the routine tier's SLA and its ledger mapping
+ *  genuinely differ". Both of those differences were themselves tier artifacts:
+ *  the SLA was one of three fabricated numbers (now `null`) and the ledger
+ *  mapping sent both domains to the same `RISK_FLAG_CLOSED` event anyway.
  *
- *  SO THE FILTER IS THE TASK TYPE, NOT THE DOMAIN. `isFlagTask` is already the
- *  authority on what coalesces; this makes it the authority on what Monitoring
- *  holds, so the two cannot drift into a list containing something that does not
- *  group and a group containing something not in the list.
+ *  THE FILTER IS STILL THE TASK TYPE, NOT THE DOMAIN, and the reason survives
+ *  the collapse: `isFlagTask` is the authority on what coalesces, so making it
+ *  the authority on what the queue holds keeps the two from drifting into a list
+ *  containing something that does not group and a group containing something not
+ *  in the list.
  *
  *  ORDER IS THE ONE COMPARATOR'S, unchanged: the items are sorted before they are
  *  grouped, exactly as a single domain's are. */

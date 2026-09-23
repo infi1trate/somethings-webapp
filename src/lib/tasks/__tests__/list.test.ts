@@ -23,7 +23,7 @@ describe("§4 — coalescing", () => {
     expect(group).toBeDefined();
     expect(group!.kind).toBe("group");
     if (group!.kind === "group") {
-      expect(group!.members.every((m) => m.taskType === "imminentFlagReview")).toBe(true);
+      expect(group!.members.every((m) => m.taskType === "riskFlagReview")).toBe(true);
       expect(new Set(group!.members.map((m) => m.objectId)).size).toBe(1);
     }
   });
@@ -56,7 +56,7 @@ describe("§4 — coalescing", () => {
 
   it("groups never span domains", () => {
     const items = HEAVY();
-    for (const domain of ["escalation", "riskFlag", "billing", "routineFlag"] as const) {
+    for (const domain of ["escalation", "riskFlag", "billing"] as const) {
       for (const e of listEntriesFor(items, domain, NOW)) {
         for (const member of itemsOf(e)) {
           expect(member.domain, `${domain}/${e.id}`).toBe(domain);
@@ -86,8 +86,8 @@ describe("§4 — coalescing", () => {
     }
     expect(isFlagTask("intakeBillingReview")).toBe(false);
     expect(isFlagTask("activeEscalation")).toBe(false);
-    expect(isFlagTask("imminentFlagReview")).toBe(true);
-    expect(isFlagTask("routineFlagReview")).toBe(true);
+    expect(isFlagTask("riskFlagReview")).toBe(true);
+    expect(isFlagTask("riskFlagReview")).toBe(true);
   });
 
   it("a group of one is emitted as a plain row, not a group with a dead disclosure", () => {
@@ -95,7 +95,7 @@ describe("§4 — coalescing", () => {
     const entries = listEntriesFor(items, "riskFlag", NOW);
     // heavy-caseload has one ungrouped clinical flag on its own conversation.
     const solo = entries.find(
-      (e) => e.kind === "item" && e.item.taskType === "clinicalFlagReview"
+      (e) => e.kind === "item" && e.item.taskType === "riskFlagReview"
     );
     expect(solo).toBeDefined();
     for (const e of entries) {
@@ -107,7 +107,7 @@ describe("§4 — coalescing", () => {
     // Nothing dropped and nothing duplicated — the property a grouping pass is
     // most likely to break.
     const items = HEAVY();
-    for (const domain of ["escalation", "riskFlag", "billing", "routineFlag"] as const) {
+    for (const domain of ["escalation", "riskFlag", "billing"] as const) {
       const flat = listForDomain(items, domain, NOW).map((i) => i.id).sort();
       const viaEntries = listEntriesFor(items, domain, NOW)
         .flatMap(itemsOf)

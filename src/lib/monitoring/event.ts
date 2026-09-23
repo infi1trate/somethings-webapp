@@ -133,7 +133,10 @@ export function flagEvent(
 /** ═══ THE COMPARATOR · ONE, FOR BOTH SUBJECTS (locked decision 1) ═══
  *
  *   1 open escalation (any)
- *   2 flag category rank            — no-op while FLAG_CATEGORY_RANK is empty
+ *   2 flag category rank            — LIVE since Phase 4: the playbook's tier
+ *                                     grouping over the 21 published categories.
+ *                                     Separates the three groups; flat within a
+ *                                     group, so it falls through to 3-5 there.
  *   3 conversation has >= 2 flags   — see FLAG_PATTERN_WINDOW for the widening
  *   4 flagged message has no mentor reply
  *   5 age, oldest first
