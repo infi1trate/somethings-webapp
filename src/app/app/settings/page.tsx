@@ -9,8 +9,8 @@
 // pattern (invariant 5). Rail degrades to a top scroller on narrow (gaps #101).
 
 import { use, useEffect, useRef } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useRouter } from "next/navigation";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
@@ -77,14 +77,14 @@ export default function SettingsPage({
 
   if (mounted && movedTo) {
     return (
-      <MentorShell active="settings">
+      <AppChrome active="settings">
         <div className="min-h-dvh" />
-      </MentorShell>
+      </AppChrome>
     );
   }
 
   return (
-    <MentorShell active="settings">
+    <AppChrome active="settings">
       <div className="px-6 py-6 lg:px-10">
         <h1
           className="text-[var(--text-primary)]"
@@ -202,6 +202,6 @@ export default function SettingsPage({
           </div>
         </div>
       </div>
-    </MentorShell>
+    </AppChrome>
   );
 }

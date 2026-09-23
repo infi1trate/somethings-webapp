@@ -18,15 +18,14 @@
 // deep-links to the settings tab that hosts the field.
 
 import { use, useEffect } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { gatedFieldMeta, relTime } from "@/lib/onboarding/profile-update";
 import { accountFieldLabel } from "@/lib/record/account-fields";
 import { useMounted } from "@/lib/use-mounted";
-import { AdminShell } from "@/components/admin/admin-shell";
 import { ActivityLedger } from "@/components/activity/activity-ledger";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import type { ActivityItem } from "@/lib/types";
@@ -114,19 +113,19 @@ export default function ActivityPage({
 
   if (supervisor) {
     return (
-      <AdminShell active="activity">
+      <AppChrome active="activity">
         <ActivityLedger
           initialTeenId={objectId}
           initialDomain={domain}
           initialScope={scope}
           initialEventId={eventId}
         />
-      </AdminShell>
+      </AppChrome>
     );
   }
 
   return (
-    <MentorShell active="activity">
+    <AppChrome active="activity">
       <div className="mx-auto w-full max-w-2xl px-8 py-10">
         <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
           Activity
@@ -182,6 +181,6 @@ export default function ActivityPage({
           </ul>
         )}
       </div>
-    </MentorShell>
+    </AppChrome>
   );
 }

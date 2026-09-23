@@ -15,8 +15,8 @@
 // [section] catch-all and 404, because no sidebar item carries that id any more.
 
 import { useEffect } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useRouter } from "next/navigation";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { Roster } from "@/components/admin/roster";
 import { MenteeTable } from "@/components/record/mentee-table";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -40,9 +40,9 @@ export default function MenteesPage() {
   // Supervisors get the platform roster; everyone else sees their own mentees.
   if (mounted && isSupervisorTier(persona)) {
     return (
-      <MentorShell active="mentees">
+      <AppChrome active="mentees">
         <Roster role="supervisor" segment="mentees" showQueues={false} />
-      </MentorShell>
+      </AppChrome>
     );
   }
 
@@ -50,7 +50,7 @@ export default function MenteesPage() {
     [draft.firstName, draft.lastName].filter(Boolean).join(" ") || "you";
 
   return (
-    <MentorShell active="mentees">
+    <AppChrome active="mentees">
       <div className="px-6 py-6 lg:px-10">
         <header className="max-w-prose">
           <h1
@@ -72,6 +72,6 @@ export default function MenteesPage() {
           />
         </div>
       </div>
-    </MentorShell>
+    </AppChrome>
   );
 }

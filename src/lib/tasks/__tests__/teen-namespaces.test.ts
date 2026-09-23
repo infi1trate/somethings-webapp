@@ -103,12 +103,15 @@ describe("no supervisor surface offers a link it cannot land", () => {
     );
   });
 
-  it("and the coverage row has no control at all", () => {
-    const src = read("src/components/monitoring/coverage-view.tsx");
-    expect(src).not.toContain("chatThreadHref");
-    expect(src).not.toContain("<Link");
-    expect(src).not.toContain("<button");
-  });
+  /* ═══ THE COVERAGE ROW'S CHECK IS GONE WITH THE VIEW (addendum §2.2) ═══
+     It asserted that `coverage-view.tsx` contained no `<Link`, no `<button`
+     and no `chatThreadHref` — that Phase 7's removal of a control which
+     recorded "looked" without looking had stayed removed. Coverage IS Chat
+     now and the component is deleted, so there is no row left to offer a link
+     it cannot land.
+     WHAT REPLACES IT, AND WHY IT IS NOT NOTHING: the escalation pane's two
+     link-outs are still checked above, and they are the remaining place where
+     this namespace split could produce a door that does not open. */
 });
 
 function readSource(rel: string): string {

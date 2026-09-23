@@ -1,72 +1,111 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// APPEARANCE — LIGHT, FORCED, AND THE PLUMBING LEFT STANDING
+// APPEARANCE — TWO THEMES, ONE TOGGLE, AND LIGHT IS THE EXPLICIT DEFAULT
 //
-// This was a real three-way control (light / dark / system) with `"system"` as
-// its default, a blocking script in `layout.tsx` that read
-// `prefers-color-scheme` before hydration, a segmented control in Settings and a
-// quick toggle in the account popover. It worked.
+// ═══ THE HISTORY, BECAUSE IT SETS THE SHAPE ═══
 //
-// ═══ WHY IT IS OFF, AND WHY THAT IS NOT A STYLE PREFERENCE ═══
+// This was a three-way control (light / dark / system) defaulting to `"system"`,
+// with a pre-hydration script that read `prefers-color-scheme`. That default is
+// what made it a safety problem rather than a preference: any supervisor whose
+// OS was in dark mode got an INVERTED CLINICAL SURFACE, automatically, with no
+// action and no way to know it had happened — on the surface where a missed flag
+// has the highest cost. The restructure forced light and removed both controls.
 //
-// A `"system"` default means any supervisor whose OS is in dark mode got an
-// INVERTED CLINICAL SURFACE, automatically, with no action and no way to know it
-// had happened — on the surface where a missed flag has the highest cost. The
-// dark tokens carry measured contrast ratios in `settings-tokens.css`, so they
-// are not arbitrary; what was never done is testing the SURFACES in dark. A
-// theme nobody audited, shipped by default to a subset of users nobody can
-// identify, is a live accessibility risk rather than a constraint violation.
+// ═══ WHAT COMES BACK, AND WHAT DOES NOT (addendum §2.5, §3.5) ═══
 //
-// ═══ WHAT IS REMOVED, AND WHAT IS DELIBERATELY NOT ═══
+// BACK: the theme, and ONE toggle for it, in the rail's footer.
 //
-// REMOVED: the two controls (Settings' segmented control, the account popover's
-// quick toggle) and the pre-hydration script that applied the OS preference.
+// NOT BACK: `"system"`. The type is two-valued now, so the OS preference cannot
+// be read at all — not by this module, not by the pre-paint script. A
+// supervisor whose machine flips to dark at sunset must not have a clinical
+// surface change underneath them mid-shift without choosing it, and the way to
+// guarantee that is to have no code path that consults the OS.
 //
-// NOT REMOVED: the `.dark` token blocks, the `@custom-variant dark` declaration,
-// and this module's API. Ripping out theme infrastructure is a larger change
-// than this pass, and reversing the decision later should stay cheap — one
-// constant here and two controls back. MEASURED before deciding it was safe to
-// leave: ZERO dark-only tokens across both CSS files (142 light / 91 dark in
-// `settings-tokens.css`, 95 / 19 in `globals.css`), so nothing in the product
-// resolves correctly only under dark tokens and forcing light cannot leave
-// anything unresolved.
+// THE DEFAULT IS LIGHT, EXPLICITLY. A stored choice wins; nothing stored means
+// light. So the only route to dark is a person pressing the toggle.
 //
-// `useAppearance` KEEPS ITS SHAPE so `ui/sonner.tsx` compiles unchanged and
-// reads `"light"` for its toasts. `setTheme` is a no-op that says so.
+// ═══ THE CONDITION ATTACHED TO RESTORING IT ═══
+//
+// Every contrast measurement in this phase's report is run in BOTH themes. The
+// earlier pass measured 142 light / 91 dark tokens with zero dark-only, which
+// establishes that the theme RESOLVES — a different claim from its passing
+// contrast, and only one of the two had been checked.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useEffect } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { useMounted } from "@/lib/use-mounted";
 
-export type ThemeChoice = "light" | "dark" | "system";
+/** TWO VALUES. `"system"` is not one of them — see the module note. */
+export type ThemeChoice = "light" | "dark";
 
-/** THE ONE LEVER. Flip this and restore the two controls to bring the choice
- *  back; nothing else about the token system changed. */
-export const THEME_FORCED: ThemeChoice = "light";
+export const THEME_STORAGE_KEY = "somethings.theme";
+export const THEME_DEFAULT: ThemeChoice = "light";
+
+/** The one place the stored value is interpreted, mirrored by the pre-paint
+ *  script in `layout.tsx` — anything that is not exactly `"dark"` is light, so
+ *  a stale `"system"` from an earlier build reads as light rather than as the
+ *  OS preference it used to mean. */
+export function themeFromStored(raw: string | null): ThemeChoice {
+  return raw === "dark" ? "dark" : THEME_DEFAULT;
+}
+
+/** ═══ AN EXTERNAL STORE, NOT STATE IN AN EFFECT ═══
+ *
+ *  The theme lives in `localStorage`, which is external mutable state that the
+ *  server cannot see — the exact case `useSyncExternalStore` exists for. The
+ *  obvious shape (state, plus an effect that reads storage and calls setState)
+ *  is rejected outright by the React Compiler's lint as `set-state-in-effect`,
+ *  and it is rejected for a real reason rather than a stylistic one: it renders
+ *  once with a value it knows to be provisional.
+ *
+ *  THE SERVER SNAPSHOT IS ALWAYS LIGHT, which is what keeps SSR and the first
+ *  paint agreeing. The pre-paint script has already put `.dark` on `<html>` by
+ *  then if that is the stored choice, so the DOCUMENT is right before React
+ *  knows; this hook catches up on the first client render. */
+const listeners = new Set<() => void>();
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
+  /* ANOTHER TAB COUNTS. `storage` fires only in other documents, which is
+     exactly the case this cannot learn about any other way. */
+  window.addEventListener("storage", cb);
+  return () => {
+    listeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function readStored(): ThemeChoice {
+  try {
+    return themeFromStored(window.localStorage.getItem(THEME_STORAGE_KEY));
+  } catch {
+    /* Private mode, blocked storage. Light, and no theme is remembered. */
+    return THEME_DEFAULT;
+  }
+}
+
+function serverSnapshot(): ThemeChoice {
+  return THEME_DEFAULT;
+}
+
+function applyTheme(choice: ThemeChoice) {
+  document.documentElement.classList.toggle("dark", choice === "dark");
+}
 
 export function useAppearance() {
   const mounted = useMounted();
+  const theme = useSyncExternalStore(subscribe, readStored, serverSnapshot);
 
-  /** ═══ BELT AND BRACES, AND THE BRACES ARE THE POINT ═══
-   *  `layout.tsx` no longer applies `.dark`, so in a clean session nothing adds
-   *  it. This strips it anyway: a browser that visited an earlier build has a
-   *  `somethings.theme` value in localStorage and — more to the point — may have
-   *  the class already on `<html>` from a cached document. One line, and it
-   *  cannot be the thing that ships an inverted clinical surface. */
-  useEffect(() => {
-    document.documentElement.classList.remove("dark");
+  const setTheme = useCallback((choice: ThemeChoice) => {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, choice);
+    } catch {
+      /* The choice still applies to this session; it just is not remembered. */
+    }
+    applyTheme(choice);
+    for (const cb of listeners) cb();
   }, []);
 
-  return {
-    theme: THEME_FORCED,
-    /** A NO-OP, NOT AN ABSENT FUNCTION. Keeping the signature means a caller
-     *  that still asks for a theme change compiles and does nothing visible,
-     *  rather than the build breaking somewhere unrelated — and the two callers
-     *  that used to exist are removed in the same commit, so today there are
-     *  none. */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    setTheme: (_choice: ThemeChoice) => {},
-    mounted,
-  };
+  return { theme, setTheme, mounted };
 }

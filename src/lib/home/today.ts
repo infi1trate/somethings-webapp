@@ -55,7 +55,6 @@
 // exists to have only one of.
 
 import { DESTINATION_ORDER, type DestinationId } from "@/lib/ia/destinations";
-import { coverageLine, coverageProgress } from "@/lib/monitoring/coverage";
 import type { MonitoringEvent } from "@/lib/monitoring/event";
 import type { SupervisedConversation } from "@/lib/monitoring/coverage";
 import {
@@ -98,8 +97,6 @@ export interface TodayCard {
 const LABEL: Record<DestinationId, string> = {
   escalations: "Escalations",
   "risk-flags": "Risk Flags",
-  "mentor-practice": "Mentor Practice",
-  coverage: "Coverage",
   "care-reviews": "Care Reviews",
 };
 
@@ -116,6 +113,11 @@ export interface TodayInput {
    *  items. The destination's own input, filtered here exactly as the region
    *  filters it, because a settled record owes nothing. */
   escalations: EscalationRecord[];
+  /** ═══ STILL ON THE INPUT, AND NO CARD READS IT (addendum §2.2) ═══
+   *  The Coverage card was its only reader. The field stays because
+   *  `MonitoringData` still carries the roster and the page still passes what
+   *  it has — removing it from this type would be a change to every caller for
+   *  no behaviour. The dormancy is stated rather than left to be discovered. */
   conversations: SupervisedConversation[];
   /** True when the flag pipeline is down. It makes a zero on Risk Flags mean
    *  something entirely different, so the card must be able to say so. */
@@ -165,7 +167,7 @@ function plural(n: number, one: string, many: string): string {
  * tab cards kept their position and the opposite of the rule for buckets.
  */
 export function todayCards(input: TodayInput): TodayCard[] {
-  const { facts, events, escalations, conversations, classifierDegraded, now } =
+  const { facts, events, escalations, classifierDegraded, now } =
     input;
   /** ═══ THE DESTINATION'S OWN COUNT, THROUGH THE DESTINATION'S OWN FUNCTION ═══
    *  This read `homeObligations(items, now)` — the nav BADGE's debt count, off
@@ -179,8 +181,9 @@ export function todayCards(input: TodayInput): TodayCard[] {
     now
   );
 
-  const flags = events.filter((e) => e.subject === "teenSafety");
-  const practice = events.filter((e) => e.subject === "mentorPractice");
+  /* EVERY EVENT IS A FLAG SINCE §2.1 — the subject filter went with Mentor
+     Practice, so this is the whole set rather than a half of it. */
+  const flags = events;
 
   const build: Record<DestinationId, TodayCard> = {
     /* ── ESCALATIONS · the only destination with two real clocks ──────────── */
@@ -247,47 +250,6 @@ export function todayCards(input: TodayInput): TodayCard[] {
         tone: flags.length ? "attention" : "clear",
         href: "/app/risk-flags",
         count: flags.length,
-      };
-    })(),
-
-    /* ── MENTOR PRACTICE · the same shape, and for the same reason ────────── */
-    "mentor-practice": (() => {
-      const at = oldest(practice);
-      return {
-        id: "mentor-practice" as const,
-        label: LABEL["mentor-practice"],
-        /* NEEDS-COPY-NICOLE. NOT the flag queue's empty line: "Coverage is where
-           the rest of the work is" is a teen-safety sentence pointing at a
-           teen-coverage surface, and a mentor's late note has nothing to do with
-           either. */
-        state: practice.length
-          ? `${plural(practice.length, "open", "open")} · oldest ${ageOf(at, now)}`
-          : "No practice breaches",
-        tone: practice.length ? "attention" : "clear",
-        href: "/app/mentor-practice",
-        count: practice.length,
-      };
-    })(),
-
-    /* ── COVERAGE · progress, never a remainder ───────────────────────────── */
-    coverage: (() => {
-      /* THE EMPTY CREDITED SET IS THE POINT, not an oversight — see the header's
-         note on session-local credit. */
-      const p = coverageProgress(conversations, new Set<string>());
-      return {
-        id: "coverage" as const,
-        label: LABEL.coverage,
-        /* `coverageLine` UNCHANGED, which is what makes this a mirror: the
-           sentence is the coverage view's own, so the two cannot phrase the same
-           fraction differently. */
-        state: coverageLine(p),
-        /* NEVER `breach`, NEVER `attention`. There is no published threshold to
-           be under, and colouring partial coverage as a problem would make the
-           floor into a score — which is the reading this surface exists to
-           refuse. */
-        tone: "clear",
-        href: "/app/coverage",
-        count: null,
       };
     })(),
 
@@ -362,8 +324,6 @@ const DIRECTIVE_ORDER: readonly DestinationId[] = [
   "escalations",
   "care-reviews",
   "risk-flags",
-  "mentor-practice",
-  "coverage",
 ];
 
 export function directiveCardId(cards: TodayCard[]): DestinationId | null {

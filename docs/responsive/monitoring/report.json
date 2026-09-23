@@ -1,22 +1,11 @@
 {
-  "at": 1790177957867,
+  "at": 1790199787709,
   "rows": [
     {
-      "id": "input.headers",
-      "label": "group headers were readable at all",
-      "ok": true,
-      "detail": "Teen safety — 69"
-    },
-    {
-      "id": "tier.no-band-headers",
-      "label": "no tier names a group",
-      "ok": true,
-      "detail": "Teen safety — 69"
-    },
-    {
       "id": "tier.no-tier-anywhere",
-      "label": "and the words appear nowhere on the surface",
-      "ok": true
+      "label": "no tier name appears anywhere on the surface",
+      "ok": true,
+      "detail": "Risk Flags N Naomi R. ↔ Brandy Forrestor Unsafe home environment · 9h ago Escala"
     },
     {
       "id": "input.rows",
@@ -70,7 +59,7 @@
       "id": "row.roles-in-name",
       "label": "the accessible name labels both roles",
       "ok": true,
-      "detail": "Teen safety, teen Naomi R., mentor Brandy Forrestor, Unsafe home environment, es"
+      "detail": "teen Naomi R., mentor Brandy Forrestor, Unsafe home environment, escalation open"
     },
     {
       "id": "row.no-message-content",
@@ -287,56 +276,34 @@
       "detail": "teen Zara H., mentor Omar Haddad, Active · not acknowledged, 911 dispa"
     },
     {
-      "id": "header.coverage-is-progress",
-      "label": "the header states coverage as progress against a period",
-      "ok": true,
-      "detail": "Risk Flags No escalation clocks outstanding 3 of 24 conversations reviewed this shift"
-    },
-    {
-      "id": "header.no-backlog-count",
-      "label": "and never as a backlog of items",
-      "ok": true
-    },
-    {
-      "id": "header.no-bare-flag-count",
-      "label": "and does not lead with an open flag count",
-      "ok": true
-    },
-    {
-      "id": "coverage.view-exists",
-      "label": "a coverage view lists supervised conversations",
-      "ok": true,
-      "detail": "24 conversations"
-    },
-    {
-      "id": "coverage.unreviewed-first",
-      "label": "unreviewed conversations sort first",
-      "ok": true,
-      "detail": "false"
-    },
-    {
-      "id": "input.credit",
-      "label": "the coverage figure was readable before and after",
-      "ok": true,
-      "detail": "11 → 12"
-    },
-    {
-      "id": "coverage.credits-on-review",
-      "label": "reviewing an event credits its conversation",
-      "ok": true,
-      "detail": "11 → 12"
-    },
-    {
       "id": "axes.risk-flags.input",
       "label": "an event was selectable and its pane opened",
       "ok": true,
       "detail": "12 row(s), disposition true"
     },
     {
-      "id": "axes.risk-flags.accuracy",
-      "label": "the classifier-accuracy axis is offered on a flag",
+      "id": "axes.risk-flags.own-axis1",
+      "label": "axis 1 names this subject's own question",
       "ok": true,
-      "detail": "accuracy axis present"
+      "detail": "Clinical disposition | Classifier accuracy — optional"
+    },
+    {
+      "id": "axes.risk-flags.own-axis2",
+      "label": "and axis 2 names this subject's own producer, not the other's",
+      "ok": true,
+      "detail": "Clinical disposition | Classifier accuracy — optional"
+    },
+    {
+      "id": "axes.risk-flags.primary-noun",
+      "label": "and the primary's noun follows the axis it commits",
+      "ok": true,
+      "detail": "Record disposition"
+    },
+    {
+      "id": "axes.risk-flags.axis2-values-agree",
+      "label": "and its buttons say the same thing its heading does",
+      "ok": true,
+      "detail": "Classifier was right · Classifier was wrong"
     },
     {
       "id": "axes.risk-flags.nothing-preselected",
@@ -352,39 +319,9 @@
     },
     {
       "id": "axes.risk-flags.sheet-matches",
-      "label": "and it teaches the accuracy keys",
+      "label": "and the sheet teaches this destination's own axis-2 keys",
       "ok": true,
-      "detail": "sheet teaches the accuracy keys"
-    },
-    {
-      "id": "axes.mentor-practice.input",
-      "label": "an event was selectable and its pane opened",
-      "ok": true,
-      "detail": "1 row(s), disposition true"
-    },
-    {
-      "id": "axes.mentor-practice.accuracy",
-      "label": "and is ABSENT where no classifier produced the event",
-      "ok": true,
-      "detail": "accuracy axis absent"
-    },
-    {
-      "id": "axes.mentor-practice.nothing-preselected",
-      "label": "and neither axis arrives with an answer already recorded",
-      "ok": true,
-      "detail": "0 pre-selected"
-    },
-    {
-      "id": "axes.mentor-practice.sheet-input",
-      "label": "the shortcut sheet opened",
-      "ok": true,
-      "detail": "Keyboard shortcuts These work anywhere "
-    },
-    {
-      "id": "axes.mentor-practice.sheet-matches",
-      "label": "and it does not teach keys this destination does not bind",
-      "ok": true,
-      "detail": "sheet omits the accuracy keys"
+      "detail": "Classifier was right (records accuracy only) · Classifier was wrong (records accuracy only)"
     },
     {
       "id": "match.input",
@@ -411,51 +348,40 @@
       "detail": "clean"
     },
     {
-      "id": "axes.coverage.sheet-input",
-      "label": "the shortcut sheet opened on Coverage",
+      "id": "hdr.own.escalations.input",
+      "label": "the header rendered a subtitle at all",
       "ok": true,
-      "detail": "Keyboard shortcuts These work anywhere "
+      "detail": "Escalations 2 escalations awaiting acknowledgement · 3 close-out items overdue"
     },
     {
-      "id": "axes.coverage.sheet-minimal",
-      "label": "and teaches no queue, pane or accuracy key — Coverage binds none of them",
+      "id": "hdr.own.escalations.states-its-own",
+      "label": "it states the clause this destination owns",
       "ok": true,
-      "detail": "Keyboard shortcuts These work anywhere on this page, except while you are typing. ? This list Close"
+      "detail": "Escalations 2 escalations awaiting acknowledgement · 3 close-out items overdue"
     },
     {
-      "id": "practice.own-destination",
-      "label": "the practice queue names its subject and holds nothing else",
+      "id": "hdr.own.escalations.borrows-none",
+      "label": "and does not carry a neighbour's",
       "ok": true,
-      "detail": "Mentor practice — 1"
+      "detail": "clean"
     },
     {
-      "id": "practice.no-dead-chip-row",
-      "label": "and offers no subject filter, because the route already chose",
-      "ok": true
+      "id": "hdr.own.risk-flags.input",
+      "label": "the header rendered a subtitle at all",
+      "ok": true,
+      "detail": "Risk Flags Flag pipeline is down — no flags are arriving"
     },
     {
-      "id": "practice.filter-works",
-      "label": "the chip narrows the one queue",
+      "id": "hdr.own.risk-flags.states-its-own",
+      "label": "it states the clause this destination owns",
       "ok": true,
-      "detail": "mentorPractice"
+      "detail": "Risk Flags Flag pipeline is down — no flags are arriving"
     },
     {
-      "id": "practice.states-measure",
-      "label": "a practice row names the rule and the measure",
+      "id": "hdr.own.risk-flags.borrows-none",
+      "label": "and does not carry a neighbour's",
       "ok": true,
-      "detail": "B Brandon Forant ↔ Sofia G. Video progress note overdue · 1d ago"
-    },
-    {
-      "id": "practice.pane-names-constant",
-      "label": "and the pane says what it was measured against",
-      "ok": true,
-      "detail": "VIDEO PROGRESS NOTE OVERDUE TEEN Sofia G. MENTOR Brandon Forant 1d ago What was measured Video progress note overdue — 5"
-    },
-    {
-      "id": "practice.stub-says-so",
-      "label": "a stubbed event states that nothing computed it",
-      "ok": true,
-      "detail": "CONDUCT REVIEW MENTOR Brandy Forrestor 3h ago What was measured Conduct review — flagged for review — no automated measure exists Measured a"
+      "detail": "clean"
     },
     {
       "id": "live.off-by-default",
@@ -472,7 +398,7 @@
       "id": "structure.footer-static",
       "label": "the pane footer is not an overlay, so focus cannot hide under it",
       "ok": true,
-      "detail": "{\"position\":\"static\",\"top\":693,\"bottom\":919,\"left\":674,\"right\":1231}"
+      "detail": "{\"position\":\"static\",\"top\":665,\"bottom\":919,\"left\":674,\"right\":1231}"
     },
     {
       "id": "input.focus",
@@ -508,7 +434,7 @@
       "id": "targets.escalations-44",
       "label": "every escalation control clears HIG's 44px",
       "ok": true,
-      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · View care profile:44x131 · View conversation:44x140 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Escalation timeline:260x910"
+      "detail": "teen Zara H., mentor Omar Ha:44x781 · Open escalation:44x125 · Support thread:44x109 · Teen conversation:44x127 · Log an action:44x122 · Escalation timeline:260x910"
     },
     {
       "id": "targets.rows",
@@ -520,7 +446,7 @@
       "id": "a11y.live-inventory",
       "label": "every live region on the route is accounted for",
       "ok": true,
-      "detail": "polite:FLAG TEEN Naomi R. MENTOR  | polite:(empty) | polite:(empty) | polite:Notifications alt+T"
+      "detail": "polite:RISK FLAG TEEN Naomi R. ME | polite:(empty) | polite:(empty) | polite:Notifications alt+T"
     },
     {
       "id": "a11y.one-assertive",
@@ -532,7 +458,7 @@
       "id": "fixtures.wired",
       "label": "every key is wired into the dev bar's switcher",
       "ok": true,
-      "detail": "40 of 40"
+      "detail": "32 of 32"
     },
     {
       "id": "fixtures.exact-keys",
@@ -544,13 +470,13 @@
       "id": "fixtures.grouped",
       "label": "grouped in the order the phase file lists",
       "ok": true,
-      "detail": "Monitoring · Volume and coverage | Monitoring · Escalation lifecycle | Monitoring · Compliance paths | Monitoring · Risk flags | Monitoring · Mentor practice | Monitoring · Live layer | Monitoring · System and edge"
+      "detail": "Monitoring · Volume | Monitoring · Escalation lifecycle | Monitoring · Compliance paths | Monitoring · Risk flags | Monitoring · Live layer | Monitoring · System and edge"
     },
     {
       "id": "fixtures.all-render",
-      "label": "all 40 scenario keys render without error",
+      "label": "all 32 scenario keys render without error",
       "ok": true,
-      "detail": "40 keys"
+      "detail": "32 keys"
     }
   ]
 }

@@ -19,7 +19,7 @@
 //
 // The SERVER render cannot know any of it. The store is `localStorage`-backed, so
 // SSR has no access, and the app already guards every read behind `useMounted()`
-// for exactly that reason — `mentor-shell.tsx:70` renders `mounted ? persona :
+// for exactly that reason — `app-chrome.tsx` renders `mounted ? persona :
 // "mentor"`. That mount-gate flash predates deeplinks and applies to any
 // persisted persona. What this module removes is a SECOND correction: without it
 // the params would land in an effect, one commit after hydration, and the

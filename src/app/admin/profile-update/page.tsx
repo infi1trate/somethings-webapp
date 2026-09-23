@@ -10,11 +10,11 @@
 //   un-noted fields stay pending and publish with the next approval).
 
 import { use, useEffect, useRef, useState } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
@@ -130,14 +130,14 @@ export default function AdminProfileUpdatePage({
   if (!mounted || !isLead) {
     // Pre-mount / non-lead viewers (being redirected) — quiet shell.
     return (
-      <MentorShell active="mentors">
+      <AppChrome active="mentors">
         <div className="min-h-dvh" />
-      </MentorShell>
+      </AppChrome>
     );
   }
 
   return (
-    <MentorShell active="mentors">
+    <AppChrome active="mentors">
       <div className="px-6 py-6 lg:px-10">
         <Link
           href={returnHref}
@@ -384,6 +384,6 @@ export default function AdminProfileUpdatePage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </MentorShell>
+    </AppChrome>
   );
 }

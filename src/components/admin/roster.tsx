@@ -2,8 +2,8 @@
 
 // Shared people roster — now role- + segment-aware and FUNCTIONAL (search, sort,
 // relevant per-view filters), replacing the earlier decorative version. Renders
-// in the Supervisor console (AdminShell, with review queues) and the Lead Mentor
-// app (MentorShell, list only, umbrella-scoped).
+// in the Supervisor console (AppChrome, with review queues) and the Lead Mentor
+// app (AppChrome, list only, umbrella-scoped).
 //
 //   role "supervisor" → all mentors / all teens (plain directory — the review
 //                       queues moved to the Lead Mentor, who owns reviews now)

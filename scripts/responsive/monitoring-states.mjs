@@ -27,7 +27,7 @@ import { mkdir, writeFile } from "node:fs/promises";
  *  them, because the order is part of what was asked for. */
 const EXPECTED_KEYS = [
   // Volume and coverage
-  "clean-day", "classifier-degraded", "shift-start-backlog", "normal-day", "surge", "coverage-debt",
+  "clean-day", "classifier-degraded", "shift-start-backlog", "normal-day", "surge",
   // Escalation lifecycle
   "escalation-unacked", "escalation-breach", "escalation-911", "escalation-concurrent",
   "escalation-closeout", "escalation-note-overdue", "escalation-no-caregiver", "escalation-afterhours",
@@ -40,9 +40,10 @@ const EXPECTED_KEYS = [
   "explicit-media", "suspected-death",
   // Risk flags
   "flag-in-escalation", "flag-repeat-pattern", "flag-no-mentor-reply", "flag-false-positive-cluster",
-  // Mentor practice
-  "mentor-offline", "mentor-outreach-missed", "mentor-response-slow", "mentor-note-overdue",
-  "mentor-conduct-flag", "mentor-perf-escalation", "mentor-post-crisis",
+  /* THE SEVEN `mentor-*` FIXTURES AND `coverage-debt` ARE GONE (addendum §2.1,
+     §2.2) — with the destinations they exercised. The list shrinks rather than
+     the count being loosened, which is the same rule the arch-G addition
+     followed in the other direction. */
   // Live layer
   "live-offhours", "live-transport-lost", "live-quiet-shift", "live-busy-shift", "live-response-clock",
   "live-mentor-drop", "live-outreach-window", "live-flag-arrival", "live-escalation-arrival", "live-paused",
@@ -130,20 +131,25 @@ const rowText = (page) =>
   const { context, page } = await open("tiers-gone");
   await page.waitForTimeout(600);
   const t = await mainText(page);
-  const headers = await page
-    .locator('[role="group"][aria-label]')
-    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  check("input.headers", "group headers were readable at all", headers.length > 0, headers.join(" | "));
-  check(
-    "tier.no-band-headers",
-    "no tier names a group",
-    !headers.some((h) => /Imminent|Clinical review|Routine review/.test(h ?? "")),
-    headers.join(" | ")
-  );
+  /* ═══ THE GROUP-HEADER CHECK IS GONE, AND NOT BECAUSE IT PASSED ═══
+     `input.headers` asserted that group headers existed, and
+     `tier.no-band-headers` asserted that none of them named a tier. The list
+     has no group layer since §2.1: with one review subject the header read
+     "Teen safety — 9" over every row on a page titled Risk Flags.
+     THIS IS THE CASE THE INPUT GUARD WAS WRITTEN FOR. With no headers the
+     tier-name assertion would pass over an empty array — a green check on a
+     claim nothing was tested. So rather than let it go vacuous, the claim is
+     carried by `tier.no-tier-anywhere` below, which reads the whole surface's
+     text and therefore covers whatever a group header would have said, and by
+     `input.rows`, which is the input guard that still has a subject. */
   check(
     "tier.no-tier-anywhere",
-    "and the words appear nowhere on the surface",
-    !/\bImminent\b|\bClinical review\b|\bRoutine review\b/.test(t)
+    "no tier name appears anywhere on the surface",
+    !/\bImminent\b|\bClinical review\b|\bRoutine review\b/.test(t),
+    /* THE DETAIL REPORTS THE OBSERVATION. A pass prints the surface's opening
+       words, so a reader can see WHICH surface was read — the previous version
+       printed nothing at all and a misrouted probe would have looked clean. */
+    t.replace(/\s+/g, " ").slice(0, 80)
   );
 
   const texts = await rowText(page);
@@ -534,81 +540,28 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6 · COVERAGE (Phase 4)
+// 6 · COVERAGE — THE WHOLE SECTION IS GONE (addendum §2.2)
 // ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("coverage", { scenario: "coverage-debt" });
-  await page.waitForTimeout(600);
-  const header = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
-  check(
-    "header.coverage-is-progress",
-    "the header states coverage as progress against a period",
-    / of \d+ conversations reviewed this shift/.test(header.replace(/\s+/g, " ")),
-    header.replace(/\s+/g, " ")
-  );
-  check(
-    "header.no-backlog-count",
-    "and never as a backlog of items",
-    !/unreviewed|to review|left|remaining|inbox/i.test(header)
-  );
-  check(
-    "header.no-bare-flag-count",
-    "and does not lead with an open flag count",
-    !/\d+ flags? in review/.test(header)
-  );
-  /* ═══ COVERAGE IS A ROUTE, NOT A TAB (Phase 2) ═══
-     The segmented control is hidden under a scope — the URL says which view this
-     is, and a one-tab row offering no choice is dead chrome. So the coverage
-     half opens its own destination instead of clicking for a control that is
-     deliberately not there. The header checks above stay on the queue, which is
-     whose header they are about. */
-  const covView = await open("coverage-view", {
-    scenario: "coverage-debt",
-    url: "/app/coverage",
-  });
-  await covView.page.waitForTimeout(700);
-  const convos = await covView.page
-    .locator("[data-anno-ref^='coverage-row:']")
-    .count();
-  check("coverage.view-exists", "a coverage view lists supervised conversations", convos > 0, `${convos} conversations`);
-  const unreviewedFirst = await covView.page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
-  /* THE DETAIL SAYS WHAT THE VALUE MEANS. It printed the raw `data-reviewed`
-     attribute, so a PASSING check reported "false" — correct, and it reads as a
-     failure at a glance. Third instance of this family (gap rows 424, and the
-     escalate announcement in Phase 6): a detail has to be legible on its own. */
-  check(
-    "coverage.unreviewed-first",
-    "unreviewed conversations sort first",
-    unreviewedFirst === "false",
-    `first row is ${unreviewedFirst === "false" ? "unreviewed" : "reviewed"}`
-  );
-  await page.screenshot({ path: `${OUT}/03-coverage.png` });
-  await covView.context.close();
-  await context.close();
-}
-{
-  /* REVIEWING A FLAG CREDITS ITS CONVERSATION — the rule that stops a supervisor
-     doing the same reading twice. */
-  const { context, page } = await open("coverage-credit", { scenario: "normal-day" });
-  await page.waitForTimeout(700);
-  const before = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
-  await page.locator('[data-effect="resolve"]').first().click();
-  await page.locator('[data-action="record"]').click();
-  await page.waitForTimeout(700);
-  const after = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
-  const n = (s) => Number((s.replace(/\s+/g, " ").match(/(\d+) of \d+ conversations/) ?? [])[1] ?? -1);
-  check("input.credit", "the coverage figure was readable before and after", n(before) >= 0 && n(after) >= 0, `${n(before)} → ${n(after)}`);
-  check(
-    "coverage.credits-on-review",
-    "reviewing an event credits its conversation",
-    n(after) === n(before) + 1,
-    `${n(before)} → ${n(after)}`
-  );
-  await context.close();
-}
+//
+// It held six checks over three fixtures: that the header stated coverage as
+// progress against a period rather than as a remainder, that the view listed
+// supervised conversations with the unreviewed first, that reviewing a flag
+// credited its teen, and that the destination took the full width with no
+// empty pane beside it. Coverage IS Chat now and none of it has a subject.
+//
+// NOT RETARGETED, DELETED — and the distinction matters, because this file's
+// own rule is that a check whose subject moved gets retargeted with the move
+// named rather than relaxed. Nothing moved: the chat view these conversations
+// now live in is existing work with its own probes (`chat-thread`,
+// `chat-shell`), and pointing coverage's assertions at it would be inventing a
+// claim about a surface this phase did not build.
+//
+// THE ONE IDEA WORTH CARRYING FORWARD is that progress is never expressed as a
+// count of what is LEFT. §2.11 puts a progress track back on Risk Flags and
+// Care Reviews, measuring flags reviewed, and that rule is asserted there.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6b · THE TWO AXES, PER DESTINATION (Phase 5)
+// 6b · THE TWO AXES (Phase 5, narrowed by addendum §2.1)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // The unit tests own the axes' MODEL — only a disposition closes an event, the
@@ -617,18 +570,22 @@ for (const [scenario, id, want] of [
 // defects: the accuracy axis on events no classifier produced, and a shortcut
 // sheet teaching those keys on the destination where they do nothing.
 {
-  /* ═══ PHASE 8 CHANGED THE PRACTICE EXPECTATION FROM ABSENT TO DIFFERENT ═══
+  /* ═══ IT RAN OVER TWO DESTINATIONS AND NOW RUNS OVER ONE ═══
      Phase 5 asserted the accuracy axis was ABSENT on a practice event, because
      the five rules are deterministic and there was no classifier to judge.
      Phase 8 gave that destination an axis 2 with a different producer — the
-     rule's provisional THRESHOLD — so the claim is no longer "no second axis"
-     but "the second axis asks about this subject's own producer".
-     CHECKED BY THE LABEL, in both directions: each destination must name its own
-     producer AND must not name the other's. A presence check alone would pass on
-     a practice pane that had simply kept the classifier wording. */
+     rule's provisional THRESHOLD — so the claim became "the second axis asks
+     about this subject's own producer", checked in both directions.
+     MENTOR PRACTICE IS GONE, so the second case goes. The both-directions check
+     STAYS, and it is not vestigial: it is what would catch a threshold question
+     reappearing on a classifier's pane, and the words it forbids are exactly
+     the ones this codebase has already written once. */
+  /* ONE ROW, AND IT STAYS A TABLE. The loop shape survives the second case so
+     that adding a review subject back is a row rather than a rewrite — and so
+     the "not the other's" half of every assertion keeps its second vocabulary
+     to name. */
   const cases = [
     ["risk-flags", "/app/risk-flags", "normal-day", "Classifier accuracy", "Rule threshold", "Clinical disposition", "What you did"],
-    ["mentor-practice", "/app/mentor-practice", "mentor-note-overdue", "Rule threshold", "Classifier accuracy", "What you did", "Clinical disposition"],
   ];
   for (const [name, url, scenario, ownsAxis2, otherAxis2, ownsAxis1, otherAxis1] of cases) {
     const { context, page } = await open(`axes-${name}`, { scenario, url });
@@ -881,188 +838,30 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6c · COVERAGE AS A DESTINATION (Phase 7)
+// 6c AND 7 — COVERAGE AS A ROUTE, AND MENTOR PRACTICE (both gone)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// The checks above verify coverage's CONTENTS — the list, the sort, the credit
-// path. These verify it as a ROUTE, which is what Phase 2 made it and nothing
-// had checked: its width, its header, and the absence of a control that records
-// having looked at something without opening it.
-{
-  const { context, page } = await open("coverage-dest", {
-    scenario: "coverage-debt",
-    url: "/app/coverage",
-  });
-  await page.waitForTimeout(900);
-  const seen = await page.evaluate(() => {
-    const grid = document.querySelector("main .grid");
-    const header =
-      document.querySelector('[data-anno-ref="monitoring-header"]')?.innerText ??
-      "";
-    const rows = [
-      ...document.querySelectorAll('[data-anno-ref^="coverage-row:"]'),
-    ];
-    return {
-      cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 0,
-      /* A DETAIL PANE ON THIS ROUTE IS PERMANENTLY EMPTY — the scope pins the
-         subject to nothing, so it cannot ever hold an event. */
-      chooseAnEvent: /Choose an event/i.test(
-        document.querySelector("main")?.innerText ?? ""
-      ),
-      header: header.replace(/\s+/g, " "),
-      rowCount: rows.length,
-      /* EVERY FOCUSABLE THING INSIDE A ROW. A control here would be one that
-         acts on a conversation, and the two destinations it could act TOWARD
-         are a mentor route and an id namespace this roster is not in. */
-      rowControls: rows.flatMap((r) =>
-        [...r.querySelectorAll("a, button, [role=button]")].map((e) =>
-          (e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)
-        )
-      ),
-      rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
-    };
-  });
-
-  check(
-    "coverage.input",
-    "the destination rendered its roster",
-    seen.rowCount > 0,
-    `${seen.rowCount} rows`
-  );
-  check(
-    "coverage.one-column",
-    "it takes the full width — its unit opens as a route, not in a pane",
-    seen.cols === 1 && !seen.chooseAnEvent,
-    `${seen.cols} column(s)` +
-      (seen.chooseAnEvent ? ' · still renders "Choose an event"' : "")
-  );
-  check(
-    "coverage.own-header",
-    "and its header states its own subject, not another destination's",
-    !/escalation|close-out|pipeline/i.test(seen.header),
-    seen.header.slice(0, 110)
-  );
-  check(
-    "coverage.no-remainder",
-    "and never states what is left — progress with its unit, never an inbox count",
-    /\d+ of \d+ conversations reviewed/.test(seen.header) &&
-      !/unreviewed|remaining|left|to go/i.test(seen.header),
-    seen.header.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? "no progress line"
-  );
-  /* ═══ THE CONTROL THAT RECORDED "LOOKED" WITHOUT LOOKING ═══
-     It was a button whose accessible name was "Open the conversation between
-     teen X and mentor Y", wired to a handler that credited the conversation and
-     navigated nowhere. Asserted as an ABSENCE of row controls, not as an absence
-     of that one label, because the defect is the pattern: any control here that
-     credits without leaving is the same fabricated measurement under a new name. */
-  check(
-    "coverage.no-credit-without-looking",
-    "and offers no row control — a credit that fires without leaving is a fabricated measurement",
-    seen.rowControls.length === 0,
-    seen.rowControls.length
-      ? `${seen.rowControls.length}: ${seen.rowControls.slice(0, 2).join(" · ")}`
-      : "read-only"
-  );
-  check(
-    "coverage.uniform-rows",
-    "and every row is one height, so the list reads as a roster",
-    seen.rowHeights.length === 1 && seen.rowHeights[0] === 56,
-    seen.rowHeights.join("/")
-  );
-  await context.close();
-}
-
-/* COVERAGE BINDS ONE KEY, and a sheet listing five that do nothing is worse
-   than a short one. Its own case, because it has no queue to select from. */
-{
-  const { context, page } = await open("axes-coverage", {
-    scenario: "coverage-debt",
-    url: "/app/coverage",
-  });
-  await page.waitForTimeout(900);
-  await page.keyboard.press("?");
-  await page.waitForTimeout(400);
-  const sheet = await page.evaluate(
-    () => document.querySelector('[role="dialog"]')?.innerText ?? ""
-  );
-  check(
-    "axes.coverage.sheet-input",
-    "the shortcut sheet opened on Coverage",
-    /Keyboard shortcuts/i.test(sheet),
-    sheet.slice(0, 40).replace(/\s+/g, " ")
-  );
-  check(
-    "axes.coverage.sheet-minimal",
-    "and teaches no queue, pane or accuracy key — Coverage binds none of them",
-    !/queue|review pane|Classifier/i.test(sheet),
-    sheet.replace(/\s+/g, " ").slice(0, 120)
-  );
-  await context.close();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 7 · MENTOR PRACTICE (Phase 5)
-// ═══════════════════════════════════════════════════════════════════════════
-{
-  /* ═══ THE SUBJECT SPLIT IS A ROUTE BOUNDARY NOW (Phase 2) ═══
-     Practice events used to share one queue with flags, narrowed by a chip row.
-     They are two destinations: `/app/risk-flags` pins teen safety and
-     `/app/mentor-practice` pins mentor practice. So this opens the practice
-     destination rather than clicking a chip that is deliberately hidden.
-     THE TWO CHIP CHECKS BELOW ARE RETIRED, not relaxed — `practice.one-queue`
-     asserted both subjects in one list and `practice.filter-chips` asserted the
-     control that narrowed it. Both describe a surface Phase 2 replaced; the
-     claim that survived is that the practice queue holds ONLY practice events,
-     which `practice.filter-works` already makes and which the route now
-     guarantees rather than a chip. */
-  const { context, page } = await open("practice", {
-    scenario: "mentor-note-overdue",
-    url: "/app/mentor-practice",
-  });
-  await page.waitForTimeout(800);
-  const headers = await page.locator('[role="group"][aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  /* PREFIX MATCH: the group's accessible name carries its count ("Mentor
-     practice — 3"), which is what a screen-reader user needs on entry. */
-  const named = (want) => headers.some((h) => (h ?? "").startsWith(want));
-  check(
-    "practice.own-destination",
-    "the practice queue names its subject and holds nothing else",
-    named("Mentor practice") && !named("Teen safety"),
-    headers.join(" | ") || "no groups"
-  );
-  check(
-    "practice.no-dead-chip-row",
-    "and offers no subject filter, because the route already chose",
-    (await page.locator('[role="group"][aria-label*="review subject"] button:visible').count()) === 0
-  );
-  const subjects = await page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-event-subject")));
-  check("practice.filter-works", "the chip narrows the one queue", subjects.length > 0 && subjects.every((s) => s === "mentorPractice"), subjects.join(","));
-  const row = await page.locator('[role="treeitem"]').first().innerText();
-  check("practice.states-measure", "a practice row names the rule and the measure", /overdue/.test(row.replace(/\s+/g, " ")), row.replace(/\s+/g, " "));
-  await page.locator('[role="treeitem"]').first().click();
-  await page.waitForTimeout(400);
-  const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
-  check("practice.pane-names-constant", "and the pane says what it was measured against", /Measured against/.test(pane), pane.slice(0, 120));
-  await page.screenshot({ path: `${OUT}/04-practice.png` });
-  await context.close();
-}
-{
-  const { context, page } = await open("practice-stub", {
-    scenario: "mentor-conduct-flag",
-    url: "/app/mentor-practice",
-  });
-  await page.waitForTimeout(800);
-  await page.locator('[role="treeitem"]').first().click();
-  await page.waitForTimeout(400);
-  const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
-  check(
-    "practice.stub-says-so",
-    "a stubbed event states that nothing computed it",
-    /No automated measure|no automated measure/.test(pane),
-    pane.slice(0, 140)
-  );
-  await context.close();
-}
+// 6c checked Coverage as a ROUTE rather than as contents: that it took the
+// full width with no empty detail pane beside it, that its rows were one
+// height so the list read as a roster, that it offered no row control — a
+// credit that fires without leaving being a fabricated measurement — and that
+// its shortcut sheet taught one key rather than five that did nothing.
+//
+// 7 checked Mentor Practice: that the destination held only practice events,
+// that it offered no dead chip row, that a row named the rule and its measure,
+// that the pane said what the measure was taken against, and that a STUBBED
+// event stated on its face that nothing had computed it.
+//
+// Both destinations are removed (§2.2, §2.1), so both blocks go.
+//
+// ═══ ONE CHECK FROM SECTION 7 IS WORTH ITS OWN LINE, BECAUSE IT WAS A RULE ═══
+//
+// `practice.stub-says-so`. The standing rule it enforced — a producer that
+// cannot measure must say so rather than imply a measurement — outlives the
+// surface it was written for. There is nothing on Monitoring making a claim of
+// that shape today; the flag pane's classifier rationale is the nearest, and
+// it is already covered by `disposition.*`. Recorded here so the rule is not
+// lost with the block that happened to hold it.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 8 · THE LIVE LAYER (Phase 6)
@@ -1246,11 +1045,13 @@ for (const [scenario, id, want] of [
     "grouped in the order the phase file lists",
     groups.join(" | ") ===
       [
-        "Monitoring · Volume and coverage",
+        /* WAS "Volume and coverage" — coverage is Chat (§2.2) and the group
+           no longer holds a coverage fixture. "Mentor practice" is gone
+           entirely (§2.1), with its seven keys. */
+        "Monitoring · Volume",
         "Monitoring · Escalation lifecycle",
         "Monitoring · Compliance paths",
         "Monitoring · Risk flags",
-        "Monitoring · Mentor practice",
         "Monitoring · Live layer",
         "Monitoring · System and edge",
       ].join(" | "),

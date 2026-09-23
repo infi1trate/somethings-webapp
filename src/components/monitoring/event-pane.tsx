@@ -50,19 +50,11 @@ import {
   ACCURACY_VALUES,
   DISPOSITION_REQUIRED_HINT,
   DISPOSITION_VALUES,
-  PRACTICE_DISPOSITION_REQUIRED_HINT,
-  PRACTICE_DISPOSITION_VALUES,
-  RULE_FEEDBACK_VALUES,
   dispositionById,
-  practiceCloses,
-  practiceDispositionById,
   type DispositionValue,
-  type PracticeDispositionValue,
 } from "@/lib/monitoring/disposition";
 import {
-  EVENT_KIND_LABEL,
   type MonitoringEvent,
-  type ReviewSubject,
 } from "@/lib/monitoring/event";
 import {
   ackDeadline,
@@ -291,37 +283,6 @@ function FlagBody({
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function PracticeBody({ event: e, now }: { event: MonitoringEvent; now: number }) {
-  const f = e.practice;
-  if (!f) return null;
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}What was measured</p>
-        <p className="mt-1.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
-          {EVENT_KIND_LABEL[e.kind]} — {f.measure}
-        </p>
-        <p className="mt-1 text-[12px] leading-[17px] text-[var(--text-secondary)]">
-          {/* THE RULE IS NAMED. A practice event that does not say what it was
-              measured against is an accusation. */}
-          Measured against {f.againstLabel}
-          {e.teenName ? ` · teen ${e.teenName}` : ""} · {ageLabel(e.at, now)}
-        </p>
-      </div>
-      {f.stubbed && (
-        <SystemBlock label="No automated measure">
-          {/* NEEDS-COPY-NICOLE. THE STUB SAYS SO. Tone, presence,
-              personalization, boundary and conduct adherence and attendance need
-              a classifier that does not exist — so this event carries a human's
-              judgment or nothing, and never a rules engine dressed as one. */}
-          This kind of event has no automated measure. It was raised by a person,
-          and nothing on this surface computed it.
-        </SystemBlock>
-      )}
     </div>
   );
 }
@@ -613,54 +574,46 @@ function EscalationBody({
 
 // ── The two axes ────────────────────────────────────────────────────────────
 
-/** ═══ ONE CONTROL, TWO VOCABULARIES (Phase 8) ═══
+/** ═══ ONE CONTROL, ONE VOCABULARY AGAIN (addendum §2.1) ═══
  *
- *  Gap row 421: this rendered the CLINICAL values on a mentor practice event, so
- *  a mentor's missed video note asked for "No clinical concern". The values are
- *  a statement about a TEEN and nobody had asked a clinical question.
+ *  Phase 8 gave this a second vocabulary because gap row 421 caught it
+ *  rendering the CLINICAL values on a mentor practice event — a mentor's missed
+ *  video note asking for "No clinical concern". The fix was right and the
+ *  subject it served is gone, so the branch goes with it rather than staying as
+ *  a `subject` parameter with one possible value.
  *
- *  THE CONTROL IS SHARED AND THE VOCABULARY IS NOT. Both axes have the same
- *  anatomy — a required radiogroup, a consequence line at the control, an
- *  inline hint on a refused submit — and sharing that is what keeps the two
- *  subjects behaving identically under the keyboard and a screen reader. What
- *  differs is the words and what they do, which is all that should differ.
- *
- *  `subject` RATHER THAN A BOOLEAN, because a third review subject would want a
- *  third vocabulary and `isFlag={false}` would then mean two different things. */
+ *  WHAT THE PHASE-8 WORK LEAVES BEHIND, and the reason it was not wasted: the
+ *  anatomy it settled — a required radiogroup, a consequence line AT the
+ *  control, an inline hint on a refused submit rather than a disabled button —
+ *  is the anatomy this keeps. If a second review subject ever returns, the shape
+ *  to copy is here, and the lesson is that it brings its own words with it. */
 function DispositionAxis({
   value,
   onChange,
   hint,
   hintRef,
-  subject,
 }: {
   value: string | null;
   onChange: (id: string) => void;
   hint: boolean;
   hintRef: React.Ref<HTMLParagraphElement>;
-  subject: ReviewSubject;
 }) {
-  const practice = subject === "mentorPractice";
-  const values = practice
-    ? PRACTICE_DISPOSITION_VALUES
-    : DISPOSITION_VALUES;
-  const chosen = practice
-    ? practiceDispositionById(value)
-    : dispositionById(value);
+  const values = DISPOSITION_VALUES;
+  const chosen = dispositionById(value);
   return (
     <div
       role="radiogroup"
-      /* NEEDS-COPY-NICOLE. THE AXIS NAMES ITS OWN SUBJECT: a clinical
-         disposition is about the teen; a practice one is about what the
-         supervisor did. Neither name would read as correct on the other. */
-      aria-label={practice ? "What you did" : "Clinical disposition"}
+      /* NEEDS-COPY-NICOLE. THE AXIS NAMES ITS SUBJECT: this is a statement
+         about a teen, and the label says so rather than saying "disposition"
+         and leaving the reader to infer whose. */
+      aria-label="Clinical disposition"
       aria-describedby={hint ? "disposition-hint" : undefined}
       className="min-w-0"
     >
       <p className={LABEL}>
         {/* NEEDS-COPY-NICOLE. Required, and it says so in words rather than with
             an asterisk. */}
-        {practice ? "What you did · required" : "Clinical disposition · required"}
+        Clinical disposition · required
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {values.map((d) => (
@@ -687,9 +640,8 @@ function DispositionAxis({
         ))}
       </div>
       {/* THE CONSEQUENCE, AT THE CONTROL. Which value is destructive is not
-          guessable from the labels, and on BOTH axes one value does not close the
-          event — "Escalate now" on a flag, "Pattern — for their lead" on a
-          practice breach. A reader should know that before pressing it. */}
+          guessable from the labels, and one value does not close the event at all.
+          A reader should know that before pressing it. */}
       <p
         className="mt-1.5 min-h-[17px] text-[12px] leading-[17px] text-[var(--text-secondary)]"
         aria-live="polite"
@@ -704,9 +656,7 @@ function DispositionAxis({
           tabIndex={-1}
           className="mt-1 text-[12.5px] font-semibold leading-[17px] text-[var(--state-error)]"
         >
-          {practice
-            ? PRACTICE_DISPOSITION_REQUIRED_HINT
-            : DISPOSITION_REQUIRED_HINT}
+          {DISPOSITION_REQUIRED_HINT}
         </p>
       )}
     </div>
@@ -716,19 +666,15 @@ function DispositionAxis({
 function AccuracyAxis({
   value,
   onChange,
-  subject,
 }: {
   value: string | null;
   onChange: (id: string | null) => void;
-  subject: ReviewSubject;
 }) {
-  const practice = subject === "mentorPractice";
-  const values = practice ? RULE_FEEDBACK_VALUES : ACCURACY_VALUES;
-  /* NEEDS-COPY-NICOLE on both. The axis names ITS OWN PRODUCER — a classifier
-     for a flag, a threshold for a practice rule — because "accuracy" over a
-     deterministic comparison is a category error, and it is the error Phase 5
-     removed by dropping the axis entirely. */
-  const name = practice ? "Rule threshold" : "Classifier accuracy";
+  const values = ACCURACY_VALUES;
+  /* NEEDS-COPY-NICOLE. The axis names ITS PRODUCER. It briefly branched — a
+     classifier for a flag, a threshold for a practice rule — because "accuracy"
+     over a deterministic comparison is a category error. One producer now. */
+  const name = "Classifier accuracy";
   return (
     <div
       role="radiogroup"
@@ -785,7 +731,6 @@ export function EventPane({
   compliance,
   deactivated,
   onResolve,
-  onResolvePractice,
   onEscalate,
   handleRef,
 }: {
@@ -801,20 +746,6 @@ export function EventPane({
   /** The record changed under the reader. */
   deactivated: boolean;
   onResolve: (e: MonitoringEvent, detail: { disposition: DispositionValue; accuracy: string | null }) => void;
-  /** ═══ A SEPARATE HANDLER, BECAUSE THE DETAIL IS A DIFFERENT SHAPE (Phase 8) ═══
-   *  A practice disposition is not a `DispositionValue` and its axis 2 answer is
-   *  feedback on a provisional THRESHOLD rather than on a classifier. Widening
-   *  `onResolve`'s detail to a union would make the page's one handler branch on
-   *  which arm it got, which is the branch the pane is already doing — and the
-   *  page's two paths genuinely differ: one writes a ledger event, the other
-   *  cannot (gap row 436). */
-  onResolvePractice: (
-    e: MonitoringEvent,
-    detail: {
-      disposition: PracticeDispositionValue;
-      ruleFeedback: string | null;
-    }
-  ) => void;
   onEscalate: (e: MonitoringEvent) => void;
   handleRef?: React.MutableRefObject<PaneHandle>;
 }) {
@@ -831,42 +762,22 @@ export function EventPane({
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
-      /* ═══ THE KEY IS INERT WHERE THE AXIS IS ABSENT (Phase 5) ═══
-         `y`/`n` reach this handle from the page's keyboard layer, which does not
-         know what kind of event is selected. Without the guard a supervisor on
-         `/app/mentor-practice` could record a classifier judgment through a
-         keystroke against a control that is deliberately not on screen — state
-         with no rendering, which is the worst version of this bug because
-         nothing shows it happened. */
-      /** ═══ THE KEY SETS WHICHEVER AXIS 2 THIS SUBJECT HAS (Phase 8) ═══
-       *  Phase 5 made it a no-op on a practice event, because the accuracy axis
-       *  was not rendered there — a keystroke must not record state with no
-       *  control on screen. The axis exists again with a different question, so
-       *  the key answers THAT one and the ids differ accordingly: a reader who
-       *  presses `y` on a practice row records "threshold looks right", which is
-       *  what the sheet now says it does. */
+      /** ═══ THE KEY ANSWERS AXIS 2, AND AXIS 2 IS ALWAYS ON SCREEN ═══
+       *  Phase 5 made this a no-op on a practice event, because the accuracy
+       *  axis was not rendered there and a keystroke must not record state with
+       *  no control on screen. Phase 8 gave practice its own axis 2 and the key
+       *  branched on subject. With one subject the branch is gone and the
+       *  invariant it protected is structural now: there is one axis 2, it is
+       *  always rendered beside the disposition, and the key sets it. */
       accuracy: (accurate: boolean) => {
-        const practice = event?.subject === "mentorPractice";
-        if (practice) {
-          setAccuracy(accurate ? "threshold-right" : "threshold-wrong");
-          return;
-        }
         setAccuracy(accurate ? "accurate" : "inaccurate");
       },
     };
-  }, [handleRef, event?.subject]);
+  }, [handleRef]);
 
-  /* `isFlag` IS GONE (Phase 8). Phase 5 used it to HIDE axis 2 on a practice
-     event, because "a practice event's producer is a deterministic rule, so axis
-     2 has nothing to be right or wrong about" — true of a classifier, and the
-     rule's THRESHOLD is a different question that a supervisor can answer. Both
-     axes are subject-aware now, so there is nothing left to gate. */
-
-  const title = escalation
-    ? /* NEEDS-COPY-NICOLE */ "Escalation"
-    : event
-      ? EVENT_KIND_LABEL[event.kind]
-      : "";
+  /* NEEDS-COPY-NICOLE. It read `EVENT_KIND_LABEL[event.kind]`, which over one
+     event kind is the constant "Flag" — so the table went and the word stayed. */
+  const title = escalation ? "Escalation" : event ? "Risk flag" : "";
 
   if (!event && !escalation) {
     return (
@@ -881,15 +792,6 @@ export function EventPane({
 
   const submit = () => {
     if (!event) return;
-    /* ═══ THE SUBJECT PICKS THE VOCABULARY (Phase 8) ═══
-       A practice event's disposition ids are not in `DISPOSITION_VALUES`, so
-       `dispositionById` would return null for every one of them and the gate
-       below would refuse every submit on that destination — silently, because
-       the hint says "record a disposition first" and one had been. */
-    if (event.subject === "mentorPractice") {
-      submitPractice(event);
-      return;
-    }
     const d = dispositionById(disposition);
     if (!d) {
       /* INLINE, AND FOCUS MOVES TO IT. Not a toast and not a disabled button:
@@ -911,32 +813,6 @@ export function EventPane({
       return;
     }
     onResolve(event, { disposition: d, accuracy });
-  };
-
-  /** ═══ THE PRACTICE PATH — ONE CLOSE, ONE NON-CLOSE, NO ESCALATION ═══
-   *  Deliberately not folded into `submit`'s branches: the effects are a
-   *  different set (`close` / `pattern`, not `resolve` / `watch` / `escalate`),
-   *  and a shared switch over the union of both would have arms that are
-   *  unreachable for one subject and silent for the other. */
-  const submitPractice = (e: MonitoringEvent) => {
-    const d = practiceDispositionById(disposition);
-    if (!d) {
-      setHint(true);
-      requestAnimationFrame(() => hintRef.current?.focus());
-      return;
-    }
-    setHint(false);
-    if (!practiceCloses(d)) {
-      /* A PATTERN IS NOT RESOLVED BY NOTICING IT. The event stays in the queue,
-         and the value's own consequence line says nothing routes to a lead
-         mentor yet — so this records the judgment rather than a hand-off. */
-      return;
-    }
-    /* THE DISPOSITION SHAPE IS THE PRACTICE ONE, and the page's handler already
-       takes the practice path separately: a practice event closes locally with
-       no ledger write, because `buildResolveEvent` maps a task DOMAIN to an
-       activity event type and mentor practice is not a domain. Gap row 436. */
-    onResolvePractice(e, { disposition: d, ruleFeedback: accuracy });
   };
 
   return (
@@ -987,10 +863,8 @@ export function EventPane({
         )}
         {escalation ? (
           <EscalationBody rec={escalation} now={now} events={events} />
-        ) : event?.subject === "teenSafety" ? (
-          <FlagBody event={event} now={now} compliance={compliance} />
         ) : event ? (
-          <PracticeBody event={event} now={now} />
+          <FlagBody event={event} now={now} compliance={compliance} />
         ) : null}
       </div>
 
@@ -1025,7 +899,6 @@ export function EventPane({
         ) : (
           <div className="flex flex-col gap-4">
             <DispositionAxis
-              subject={event?.subject ?? "teenSafety"}
               value={disposition}
               onChange={(id) => {
                 setDisposition(id);
@@ -1061,11 +934,7 @@ export function EventPane({
                   about the constant (a cutoff that trips everybody daily).
                   Conflating them would lose the only signal that can
                   un-provisional a number. */}
-              <AccuracyAxis
-                value={accuracy}
-                onChange={setAccuracy}
-                subject={event?.subject ?? "teenSafety"}
-              />
+              <AccuracyAxis value={accuracy} onChange={setAccuracy} />
               <button
                 type="button"
                 onClick={submit}
@@ -1076,18 +945,10 @@ export function EventPane({
                   RING
                 )}
               >
-                {/* ═══ NOT "Resolve", AND NOT "disposition" ON PRACTICE ═══
-                    NEEDS-COPY-NICOLE on both. The verb is about RECORDING rather
-                    than closing, because on each axis one value does not close
-                    the event — `Escalate now` on a flag, `Pattern — for their
-                    lead` on a practice breach.
-                    AND THE NOUN FOLLOWS THE AXIS. "Disposition" is the clinical
-                    word; the practice hint deliberately avoids it, so a primary
-                    that kept it would put the vocabulary the axis rejected on
-                    the loudest element in the pane. */}
-                {event?.subject === "mentorPractice"
-                  ? "Record what you did"
-                  : "Record disposition"}
+                {/* ═══ NOT "Resolve" ═══
+                    NEEDS-COPY-NICOLE. The verb is about RECORDING rather than
+                    closing, because one value does not close the event. */}
+                Record disposition
               </button>
             </div>
           </div>

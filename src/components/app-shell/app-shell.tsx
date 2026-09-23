@@ -11,7 +11,7 @@
 // pattern drifts — and RC-1 has to be fixed once, not twice.
 //
 // THE SHARED-SIDEBAR PRINCIPLE IS PRESERVED, and it is an explicit existing
-// decision (`admin-shell.tsx:3–9`): identical styling across roles, only the
+// decision (now stated in `app-chrome.tsx`): identical styling across roles, only the
 // item set and the `navLabel` change. This component is what makes that
 // structural rather than a convention two files happen to follow.
 //

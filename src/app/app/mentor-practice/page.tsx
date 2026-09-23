@@ -1,63 +1,32 @@
 "use client";
 
-// /app/mentor-practice — Mentor Practice.
+// /app/mentor-practice — RETIRED, and nothing replaced it (addendum §2.1).
 //
-// ═══ PHASE 2 MOVES THE CONTENTS IN, AND IT IS A MOUNT NOT A REWRITE ═══
+// Mentor Practice is not a real concept in this product. The five deterministic
+// timing rules that produced its events, the second disposition vocabulary that
+// closed them and the review subject that separated them from teen safety are
+// all gone — see `lib/monitoring/event.ts` for what the removal cost the event
+// primitive, which is nothing structural.
 //
-// The practice queue moves here as `MonitoringPage` under
-// `scope="mentor-practice"` — the other half of the subject filter, now its own
-// route. The five deterministic rules in `lib/monitoring/practice.ts` already
-// feed it.
+// IT LANDS ON RISK FLAGS, which is the other review queue and the nearest live
+// surface. That is a guess, not a rename, and `RetiredRoute` names the
+// destination out loud so a reader who followed a Mentor Practice link knows
+// they are somewhere else rather than looking at an empty version of what they
+// asked for.
 //
-// WHAT PHASE 8 STILL OWES IT: a practice event closes with NO LEDGER WRITE,
-// because `buildResolveEvent` maps a task domain to an event type and mentor
-// practice is not a domain. The gap is stated in `monitoring-page.tsx` at the
-// resolve handler rather than papered over with a flag-shaped event that would
-// file a teen-safety record for a mentor's late note.
-//
-// THE SHELL FOLLOWS THE PERSONA. A supervisor gets the console; anyone else gets
-// the mentor chrome and the honest unbuilt sentence, because these destinations
-// are supervisor surfaces and pretending otherwise would put a rail they do not
-// have around a page they cannot use.
-//
-// STANDING NEXT-16 RULES: no page-root <Suspense>, the use(searchParams) prop
-// pattern rather than useSearchParams, every store read behind useMounted.
+// THE FILE IS NOT DELETED, per the strangler rule: the destination shipped, it
+// was in the rail, and a bookmark to it is in somebody's history.
 
-import { use } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
-import { DestinationPlaceholder } from "@/components/ia/destination-placeholder";
-import { MonitoringPage } from "@/components/monitoring/monitoring-page";
-import { useOnboardingStore } from "@/lib/onboarding/store";
-import { isSupervisorTier } from "@/lib/record/permission-map";
-import { useMounted } from "@/lib/use-mounted";
+import { RetiredRoute } from "@/components/ia/retired-route";
+import { retiredRouteTarget } from "@/lib/ia/retired-routes";
 
-export default function MentorPracticeRoute({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-  /* READ AND DISCARDED. Next 16's prop pattern: `searchParams` is a promise and
-     must be awaited even when nothing is read from it, or a param on the URL
-     leaves the page suspended. This destination takes no params — the two it
-     used to take, `?band=` and `?region=`, are what the route itself now says. */
-  void use(searchParams);
-  const mounted = useMounted();
-  const persona = useOnboardingStore((s) => s.persona);
-  // Gated behind `mounted`: persona is persisted, and branching on it before
-  // hydration swaps the shell for one frame with no error to show for it.
-  const supervisor = mounted && isSupervisorTier(persona);
-
-  return supervisor ? (
-    <AdminShell active="mentor-practice">
-      <MonitoringPage scope="mentor-practice" />
-    </AdminShell>
-  ) : (
-    /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
-       true one for them: this destination is not offered to their persona, so
-       "unbuilt" is what it is from where they stand. */
-    <MentorShell active="home">
-      <DestinationPlaceholder title="Mentor Practice" status="Mentor practice breaches for a supervisor's review. A supervisor surface." />
-    </MentorShell>
+export default function MentorPracticeRoute() {
+  return (
+    <RetiredRoute
+      target={retiredRouteTarget("mentor-practice")}
+      destinationLabel="Risk Flags"
+      fallbackTitle="Mentor Practice"
+      fallbackActive="risk-flags"
+    />
   );
 }

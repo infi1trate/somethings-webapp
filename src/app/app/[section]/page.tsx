@@ -12,8 +12,8 @@
 // link is already the shape the real thread view will inherit.
 
 import { use } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { notFound, useParams } from "next/navigation";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { NAV } from "@/components/settings/nav-items";
 import {
   resolveSubject,
@@ -37,7 +37,7 @@ export default function AppSectionPage({
   //
   // It was excluded because `/app` IS the mentor's home, so `/app/home` would
   // have been a second URL for one place. Staff are a different case: `/app`
-  // hardcodes `MentorShell`, so sending a supervisor there hands them a mentor's
+  // hardcodes `AppChrome`, so sending a supervisor there hands them a mentor's
   // home in a mentor's chrome. `nav-items.ts` routes staff Home to `/app/home`
   // instead, and this placeholder is what serves it — the honest "not built for
   // your role yet" view that decision 1 asked for. Mentors are never linked
@@ -58,7 +58,7 @@ export default function AppSectionPage({
         : null;
 
   return (
-    <MentorShell active={item.id}>
+    <AppChrome active={item.id}>
       <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
         <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
           {withName ? `Chat with ${withName}` : item.label}
@@ -69,6 +69,6 @@ export default function AppSectionPage({
             : "Nothing here yet. When there’s something new, it’ll show up here."}
         </p>
       </div>
-    </MentorShell>
+    </AppChrome>
   );
 }

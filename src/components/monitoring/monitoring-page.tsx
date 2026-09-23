@@ -35,23 +35,21 @@ import { ChevronLeft } from "lucide-react";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { EscalationRegion } from "@/components/monitoring/escalation-region";
-import { EventList, SubjectFilter, ALL_SUBJECTS, ageLabel } from "@/components/monitoring/event-list";
+import { EventList, ageLabel } from "@/components/monitoring/event-list";
 import { EventPane, type PaneHandle } from "@/components/monitoring/event-pane";
-import { CoverageList, CoverageMeter } from "@/components/monitoring/coverage-view";
 import { NowBand } from "@/components/monitoring/now-band";
 import {
   MONITORING_LOAD_STAGES,
   monitoringLoadPlanFor,
 } from "@/lib/tasks/load-plan";
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
-import { groupEvents, sortEvents, type ReviewSubject } from "@/lib/monitoring/event";
+import { sortEvents } from "@/lib/monitoring/event";
 import {
   compareEscalations,
   escalationObligations,
   isSettled,
   type EscalationRecord,
 } from "@/lib/monitoring/escalation";
-import { coverageProgress, creditsCoverage } from "@/lib/monitoring/coverage";
 import { bandStateFor } from "@/lib/monitoring/live";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -98,21 +96,17 @@ const RING =
  *  THE UNSCOPED PAGE KEEPS EVERY CLAUSE — it is the surface they were written
  *  for, and nothing routes to it. */
 export function monitoringSubtitle(input: {
-  coverageReviewed: number;
-  coverageTotal: number;
   ackOutstanding: number;
   closeOutOverdue: number;
   classifierDegraded: boolean;
-  /** Which clauses this destination owns. Omitted = every clause, which is the
-   *  unscoped page. */
-  scope?: MonitoringScope | null;
+  /** Which clauses this destination owns. */
+  scope: MonitoringScope;
 }): string {
   /* NOT A FILTER OVER A BUILT STRING — the clauses are gated before they are
      written, so a destination that owns none produces the empty answer rather
      than a sentence with its middle removed. */
-  const ownsEscalationClocks =
-    input.scope == null || input.scope === "escalations";
-  const ownsPipeline = input.scope == null || input.scope === "risk-flags";
+  const ownsEscalationClocks = input.scope === "escalations";
+  const ownsPipeline = input.scope === "risk-flags";
   const owed: string[] = [];
   if (ownsEscalationClocks && input.ackOutstanding > 0) {
     owed.push(
@@ -219,15 +213,6 @@ const K_ACCURACY = [
   { keys: ["y"], what: "Classifier was right (records accuracy only)" },
   { keys: ["n"], what: "Classifier was wrong (records accuracy only)" },
 ];
-/** ═══ THE SAME TWO KEYS, A DIFFERENT QUESTION (Phase 8) ═══
- *  Practice events have an axis 2 again — the RULE's threshold rather than a
- *  classifier — so `y`/`n` are live on that destination and the sheet says what
- *  they record there. Phase 5 removed the rows because the keys were inert; a
- *  sheet teaching a binding that does nothing was the defect, not the keys. */
-const K_THRESHOLD = [
-  { keys: ["y"], what: "Threshold looks right (records feedback only)" },
-  { keys: ["n"], what: "Threshold looks wrong (records feedback only)" },
-];
 const K_PANE = [{ keys: ["↵"], what: "Move focus to the review pane" }];
 const K_UNDO = [{ keys: ["u"], what: "Undo the last close" }];
 const K_HELP = [{ keys: ["?"], what: "This list" }];
@@ -242,14 +227,6 @@ const MONITORING_SHORTCUTS = [
   ...K_HELP,
 ];
 
-/** Which destinations carry the coverage meter — see the header's own note.
- *  `null` is the unscoped page, which keeps everything. */
-const METER_SCOPES = new Set<MonitoringScope | null>([
-  null,
-  "coverage",
-  "risk-flags",
-]);
-
 const SCOPE_SHORTCUTS: Record<
   MonitoringScope,
   Array<{ keys: string[]; what: string }>
@@ -258,72 +235,30 @@ const SCOPE_SHORTCUTS: Record<
      not reach it. Undo stays: a resolved escalation can be undone. */
   escalations: [...K_UNDO, ...K_HELP],
   "risk-flags": [...K_QUEUE, ...K_ACCURACY, ...K_UNDO, ...K_PANE, ...K_HELP],
-  "mentor-practice": [
-    ...K_QUEUE,
-    ...K_THRESHOLD,
-    ...K_UNDO,
-    ...K_PANE,
-    ...K_HELP,
-  ],
-  /* COVERAGE HAS NO QUEUE AND NO PANE. `?` is the whole of its keyboard layer,
-     and saying so is more useful than listing five keys that do nothing. */
-  coverage: [...K_HELP],
 };
 
-/** ═══ THE FOUR SCOPES, AND THE TWO THINGS A SCOPE PINS ═══
+/** ═══ TWO SCOPES, AND WHAT A SCOPE STILL PINS (addendum §2.1, §2.2) ═══
  *
  *  These ids are the route segments from `lib/ia/destinations.ts` — deliberately
  *  the same strings, so a route file passes its own segment and a typo is a type
- *  error rather than a page silently rendering the unscoped default.
+ *  error rather than a page silently rendering the wrong destination.
  *
- *  A scope pins exactly two pieces of state and hides the two controls that used
- *  to set them. Everything else about the page is untouched. */
-export type MonitoringScope =
-  | "escalations"
-  | "risk-flags"
-  | "mentor-practice"
-  | "coverage";
-
-/** WHICH VIEW THE ROUTE IS. `escalations` sits on the queue view because that is
- *  where the escalation REGION renders; its own list is the region's, and the
- *  event queue below it is hidden by `SCOPE_SUBJECT` selecting nothing. */
-const SCOPE_VIEW: Record<MonitoringScope, "queue" | "coverage"> = {
-  escalations: "queue",
-  "risk-flags": "queue",
-  "mentor-practice": "queue",
-  coverage: "coverage",
-};
-
-/** WHICH SUBJECT THE ROUTE IS. The two review subjects become two routes — the
- *  §3 distribution row, and the reason `SubjectFilter` is superseded rather than
- *  moved: a different disposition meaning per subject (Phase 5) is a route's
- *  worth of difference, not a chip's.
+ *  IT WAS FOUR, AND A SCOPE PINNED TWO PIECES OF STATE: the view toggle
+ *  (queue / coverage) and the subject filter (teen safety / mentor practice).
+ *  Both pieces of state are gone rather than pinned — Coverage became Chat and
+ *  Mentor Practice was removed — so a scope now selects a title, a shortcut set
+ *  and a layout, and the two hidden controls it used to override are deleted
+ *  along with the values they could have taken.
  *
- *  `escalations` AND `coverage` PIN A SUBJECT THAT MATCHES NOTHING. Neither
- *  route's content is the event queue — one is the escalation region, the other
- *  the conversation roster — so the queue must be empty, and it must be empty by
- *  the same filter every other scope uses rather than by a second branch. The
- *  sentinel is not a `ReviewSubject`, which is exactly why no event carries it. */
-const NO_SUBJECT = "__none__";
-const SCOPE_SUBJECT: Record<MonitoringScope, string> = {
-  escalations: NO_SUBJECT,
-  "risk-flags": "teenSafety",
-  "mentor-practice": "mentorPractice",
-  coverage: NO_SUBJECT,
-};
+ *  THE PAGE IS STILL ONE COMPONENT for the same reason it was: its 600 lines are
+ *  page STATE — the resolve-and-undo ledger window, the keyboard layer, the load
+ *  states per region — and two copies would be two places for a timing rule to
+ *  drift invisibly. */
+export type MonitoringScope = "escalations" | "risk-flags";
 
-/** ═══ THE HEADING IS THE DESTINATION'S OWN NAME ═══
- *  NEEDS-COPY-NICOLE, all four — they are the rail's labels, and they are the
- *  same strings deliberately. A rail item reading `Risk Flags` over a page whose
- *  h1 reads `Monitoring` is the header-disagreement defect the audit recorded on
- *  production's tables; the fix is that ONE name reaches the reader per
- *  destination, not that the h1 is dropped. Unscoped keeps `Monitoring`, which
- *  nothing navigates to any more. */
 const SCOPE_TITLE: Record<MonitoringScope, string> = {
   escalations: "Escalations",
   "risk-flags": "Risk Flags",
-  "mentor-practice": "Mentor Practice",
-  coverage: "Coverage",
 };
 
 export function MonitoringPage({
@@ -363,16 +298,20 @@ export function MonitoringPage({
    *  destination on its own terms; this phase makes the destinations REAL
    *  without rewriting the state that makes them work.
    *
-   *  THE DEFAULT IS THE OLD BEHAVIOUR, unscoped. `/app/monitoring` is a redirect
-   *  now so nothing reaches it, and leaving the default intact means this
-   *  parameterisation cannot be the thing that changed the page. */
-  scope = null,
+   *  ═══ REQUIRED, AND IT USED TO DEFAULT TO `null` ═══
+   *  The default was the unscoped page, kept during the restructure so that
+   *  parameterising the component could not itself be the thing that changed
+   *  it. `/app/monitoring` has been a redirect since then and the unscoped
+   *  branches — a view toggle over a view that no longer exists, a subject
+   *  filter over one subject — are gone, so a nullable scope would only mean
+   *  "render a page with no title". */
+  scope,
 }: {
   focusBand?: string | null;
   focusRegion?: string | null;
   focusEscalation?: string | null;
-  scope?: MonitoringScope | null;
-} = {}) {
+  scope: MonitoringScope;
+}) {
   void focusBand;
   const mounted = useMounted();
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
@@ -400,24 +339,12 @@ export function MonitoringPage({
   /** Resolved events. Local, exactly as Tasks' resolutions are: the fixture is
    *  immutable and nothing persists a decision in this prototype. */
   const [resolvedIds, setResolvedIds] = useState<ReadonlySet<string>>(new Set());
-  /** Conversations credited toward coverage this session. */
-  const [credited, setCredited] = useState<ReadonlySet<string>>(new Set());
   /** Escalations opened from a flag's disposition — the path the old control did
    *  not have. */
   const [raised, setRaised] = useState<EscalationRecord[]>([]);
-  /** ═══ PINNED BY THE SCOPE, DERIVED NOT RESET ═══
-   *  The state stays state for the unscoped case; a scope overrides it in the
-   *  read rather than writing it in an effect, because a reset runs one render
-   *  LATE and there would be a frame showing the wrong queue at the right URL.
-   *  Same shape every other derivation on this surface uses. */
-  const [viewState, setView] = useState<"queue" | "coverage">("queue");
-  const [subjectState, setSubject] = useState<string>(ALL_SUBJECTS);
-  const view = scope ? SCOPE_VIEW[scope] : viewState;
-  const subject = scope ? SCOPE_SUBJECT[scope] : subjectState;
-  /** Does this scope offer the reader a choice? Unscoped it does — that is the
-   *  segmented control and the subject chips. Scoped it does not, and a control
-   *  that cannot change anything is dead chrome. */
-  const scoped = scope != null;
+  /* THE VIEW TOGGLE AND THE SUBJECT FILTER ARE GONE, not pinned — see the
+     scope note above. Both were two-valued controls whose second value has been
+     removed from the product. */
   const [paused, setPaused] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -428,16 +355,10 @@ export function MonitoringPage({
     return sortEvents(live);
   }, [data, resolvedIds]);
 
-  const present = useMemo(() => {
-    const set = new Set<ReviewSubject>(events.map((e) => e.subject));
-    return (["teenSafety", "mentorPractice"] as ReviewSubject[]).filter((s) => set.has(s));
-  }, [events]);
-
-  const filtered = useMemo(
-    () => (subject === ALL_SUBJECTS ? events : events.filter((e) => e.subject === subject)),
-    [events, subject]
-  );
-  const groups = useMemo(() => groupEvents(filtered), [filtered]);
+  /* `filtered` WAS THE SUBJECT-FILTERED VIEW OF `events`. With one subject the
+     two are the same set, and the alias stays only because it names what the
+     pane and the keyboard read: the list as the reader sees it. */
+  const filtered = events;
 
   /** ═══ A SETTLED ESCALATION FINALLY LEAVES ═══
    *  Resolved AND every owed close-out item done. Anything less stays on screen
@@ -457,13 +378,6 @@ export function MonitoringPage({
     [allEscalations, now]
   );
 
-  /** MEMOISED SEPARATELY so the `?? []` fallback is not a new array identity on
-   *  every render — which would make every memo below it recompute. */
-  const conversations = useMemo(() => data?.conversations ?? [], [data]);
-  const coverage = useMemo(
-    () => coverageProgress(conversations, credited),
-    [conversations, credited]
-  );
 
   /** ═══ THE SHARED COUNT, NOT A LOCAL ONE (Phase 3) ═══
    *  This was eight lines inlined here, which meant Today could not call it and
@@ -535,19 +449,10 @@ export function MonitoringPage({
    *  column, and the pane is always present because there is no list to come
    *  back from. */
   const paneOnly = scope === "escalations";
-  /** ═══ COVERAGE HAS NO DETAIL PANE, AND ITS UNIT IS WHY (Phase 7) ═══
-   *
-   *  Measured at 1440px: 655 of 1092 pixels — sixty per cent of the destination
-   *  — were a panel reading "Choose an event to review it." on a route that has
-   *  no events at all. Not fixture-dependent like the escalations case: the
-   *  coverage scope pins the subject to nothing, so the pane was permanently
-   *  empty and permanently wrong.
-   *
-   *  THE UNIT IS A CONVERSATION, AND A CONVERSATION OPENS AS A ROUTE. The queue's
-   *  unit is an event, which is reviewed in a pane beside the list; a
-   *  conversation is read in the chat thread, which is a page. There is nothing
-   *  for a detail column to hold, so the list takes the width. */
-  const listOnly = scope === "coverage";
+  /* `listOnly` IS GONE WITH COVERAGE. It existed because that destination's
+     unit — a conversation — opens as a route rather than in a pane, so the
+     detail column had nothing to hold. Both remaining destinations review their
+     unit in the pane. */
   const paneTakeover =
     paneOnly || (takeoverWanted && (filtered.length > 0 || escalations.length > 0));
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -603,7 +508,7 @@ export function MonitoringPage({
         /* NEEDS-COPY-NICOLE. THE ANNOUNCEMENT NAMES THE SUBJECT AND THE AGE —
            never a tier, which no longer exists, and never a deadline. */
         setAnnouncement(
-          `Next: ${next.subject === "mentorPractice" ? next.mentorName : (next.teenName ?? next.mentorName)}, ${next.category ? (next.kind === "riskFlag" ? riskCategoryLabel(next.category) : next.category) : ""}, ${ageLabel(next.at, now)}`
+          `Next: ${next.teenName}, ${next.category ? riskCategoryLabel(next.category) : ""}, ${ageLabel(next.at, now)}`
         );
       }
     },
@@ -617,17 +522,13 @@ export function MonitoringPage({
     },
   });
 
-  /** ═══ WHAT CREDITS COVERAGE ═══ see `creditsCoverage` for the blocked rule.
-   *
-   *  KEYED BY TEEN, and the first build keyed it by the flag's `objectId` — a
-   *  conversation id that no coverage row carries, so reviewing a flag credited
-   *  nothing and the meter never moved. The probe caught it (11 → 11). A
-   *  supervised conversation IS a teen on this surface; that is what the roster
-   *  is keyed on and what the credit has to match. */
-  const credit = (teenId: string | null, source: "event-review" | "conversation-open") => {
-    if (!teenId || !creditsCoverage(source)) return;
-    setCredited((prev) => (prev.has(teenId) ? prev : new Set(prev).add(teenId)));
-  };
+  /* ═══ COVERAGE CREDIT IS GONE WITH THE DESTINATION (addendum §2.2) ═══
+     `credit(teenId, source)` marked a teen's conversation as looked-at when a
+     flag on it was reviewed, feeding the coverage meter. Coverage is Chat now
+     and no surface reads the credit, so the write went with the reader. The
+     blocked rule it implemented — which interactions count as having looked —
+     is still stated at `creditsCoverage` in `lib/monitoring/coverage.ts`, which
+     is dormant rather than deleted. */
 
   useTaskShortcuts({
     /* `y`/`n` RECORD CLASSIFIER ACCURACY AND RESOLVE NOTHING. The old binding
@@ -644,10 +545,10 @@ export function MonitoringPage({
     onHelp: () => setShortcutsOpen(true),
   });
 
-  const liveIds = useMemo(
-    () => new Set((data?.live ?? []).map((i) => i.conversationId).filter((x): x is string => !!x)),
-    [data]
-  );
+  /* `liveIds` IS GONE WITH THE COVERAGE LIST (addendum §2.2). It marked the
+     conversations the live layer said were active right now, and the roster
+     was the only surface that showed them. */
+;
   const bandState = bandStateFor({
     enabled: LIVE_LAYER_ENABLED,
     transport: data?.transport === "lost" ? "lost" : "connected",
@@ -664,52 +565,20 @@ export function MonitoringPage({
       >
         <div className="min-w-0">
           <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-            {scope ? SCOPE_TITLE[scope] : /* NEEDS-COPY-NICOLE */ "Monitoring"}
+            {SCOPE_TITLE[scope]}
           </h1>
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
             {/* ═══ THE SUBTITLE IS THE OWNING DESTINATION'S (Phase 7) ═══
                 `monitoringSubtitle` states escalation obligations and the flag
-                pipeline's health — which is right on Escalations and on Risk
-                Flags, and was rendering on all four. Measured on
-                `/app/coverage`: "2 escalations awaiting acknowledgement · 3
-                close-out items overdue", above a coverage meter, on a page about
-                conversations. Gap row 406 recorded it; Phase 7 owns Coverage, so
-                Coverage's is fixed here and the other two keep theirs.
-                COVERAGE'S SUBTITLE IS THE METER, which already says "9 of 31
-                conversations reviewed this shift" — progress with its unit and
-                its period. Stating anything else beside it would be the same
-                defect the monitoring header was built to fix: two clauses in
-                incompatible units, three centimetres apart. */}
-            {scope === "mentor-practice"
-              ? /* ═══ MENTOR PRACTICE'S SUBTITLE NAMES WHAT PRODUCED THE ROWS ═══
-                   NEEDS-COPY-NICOLE. Phase 7 left this destination with no
-                   subtitle on purpose, rather than inheriting one — an inherited
-                   subtitle is a placeholder nobody reads as temporary.
-                   IT STATES THE PROVENANCE, AND IT IS THE THING A READER HERE
-                   MOST NEEDS. Every one of the five rules compares a timestamp to
-                   a constant, and every one of those constants carries a
-                   `_PROVISIONAL` flag — so a supervisor is judging a mentor
-                   against a number nobody has ratified. Saying so is what makes
-                   the second axis ("Threshold looks wrong") legible as an
-                   invitation rather than a trick question.
-                   AND IT IS NOT A COUNT. A tally of practice breaches over a
-                   named mentor is the performance surface the standing rule
-                   forbids; this names the producer instead. */
-                "Five timing rules, each measured against a threshold that is still provisional"
-              : scope === "coverage"
-              ? /* ═══ COVERAGE'S SUBTITLE SAYS WHAT THE SURFACE IS ═══
-                   NEEDS-COPY-NICOLE. Not what it owes — the meter beside it
-                   already states the progress, and restating a fraction in
-                   words would be the two-clauses-in-one-header defect again.
-                   What a reader arriving at a new destination needs is the
-                   DENOMINATOR: that this is every supervised conversation and
-                   not only the ones something noticed, which is the whole
-                   reason the destination exists. */
-                "Every supervised conversation this shift — not only the ones a flag was raised on"
-              : mounted
+                pipeline's health, and it used to render on all four
+                destinations — measured on `/app/coverage`: "2 escalations
+                awaiting acknowledgement · 3 close-out items overdue", above a
+                coverage meter, on a page about conversations. Gap row 406.
+                The two destinations that did not own these clauses are gone, so
+                the gating in `monitoringSubtitle` now separates the only two
+                left: escalation clocks on one, pipeline health on the other. */}
+            {mounted
               ? monitoringSubtitle({
-                  coverageReviewed: coverage.reviewed,
-                  coverageTotal: coverage.total,
                   ackOutstanding: obligations.ackOutstanding,
                   closeOutOverdue: obligations.closeOutOverdue,
                   classifierDegraded: data?.classifier === "degraded",
@@ -718,29 +587,15 @@ export function MonitoringPage({
               : ""}
           </p>
         </div>
-        {/* ═══ THE METER RENDERS WHERE TEEN COVERAGE IS THE SUBJECT, OR ITS FLOOR ═══
-            It rendered on all four destinations. Phase 7 scoped the SUBTITLE's
-            clauses and left this element, which is the same defect in a
-            different node — measured on `/app/mentor-practice`: "10 of 25
-            conversations reviewed this shift", above a queue about MENTORS.
-            WHERE IT BELONGS:
-             · COVERAGE — it is the page.
-             · RISK FLAGS — arch-mon's stated reason, that coverage is the floor
-               under the queue: a supervisor working what a model noticed should
-               see progress against everything it did not.
-            WHERE IT DOES NOT:
-             · MENTOR PRACTICE — a different subject entirely. Teen coverage says
-               nothing about a mentor's timing, and a second fraction in the
-               header is the two-incompatible-units defect this header was
-               rebuilt to remove.
-             · ESCALATIONS — one incident, with its own clocks. Shift progress
-               beside a live escalation is the least actionable thing that could
-               occupy that space. */}
-        {mounted && METER_SCOPES.has(scope) && (
-          <div className="w-full max-w-[18rem] shrink-0">
-            <CoverageMeter conversations={conversations} credited={credited} />
-          </div>
-        )}
+        {/* ═══ THE COVERAGE METER IS GONE FROM THIS HEADER (addendum §2.2) ═══
+            It rendered on all four destinations, then on three: Coverage,
+            because it was the page, and Risk Flags, on arch-mon's argument that
+            coverage is the floor under the queue. Coverage is Chat now and no
+            longer computes a shift fraction, so the element has no subject.
+            §2.11 puts a progress track back in this header region, measuring
+            FLAGS REVIEWED rather than conversations covered — a different
+            denominator with a different meaning, which is why this one is
+            deleted rather than repointed. */}
       </div>
 
       {mounted && (
@@ -778,9 +633,9 @@ export function MonitoringPage({
           §3: the escalation STRIP is global and stays global — that is Phase 3's
           interrupt layer. The REGION, which is the worklist of records, is what
           moves, and it moves to one route rather than sitting above every
-          queue. On a flag or a practice queue it would be a second subject's
-          work above the one the reader came for. */}
-      {mounted && (!scoped || scope === "escalations") && (
+          queue. Above the flag queue it would be a second kind of work above
+          the one the reader came for. */}
+      {mounted && scope === "escalations" && (
         <EscalationRegion
           records={escalations}
           now={now}
@@ -803,61 +658,20 @@ export function MonitoringPage({
                first child leaves the pane in the 60% track and 40% of the width
                blank, which reads as a failed render rather than a full-width
                record. */
-            paneOnly || listOnly
+            paneOnly
               ? "xl:grid-cols-[minmax(0,1fr)]"
               : "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
           )}
         >
           {!paneOnly && (
           <div className={cn("flex min-h-0 flex-col", paneTakeover && "hidden xl:flex")}>
-            {/* ═══ TWO VIEWS, ONE COLUMN, ONE SCROLLER ═══
-                A segmented control rather than a second page: coverage and the
-                queue are two readings of the same supervision, and a route
-                change would lose the pane's selection between them. */}
-            <div
-              role="tablist"
-              /* NEEDS-COPY-NICOLE. A TABLIST IS CORRECT HERE, unlike the subject
-                 chips below: these two genuinely swap the panel's content.
-                 ═══ AND IT IS GONE UNDER A SCOPE (Phase 2) ═══
-                 The route says which view this is. A two-tab row where one tab
-                 navigates away is not a tab row, and a one-tab row offering no
-                 choice is dead chrome — the same reasoning that removed the
-                 single-domain tab row from the worklist. */
-              aria-label="Queue or coverage"
-              hidden={scoped}
-              className="flex shrink-0 items-center gap-1"
-            >
-              {(["queue", "coverage"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  role="tab"
-                  aria-selected={view === v}
-                  onClick={() => setView(v)}
-                  className={cn(
-                    "inline-flex min-h-9 items-center rounded-full px-3 text-[13px] font-semibold",
-                    view === v
-                      ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-                    RING
-                  )}
-                >
-                  {/* NEEDS-COPY-NICOLE */}
-                  {v === "queue" ? `For review (${events.length})` : "Coverage"}
-                </button>
-              ))}
-            </div>
-
-            {/* THE SUBJECT CHIPS BECAME A ROUTE BOUNDARY (Phase 2). Teen safety
-                and mentor practice are two destinations now — a different review
-                subject and a different disposition meaning — so the filter that
-                used to separate them inside one queue is what the two URLs say.
-                §3's distribution row, expressed as a hidden control rather than
-                a deleted one, because the unscoped page still has both. */}
-            {view === "queue" && !scoped && (
-              <SubjectFilter present={present} value={subject} onChange={setSubject} />
-            )}
-
+            {/* ═══ THE VIEW TOGGLE AND THE SUBJECT CHIPS ARE BOTH GONE ═══
+                The toggle swapped this column between the queue and the
+                coverage roster; the chips narrowed the queue by review subject.
+                Each was hidden under a scope already, because the route said
+                which view and which subject — and with Coverage and Mentor
+                Practice removed, neither control has a second value to offer.
+                One column, one scroller, one list. */}
             <div
               data-anno-ref="monitoring-scroller"
               className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
@@ -881,9 +695,9 @@ export function MonitoringPage({
                     Try again
                   </button>
                 </div>
-              ) : view === "queue" ? (
+              ) : (
                 <EventList
-                  groups={groups}
+                  events={filtered}
                   now={now}
                   selectedId={selectedEvent?.id ?? null}
                   onSelect={(e) => {
@@ -891,20 +705,17 @@ export function MonitoringPage({
                     setSelectedEscalationId(null);
                     setPaneTakeover(true);
                   }}
-                  /* NEEDS-COPY-NICOLE. NOT "you're done": the queue emptying is
-                     weather, and coverage is the floor. */
+                  /* ═══ NOT "you're done" ═══
+                     NEEDS-COPY-NICOLE. It read "Nothing waiting for judgment.
+                     Coverage is where the rest of the work is" — a pointer to a
+                     destination that no longer exists. The half worth keeping is
+                     the refusal to congratulate: an empty queue is what a
+                     classifier noticed running out, not a shift completed. */
                   emptyLine={
                     data?.classifier === "degraded"
-                      ? "No events — and the flag pipeline is down, so this is not the same as a quiet shift."
-                      : "Nothing waiting for judgment. Coverage is where the rest of the work is."
+                      ? "No flags — and the flag pipeline is down, so this is not the same as a quiet shift."
+                      : "Nothing waiting for judgment. This queue emptying is not the same as the shift being covered."
                   }
-                />
-              ) : (
-                <CoverageList
-                  conversations={conversations}
-                  credited={credited}
-                  liveIds={liveIds}
-                  now={now}
                 />
               )}
             </div>
@@ -920,7 +731,7 @@ export function MonitoringPage({
               The pane is a DETAIL surface, so with no record selected and no
               list column beside it there is no detail to be empty about. It
               renders when there is something in it. */}
-          {!(paneOnly && !selectedEscalation) && !listOnly && (
+          {!(paneOnly && !selectedEscalation) && (
           <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
             {/* NO LIST, NO WAY BACK TO IT. Under `paneOnly` the region above IS
                 the list and it is still on screen. */}
@@ -976,34 +787,16 @@ export function MonitoringPage({
                    *  has no clinical disposition. `onResolvePractice` below took
                    *  that arm, so the two subjects no longer share a handler that
                    *  only one of them fits.
-                   *  `e.flag` STAYS AS THE GUARD rather than becoming an
-                   *  assertion: the pane routes by SUBJECT and this reads the
-                   *  payload, so the two agreeing is worth keeping checkable
-                   *  rather than assumed. */
+                   *  `e.flag` IS NON-NULLABLE SINCE §2.1 — every event on this
+                   *  surface is a flag and the type says so, which is what
+                   *  retired the guard that used to stand here. */
                   onResolve={(e, detail) => {
-                    if (!e.flag) return;
-                    credit(e.teenId, "event-review");
                     /* THE LEDGER PATH, UNCHANGED. The disposition and the
                        optional accuracy answer both travel as detail. */
                     resolve(e.flag, {
                       disposition: detail.disposition.id,
                       classifierAccuracy: detail.accuracy,
                     });
-                  }}
-                  /** ═══ THE PRACTICE PATH, NAMED AND STILL LEDGER-LESS ═══
-                   *  It was the `else` arm of `onResolve`, which is why the pane
-                   *  had to hand a clinical-shaped detail for an event that has
-                   *  none. Its own handler now, and the blocker it carries is
-                   *  unchanged and stated: `buildResolveEvent` maps a task
-                   *  DOMAIN to an activity event type, and mentor practice is not
-                   *  a domain — so this closes locally and writes no ledger
-                   *  event. Papering over it with a flag-shaped event would file
-                   *  a teen-safety record for a mentor's late note. Gap row 436.
-                   *  NO COVERAGE CREDIT EITHER: coverage counts conversations a
-                   *  supervisor has looked at, and a practice breach is about a
-                   *  mentor's timing, not about having read a teen's thread. */
-                  onResolvePractice={(e) => {
-                    setResolvedIds((prev) => new Set(prev).add(e.id));
                   }}
                   onEscalate={(e) => {
                     /* ═══ THE FLAG BECOMES AN ESCALATION RECORD ═══
@@ -1014,8 +807,8 @@ export function MonitoringPage({
                       ...prev,
                       {
                         id: `esc-from-${e.id}`,
-                        teenId: e.teenId ?? "",
-                        teenName: e.teenName ?? "",
+                        teenId: e.teenId,
+                        teenName: e.teenName,
                         mentorId: e.mentorId,
                         mentorName: e.mentorName,
                         conversationId: e.conversationId,

@@ -10,8 +10,8 @@
 // to before) — the shell's formal rail slot is reserved for the staff follow-up.
 
 import { use, useEffect, useState } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useRouter } from "next/navigation";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import {
   UserRecordShell,
   type UserRecordTab,
@@ -140,28 +140,34 @@ export default function MentorSelfRecord({
 
   if (!mounted || !isMentorPersona) {
     return (
-      <MentorShell active="home">
+      <AppChrome active="home">
         <div className="min-h-dvh" />
-      </MentorShell>
+      </AppChrome>
     );
   }
 
-  // The record only exists once the mentor is published.
-  if (!everPublished) {
-    return (
-      <MentorShell active="home">
-        <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
-          <h1 className="text-xl font-semibold">Not available yet</h1>
-          <p className="text-sm text-muted-foreground">
-            Your record opens up once your profile is approved and live.
-          </p>
-          <Button variant="outline" onClick={() => router.push("/app")}>
-            Back to home
-          </Button>
-        </div>
-      </MentorShell>
-    );
-  }
+  /* ═══ THE RECORD NO LONGER WAITS FOR APPROVAL (addendum §2.6) ═══
+   *
+   *  This returned "Not available yet · Your record opens up once your profile
+   *  is approved and live" whenever `publishedSnapshot === null`. The avatar →
+   *  account popover → Profile path led here, so a mentor who had not been
+   *  published had a route to their own record and a dead end at the end of it.
+   *
+   *  ═══ IT WAS AN APPROVAL CHECK DOING A PERMISSION CHECK'S JOB ═══
+   *
+   *  `everPublished` answers "can teens see this person", which is a real and
+   *  necessary question — it gates the PUBLIC profile. It was being asked about
+   *  the SELF view, where it answers nothing: the draft exists from the first
+   *  onboarding step, every tab on this page edits the draft, and the editors
+   *  were already reachable from Settings while this page refused to show them.
+   *
+   *  WHAT REPLACES IT IS A STATUS, NOT A GATE. `statusText` below already
+   *  distinguishes the states, so an unpublished mentor sees their record with
+   *  it labelled unpublished — which is the true thing, and the thing the old
+   *  sentence was trying to say by withholding the page. The one case this does
+   *  NOT change is what teens see: nothing here publishes anything.
+   *
+   *  (`everPublished` is still read — see `statusText`.) */
 
   // ── Identity ──────────────────────────────────────────────────────────────
   const firstName = draft.firstName?.trim() ?? "";
@@ -179,14 +185,23 @@ export default function MentorSelfRecord({
     .join(" · ");
 
   return (
-    <MentorShell active="home">
+    <AppChrome active="home">
       <UserRecordShell
         avatar={{ src: avatarSrc, initial }}
         name={name}
         role="mentor"
         // The viewer is in the app, so they are online by definition.
-        statusText={profileHidden ? "Unpublished" : undefined}
-        statusAriaLabel={`Mentor, ${profileHidden ? "unpublished" : "active"}`}
+        /* ═══ THREE STATES, AND THEY ARE DIFFERENT FACTS ═══
+           NEEDS-COPY-NICOLE on the first. Never published is not the same as
+           published-then-hidden: one is waiting on a review, the other is a
+           choice somebody made. Collapsing them would tell a mentor in review
+           that they had hidden themselves. */
+        statusText={
+          !everPublished ? "Not published yet" : profileHidden ? "Unpublished" : undefined
+        }
+        statusAriaLabel={`Mentor, ${
+          !everPublished ? "not published yet" : profileHidden ? "unpublished" : "active"
+        }`}
         meta={meta}
         sectionsLabel="Profile sections"
         tabs={SELF_TABS}
@@ -287,6 +302,6 @@ export default function MentorSelfRecord({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </MentorShell>
+    </AppChrome>
   );
 }

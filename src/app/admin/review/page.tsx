@@ -23,11 +23,10 @@
 // in rejectionNote.
 
 import { use, useEffect, useState } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Flag } from "lucide-react";
 import { toast } from "sonner";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { PhoneFrame } from "@/components/onboarding/phone-frame";
 import { PreviewDisclosure } from "@/components/settings/preview-disclosure";
@@ -61,7 +60,7 @@ import { cn } from "@/lib/utils";
  *  Same route, two rails — copied deliberately from `StaffShell` in
  *  `admin/mentor/page.tsx`, which solved this exact problem for the record:
  *  the Lead Mentor manages mentors from inside the mentor app, and the
- *  Supervisor works in the console. Putting a supervisor in `MentorShell` would
+ *  Supervisor works in the console. Putting a supervisor in `AppChrome` would
  *  swap their whole left rail for someone else's the moment they opened a
  *  review, which reads as having been navigated somewhere they did not ask to
  *  go — the milder version of the bug this change is fixing. */
@@ -73,9 +72,9 @@ function ReviewShell({
   children: React.ReactNode;
 }) {
   return lead ? (
-    <MentorShell active="mentors">{children}</MentorShell>
+    <AppChrome active="mentors">{children}</AppChrome>
   ) : (
-    <AdminShell active="mentors">{children}</AdminShell>
+    <AppChrome active="mentors">{children}</AppChrome>
   );
 }
 

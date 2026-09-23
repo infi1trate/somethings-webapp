@@ -88,8 +88,6 @@ const BAND_CONTROLS = {
 const DESTINATIONS = new Set([
   "/app/escalations",
   "/app/risk-flags",
-  "/app/mentor-practice",
-  "/app/coverage",
   "/app/care-reviews",
   "/app/activity",
 ]);
@@ -159,7 +157,10 @@ console.log("\n§4 · nothing on Today changes a record\n");
      file while the page was writing to `careReviews` on every mount.
      So the baseline is taken on a neighbouring route — Today has never mounted in
      this context when it is read — and Today is then navigated to. */
-  const { context, page } = await open("mirror-store", "/app/coverage");
+  /* THE NEIGHBOUR WAS `/app/coverage` until it became Chat (addendum §2.2).
+     Any route that is not Today works; what matters is that Today has not
+     mounted in this context when the baseline is read. */
+  const { context, page } = await open("mirror-store", "/app/care-reviews");
   const before = await readStore(page);
   /* THE INPUT IS ASSERTED FIRST. Without this, a run where the store never
      persisted would compare null to null and report a clean pass. */
@@ -330,11 +331,14 @@ let cards = [];
     }))
   );
   check(
-    "cards.five",
+    "cards.three",
     "one card per destination, in the rail's order",
-    cards.length === 5 &&
-      cards.map((c) => c.id).join(",") ===
-        "escalations,risk-flags,mentor-practice,coverage,care-reviews",
+    /* WAS FIVE. Mentor Practice and Coverage are gone (§2.1, §2.2), and the
+       mirror rule is what forces this number down with them: a card for a
+       destination that does not exist is the mirror claiming something the
+       rail cannot open. */
+    cards.length === 3 &&
+      cards.map((c) => c.id).join(",") === "escalations,risk-flags,care-reviews",
     cards.map((c) => c.id).join(" > ") || "none"
   );
   check(
@@ -438,37 +442,32 @@ console.log("\n§4 · the mirror agrees with the destination\n");
   check(
     "agree.cards-read",
     "the cards were read off Today, so the comparisons below mean something",
-    Object.keys(byId).length === 5,
+    Object.keys(byId).length === 3,
     `${Object.keys(byId).length} card(s)`
   );
 
-  /* ── COVERAGE · the strongest form, because both sides use `coverageLine` ── */
-  {
-    const { context, page } = await open("mirror-coverage", "/app/coverage");
-    const meter = await page.evaluate(() => {
-      const m = document.querySelector("main")?.innerText ?? "";
-      return m.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? null;
-    });
-    const onToday =
-      byId.coverage?.text.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? null;
-    check(
-      "agree.coverage",
-      "Coverage's own sentence appears verbatim on the card",
-      meter != null && onToday != null && meter === onToday,
-      `destination "${meter}" · today "${onToday}"`
-    );
-    await context.close();
-  }
+  /* ── COVERAGE's AGREEMENT CHECK IS GONE (addendum §2.2) ──────────────────
+     It was the strongest form in this file: both sides called `coverageLine`,
+     so the assertion was that one sentence appeared verbatim in two places
+     rather than that two numbers matched. The destination is Chat now and
+     computes no fraction, so there is no sentence to agree with.
+     WHAT REPLACES THE FORM, not the subject: §2.11's progress track is the next
+     figure that will exist on two surfaces, and it should be checked this way
+     rather than by comparing digits. */
 
   /* ── RISK FLAGS · the group header's count against the card's figure ────── */
   {
     const { context, page } = await open("mirror-flags", "/app/risk-flags");
-    const dest = await page.evaluate(() => {
-      const h = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
-        .map((e) => e.innerText || "")
-        .find((t) => / — \d/.test(t));
-      return h ? Number(h.match(/ — (\d+)/)?.[1]) : null;
-    });
+    /* ═══ THE ROWS, NOT A HEADER STRING (addendum §2.1) ═══
+       It read the group header's count ("Teen safety — 9"). That header is
+       gone: with one review subject it restated the page title, and per §3.1
+       it was counting flags while describing conversations.
+       COUNTING THE ROWS IS THE STRONGER FORM ANYWAY — it compares the card's
+       figure against the queue a supervisor can actually see, rather than
+       against another rendering of the same number. */
+    const dest = await page.evaluate(
+      () => document.querySelectorAll('[role="treeitem"]').length || null
+    );
     const onToday = Number(byId["risk-flags"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
     check(
       "agree.risk-flags",
@@ -540,24 +539,9 @@ console.log("\n§4 · the mirror agrees with the destination\n");
     await context.close();
   }
 
-  /* ── MENTOR PRACTICE · the queue's count against the card's ─────────────── */
-  {
-    const { context, page } = await open("mirror-practice", "/app/mentor-practice");
-    const dest = await page.evaluate(() => {
-      const h = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
-        .map((e) => e.innerText || "")
-        .find((t) => / — \d/.test(t));
-      return h ? Number(h.match(/ — (\d+)/)?.[1]) : 0;
-    });
-    const onToday = Number(byId["mentor-practice"]?.text.match(/(\d+) open/)?.[1] ?? 0);
-    check(
-      "agree.mentor-practice",
-      "Mentor Practice's queue count equals the card's",
-      dest === onToday,
-      `destination ${dest} · today ${onToday}`
-    );
-    await context.close();
-  }
+  /* ── MENTOR PRACTICE's AGREEMENT CHECK IS GONE (addendum §2.1) ───────────
+     It compared the practice queue's group count against the card's "N open".
+     Both the destination and the card are removed. */
 }
 
 await writeFile(

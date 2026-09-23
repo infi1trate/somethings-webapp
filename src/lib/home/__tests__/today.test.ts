@@ -81,8 +81,6 @@ function flagEvent(over: Partial<MonitoringEvent> = {}): MonitoringEvent {
   } as unknown as TaskItem;
   return {
     id: "ev-1",
-    kind: "riskFlag",
-    subject: "teenSafety",
     teenId: "t1",
     teenName: "A.",
     mentorId: "m1",
@@ -94,21 +92,15 @@ function flagEvent(over: Partial<MonitoringEvent> = {}): MonitoringEvent {
     patternCount: 1,
     mentorReplied: false,
     flag: item,
-    practice: null,
     ...over,
   };
 }
 
-function practiceEvent(): MonitoringEvent {
-  return {
-    ...flagEvent(),
-    id: "ev-p",
-    kind: "noteOverdue",
-    subject: "mentorPractice",
-    flag: null,
-    practice: { measure: "42m past cutoff", againstLabel: "cutoff" } as never,
-  };
-}
+/* `practiceEvent` IS GONE (addendum §2.1). It built a `noteOverdue` event with
+   `subject: "mentorPractice"` and a null flag, to assert that the Mentor
+   Practice card counted its own events and the Risk Flags card did not. Both
+   cards are gone with the subject, and `MonitoringEvent` no longer has a shape
+   that could express one. */
 
 function input(over: Partial<TodayInput> = {}): TodayInput {
   return {
@@ -154,28 +146,21 @@ describe("only a published clock may breach", () => {
     expect(card.state).not.toMatch(/overdue|past|breach|due/i);
   });
 
-  it("never breaches Mentor Practice either", () => {
-    const card = byId(todayCards(input({ events: [practiceEvent()] })))[
-      "mentor-practice"
-    ];
-    expect(card.count).toBe(1);
-    expect(card.tone).toBe("attention");
-    expect(card.state).not.toMatch(/overdue|past|breach|due/i);
-  });
+  /* THE MENTOR PRACTICE CARD'S "never breaches either" TEST IS GONE with the
+     destination (addendum §2.1). The invariant it shared with Risk Flags — a
+     card whose destination publishes no deadline never takes a breach tone — is
+     still covered by the Risk Flags case above, which is the one that survives
+     and the one where a hand-written `slaDeadline` is still reachable. */
 
-  it("never colours Coverage at all — partial coverage is not a problem state", () => {
-    const conversations = Array.from({ length: 40 }, (_, i) => ({
-      id: `c${i}`,
-      reviewedAt: i < 2 ? NOW : null,
-    })) as never;
-    const card = byId(todayCards(input({ conversations })))["coverage"];
-    expect(card.tone).toBe("clear");
-    // 2 of 40 is a bad shift and still not a breach.
-    expect(card.state).toBe("2 of 40 conversations reviewed this shift");
-    // AND NEVER A REMAINDER. "38 unreviewed" is the reading this view refuses.
-    expect(card.state).not.toMatch(/unreviewed|remaining|left/i);
-    expect(card.count).toBeNull();
-  });
+  /* ═══ THE COVERAGE CARD'S TEST IS GONE WITH THE CARD (addendum §2.2) ═══
+     It pinned three things: that partial coverage never took a warning tone
+     (2 of 40 is a bad shift and still not a breach), that the card's state
+     came from `coverageLine` verbatim so Today and the destination could not
+     phrase one fraction two ways, and that it never stated a REMAINDER —
+     "38 unreviewed" being the reading that surface refused.
+     THE THIRD IDEA OUTLIVES THE CARD and moves to §2.11's progress track,
+     whose own rule is that completion is never expressed as a count of what is
+     left. That is asserted where the track is built, not here. */
 
   it("breaches Care Reviews, because its SLA is published", () => {
     const facts = { ...FACTS, billing: { open: 9, overdue: 2 } };
@@ -234,14 +219,16 @@ describe("the shift-start line names destinations and counts nothing", () => {
     const cards = todayCards(
       input({
         facts: { ...FACTS, billing: { open: 9, overdue: 2 } },
-        events: [practiceEvent()],
+        events: [flagEvent()],
       })
     );
-    // Care Reviews breaches; Mentor Practice is attention. Rail order would put
-    // Mentor Practice first, so this proves the line re-orders and the cards
-    // do not.
+    /* Care Reviews breaches; Risk Flags is attention. RAIL ORDER WOULD PUT RISK
+       FLAGS FIRST — it is above Care Reviews in `DESTINATION_ORDER` — so this
+       proves the line re-orders by tone while the cards keep rail order.
+       IT USED TO USE A PRACTICE EVENT for the attention half, for the same
+       reason: that destination also sat above Care Reviews. */
     expect(todayDigestLine(cards)).toBe(
-      "Care Reviews and Mentor Practice need attention."
+      "Care Reviews and Risk Flags need attention."
     );
   });
 

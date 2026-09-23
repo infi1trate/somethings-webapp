@@ -25,8 +25,7 @@
 // pattern rather than useSearchParams, every store read behind useMounted.
 
 import { use } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { DestinationPlaceholder } from "@/components/ia/destination-placeholder";
 import { TasksPage } from "@/components/tasks/tasks-page";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -46,16 +45,20 @@ export default function CareReviewsRoute({
   // hydration swaps the shell for one frame with no error to show for it.
   const supervisor = mounted && isSupervisorTier(persona);
 
-  return supervisor ? (
-    <AdminShell active="care-reviews">
-      <TasksPage scope="care-reviews" focusBand={str(query.band)} />
-    </AdminShell>
-  ) : (
-    /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
-       true one for them: this destination is not offered to their persona, so
-       "unbuilt" is what it is from where they stand. */
-    <MentorShell active="home">
-      <DestinationPlaceholder title="Care Reviews" status="Intake and monthly billing reviews. A supervisor surface." />
-    </MentorShell>
+  return (
+    /* ═══ ONE SHELL, ONE INSTANCE (addendum §2.3) ═══
+       It was two `AppChrome` elements in a ternary, which renders one shell but
+       reads as a choice of chrome. The choice is the CONTENT and the active
+       item; the chrome is the same component either way. */
+    <AppChrome active={supervisor ? "care-reviews" : "home"}>
+      {supervisor ? (
+        <TasksPage scope="care-reviews" focusBand={str(query.band)} />
+      ) : (
+        /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
+         true one for them: this destination is not offered to their persona, so
+         "unbuilt" is what it is from where they stand. */
+        <DestinationPlaceholder title="Care Reviews" status="Intake and monthly billing reviews. A supervisor surface." />
+      )}
+    </AppChrome>
   );
 }
