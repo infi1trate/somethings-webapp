@@ -72,20 +72,54 @@ const RING =
  *  gone: it described the weather.
  *
  *  NEEDS-COPY-NICOLE, every clause. */
+/** ═══ AND IT STATES ONLY WHAT THIS DESTINATION OWNS (Phase 7) ═══
+ *
+ *  Gap row 406: one subtitle rendered on all four destinations, so
+ *  `/app/risk-flags` led with "2 escalations awaiting acknowledgement · 3
+ *  close-out items overdue" — another destination's clocks, above the flag
+ *  queue. It was left for "the brief of the destination that owns it", and the
+ *  owning phases have run, so it is finished here rather than carried further.
+ *
+ *  WHICH CLAUSE BELONGS WHERE:
+ *   · THE ESCALATION CLOCKS are Escalations'. They are the only published
+ *     response SLAs in the product and the only thing on any of these surfaces
+ *     that may carry breach treatment.
+ *   · THE PIPELINE'S HEALTH is Risk Flags'. It outranks everything there for a
+ *     stated reason — zero flags is otherwise ambiguous between a quiet shift
+ *     and a broken safety pipe — and it says nothing a reader of the escalation
+ *     region needs.
+ *   · COVERAGE STATES ITS DENOMINATOR and takes no clause from here at all; the
+ *     meter beside it already carries the fraction.
+ *   · MENTOR PRACTICE TAKES NEITHER, and that is an absence worth naming: it has
+ *     no published clock (gap row 421's territory) and no pipeline. Its subtitle
+ *     is Phase 8's to write, and an inherited one would be a placeholder nobody
+ *     reads as temporary.
+ *
+ *  THE UNSCOPED PAGE KEEPS EVERY CLAUSE — it is the surface they were written
+ *  for, and nothing routes to it. */
 export function monitoringSubtitle(input: {
   coverageReviewed: number;
   coverageTotal: number;
   ackOutstanding: number;
   closeOutOverdue: number;
   classifierDegraded: boolean;
+  /** Which clauses this destination owns. Omitted = every clause, which is the
+   *  unscoped page. */
+  scope?: MonitoringScope | null;
 }): string {
+  /* NOT A FILTER OVER A BUILT STRING — the clauses are gated before they are
+     written, so a destination that owns none produces the empty answer rather
+     than a sentence with its middle removed. */
+  const ownsEscalationClocks =
+    input.scope == null || input.scope === "escalations";
+  const ownsPipeline = input.scope == null || input.scope === "risk-flags";
   const owed: string[] = [];
-  if (input.ackOutstanding > 0) {
+  if (ownsEscalationClocks && input.ackOutstanding > 0) {
     owed.push(
       `${input.ackOutstanding} escalation${input.ackOutstanding === 1 ? "" : "s"} awaiting acknowledgement`
     );
   }
-  if (input.closeOutOverdue > 0) {
+  if (ownsEscalationClocks && input.closeOutOverdue > 0) {
     owed.push(
       `${input.closeOutOverdue} close-out item${input.closeOutOverdue === 1 ? "" : "s"} overdue`
     );
@@ -100,12 +134,23 @@ export function monitoringSubtitle(input: {
      the weather. */
   const line = owed.length
     ? owed.join(" · ")
-    : /* NEEDS-COPY-NICOLE */ "No escalation clocks outstanding";
+    : ownsEscalationClocks
+      ? /* NEEDS-COPY-NICOLE. A zero obligation count is a real fact about real
+           clocks, which is why it is stated rather than left blank — but only on
+           the destination those clocks belong to. */
+        "No escalation clocks outstanding"
+      : "";
   /* THE CLASSIFIER'S HEALTH OUTRANKS EVERY OTHER CLAUSE. Zero flags is otherwise
      ambiguous between a quiet shift and a broken safety pipe. */
-  return input.classifierDegraded
-    ? `Flag pipeline is down — no flags are arriving · ${line}`
-    : line;
+  if (ownsPipeline && input.classifierDegraded) {
+    /* THE PIPELINE OUTRANKS EVERY OTHER CLAUSE, and on Risk Flags there is no
+       other clause to outrank — so it is the whole subtitle rather than a
+       prefix to one. */
+    return line
+      ? `Flag pipeline is down — no flags are arriving · ${line}`
+      : "Flag pipeline is down — no flags are arriving";
+  }
+  return line;
 }
 
 function PaneSkeleton() {
@@ -469,6 +514,19 @@ export function MonitoringPage({
    *  column, and the pane is always present because there is no list to come
    *  back from. */
   const paneOnly = scope === "escalations";
+  /** ═══ COVERAGE HAS NO DETAIL PANE, AND ITS UNIT IS WHY (Phase 7) ═══
+   *
+   *  Measured at 1440px: 655 of 1092 pixels — sixty per cent of the destination
+   *  — were a panel reading "Choose an event to review it." on a route that has
+   *  no events at all. Not fixture-dependent like the escalations case: the
+   *  coverage scope pins the subject to nothing, so the pane was permanently
+   *  empty and permanently wrong.
+   *
+   *  THE UNIT IS A CONVERSATION, AND A CONVERSATION OPENS AS A ROUTE. The queue's
+   *  unit is an event, which is reviewed in a pane beside the list; a
+   *  conversation is read in the chat thread, which is a page. There is nothing
+   *  for a detail column to hold, so the list takes the width. */
+  const listOnly = scope === "coverage";
   const paneTakeover =
     paneOnly || (takeoverWanted && (filtered.length > 0 || escalations.length > 0));
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -588,13 +646,37 @@ export function MonitoringPage({
             {scope ? SCOPE_TITLE[scope] : /* NEEDS-COPY-NICOLE */ "Monitoring"}
           </h1>
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {mounted
+            {/* ═══ THE SUBTITLE IS THE OWNING DESTINATION'S (Phase 7) ═══
+                `monitoringSubtitle` states escalation obligations and the flag
+                pipeline's health — which is right on Escalations and on Risk
+                Flags, and was rendering on all four. Measured on
+                `/app/coverage`: "2 escalations awaiting acknowledgement · 3
+                close-out items overdue", above a coverage meter, on a page about
+                conversations. Gap row 406 recorded it; Phase 7 owns Coverage, so
+                Coverage's is fixed here and the other two keep theirs.
+                COVERAGE'S SUBTITLE IS THE METER, which already says "9 of 31
+                conversations reviewed this shift" — progress with its unit and
+                its period. Stating anything else beside it would be the same
+                defect the monitoring header was built to fix: two clauses in
+                incompatible units, three centimetres apart. */}
+            {scope === "coverage"
+              ? /* ═══ COVERAGE'S SUBTITLE SAYS WHAT THE SURFACE IS ═══
+                   NEEDS-COPY-NICOLE. Not what it owes — the meter beside it
+                   already states the progress, and restating a fraction in
+                   words would be the two-clauses-in-one-header defect again.
+                   What a reader arriving at a new destination needs is the
+                   DENOMINATOR: that this is every supervised conversation and
+                   not only the ones something noticed, which is the whole
+                   reason the destination exists. */
+                "Every supervised conversation this shift — not only the ones a flag was raised on"
+              : mounted
               ? monitoringSubtitle({
                   coverageReviewed: coverage.reviewed,
                   coverageTotal: coverage.total,
                   ackOutstanding: obligations.ackOutstanding,
                   closeOutOverdue: obligations.closeOutOverdue,
                   classifierDegraded: data?.classifier === "degraded",
+                  scope,
                 })
               : ""}
           </p>
@@ -666,7 +748,7 @@ export function MonitoringPage({
                first child leaves the pane in the 60% track and 40% of the width
                blank, which reads as a failed render rather than a full-width
                record. */
-            paneOnly
+            paneOnly || listOnly
               ? "xl:grid-cols-[minmax(0,1fr)]"
               : "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
           )}
@@ -768,7 +850,6 @@ export function MonitoringPage({
                   credited={credited}
                   liveIds={liveIds}
                   now={now}
-                  onOpen={(c) => credit(c.id, "conversation-open")}
                 />
               )}
             </div>
@@ -784,7 +865,7 @@ export function MonitoringPage({
               The pane is a DETAIL surface, so with no record selected and no
               list column beside it there is no detail to be empty about. It
               renders when there is something in it. */}
-          {!(paneOnly && !selectedEscalation) && (
+          {!(paneOnly && !selectedEscalation) && !listOnly && (
           <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
             {/* NO LIST, NO WAY BACK TO IT. Under `paneOnly` the region above IS
                 the list and it is still on screen. */}

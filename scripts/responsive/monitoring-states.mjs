@@ -572,7 +572,16 @@ for (const [scenario, id, want] of [
     .count();
   check("coverage.view-exists", "a coverage view lists supervised conversations", convos > 0, `${convos} conversations`);
   const unreviewedFirst = await covView.page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
-  check("coverage.unreviewed-first", "unreviewed conversations sort first", unreviewedFirst === "false", unreviewedFirst);
+  /* THE DETAIL SAYS WHAT THE VALUE MEANS. It printed the raw `data-reviewed`
+     attribute, so a PASSING check reported "false" — correct, and it reads as a
+     failure at a glance. Third instance of this family (gap rows 424, and the
+     escalate announcement in Phase 6): a detail has to be legible on its own. */
+  check(
+    "coverage.unreviewed-first",
+    "unreviewed conversations sort first",
+    unreviewedFirst === "false",
+    `first row is ${unreviewedFirst === "false" ? "unreviewed" : "reviewed"}`
+  );
   await page.screenshot({ path: `${OUT}/03-coverage.png` });
   await covView.context.close();
   await context.close();
@@ -757,6 +766,149 @@ for (const [scenario, id, want] of [
       seen.noConfidence ? "clean" : "a confidence-shaped string is rendered"
     );
   }
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6d · EVERY DESTINATION'S HEADER STATES ITS OWN CLOCKS (Phase 7, gap 406)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// One subtitle rendered on all four destinations, so the flag queue led with
+// another destination's acknowledgement clocks. Checked per destination, and
+// checked in BOTH directions — that each owns its clause and that it does not
+// carry a neighbour's — because a check for absence alone passes on a header
+// that says nothing at all.
+{
+  const CASES = [
+    ["escalations", "/app/escalations", /escalation|close-out/i, /pipeline/i],
+    ["risk-flags", "/app/risk-flags", /pipeline|flags are arriving/i, /acknowledgement|close-out/i],
+  ];
+  for (const [name, url, owns, borrows] of CASES) {
+    const { context, page } = await open(`hdr-own-${name}`, {
+      scenario: "classifier-degraded",
+      url,
+    });
+    await page.waitForTimeout(800);
+    const header = await page.evaluate(
+      () =>
+        (
+          document.querySelector('[data-anno-ref="monitoring-header"]')
+            ?.innerText ?? ""
+        ).replace(/\s+/g, " ")
+    );
+    check(
+      `hdr.own.${name}.input`,
+      "the header rendered a subtitle at all",
+      header.length > 20,
+      header.slice(0, 90)
+    );
+    check(
+      `hdr.own.${name}.states-its-own`,
+      "it states the clause this destination owns",
+      owns.test(header),
+      header.slice(0, 110)
+    );
+    check(
+      `hdr.own.${name}.borrows-none`,
+      "and does not carry a neighbour's",
+      !borrows.test(header),
+      borrows.test(header)
+        ? `found a neighbour's clause: ${header.slice(0, 90)}`
+        : "clean"
+    );
+    await context.close();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6c · COVERAGE AS A DESTINATION (Phase 7)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The checks above verify coverage's CONTENTS — the list, the sort, the credit
+// path. These verify it as a ROUTE, which is what Phase 2 made it and nothing
+// had checked: its width, its header, and the absence of a control that records
+// having looked at something without opening it.
+{
+  const { context, page } = await open("coverage-dest", {
+    scenario: "coverage-debt",
+    url: "/app/coverage",
+  });
+  await page.waitForTimeout(900);
+  const seen = await page.evaluate(() => {
+    const grid = document.querySelector("main .grid");
+    const header =
+      document.querySelector('[data-anno-ref="monitoring-header"]')?.innerText ??
+      "";
+    const rows = [
+      ...document.querySelectorAll('[data-anno-ref^="coverage-row:"]'),
+    ];
+    return {
+      cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 0,
+      /* A DETAIL PANE ON THIS ROUTE IS PERMANENTLY EMPTY — the scope pins the
+         subject to nothing, so it cannot ever hold an event. */
+      chooseAnEvent: /Choose an event/i.test(
+        document.querySelector("main")?.innerText ?? ""
+      ),
+      header: header.replace(/\s+/g, " "),
+      rowCount: rows.length,
+      /* EVERY FOCUSABLE THING INSIDE A ROW. A control here would be one that
+         acts on a conversation, and the two destinations it could act TOWARD
+         are a mentor route and an id namespace this roster is not in. */
+      rowControls: rows.flatMap((r) =>
+        [...r.querySelectorAll("a, button, [role=button]")].map((e) =>
+          (e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)
+        )
+      ),
+      rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
+    };
+  });
+
+  check(
+    "coverage.input",
+    "the destination rendered its roster",
+    seen.rowCount > 0,
+    `${seen.rowCount} rows`
+  );
+  check(
+    "coverage.one-column",
+    "it takes the full width — its unit opens as a route, not in a pane",
+    seen.cols === 1 && !seen.chooseAnEvent,
+    `${seen.cols} column(s)` +
+      (seen.chooseAnEvent ? ' · still renders "Choose an event"' : "")
+  );
+  check(
+    "coverage.own-header",
+    "and its header states its own subject, not another destination's",
+    !/escalation|close-out|pipeline/i.test(seen.header),
+    seen.header.slice(0, 110)
+  );
+  check(
+    "coverage.no-remainder",
+    "and never states what is left — progress with its unit, never an inbox count",
+    /\d+ of \d+ conversations reviewed/.test(seen.header) &&
+      !/unreviewed|remaining|left|to go/i.test(seen.header),
+    seen.header.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? "no progress line"
+  );
+  /* ═══ THE CONTROL THAT RECORDED "LOOKED" WITHOUT LOOKING ═══
+     It was a button whose accessible name was "Open the conversation between
+     teen X and mentor Y", wired to a handler that credited the conversation and
+     navigated nowhere. Asserted as an ABSENCE of row controls, not as an absence
+     of that one label, because the defect is the pattern: any control here that
+     credits without leaving is the same fabricated measurement under a new name. */
+  check(
+    "coverage.no-credit-without-looking",
+    "and offers no row control — a credit that fires without leaving is a fabricated measurement",
+    seen.rowControls.length === 0,
+    seen.rowControls.length
+      ? `${seen.rowControls.length}: ${seen.rowControls.slice(0, 2).join(" · ")}`
+      : "read-only"
+  );
+  check(
+    "coverage.uniform-rows",
+    "and every row is one height, so the list reads as a roster",
+    seen.rowHeights.length === 1 && seen.rowHeights[0] === 56,
+    seen.rowHeights.join("/")
+  );
   await context.close();
 }
 
