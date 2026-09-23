@@ -162,6 +162,62 @@ const MONITORING_SHORTCUTS = [
   { keys: ["?"], what: "This list" },
 ];
 
+/** ═══ THE FOUR SCOPES, AND THE TWO THINGS A SCOPE PINS ═══
+ *
+ *  These ids are the route segments from `lib/ia/destinations.ts` — deliberately
+ *  the same strings, so a route file passes its own segment and a typo is a type
+ *  error rather than a page silently rendering the unscoped default.
+ *
+ *  A scope pins exactly two pieces of state and hides the two controls that used
+ *  to set them. Everything else about the page is untouched. */
+export type MonitoringScope =
+  | "escalations"
+  | "risk-flags"
+  | "mentor-practice"
+  | "coverage";
+
+/** WHICH VIEW THE ROUTE IS. `escalations` sits on the queue view because that is
+ *  where the escalation REGION renders; its own list is the region's, and the
+ *  event queue below it is hidden by `SCOPE_SUBJECT` selecting nothing. */
+const SCOPE_VIEW: Record<MonitoringScope, "queue" | "coverage"> = {
+  escalations: "queue",
+  "risk-flags": "queue",
+  "mentor-practice": "queue",
+  coverage: "coverage",
+};
+
+/** WHICH SUBJECT THE ROUTE IS. The two review subjects become two routes — the
+ *  §3 distribution row, and the reason `SubjectFilter` is superseded rather than
+ *  moved: a different disposition meaning per subject (Phase 5) is a route's
+ *  worth of difference, not a chip's.
+ *
+ *  `escalations` AND `coverage` PIN A SUBJECT THAT MATCHES NOTHING. Neither
+ *  route's content is the event queue — one is the escalation region, the other
+ *  the conversation roster — so the queue must be empty, and it must be empty by
+ *  the same filter every other scope uses rather than by a second branch. The
+ *  sentinel is not a `ReviewSubject`, which is exactly why no event carries it. */
+const NO_SUBJECT = "__none__";
+const SCOPE_SUBJECT: Record<MonitoringScope, string> = {
+  escalations: NO_SUBJECT,
+  "risk-flags": "teenSafety",
+  "mentor-practice": "mentorPractice",
+  coverage: NO_SUBJECT,
+};
+
+/** ═══ THE HEADING IS THE DESTINATION'S OWN NAME ═══
+ *  NEEDS-COPY-NICOLE, all four — they are the rail's labels, and they are the
+ *  same strings deliberately. A rail item reading `Risk Flags` over a page whose
+ *  h1 reads `Monitoring` is the header-disagreement defect the audit recorded on
+ *  production's tables; the fix is that ONE name reaches the reader per
+ *  destination, not that the h1 is dropped. Unscoped keeps `Monitoring`, which
+ *  nothing navigates to any more. */
+const SCOPE_TITLE: Record<MonitoringScope, string> = {
+  escalations: "Escalations",
+  "risk-flags": "Risk Flags",
+  "mentor-practice": "Mentor Practice",
+  coverage: "Coverage",
+};
+
 export function MonitoringPage({
   /** ═══ `?band=` IS ACCEPTED AND IGNORED (arch-mon Phase 1) ═══
    *  Home's shift sequence links here with a TIER — the taxonomy this phase
@@ -177,10 +233,37 @@ export function MonitoringPage({
    *  link is a link to a WORKLIST ROW; this is a link to an OBJECT, which is why
    *  it resolves against the whole set rather than the region's contents. */
   focusEscalation = null,
+  /** ═══ ONE PAGE, FOUR DESTINATIONS (supervisor IA restructure, Phase 2) ═══
+   *
+   *  Monitoring stops being a destination and becomes a GROUP LABEL, and the
+   *  four things it held become four routes: Escalations, Risk Flags, Mentor
+   *  Practice, Coverage.
+   *
+   *  THIS IS A SCOPE, NOT FOUR NEW PAGES, and that is the phase's whole
+   *  instruction — "almost entirely moves". Every child component is mounted
+   *  unchanged: `EscalationRegion`, `EventList`, `EventPane`, `CoverageList`,
+   *  `CoverageMeter`, `NowBand`. What the scope does is PIN the two pieces of
+   *  page state that used to be controls — the view toggle and the subject
+   *  filter — and hide the controls that set them, because a route boundary now
+   *  says what a chip used to say.
+   *
+   *  WHY NOT SPLIT THE FILE. Its 697 lines are page STATE: selection,
+   *  resolve-and-undo with the six-second ledger window, the live layer, the
+   *  coverage credit rule, the keyboard layer, four load states per region.
+   *  Four copies of that is four places for the timing rule to drift, and §6's
+   *  rule is one whose failures are invisible on screen. Phases 6-8 rebuild each
+   *  destination on its own terms; this phase makes the destinations REAL
+   *  without rewriting the state that makes them work.
+   *
+   *  THE DEFAULT IS THE OLD BEHAVIOUR, unscoped. `/app/monitoring` is a redirect
+   *  now so nothing reaches it, and leaving the default intact means this
+   *  parameterisation cannot be the thing that changed the page. */
+  scope = null,
 }: {
   focusBand?: string | null;
   focusRegion?: string | null;
   focusEscalation?: string | null;
+  scope?: MonitoringScope | null;
 } = {}) {
   void focusBand;
   const mounted = useMounted();
@@ -214,8 +297,19 @@ export function MonitoringPage({
   /** Escalations opened from a flag's disposition — the path the old control did
    *  not have. */
   const [raised, setRaised] = useState<EscalationRecord[]>([]);
-  const [view, setView] = useState<"queue" | "coverage">("queue");
-  const [subject, setSubject] = useState<string>(ALL_SUBJECTS);
+  /** ═══ PINNED BY THE SCOPE, DERIVED NOT RESET ═══
+   *  The state stays state for the unscoped case; a scope overrides it in the
+   *  read rather than writing it in an effect, because a reset runs one render
+   *  LATE and there would be a frame showing the wrong queue at the right URL.
+   *  Same shape every other derivation on this surface uses. */
+  const [viewState, setView] = useState<"queue" | "coverage">("queue");
+  const [subjectState, setSubject] = useState<string>(ALL_SUBJECTS);
+  const view = scope ? SCOPE_VIEW[scope] : viewState;
+  const subject = scope ? SCOPE_SUBJECT[scope] : subjectState;
+  /** Does this scope offer the reader a choice? Unscoped it does — that is the
+   *  segmented control and the subject chips. Scoped it does not, and a control
+   *  that cannot change anything is dead chrome. */
+  const scoped = scope != null;
   const [paused, setPaused] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -280,7 +374,23 @@ export function MonitoringPage({
       /* AN ID BEATS A REGION. `?escalation=` names one record; `?region=` says
          "whichever is most urgent". A link carrying both means the specific
          one. */
-      focusEscalation ?? (focusRegion === "escalations" ? PENDING_ESCALATION : null)
+      focusEscalation ??
+      (focusRegion === "escalations"
+        ? PENDING_ESCALATION
+        : /* ═══ THE DESTINATION IMPLIES THE REGION (Phase 2) ═══
+             `?region=escalations` said "open whichever is most urgent". Standing
+             on `/app/escalations` says the same thing without a param, so the
+             route gets the same sentinel.
+             WITHOUT IT THE PANE IS DEAD UNTIL A CLICK: on this destination the
+             pane is always on screen — there is no list column to come back
+             from — so an unselected pane is half the page reading "Choose an
+             event to review it." while four records sit above it. The flag
+             queue has always defaulted to `filtered[0]`; this is the region
+             getting the same courtesy, through the sentinel that already
+             means it. */
+          scope === "escalations"
+            ? PENDING_ESCALATION
+            : null)
   );
   const selectedEscalation =
     selectedEscalationId === PENDING_ESCALATION
@@ -305,7 +415,21 @@ export function MonitoringPage({
     : (filtered.find((e) => e.id === selectedEventId) ?? filtered[0] ?? null);
 
   const [takeoverWanted, setPaneTakeover] = useState(false);
-  const paneTakeover = takeoverWanted && (filtered.length > 0 || escalations.length > 0);
+  /** ═══ `Escalations` HAS NO LEFT COLUMN, AND THAT IS NOT AN EMPTY ONE ═══
+   *
+   *  Every other scope's content is the left column — a queue or a roster — with
+   *  the pane as its detail. On `Escalations` the LIST IS THE REGION, which
+   *  renders full-width above the grid and carries its own selection. So the
+   *  grid's left column has nothing to hold, and rendering it anyway would print
+   *  the queue's empty state — "Nothing waiting for judgment" — on a route
+   *  looking at three live escalations. A false negative on a safety surface.
+   *
+   *  The column is therefore GONE rather than empty, the grid collapses to one
+   *  column, and the pane is always present because there is no list to come
+   *  back from. */
+  const paneOnly = scope === "escalations";
+  const paneTakeover =
+    paneOnly || (takeoverWanted && (filtered.length > 0 || escalations.length > 0));
   const paneRef = useRef<HTMLDivElement | null>(null);
   const paneHandle = useRef<PaneHandle>({});
 
@@ -420,8 +544,7 @@ export function MonitoringPage({
       >
         <div className="min-w-0">
           <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-            {/* NEEDS-COPY-NICOLE */}
-            Monitoring
+            {scope ? SCOPE_TITLE[scope] : /* NEEDS-COPY-NICOLE */ "Monitoring"}
           </h1>
           <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
             {mounted
@@ -473,11 +596,19 @@ export function MonitoringPage({
         </p>
       )}
 
-      {mounted && (
+      {/* ═══ THE REGION IS THE `Escalations` DESTINATION NOW (Phase 2) ═══
+          §3: the escalation STRIP is global and stays global — that is Phase 3's
+          interrupt layer. The REGION, which is the worklist of records, is what
+          moves, and it moves to one route rather than sitting above every
+          queue. On a flag or a practice queue it would be a second subject's
+          work above the one the reader came for. */}
+      {mounted && (!scoped || scope === "escalations") && (
         <EscalationRegion
           records={escalations}
           now={now}
           state={plan.escalations}
+          /* IT IS THE PAGE ON ITS OWN DESTINATION — see the prop's note. */
+          standalone={paneOnly}
           selectedId={selectedEscalationId === PENDING_ESCALATION ? (escalations[0]?.id ?? null) : selectedEscalationId}
           onSelect={(rec) => {
             setSelectedEscalationId(rec.id);
@@ -490,9 +621,16 @@ export function MonitoringPage({
         <div
           className={cn(
             "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
-            "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
+            /* ONE COLUMN WHEN THERE IS ONE COLUMN. A 40/60 grid with an absent
+               first child leaves the pane in the 60% track and 40% of the width
+               blank, which reads as a failed render rather than a full-width
+               record. */
+            paneOnly
+              ? "xl:grid-cols-[minmax(0,1fr)]"
+              : "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
           )}
         >
+          {!paneOnly && (
           <div className={cn("flex min-h-0 flex-col", paneTakeover && "hidden xl:flex")}>
             {/* ═══ TWO VIEWS, ONE COLUMN, ONE SCROLLER ═══
                 A segmented control rather than a second page: coverage and the
@@ -501,8 +639,14 @@ export function MonitoringPage({
             <div
               role="tablist"
               /* NEEDS-COPY-NICOLE. A TABLIST IS CORRECT HERE, unlike the subject
-                 chips below: these two genuinely swap the panel's content. */
+                 chips below: these two genuinely swap the panel's content.
+                 ═══ AND IT IS GONE UNDER A SCOPE (Phase 2) ═══
+                 The route says which view this is. A two-tab row where one tab
+                 navigates away is not a tab row, and a one-tab row offering no
+                 choice is dead chrome — the same reasoning that removed the
+                 single-domain tab row from the worklist. */
               aria-label="Queue or coverage"
+              hidden={scoped}
               className="flex shrink-0 items-center gap-1"
             >
               {(["queue", "coverage"] as const).map((v) => (
@@ -526,7 +670,13 @@ export function MonitoringPage({
               ))}
             </div>
 
-            {view === "queue" && (
+            {/* THE SUBJECT CHIPS BECAME A ROUTE BOUNDARY (Phase 2). Teen safety
+                and mentor practice are two destinations now — a different review
+                subject and a different disposition meaning — so the filter that
+                used to separate them inside one queue is what the two URLs say.
+                §3's distribution row, expressed as a hidden control rather than
+                a deleted one, because the unscoped page still has both. */}
+            {view === "queue" && !scoped && (
               <SubjectFilter present={present} value={subject} onChange={setSubject} />
             )}
 
@@ -582,9 +732,22 @@ export function MonitoringPage({
               )}
             </div>
           </div>
+          )}
 
+          {/* ═══ ONE EMPTY STATE PER PAGE (Phase 2) ═══
+              Measured on `/app/escalations` with the `classifier-degraded`
+              scenario: the region said "No escalation is open or awaiting
+              close-out" and the pane, directly under it, said "Choose an event
+              to review it." Two empty states on one screen, disagreeing about
+              both the noun and whether there is anything to choose.
+              The pane is a DETAIL surface, so with no record selected and no
+              list column beside it there is no detail to be empty about. It
+              renders when there is something in it. */}
+          {!(paneOnly && !selectedEscalation) && (
           <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
-            {paneTakeover && (
+            {/* NO LIST, NO WAY BACK TO IT. Under `paneOnly` the region above IS
+                the list and it is still on screen. */}
+            {paneTakeover && !paneOnly && (
               <button
                 type="button"
                 onClick={() => setPaneTakeover(false)}
@@ -680,6 +843,7 @@ export function MonitoringPage({
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
 

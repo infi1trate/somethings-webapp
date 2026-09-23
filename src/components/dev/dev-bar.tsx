@@ -99,6 +99,35 @@ const CHAT_PREFIX = "chat:";
  *  above are: a record scenario NAVIGATES, this one only SETS STATE, and an id
  *  collision between the families would navigate instead of switching. */
 const MONITORING_PREFIX = "monitoring:";
+
+/** ═══ WHICH ROUTES EACH SCENARIO AXIS DRIVES (Phase 2) ═══
+ *
+ *  These were single `pathname.startsWith` checks against `/app/tasks` and
+ *  `/app/monitoring`. Both are retired routes now and the surfaces they held
+ *  live at five destinations, so a single prefix cannot answer either question.
+ *
+ *  THE RETIRED ROUTE STAYS IN EACH LIST. It is a live hop, and a reader who
+ *  lands on one should still see the right scenario selected for the frame they
+ *  are on it rather than the select falling back to the record axis.
+ *
+ *  `/app/escalations` IS SPELLED IN FULL, deliberately — `startsWith`ing
+ *  `/app/escalation` would also match `/app/escalation/{id}`, the record hop,
+ *  which belongs to no scenario axis. */
+const TASKS_ROUTES = ["/app/care-reviews", "/app/tasks"] as const;
+const MONITORING_ROUTES = [
+  "/app/escalations",
+  "/app/risk-flags",
+  "/app/mentor-practice",
+  "/app/coverage",
+  "/app/monitoring",
+] as const;
+
+/** WHERE THE SELECT NAVIGATES when the reader is not already on the axis. The
+ *  first entry of each list: Care Reviews for tasks, and Risk Flags for
+ *  monitoring — the volume, which is the same honest guess `retiredRouteTarget`
+ *  makes for a bare `/app/monitoring` and for the same stated reason. */
+const onAxis = (pathname: string, routes: readonly string[]) =>
+  routes.some((r) => pathname.startsWith(r));
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -452,9 +481,9 @@ export function DevBar() {
                   ? `${ACTIVITY_PREFIX}${activityScenarioId}`
                   : onChat
                     ? `${CHAT_PREFIX}${chatScenarioId}`
-                    : pathname.startsWith("/app/tasks")
+                    : onAxis(pathname, TASKS_ROUTES)
                       ? `${TASKS_PREFIX}${tasksScenarioId}`
-                      : pathname.startsWith("/app/monitoring")
+                      : onAxis(pathname, MONITORING_ROUTES)
                         ? monitoringScenarioId
                           ? `${MONITORING_PREFIX}${monitoringScenarioId}`
                           : ""
@@ -478,8 +507,8 @@ export function DevBar() {
               // ── TASKS: identical shape to Activity above (gap row 311).
               if (value.startsWith(TASKS_PREFIX)) {
                 setTasksScenario(value.slice(TASKS_PREFIX.length));
-                if (!pathname.startsWith("/app/tasks")) {
-                  router.push("/app/tasks", { scroll: false });
+                if (!onAxis(pathname, TASKS_ROUTES)) {
+                  router.push(TASKS_ROUTES[0], { scroll: false });
                 }
                 return;
               }
@@ -488,12 +517,12 @@ export function DevBar() {
               //    which is the only way back without a reload.
               if (value.startsWith(MONITORING_PREFIX)) {
                 setMonitoringScenario(value.slice(MONITORING_PREFIX.length));
-                if (!pathname.startsWith("/app/monitoring")) {
-                  router.push("/app/monitoring", { scroll: false });
+                if (!onAxis(pathname, MONITORING_ROUTES)) {
+                  router.push(MONITORING_ROUTES[0], { scroll: false });
                 }
                 return;
               }
-              if (value === "" && pathname.startsWith("/app/monitoring")) {
+              if (value === "" && onAxis(pathname, MONITORING_ROUTES)) {
                 setMonitoringScenario(null);
                 return;
               }

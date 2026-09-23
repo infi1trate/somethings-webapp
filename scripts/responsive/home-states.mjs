@@ -11,6 +11,13 @@
 import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/home";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1000 };
 const version = await readStoreVersion();
@@ -201,7 +208,7 @@ for (const [scenario, expected, why] of [
 }
 {
   /* HOME ONLY. C2's check — Tasks used to own this. */
-  const { context, page } = await open("digest-tasks", { url: "/app/tasks", seen: 0 });
+  const { context, page } = await open("digest-tasks", { url: "/app/care-reviews", seen: 0 });
   const t = await mainText(page);
   check("digest.tasks-clean", "Tasks renders no digest", !/Since your last shift/.test(t));
   await context.close();

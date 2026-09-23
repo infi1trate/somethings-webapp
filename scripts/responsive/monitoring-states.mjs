@@ -15,6 +15,12 @@
 import { launch, openView, VIEWPORTS, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
+
 /** ═══ THE PACK'S 39 KEYS, TRANSCRIBED ═══
  *  Duplicated here on purpose: the probe is the independent check, so it must not
  *  import the list it is checking. Grouped and ordered as the phase file lists
@@ -58,7 +64,7 @@ function check(id, label, ok, detail) {
   console.log(`  ${ok ? "✓" : "×"} ${id.padEnd(30)} ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
-async function open(id, { scenario = null, tasks = "typical-shift", load = "ready", url = "/app/monitoring" } = {}) {
+async function open(id, { scenario = null, tasks = "typical-shift", load = "ready", url = "/app/risk-flags" } = {}) {
   return openView(
     browser,
     {

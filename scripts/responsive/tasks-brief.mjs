@@ -5,6 +5,12 @@ const BASE = process.env.BASE ?? "http://localhost:3000";
 const KEY = "somethings.mentor-onboarding";
 import { STORE_VERSION as VERSION } from "./store-version.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
+
 let fails = 0;
 const check = (ok, label, extra = "") => {
   if (!ok) fails++;
@@ -20,7 +26,7 @@ async function tasks({ scenario = "typical-shift", load = "ready", width = 1440,
     [KEY, { state: { persona: "supervisor", tasksScenarioId: scenario, devLoadState: load }, version: VERSION }]
   );
   const p = await ctx.newPage();
-  await p.goto(`${BASE}/app/tasks`, { waitUntil: "networkidle" });
+  await p.goto(`${BASE}/app/care-reviews`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1600);
   return p;
 }
@@ -212,7 +218,7 @@ console.log("\n═══ Parts 2/3 · tab-cards ═══");
     selected: document.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("id"),
     onTasks: location.pathname,
   }));
-  check(afterArrow.focused === afterArrow.selected && afterArrow.onTasks === "/app/tasks",
+  check(afterArrow.focused === afterArrow.selected && afterArrow.onTasks === "/app/care-reviews",
     "arrow keys move tabs and do NOT navigate", JSON.stringify(afterArrow));
 
   // Tabbing from a card reaches its closed link, and activating it navigates.
@@ -353,7 +359,7 @@ console.log("\n═══ Part 4 · scenario × load-state matrix ═══");
     [KEY, { state: { persona: "supervisor", tasksScenarioId: "typical-shift", devLoadState: "loading" }, version: VERSION }]
   );
   const p = await ctx.newPage();
-  await p.goto(`${BASE}/app/tasks`, { waitUntil: "domcontentloaded" });
+  await p.goto(`${BASE}/app/care-reviews`, { waitUntil: "domcontentloaded" });
   // Poll every 60ms and record the ORDER surfaces appear in — the hierarchy is
   // an ordering claim, so an ordering is what to assert.
   const seen = [];

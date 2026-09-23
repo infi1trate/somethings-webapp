@@ -140,10 +140,40 @@ describe("the stage lines", () => {
     expect(stage.href).toBeNull();
   });
 
-  it("gives every other stage exactly one destination", () => {
+  it("gives every other stage exactly one destination, and it is a live one", () => {
+    // ═══ SUPERSEDED BY THE SUPERVISOR IA RESTRUCTURE, PHASE 2 ═══
+    // This asserted `/^\/app\/(tasks|monitoring)/` — the two pages that owned
+    // every stage before work moved to destinations. Both are retired routes
+    // now, so the old pattern is exactly backwards: it would PASS on a hop and
+    // FAIL on the real surface.
+    //
+    // RETARGETED STRICTER, NOT LOOSER. A prefix regex accepted `/app/tasksfoo`
+    // and could not tell a live route from a retired one. This checks set
+    // membership against the destinations, and separately that no stage points
+    // at a route being emptied — which is the failure the replacement exists to
+    // catch, and the one a hop hides.
+    const LIVE = new Set([
+      "/app/escalations",
+      "/app/risk-flags",
+      "/app/mentor-practice",
+      "/app/coverage",
+      "/app/care-reviews",
+      "/app/today",
+    ]);
+    const RETIRED = ["/app/home", "/app/tasks", "/app/monitoring"];
     const stages = shiftStagesFor(facts({ activeEscalations: 1 }), null);
-    for (const s of stages.filter((x) => x.id !== "chatReview")) {
-      expect(s.href, s.id).toMatch(/^\/app\/(tasks|monitoring)/);
+    const linked = stages.filter((x) => x.id !== "chatReview");
+    // THE INPUT MUST BE THERE. Without this the loop below passes on an empty
+    // list, which is how a stage set that stopped producing links would read as
+    // a clean bill of health.
+    expect(linked.length).toBeGreaterThan(0);
+    for (const s of linked) {
+      expect(LIVE.has(s.href ?? ""), `${s.id}: ${s.href}`).toBe(true);
+      for (const r of RETIRED) {
+        expect(s.href?.startsWith(r), `${s.id} points at retired ${r}`).toBe(
+          false
+        );
+      }
     }
   });
 });

@@ -194,15 +194,33 @@ export function ladderTargetFor(
 
 /** ═══ DEEP LINKS — THE ONE WAY INTO EACH STAGE ═══
  *
- *  Both destination routes read `?band=` and Monitoring also reads `?region=`;
- *  see their own notes. Built here rather than at the call site so a stage's
- *  link and the surface it lands on cannot drift apart. */
+ *  Built here rather than at the call site so a stage's link and the surface it
+ *  lands on cannot drift apart — which is exactly the drift Phase 2 is closing.
+ *
+ *  ═══ THEY POINT AT DESTINATIONS NOW, AND THE `?band=` PARAMS ARE GONE ═══
+ *
+ *  Every one of these used to be `/app/monitoring` with a param that selected a
+ *  tier queue. Three things changed at once: the route retired, the tier queues
+ *  collapsed into one, and the param's whole job was choosing between them. So
+ *  `imminent`, `clinical` and `flags` are ONE URL now — three stages naming one
+ *  destination, which is the collapse rather than a loss of precision.
+ *
+ *  THEY WOULD STILL WORK AS THEY WERE: `retiredRouteTarget` maps each of these
+ *  exact strings to the same place. Kept pointing directly anyway, because a
+ *  link that arrives via a `replace` hop cannot be opened in a new tab without
+ *  a flash, and because a retired route is a thing to empty, not a thing to keep
+ *  feeding.
+ *
+ *  THE ONE THING STILL OPEN: `?band=` is no longer read by any destination, so a
+ *  stage cannot pre-select a row. Nothing on the digest needed it after the
+ *  collapse — but that is a capability this phase removed, not one it never
+ *  had. */
 export const STAGE_HREF = {
-  escalations: "/app/monitoring?region=escalations",
-  billing: "/app/tasks",
-  imminent: "/app/monitoring?band=imminentFlagReview",
-  clinical: "/app/monitoring?band=clinicalFlagReview",
-  flags: "/app/monitoring",
+  escalations: "/app/escalations",
+  billing: "/app/care-reviews",
+  imminent: "/app/risk-flags",
+  clinical: "/app/risk-flags",
+  flags: "/app/risk-flags",
 } as const;
 
 /** TODO-COPY on every string below. Nicole has the whole set.

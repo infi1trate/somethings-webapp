@@ -13,6 +13,12 @@ import { chromium } from "playwright";
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const KEY = "somethings.mentor-onboarding";
 import { STORE_VERSION as VERSION } from "./store-version.mjs";
+
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
 const b = await chromium.launch();
 let fails = 0;
 const VIEWS = [
@@ -20,7 +26,7 @@ const VIEWS = [
   ["/app/settings", "settings tabs"],
   ["/app/profile", "profile / pre-publish dock"],
   ["/admin/profile-update", "admin profile-update"],
-  ["/app/tasks", "tasks"],
+  ["/app/care-reviews", "tasks"],
   ["/app/activity", "activity"],
   ["/app/mentees", "mentees"],
   ["/app/chat", "mentor chat"],

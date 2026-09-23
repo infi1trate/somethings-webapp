@@ -89,7 +89,16 @@ const EMPTY: Arrival = { commentId: null, ignored: [], isDeeplink: false };
  *  already reads, so it needs no store write — only validating and reporting. */
 function scenarioAxis(path: string): "activity" | "tasks" | "chat" | "record" {
   if (path.startsWith("/app/activity")) return "activity";
-  if (path.startsWith("/app/tasks")) return "tasks";
+  /* `/app/care-reviews` IS THE TASKS AXIS. The surface moved routes in Phase 2;
+     the scenario driving it did not. `/app/tasks` stays listed because it is a
+     live hop and a deeplink may still carry it.
+     STILL OPEN, AND PRE-EXISTING: there is no `monitoring` axis here, so the
+     four Monitoring destinations fall through to `record` exactly as
+     `/app/monitoring` always did. Reported rather than widened, because adding
+     an axis means adding its param validation too. */
+  if (path.startsWith("/app/care-reviews") || path.startsWith("/app/tasks")) {
+    return "tasks";
+  }
   if (path.startsWith("/app/chat")) return "chat";
   return "record";
 }

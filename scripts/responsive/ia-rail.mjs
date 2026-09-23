@@ -190,6 +190,119 @@ console.log("\nPhase 1 · the retired routes, opened\n");
   }
 }
 
+// ── THE HOP THAT WAS A CYCLE ─────────────────────────────────────────────────
+//
+// ═══ THE CHECK THAT WAS MISSING, AND WHAT IT COST ═══
+//
+// Phase 1 asserted six hops and not this one. `?escalation=` mapped to
+// `/app/escalation/{id}`, whose own effect called `escalationRecordHref` — which
+// still returned `/app/monitoring?escalation={id}`. So:
+//
+//   /app/monitoring?escalation=X → /app/escalation/X → /app/monitoring?escalation=X → …
+//
+// Both legs a `router.replace`, so Back could not escape it. A supervisor opening
+// any escalation record from Activity, from a task pane, or from a bookmark got a
+// spinning tab. It shipped because the retired-route UNIT TEST asserts the FIRST
+// hop's target, which a two-hop cycle satisfies exactly, and because the probe
+// that opens the hops for real did not open this one.
+//
+// ═══ SO THIS COUNTS NAVIGATIONS, NOT URLs ═══
+//
+// A settled-URL assertion is the wrong instrument: sampled after a fixed wait, a
+// cycle presents as "some plausible URL" and passes. TERMINATION is the property,
+// so the frame's navigations are counted over a window — a cycle produces an
+// unbounded stream and a correct hop produces a handful.
+console.log("\nPhase 2 · the record hop terminates\n");
+{
+  /* ═══ THE LISTENER GOES ON BEFORE THE NAVIGATION, WHICH IS THE WHOLE POINT ═══
+     First attempt attached it AFTER `openView` had already loaded the hop, so
+     the hops had all fired before anything was listening and it reported
+     "0 navigations in 4s" — a clean pass measuring nothing, on the exact
+     assertion written to catch a vacuous pass. Caught by reading the number:
+     zero navigations is impossible for a page that loaded.
+     So: land somewhere quiet, ARM, then navigate into the hop. */
+  const { context, page } = await openView(
+    browser,
+    {
+      id: "hop-escalation-cycle",
+      url: "/app/escalations",
+      seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } },
+    },
+    XL,
+    version
+  );
+  /* ═══ THE ID COMES FROM THE FIXTURE, NOT FROM ME ═══
+     First attempt hardcoded `esc-1`, which this scenario does not contain — so
+     the page rendered its honest "isn't in this data set" notice and the
+     record-pane check failed for a reason that had nothing to do with the hop.
+     That is the trap this probe's own header describes from the other side: an
+     id the page accepts and cannot resolve.
+     So the id is READ OFF THE REGION and asserted present before it is used. */
+  await page.waitForTimeout(400);
+  const realId = await page.evaluate(() => {
+    const row = document.querySelector('[data-anno-ref^="escalation-row:"]');
+    return row?.getAttribute("data-anno-ref")?.replace("escalation-row:", "") ?? null;
+  });
+  check(
+    "hop.escalation.fixture",
+    "the scenario holds an escalation to follow a link to",
+    !!realId,
+    realId ?? "none — every check below would be vacuous"
+  );
+  let navs = 0;
+  page.on("framenavigated", (f) => {
+    if (f === page.mainFrame()) navs += 1;
+  });
+  await page.evaluate((id) => {
+    window.location.href = `/app/monitoring?escalation=${encodeURIComponent(id)}`;
+  }, realId);
+  /* LONG ENOUGH TO BE DAMNING. The cycle's period was well under a second, so
+     four seconds of it is dozens of navigations against the three this chain
+     needs (the load, then two `replace`s). The bound is deliberately loose — the
+     claim is "it stops", not "in exactly three". */
+  await page.waitForTimeout(4000);
+  const landed = await page.evaluate(() => ({
+    url: location.pathname + location.search,
+    h: (document.querySelector("main h1")?.textContent ?? "").trim(),
+  }));
+  check(
+    "hop.escalation.terminates",
+    "an escalation link stops navigating instead of bouncing between two hops",
+    /* ═══ EIGHT, NOT FOUR ═══
+       The correct chain measures 4 (the load plus the two `replace`s, plus one
+       the router emits for the param). A bound sitting exactly on the measured
+       value is a flake waiting for a slower machine. The mutation run — the real
+       cycle, restored — measured 118 in the same window, so anything between 5
+       and 100 would separate them; 8 is clear of the noise at both ends. */
+    navs <= 8,
+    `${navs} navigation(s) in 4s`
+  );
+  check(
+    "hop.escalation.lands",
+    "and it lands on the Escalations destination with the record named",
+    landed.url.startsWith("/app/escalations") && landed.h.includes("Escalations"),
+    `${landed.url} · "${landed.h}"`
+  );
+  /* AND THE RECORD IS ACTUALLY OPEN. The reachability lesson this probe's own
+     header records: a URL the page accepts and ignores is indistinguishable from
+     a live destination if you only read the address bar. */
+  const paneText = await page.evaluate(
+    () => document.querySelector("main")?.innerText ?? ""
+  );
+  check(
+    "hop.escalation.record-open",
+    "and the record pane is showing it, not merely the queue that could",
+    paneText.includes("Open the escalation record") &&
+      !/isn.t in this data set/.test(paneText),
+    paneText.includes("Open the escalation record")
+      ? "pane open"
+      : /isn.t in this data set/.test(paneText)
+        ? "the page states the id is unresolvable — the link did not carry"
+        : "no record pane"
+  );
+  await context.close();
+}
+
 // ── THE DARK THEME CANNOT BE REACHED ────────────────────────────────────────
 console.log("\nPhase 1 · light is forced\n");
 {

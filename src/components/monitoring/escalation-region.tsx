@@ -269,22 +269,58 @@ function RegionError() {
   );
 }
 
+/** ═══ THE EMPTY STATE, AND IT DOES NOT CONGRATULATE ANYBODY ═══
+ *  NEEDS-COPY-NICOLE. No escalations is the RESTING STATE of this work, not an
+ *  achievement — the same rule the shift digest follows. And it names what the
+ *  destination would hold, because "nothing here" on a safety surface is
+ *  ambiguous between a quiet shift and a feed that stopped arriving. */
+function RegionEmpty() {
+  return (
+    <section
+      data-anno-ref="escalation-region-empty"
+      aria-label="Escalations"
+      className="mt-4 shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-6"
+    >
+      <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
+        No escalation is open or awaiting close-out. Anything triggered during
+        this shift appears here the moment it does.
+      </p>
+    </section>
+  );
+}
+
 export function EscalationRegion({
   records,
   now,
   state = "ready",
   selectedId,
   onSelect,
+  /** ═══ IS THIS REGION THE WHOLE PAGE? (Phase 2) ═══
+   *  It used to sit ABOVE a flag queue, where rendering nothing on an empty
+   *  shift was right: a region saying "no escalations" would be a band of chrome
+   *  claiming space above the work a reader actually came for.
+   *
+   *  On `/app/escalations` the region IS the destination, and there `return null`
+   *  leaves a page with a heading and no body — measured on the
+   *  `classifier-degraded` scenario, which renders zero escalations: the route
+   *  showed its title, the shift subtitle, and nothing else. A reader cannot tell
+   *  that from a failed render, which is the one thing an empty state exists to
+   *  say.
+   *
+   *  So the empty case depends on what the region IS, not on what it contains,
+   *  and the caller is the only thing that knows which. */
+  standalone = false,
 }: {
   records: EscalationRecord[];
   now: number;
   state?: SurfaceState;
   selectedId: string | null;
   onSelect: (rec: EscalationRecord) => void;
+  standalone?: boolean;
 }) {
   if (state === "loading") return <RegionSkeleton />;
   if (state === "error") return <RegionError />;
-  if (records.length === 0) return null;
+  if (records.length === 0) return standalone ? <RegionEmpty /> : null;
 
   const alarming = records.some((r) => isAlarming(r, now));
   return (

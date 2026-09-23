@@ -18,6 +18,12 @@
 import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so a check kept passing while asserting about
+   a surface it could not name, and a hop with the WRONG target would have passed
+   too. Care Reviews is the billing surface; Risk Flags is the flag queue. */
+
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/tasks-top";
 const version = await readStoreVersion();
 const browser = await launch();
@@ -48,26 +54,39 @@ for (const vp of [VIEWPORTS.find((v) => v.label === "xl"), VIEWPORTS.find((v) =>
   for (const scenario of scenarios) {
     const { context, page } = await openView(
       browser,
-      { id: `tasks-${scenario.id}`, url: "/app/tasks", seed: { persona: "supervisor" } },
+      {
+        id: `tasks-${scenario.id}`,
+        url: "/app/care-reviews",
+        // ═══ THE SCENARIO IS STORE STATE NOW, AND IT IS SEEDED (Phase 2) ═══
+        //
+        // This probe drove it through a "prototype scenarios" popover, because
+        // `tasks-page.tsx` once held it in `useState` — the file's own note said
+        // seeding localStorage did nothing.
+        //
+        // THAT MOVED (gap row 311). The state lives in the store, owned by the
+        // dev bar's Scenario select, because the popover was pinned bottom-right
+        // UNDER the fixed mobile bottom nav — unclickable below `md`, which is
+        // the finding recorded above — and reset on every navigation.
+        //
+        // So the probe was clicking for a control that no longer exists and
+        // threw before its first assertion. Measured on HEAD as well as here:
+        // identical failure, so this is Phase 1 residue rather than something
+        // Phase 2 broke, and it is fixed here because Phase 2 is what moved the
+        // surface it gates.
+        //
+        // SEEDING IS NOW THE HONEST PATH: it is where the product keeps the
+        // value, and it works at every width — so the xl/xs split below no
+        // longer has to carry it, though the split itself stays for the reason
+        // its own note gives.
+        seed: {
+          persona: "supervisor",
+          extra: { tasksScenarioId: scenario.id, devLoadState: "ready" },
+        },
+      },
       { ...vp, height: 2400 },
       version
     );
-    await page.waitForTimeout(500);
-    // ═══ THE SCENARIO IS REACT STATE, NOT STORE STATE ═══
-    // `tasks-page.tsx` holds it in `useState` — deliberately, per its own note,
-    // so it resets with the page. Seeding localStorage did nothing and every
-    // scenario reported identical counts, which is how that was caught. It has
-    // to be driven through the switcher UI, which is also the path a person
-    // takes.
-    if (vp.label !== "xs") {
-      const switcher = page.getByRole("button", { name: /prototype scenarios/i });
-      if (await switcher.count()) await switcher.first().click();
-      await page.waitForTimeout(300);
-      const pick = page.getByRole("button", { name: new RegExp(`^${scenario.label}`, "i") });
-      if (!(await pick.count())) throw new Error(`scenario control not found: ${scenario.label}`);
-      await pick.first().click();
-      await page.waitForTimeout(900);
-    }
+    await page.waitForTimeout(700);
 
     const m = await page.evaluate(() => {
       const list = document.querySelector("#tasks-panel");
@@ -104,7 +123,7 @@ for (const vp of [VIEWPORTS.find((v) => v.label === "xl"), VIEWPORTS.find((v) =>
 {
   const { context, page } = await openView(
     browser,
-    { id: "tasks-keys", url: "/app/tasks", seed: { persona: "supervisor" } },
+    { id: "tasks-keys", url: "/app/care-reviews", seed: { persona: "supervisor" } },
     { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1200 },
     version
   );

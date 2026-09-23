@@ -107,7 +107,10 @@ export default function EscalationRoute({
   // The shell follows the persona, so a supervisor stays inside the console they
   // clicked from instead of being dropped into the mentor chrome.
   return supervisor ? (
-    <AdminShell active="monitoring">{body}</AdminShell>
+    /* `escalations`, NOT `monitoring`. Monitoring is a group label now and has
+       no rail item, so the old id selected nothing and this hop rendered with
+       the whole rail unselected. */
+    <AdminShell active="escalations">{body}</AdminShell>
   ) : (
     <MentorShell active="tasks">{body}</MentorShell>
   );

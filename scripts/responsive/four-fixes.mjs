@@ -9,6 +9,13 @@
 import { chromium } from "playwright";
 import { STORE_KEY, buildStoreSeed, readStoreVersion } from "./harness.mjs";
 
+/* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
+   `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
+   still lands on the destination — so these checks kept passing while asserting
+   about a surface they could not name, and a hop with the WRONG target would
+   have passed too. Care Reviews is the billing surface; Risk Flags is the flag
+   queue. */
+
 const BASE = process.env.RESPONSIVE_BASE ?? "http://localhost:3003";
 const version = await readStoreVersion();
 const b = await chromium.launch();
@@ -74,7 +81,7 @@ console.log("\n═══ 1 · Care summary: the AI tag lives in the hover ══
 // ── 2 · TASKS ───────────────────────────────────────────────────────────────
 console.log("\n═══ 2 · Tasks: the shift digest is gone ═══");
 {
-  const p = await pageAs("supervisor", "/app/tasks", { published: true });
+  const p = await pageAs("supervisor", "/app/care-reviews", { published: true });
   const body = (await p.locator("body").textContent()) ?? "";
   check(!body.includes("Since you were last here"), "no \"Since you were last here\"");
   check(!body.toLowerCase().includes("since your last shift"), "no shift-digest variant either");
