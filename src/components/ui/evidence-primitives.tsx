@@ -100,7 +100,7 @@ export function SystemBlock({
   return (
     <div className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3.5 py-3">
       {badge ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[11.5px] font-medium leading-[16px] text-[var(--text-secondary)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[12px] font-medium leading-[16px] text-[var(--text-secondary)]">
           <Sparkles className="size-3 shrink-0" aria-hidden />
           {label}
         </span>
@@ -116,14 +116,14 @@ export function SystemBlock({
           60% of a wide viewport and the paragraph had nothing holding it back.
           `max-w-prose` is 65ch, which lands this at roughly 70 — inside the range
           and short of the point where a reader loses the line return. */}
-      <p className="mt-1.5 max-w-prose text-[13.5px] leading-[20px] text-[var(--text-secondary)]">
+      <p className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]">
         {children}
       </p>
       {link && (
         <Link
           href={link.href}
           className={cn(
-            "mt-2 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-semibold text-[var(--text-primary)]",
+            "mt-2 inline-flex items-center gap-1.5 rounded-sm text-[14px] font-semibold text-[var(--text-primary)]",
             "underline decoration-[color:var(--border-contour)] underline-offset-2 hover:decoration-[color:var(--text-primary)]",
             RING
           )}
@@ -182,7 +182,7 @@ export function ScoreLozenge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-stretch overflow-hidden rounded-[4px] text-[12px] font-medium leading-[18px]",
+        "inline-flex shrink-0 items-stretch overflow-hidden rounded-[4px] text-[12px] font-medium leading-[16px]",
         BAND_TINT[band] ?? "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
         className
       )}
@@ -211,7 +211,7 @@ export function ScoreLozenge({
 export function QuoteBlock({ children }: { children: React.ReactNode }) {
   return (
     <blockquote className="border-l-2 border-[color:var(--border-strong,var(--border-contour))] pl-3.5">
-      <p className="text-[14px] italic leading-[22px] text-[var(--text-primary)]">
+      <p className="text-[14px] italic leading-[20px] text-[var(--text-primary)]">
         {children}
       </p>
     </blockquote>
@@ -221,7 +221,7 @@ export function QuoteBlock({ children }: { children: React.ReactNode }) {
 /** A neutral value chip — categories, codes, statuses. */
 export function PaneChip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-[var(--surface-s2)] px-2.5 py-0.5 text-[13px] leading-[18px] text-[var(--text-primary)]">
+    <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-[var(--surface-s2)] px-2.5 py-0.5 text-[14px] leading-[20px] text-[var(--text-primary)]">
       {children}
     </span>
   );
@@ -266,7 +266,7 @@ export function PaneLink({
       // than `touchTarget()`, per gap row 290: these sit at the end of a block,
       // so a pseudo-element bleeding upward would reach the sibling above.
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-sm py-1.5 text-[13px] font-semibold text-[var(--text-primary)]",
+        "inline-flex items-center gap-1.5 rounded-sm py-1.5 text-[14px] font-semibold text-[var(--text-primary)]",
         "underline decoration-[color:var(--border-contour)] underline-offset-2 hover:decoration-[color:var(--text-primary)]",
         RING
       )}

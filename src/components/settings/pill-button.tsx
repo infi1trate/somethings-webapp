@@ -34,10 +34,18 @@ export function PillButton({
       className={cn(
         "inline-flex h-[var(--button-h)] items-center justify-center gap-2 rounded-full px-[var(--button-px)]",
         "font-display text-[16px] font-bold leading-[1.1] tracking-[-0.16px] text-[var(--text-inverse)]",
-        "transition disabled:cursor-not-allowed",
+        "transition-[background-color,transform,box-shadow] duration-150 ease-out disabled:cursor-not-allowed",
+        "motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100",
         disabled && !loading
           ? "bg-[var(--state-inactive)]"
-          : "bg-[var(--text-primary)] hover:bg-[var(--text-primary)]/90 active:scale-[0.99]",
+          : /* ═══ 0.97 OVER 150ms, WITH THE SHADOW STEPPING DOWN (arch-H, H12) ═══
+               It was `active:scale-[0.99]` with the default transition — a
+               press you could not feel. The press now matches `RecordButton`'s
+               exactly, because a product where the primary and the secondary
+               depress by different amounts reads as two component libraries.
+               MOTION-REDUCE IS NOT OPTIONAL: this is the button a supervisor
+               presses fifty times a shift. */
+            "bg-[var(--text-primary)] hover:bg-[var(--text-primary)]/90 hover:-translate-y-px hover:shadow-[var(--shadow-tile)] active:translate-y-0 active:scale-[0.97] active:shadow-none",
         loading && "pointer-events-none",
         RING,
         className
