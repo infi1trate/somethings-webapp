@@ -27,6 +27,7 @@ import { Mic } from "lucide-react";
 import { MediaFrame } from "@/components/chat/thread/media-frame";
 import { MessageActions } from "@/components/chat/thread/message-actions";
 import type { ChatMessage, MessageReaction } from "@/lib/chat/types";
+import { startsCluster } from "@/lib/chat/clustering";
 import { cn } from "@/lib/utils";
 
 /** TODO-COPY. Clock time, which is what a reader wants INSIDE a conversation —
@@ -269,19 +270,23 @@ export function MessageBubble({
 
 /** ═══ WHEN A MESSAGE NEEDS ITS OWN NAME AND TIME ═══
  *
- *  When the speaker changed, or when enough time passed that the gap is itself
- *  information. Five minutes is the threshold — short enough that a real pause in
- *  a conversation shows, long enough that a burst of consecutive messages stays
- *  one block.
+ *  ═══ THE RULE MOVED OUT (Phase 6) ═══
+ *  This held its own `CLUSTER_MS = 5 * 60_000` and its own three branches, with
+ *  a comment pointing at the supervisor excerpt's identical copy — "the same
+ *  rule and the same constant as the Tasks pane's conversation excerpt". A fork
+ *  that documents itself is still a fork, and five minutes is a judgment about
+ *  how a teen's messages are grouped when somebody reads them for risk: if it is
+ *  revised it must be revised once. `lib/chat/clustering.ts` has the reasoning.
  *
- *  The same rule and the same constant as the Tasks pane's conversation excerpt,
- *  which learned it the hard way: a transcript that heads every bubble reads as
- *  twice as many events as it contains, and a hesitant sentence sent in two parts
- *  looks like two separate disclosures. */
-export const CLUSTER_MS = 5 * 60_000;
+ *  THE BEHAVIOUR IS UNCHANGED, which was the constraint on the de-fork: same
+ *  three branches in the same order, and the thread's DOM was captured before
+ *  and after and compared rather than reasoned about.
+ *
+ *  `CLUSTER_MS` IS RE-EXPORTED because this module's consumers import it from
+ *  here. A re-export rather than a second declaration: one definition, one
+ *  value, and the import site does not have to change to prove it. */
+export { CLUSTER_MS } from "@/lib/chat/clustering";
 
 export function needsMeta(m: ChatMessage, prev: ChatMessage | undefined): boolean {
-  if (!prev) return true;
-  if (m.sender !== prev.sender) return true;
-  return m.at - prev.at > CLUSTER_MS;
+  return startsCluster(m, prev);
 }

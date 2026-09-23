@@ -874,6 +874,17 @@ export function MonitoringPage({
                         is911: false,
                         caregiverInvolved: null,
                         closeOutDone: [],
+                        /* ═══ NULL, BECAUSE A FLAG DOES NOT KNOW EITHER (Phase 6) ═══
+                           An escalation raised from a flag's disposition has no
+                           "opened by" other than the supervisor who just raised
+                           it — which the pane would be telling them — and no
+                           emergency contact, because nothing on the flag payload
+                           carries one. The pane states both as not on file,
+                           which is the true thing and also the prompt: an
+                           escalation with no contact on file is a fact worth
+                           seeing at the moment it is opened. */
+                        flaggedBy: null,
+                        emergencyContact: null,
                       },
                     ]);
                     setSelectedEscalationId(`esc-from-${e.id}`);

@@ -55,6 +55,8 @@ function esc(over: Partial<EscalationRecord> = {}): EscalationRecord {
     is911: false,
     caregiverInvolved: null,
     closeOutDone: [],
+    flaggedBy: "M",
+    emergencyContact: "Guardian on file",
     ...over,
   };
 }

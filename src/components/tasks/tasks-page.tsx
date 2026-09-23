@@ -51,7 +51,6 @@ import {
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksScenario } from "@/lib/tasks/seed";
-import { monitoringData } from "@/lib/monitoring/scenarios";
 import {
   asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
@@ -188,27 +187,15 @@ export function TasksPage({
    *  on an unrelated re-render. */
   const [now] = useState(() => Date.now());
 
-  /** ═══ THE FLAG EVENTS, FOR THE ESCALATION TIMELINE'S JOIN (arch-G, G4) ═══
-   *
-   *  An escalation's timeline shows flags raised on the same teen inside the
-   *  escalation window. Those flags are Monitoring's events, and this surface
-   *  does not otherwise hold them.
-   *
-   *  DERIVED HERE WITH THE SAME CALL MONITORING MAKES, keyed on the same two
-   *  store values, so the two surfaces cannot disagree about what was flagged.
-   *  The alternatives were worse: passing `[]` would make the timeline assert
-   *  "no flags" on every escalation, which is the one thing a timeline may not
-   *  do quietly; and inventing Tasks-side flag fixtures would put two answers
-   *  to the same question in the repo.
-   *
-   *  `monitoringData` is a pure builder over (id, tasksScenarioId, now) — the
-   *  same contract Monitoring's own `useMemo` relies on — and `null` means
-   *  "derive from the task scenario", which is what Tasks wants: the escalations
-   *  in this list and the flags on the same teens come from one scenario. */
-  const monitoringEvents = useMemo(
-    () => monitoringData(null, scenarioId, now).events,
-    [scenarioId, now]
-  );
+  /* ═══ `monitoringEvents` IS GONE (Phase 6) ═══
+     It derived the flag events this page passed to `TaskPane` for the escalation
+     timeline's join, and the comment it carried was worth keeping: `monitoringData`
+     is a pure builder over (id, tasksScenarioId, now), and passing `null` means
+     "derive from the task scenario" — so the escalations in this list and the
+     flags on the same teens came from ONE scenario rather than two answers to
+     the same question. That property is why `event-pane.tsx` can do the same
+     join on `/app/escalations` without inventing a second fixture source. This
+     page has no timeline to feed. */
 
   /** RESOLVED IDS + PAYLOAD OVERRIDES. Resolving marks the id; the override map
    *  carries what the pane decided (`flaggedCorrectly`, the confirmed code) onto
@@ -1034,7 +1021,6 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
-                      events={monitoringEvents}
                       /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
                          decision is on the record; there is nothing here to
                          decide, and a live Submit over a closed review would

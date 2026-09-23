@@ -23,7 +23,13 @@ import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
 import { playbookMatchFor } from "@/lib/monitoring/surfacing";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, EyeOff, FileText, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  ExternalLink,
+  EyeOff,
+  MessageSquare,
+  ShieldAlert,
+} from "lucide-react";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
 import { EscalationNoteModule } from "@/components/record/escalation-note-module";
 import {
@@ -33,7 +39,14 @@ import {
 import { assembleTimeline, type TimelineEntry } from "@/lib/monitoring/timeline";
 import { manualFixturesFor, timelineSourcesFor } from "@/lib/monitoring/timeline-fixtures";
 import { BreachChip } from "@/components/tasks/chips";
-import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
+import { chatThreadHref } from "@/lib/record/chat";
+import { elapsedLabel } from "@/components/tasks/strips";
+
+/** The record pane's link-out treatment — quiet, because these are context and
+ *  the disposition footer is the pane's one primary. Lifted verbatim from the
+ *  retired `EscalationCtas` so the geometry does not change with the move. */
+const RECORD_CTA =
+  "inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]";
 import { PANE_LABEL, PaneChip, SystemBlock } from "@/components/ui/evidence-primitives";
 import { buildConversation, conversationHref, firstNameOf } from "@/lib/tasks/conversation";
 import type { RiskFlagPayload } from "@/lib/tasks/types";
@@ -325,21 +338,26 @@ function EscalationBody({
   const ack = ackStateFor(rec, now);
   const items = closeOutOf(rec, now);
   const lifecycle = recordLifecycleOf(rec, now);
-  const [source, setSource] = useState<ConversationSource>("supportThread");
-  /** KEYED BY RECORD, DERIVED — see the same note in `escalation-task-pane`.
+  /** ═══ KEYED BY RECORD, DERIVED ═══
    *  An initialiser would run once for the first record this pane ever showed,
    *  and every later record would inherit its entries. This pane does not
    *  unmount between selections either. */
   const [added, setAdded] = useState<Record<string, TimelineEntry[]>>({});
-  const entries = assembleTimeline(
-    timelineSourcesFor(
-      rec,
-      events,
-      [...manualFixturesFor(rec), ...(added[rec.id] ?? [])],
-      now
-    ),
-    source
-  );
+  /** ═══ THE JOIN STAYS HERE; THE SOURCE MOVED TO THE TIMELINE (Phase 6) ═══
+   *  Handed down as a function of the source, because WHAT the timeline contains
+   *  is this page's data — a join over the record, its flags and the manual log —
+   *  while WHICH source a reader is looking at is a view preference the component
+   *  owns. Two panes used to keep a copy of that preference each. */
+  const entriesFor = (source: ConversationSource) =>
+    assembleTimeline(
+      timelineSourcesFor(
+        rec,
+        events,
+        [...manualFixturesFor(rec), ...(added[rec.id] ?? [])],
+        now
+      ),
+      source
+    );
   return (
     <div className="space-y-4">
       {/* ═══ THE STATE, FIRST AND ONCE (arch-G, G6) ═══
@@ -450,6 +468,67 @@ function EscalationBody({
         </ul>
       </div>
 
+      {/* ═══ WHO RAISED IT AND WHO TO CALL (Phase 6) ═══
+          Brought onto this pane from `escalation-task-pane.tsx`, which Phase 2
+          left with no route — so the only escalation surface in the product
+          could not state the emergency contact. On a live escalation that is the
+          most operationally important fact here.
+          NULL IS STATED, NOT DASHED. A record assembled from a documentation
+          task, or raised from a flag's disposition, genuinely does not know
+          either value; printing "—" would assert there is nobody to call. Same
+          rule `is911` has under gap row 213 — and the coercion that row was
+          opened about dies with `recordFromTask`, because the records this pane
+          renders come from the scenario builders where the value is real. */}
+      <dl
+        data-slot="escalation-facts"
+        className="grid gap-3 rounded-[var(--radius-inset)] border border-[color:var(--border-contour)] px-3.5 py-3 sm:grid-cols-3"
+      >
+        {(
+          [
+            /* NEEDS-COPY-NICOLE, all three labels. */
+            ["Opened by", rec.flaggedBy],
+            ["911", rec.is911 ? "Dispatched" : "Not dispatched"],
+            ["Emergency contact", rec.emergencyContact],
+          ] as Array<[string, string | null]>
+        ).map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className={LABEL}>{label}</dt>
+            <dd
+              className={cn(
+                "mt-1 text-[13.5px] leading-[19px]",
+                value == null
+                  ? "text-[var(--text-secondary)]"
+                  : "text-[var(--text-primary)]"
+              )}
+            >
+              {/* NEEDS-COPY-NICOLE on the absence. It names what is missing
+                  rather than leaving the value blank. */}
+              {value ?? "Not on file"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {/* ═══ THE LINK-OUTS, ALSO FROM THE RETIRED PANE (Phase 6) ═══
+          What a supervisor reaches for during an incident. `View escalation
+          record` is gone from the set: this IS the record, and a link to the
+          page you are on is the kind of chrome that survives a move without
+          anybody re-reading it. */}
+      <div className="flex flex-wrap items-center gap-1">
+        <Link
+          href={`/admin/person/${encodeURIComponent(rec.teenId)}?tab=care`}
+          className={cn(RECORD_CTA, RING)}
+        >
+          <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+          {/* NEEDS-COPY-NICOLE */}
+          View care profile
+        </Link>
+        <Link href={chatThreadHref(rec.teenId)} className={cn(RECORD_CTA, RING)}>
+          <MessageSquare className="size-3.5 shrink-0" aria-hidden />
+          View conversation
+        </Link>
+      </div>
+
       {/* ═══ THE MITIGATION MODULE, HOSTED (arch-G, G3) ═══
           The record is the escalation note's durable home, so the module renders
           HERE — inline, with its action row in the flow, which is the layout a
@@ -469,9 +548,7 @@ function EscalationBody({
         <p className={LABEL}>{/* NEEDS-COPY-NICOLE */}Timeline</p>
         <div className="mt-2">
           <EscalationTimeline
-            entries={entries}
-            source={source}
-            onSourceChange={setSource}
+            entriesFor={entriesFor}
             teenName={rec.teenName}
             onLog={({ actionType, detail }) =>
               setAdded((prev) => ({
@@ -516,18 +593,15 @@ function EscalationBody({
           </div>
         ))}
 
-      <Link
-        href={escalationHref(rec.id)}
-        className={cn(
-          "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[color:var(--border-contour)] px-3.5 text-[13px] font-semibold text-[var(--text-primary)]",
-          "hover:bg-[var(--tint-hover)]",
-          RING
-        )}
-      >
-        <FileText className="size-4 shrink-0" aria-hidden />
-        {/* NEEDS-COPY-NICOLE. "Escalation note", never "write-up". */}
-        Open the escalation record
-      </Link>
+      {/* ═══ "Open the escalation record" IS GONE — IT LINKED TO THIS PAGE ═══
+          It pointed at `escalationHref(rec.id)`, which redirects to
+          `/app/escalations?escalation={id}`: the route the reader is standing on,
+          showing the record they are looking at. It made sense while this pane
+          lived on Monitoring and the record was somewhere else; Phase 6 made
+          this pane the record, and a link to itself is the kind of chrome that
+          survives a move because nobody re-reads it.
+          `escalationHref` IS STILL RIGHT ELSEWHERE — the region's rows and
+          Today's escalation strip both use it, and they are not on this route. */}
     </div>
   );
 }

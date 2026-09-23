@@ -286,17 +286,28 @@ console.log("\nPhase 2 · the record hop terminates\n");
   /* AND THE RECORD IS ACTUALLY OPEN. The reachability lesson this probe's own
      header records: a URL the page accepts and ignores is indistinguishable from
      a live destination if you only read the address bar. */
-  const paneText = await page.evaluate(
-    () => document.querySelector("main")?.innerText ?? ""
-  );
+  /* ═══ RETARGETED — THE TEXT IT LOOKED FOR WAS A SELF-LINK (Phase 6) ═══
+     It asserted the pane contained "Open the escalation record". Phase 6 removed
+     that link: it pointed at `/app/escalation/{id}`, which redirects to the very
+     route the reader is standing on, showing the record they are looking at.
+     `[data-record-lifecycle]` is a better signal anyway — it is the record
+     pane's own state attribute, present only when a RECORD is open, where the
+     old check was matching a string that a queue could in principle also
+     render. The unresolvable-id arm stays: a URL the page accepts and ignores is
+     the failure this whole block exists to catch. */
+  const seen = await page.evaluate(() => ({
+    text: document.querySelector("main")?.innerText ?? "",
+    lifecycle: document
+      .querySelector('[data-slot="event-pane"] [data-record-lifecycle]')
+      ?.getAttribute("data-record-lifecycle") ?? null,
+  }));
   check(
     "hop.escalation.record-open",
     "and the record pane is showing it, not merely the queue that could",
-    paneText.includes("Open the escalation record") &&
-      !/isn.t in this data set/.test(paneText),
-    paneText.includes("Open the escalation record")
-      ? "pane open"
-      : /isn.t in this data set/.test(paneText)
+    seen.lifecycle != null && !/isn.t in this data set/.test(seen.text),
+    seen.lifecycle
+      ? `record pane open · lifecycle ${seen.lifecycle}`
+      : /isn.t in this data set/.test(seen.text)
         ? "the page states the id is unresolvable — the link did not carry"
         : "no record pane"
   );

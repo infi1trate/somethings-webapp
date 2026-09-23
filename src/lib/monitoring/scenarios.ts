@@ -228,6 +228,12 @@ function escalation(
     is911: o.is911 ?? false,
     caregiverInvolved: o.caregiverInvolved ?? null,
     closeOutDone: o.closeOutDone ?? [],
+    /* TODO-DATA on both. The purpose-built records know them: this is the
+       fixture a reader lands on from the region, so the pane's Facts row has
+       something to state. */
+    flaggedBy: o.flaggedBy ?? mentor.name,
+    emergencyContact:
+      o.emergencyContact ?? "Guardian on file · reached 4:02 PM",
   };
 }
 
@@ -353,6 +359,15 @@ function fromTasksScenario(tasksScenarioId: string, now: number): MonitoringData
       is911: p.kind === "escalation" ? p.is911 : false,
       caregiverInvolved: null,
       closeOutDone: [],
+      /* ═══ THE PAYLOAD IS THE ONLY THING THAT KNOWS WHETHER IT KNOWS ═══
+         A DOCUMENTATION task carries the escalation id and the close time and
+         nothing else — so both of these are genuinely unknown for a record
+         assembled from one, and null says exactly that. Coercing them to a
+         string here is what `recordFromTask` did with `is911` and what gap row
+         213 was opened about: it would print an emergency contact on a record
+         that has none on file. */
+      flaggedBy: p.kind === "escalation" ? p.flaggedBy : null,
+      emergencyContact: p.kind === "escalation" ? p.emergencyContact : null,
     };
   });
   const escalatedTeens = new Set(records.filter((r) => r.resolvedAt == null).map((r) => r.teenId));

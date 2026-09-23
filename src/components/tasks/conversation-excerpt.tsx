@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, MessageSquare, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { startsCluster } from "@/lib/chat/clustering";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationMessage } from "@/lib/tasks/conversation";
 
@@ -74,16 +75,24 @@ function timeOf(at: number): string {
  *  The FIRST message always gets one, and so does the flagged one: the anchor is
  *  the line the whole pane is about and it must be attributable on sight, even if
  *  it happens to be the third message of a burst. */
-const CLUSTER_MS = 5 * 60_000;
-
+/** ═══ THE SHARED RULE, PLUS THIS SURFACE'S OWN REASON (Phase 6) ═══
+ *
+ *  This held a second `const CLUSTER_MS = 5 * 60_000` and a second copy of the
+ *  three branches. The threshold now has one definition in
+ *  `lib/chat/clustering.ts` — see its note on why two constants for one clinical
+ *  judgment was the part that mattered.
+ *
+ *  THE FLAGGED BREAK IS NOT PART OF THE SHARED RULE and stays here. It is not a
+ *  different answer to "does the cluster break" — it is an ADDITIONAL reason
+ *  this surface needs a header: the anchor is the line the whole pane is about
+ *  and it must be attributable on sight, even when it is the third message of a
+ *  burst. The mentor's thread has no anchor, so it has no such reason. */
 function needsHeader(
   m: ConversationMessage,
   prev: ConversationMessage | undefined
 ): boolean {
-  if (!prev) return true;
   if (m.flagged) return true;
-  if (m.sender !== prev.sender) return true;
-  return m.at - prev.at > CLUSTER_MS;
+  return startsCluster(m, prev);
 }
 
 /** ═══ THE BUBBLE ═══

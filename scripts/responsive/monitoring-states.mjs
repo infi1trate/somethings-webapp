@@ -75,6 +75,14 @@ function check(id, label, ok, detail) {
  *  checks says "0 blocked" and a run that grew one says so. Exit code is
  *  unaffected: a blocked check is not a failure, it is an absence of evidence. */
 let blockedCount = 0;
+/* ═══ UNUSED AS OF PHASE 6, AND KEPT ON PURPOSE ═══
+   Its only caller was `escalate.creates-record`, which Phase 6 unblocked by
+   retiring the second escalation pane. An unused helper normally goes — this one
+   stays because the alternative to having it is what this file did before it
+   existed: a check whose subject moved out of reach gets commented out, and a
+   commented-out check is a claim nobody asserts and nobody can see is missing.
+   The summary prints "0 BLOCKED" either way, which is the actual guard. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function blocked(id, label, why) {
   blockedCount += 1;
   rows.push({ id, label, blocked: true, why });
@@ -360,20 +368,83 @@ const rowText = (page) =>
   await context.close();
 }
 {
-  // ── THE ESCALATE PATH ───────────────────────────────────────────────────
+  // ── THE ESCALATE PATH (unblocked in Phase 6) ────────────────────────────
   //
-  // Its flow is: escalate a FLAG from its disposition, then assert an escalation
-  // RECORD appeared. Phase 2 put those on two routes — the flag lives on
-  // `/app/risk-flags` and the region on `/app/escalations` — and the record is
-  // created in `MonitoringPage`'s page-local `raised` state, which does not
-  // survive the navigation between them. So the claim is unverifiable from
-  // either page alone, and it is not a route-choice problem this file can fix.
-  blocked(
-    "escalate.creates-record",
-    "escalating a flag creates an escalation record, and does not close the event",
-    "Phase 6 — the escalation lifecycle spans two destinations until the two " +
-      "representations of one escalation are unified; `raised` is page-local"
+  // ═══ WHY IT WAS BLOCKED, AND WHAT CHANGED ═══
+  //
+  // Phase 4 marked this `⊘`: the old check escalated a flag and then counted
+  // rows in the escalation REGION, and Phase 2 had moved the region to
+  // `/app/escalations` while the flag stayed on `/app/risk-flags`. The record is
+  // created in page-local `raised` state, which does not survive the navigation
+  // between them, so the claim was unverifiable from either page alone.
+  //
+  // PHASE 6 RETIRED THE SECOND ESCALATION PANE, and with one representation the
+  // observable behaviour on the flag queue is clear: escalating opens the record
+  // IN THE PANE — `selectedEscalation` is derived from the full record set,
+  // `raised` included — announces that it happened, and leaves the flag in the
+  // queue. All three are checkable on one route.
+  //
+  // WHAT IS STILL NOT CHECKED, and is a decision rather than a gap in this file:
+  // the raised record does not survive a navigation to `/app/escalations`,
+  // because nothing in this prototype persists a supervisor's decision — flag
+  // resolutions, close-out completions and coverage credit are all page-local by
+  // the same design. Gap row 430 states it with the store analysis.
+  const { context, page } = await open("escalate-path", {
+    scenario: "normal-day",
+    url: "/app/risk-flags",
+  });
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(400);
+  const beforeRows = (await rowText(page)).length;
+  check(
+    "escalate.input",
+    "a flag was selected and the queue has rows to leave it in",
+    beforeRows > 0,
+    `${beforeRows} rows`
   );
+  await page.locator('[data-effect="escalate"]').first().click();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    return {
+      paneText: (pane?.innerText ?? "").replace(/\s+/g, " "),
+      /* THE RECORD'S OWN PANE HAS A LIFECYCLE ATTRIBUTE; a flag's does not. */
+      lifecycle: pane
+        ?.querySelector("[data-record-lifecycle]")
+        ?.getAttribute("data-record-lifecycle"),
+      /* ═══ THE PAGE'S OWN STATUS LINE, NOT EVERY LIVE REGION ═══
+         A broad `[aria-live]` query also catches the PANE, whose wrapper is
+         `aria-live="polite"` so an auto-advance announces the event that
+         arrived. Joining both made the check's detail print the pane's whole
+         text while the assertion was matching the status line buried in it —
+         the reporting flaw gap row 424 records, reintroduced within one phase.
+         The sr-only status element is the one the page writes announcements to. */
+      announcement:
+        document.querySelector('p[role="status"][aria-live="polite"]')
+          ?.textContent ?? "",
+    };
+  });
+  check(
+    "escalate.opens-the-record",
+    "escalating opens the escalation record in the pane",
+    after.lifecycle != null,
+    `lifecycle ${after.lifecycle ?? "none — the pane is still showing a flag"}`
+  );
+  check(
+    "escalate.says-so",
+    "and says so, rather than leaving the reader to notice",
+    /Escalation opened/i.test(after.announcement),
+    after.announcement.replace(/\s+/g, " ").slice(0, 80) || "nothing announced"
+  );
+  check(
+    "escalate.does-not-resolve",
+    "and does not close the event — escalating is when it stopped being handled",
+    (await rowText(page)).length === beforeRows,
+    `${beforeRows} rows before, ${(await rowText(page)).length} after`
+  );
+  await context.close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -888,7 +959,18 @@ for (const [scenario, id, want] of [
       await v.page.keyboard.press("Tab");
       const d = await v.page.evaluate(`(() => { const el = document.activeElement;
         if (!el || el === document.body) return null;
-        if (!el.closest('[data-anno-ref="escalation-region"]')) return null;
+        /* THE REGION *AND* THE RECORD PANE (Phase 6). This filtered to the
+           region alone, so the pane controls were never measured — and they
+           were 36px: the timeline two source tabs and its log-an-action button.
+           Both halves of this route are the escalation surface, and HIG 44px
+           applies to everything a supervisor reaches for during an incident.
+           NO BACKTICKS IN HERE: this comment lives inside a template literal
+           passed to page.evaluate, and one backtick ends the string. */
+        if (
+          !el.closest('[data-anno-ref="escalation-region"]') &&
+          !el.closest('[data-slot="event-pane"]')
+        )
+          return null;
         const r = el.getBoundingClientRect();
         return { name: (el.getAttribute('aria-label') || el.innerText || el.tagName).replace(/\\s+/g, ' ').trim().slice(0, 28),
                  h: Math.round(r.height), w: Math.round(r.width) }; })()`);

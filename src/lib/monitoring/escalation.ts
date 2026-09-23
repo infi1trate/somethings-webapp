@@ -81,6 +81,21 @@ export interface EscalationRecord {
   /** Which close-out items have been completed. Page-local in this prototype:
    *  nothing persists a completion, exactly as flag resolutions do not. */
   closeOutDone: readonly CloseOutId[];
+  /** ═══ WHO RAISED IT, AND WHO TO CALL (Phase 6) ═══
+   *
+   *  Both lived on `EscalationPayload` and reached a reader only through
+   *  `escalation-task-pane.tsx` — which Phase 2 left with no route, so the ONLY
+   *  escalation surface could not state the emergency contact. On a live
+   *  escalation that is the most operationally important fact in the pane, and
+   *  losing it was a regression Phase 2 introduced rather than a decision.
+   *
+   *  NULL MEANS UNKNOWN, NOT "NONE", and the render site says so rather than
+   *  printing a dash — the empty-label-stack rule from the production audit,
+   *  and the same distinction gap row 213 records about `is911`. A record
+   *  assembled from a documentation task genuinely does not know either value,
+   *  and a pane that printed "—" would be asserting there is nobody to call. */
+  flaggedBy: string | null;
+  emergencyContact: string | null;
 }
 
 /** ═══ THE ACKNOWLEDGEMENT CLOCK — THE ONLY PUBLISHED RESPONSE SLA ═══
