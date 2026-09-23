@@ -61,6 +61,30 @@ const LOCAL_CONTROLS = {
   retry: "flips a page-local region state back to ready",
 };
 
+/** ═══ THE LIVE BAND'S TWO CONTROLS, DECLARED BEFORE THEY APPEAR (Phase 9) ═══
+ *
+ *  `NowBand` is mounted on Today and renders NOTHING while `LIVE_LAYER_ENABLED`
+ *  is false — so `controls.all-named` currently never sees them, and would fail
+ *  with "UNDECLARED" on the day the gate flips. That failure would be correct
+ *  and misleading: it would read as a §4 violation when the mirror rule is
+ *  intact.
+ *
+ *  BOTH ARE PAGE CHROME, and neither touches a record:
+ *   · `toggle-pause` — WCAG 2.2.2 requires a way to stop auto-updating content.
+ *     Page-local, because storing the preference would be a second store write
+ *     on a route allowed exactly one.
+ *   · `show-new` — the manual affordance that replaces a continuously-announcing
+ *     live region (WCAG 4.1.3: a status message must not move focus, so the
+ *     reader presses a button instead).
+ *
+ *  THEY ARE KEYED ON `data-action`, which the shared component already carries,
+ *  rather than on a Today-specific attribute — the band belongs to both surfaces
+ *  and tagging it for one would be a lie about where it lives. */
+const BAND_CONTROLS = {
+  "toggle-pause": "stops the live band updating (WCAG 2.2.2), page-local",
+  "show-new": "reveals held live items on demand (WCAG 4.1.3)",
+};
+
 const DESTINATIONS = new Set([
   "/app/escalations",
   "/app/risk-flags",
@@ -177,15 +201,44 @@ console.log("\n§4 · nothing on Today changes a record\n");
         return {
           idx: i,
           tag: e.tagName,
-          local: e.getAttribute("data-today-local"),
+          /* EITHER IDENTIFIER. Today's own chrome carries `data-today-local`;
+             the shared live band carries `data-action`. */
+          local:
+            e.getAttribute("data-today-local") ?? e.getAttribute("data-action"),
           label: (e.getAttribute("aria-label") || e.innerText || "").replace(/\s+/g, " ").trim().slice(0, 40),
         };
       })
   );
+  /* ═══ AN INVARIANT THAT HOLDS IN BOTH GATE STATES ═══
+     First version asserted "no band controls", which is true while
+     `LIVE_LAYER_ENABLED` is false and turns RED on an intentional flip —
+     verified by flipping it: the check failed while every §4 check still
+     passed, which reads as a defect and is not one.
+     SO IT ASSERTS THE CORRESPONDENCE INSTEAD: the band's controls are present
+     exactly when the band is. That is decidable from the DOM alone, holds
+     whichever way the gate is set, and catches the thing worth catching — a band
+     that rendered without its pause control, which would be a WCAG 2.2.2
+     failure rather than a gate setting.
+     WHETHER THE GATE IS THE REASON for an absent band is not answerable here at
+     all; `live-gate.test.ts` reads the source for that. */
+  const bandPresent = await page.evaluate(
+    () => !!document.querySelector('[data-slot="now-band"]')
+  );
+  const bandControls = locals.filter(
+    (c) => c.local && c.local in BAND_CONTROLS
+  ).length;
+  check(
+    "controls.band-consistent",
+    "the live band's controls are present exactly when the band is",
+    bandPresent ? bandControls >= 1 : bandControls === 0,
+    `band ${bandPresent ? "rendered" : "absent"} · ${bandControls} band control(s)`
+  );
   check(
     "controls.all-named",
     "every non-link control on Today is declared page chrome",
-    locals.every((c) => c.local && c.local in LOCAL_CONTROLS),
+    locals.every(
+      (c) => c.local && (c.local in LOCAL_CONTROLS || c.local in BAND_CONTROLS)
+    ),
     locals.length
       ? locals.map((c) => `${c.tag}:${c.local ?? "UNDECLARED"}(${c.label})`).join(" · ")
       : "none"

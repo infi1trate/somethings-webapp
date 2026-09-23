@@ -62,6 +62,9 @@ import {
   type EscalationRecord,
 } from "@/lib/monitoring/escalation";
 import { monitoringData } from "@/lib/monitoring/scenarios";
+import { NowBand } from "@/components/monitoring/now-band";
+import { bandStateFor } from "@/lib/monitoring/live";
+import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
 import {
   ACTIVITY_DOMAIN_OF,
   DOMAIN_LABEL,
@@ -474,6 +477,47 @@ export function TodayPage() {
    *  Its eight chips restated the cards below it, in different words, from a
    *  second source that disagreed — and two of them asserted flag deadlines this
    *  system invented. `todayDigestLine` has the whole finding. */
+  /** ═══ THE LIVE LAYER, ON TODAY, GATED OFF (Phase 9) ═══
+   *
+   *  `LIVE_LAYER_ENABLED` is `false` and blocked on Dr. Nissan and Meg: a live
+   *  view of mentor–teen exchanges changes what it feels like to be supervised
+   *  and creates a plausible performance effect on mentors. `bandStateFor`
+   *  returns `"off"` while it is false and `NowBand` renders nothing at all — so
+   *  what ships here is the WIRING, and the band is one constant away.
+   *
+   *  ═══ WHY TODAY IS WHERE IT BELONGS ═══
+   *
+   *  The band's entire justification is perishability — "a response-time breach
+   *  seen at minute four is a save, and the same breach seen at 10pm is a
+   *  coaching note" — and Today is the orientation route a supervisor lands on.
+   *  A perishable layer on the page nobody keeps open is a layer nobody sees.
+   *
+   *  ═══ AND IT DOES NOT VIOLATE THE MIRROR RULE ═══
+   *
+   *  The band carries STATE CHANGES, never message content, and no item on it
+   *  resolves anything: reading a conversation requires opening it, which is a
+   *  navigation. Its two controls — pause and "N new" — are page chrome of the
+   *  same kind the digest's dismiss already is, and both are declared in the §4
+   *  probe's allowlist rather than assumed. The band is `aria-live="off"` by its
+   *  own design, so it does not compete with the escalation strip's
+   *  `assertive` — which stays the one interrupt on this route.
+   *
+   *  PAUSE IS PAGE-LOCAL AND REQUIRED (WCAG 2.2.2): content that auto-updates
+   *  needs a way to stop it, and storing that preference would be a second
+   *  store write on a route allowed exactly one. */
+  const [livePaused, setLivePaused] = useState(false);
+  const bandState = useMemo(
+    () =>
+      bandStateFor({
+        enabled: LIVE_LAYER_ENABLED,
+        transport: data?.transport === "lost" ? "lost" : "connected",
+        paused: livePaused || !!data?.paused,
+        now,
+        items: data?.live ?? [],
+      }),
+    [data, livePaused, now]
+  );
+
   const digestLine = useMemo(() => todayDigestLine(cards), [cards]);
   const ctaCard = cards.find((c) => c.id === directiveCard) ?? null;
   const showDigest =
@@ -510,6 +554,28 @@ export function TodayPage() {
         />
       ) : (
         <EscalationStrip records={liveEscalations} now={now} />
+      )}
+
+      {/* ═══ THE PERISHABLE LAYER SITS BELOW THE INTERRUPT AND ABOVE THE MAP ═══
+          Order is the reader's priority: the strip is what cannot wait, the band
+          is what will stop being actionable, and the cards are where the work
+          is. Below the strip because an escalation outranks everything the band
+          can carry — including, deliberately, the band's own
+          `escalationTriggered` item: `interrupts()` reserves the assertive
+          announcement for the region that owns the record, and the strip is that
+          region's mirror here.
+          IT RENDERS NOTHING WHILE THE GATE IS OFF. `bandStateFor` returns
+          `"off"`, which `NowBand` treats as "do not render" rather than as an
+          empty band — a band saying nothing is indistinguishable from a broken
+          one, which is the same reasoning behind its three named silences. */}
+      {mounted && (
+        <NowBand
+          state={bandState}
+          items={data?.live ?? []}
+          now={now}
+          paused={livePaused || !!data?.paused}
+          onTogglePause={() => setLivePaused((p) => !p)}
+        />
       )}
 
       {showDigest && (
