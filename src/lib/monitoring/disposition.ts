@@ -8,9 +8,24 @@
 //
 // So: a required clinical disposition, and an optional, de-emphasised note about
 // whether the classifier was right. The second never resolves anything.
+//
+// ═══ AND ESCALATING IS AN ACTION, NOT A DISPOSITION (addendum §2.8) ═══
+//
+// `Escalate now` was a fourth value in this array with `effect: "escalate"`.
+// It does not belong: a disposition is a STATEMENT ABOUT THE TEEN that a
+// supervisor is recorded as having made, and "escalate" is a thing they DO.
+// Putting it in the radiogroup meant the required question could be answered
+// with a verb, and it meant escalating cost two interactions — pick the radio,
+// then press the primary — on the path where under-escalation is the expensive
+// error.
+//
+// It is a secondary button now, always enabled, never gated on the radiogroup.
+// `DispositionEffect` loses its `escalate` arm with it.
+
+import type { RiskFlagPayload } from "@/lib/tasks/types";
 
 /** What a disposition DOES, which is the part the page has to branch on. */
-export type DispositionEffect = "resolve" | "watch" | "escalate";
+export type DispositionEffect = "resolve" | "watch";
 
 export interface DispositionValue {
   id: string;
@@ -58,16 +73,6 @@ export const DISPOSITION_VALUES: readonly DispositionValue[] = [
     effect: "watch",
     unresolvedQuestion: true,
   },
-  {
-    /* ═══ THE PATH THE OLD CONTROL DID NOT HAVE ═══
-       A flag that turns out to be a crisis must become an escalation RECORD, not
-       a closed flag with a note. It does not resolve: resolving would file the
-       event as handled at the moment it stopped being handled. */
-    id: "escalate",
-    label: "Escalate now",
-    consequence: "Opens an escalation record. Does not close this event.",
-    effect: "escalate",
-  },
 ];
 
 export function dispositionById(id: string | null): DispositionValue | null {
@@ -91,11 +96,36 @@ export const ACCURACY_VALUES: readonly AccuracyValue[] = [
   { id: "inaccurate", label: "Classifier was wrong" },
 ];
 
-/** NEEDS-COPY-NICOLE. The inline guidance when somebody tries to resolve with no
- *  disposition. Inline AT THE CONTROL — not a toast, which would be gone before
- *  a reader looked back at the thing it was about, and not a disabled button,
- *  which announces nothing and gives no reason. */
+/** NEEDS-COPY-NICOLE. The inline guidance when somebody presses `Mark reviewed`
+ *  with no disposition. Inline AT THE CONTROL — not a toast, which would be gone
+ *  before a reader looked back at the thing it was about, and not a disabled
+ *  button, which announces nothing and gives no reason. §2.8 is explicit that
+ *  the primary is not disabled. */
 export const DISPOSITION_REQUIRED_HINT = "Record a clinical disposition first.";
+
+/** ═══ WHERE AXIS 2 DOES NOT BELONG (addendum §2.8) ═══
+ *
+ *  A user-reported flag had no classifier in it. Asking whether the classifier
+ *  was right about a flag a PERSON raised is the same category error Phase 5
+ *  removed from practice events: a question about a producer that did not
+ *  produce this.
+ *
+ *  KEYED ON THE PAYLOAD'S OWN `reportedBy`, not on the absence of a rationale —
+ *  a classifier flag with an empty rationale is a pipeline defect, and
+ *  treating it as user-reported would hide that behind a missing control.
+ *
+ *  ═══ IT TAKES THE FIELD'S TYPE, AND THAT IS THE BUG THIS CAUGHT ═══
+ *  The first version took a `string | null` and compared against
+ *  `"user-report"` — a value `RiskFlagPayload.reportedBy` cannot hold, so the
+ *  gate never fired and the axis rendered on the user-reported flag anyway.
+ *  MEASURED by the probe, not by the compiler, because a wider parameter type
+ *  is exactly what stops the compiler seeing it. Narrowed, so a future typo
+ *  is a type error. */
+export function asksAboutClassifier(
+  reportedBy: RiskFlagPayload["reportedBy"] | null
+): boolean {
+  return reportedBy !== "user";
+}
 
 /** Does this disposition close the event? The single place the question is
  *  asked, so "recording classifier accuracy alone resolves nothing" is a
@@ -104,140 +134,3 @@ export function resolves(d: DispositionValue | null): boolean {
   return d?.effect === "resolve";
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// AXIS 1, FOR A MENTOR PRACTICE EVENT — a second vocabulary (Phase 8)
-//
-// ═══ WHY NOT THE CLINICAL ONE ═══
-//
-// Gap row 421: `/app/mentor-practice` asked for a "Clinical disposition ·
-// required" and offered `No clinical concern` / `Support already in place` /
-// `Watching — not resolved` / `Escalate now` — on an event that is a mentor
-// missing a video-note deadline. Every one of those is, in this file's own
-// words, "a clinical statement a supervisor is recorded as having made" about a
-// TEEN. Nobody asked a clinical question, and the axis compelled an answer to
-// one before the event could close.
-//
-// It was not a labelling problem. `Escalate now` opens an escalation RECORD —
-// a teen-safety incident with a five-minute acknowledgement clock — which is the
-// wrong object entirely for "this mentor has missed three note deadlines".
-//
-// ═══ WHAT A SUPERVISOR CAN HONESTLY RECORD HERE ═══
-//
-// The event is a timing FACT: a timestamp compared to a published constant. What
-// the supervisor decides is what to do about it, and there are three answers:
-//
-//  · THE RULE DID NOT APPLY. Every one of the five constants carries a
-//    `_PROVISIONAL` flag, and the rules cannot see PTO, an unreachable teen, or
-//    a shift swapped with somebody. Without this value a supervisor would have
-//    to record having spoken to a mentor who did nothing wrong in order to clear
-//    the row.
-//  · IT WAS RAISED WITH THE MENTOR. The ordinary close.
-//  · IT IS A PATTERN. Which does NOT close: noticing a pattern is not resolving
-//    one, and the same reasoning that stops `escalate` resolving a flag applies.
-//
-// ═══ AND NO SCORE COMES OUT OF THIS ═══
-//
-// The standing rule is that a fabricated practice assessment feeding mentor
-// coaching is worse than an absent one. These values are safe under it because
-// each records what the SUPERVISOR did, against a fact that was deterministically
-// computed — not a judgment of the mentor. Nothing may aggregate them: "3 raised
-// this week" over a named mentor would be exactly the performance surface the
-// rule forbids, assembled out of honest parts.
-
-export type PracticeEffect = "close" | "pattern";
-
-export interface PracticeDispositionValue {
-  id: string;
-  /** NEEDS-COPY-NICOLE. Every label is a statement a supervisor is recorded as
-   *  having made about their own action. */
-  label: string;
-  /** Shown at the control, so the reader knows what the button does before
-   *  pressing it rather than from a toast afterwards. */
-  consequence: string;
-  effect: PracticeEffect;
-  /** True where the VALUE is settled but what it routes to is not. */
-  unresolvedRouting?: boolean;
-}
-
-export const PRACTICE_DISPOSITION_VALUES: readonly PracticeDispositionValue[] = [
-  {
-    id: "rule-did-not-apply",
-    label: "Rule didn't apply here",
-    consequence:
-      "Closes the event and records that the timing fact had a reason the rule cannot see.",
-    effect: "close",
-  },
-  {
-    id: "raised-with-mentor",
-    label: "Raised with the mentor",
-    consequence: "Closes the event and records that you spoke to them.",
-    effect: "close",
-  },
-  {
-    /** ═══ BLOCKED · ROUTING, NOT THE VALUE ═══
-     *  A pattern belongs with the mentor's LEAD, and there is no lead-mentor
-     *  object to route it to — no record, no queue, no notification. So the
-     *  value keeps the event open and says so, rather than closing it into
-     *  nothing or pretending a hand-off happened. The moment a lead surface
-     *  exists this is one line and no new control. */
-    id: "pattern-for-lead",
-    label: "Pattern — for their lead",
-    consequence:
-      "Keeps the event open. Nothing routes to a lead mentor yet, so this records the judgment and not a hand-off.",
-    effect: "pattern",
-    unresolvedRouting: true,
-  },
-];
-
-export function practiceDispositionById(
-  id: string | null
-): PracticeDispositionValue | null {
-  if (id == null) return null;
-  return PRACTICE_DISPOSITION_VALUES.find((d) => d.id === id) ?? null;
-}
-
-/** Does this practice disposition close the event? One place, so "noticing a
- *  pattern is not resolving one" is a property of the model. */
-export function practiceCloses(d: PracticeDispositionValue | null): boolean {
-  return d?.effect === "close";
-}
-
-// ═══ AXIS 2, FOR A MENTOR PRACTICE EVENT — the RULE, not a classifier ═══
-//
-// The flag queue's second axis asks whether the classifier was right. A practice
-// event has no classifier: the five rules are deterministic comparisons, which
-// is why Phase 5 removed the classifier axis from this destination entirely.
-//
-// ═══ BUT THERE IS A SECOND QUESTION HERE, AND IT IS A BETTER ONE ═══
-//
-// Every constant these rules read is PROVISIONAL —
-// `MENTOR_ONLINE_HOURS_PROVISIONAL`, `MENTOR_OUTREACH_CUTOFF_PROVISIONAL`,
-// `MENTOR_TEEN_RESPONSE_SLA_PROVISIONAL`,
-// `MENTOR_LEADERSHIP_RESPONSE_SLA_PROVISIONAL`. A supervisor is the only person
-// who sees these rules fire against real shifts, so whether the THRESHOLD is
-// right is the one piece of feedback this surface can collect that nothing else
-// can.
-//
-// IT IS NOT THE SAME QUESTION AS AXIS 1. "Rule didn't apply here" is about this
-// instance — a mentor on PTO. "Rule fired wrongly" is about the constant — a
-// 90-minute outreach cutoff that trips every mentor every day. Conflating them
-// would lose the only signal that could un-provisional a number.
-//
-// OPTIONAL, NEVER PRE-SELECTED, NEVER PRIMARY, NEVER A GATE — the same posture
-// as classifier accuracy, for the same reason: it resolves nothing.
-export interface RuleFeedbackValue {
-  id: string;
-  /** NEEDS-COPY-NICOLE. About the RULE, not the mentor and not this instance. */
-  label: string;
-}
-
-export const RULE_FEEDBACK_VALUES: readonly RuleFeedbackValue[] = [
-  { id: "threshold-right", label: "Threshold looks right" },
-  { id: "threshold-wrong", label: "Threshold looks wrong" },
-];
-
-/** NEEDS-COPY-NICOLE. The inline guidance when somebody tries to record with no
- *  disposition. Separate from the clinical one because it names a different
- *  axis, and a shared string would drift into naming neither. */
-export const PRACTICE_DISPOSITION_REQUIRED_HINT =
-  "Record what you did about this first.";

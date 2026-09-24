@@ -41,6 +41,7 @@ function rec(o: Partial<EscalationRecord> = {}): EscalationRecord {
     is911: false,
     caregiverInvolved: null,
     closeOutDone: [],
+    linkedFlagIds: [],
     flaggedBy: "Brandon Forant",
     emergencyContact: "Guardian on file",
     ...o,

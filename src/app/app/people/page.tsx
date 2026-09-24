@@ -33,9 +33,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { use, useState } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useRouter } from "next/navigation";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { Roster } from "@/components/admin/roster";
 import {
   TeamDirectory,
@@ -123,7 +122,7 @@ export default function PeoplePage({
   // Supervisors keep the console chrome; leads stay in the mentor app shell —
   // the role migration's "two rails, one route" rule, same as `/app/team`.
   if (mounted && isSupervisorTier(persona)) {
-    return <AdminShell active="people">{body}</AdminShell>;
+    return <AppChrome active="people">{body}</AppChrome>;
   }
-  return <MentorShell active="people">{body}</MentorShell>;
+  return <AppChrome active="people">{body}</AppChrome>;
 }

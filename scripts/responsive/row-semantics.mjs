@@ -162,14 +162,21 @@ const rowReport = `(row) => {
     emph.length > 0 && emph.every((e) => /^[A-Z][a-z]+ [A-Z][.]$/.test(e[0]?.text ?? "") && /avantt/.test(e[0].fam)),
     emph[0]?.[0] && `${emph[0][0].text} · ${emph[0][0].px}px/${emph[0][0].weight} ${emph[0][0].fam}`
   );
-  /* THE JOB IS STILL THERE, AS A CHIP — asserted separately so "the emphasis
-     moved" cannot quietly become "the row no longer says what it is". */
-  const chips = data.map((r) => r.parts.find((p) => p.text === "Billing code review"));
+  /* ═══ THE JOB CHIP IS GONE, AND THE CHECK INVERTS (addendum §2.9) ═══
+     arch-F kept "Billing code review" as a subordinate chip so that "the
+     emphasis moved" could not quietly become "the row no longer says what it
+     is". §2.9 removes it: every row on this destination is a care review, so
+     the chip was the strongest-positioned element on nineteen rows carrying no
+     information — the same defect arch-F found in the emphasis channel, one
+     channel along.
+     WHAT REPLACES IT IS THE ABSENCE, ASSERTED — plus the accessible name,
+     checked at `sr.tasks.row-names-its-kind`, because a screen-reader user
+     arriving mid-list has no page title above them. */
   check(
-    "tasks.job-chip",
-    "the task type is present on every row, subordinate",
-    chips.every((c) => c && !c.emphasised && c.px <= 12),
-    chips[0] && `${chips[0].text} · ${chips[0].px}px/${chips[0].weight} ${chips[0].fam}`
+    "tasks.no-job-chip",
+    "the task type is not repeated on every row",
+    data.every((r) => !r.parts.some((p) => /billing code review/i.test(p.text))),
+    data[0]?.parts.map((p) => p.text).join(" | ")
   );
   /* THE COUNTDOWN IS STILL THERE AND STILL THE SCANNABLE COLUMN — asserted
      separately, so "the emphasis moved" cannot quietly become "the countdown
@@ -179,17 +186,27 @@ const rowReport = `(row) => {
      emphasis. arch-F gives the bucket header the urgency and the row the
      detail, so the column is mono, tabular and SECONDARY — still the one
      element in its zone, no longer competing with the breach chip beside it. */
-  const clocks = data.map((r) => r.parts.find((p) => /^(due |overdue )/.test(p.text)));
+  /* ═══ THE COLUMN SURVIVES; WHAT IT HOLDS INVERTED (addendum §2.9) ═══
+     arch-D through arch-G spent four phases on this column's treatment and the
+     conclusion — one mono, tabular, right-aligned figure per row, informing
+     rather than alarming — is intact. What changed is the FACT: §2.9 retires
+     the deadline concept from this destination, so the figure is AGE.
+     `tasks.no-elapsed` INVERTS WITH IT. It asserted elapsed age was gone from
+     the row, because a row showing both an age and a deadline stated two
+     temporal facts. Age is the only one left, and it is the one the list is
+     ORDERED by — oldest-first, which fell out of the null SLA rather than
+     being added as a rule. */
+  const clocks = data.map((r) => r.parts.find((p) => /\d+[mhd] open$/.test(p.text)));
   check(
-    "tasks.deadline-column",
-    "the deadline keeps its mono tabular column, in secondary ink",
+    "tasks.age-column",
+    "the temporal column is mono and tabular, and it is an age",
     clocks.every((c) => c && /mono/.test(c.fam) && c.px >= 12),
     clocks[0] && `${clocks[0].text} · ${clocks[0].px}px/${clocks[0].weight} ${clocks[0].fam}`
   );
   check(
-    "tasks.no-elapsed",
-    "elapsed age is gone from the row",
-    data.every((r) => !r.parts.some((p) => /\d+[mhd] open$/.test(p.text))),
+    "tasks.no-deadline",
+    "and no row states a deadline, because the destination has none",
+    data.every((r) => !r.parts.some((p) => /^(due |overdue |no review deadline)/i.test(p.text))),
     data[0]?.parts.map((p) => p.text).join(" | ")
   );
   check(
@@ -214,12 +231,32 @@ const rowReport = `(row) => {
      arch-E put the teen name here beside its disposition. The name moved to line
      1 with the emphasis, so repeating it in the caption would spend the line on
      a string six pixels above it. */
-  const caption = spans[0]?.find((p) => /proposed/.test(p.text) && !/^[A-Z][a-z]+ [A-Z][.]/.test(p.text));
+  /* ═══ THE CAPTION IS LOZENGES NOW (addendum §2.9) ═══
+     It carried `proposalPreview`'s sentence — "Change proposed → F41.1". A
+     billing code is an identifier a reviewer matches against a record, not
+     prose, so it renders as one lozenge per code in the mono face. The claim
+     that survives is the one arch-F made: whatever the caption holds, it is
+     NOT the teen's name a second time and it does not take the emphasis. */
+  const codes = await page.evaluate(
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => [...row.querySelectorAll("[data-billing-code]")].map((e) => ({ code: e.getAttribute("data-billing-code"), tone: e.getAttribute("data-code-tone"), fam: getComputedStyle(e).fontFamily })))`
+  );
   check(
-    "tasks.caption-disposition",
-    "the caption carries the disposition, and not the name again",
-    caption && !caption.emphasised && caption.px < 14,
-    caption && `${caption.text.replace(/\s+/g, " ")} · ${caption.px}px/${caption.weight} ${caption.fam}`
+    "tasks.caption-codes",
+    "the caption carries the billing code as a lozenge, in the mono face",
+    codes.every((cs) => cs.length >= 1 && cs.every((c) => /mono/i.test(c.fam))),
+    codes[0]?.map((c) => `${c.code}[${c.tone}]`).join(" ") || "no code lozenges"
+  );
+  /* READ OFF THE LEAVES, not off every span: a wrapper span reports the text of
+     everything inside it, so an ancestor of the name also "is" the name and the
+     first version of this check failed on its own instrumentation. */
+  check(
+    "tasks.caption-not-the-name",
+    "and not the name a second time",
+    data.every((r) => {
+      const lead = r.parts.find((p) => p.emphasised)?.text ?? "";
+      return lead !== "" && r.parts.filter((p) => p.text === lead).length === 1;
+    }),
+    data[0]?.parts.map((p) => p.text).join(" | ") ?? "no parts"
   );
   check("tasks.height", "row height", true, `${data[0]?.height}px`);
   await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-rows.png` });
@@ -227,46 +264,26 @@ const rowReport = `(row) => {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 2 · TASKS, OVERDUE — ONE STATEMENT, NOT THREE (arch-G, G1 superseded F1.2).
-//
-// The row carried a breach chip AND the countdown, under a bucket header already
-// reading "Overdue" — three statements about one lateness. The BUCKET owns the
-// treatment now; the row states how late, in breach ink, and drops the chip.
+// 2 · TASKS, OVERDUE — THE WHOLE SECTION RETIRES (addendum §2.9)
 // ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("tasks-overdue", "/app/care-reviews", { scenario: "breach-overnight" });
-  const t = await page.locator('[role="treeitem"]').first().innerText();
-  const header = await page.evaluate(`(() => { const h = document.querySelector('[role="group"] > div[aria-hidden]');
-    if (!h) return null; const cs = getComputedStyle(h);
-    return { text: (h.innerText||"").replace(/\\s+/g," ").trim(), bg: cs.backgroundColor, fg: cs.color }; })()`);
-  check("tasks.overdue-input", "the bucket header was readable", !!header, JSON.stringify(header));
-  check(
-    "tasks.overdue-header-carries-breach",
-    "the bucket header carries the breach treatment",
-    header && /Overdue/.test(header.text) && header.bg !== "rgba(0, 0, 0, 0)" && header.bg !== "rgb(255, 255, 255)",
-    header && `${header.text} · ${header.bg}`
-  );
-  const deadlineInk = await page.evaluate(`(() => {
-    /* THE LEAF, not an ancestor that happens to contain the text — a wrapper
-       inherits primary/400 and made this read as unstyled. */
-    const el = [...document.querySelectorAll('[role="treeitem"] span')].find((e) => !e.querySelector("span") && /^overdue by /.test((e.innerText||"").trim()));
-    if (!el) return null; const cs = getComputedStyle(el);
-    return { text: el.innerText.trim(), color: cs.color, weight: cs.fontWeight }; })()`);
-  check(
-    "tasks.overdue-row-states-how-late",
-    "and the row states how late, in breach ink, with no chip of its own",
-    deadlineInk && !/\bOverdue\b/.test(t.replace(/overdue by/gi, "")) && Number(deadlineInk.weight) >= 600,
-    deadlineInk && `${deadlineInk.text} · ${deadlineInk.color}/${deadlineInk.weight}`
-  );
-  check(
-    "tasks.overdue",
-    "and the lateness is still stated exactly once",
-    /overdue by \d+[mhd]/.test(t) && t.match(/[Oo]verdue/g)?.length === 1,
-    t.replace(/\s+/g, " ")
-  );
-  await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-overdue.png` });
-  await context.close();
-}
+//
+// It held four checks over the `breach-overnight` fixture, settling an argument
+// that ran from arch-F to arch-G: the row carried a breach chip AND the
+// countdown, under a bucket header already reading "Overdue" — three statements
+// about one lateness. The conclusion was that the BUCKET owns the treatment,
+// the row states how late in breach ink, and the chip goes.
+//
+// §2.9 RETIRES THE DEADLINE CONCEPT from this destination, so there is no
+// lateness to state once or three times. The buckets, the breach ink and the
+// chip are all gone with it.
+//
+// WHAT THE ARGUMENT LEAVES BEHIND, because it was never really about deadlines:
+// a surface may state one fact once. That rule is live on this page as
+// `tasks.one-temporal`, which is the check the whole section was protecting.
+//
+// AND BREACH TREATMENT STILL EXISTS, on the one surface that has published
+// clocks — `monitoring-states.mjs` asserts it on the escalation region. This
+// file no longer has a subject for it.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 3 · MONITORING — RETARGETED BY arch-mon PHASE 1.
@@ -318,165 +335,30 @@ const rowReport = `(row) => {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4 · THE GROUP HEADER — ONE COMPONENT, ONE TREATMENT, STICKY ON BOTH.
+// 4 · THE GROUP HEADER — RETIRED, BECAUSE NEITHER SURFACE HAS ONE
 // ═══════════════════════════════════════════════════════════════════════════
-/** ═══ RETARGETED OFF THE RETIRED ROUTES (supervisor IA restructure, Phase 2) ═══
- *
- *  `/app/tasks` and `/app/monitoring` are `replace` hops now. A probe that
- *  navigates to a hop still LANDS on the destination, so these checks kept
- *  passing — which is the problem: a hop with the wrong target would also pass,
- *  and the probe would be asserting about a surface it cannot name.
- *
- *  ═══ AND `hdr.monitoring.uniform` WAS A REAL FAILURE, NOT A HOP ARTIFACT ═══
- *
- *  It asserted `headers.length > 1`, because Monitoring's two groups were the two
- *  review subjects and uniformity needs two things to compare. THE SUBJECT SPLIT
- *  IS A ROUTE BOUNDARY NOW — Risk Flags is teen safety, Mentor Practice is
- *  mentor practice — so a scoped queue has exactly ONE subject group and can
- *  never have two. The old assertion is unsatisfiable on the surface that
- *  replaced the one it was written for.
- *
- *  RETARGETED STRICTER. `expectHeaders` pins the number the scope implies rather
- *  than accepting "more than one": Care Reviews' deadline buckets are still many
- *  (so a regression that collapsed them fails), and Risk Flags is asserted at
- *  exactly one (so a regression that RE-INTRODUCED a second grouping — a tier
- *  band, say, which Phase 4 is removing — fails loudly here). Uniformity is
- *  still compared across whatever headers exist.
- *
- *  The `monitoringLong` fixture split stays: stickiness needs a list longer than
- *  the viewport and `surge` is the long one. */
-for (const [url, name, scroller, monitoring, monitoringLong, expectHeaders] of [
-  ["/app/care-reviews", "tasks", "tasks-worklist-scroller", null, null, "many"],
-  ["/app/risk-flags", "monitoring", "monitoring-scroller", "mentor-note-overdue", "surge", 1],
-]) {
-  let { context, page } = await open(`hdr-${name}`, url, { scenario: "heavy-caseload", monitoring });
-  const headers = await page.evaluate(() =>
-    [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
-      .filter((h) => / — \d/.test(h.innerText || ""))
-      .map((h) => {
-        const s = getComputedStyle(h);
-        return {
-          text: h.innerText.replace(/\s+/g, " "),
-          position: s.position,
-          top: s.top,
-          borderTop: s.borderTopWidth,
-          bg: s.backgroundColor,
-          px: s.fontSize,
-          transform: s.textTransform,
-          fam: s.fontFamily.split(",")[0].replace(/["']/g, ""),
-          h: Math.round(h.getBoundingClientRect().height),
-        };
-      })
-  );
-  const sig = (h) => `${h.position}|${h.top}|${h.borderTop}|${h.bg}|${h.px}|${h.transform}|${h.h}`;
-  /* THE INPUT IS ASSERTED BEFORE THE PROPERTY OF IT. Without this, a surface
-     that stopped grouping altogether would take `uniform` and `anatomy` with a
-     clean pass over an empty list — the vacuous-assertion failure this probe has
-     already been bitten by twice. */
-  /* ═══ NO RAW ENUM REACHES A READER (Phase 4) ═══
-     The fixtures carry playbook CATEGORY IDS now — `ASSESSMENT_BELOW_THRESHOLD`
-     — which is what made the clinical ranking possible and immediately put the
-     id itself on screen, because three render sites passed `event.category`
-     straight through. Measured on `/app/risk-flags`: every row's secondary line.
-     A UNIT TEST COULD NOT CATCH IT. `risk-taxonomy` had labels for all 21
-     categories and the assertion that it did passed the whole time — the defect
-     was a renderer not asking. So this reads the DOM, on both surfaces, and it
-     is deliberately a SHAPE test rather than a list of known ids: anything
-     SHOUTING_IN_SNAKE_CASE is a machine identifier whatever it is called. */
-  const shouted = await page.evaluate(() => {
-    const out = [];
-    const walk = document.createTreeWalker(
-      document.querySelector("main") ?? document.body,
-      NodeFilter.SHOW_TEXT
-    );
-    let n;
-    while ((n = walk.nextNode())) {
-      const t = (n.textContent ?? "").trim();
-      if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+){2,}$/.test(t)) out.push(t);
-    }
-    return [...new Set(out)];
-  });
-  check(
-    `hdr.${name}.no-raw-enum`,
-    "no machine identifier is rendered where a label belongs",
-    shouted.length === 0,
-    shouted.length ? shouted.slice(0, 3).join(", ") : "clean"
-  );
-
-  check(
-    `hdr.${name}.count`,
-    `the surface groups, and by as many keys as its scope implies (${expectHeaders})`,
-    expectHeaders === "many" ? headers.length > 1 : headers.length === expectHeaders,
-    `${headers.length} header(s): ${headers.map((h) => h.text).join(" | ") || "none"}`
-  );
-  check(
-    `hdr.${name}.uniform`,
-    "every header on the surface has one treatment",
-    headers.length > 0 && new Set(headers.map(sig)).size === 1,
-    headers.length ? sig(headers[0]) : "none"
-  );
-  /* ═══ EACH HEADER BRINGS ITS OWN SEPARATION ═══
-     THE DEFECT arch-D WAS ASKED TO FIX: the first header on Tasks read as a
-     bordered band and later ones as inline dividers. Measured, both were the
-     same component with identical computed styles — the CARD supplied the
-     difference, wrapping the first one in its own 1px border and 20px radius
-     while later ones borrowed the rows' hairlines.
-     A uniformity check alone cannot catch this. Deleting the border from EVERY
-     header leaves them perfectly uniform and puts the surface straight back to
-     borrowing the frame — a mutation run proved exactly that, passing clean. So
-     the hairline is asserted directly. It also earns its keep while the header
-     is stuck: it is the line separating a pinned header from the row sliding
-     under it, which a frame that is not attached to the header never could. */
-  check(
-    `hdr.${name}.own-hairline`,
-    "every header draws its own separator rather than borrowing the card's",
-    headers.length > 0 && headers.every((h) => parseFloat(h.borderTop) > 0),
-    headers.map((h) => h.borderTop).join(", ")
-  );
-  check(
-    `hdr.${name}.anatomy`,
-    "label — count, sentence case, not mono",
-    headers.every((h) => / — \d+$/.test(h.text) && h.transform === "none" && !/mono/i.test(h.fam)),
-    headers.map((h) => h.text).join(" | ")
-  );
-
-  /* ═══ STICKY ACROSS THE VIRTUALIZATION BOUNDARY ═══
-     The header is what supplies the task type or tier the rows no longer state,
-     so it staying in frame is not polish — it is the replacement for a fact that
-     was removed. Driven with `j` rather than a scroll write, because that is the
-     path that crosses the boundary: the rows a reader arrows past are UNMOUNTED
-     behind them. */
-  if (monitoringLong) {
-    await context.close();
-    ({ context, page } = await open(`hdr-${name}-long`, url, { scenario: "heavy-caseload", monitoring: monitoringLong }));
-    await page.waitForTimeout(500);
-  }
-  await page.evaluate(`window.__SCROLLER__ = ${JSON.stringify(scroller)}`);
-  await page.getByRole("treeitem").first().click();
-  await page.waitForTimeout(250);
-  for (let i = 0; i < 90; i += 1) await page.keyboard.press("j");
-  await page.waitForTimeout(400);
-  const stuck = await page.evaluate(() => {
-    const scroller = document.querySelector(`[data-anno-ref="${window.__SCROLLER__}"]`);
-    const s = scroller.getBoundingClientRect();
-    const visible = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
-      .filter((h) => / — \d/.test(h.innerText || ""))
-      .map((h) => {
-        const r = h.getBoundingClientRect();
-        return { text: h.innerText.replace(/\s+/g, " "), top: Math.round(r.top - s.top), inFrame: r.top >= s.top - 1 && r.bottom <= s.bottom + 1 };
-      });
-    const sel = document.querySelector('[role="treeitem"][aria-selected="true"]');
-    return { scrollTop: Math.round(scroller.scrollTop), visible, selected: sel?.getAttribute("aria-label")?.slice(0, 50) };
-  });
-  const pinned = stuck.visible.find((h) => h.top >= -1 && h.top <= 1);
-  check(
-    `hdr.${name}.sticky`,
-    "a header is pinned to the top of the list after 90 rows",
-    Boolean(pinned) && stuck.scrollTop > 0,
-    `scrollTop ${stuck.scrollTop}, pinned "${pinned?.text}", selected ${stuck.selected}`
-  );
-  await context.close();
-}
+//
+// It held eight checks across both surfaces: that each grouped by as many keys
+// as its scope implied, that every header on a surface shared one treatment,
+// that each drew its own hairline rather than borrowing the card's, and that
+// one pinned to the top of a ninety-row list.
+//
+// BOTH SUBJECTS ARE GONE, for different reasons and in the same direction:
+//  · CARE REVIEWS grouped by deadline bucket. §2.9 retires the deadline
+//    concept, and one task type is nothing to group by — so the list is flat,
+//    in the comparator's order, which without an SLA is oldest-first.
+//  · RISK FLAGS grouped by review subject. §2.1 removes Mentor Practice, and a
+//    single group's header restated the page title while counting flags on a
+//    list whose rows are conversations (§3.1).
+//
+// ═══ THE COMPONENT IS NOT DELETED, AND THAT IS THE POINT OF SAYING SO ═══
+//
+// `WorklistGroupHeader` still exists and is still the one treatment, because
+// the rule it enforced — one header component, not one per surface — is what
+// makes a second grouping cheap the day one is justified. `AGENTS.md`'s
+// extensibility threshold covers when that is; the probe for it should come
+// back with the grouping, and asserting it over zero headers today would be a
+// green check on an empty array.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 5 · A ROW'S ACCESSIBLE NAME CARRIES ITS GROUP.
@@ -488,7 +370,7 @@ for (const [url, name, scroller, monitoring, monitoringLong, expectHeaders] of [
 // from the row's own surface.
 for (const [url, name, scroller, monitoring] of [
   ["/app/care-reviews", "tasks", "tasks-worklist-scroller", null],
-  ["/app/risk-flags", "monitoring", "monitoring-scroller", "mentor-note-overdue"],
+  ["/app/risk-flags", "monitoring", "monitoring-scroller", "normal-day"],
 ]) {
   const { context, page } = await open(`sr-${name}`, url, { monitoring });
   /* SCROLL TO THE COALESCED ROWS FIRST on Monitoring. Only Imminent rows are
@@ -505,17 +387,41 @@ for (const [url, name, scroller, monitoring] of [
     }))
   );
   const tops = data.filter((d) => d.level !== "2");
+  /* ═══ THE GROUP NAME IS NO LONGER IN THE ROW'S NAME (addendum §2.1, §2.9) ═══
+     It had to be, while a surface grouped: the header is `aria-hidden` and the
+     enclosing group's label is announced on entry and not again forty rows
+     down, so without it a screen-reader user could not tell which band they
+     were in. NEITHER SURFACE GROUPS NOW — see section 4 — so the prefix would
+     be the list's own name repeated on every row, which is the sighted
+     equivalent of the chip §2.9 removed.
+     WHAT REPLACES IT ON CARE REVIEWS: the row still names its KIND once, which
+     is the fact a reader arriving mid-list cannot get from anywhere else now
+     that the chip is gone. */
   check(
-    `sr.${name}.group-in-name`,
-    "every row names the group it is in",
-    tops.length > 0 && tops.every((d) => d.label.startsWith(d.band.split(" — ")[0])),
-    tops[0]?.label.slice(0, 60)
+    `sr.${name}.no-group-prefix`,
+    "no row repeats its list's name, because the list is not grouped",
+    tops.length > 0 && tops.every((d) => d.band === "" || !d.label.startsWith(d.band.split(" — ")[0])),
+    tops[0]?.label.slice(0, 70)
   );
+  if (name === "tasks") {
+    check(
+      "sr.tasks.row-names-its-kind",
+      "and a care review still says what kind of work it is, once",
+      tops.every((d) => (d.label.match(/billing code review/gi) ?? []).length === 1),
+      tops[0]?.label.slice(0, 80)
+    );
+  }
   /* ═══ AND THE NAME TELLS THE SAME STORY THE ROW DOES ═══
      This is the check that caught the real defect: the aria label still said
      "2d open" on a row whose column read "due in 15h" — one item, two different
      facts, one for each reader. A probe that only inspected rendered spans would
      have reported the surface clean. */
+  /* ═══ NO SURFACE HERE HAS A COUNTDOWN ANY MORE (addendum §2.9) ═══
+     Care Reviews lost its deadline and Risk Flags never had one after
+     arch-mon. The bucket is kept rather than deleted because the claim it
+     supports is the one that matters — one temporal KIND per row, never both —
+     and a countdown reappearing on either surface should fail loudly here
+     rather than pass silently through an `elapsed`-only check. */
   const countdown = tops.filter((d) => /due in|due \d|due [A-Z]|overdue by/.test(d.label));
   /* ═══ TWO SPELLINGS OF "HOW OLD" ═══
      Tasks says "2d open" (age since the review opened); Monitoring says "2h ago"
@@ -581,11 +487,18 @@ for (const [url, name, scroller, monitoring] of [
     rows.every((r) => /^[A-Z][a-z]+ [A-Z][.]/.test(r.line1?.text ?? "")),
     rows[0]?.line1 && `${rows[0].line1.text} · ${rows[0].line1.px}px/${rows[0].line1.weight} ${rows[0].line1.fam}`
   );
+  /* ═══ LINE 2 IS THE CODE, AND SOMETIMES THE WORD (addendum §2.9) ═══
+     It carried `proposalPreview`'s sentence, so "proposed" was on every row.
+     The codes are lozenges now, and the kind word renders only where one
+     lozenge cannot distinguish a renewal from a first assignment — a change
+     shows two lozenges and an arrow, which says it without the word.
+     THE CLAIM THAT SURVIVES is arch-F's: whatever line 2 holds, it is not the
+     teen's name a second time. */
   check(
-    "e.disposition-caption",
-    "line 2 carries the disposition preview, and not the name a second time",
+    "e.code-caption",
+    "line 2 carries the billing code, and not the name a second time",
     rows.length > 0 &&
-      rows.every((r) => /proposed/.test(r.line2?.text ?? "")) &&
+      rows.every((r) => /[A-Z]\d{2}(\.\d+)?/.test(r.line2?.text ?? "")) &&
       !rows.some((r) => /^[A-Z][a-z]+ [A-Z][.]/.test(r.line2?.text ?? "")),
     rows[0]?.line2?.text
   );
@@ -610,30 +523,32 @@ for (const [url, name, scroller, monitoring] of [
   );
   check("e.height", "row height", true, `${rows[0]?.height}px`);
 
-  /* ═══ DEADLINE ORDER, END TO END ═══
-     The failure arch-E fixes: type buckets cut a correctly sorted list into runs,
-     so the page restarted its countdown at every header. Read as one sequence,
-     the buckets must be non-decreasing. */
-  const buckets = rows.map((r) => r.band.split(" — ")[0]);
-  const fixed = ["Overdue", "Due today", "Due tomorrow", "Later"];
-  const asIndex = buckets.map((b) => fixed.indexOf(b));
-  check(
-    "e.buckets-monotonic",
-    "buckets appear in fixed order and never repeat",
-    asIndex.every((v, i) => i === 0 || v >= asIndex[i - 1]) && !asIndex.includes(-1),
-    [...new Set(buckets)].join(" > ")
+  /* ═══ THE BUCKET CHECKS RETIRE, AND THE ORDER CLAIM MOVES (addendum §2.9) ═══
+     arch-E's failure was that type buckets cut a correctly sorted list into
+     runs, so the page restarted its countdown at every header — and the fix was
+     buckets that PARTITION the one sort. §2.9 removes the deadline the sort and
+     the buckets were both built on.
+     THE CLAIM UNDERNEATH IT SURVIVES AND IS STRONGER WITHOUT THE BUCKETS: the
+     list is one sorted sequence with nothing restarting inside it. Oldest-first
+     now, which is `slaRemaining` falling through to `openedAt` rather than a
+     rule anybody wrote — see `sla.ts`. Read end to end, the ages must be
+     non-increasing. */
+  const ages = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="treeitem"]')].map((r) => {
+      const m = (r.getAttribute("aria-label") ?? "").match(/(\d+)([mhd]) open/);
+      if (!m) return null;
+      const mult = { m: 1, h: 60, d: 1440 }[m[2]];
+      return Number(m[1]) * mult;
+    })
   );
-  const seen = [...new Set(await page.evaluate(() =>
-    [...document.querySelectorAll('[role="group"]')]
-      .map((g) => g.getAttribute("aria-label"))
-      .filter((l) => l && / — \d+$/.test(l))
-  ))];
-  check("e.buckets-present", "the buckets that exist are labelled with counts", seen.length > 0, seen.join(" | "));
+  const read = ages.filter((a) => a != null);
   check(
-    "e.bucket-in-name",
-    "and every row's accessible name starts with its bucket",
-    rows.every((r) => r.label.startsWith(r.band.split(" — ")[0])),
-    rows[0]?.label.slice(0, 54)
+    "e.one-sorted-sequence",
+    "the list is one sequence, oldest first, with nothing restarting inside it",
+    read.length > 1 && read.every((v, i) => i === 0 || v <= read[i - 1]),
+    read.length > 1
+      ? `${read.length} rows: ${read.slice(0, 6).join(" ≥ ")}${read.length > 6 ? " ≥ …" : ""}`
+      : `only ${read.length} row(s) carried an age`
   );
 
   await page.locator('[data-anno-ref="tasks-worklist-scroller"]').screenshot({ path: `${OUT}/tasks-task-led.png` });
@@ -657,13 +572,20 @@ for (const [url, name, scroller, monitoring] of [
       .map((g) => g.getAttribute("aria-label"))
       .filter((l) => l && / — \d+$/.test(l))
   );
+  /* ═══ MONITORING GROUPS BY NOTHING NOW (addendum §2.1) ═══
+     arch-mon retargeted this from tiers to the two REVIEW SUBJECTS. §2.1
+     removes Mentor Practice, so one subject is left and its header restated
+     the page title over every row — while counting flags on a list whose rows
+     are conversations (§3.1).
+     THE PROHIBITION IS WHAT SURVIVES, and it is the part that was always load
+     bearing: whatever grouping this surface has or does not have, it is never
+     a TIER and never a DEADLINE. Both are things this codebase invented and
+     removed, and both would reappear here first. */
   check(
-    "e.monitoring-subjects",
-    "Monitoring groups by review subject — never by tier, never by deadline",
-    bands.length > 0 &&
-      bands.every((b) => /^(Teen safety|Mentor practice) — \d+$/.test(b)) &&
-      !bands.some((b) => /^(Imminent|Clinical review|Routine review|Overdue|Due |Later)/.test(b)),
-    bands.join(" | ")
+    "e.monitoring-no-invented-bands",
+    "Monitoring groups by nothing, and never by a tier or a deadline",
+    bands.length === 0,
+    bands.length ? bands.join(" | ") : "no group headers"
   );
   const mentor = await page.evaluate(() =>
     [...document.querySelectorAll('[role="treeitem"]')].map((r) => r.getAttribute("aria-label") ?? "")

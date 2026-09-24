@@ -28,10 +28,11 @@
 // the transcript never loses their place in the pane. Without it the two regions
 // feel like one broken one.
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, MessageSquare, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, MessageSquare, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { startsCluster } from "@/lib/chat/clustering";
+import { TranscriptBubble } from "@/components/chat/transcript-bubble";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationMessage } from "@/lib/tasks/conversation";
 
@@ -47,15 +48,24 @@ const RING =
  *  come out of the body's scroll rather than out of the resolve actions. */
 const REGION_H = "h-[340px]";
 
+/** ═══ THE MEDIA QUERY, READ AT THE MOMENT OF THE SCROLL ═══
+ *  Not captured in state: a reader can change the OS setting while the pane is
+ *  open, and a value cached at mount would keep animating at them. Guarded for
+ *  SSR, where `matchMedia` does not exist. */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+  );
+}
+
 const SHELL =
   "rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-s1)]";
 
-function timeOf(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+/* `timeOf` AND `Bubble` MOVED to `chat/transcript-bubble.tsx` (addendum §2.4),
+   so the escalation timeline renders the same transcript this does rather than
+   a second one. `needsHeader` below stays here — see that module's note on why
+   the flagged-message break is this surface's alone. */
 
 /** ═══ TIMESTAMP CLUSTERING (Part 5) ═══
  *
@@ -93,110 +103,6 @@ function needsHeader(
 ): boolean {
   if (m.flagged) return true;
   return startsCluster(m, prev);
-}
-
-/** ═══ THE BUBBLE ═══
- *
- *  Simplified deliberately: sender, time, text. No avatars, no reactions, no read
- *  receipts — this is evidence for a decision, not a chat client, and every
- *  affordance that suggests otherwise invites a supervisor to try to reply from
- *  here.
- *
- *  ROLE IS A TINT AND A SIDE, not a label repeated on every line. The teen's
- *  messages sit left on the card surface; the mentor's sit right in a quieter
- *  fill. The name is still printed on every bubble because tint alone cannot
- *  carry it (1.4.1) and because a reader scanning for one speaker should not have
- *  to infer from alignment. */
-function Bubble({
-  m,
-  header,
-  blooming,
-  flaggedRef,
-}: {
-  m: ConversationMessage;
-  /** False for a message clustered under the one above it. See `needsHeader`. */
-  header: boolean;
-  /** The one-shot highlight when this excerpt is anchored. See `bloom`. */
-  blooming?: boolean;
-  flaggedRef?: React.Ref<HTMLLIElement>;
-}) {
-  const mine = m.sender === "mentor";
-  return (
-    <li
-      ref={flaggedRef}
-      className={cn(
-        "flex flex-col gap-1",
-        mine ? "items-end" : "items-start",
-        // A clustered message sits closer to the one it continues than to the
-        // next turn — the spacing is what makes the cluster read as one block,
-        // and it is the reason dropping the header does not just leave a gap.
-        !header && "-mt-2.5"
-      )}
-    >
-      {header && (
-        <p className="flex items-center gap-1.5 px-1 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-          <span className="font-medium text-[var(--text-secondary)]">
-            {m.senderName}
-          </span>
-          {/* `tabular-nums`: the times sit in a column down one edge of the
-              transcript, and proportional figures make that column ragged. */}
-          <time className="tabular-nums" dateTime={new Date(m.at).toISOString()}>
-            {timeOf(m.at)}
-          </time>
-        </p>
-      )}
-      <div
-        className={cn(
-          "relative max-w-[85%] rounded-[var(--radius-control)] px-3 py-2 text-[13.5px] leading-[19px]",
-          mine
-            ? "bg-[var(--surface-s2)] text-[var(--text-primary)]"
-            : "bg-[var(--surface-card)] text-[var(--text-primary)]",
-          // ═══ THE FLAGGED MESSAGE, MARKED THREE WAYS ═══
-          // Tint, a gutter marker, and text in the accessible name. Colour is
-          // never the only carrier (SC 1.4.1) — and here that is not a formality:
-          // the whole point of the highlight is to say WHICH line the decision is
-          // about, so a reader who cannot see the tint would otherwise be reading
-          // an undifferentiated transcript.
-          // `--band-amber-*` — THE RECORD'S OWN RISK-FLAG BAND, and an existing
-          // token pair (7.24:1 in light, 5.73:1 in dark). The first version of
-          // this reached for `--status-warning-bg`, WHICH DOES NOT EXIST: an
-          // undefined custom property makes `background-color` resolve to
-          // `rgba(0,0,0,0)`, so the "highlight" was transparent and the flagged
-          // message looked like every other bubble. Nothing errors, nothing warns
-          // — measured, not noticed. Zero new tokens is the rule; this is why.
-          m.flagged &&
-            "bg-[var(--band-amber-bg)] text-[var(--band-amber-fg)] ring-1 ring-[color:var(--band-amber-fg)]/25",
-          /* ═══ THE ANCHOR BLOOM (Part 5) ═══
-             The excerpt opens already scrolled to the flagged line, which means
-             the reader's eye arrives with no idea that anything moved — the
-             transcript simply starts in the middle. A single soft ring, widened
-             for ~200ms and eased away, says "this is the line, and this is where
-             you were put". Once per selection: it fires on the anchor effect, not
-             on every render, so a re-render never re-blooms and a supervisor
-             working through fifty flags sees it once each, not repeatedly.
-             `motion-reduce` drops it entirely rather than shortening it. */
-          m.flagged && "transition-[box-shadow] duration-200 ease-out motion-reduce:transition-none",
-          m.flagged && blooming && "shadow-[0_0_0_6px_var(--band-amber-bg)]"
-        )}
-      >
-        {/* THE GUTTER MARKER. `-left-6` put it 24px left of the bubble — which is
-            OUTSIDE the region's own padding, so it was clipped away entirely
-            (measured: marker at x=657, region edge at x=664). The region now
-            carries `pl-9` to give the gutter real room, and the marker sits
-            inside it. A marker nobody can see is not a second carrier. */}
-        {m.flagged && (
-          <span className="absolute -left-[26px] top-1.5">
-            <AlertTriangle
-              className="size-4 text-[var(--band-amber-fg)]"
-              aria-hidden
-            />
-          </span>
-        )}
-        {m.flagged && <span className="sr-only">Flagged message. </span>}
-        {m.text}
-      </div>
-    </li>
-  );
 }
 
 /** Three bubble placeholders, at the heights real bubbles occupy — so resolving
@@ -252,6 +158,18 @@ export function ConversationExcerpt({
    *  (`scrollable-region-focusable`). A block that does not scroll has nothing to
    *  operate, and a focus stop that does nothing is noise in the tab order. */
   scroll = true,
+  /** ═══ THE HOST SCROLLER, WHEN THE TRANSCRIPT IS NOT ITS OWN (§2.7) ═══
+   *
+   *  On Monitoring the transcript IS the pane's scroll region — §2.7's
+   *  reconciliation with locked decision 4, which allows two regions on the
+   *  page and no more. So the excerpt renders with no overflow of its own and
+   *  scrolls, anchors and observes against the element the pane hands it.
+   *
+   *  WITHOUT IT the component is unchanged: Tasks still gets the bounded,
+   *  `overscroll-contain` region it has always had. */
+  hostRef,
+  /** Reveal an older page. Absent = no upward loading, which is Tasks. */
+  onNeedOlder,
   /** How many turns either side of the flagged message the window holds. Six
    *  total fits the pane without pushing the disposition control off screen —
    *  measured at 1440×1000 with the footer pinned. */
@@ -265,21 +183,31 @@ export function ConversationExcerpt({
   label?: string;
   scroll?: boolean;
   windowTurns?: number;
+  hostRef?: React.RefObject<HTMLElement | null>;
+  onNeedOlder?: () => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const ownRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLLIElement>(null);
+  /** The element that actually scrolls: this component's own region on Tasks,
+   *  the pane's on Monitoring. Every scroll read and write below goes through
+   *  it, so the two modes share one implementation of anchoring. */
+  const scrollerOf = useCallback(
+    () => (hostRef ? hostRef.current : ownRef.current),
+    [hostRef]
+  );
+  /** ═══ WHERE THE FLAGGED MESSAGE IS, RELATIVE TO THE VIEWPORT (§2.7) ═══
+   *  Null when it is visible, which is what hides the return control — a pill
+   *  offering to take a reader to what they are already looking at is chrome
+   *  with a direction on it. */
+  const [anchorOff, setAnchorOff] = useState<"above" | "below" | null>(null);
   /** ONE BLOOM PER SELECTION. Keyed by the anchor id rather than a boolean, so
    *  the effect below can set it for the anchor it just scrolled to and a
    *  re-render with the same anchor cannot fire a second one. */
   const [bloomFor, setBloomFor] = useState<string | null>(null);
-  /** ═══ THE ROLE CAPTION, DISMISSED FOR GOOD ═══
-   *  A supervisor learns "left is the teen, right is the mentor" once and then
-   *  reads it fifty more times a shift. Dismissible, and the dismissal sticks for
-   *  the session — `localStorage` was considered and rejected: this is a
-   *  prototype with no per-user store on this surface, and a preference that
-   *  outlives the session but is written nowhere a reader can see or reset is a
-   *  worse trade than one they re-dismiss tomorrow. */
-  const [captionOpen, setCaptionOpen] = useState(true);
+  /* ═══ THE ROLE CAPTION'S STATE GOES WITH THE CAPTION (addendum §3.6) ═══
+     It was a session-scoped `useState` holding whether the onboarding line had
+     been dismissed, with `localStorage` considered and rejected. The line is
+     gone — see the render — so the state it protected has nothing to protect. */
 
   /** ═══ ANCHOR WITHOUT SCROLLING THE PAGE ═══
    *
@@ -292,7 +220,7 @@ export function ConversationExcerpt({
    *  that give it meaning, so landing with the flagged line at the top would hide
    *  the half that matters most. */
   const anchor = useCallback((smooth: boolean) => {
-    const region = scrollRef.current;
+    const region = scrollerOf();
     const el = anchorRef.current;
     if (!region || !el) return;
     /** ═══ RECTS, NOT `offsetTop` ═══
@@ -310,16 +238,33 @@ export function ConversationExcerpt({
       region.scrollTop + delta - region.clientHeight / 2 + elRect.height / 2;
     region.scrollTo({
       top: Math.max(0, Math.min(top, region.scrollHeight - region.clientHeight)),
-      behavior: smooth ? "smooth" : "auto",
+      /* ═══ `prefers-reduced-motion` IS AN INSTANT JUMP, NOT A SHORTER ONE ═══
+         §2.7 is explicit. A smooth scroll across sixty messages is exactly the
+         vestibular case the media query exists for, and `behavior: "smooth"`
+         does not respect it on its own. */
+      behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto",
     });
-  }, []);
+  }, [scrollerOf]);
 
-  /** RE-ANCHORS WHEN THE ANCHOR CHANGES, which is the coalesced-flag case: picking
-   *  a different child flag swaps `conversation` and must move the excerpt without
-   *  the pane remounting. Keyed on the anchor id rather than on the object so a
-   *  re-render with equal data does not re-scroll under the reader. */
+  /** RE-ANCHORS WHEN THE ANCHOR CHANGES, which is the coalesced-flag case:
+   *  picking a different child flag swaps `conversation` and must move the
+   *  excerpt without the pane remounting.
+   *
+   *  ═══ KEYED ON THE ANCHOR ID ALONE, AND THE OBJECT IS DELIBERATELY NOT A
+   *  DEPENDENCY (addendum §2.7) ═══
+   *
+   *  `conversation` was in this list, and `buildConversation` runs in render —
+   *  so every render produced a new object and this effect re-anchored on it.
+   *  Harmless while the transcript was a fixed window. With upward loading it
+   *  is the bug §2.7 exists to prevent: MEASURED, loading an older page moved
+   *  the reader from `scrollTop 0` to `2265`, snapping them back to the
+   *  flagged message they had scrolled away from. The layout effect below was
+   *  holding the position correctly and this was overwriting it one tick
+   *  later.
+   *  So the anchor moves when the ANCHOR moves, and nothing else. */
+  const anchorId = conversation?.anchorId ?? null;
   useEffect(() => {
-    if (state !== "ready" || !conversation) return;
+    if (state !== "ready" || !anchorId) return;
     // The first anchor is instant — a smooth scroll on open reads as the panel
     // settling and draws the eye to the motion instead of the message.
     anchor(false);
@@ -327,14 +272,95 @@ export function ConversationExcerpt({
        mount already-wide and there would be nothing to transition FROM — the
        same reason the retiring band in the worklist waits a frame. Cleared after
        the transition so the ring does not sit permanently expanded. */
-    const id = conversation.anchorId;
-    const on = requestAnimationFrame(() => setBloomFor(id));
+    const on = requestAnimationFrame(() => setBloomFor(anchorId));
     const off = window.setTimeout(() => setBloomFor(null), 320);
     return () => {
       cancelAnimationFrame(on);
       window.clearTimeout(off);
     };
-  }, [state, conversation?.anchorId, anchor, conversation]);
+  }, [state, anchorId, anchor]);
+
+  /** ═══ IS THE FLAGGED MESSAGE ON SCREEN, AND WHICH WAY IS IT ═══
+   *
+   *  An `IntersectionObserver` rooted on the SCROLLER, not on the viewport:
+   *  the pane is itself inside the page, so a viewport-rooted observer would
+   *  report the anchor as visible whenever the pane was, which is always.
+   *
+   *  THE DIRECTION COMES FROM THE RECTS rather than from the observer's
+   *  `boundingClientRect` alone, because a reader who has scrolled past the
+   *  flag needs "above", and an observer entry says only "not intersecting". */
+  useEffect(() => {
+    const region = scrollerOf();
+    const el = anchorRef.current;
+    if (!region || !el || state !== "ready") return;
+    const read = () => {
+      const r = region.getBoundingClientRect();
+      const e = el.getBoundingClientRect();
+      /* FULLY OUT, not partially: a pill that appears as the last line of the
+         flagged message leaves the top of the viewport is a pill that
+         flickers while a reader reads. */
+      if (e.bottom < r.top) setAnchorOff("above");
+      else if (e.top > r.bottom) setAnchorOff("below");
+      else setAnchorOff(null);
+    };
+    read();
+    region.addEventListener("scroll", read, { passive: true });
+    window.addEventListener("resize", read);
+    return () => {
+      region.removeEventListener("scroll", read);
+      window.removeEventListener("resize", read);
+    };
+  }, [state, anchorId, scrollerOf]);
+
+  /** ═══ OLDER MESSAGES LOAD ON UPWARD SCROLL ═══
+   *  A threshold rather than the exact top, so the load starts before the
+   *  reader hits the edge and the transcript does not visibly stall. */
+  const pendingGrowth = useRef<number | null>(null);
+  useEffect(() => {
+    const region = scrollerOf();
+    if (!region || !onNeedOlder || state !== "ready") return;
+    const onScroll = () => {
+      if (region.scrollTop >= 120) return;
+      /* ═══ THE HEIGHT IS CAPTURED HERE, NOT IN THE LAYOUT EFFECT ═══
+         Measuring "before" from the previous render is what the first
+         implementation did, and it did not work: this component's layout
+         effect runs BEFORE its host's ref is attached — a parent's ref
+         attaches after a child's effects — so the first measurement it ever
+         took was already the post-growth height and the correction was
+         skipped. MEASURED: the watched line moved 1400px when the reader had
+         scrolled 160.
+         Capturing at the moment of the REQUEST ties the number to the event
+         instead of to render order. */
+      pendingGrowth.current = region.scrollHeight;
+      onNeedOlder();
+    };
+    region.addEventListener("scroll", onScroll, { passive: true });
+    return () => region.removeEventListener("scroll", onScroll);
+  }, [scrollerOf, onNeedOlder, state]);
+
+  /** ═══ SCROLL ANCHORING, AND IT IS MANDATORY (§2.7) ═══
+   *
+   *  Prepending messages grows `scrollHeight` above the reader's position, so
+   *  without this the transcript jumps by exactly the height of what loaded —
+   *  on the surface where the reader is mid-sentence in a teen's disclosure.
+   *
+   *  `useLayoutEffect`, NOT `useEffect`: the correction has to happen in the
+   *  same frame as the DOM growth, or the jump is painted and then undone,
+   *  which is worse than the jump.
+   *
+   *  MEASURED BY DELTA rather than by re-anchoring on the flagged message:
+   *  re-anchoring would ALSO move a reader who had deliberately scrolled away
+   *  from it, which is the opposite of anchoring. */
+  const count = conversation?.messages.length ?? 0;
+  useLayoutEffect(() => {
+    const region = scrollerOf();
+    const before = pendingGrowth.current;
+    if (!region || before == null) return;
+    pendingGrowth.current = null;
+    const grew = region.scrollHeight - before;
+    if (grew <= 0) return;
+    region.scrollTop += grew;
+  }, [count, scrollerOf]);
 
   const regionLabel =
     label ?? `Conversation excerpt, flagged message from ${teenName}`;
@@ -371,20 +397,34 @@ export function ConversationExcerpt({
 
   if (!conversation) return null;
 
-  /** THE WINDOW. Centred on the anchor rather than on the array's middle — the
-   *  flagged message is the reason the block is here. */
+  /** ═══ THE WINDOW, AND IT IS GONE WHERE THE TRANSCRIPT SCROLLS (§2.7) ═══
+   *
+   *  It clipped to a few turns either side of the anchor, because the
+   *  Monitoring pane could not afford a scroll region and a full transcript
+   *  rendered inline would have pushed the disposition off screen. The
+   *  transcript IS the pane's scroll region now, so there is nothing to clip
+   *  for: `hostRef` present means the reader scrolls, and clipping would make
+   *  "continuous scroll" a window with a scrollbar on it.
+   *
+   *  THE WINDOW SURVIVES FOR THE THIRD CASE — no scroll and no host, which is
+   *  a transcript rendered inline somewhere that cannot scroll at all. */
+  const windowed = !scroll && !hostRef;
   const anchorIdx = conversation.messages.findIndex((m) => m.id === conversation.anchorId);
-  const from = scroll ? 0 : Math.max(0, anchorIdx - windowTurns);
-  const to = scroll ? conversation.messages.length : Math.min(conversation.messages.length, anchorIdx + windowTurns + 1);
+  const from = windowed ? Math.max(0, anchorIdx - windowTurns) : 0;
+  const to = windowed
+    ? Math.min(conversation.messages.length, anchorIdx + windowTurns + 1)
+    : conversation.messages.length;
   const shown = conversation.messages.slice(from, to);
   /* THE EDGE MARKER IS TRUE IN ONE MORE CASE NOW: the fixture was truncated, OR
      the window cut into it. Both mean "there is more above this". */
-  const cutAbove = conversation.truncatedStart || from > 0;
+  /* THE MARKER RENDERS AT BOTH EDGES-OF-MEANING: more is coming, or this is
+     the beginning. Only a windowed render with nothing cut shows nothing. */
+  const cutAbove = !windowed || conversation.truncatedStart || from > 0;
 
   return (
     <div>
       <div
-        ref={scrollRef}
+        ref={ownRef}
         // FOCUSABLE AND LABELLED. A scroll region that keyboard users cannot
         // reach is the `scrollable-region-focusable` failure; `tabIndex={0}` plus
         // a group role and a name is what makes it operable and announced.
@@ -416,14 +456,22 @@ export function ConversationExcerpt({
             aria-hidden={false}
           >
             <span className="h-px flex-1 bg-[var(--border-subtle)]" aria-hidden />
-            {/* TODO-COPY */}
-            <span className="shrink-0">Earlier messages not shown</span>
+            {/* ═══ IT SAYS WHICH EDGE THIS IS (§2.7) ═══
+                TODO-COPY. "Earlier messages not shown" was true of a window
+                and is a lie at the beginning of a conversation, where there
+                is nothing earlier to show. With upward loading the marker has
+                two meanings and has to pick one. */}
+            <span className="shrink-0">
+              {conversation.truncatedStart
+                ? "Loading earlier messages as you scroll"
+                : "The start of this conversation"}
+            </span>
             <span className="h-px flex-1 bg-[var(--border-subtle)]" aria-hidden />
           </p>
         )}
         <ul className="space-y-4">
           {shown.map((m, i) => (
-            <Bubble
+            <TranscriptBubble
               key={m.id}
               m={m}
               header={needsHeader(m, shown[i - 1])}
@@ -434,31 +482,63 @@ export function ConversationExcerpt({
         </ul>
       </div>
 
-      {/* ═══ ONE LINE, ONCE ═══
-          Left is the teen, right is the mentor. The alignment and tint carry it
-          after the first read, and the names are on the bubbles regardless — so
-          this is an onboarding line, not a legend, and it goes away when it has
-          done its job. Sits BELOW the region rather than inside it, so dismissing
-          it cannot change the transcript's scroll position. */}
-      {captionOpen && (
-        <p className="mt-2 flex items-center gap-2 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-          {/* TODO-COPY */}
-          <span className="min-w-0">
-            {teenName} on the left, mentor on the right.
-          </span>
+      {/* ═══ RETURN TO THE FLAG (§2.7) ═══
+          ONLY WHEN IT IS OFF SCREEN, and it names the direction: a reader who
+          has scrolled up forty messages and one who has scrolled past the flag
+          need opposite moves, and an unlabelled "return" would be a coin flip.
+          STICKY, NOT FIXED. Fixed would position against the viewport and sit
+          over whatever the page has there; sticky keeps it inside the
+          transcript's own flow, above the footer rather than on it. It is also
+          why it cannot compete with the disposition: the footer is a sibling
+          BELOW this, so the pill can never overlap it.
+          LOW WEIGHT, and dismissible by doing the thing — pressing it returns
+          to the flag, which makes the anchor visible, which hides the pill. */}
+      {anchorOff && (
+        <div className="pointer-events-none sticky bottom-2 z-10 flex justify-center">
           <button
             type="button"
-            onClick={() => setCaptionOpen(false)}
+            data-return-to-flag={anchorOff}
+            onClick={() => {
+              anchor(true);
+              /* RE-BLOOM ON RETURN. The highlight is what says "this is the
+                 line" — the same one-shot ring the excerpt opens with, for
+                 the same reason: a reader who has just been moved needs to
+                 know where they were put. */
+              const id = conversation.anchorId;
+              requestAnimationFrame(() => setBloomFor(id));
+              window.setTimeout(() => setBloomFor(null), 320);
+            }}
             className={cn(
-              "shrink-0 rounded-sm font-semibold text-[var(--text-secondary)] underline decoration-[color:var(--border-contour)] underline-offset-2 hover:text-[var(--text-primary)]",
+              "pointer-events-auto inline-flex min-h-9 items-center gap-1.5 rounded-full px-3",
+              "border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
+              "text-[12.5px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-tile)]",
+              "hover:text-[var(--text-primary)]",
               RING
             )}
           >
-            {/* TODO-COPY */}
-            Hide
+            {anchorOff === "above" ? (
+              <ArrowUp className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+              <ArrowDown className="size-3.5 shrink-0" aria-hidden />
+            )}
+            {/* TODO-COPY. The direction is in the words as well as the glyph. */}
+            Flagged message {anchorOff}
           </button>
-        </p>
+        </div>
       )}
+
+      {/* ═══ THE ROLE CAPTION IS GONE (addendum §3.6) ═══
+          It read "{teen} on the left, mentor on the right." with a Hide link,
+          and its own note called it an onboarding line rather than a legend.
+          §3.6's test is whether the transcript itself can carry the role
+          labelling, and it can: every cluster prints its sender's NAME above
+          the bubble — that is what `needsHeader` is for — so the teen's name
+          and the mentor's are both on screen, attached to their own words,
+          before a reader could need a sentence explaining which side is which.
+          A caption that repeats what the content already says is the
+          explanatory text §3.6 calls a design smell, and the dismiss control
+          was the tell: a legend nobody can dismiss is a legend; one that
+          invites dismissal knows it is in the way. */}
 
       {/* PINNED BELOW, ALWAYS. The excerpt is a window; the way out of it is not
           something a reader should have to scroll to find. */}

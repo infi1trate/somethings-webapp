@@ -1,26 +1,32 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// APPEARANCE — THE CONTROL IS GONE, THE SECTION IS NOT
+// APPEARANCE — THE THEME IS BACK, AND THE CONTROL IS NOT HERE
 //
-// This was a canonical Light / Dark / System segmented control, and it worked.
-// Light is forced now; `lib/use-appearance.ts` carries the reasoning, which in
-// one line is that a `"system"` default shipped an inverted, never-audited
-// clinical surface to every supervisor on a dark OS.
+// This was a Light / Dark / System segmented control. It became a sentence
+// saying light was the only theme. Both themes are available again
+// (addendum §2.5) and this section still holds no control, which is the
+// deliberate part: §2.5 asks for ONE toggle, and one toggle means one place.
 //
-// ═══ WHY THE SECTION SURVIVES THE CONTROL ═══
+// ═══ WHY THE RAIL AND NOT HERE ═══
+//
+// The rail is on screen on every route; Settings is four clicks away and a
+// place a reader goes on purpose. A preference that is flipped and immediately
+// judged — which is what a theme is — belongs where the judging happens.
+//
+// ═══ AND WHY THE SECTION SURVIVES ANYWAY ═══
 //
 // Two ways to remove a control: take the tab with it, or leave the tab and say
-// what happened. Deleting the tab is the silent version — somebody who has used
-// the toggle goes looking for it, finds the section missing, and learns nothing.
-// A sentence is not a control, and it is where they will look.
+// where the control went. Deleting it is the silent version — somebody who used
+// the toggle goes looking, finds the section missing, and learns nothing. This
+// is where they look, so this is where the pointer goes.
 //
-// IT IS NOT AN EMPTY STATE EITHER. "Being set up" and "Coming soon" both promise
-// a thing that is arriving. This is a decision that has been made, so it reads
-// as one.
+// SYSTEM IS GONE AND STAYS GONE, and the sentence says so rather than leaving
+// its absence to be discovered: a supervisor whose OS flips to dark at sunset
+// must not have a clinical surface change underneath them mid-shift.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { Sun } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 
 export function AppearanceSection() {
   return (
@@ -29,19 +35,23 @@ export function AppearanceSection() {
         className="flex items-center gap-2 text-[var(--text-primary)]"
         style={{ font: "var(--type-row-value)" }}
       >
-        <Sun className="size-4 shrink-0 text-[var(--text-secondary)]" aria-hidden />
+        <PanelLeft
+          className="size-4 shrink-0 text-[var(--text-secondary)]"
+          aria-hidden
+        />
         {/* NEEDS-COPY-NICOLE */}
-        Light is the only theme.
+        The theme toggle is at the bottom of the sidebar.
       </p>
       <p
         className="mt-1.5 text-[var(--text-secondary)]"
         style={{ font: "var(--type-row-label)" }}
       >
-        {/* NEEDS-COPY-NICOLE. It says WHY rather than only what, because the
-            reader of this sentence is somebody who wanted the dark theme and
-            "not available" alone reads as an oversight. */}
-        The supervisor surfaces are contrast-tested in light only, and a theme
-        nobody has audited is not one to hand out by default.
+        {/* NEEDS-COPY-NICOLE. It states the one real constraint rather than
+            only the location, because the missing third option is the thing a
+            returning reader will notice. */}
+        Light and dark, and your choice is remembered. There is no “match my
+        system” option: a clinical surface should not change underneath you
+        because the sun went down.
       </p>
     </div>
   );

@@ -52,19 +52,25 @@ export const metadata: Metadata = {
 // a second symptom of a mismatch somewhere else in the tree, and the fix is
 // there rather than here.
 //
-// ═══ THE PRE-HYDRATION THEME SCRIPT IS GONE (supervisor IA restructure) ═══
+// ═══ THE SCRIPT IS BACK, AND IT NO LONGER ASKS THE OS (addendum §2.5, §3.5) ═══
 //
-// It read `localStorage["somethings.theme"]`, defaulted to `"system"`, and
-// toggled `.dark` on `<html>` before React hydrated. That default is what
-// handed an inverted clinical surface to every supervisor on a dark OS, so the
-// script's whole job is a decision that has been reversed — see
-// `lib/use-appearance.ts` for the reasoning and for what was deliberately left
-// standing.
+// The version that was removed read `localStorage["somethings.theme"]`,
+// defaulted to `"system"` and consulted `prefers-color-scheme`. That default is
+// what handed an inverted clinical surface to every supervisor on a dark OS.
 //
-// `suppressHydrationWarning` STAYS on `<html>`. It is harmless with no script
-// mutating the class, and `useAppearance`'s effect still strips a `.dark` that a
-// cached document may carry — which is a client-only write and exactly the kind
-// of thing the attribute exists for.
+// THIS ONE READS THE STORED CHOICE AND NOTHING ELSE. No media query, no
+// fallback to the OS, and anything that is not exactly `"dark"` — including a
+// stale `"system"` written by the old build — resolves to light. The only way
+// to a dark clinical surface is a person having pressed the toggle.
+//
+// IT MIRRORS `themeFromStored` IN `lib/use-appearance.ts`, which is a real
+// duplication and worth naming: this runs before any module loads, so it cannot
+// import that function. The two rules are one line each and disagree loudly if
+// they ever drift — the page would paint one theme and hydrate into the other.
+//
+// `suppressHydrationWarning` STAYS on `<html>`: the script mutates the class
+// before React hydrates, which is exactly what the attribute is for.
+const THEME_SCRIPT = `try{var t=localStorage.getItem("somethings.theme");if(t==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -74,12 +80,15 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      // The script above mutates <html>'s class before React hydrates, which
-      // `useAppearance`'s effect strips a `.dark` a cached document may carry,
-      // which is a client-only write on <html>.
+      // The script below mutates <html>'s class before React hydrates.
       suppressHydrationWarning
       className={`${lausanne.variable} ${avantt.variable} h-full antialiased`}
     >
+      <head>
+        {/* RAW AND SYNCHRONOUS, in <head> — see the note above on why
+            next/script's `beforeInteractive` is the wrong tool here. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       {/* THE BAR'S HEIGHT AS BOTTOM PADDING, so the strip does NOT overlay the
           product. Three floating dev docks used to sit on top of the UI at
           different corners, each dodging the last; one bar with the page padded

@@ -100,7 +100,8 @@ export function keyboardIsBusy(target: EventTarget | null): boolean {
 }
 
 export function useTaskShortcuts({
-  onTab,
+  onDigit,
+  onEscalate,
   onFocusPane,
   onAnswer,
   onEnter,
@@ -108,12 +109,16 @@ export function useTaskShortcuts({
   onUndo,
   onHelp,
 }: {
-  /** OPTIONAL SINCE arch-A. Tasks is single-domain and has no tab row, so it
-   *  passes nothing and `1`–`4` are inert there. Kept on the hook rather than
-   *  deleted: Phase B's Monitoring has tiers, and this is the binding it will
-   *  want. A hook that silently ignored an absent handler would be worse — the
-   *  guard below is explicit. */
-  onTab?: (index: number) => void;
+  /** ═══ `1`–`4`, AND IT WAS `onTab` (addendum §3.3) ═══
+   *  It was named for the domain tab row, which arch-A removed, and its note
+   *  reserved it for "Phase B's Monitoring has tiers" — a taxonomy Phase 4
+   *  deleted. So the binding has been waiting for a meaning since two phases
+   *  ago, and §3.3 gives it one: on Monitoring the digits select AND commit a
+   *  disposition, which is what keeps the keyboard path one keystroke after
+   *  `Mark reviewed` made the mouse path two.
+   *  STILL OPTIONAL, and Tasks still passes nothing, so the digits are inert
+   *  there rather than doing something a reader did not ask for. */
+  onDigit?: (index: number) => void;
   onFocusPane: () => void;
   /** "Was this flagged correctly?" — the footer's two buttons, as keys. A no-op
    *  when the selected item is not a flag. */
@@ -127,6 +132,11 @@ export function useTaskShortcuts({
    *  the key does what it does for every other domain — moves the keyboard into
    *  the pane, where the review is. */
   onEnter: () => boolean;
+  /** ═══ `e` — THE ESCALATION PATH, AS A KEY (addendum §2.8, §3.3) ═══
+   *  `Escalate now` is a button rather than a disposition value now, so the
+   *  digits cannot reach it. Optional, and absent on Tasks, where there is
+   *  nothing to escalate. */
+  onEscalate?: () => void;
   /** `⌘/Ctrl+Enter` — submit the open review. Runs the same three-field gate the
    *  footer's button runs, so a keyboard commit cannot skip it. */
   onSubmit?: () => void;
@@ -155,9 +165,19 @@ export function useTaskShortcuts({
       if (keyboardIsBusy(e.target)) return;
 
       if (e.key >= "1" && e.key <= "4") {
-        if (!onTab) return;
+        if (!onDigit) return;
         e.preventDefault();
-        onTab(Number(e.key) - 1);
+        onDigit(Number(e.key) - 1);
+        return;
+      }
+      /* ═══ `e`, AND IT IS GUARDED BY `keyboardIsBusy` LIKE `y`/`n` ═══
+         The commonest letter in English opening an escalation record is
+         exactly the hazard that comment describes, and the same guard covers
+         it: a supervisor typing in any field never reaches this. */
+      if (e.key === "e") {
+        if (!onEscalate) return;
+        e.preventDefault();
+        onEscalate();
         return;
       }
       if (e.key === "u") {
@@ -193,7 +213,7 @@ export function useTaskShortcuts({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onTab, onFocusPane, onAnswer, onEnter, onSubmit, onUndo, onHelp]);
+  }, [onDigit, onEscalate, onFocusPane, onAnswer, onEnter, onSubmit, onUndo, onHelp]);
 }
 
 export function ShortcutSheet({

@@ -11,7 +11,7 @@
 // pattern drifts — and RC-1 has to be fixed once, not twice.
 //
 // THE SHARED-SIDEBAR PRINCIPLE IS PRESERVED, and it is an explicit existing
-// decision (`admin-shell.tsx:3–9`): identical styling across roles, only the
+// decision (now stated in `app-chrome.tsx`): identical styling across roles, only the
 // item set and the `navLabel` change. This component is what makes that
 // structural rather than a convention two files happen to follow.
 //
@@ -53,6 +53,7 @@ export function AppShell({
   railItems,
   railGroups,
   railFooter,
+  railThemeToggle,
   barItems,
   navLabel,
   badges,
@@ -83,6 +84,12 @@ export function AppShell({
   /** Pinned below the grouped rail's nav. Ignored by the icon rail, which has
    *  no room for it. */
   railFooter?: React.ReactNode;
+  /** ═══ THE THEME TOGGLE, FOR WHICHEVER RAIL IS RENDERING ═══
+   *  The grouped rail takes it inside `railFooter`, as a labelled row; the
+   *  icon rail has no footer and takes it here, as a tile in its utility
+   *  cluster. One control, composed by the shell, so neither rail has to know
+   *  what a theme is. */
+  railThemeToggle?: React.ReactNode;
   barItems: SidebarItemDef[];
   navLabel: string;
   badges?: Record<string, number>;
@@ -183,6 +190,7 @@ export function AppShell({
       ) : (
         <SettingsSidebar
           activeId={activeId}
+          themeToggle={railThemeToggle}
           items={railItems}
           navLabel={navLabel}
           avatarInitial={avatarInitial}

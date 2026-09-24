@@ -52,11 +52,10 @@ import {
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
-import { useMinuteTick } from "@/lib/use-clock";
 import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
-import { deadlineBandsFor, deadlineFactFor } from "@/lib/tasks/deadline-buckets";
+import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
-import { proposalPreview } from "@/lib/record/proposal-kind";
+import { ProposalCodes, proposalSpoken } from "@/components/record/proposal-codes";
 import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
   deadlineLabel,
@@ -232,9 +231,6 @@ function Row({
    *  written, dimmed, with the state in WORDS beside the name — never opacity
    *  alone, which says nothing to a screen reader and nothing in high contrast. */
   resolving = false,
-  /** A ticking timestamp, minute-granular, or 0 before mount. Only the response
-   *  bucket reads it. */
-  liveNow = 0,
   group,
   now,
   selected,
@@ -264,7 +260,12 @@ function Row({
   onToggle?: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
   resolving?: boolean;
-  liveNow?: number;
+  /* ═══ `liveNow` IS GONE FROM THE ROW (addendum §2.9) ═══
+     A ticking, minute-granular timestamp, read only by the response bucket's
+     five-minute countdown — which is a DEADLINE, and this list has none: Care
+     Reviews is its only surface and §2.9 retired the concept there. Every
+     figure on a row now is an age from the frozen mount clock, which does not
+     need to tick to stay true across a shift. */
 }) {
   const item = paneItemFor(entry);
   const isGroup = entry.kind === "group";
@@ -298,7 +299,13 @@ function Row({
    *  does not hold a vocabulary. */
   const disposition =
     item.payload.kind === "billing"
-      ? proposalPreview(item.payload.current?.code ?? null, item.payload.recommended.code)
+      ? /* ═══ THE SPOKEN FORM, FOR THE ACCESSIBLE NAME (addendum §2.9) ═══
+           The row DRAWS lozenges now. This string is what a screen reader gets
+           instead, and it states the direction in words because the arrow
+           between the lozenges is `aria-hidden` — "F33.1 → F41.1" announced as
+           two codes with no relation between them is worse than the sentence
+           it replaced. */
+        proposalSpoken(item.payload.current?.code ?? null, item.payload.recommended.code)
       : escalationStateLine(item);
   /** TODO-COPY. "3 clinical · 2 routine" — the tiers a teen row stands for, in
    *  the band order, and only the tiers actually present. Null on a flag row and
@@ -367,16 +374,17 @@ function Row({
          `deadlineLabel`'s uniform "due in {n}" stays for Monitoring's imminent
          flags, which have no bucket above them to defer to. */
       taskLed
-      ? deadlineFactFor(
-          item.slaDeadline,
-          /* THE LIVE CLOCK, FOR THIS BUCKET ONLY. Everything else on the page
-             reads the frozen mount clock — see the page's own note on why — and a
-             response task is the one row whose number is useless if it does not
-             move. `liveNow` falls back to the frozen value before mount. */
-          isResponse && liveNow > 0 ? liveNow : now,
-          elapsedLabel,
-          isResponse ? { openedAt: item.openedAt } : undefined
-        )
+      ? /* ═══ AGE, NOT A DEADLINE (addendum §2.9) ═══
+           It was `deadlineFactFor` — "due 6:48 PM", "overdue by 9h" — under a
+           bucket header that named the day. §2.9 retires the deadline concept
+           from this destination, and with `TASK_SLA_MS` null for both billing
+           types that call now returns the literal "no review deadline" on
+           every row: a label stating the absence of a thing the surface no
+           longer has.
+           AGE IS WHAT IS LEFT, and it is also what the list is ORDERED by —
+           see `sla.ts` on why oldest-first fell out of the nulls. A column of
+           figures that explains the sort is what this row can honestly carry. */
+        `${elapsedLabel(ageAt, now)}${openSuffix}`
       : emphasis === "deadline"
         ? deadlineLabel(item.slaDeadline, now, elapsedLabel)
         : `${elapsedLabel(ageAt, now)}${openSuffix}`;
@@ -603,22 +611,14 @@ function Row({
           >
             {item.teenDisplayName}
           </span>
-          {taskLed && (
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-1.5 py-px text-[11px] leading-[15px]",
-                /* THE CHIP'S OWN GROUND IS THE FILL, not `--surface-s1`: a pale
-                   chip on the escalation red would be a second ground inside a
-                   saturated row, which reads as a badge rather than a label. A
-                   hairline in the fill's own ink instead. */
-                isResponse
-                  ? "border border-[color:var(--task-respond-fg)] text-[var(--task-respond-fg)]"
-                  : "bg-[var(--surface-s1)] text-[var(--text-secondary)]"
-              )}
-            >
-              {TASK_KIND_LABEL[item.taskType]}
-            </span>
-          )}
+          {/* ═══ THE ITEM-TYPE CHIP IS GONE (addendum §2.9) ═══
+              It read "Billing code review" on every row of a destination where
+              every row is one — the same defect arch-F removed from the
+              emphasis channel, in the label channel: the strongest-positioned
+              element on nineteen rows carrying no information.
+              IT SURVIVES IN THE ACCESSIBLE NAME for exactly one reason: a
+              screen-reader user arriving mid-list has no page title above
+              them, so the row still says what kind of work it is once. */}
         </span>
         {/* ═══ LINE 2 — THE CAPTION ═══
             `--text-secondary`, NOT `--text-muted` (gap row 294). These rows sit
@@ -654,11 +654,24 @@ function Row({
                reason: they do not perform a billing review, are not accountable
                for it, and cannot change the decision. */
             <>
-              {resolving
-                ? /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
-                     is a state nobody can read (SC 1.4.1). */
-                  "Closing…"
-                : (disposition ?? TASK_KIND_LABEL[item.taskType])}
+              {resolving ? (
+                /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
+                   is a state nobody can read (SC 1.4.1). */
+                "Closing…"
+              ) : item.payload.kind === "billing" ? (
+                /* ═══ THE CODES AS LOZENGES (addendum §2.9) ═══
+                   The same component the detail card uses. A code is an
+                   identifier a reviewer matches against a record, and the
+                   sentence form — "Change proposed → F41.1" — buried the code
+                   being changed FROM at the end of a run of prose. */
+                <ProposalCodes
+                  currentCode={item.payload.current?.code ?? null}
+                  recommendedCode={item.payload.recommended.code}
+                  compact
+                />
+              ) : (
+                (disposition ?? TASK_KIND_LABEL[item.taskType])
+              )}
             </>
           ) : (
             /* TODO-COPY. THE MENTOR'S FIRST NAME ONLY ON A TEEN ROW. A coalesced
@@ -953,7 +966,7 @@ export function Worklist({
    *  the sections, the offsets, the sticky headers, the keyboard order — is
    *  identical either way, and forking the list to change what a header says
    *  would have been two virtualizers to keep in step. */
-  grouping?: "tier" | "deadline";
+  grouping?: "tier" | "deadline" | "none";
   /** ═══ THE ROW'S ANATOMY — TWO AXES, NOT ONE (arch-E) ═══
    *
    *  `"subject"` is arch-D's row: identity disc, name on line 1, `to {mentor}`
@@ -1015,13 +1028,31 @@ export function Worklist({
    *  live escalation's row. Everything else on this page measures from the
    *  frozen mount clock, deliberately — see `tasks-page.tsx`. A response task's
    *  number is the one that is useless if it does not move. */
-  const liveNow = useMinuteTick();
 
+  /** ═══ AND "none" IS A THIRD VALUE NOW (addendum §2.9) ═══
+   *  Care Reviews has no deadline to group by and one task type to group by,
+   *  so it groups by nothing: one unlabelled band holding every row, in the
+   *  comparator's order, which with no SLA is oldest-first.
+   *  ONE BAND RATHER THAN A SECOND CODE PATH — every offset, sticky header,
+   *  keyboard sequence and virtualiser measurement below reads `bands`, and a
+   *  branch that skipped them would be a second list to keep in step. The
+   *  header is suppressed below, by a rule that already existed for exactly
+   *  this: a single band's header names the whole list. */
   const bands = useMemo(
-    () => (grouping === "deadline" ? deadlineBandsFor(entries, now) : bandsFor(entries)),
+    () =>
+      grouping === "none"
+        ? [{ id: "all", label: "", entries, taskCount: entries.length }]
+        : grouping === "deadline"
+          ? deadlineBandsFor(entries, now)
+          : bandsFor(entries),
     [entries, grouping, now]
   );
-  const showBands = bandsAreMeaningful(bands);
+  /* ═══ A SINGLE UNLABELLED BAND DRAWS NO HEADER (addendum §2.9) ═══
+     `bandsAreMeaningful` answers "is there anything to group"; this adds the
+     case §2.9 creates — one band whose label is empty, whose header would
+     restate the page title. Same rule that removed the one-tab row in arch-A
+     and the subject chips in §2.1. */
+  const showBands = bandsAreMeaningful(bands) && bands.some((b) => b.label !== "");
 
   /* ═══ SECTIONS: THE RENDER ORDER, AND THE KEYBOARD'S ORDER ═══
      Both come from here, and that is deliberate. Bands bucket by first
@@ -1317,7 +1348,7 @@ export function Worklist({
       <div className={cn(frame, "h-full")} ref={scrollerRef}>
         {headersReady ? (
           bands.map((band) => (
-            <div key={band.id} role="group" aria-label={bandHeaderLabel(band)}>
+            <div key={band.id} role="group" aria-label={bandHeaderLabel(band, subjectLabel)}>
               <WorklistGroupHeader label={band.label} count={band.taskCount} />
               <ListSkeleton rows={Math.min(band.entries.length, 6)} />
             </div>
@@ -1419,7 +1450,7 @@ export function Worklist({
                count ride on the group's label instead, which is also how a
                screen reader announces it — "Imminent — 23, group". */
             role="group"
-            aria-label={bandHeaderLabel(section.band)}
+            aria-label={bandHeaderLabel(section.band, subjectLabel)}
             data-bucket={section.band.id}
             className={cn(
               /* STICKY ABOVE EVERY OTHER BAND. `top-0` with a higher z than the
@@ -1454,7 +1485,6 @@ export function Worklist({
               <Row
                 key={v.id}
                 resolving={resolvingIds?.has(v.item.id) ?? false}
-                liveNow={liveNow}
                 entry={v.entry}
                 variant={rowVariant}
                 /* ═══ THE ROW SAYS WHICH GROUP IT IS IN, BECAUSE IT NO LONGER

@@ -88,8 +88,6 @@ const BAND_CONTROLS = {
 const DESTINATIONS = new Set([
   "/app/escalations",
   "/app/risk-flags",
-  "/app/mentor-practice",
-  "/app/coverage",
   "/app/care-reviews",
   "/app/activity",
 ]);
@@ -159,7 +157,10 @@ console.log("\n§4 · nothing on Today changes a record\n");
      file while the page was writing to `careReviews` on every mount.
      So the baseline is taken on a neighbouring route — Today has never mounted in
      this context when it is read — and Today is then navigated to. */
-  const { context, page } = await open("mirror-store", "/app/coverage");
+  /* THE NEIGHBOUR WAS `/app/coverage` until it became Chat (addendum §2.2).
+     Any route that is not Today works; what matters is that Today has not
+     mounted in this context when the baseline is read. */
+  const { context, page } = await open("mirror-store", "/app/care-reviews");
   const before = await readStore(page);
   /* THE INPUT IS ASSERTED FIRST. Without this, a run where the store never
      persisted would compare null to null and report a clean pass. */
@@ -330,11 +331,14 @@ let cards = [];
     }))
   );
   check(
-    "cards.five",
+    "cards.three",
     "one card per destination, in the rail's order",
-    cards.length === 5 &&
-      cards.map((c) => c.id).join(",") ===
-        "escalations,risk-flags,mentor-practice,coverage,care-reviews",
+    /* WAS FIVE. Mentor Practice and Coverage are gone (§2.1, §2.2), and the
+       mirror rule is what forces this number down with them: a card for a
+       destination that does not exist is the mirror claiming something the
+       rail cannot open. */
+    cards.length === 3 &&
+      cards.map((c) => c.id).join(",") === "escalations,risk-flags,care-reviews",
     cards.map((c) => c.id).join(" > ") || "none"
   );
   check(
@@ -438,41 +442,43 @@ console.log("\n§4 · the mirror agrees with the destination\n");
   check(
     "agree.cards-read",
     "the cards were read off Today, so the comparisons below mean something",
-    Object.keys(byId).length === 5,
+    Object.keys(byId).length === 3,
     `${Object.keys(byId).length} card(s)`
   );
 
-  /* ── COVERAGE · the strongest form, because both sides use `coverageLine` ── */
-  {
-    const { context, page } = await open("mirror-coverage", "/app/coverage");
-    const meter = await page.evaluate(() => {
-      const m = document.querySelector("main")?.innerText ?? "";
-      return m.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? null;
-    });
-    const onToday =
-      byId.coverage?.text.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? null;
-    check(
-      "agree.coverage",
-      "Coverage's own sentence appears verbatim on the card",
-      meter != null && onToday != null && meter === onToday,
-      `destination "${meter}" · today "${onToday}"`
-    );
-    await context.close();
-  }
+  /* ── COVERAGE's AGREEMENT CHECK IS GONE (addendum §2.2) ──────────────────
+     It was the strongest form in this file: both sides called `coverageLine`,
+     so the assertion was that one sentence appeared verbatim in two places
+     rather than that two numbers matched. The destination is Chat now and
+     computes no fraction, so there is no sentence to agree with.
+     WHAT REPLACES THE FORM, not the subject: §2.11's progress track is the next
+     figure that will exist on two surfaces, and it should be checked this way
+     rather than by comparing digits. */
 
   /* ── RISK FLAGS · the group header's count against the card's figure ────── */
   {
     const { context, page } = await open("mirror-flags", "/app/risk-flags");
+    /* ═══ THE FLAGS THE ROWS STAND FOR, NOT THE ROWS (addendum §2.1, §3.1) ═══
+       It read the group header's count ("Teen safety — 9"), which §2.1
+       removed. Counting the ROWS replaced it and was wrong within one phase:
+       §3.1 made a row a CONVERSATION, so the destination showed 60 rows while
+       the card said 123 flags — two true numbers in different units, and this
+       check failed on a disagreement that was not one.
+       THE UNIT HAS TO MATCH THE CARD'S, and the card counts open flags. Each
+       row carries its own set size, so the destination's flag count is
+       readable without a header to parse. */
     const dest = await page.evaluate(() => {
-      const h = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
-        .map((e) => e.innerText || "")
-        .find((t) => / — \d/.test(t));
-      return h ? Number(h.match(/ — (\d+)/)?.[1]) : null;
+      const rows = [...document.querySelectorAll('[role="treeitem"]')];
+      if (rows.length === 0) return null;
+      return rows.reduce(
+        (n, r) => n + Number(r.getAttribute("data-flag-count") ?? 1),
+        0
+      );
     });
     const onToday = Number(byId["risk-flags"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
     check(
       "agree.risk-flags",
-      "Risk Flags' queue count equals the card's",
+      "Risk Flags' open flag count equals the card's",
       dest != null && dest === onToday,
       `destination ${dest} · today ${onToday}`
     );
@@ -482,9 +488,16 @@ console.log("\n§4 · the mirror agrees with the destination\n");
   /* ── CARE REVIEWS · the header's open count ─────────────────────────────── */
   {
     const { context, page } = await open("mirror-care", "/app/care-reviews");
+    /* ═══ THE METRIC PAIR, NOT A SENTENCE (addendum §2.10) ═══
+       It parsed "N open" out of the header's three-segment line. That line is
+       gone — the figure is a metric with `data-metric-value="open"` — and
+       reading the element rather than a regex over prose is also what stops
+       this check from matching a different "N open" elsewhere in the header. */
     const dest = await page.evaluate(() => {
-      const t = document.querySelector('[data-anno-ref="tasks-header"]')?.innerText ?? "";
-      return Number(t.match(/(\d+) open/)?.[1] ?? NaN);
+      const el = [...document.querySelectorAll("[data-metric-value]")].find(
+        (e) => e.getAttribute("data-metric-value") === "open"
+      );
+      return Number((el?.textContent ?? "").trim());
     });
     const onToday = Number(byId["care-reviews"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
     check(
@@ -508,28 +521,42 @@ console.log("\n§4 · the mirror agrees with the destination\n");
      strict: it is what fails if either surface ever recomputes it locally. */
   {
     const { context, page } = await open("mirror-esc", "/app/escalations");
+    /* ═══ RETARGETED ONTO THE METRIC PAIR (addendum §2.10) ═══
+       The destination's header stated obligations as a sentence — "2
+       escalations awaiting acknowledgement · 3 close-out items overdue" — and
+       this parsed it. §2.10 replaced that with a purpose and two metrics, and
+       changed WHAT is counted: `active` records rather than unacknowledged
+       ones, and close-out items that are OPEN rather than only overdue (which
+       is the defect §2.10 sent us here to fix — "No escalation clocks
+       outstanding" above four running clocks).
+       THE CARD'S FIGURE WAS ALREADY `active`, so the two now agree on the same
+       word as well as the same number — which is what this check has always
+       been for. */
     const dest = await page.evaluate(() => {
-      const t = document.querySelector('[data-anno-ref="monitoring-header"]')?.innerText ?? "";
+      const metric = (label) => {
+        const el = [...document.querySelectorAll("[data-metric-value]")].find(
+          (e) => e.getAttribute("data-metric-value") === label
+        );
+        return el ? Number((el.textContent ?? "").trim()) : null;
+      };
       return {
-        ack: Number(t.match(/(\d+) escalations? awaiting acknowledgement/)?.[1] ?? 0),
-        closeOut: Number(t.match(/(\d+) close-out items? overdue/)?.[1] ?? 0),
+        active: metric("active"),
+        closeOut: metric("close-out items open"),
         rows: document.querySelectorAll('[data-anno-ref^="escalation-row:"]').length,
       };
     });
     const onToday = {
+      /* THE DESTINATION'S OWN WORD. A regex for wording the card does not use
+         is how this check would silently start reading 0 off a card that says
+         2 — which is the failure mode it was written after. */
       active: Number(byId.escalations?.text.match(/(\d+) active/)?.[1] ?? 0),
-      /* THE DESTINATION'S OWN PHRASE. A regex for the card's old wording is how
-         this check would silently start reading 0 off a card that says 2. */
-      ack: Number(
-        byId.escalations?.text.match(/(\d+) awaiting acknowledgement/)?.[1] ?? 0
-      ),
     };
     check(
-      "agree.escalations.ack",
-      "the acknowledgement count is the same on both, and in the same words",
-      dest.ack === onToday.ack && dest.ack > 0,
-      `destination ${dest.ack} · today ${onToday.ack}` +
-        (dest.ack === 0 ? " — ZERO ON BOTH: this scenario cannot exercise the check" : "")
+      "agree.escalations.active",
+      "the active count is the same on both, and in the same word",
+      dest.active === onToday.active && dest.active > 0,
+      `destination ${dest.active} · today ${onToday.active}` +
+        (dest.active === 0 ? " — ZERO ON BOTH: this scenario cannot exercise the check" : "")
     );
     check(
       "agree.escalations.reachable",
@@ -540,24 +567,9 @@ console.log("\n§4 · the mirror agrees with the destination\n");
     await context.close();
   }
 
-  /* ── MENTOR PRACTICE · the queue's count against the card's ─────────────── */
-  {
-    const { context, page } = await open("mirror-practice", "/app/mentor-practice");
-    const dest = await page.evaluate(() => {
-      const h = [...document.querySelectorAll('[role="group"] > div[aria-hidden]')]
-        .map((e) => e.innerText || "")
-        .find((t) => / — \d/.test(t));
-      return h ? Number(h.match(/ — (\d+)/)?.[1]) : 0;
-    });
-    const onToday = Number(byId["mentor-practice"]?.text.match(/(\d+) open/)?.[1] ?? 0);
-    check(
-      "agree.mentor-practice",
-      "Mentor Practice's queue count equals the card's",
-      dest === onToday,
-      `destination ${dest} · today ${onToday}`
-    );
-    await context.close();
-  }
+  /* ── MENTOR PRACTICE's AGREEMENT CHECK IS GONE (addendum §2.1) ───────────
+     It compared the practice queue's group count against the card's "N open".
+     Both the destination and the card are removed. */
 }
 
 await writeFile(

@@ -27,7 +27,7 @@
 // Every store read sits behind `useMounted`, inside `ChatPage`.
 
 import { use } from "react";
-import { MentorShell } from "@/components/mentor/mentor-shell";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { ChatPage } from "@/components/chat/chat-page";
 import { NAV } from "@/components/settings/nav-items";
 
@@ -39,12 +39,12 @@ export default function ChatThreadRoute({
   const { personId } = use(params);
 
   return (
-    <MentorShell active={NAV.chat.id}>
+    <AppChrome active={NAV.chat.id}>
       {/* AN UNKNOWN ID IS NOT A 404. `ChatPage` falls back to the first thread
           and the list is still beside it at `md` and up — a person whose link
           has gone stale should land somewhere usable rather than on an error
           page for a conversation that simply moved. */}
       <ChatPage personId={decodeURIComponent(personId)} />
-    </MentorShell>
+    </AppChrome>
   );
 }

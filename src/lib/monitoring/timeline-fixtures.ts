@@ -116,7 +116,7 @@ export function flagsInWindowFor(
   events: MonitoringEvent[]
 ): { at: number; category: string }[] {
   return events
-    .filter((e) => e.subject === "teenSafety" && e.teenId === rec.teenId)
+    .filter((e) => e.teenId === rec.teenId)
     .map((e) => ({ at: e.at, category: e.category ?? "Flag" }));
 }
 

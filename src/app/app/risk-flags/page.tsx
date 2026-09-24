@@ -22,8 +22,7 @@
 // pattern rather than useSearchParams, every store read behind useMounted.
 
 import { use } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { DestinationPlaceholder } from "@/components/ia/destination-placeholder";
 import { MonitoringPage } from "@/components/monitoring/monitoring-page";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -46,16 +45,20 @@ export default function RiskFlagsRoute({
   // hydration swaps the shell for one frame with no error to show for it.
   const supervisor = mounted && isSupervisorTier(persona);
 
-  return supervisor ? (
-    <AdminShell active="risk-flags">
-      <MonitoringPage scope="risk-flags" />
-    </AdminShell>
-  ) : (
-    /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
-       true one for them: this destination is not offered to their persona, so
-       "unbuilt" is what it is from where they stand. */
-    <MentorShell active="home">
-      <DestinationPlaceholder title="Risk Flags" status="One queue of risk flags for a supervisor's judgment. A supervisor surface." />
-    </MentorShell>
+  return (
+    /* ═══ ONE SHELL, ONE INSTANCE (addendum §2.3) ═══
+       It was two `AppChrome` elements in a ternary, which renders one shell but
+       reads as a choice of chrome. The choice is the CONTENT and the active
+       item; the chrome is the same component either way. */
+    <AppChrome active={supervisor ? "risk-flags" : "home"}>
+      {supervisor ? (
+        <MonitoringPage scope="risk-flags" />
+      ) : (
+        /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
+         true one for them: this destination is not offered to their persona, so
+         "unbuilt" is what it is from where they stand. */
+        <DestinationPlaceholder title="Risk Flags" status="One queue of risk flags for a supervisor's judgment. A supervisor surface." />
+      )}
+    </AppChrome>
   );
 }

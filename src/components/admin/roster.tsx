@@ -2,8 +2,8 @@
 
 // Shared people roster — now role- + segment-aware and FUNCTIONAL (search, sort,
 // relevant per-view filters), replacing the earlier decorative version. Renders
-// in the Supervisor console (AdminShell, with review queues) and the Lead Mentor
-// app (MentorShell, list only, umbrella-scoped).
+// in the Supervisor console (AppChrome, with review queues) and the Lead Mentor
+// app (AppChrome, list only, umbrella-scoped).
 //
 //   role "supervisor" → all mentors / all teens (plain directory — the review
 //                       queues moved to the Lead Mentor, who owns reviews now)
@@ -62,6 +62,7 @@ import {
 } from "@/lib/record/mentor-status";
 import type { MentorAvailability, MentorLifecycleStatus } from "@/lib/types";
 import { touchTarget } from "@/lib/touch-target";
+import { PageHeader } from "@/components/ia/page-header";
 import { cn } from "@/lib/utils";
 import { recordHrefFor } from "@/lib/record/subject";
 import {
@@ -294,7 +295,32 @@ export function Roster({
        `app-main`. No name carries a ":", so none of these is volatile: the rows
        inside the table stay unannotatable by the accepted anno-02 trade. */
     <div data-anno-ref="roster" className="px-6 py-6 lg:px-10">
-      <h1 className="font-display text-2xl font-bold tracking-tight">{heading}</h1>
+      {/* ═══ THE SHARED HEADER (addendum §2.10) ═══
+          It was a bare `h1` with no purpose line and no figure. The metric is
+          the ACTIVE FILTER'S total, which is what §2.10 asks for and what the
+          filter chips below make readable: a count that does not move when a
+          reader filters teaches them not to trust it. */}
+      <PageHeader
+        title={heading}
+        purpose={
+          /* NEEDS-COPY-NICOLE, both. */
+          isMentors
+            ? "Everyone who mentors on the platform, and who they answer to."
+            : "Every teen on the platform, and the mentor they are matched with."
+        }
+        metrics={[
+          {
+            value: String(isMentors ? mentorView.length : teenView.length),
+            label:
+              (isMentors ? mentorView.length : teenView.length) ===
+              (isMentors ? mentorRows.length : DEMO_TEENS.length)
+                ? isMentors
+                  ? "mentors"
+                  : "teens"
+                : `of ${isMentors ? mentorRows.length : DEMO_TEENS.length}`,
+          },
+        ]}
+      />
 
       {/* Filters — relevant to the view; all functional. */}
       <div data-anno-ref="roster-filters" className="mt-5 flex flex-wrap items-center gap-2">

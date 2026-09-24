@@ -63,6 +63,7 @@ import {
 } from "@/lib/monitoring/escalation";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { NowBand } from "@/components/monitoring/now-band";
+import { PageHeader } from "@/components/ia/page-header";
 import { bandStateFor } from "@/lib/monitoring/live";
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
 import {
@@ -528,21 +529,26 @@ export function TodayPage() {
       data-anno-ref="today-page"
       className="mx-auto flex h-full min-h-0 w-full max-w-[860px] flex-col gap-5 overflow-y-auto px-6 py-6 lg:px-8"
     >
-      <div data-anno-ref="today-header" className="shrink-0">
-        <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-          {/* TODO-COPY. The route's name and the rail's label, one string. */}
-          Today
-        </h1>
-        <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          {/* ═══ TODO-COPY. IT SAYS WHERE TO GO, NOT HOW ANYBODY IS DOING ═══
-              Says what is true and does not celebrate: an empty board is the
-              resting state of this work rather than an achievement, and
-              "Nothing needs attention right now" must not read as broken. */}
-          {mounted && liveEscalations.length === 0 && cards.every((c) => c.tone === "clear")
+      {/* ═══ THE SHARED HEADER, AND TODAY TAKES NO METRICS (addendum §2.10) ═══
+          Deliberate, and the mirror rule is why: every figure on this page
+          belongs to the destination it links to, so a metric pair up here
+          would be a sixth copy of a number already on a card — and the first
+          one a reader would meet, which would make Today the place the
+          counting happens rather than the place it is reflected. */}
+      <PageHeader
+        className="shrink-0"
+        // TODO-COPY. The route's name and the rail's label, one string.
+        title="Today"
+        purpose={
+          /* ═══ TODO-COPY. IT SAYS WHERE TO GO, NOT HOW ANYBODY IS DOING ═══
+             Says what is true and does not celebrate: an empty board is the
+             resting state of this work rather than an achievement, and
+             "Nothing needs attention right now" must not read as broken. */
+          mounted && liveEscalations.length === 0 && cards.every((c) => c.tone === "clear")
             ? "Nothing needs attention right now"
-            : "Every count below belongs to the destination it links to"}
-        </p>
-      </div>
+            : "Every count below belongs to the destination it links to"
+        }
+      />
 
       {stateOf("escalations") === "loading" ? (
         <RegionSkeleton h={72} />

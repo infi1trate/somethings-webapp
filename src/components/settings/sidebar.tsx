@@ -22,8 +22,14 @@ const RING =
 export type { SidebarItemDef };
 
 // Bottom utility cluster (settings-04): Settings gear (all personas →
-// /app/settings) + Help. The old announcements icon is gone; the theme toggle
-// moved into the avatar's account popover (shared useAppearance state).
+// /app/settings) + Help + the theme toggle. The old announcements icon is gone.
+//
+// ═══ THE THEME TOGGLE IS BACK HERE, AS A TILE (addendum §2.5) ═══
+// It used to live in the avatar's account popover, and the restructure removed
+// it along with the theme. §2.5 asks for ONE toggle "in the rail", and the
+// labelled rail puts it in its footer — so this rail puts it in the cluster
+// where it keeps its non-destination controls. One control per rail, and a
+// reader sees one rail.
 
 interface SettingsSidebarProps {
   activeId: string;
@@ -35,6 +41,9 @@ interface SettingsSidebarProps {
    *  mentor personas, the Photo-row asset for lead/supervisor. Feeds the
    *  account popover the avatar opens (settings-04). */
   avatarSrc?: string | null;
+  /** The theme toggle, composed by the shell so this file does not have to
+   *  know what a theme is. Rendered in the utility cluster below. */
+  themeToggle?: React.ReactNode;
   /** Counts by item id (e.g. { activity: 2, tasks: 15 }) — dot badge on the
    *  icon tile, mirroring the Supervisor console's treatment. WHAT IS COUNTED
    *  DIFFERS BY DESTINATION: Activity counts unread notifications, Tasks counts
@@ -62,6 +71,7 @@ export function SettingsSidebar({
   items = railItems("mentor"),
   avatarInitial = "S",
   avatarSrc = null,
+  themeToggle,
   badges,
   navLabel = "Mentor navigation",
   hrefFor,
@@ -190,6 +200,7 @@ export function SettingsSidebar({
             <Settings className="size-4" aria-hidden />
           </span>
         </Link>
+        {themeToggle}
         {/* Help — placeholder destination (no content yet). */}
         <button
           type="button"

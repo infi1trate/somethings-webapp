@@ -214,6 +214,15 @@ export interface RiskFlagPayload {
   kind: "riskFlag";
   /** "Message" — the surface the flag came from. */
   sourceType: string;
+  /** ═══ WHO RAISED IT (addendum §2.8) ═══
+   *  A DIFFERENT QUESTION FROM `sourceType`, which says which surface the
+   *  content came from. This says whether a model or a person put it in the
+   *  queue, and it is what suppresses the classifier-accuracy axis: asking
+   *  whether the classifier was right about a flag a PERSON raised is a
+   *  question about a producer that did not produce this.
+   *  DEFAULTED AT THE SEED rather than optional here, so every flag in the
+   *  system answers it and a new producer cannot arrive unattributed. */
+  reportedBy: "classifier" | "user";
   /** ═══ PLAYBOOK CATEGORY IDS (Phase 4) ═══
    *  `RISK_CATEGORIES[].id` — `"PASSIVE_SUICIDAL_IDEATION"`, not "Low mood".
    *  These were free text ("Self-harm language", "Family conflict"), which is why

@@ -2,6 +2,33 @@
 
 // ═══ THE ESCALATION TIMELINE — READ-ONLY, ATTRIBUTED, NO NARRATIVE ═══
 //
+// ═══ IT HOLDS TWO KINDS OF THING AND NOW DRAWS THEM AS TWO (addendum §2.4) ═══
+//
+// Every entry used to be an `<li>` in a time-gutter list with a source
+// lozenge, and message content was italicised inside quotation marks. Risk
+// Flags renders the same content as bubbles. Two readings of one conversation,
+// on two surfaces a supervisor moves between during a single incident — the Q4
+// unification decision settled that and never reached here, because this
+// component predates it and Phase 6 only de-forked its STATE.
+//
+// THE FIX IS NOT "make everything bubbles". The timeline holds transcripts
+// (support-thread and teen-conversation messages) AND ledger entries
+// ("Escalation opened", "Acknowledged by the supervisor", a hand-logged phone
+// call). A record event drawn as a bubble would claim somebody said it; a
+// message drawn as a ledger row states the system's account of what was said
+// instead of the words. So:
+//
+//  · A VERBATIM ENTRY renders through `TranscriptBubble`, the same component
+//    Risk Flags uses — sided and tinted by role, clustered on the shared
+//    five-minute rule.
+//  · EVERY OTHER ENTRY keeps the row it had: time gutter, source lozenge,
+//    system's own words.
+//
+// THE RUNS ARE WHAT MAKE IT READ. Consecutive messages are grouped into one
+// transcript block rather than each being wrapped alone, so a burst of six
+// messages looks like a conversation with a ledger entry above it rather than
+// six conversations one row apart.
+//
 // Every entry names its source and its time. Nothing here is generated: message
 // content is quoted verbatim and system events are stated in the system's own
 // words. §G8 defers AI annotation and the gate is with Meg — this is the shape
@@ -22,20 +49,22 @@ import {
   manualActionLabel,
   type TimelineEntry,
 } from "@/lib/monitoring/timeline";
+import {
+  TranscriptBubble,
+  transcriptTime,
+} from "@/components/chat/transcript-bubble";
+import { startsCluster } from "@/lib/chat/clustering";
+import type { ConversationMessage } from "@/lib/tasks/conversation";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-function timeOf(at: number): string {
-  /* THE SURFACE'S ONE CLOCK FORMAT — `deadlineFactFor`, `childTimeLabel` and the
-     completed group all use this. */
-  return new Date(at).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
+/* ONE CLOCK FORMAT, SHARED WITH THE BUBBLES BESIDE IT. It had its own
+   `toLocaleTimeString` with `hour12: true` hardcoded, which on a transcript
+   sitting directly above a ledger row would print two shapes of time in one
+   scroll region. */
+const timeOf = transcriptTime;
 function dayOf(at: number): string {
   return new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
@@ -97,20 +126,60 @@ function Entry({ e }: { e: TimelineEntry }) {
             </span>
           )}
         </span>
+        {/* ═══ NO VERBATIM BRANCH HERE ANY MORE (addendum §2.4) ═══
+            It carried `italic` and wrapped the text in quotation marks, which
+            was this component's way of saying "somebody's words, not the
+            system's". A bubble says that better and says it the way the other
+            surface does, so a verbatim entry never reaches this row —
+            `runsOf` sends it to `TranscriptBubble` instead. */}
         <span
           data-timeline-text
-          className={cn(
-            "mt-0.5 block text-[13px] leading-[19px] text-[var(--text-primary)]",
-            /* VERBATIM CONTENT IS QUOTED, so a reader can see it is somebody's
-               words rather than the system's account of them. */
-            e.verbatim && "italic"
-          )}
+          className="mt-0.5 block text-[13px] leading-[19px] text-[var(--text-primary)]"
         >
-          {e.verbatim ? `“${e.text}”` : e.text}
+          {e.text}
         </span>
       </span>
     </li>
   );
+}
+
+/** ═══ A VERBATIM ENTRY, AS THE BUBBLE WANTS IT ═══
+ *
+ *  `TimelineEntry` and `ConversationMessage` carry the same four facts under
+ *  different names, and the adapter is four lines rather than a shared type —
+ *  deliberately. The two models are not the same thing and should not be
+ *  merged: a timeline entry has a SOURCE and may be a system event, a
+ *  conversation message has a sender and always is one. What they share is
+ *  what a bubble draws.
+ *
+ *  `sender` FALLS BACK TO THE MENTOR, and the fallback is unreachable rather
+ *  than a guess: the assembler sets `sender` on every verbatim entry and only
+ *  on those, and `runsOf` groups on `verbatim`. The default exists because the
+ *  field is optional on the type, and typing it as required would make every
+ *  system event carry a role it does not have. */
+function asMessage(e: TimelineEntry): ConversationMessage {
+  return {
+    id: e.id,
+    sender: e.sender ?? "mentor",
+    senderName: e.author ?? "",
+    at: e.at,
+    text: e.text,
+  };
+}
+
+/** Consecutive entries of one kind, in order. A pure function over the list so
+ *  the grouping is inspectable without a DOM. */
+function runsOf(
+  entries: TimelineEntry[]
+): { kind: "transcript" | "ledger"; entries: TimelineEntry[] }[] {
+  const out: { kind: "transcript" | "ledger"; entries: TimelineEntry[] }[] = [];
+  for (const e of entries) {
+    const kind = e.verbatim ? "transcript" : "ledger";
+    const last = out[out.length - 1];
+    if (last && last.kind === kind) last.entries.push(e);
+    else out.push({ kind, entries: [e] });
+  }
+  return out;
 }
 
 /** ═══ THE SOURCE IS THIS COMPONENT'S STATE NOW (Phase 6) ═══
@@ -267,16 +336,25 @@ export function EscalationTimeline({
         </div>
       )}
 
-      {/* BOUNDED: ~260px, about eight entries, and it scrolls rather than
-          growing — the action row below it must stay reachable at any length. */}
+      {/* ═══ IT WAS BOUNDED AND SCROLLED; NOW IT GROWS (addendum §2.7) ═══
+          `max-h-[260px] overflow-y-auto overscroll-contain` made this a THIRD
+          scroll region on Escalations — measured at 1280×900: the page, the
+          pane, and this. §2.7's reconciliation is that the pane's scroll
+          carries its contents and nothing nests inside it, which is the rule
+          the flag transcript now follows; the same rule applies here.
+          THE REASON IT WAS BOUNDED DOES NOT SURVIVE INSPECTION: "the action
+          row below it must stay reachable at any length" — the action row
+          (`Log an action`) is ABOVE this block, not below, so a fifty-entry
+          crisis never pushed it anywhere. The bound was protecting a control
+          that was never at risk, at the cost of a scroll region the page's own
+          locked decision does not allow.
+          `role="group"` AND `tabIndex` GO WITH IT: they exist to make a
+          SCROLLABLE region operable by keyboard (`scrollable-region-focusable`).
+          A block that does not scroll has nothing to operate, and a focus stop
+          that does nothing is noise in the tab order — the same reasoning the
+          conversation excerpt already applies to its unscrolled mode. */}
       <div
-        tabIndex={0}
-        role="group"
-        aria-label="Escalation timeline"
-        className={cn(
-          "mt-2 max-h-[260px] overflow-y-auto overscroll-contain rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
-          RING
-        )}
+        className="mt-2 rounded-[var(--radius-surface)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
       >
         {entries.length === 0 ? (
           <p className="px-3 py-4 text-[12.5px] leading-[18px] text-[var(--text-secondary)]">
@@ -289,11 +367,52 @@ export function EscalationTimeline({
               : `No messages with ${teenName ?? "the teen"} inside this escalation's window yet. Their conversation appears here, verbatim, alongside system events.`}
           </p>
         ) : (
-          <ul role="list" className="min-w-0">
-            {entries.map((e) => (
-              <Entry key={e.id} e={e} />
-            ))}
-          </ul>
+          <div className="min-w-0">
+            {runsOf(entries).map((run) =>
+              run.kind === "transcript" ? (
+                /* ═══ A TRANSCRIPT BLOCK ═══
+                   `pl-9` for the same reason the excerpt carries it: the
+                   flagged-message gutter marker sits 26px left of the bubble
+                   and is clipped without it. No flagged message reaches this
+                   surface today — the timeline's messages come from the
+                   window, not from a flag — but the bubble is shared, and a
+                   component that clips its own marker on one of two callers is
+                   the kind of fork this extraction exists to prevent.
+                   ═══ AND THE BLOCK CARRIES ITS OWN GROUND ═══
+                   MEASURED: the teen's bubble is `--surface-card` and so was
+                   this region, so a teen's message rendered as unbordered text
+                   floating where a bubble should be — the mentor's `s2` fill
+                   read fine and the teen's vanished, which is the worse half
+                   to lose on a safety surface. The excerpt has always put its
+                   bubbles on `s1`; this is that anatomy, applied to the run
+                   rather than to the whole region, because the ledger rows
+                   above and below want the card ground they have. */
+                <ul
+                  key={run.entries[0].id}
+                  role="list"
+                  data-timeline-transcript={run.entries.length}
+                  className="flex flex-col gap-2.5 border-t border-[color:var(--border-subtle)] bg-[var(--surface-s1)] py-3 pl-9 pr-3 first:border-t-0"
+                >
+                  {run.entries.map((e, i) => {
+                    const m = asMessage(e);
+                    return (
+                      <TranscriptBubble
+                        key={e.id}
+                        m={m}
+                        header={startsCluster(m, i === 0 ? undefined : asMessage(run.entries[i - 1]))}
+                      />
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul key={run.entries[0].id} role="list" className="min-w-0">
+                  {run.entries.map((e) => (
+                    <Entry key={e.id} e={e} />
+                  ))}
+                </ul>
+              )
+            )}
+          </div>
         )}
       </div>
 

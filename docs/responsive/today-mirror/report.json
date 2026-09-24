@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T03:24:29.348Z",
+  "generated": "2026-09-24T00:15:16.414Z",
   "rows": [
     {
       "id": "store.present",
@@ -11,13 +11,19 @@
       "id": "store.baseline-off-today",
       "label": "and the baseline was taken before Today ever mounted",
       "ok": true,
-      "detail": "/app/coverage"
+      "detail": "/app/care-reviews"
     },
     {
       "id": "mount.writes-nothing",
       "label": "mounting Today writes no key but the visit stamp",
       "ok": true,
       "detail": "only shiftLastSeenAt"
+    },
+    {
+      "id": "controls.band-consistent",
+      "label": "the live band's controls are present exactly when the band is",
+      "ok": true,
+      "detail": "band absent · 0 band control(s)"
     },
     {
       "id": "controls.all-named",
@@ -41,7 +47,7 @@
       "id": "links.present",
       "label": "Today offers links at all",
       "ok": true,
-      "detail": "10 link(s)"
+      "detail": "8 link(s)"
     },
     {
       "id": "links.leave",
@@ -62,10 +68,10 @@
       "detail": "all known"
     },
     {
-      "id": "cards.five",
+      "id": "cards.three",
       "label": "one card per destination, in the rail's order",
       "ok": true,
-      "detail": "escalations > risk-flags > mentor-practice > coverage > care-reviews"
+      "detail": "escalations > risk-flags > care-reviews"
     },
     {
       "id": "cards.one-directive",
@@ -77,7 +83,7 @@
       "id": "strip.agrees.degraded",
       "label": "the escalation strip and the Escalations card state the same number",
       "ok": true,
-      "detail": "strip 0 row(s) · card claims 0 active"
+      "detail": "strip 2 row(s) · card claims 2 active"
     },
     {
       "id": "strip.agrees.live",
@@ -89,7 +95,7 @@
       "id": "strip.exercised",
       "label": "and at least one fixture actually rendered a strip, so the above is not zero-vs-zero",
       "ok": true,
-      "detail": "1 of 2 pair(s) had a non-empty strip"
+      "detail": "2 of 2 pair(s) had a non-empty strip"
     },
     {
       "id": "cards.no-tiers",
@@ -101,17 +107,11 @@
       "id": "agree.cards-read",
       "label": "the cards were read off Today, so the comparisons below mean something",
       "ok": true,
-      "detail": "5 card(s)"
-    },
-    {
-      "id": "agree.coverage",
-      "label": "Coverage's own sentence appears verbatim on the card",
-      "ok": true,
-      "detail": "destination \"9 of 31 conversations reviewed this shift\" · today \"9 of 31 conversations reviewed this shift\""
+      "detail": "3 card(s)"
     },
     {
       "id": "agree.risk-flags",
-      "label": "Risk Flags' queue count equals the card's",
+      "label": "Risk Flags' open flag count equals the card's",
       "ok": true,
       "detail": "destination 123 · today 123"
     },
@@ -122,8 +122,8 @@
       "detail": "destination 16 · today 16"
     },
     {
-      "id": "agree.escalations.ack",
-      "label": "the acknowledgement count is the same on both, and in the same words",
+      "id": "agree.escalations.active",
+      "label": "the active count is the same on both, and in the same word",
       "ok": true,
       "detail": "destination 2 · today 2"
     },
@@ -132,12 +132,6 @@
       "label": "and the destination has at least as many records as the card claims are active",
       "ok": true,
       "detail": "4 record(s) · card claims 2 active"
-    },
-    {
-      "id": "agree.mentor-practice",
-      "label": "Mentor Practice's queue count equals the card's",
-      "ok": true,
-      "detail": "destination 0 · today 0"
     }
   ],
   "cards": [
@@ -154,20 +148,6 @@
       "directive": false,
       "href": "/app/risk-flags",
       "text": "Risk Flags 123 open · oldest 8d ago 123 Risk Flags. 123 open · oldest 8d ago."
-    },
-    {
-      "id": "mentor-practice",
-      "tone": "clear",
-      "directive": false,
-      "href": "/app/mentor-practice",
-      "text": "Mentor Practice No practice breaches Mentor Practice. No practice breaches."
-    },
-    {
-      "id": "coverage",
-      "tone": "clear",
-      "directive": false,
-      "href": "/app/coverage",
-      "text": "Coverage 9 of 31 conversations reviewed this shift Coverage. 9 of 31 conversations reviewed this shift."
     },
     {
       "id": "care-reviews",

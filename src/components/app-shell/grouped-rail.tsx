@@ -42,7 +42,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Clock } from "lucide-react";
+import { ChevronDown, Clock, Moon, Sun } from "lucide-react";
 import { AccountPopover } from "@/components/settings/account-popover";
 import {
   badgeNounFor,
@@ -248,6 +248,85 @@ export function RailFooterItem({ item }: { item: SidebarItemDef }) {
   );
 }
 
+/** ═══ THE THEME TOGGLE — ONE CONTROL, AND IT LIVES HERE ═══
+ *
+ *  The target nav has `Dark mode off` in the rail's footer, and the addendum
+ *  asks for ONE toggle rather than the two the product used to have (a
+ *  segmented control in Settings and a quick toggle in the account popover).
+ *  Two controls for one preference is two places for it to be found, and the
+ *  rail is the one that is on screen on every route.
+ *
+ *  ═══ A SWITCH, NOT A LINK-SHAPED ROW ═══
+ *  It borrows the footer row's anatomy — 44px, icon, label — so the footer
+ *  reads as one kind of thing, and takes `role="switch"` with `aria-checked`
+ *  because it is a two-state control rather than a navigation. The LABEL states
+ *  the current state rather than the action, matching the target nav's wording
+ *  and the convention a switch sets: a reader is told what is true, and the
+ *  control's own affordance says it can be changed.
+ *
+ *  THE ICON IS NOT THE ONLY CARRIER: sun/moon plus the words plus
+ *  `aria-checked`, so nothing here depends on recognising a glyph. */
+export function RailThemeToggle({
+  theme,
+  onToggle,
+  /** ═══ ONE CONTROL, TWO RAIL ANATOMIES ═══
+   *  `row` is this rail's 248px labelled row. `tile` is the ICON rail's
+   *  utility cluster — a 40px circle beside Settings and Help, which is where
+   *  that rail puts its non-destination controls.
+   *  NOT TWO CONTROLS: a reader sees exactly one theme toggle, because they
+   *  see exactly one rail. The variants exist because the rails do, and §2.3's
+   *  "role differences are items, never structure" is about the three staff
+   *  roles — all of which are on the labelled rail. */
+  variant = "row",
+}: {
+  theme: "light" | "dark";
+  onToggle: () => void;
+  variant?: "row" | "tile";
+}) {
+  const dark = theme === "dark";
+  const Icon = dark ? Moon : Sun;
+  /* THE ACCESSIBLE NAME IS THE SAME IN BOTH, because a screen-reader user gets
+     no benefit from the tile's brevity — and a switch with no words at all is
+     the thing `aria-label` exists to prevent. NEEDS-COPY-NICOLE. */
+  const label = `Dark mode ${dark ? "on" : "off"}`;
+  if (variant === "tile") {
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={dark}
+        aria-label={label}
+        data-anno-ref="rail-theme-toggle"
+        onClick={onToggle}
+        className={cn("flex size-11 items-center justify-center rounded-full", RING)}
+      >
+        <span className="flex size-[var(--sidebar-utility)] items-center justify-center rounded-full bg-[var(--surface-card)] text-[var(--text-secondary)] shadow-[var(--shadow-tile)] transition-colors hover:text-[var(--text-primary)]">
+          <Icon className="size-4" aria-hidden />
+        </span>
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      data-anno-ref="rail-theme-toggle"
+      onClick={onToggle}
+      className={cn(
+        "flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 text-[14px] leading-[20px]",
+        "font-medium text-[var(--text-secondary)] transition-colors duration-150",
+        "hover:bg-white/50 hover:text-[var(--text-primary)]",
+        RING
+      )}
+    >
+      <Icon aria-hidden className="size-[18px] shrink-0 text-[var(--text-secondary)]" />
+      {/* NEEDS-COPY-NICOLE. The target nav's phrasing, which states the state. */}
+      <span className="min-w-0 truncate">{label}</span>
+    </button>
+  );
+}
+
 export function GroupedRail({
   activeId,
   groups,
@@ -266,9 +345,9 @@ export function GroupedRail({
   navLabel?: string;
   avatarInitial?: string;
   avatarSrc?: string | null;
-  /** Rendered below the nav, pinned to the bottom — Announcements, and nothing
-   *  else. `Dark mode off` is NOT here: light is forced and both controls are
-   *  gone (see `lib/use-appearance.ts`). */
+  /** Rendered below the nav, pinned to the bottom: `Announcements`, and the
+   *  theme toggle — which is in the target nav as `Dark mode off` and is the
+   *  product's ONE theme control (addendum §2.5). */
   footer?: React.ReactNode;
   className?: string;
 }) {

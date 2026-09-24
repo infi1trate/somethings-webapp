@@ -33,10 +33,9 @@
 // pattern rather than useSearchParams, every store read behind useMounted.
 
 import { use, useEffect } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { escalationRecordHref } from "@/components/tasks/strips";
@@ -110,8 +109,8 @@ export default function EscalationRoute({
     /* `escalations`, NOT `monitoring`. Monitoring is a group label now and has
        no rail item, so the old id selected nothing and this hop rendered with
        the whole rail unselected. */
-    <AdminShell active="escalations">{body}</AdminShell>
+    <AppChrome active="escalations">{body}</AppChrome>
   ) : (
-    <MentorShell active="tasks">{body}</MentorShell>
+    <AppChrome active="tasks">{body}</AppChrome>
   );
 }

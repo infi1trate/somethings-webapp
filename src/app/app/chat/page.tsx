@@ -30,14 +30,14 @@
 // Chat is a mentor surface. Staff personas reach it too (the nav gives every
 // persona a Chats destination), and they get the same conversation list — a
 // supervisor's own Support threads are the leads they oversee. The shell is
-// `MentorShell` rather than branching per persona, because unlike Home there is
-// nothing persona-specific about the chrome here: `AdminShell` and `MentorShell`
+// `AppChrome` rather than branching per persona, because unlike Home there is
+// nothing persona-specific about the chrome here: `AppChrome` and `AppChrome`
 // render the same rail from the same `nav-items.ts` source.
 
 import { use } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { redirect } from "next/navigation";
 import { chatThreadHref } from "@/lib/record/chat";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { ChatPage } from "@/components/chat/chat-page";
 import { NAV } from "@/components/settings/nav-items";
 
@@ -67,7 +67,7 @@ export default function ChatRoute({
   if (withId) redirect(chatThreadHref(withId));
 
   return (
-    <MentorShell
+    <AppChrome
       active={NAV.chat.id}
       /* ═══ THE LIST RUNS UNDER THE BAR, SO IT RESERVES ITS OWN ROOM ═══
        *
@@ -85,6 +85,6 @@ export default function ChatRoute({
           screen; at `md` and up the thread pane still renders beside it, showing
           the scenario's focus conversation until a row is chosen. */}
       <ChatPage personId={null} />
-    </MentorShell>
+    </AppChrome>
   );
 }

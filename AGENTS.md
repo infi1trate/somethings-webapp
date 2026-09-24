@@ -23,10 +23,27 @@ it has moved rather than working from the stale number.
 
 ## Surface architecture decisions
 
+**The addendum (`supervisor-ia-restructure` + §1–§3.6) supersedes parts of what
+follows, and every superseded section says so in place rather than being
+deleted** — the reasoning is what makes a removal safe, and a decision with no
+recorded argument is one the next person re-litigates from scratch.
+
 Settled, with the reasoning, so they are not re-litigated by the next person who
 finds them odd. Each records what was evaluated and what it cost to choose.
 
-### The surface is called Tasks — decided, keep
+### The surface is called Care Reviews — the addendum settled it
+
+The two sections below argued that the surface should be called **Tasks**, and
+they are kept because their reasoning is still the reasoning — it just lost its
+subject. `/app/tasks` is a retired hop; the destination is **Care Reviews**, and
+it holds care reviews alone.
+
+What the argument was FOR is the part that survives: a name must hold across
+every role the PRD rolls out to, and naming one structural surface differently
+per role trades an imprecision for a coherence failure. That test is what a
+future rename has to pass.
+
+### The surface was called Tasks — the original argument
 
 Evaluated against **Reviews**, **Approvals**, **Worklist** and **To-dos**.
 
@@ -47,13 +64,16 @@ The cost, stated: on a supervisor's screen today, Tasks holds only billing
 reviews, so the name is broader than the contents. That is deliberate — the
 contents are what will widen.
 
-### The surface is still called Tasks — confirmed at arch-E
+### It was still called Tasks at arch-E — and the row fix outlived the name
 
 The earlier awkwardness was never the label. **Rows described people while the
 label promised work**: the group header said the task type, so the row said only
 a name and a deadline. With rows leading with the job and the list grouped by
-when work is due, the surface is a task list in the plainest sense and the name
-stops being a stretch.
+when work is due, the surface read as a task list.
+
+Of that, the ROW anatomy survives and the grouping does not — see the deadline
+section below. The row leads with the teen (arch-F), states its code as
+lozenges (§2.9), and carries one temporal fact, which is now its age.
 
 Alternatives stay rejected for the reasons above — chiefly that only "Tasks"
 holds across all three roles in the PRD roll-out.
@@ -65,9 +85,13 @@ needed, and chrome forgotten when it is.
 
 | Change | What the surface grows |
 |---|---|
-| A new task type | **Nothing structural.** Rows state their own type and time buckets hold any mix. |
+| A new task type | **Nothing structural.** The list is flat and holds any mix. (It read "time buckets hold any mix" — the buckets are gone; the flat list holds any mix for the same reason.) |
 | More than one task type present | **A filter chip row** above the list (`All · Billing · …`), defaulting to All. |
 | A single task type | **No chip row**, and never a tab row. |
+
+**This threshold is live and unmet.** Care Reviews holds one task type, so
+there is no chip row — and §2.1 applied the same rule one surface along, taking
+the subject filter off Risk Flags when Mentor Practice left it with one value.
 
 **arch-D said "a second domain brings the tab row back". arch-E replaced that.**
 The old rule came from the four-domain architecture, where a tab was a DOMAIN
@@ -84,28 +108,64 @@ that removed the one-tab row in arch-A — and that reclaimed 150px above the li
 The chip row is **built and hidden**: it renders only when more than one task
 type is present, so the affordance exists before the second type lands.
 
-### Tasks groups by when, Monitoring groups by tier
+### Care Reviews groups by nothing — the deadline is gone (addendum §2.9)
 
-Not a style difference — the two surfaces have opposite units of work, and the
-grouping follows.
+**This replaces "Tasks groups by when, Monitoring groups by tier". Both halves
+are superseded, by different instructions, and the reasoning that produced them
+is worth keeping because it is what makes the removals safe rather than casual.**
 
-Tasks' type groups (`Intake` / `Monthly re-review`) did two things wrong at once.
-They took the verb off the row, so a row said only a name and a clock. And they
-**destroyed deadline order across buckets** — measured, the list ran 15h → 2d and
-then RESTARTED at 20h → 2d, so finding what was about to breach meant merging N
-sorted lists by eye, on the surface whose entire job is deadline awareness.
+The old section recorded a real defect and a real fix. Tasks' *type* groups
+(`Intake` / `Monthly re-review`) did two things wrong at once: they took the
+verb off the row, and they **destroyed deadline order across buckets** —
+measured, the list ran 15h → 2d and then RESTARTED at 20h → 2d, so finding what
+was about to breach meant merging N sorted lists by eye. Deadline buckets
+(`Overdue` / `Due today` / `Due tomorrow` / `Later`) fixed it by being a
+PARTITION of the one sorted list rather than a re-sort.
 
-Deadline buckets (`Overdue` / `Due today` / `Due tomorrow` / `Later`) are a
-PARTITION of the one sorted list, not a re-sort: `slaRemaining` is the
-comparator's fourth key and is monotonic down the list, so each bucket is a
-contiguous run of it. Empty buckets do not render — unlike the old tab cards,
-which kept their position for navigational stability; a bucket is a content
-grouping and "Overdue — 0" is noise claiming a shape the list does not have.
+**§1 retires `CARE_REVIEW_SLA` and §2.9 removes the deadline concept from the
+destination.** So there is no deadline to bucket by, and with one task type
+there is nothing else to group by either. The list is flat, in the comparator's
+order.
 
-Monitoring keeps its tier bands, because there the tier IS the kind of work and
-its rows are person-forward. Band retirement (`{Tier} — cleared · {n} today`)
-stays tier-only for the same reason: a tier clearing is information, while a
-deadline bucket can empty because the work was done *or* because the clock moved.
+**Oldest-first is not a rule anybody wrote.** With `TASK_SLA_MS` null for both
+billing types, `compareTasks` falls through breach (never true), the urgency
+ladder (flat within a domain) and `slaRemaining` (Infinity on both sides) to
+`openedAt` ascending. Removing the deadline produced the ordering §2.9 asks
+for; `sla.ts` says so at the table.
+
+**The claim the buckets protected survives and is checked** — the list is one
+sorted sequence with nothing restarting inside it (`e.one-sorted-sequence` in
+`row-semantics`).
+
+**Monitoring's half is gone too, and earlier.** arch-mon replaced the tier bands
+with the two review subjects; §2.1 removed Mentor Practice, leaving one subject
+whose header restated the page title over every row — while counting flags on a
+list whose rows are conversations (§3.1). Neither surface has a group header.
+
+`WorklistGroupHeader` is **not deleted**: it is still the one treatment, which
+is what makes a second grouping cheap the day one is justified. The
+extensibility threshold below says when.
+
+### A row on Risk Flags is a conversation (addendum §3.1)
+
+Not a flag. The list rendered one row per flag while each row read "3 in this
+conversation" — un-coalesced and announcing that it was coalesced. Measured on
+`flag-repeat-pattern`: nine rows, three of them the same Marcus L. conversation.
+
+`compareGroups` is `compareEvents`' five steps read off a set, in the same
+order, with a total tie-break. Three of the five need a rule for WHICH member
+answers, and each is a place the queue could stop being ordered while still
+looking sorted:
+
+| Step | Member |
+|---|---|
+| escalation open | any — it is a fact about the teen, so all agree |
+| category rank | the **highest-ranking**, or four routine flags bury one self-harm flag |
+| repeat pattern | structural — the row **is** the set |
+| no mentor reply | any — one courtesy reply must not clear the signal |
+| age | the **oldest**, or a busy conversation sinks below a quiet one |
+
+All four derived keys are mutation-tested in `flag-group.test.ts`.
 
 ### Rows: emphasis follows obligation
 
@@ -153,35 +213,54 @@ flag was reading a number this system invented.
 
 **Flags carry age.** Elapsed time since the flagged message, mono and tabular.
 `FLAG_REVIEW_SLA` is `null` and blocked on Meg, and while it is null nothing on
-the page may derive a flag deadline. `TaskItem.slaDeadline` is still populated
-upstream for the three flag types and is deliberately never read here.
+the page may derive a flag deadline. `TaskItem.slaDeadline` was populated
+upstream for the flag type and deliberately never read here; since §2.9 it is
+null for the billing types too, so **the only published clocks left anywhere on
+this surface are the escalation pair.**
 
 **Breach treatment belongs to escalation obligations alone** — the 5-minute
 acknowledgement SLA and the 24-hour escalation note. That is the whole point of
 removing it from flags, so reintroducing it there would undo the phase.
 
-**One comparator, two review subjects.** Teen safety flags and mentor practice
-breaches are one event primitive in one queue with one five-step ordering
-(escalation → category rank → repeat pattern → no mentor reply → age), filterable
-by subject with chips. Two of the five steps are currently no-ops with named
-owners; `lib/monitoring/constants.ts` says which and why. No secondary ordering
-exists anywhere else on the surface, and nothing is AI-ordered.
+**One comparator, ONE review subject.** It was two — teen safety flags and
+mentor practice breaches as one event primitive in one queue, filterable by
+subject with chips. §2.1 removed Mentor Practice, and the shape argument was
+never what was withdrawn: the comparator's five steps (escalation → category
+rank → repeat pattern → no mentor reply → age) never read `subject`, so removing
+a subject removed no ordering. The chips went with it, on the extensibility
+threshold's own rule. Two of the five steps are still no-ops with named owners;
+`lib/monitoring/constants.ts` says which and why. No secondary ordering exists
+anywhere else, and nothing is AI-ordered.
 
-**Two views, one column.** The queue is the priority entry point; COVERAGE — every
-supervised conversation as progress against the shift — is the floor, because a
-surface that can only show what a model noticed cannot answer "have I looked at
-my teens". Coverage is never expressed as a count of what is left.
+**Coverage was the floor, and it is Chat now (§2.2).** The argument stands and
+is worth keeping: a surface that can only show what a model noticed cannot
+answer "have I looked at my teens". What served it was a roster of supervised
+conversations as progress against the shift — and §2.2 renames that destination
+to Chat, which is where a conversation is read. `lib/monitoring/coverage.ts` is
+dormant, not deleted. **The rule that outlived it: progress is never expressed
+as a count of what is left.**
 
-**The disposition is two axes.** A required clinical disposition (the only thing
-that can close an event, and one of its values opens an escalation instead), and
-an optional, never-primary, never-pre-selected note about whether the classifier
-was right. `y`/`n` answer the second one and resolve nothing — on Tasks they
-still resolve, which is why `ShortcutSheet` takes its rows per surface.
+**The disposition is two axes, and escalating is neither (§2.8).** A required
+clinical disposition is the only thing that can close an event; an optional,
+never-primary, never-pre-selected note about the classifier resolves nothing.
+`Escalate now` used to be a fourth value of the first axis — it is a secondary
+BUTTON now, never gated on the radiogroup, because a disposition is a statement
+about the teen and escalating is a thing a supervisor does.
+
+**Axis 2 renders where a classifier ran.** Suppressed on a user-reported flag,
+for the same reason Phase 5 suppressed it on a deterministic rule: a question
+about a producer that did not produce this.
+
+**`Mark reviewed` is the commit, and the keyboard keeps the cost at one.**
+`1`/`2`/`3` select AND commit; `e` escalates. The mouse path is two steps on a
+123-item queue, which is why the keyboard path is one.
 
 **Monitoring has its own list and pane.** `event-list.tsx` and `event-pane.tsx`
 rather than Tasks' `Worklist`/`TaskPane`, because after this phase the two
 surfaces share no row anatomy, no grouping, no ordering and no footer. What is
-still shared is what should be: the group header, the chips, the identity disc,
-and the conversation excerpt — which gained a non-scrolling mode rather than a
-fourth transcript implementation. The cost is a second list, stated plainly:
-that is how silent per-screen forks start, so it is written down here.
+still shared is what should be: the identity disc and the conversation excerpt,
+which gained a host-scroller mode (§2.7) rather than a fourth transcript
+implementation. §2.4 took that further — the escalation timeline renders its
+messages through the same `TranscriptBubble`, so one conversation reads the
+same way on both surfaces. The cost is a second list, stated plainly: that is
+how silent per-screen forks start, so it is written down here.

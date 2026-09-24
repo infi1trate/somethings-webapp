@@ -72,8 +72,20 @@ const READ = `(() => {
   });
   return { rail: true, railBg, width: Math.round(rail.getBoundingClientRect().width),
     groupBtns, rows: rows.map(read), badges,
-    hasDarkModeControl: /dark mode/i.test(rail.textContent ?? ""),
-    hasChat: /\\bchat\\b/i.test((rail.textContent ?? "").replace(/Chats/g, "")) };
+    themeToggleCount: rail.querySelectorAll('[role="switch"]').length,
+    themeToggle: (() => {
+      const t = rail.querySelector('[role="switch"]');
+      return t ? { role: t.getAttribute("role"), checked: t.getAttribute("aria-checked"),
+        label: (t.textContent ?? "").replace(/\\s+/g, " ").trim() } : null;
+    })(),
+    /* GROUPED OR NOT is read from the DOM rather than from the label: a Chats
+       row inside the Monitoring section would still say "Chats". */
+    chatRow: (() => {
+      const a = [...rail.querySelectorAll("nav a")].find((e) =>
+        /^Chats/.test((e.textContent ?? "").trim()));
+      return a ? { label: (a.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 20),
+        grouped: !!a.closest("section") } : null;
+    })() };
 })()`;
 
 console.log("\nPhase 1 · the grouped rail\n");
@@ -127,12 +139,25 @@ console.log("\nPhase 1 · the grouped rail\n");
       r.rows.length > 0 && r.rows.every((x) => x.h >= 44),
       `${Math.min(...r.rows.map((x) => x.h))}px smallest of ${r.rows.length}`
     );
-    /* SHAPE, NOT COLOUR ALONE. */
-    const shapes = new Set(r.badges.map((b) => (b.glyph ? "clock+count" : "count")));
+    /* ═══ THE SHAPE CHECK IS RETARGETED, AND THE SUPERSESSION IS THE POINT ═══
+       It asserted that badges differ by SHAPE — a clock-plus-count for Care
+       Reviews against bare counts elsewhere — because colour may never be the
+       sole carrier (SC 1.4.1). The clock said "this one has a deadline", and
+       §2.9 retires the deadline concept: there is no second obligation TYPE
+       left for a shape to distinguish, so the shapes collapsing to one is the
+       correct outcome rather than a regression.
+       WHAT THE RULE BECOMES: no badge may need its colour read. Every badge
+       carries a NOUN in its accessible name ("3 needing a response", "19
+       open") and sits beside its destination's label, so the tone is redundant
+       emphasis on information the row already states in words. That is
+       asserted by `rail.badge-words` below, which is now load-bearing rather
+       than a second line of defence — so this check guards the thing that
+       would break it: a badge whose glyph carries meaning the words do not.
+       MEASURED: 4 badges, 0 glyphs. */
     check(
-      "rail.badge-shapes",
-      "badges differ by SHAPE, so colour is never the sole carrier",
-      r.badges.length >= 2 && shapes.size >= 2,
+      "rail.badge-no-glyph-only-meaning",
+      "no badge says anything with a glyph that its words do not also say",
+      r.badges.length >= 2 && r.badges.every((b) => !b.glyph || b.srOnly),
       r.badges.map((b) => `${b.text}${b.glyph ? "⏱" : ""}`).join(" · ")
     );
     check(
@@ -147,16 +172,32 @@ console.log("\nPhase 1 · the grouped rail\n");
       r.badges.length > 0 && r.badges.every((b) => b.ratio >= 4.5),
       r.badges.map((b) => `${b.ratio}:1`).join(" · ")
     );
+    /* ═══ BOTH OF THESE CHECKS ARE INVERTED NOW, AND THAT IS THE POINT ═══
+       `rail.no-dark-control` asserted the theme toggle's ABSENCE and
+       `rail.no-chat` asserted that the coverage destination was not called
+       Chat. The addendum reverses both instructions (§2.5, §2.2), so the
+       checks are retargeted rather than deleted: what each one guards is that
+       the rail's contents match the decision, and the decision moved.
+       THE TOGGLE IS A SWITCH, NOT A LINK, and the assertion says so — a row
+       that looked like a destination and changed the theme would be the worse
+       version of restoring it. */
     check(
-      "rail.no-dark-control",
-      "no dark-mode control anywhere in the rail",
-      !r.hasDarkModeControl
+      "rail.theme-toggle",
+      "one theme control, in the rail's footer, as a switch",
+      r.themeToggle != null && r.themeToggle.role === "switch" &&
+        /^(true|false)$/.test(r.themeToggle.checked ?? "") &&
+        r.themeToggleCount === 1,
+      r.themeToggle
+        ? `${r.themeToggleCount} control(s) · role=${r.themeToggle.role} · checked=${r.themeToggle.checked} · "${r.themeToggle.label}"`
+        : "no theme control in the rail"
     );
     check(
-      "rail.no-chat",
-      "and no prohibited messaging word — the coverage destination is not Chat",
-      !r.hasChat,
-      r.hasChat ? "found one" : "clean"
+      "rail.chat-present",
+      "and Chats is a destination in the rail, beside Today rather than under Monitoring",
+      r.chatRow != null && r.chatRow.grouped === false,
+      r.chatRow
+        ? `"${r.chatRow.label}" in the ${r.chatRow.grouped ? "Monitoring group" : "ungrouped top"}`
+        : "no Chats row"
     );
   }
   await context.close();
@@ -318,9 +359,15 @@ console.log("\nPhase 2 · the record hop terminates\n");
 console.log("\nPhase 1 · light is forced\n");
 {
   const { context, page } = await open("forced-light", "/app/risk-flags");
-  /* THE OS PREFERENCE IS THE PATH THAT USED TO WORK. Emulating dark is the
-     whole test: before this phase a supervisor on a dark OS got the dark theme
-     with no action, because the pre-hydration script defaulted to "system". */
+  /* ═══ THE THEME IS BACK AND THIS CHECK IS STRONGER FOR IT (addendum §3.5) ═══
+     It was written when light was forced, and it would have been easy to
+     retire along with that decision. It is the opposite: before the
+     restructure a supervisor on a dark OS got the dark theme with no action,
+     because the pre-hydration script defaulted to "system". Dark exists again,
+     so the OS path is live again as a FAILURE MODE — and the guarantee §3.5
+     asks for is precisely that it stays shut. Emulating a dark OS is the whole
+     test, and it means more now than it did when there was no dark theme to
+     land on. */
   await page.emulateMedia({ colorScheme: "dark" });
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(600);
@@ -333,7 +380,7 @@ console.log("\nPhase 1 · light is forced\n");
   }));
   check(
     "light.os-dark-ignored",
-    "a dark OS no longer inverts the console",
+    "a dark OS does not select the dark theme — only the toggle does",
     !r.dark,
     `html class "${r.htmlClass.slice(0, 40)}" · rail ${r.railBg}`
   );

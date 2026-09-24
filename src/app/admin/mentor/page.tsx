@@ -31,6 +31,7 @@
 // or clearly-stubbed), lock badge with a why. Roles hide affordances only.
 
 import { use, useEffect, useRef, useState } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -39,8 +40,6 @@ import {
   MessagesSquare,
   MoreHorizontal,
 } from "lucide-react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { PhonePreviewShell } from "@/components/settings/phone-preview";
 import { MentorProfilePreview } from "@/components/onboarding/mentor-profile-preview";
 import { displayOrEmpty, RecordRow } from "@/components/record/row";
@@ -237,9 +236,9 @@ function StaffShell({
   children: React.ReactNode;
 }) {
   return lead ? (
-    <MentorShell active="mentors">{children}</MentorShell>
+    <AppChrome active="mentors">{children}</AppChrome>
   ) : (
-    <AdminShell active="mentors">{children}</AdminShell>
+    <AppChrome active="mentors">{children}</AppChrome>
   );
 }
 

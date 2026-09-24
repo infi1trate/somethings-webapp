@@ -24,19 +24,27 @@
 // changed, and Phase 4 then proved the per-flag tier gone by grep against a
 // finished surface rather than a half-built one.
 //
-// `mentor-practice` and `coverage` HAVE NO TASK TYPES. Practice events are a
-// different primitive (`lib/monitoring/practice.ts`) and coverage is a roster of
-// conversations, not a queue of items — so neither appears here, and a caller
-// asking this file about them gets nothing rather than an empty promise.
+// ═══ AND IT IS THREE AGAIN (addendum §2.1, §2.2) ═══
+//
+// It briefly held five. `mentor-practice` and `coverage` were destinations with
+// NO task types — a practice event was a different primitive and coverage was a
+// roster of conversations — so both sat here as empty arrays, which is a
+// destination this file cannot answer questions about. Mentor Practice is gone
+// from the product; Coverage became Chat, which is a conversation surface and
+// not a queue of work. Neither absence costs this file anything, because neither
+// ever had a mapping to lose.
+//
+// CHAT IS NOT LISTED, and that is the same rule rather than an oversight: this
+// file answers "which work lives where", and Chat holds no work items. It is a
+// nav destination without being an IA one, which is why `NAV.chat` exists and
+// `DestinationId` does not carry it.
 
 import type { TaskType } from "@/lib/tasks/types";
 
 export type DestinationId =
   | "escalations"
   | "risk-flags"
-  | "care-reviews"
-  | "mentor-practice"
-  | "coverage";
+  | "care-reviews";
 
 /** ROUTE SEGMENTS ARE THE IDS. `/app/{id}` resolves for every one of them, so
  *  `hrefFor` needs no table and a typo becomes a 404 rather than a silent
@@ -44,13 +52,11 @@ export type DestinationId =
 export const DESTINATION_ORDER: readonly DestinationId[] = [
   "escalations",
   "risk-flags",
-  "mentor-practice",
-  "coverage",
   "care-reviews",
 ];
 
-/** Which task types a destination holds. The two destinations whose subjects are
- *  not task items map to nothing, deliberately — see the note above. */
+/** Which task types a destination holds. Every destination here holds some: the
+ *  two that did not are gone (see the note above). */
 export const DESTINATION_TYPES: Record<DestinationId, readonly TaskType[]> = {
   escalations: ["activeEscalation", "escalationDocumentation"],
   /** ═══ ONE FLAG TYPE, ONE DESTINATION (Phase 4 landed) ═══
@@ -62,8 +68,6 @@ export const DESTINATION_TYPES: Record<DestinationId, readonly TaskType[]> = {
    *  and this is what it was scaffolding for. */
   "risk-flags": ["riskFlagReview"],
   "care-reviews": ["intakeBillingReview", "monthlyReReview"],
-  "mentor-practice": [],
-  coverage: [],
 };
 
 /** The destination a task item belongs to, or null for a type nothing owns —

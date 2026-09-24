@@ -6,11 +6,10 @@
 import { describe, expect, it } from "vitest";
 import {
   compareEvents,
-  groupEvents,
   sortEvents,
-  subjectOf,
   type MonitoringEvent,
 } from "@/lib/monitoring/event";
+import type { TaskItem } from "@/lib/tasks/types";
 import { FLAG_PATTERN_WINDOW } from "@/lib/monitoring/constants";
 
 const NOW = 1_760_000_000_000;
@@ -18,8 +17,6 @@ const HOUR = 3_600_000;
 
 function ev(o: Partial<MonitoringEvent> & { id: string }): MonitoringEvent {
   return {
-    kind: "riskFlag",
-    subject: "teenSafety",
     teenId: "t1",
     teenName: "Ava M.",
     mentorId: "m1",
@@ -30,8 +27,11 @@ function ev(o: Partial<MonitoringEvent> & { id: string }): MonitoringEvent {
     escalationOpen: false,
     patternCount: 1,
     mentorReplied: true,
-    flag: null,
-    practice: null,
+    /* THE COMPARATOR NEVER READS THE PAYLOAD — all five steps run off the
+       precomputed fields above — so a placeholder is honest here rather than
+       lazy, and building a real `TaskItem` would suggest the sort depends on
+       one. */
+    flag: {} as TaskItem,
     ...o,
   };
 }
@@ -149,32 +149,18 @@ describe("the comparator", () => {
     expect(sortEvents([fresh, ancientPattern]).map((e) => e.id)).toEqual(["pattern", "fresh"]);
   });
 
-  it("does not order by subject — a mentor's late note does not outrank a teen's flag by type alone", () => {
-    /* The two subjects share one comparator, so a practice event and a flag of
-       the same age sort by age and id, not by which kind they are. */
-    const practice = ev({ id: "a-practice", kind: "noteOverdue", subject: "mentorPractice", at: NOW - 5 * HOUR });
-    const flag = ev({ id: "b-flag", at: NOW - 5 * HOUR });
-    expect(sortEvents([flag, practice]).map((e) => e.id)).toEqual(["a-practice", "b-flag"]);
-  });
+  /* ═══ "does not order by subject" IS GONE (addendum §2.1) ═══
+     It asserted that a practice event and a flag of the same age sorted by age
+     and id rather than by kind — the property that made one comparator over two
+     subjects legitimate. There is one subject now, so the test has no second
+     kind to construct and the property it protected cannot be violated.
+     THE COMPARATOR ITSELF DID NOT CHANGE: none of its five steps ever read
+     `subject`, which is why removing a subject removed no ordering. */
 });
 
-describe("grouping", () => {
-  it("is fixed — teen safety above mentor practice, whatever the data says", () => {
-    const practice = ev({ id: "p", kind: "offlineDuringHours", subject: "mentorPractice" });
-    const flag = ev({ id: "f" });
-    expect(groupEvents([practice, flag]).map((g) => g.subject)).toEqual([
-      "teenSafety",
-      "mentorPractice",
-    ]);
-  });
-
-  it("omits an empty group rather than drawing a header over nothing", () => {
-    expect(groupEvents([ev({ id: "f" })]).map((g) => g.subject)).toEqual(["teenSafety"]);
-  });
-
-  it("derives the subject from the kind, so a new practice kind cannot land in teen safety", () => {
-    expect(subjectOf("riskFlag")).toBe("teenSafety");
-    expect(subjectOf("conductStub")).toBe("mentorPractice");
-    expect(subjectOf("teenResponseSlow")).toBe("mentorPractice");
-  });
-});
+/* ═══ THE GROUPING BLOCK IS GONE TOO ═══
+   `groupEvents` split the queue into teen safety above mentor practice, in a
+   fixed order so the data could not reorder them, and omitted empty groups.
+   With one subject it would return one group holding everything, and a header
+   over the whole list restates the page title — so the function, its three
+   tests and `subjectOf` all went. */

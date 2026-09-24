@@ -20,10 +20,9 @@
 // Who may ACT inside it is a separate question the tab answers itself.
 
 import { use, useEffect, useState } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useRouter } from "next/navigation";
 import { MessagesSquare, Sparkles } from "lucide-react";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { UserRecordShell } from "@/components/record/user-record-shell";
 import { PillButton } from "@/components/settings/pill-button";
 import { Supervision } from "@/components/record/supervision";
@@ -121,7 +120,7 @@ export default function PersonRecordPage({
   }, [mounted, bounceMentor, router]);
 
   // Mentor + lead both live in the app chrome; the supervisor has the console.
-  const Shell = isLead || mentorish ? MentorShell : AdminShell;
+  const Shell = isLead || mentorish ? AppChrome : AppChrome;
 
   if (!subject || subject.kind === "live") {
     // "live" has its own deep record; anything unknown is a genuine 404.

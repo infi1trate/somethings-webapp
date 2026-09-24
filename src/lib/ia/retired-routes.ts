@@ -1,7 +1,18 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// THE THREE RETIRED ROUTES, AND WHERE EACH LINK LANDS
+// THE FIVE RETIRED ROUTES, AND WHERE EACH LINK LANDS
 //
-// `/app/home`, `/app/tasks` and `/app/monitoring` stop being destinations. Every
+// `/app/home`, `/app/tasks` and `/app/monitoring` stopped being destinations in
+// the restructure. `/app/coverage` and `/app/mentor-practice` joined them in the
+// addendum — the first because Coverage IS Chat and routes to the conversation
+// surface that already exists, the second because Mentor Practice is not a real
+// concept in this product and has no successor.
+//
+// A REMOVED DESTINATION STILL NEEDS A LANDING. Both shipped, both were in the
+// rail, and a bookmark or a Slack link to either is now in somebody's history.
+// Mentor Practice is the harder case precisely because nothing replaced it: it
+// lands on Risk Flags, which is the other review queue, and the hop is honest
+// rather than silent — `RetiredRoute` names the destination it is sending the
+// reader to. Every
 // link to them that exists today — in the shift digest, in Activity's evidence
 // pane, in a bookmark, in somebody's Slack message — has to land on a real
 // surface rather than a 404, and landing on the RIGHT one matters because the
@@ -25,7 +36,12 @@
 import { destinationOf } from "@/lib/ia/destinations";
 import { asTaskType } from "@/lib/tasks/types";
 
-export type RetiredSurface = "home" | "tasks" | "monitoring";
+export type RetiredSurface =
+  | "home"
+  | "tasks"
+  | "monitoring"
+  | "coverage"
+  | "mentor-practice";
 
 export const TODAY_PATH = "/app/today";
 
@@ -83,5 +99,14 @@ export function retiredRouteTarget(
      and the loss is stated rather than hidden. */
   if (from === "home") return TODAY_PATH;
   if (from === "tasks") return "/app/care-reviews";
+  /* ═══ COVERAGE → CHAT, AND IT IS A RENAME RATHER THAN A GUESS ═══
+     The destination's own unit was a supervised conversation, and a conversation
+     opens in the chat view. That is why §2.2 calls this a rename: the surface a
+     reader wanted is the one they now get, under the name it already had. */
+  if (from === "coverage") return "/app/chat";
+  /* ═══ MENTOR PRACTICE → RISK FLAGS, AND THIS ONE LOSES SOMETHING ═══
+     Nothing replaced it. Risk Flags is the other review queue and the nearest
+     live surface, so it is the honest landing — and the loss is stated here
+     rather than hidden behind a redirect that looks deliberate. */
   return "/app/risk-flags";
 }

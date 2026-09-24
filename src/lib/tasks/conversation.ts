@@ -60,8 +60,32 @@ export interface Conversation {
 
 /** ±15 messages, per the brief. Kept as a named constant because the number is a
  *  product decision (enough to scroll, short enough to feel instant) rather than
- *  an implementation detail. */
+ *  an implementation detail.
+ *
+ *  ═══ IT IS THE FIRST PAGE NOW, NOT THE WHOLE WINDOW (addendum §2.7) ═══
+ *  The transcript scrolls continuously and loads older messages upward, so
+ *  this is what a pane opens with and `OLDER_PAGE` is what each scroll adds. */
 export const CONTEXT_BEFORE = 15;
+
+/** How many older messages one upward load reveals. Smaller than the opening
+ *  page: a load that doubles the transcript makes the scrollbar jump even
+ *  when the viewport does not. */
+export const OLDER_PAGE = 20;
+
+/** ═══ WHERE A CONVERSATION ACTUALLY BEGINS ═══
+ *
+ *  A transcript that loads older messages forever is not continuous scroll, it
+ *  is a treadmill — and on a surface whose edge marker says "earlier messages
+ *  not shown", a marker that never goes away is a promise the fixture cannot
+ *  keep. So each conversation has a beginning, seeded from the item so it
+ *  varies per teen and is stable per render.
+ *
+ *  40–79 messages before the flag: two or three upward loads to reach the
+ *  start, which is enough for the loading path to be exercised by a reader
+ *  rather than only by a probe. */
+export function conversationLength(itemId: string): number {
+  return 40 + (hash(itemId) % 40);
+}
 export const CONTEXT_AFTER = 15;
 
 /** A tiny deterministic hash, so a fixture is stable per item and different
@@ -139,7 +163,14 @@ export function firstNameOf(displayName: string): string {
 export function buildConversation(
   item: TaskItem,
   anchorText: string | null,
-  now: number
+  now: number,
+  /** ═══ HOW FAR BACK TO BUILD (addendum §2.7) ═══
+   *  The generator walks backwards from the anchor and every step is a pure
+   *  function of `i` and the item's seed, so asking for more produces the same
+   *  messages plus older ones — same ids, same timestamps. That is what makes
+   *  loading older safe: the transcript grows at the top and nothing already
+   *  on screen changes underneath the reader. */
+  beforeCount: number = CONTEXT_BEFORE
 ): Conversation {
   const seed = hash(item.id);
   const teenName = firstNameOf(item.teenDisplayName);
@@ -195,7 +226,8 @@ export function buildConversation(
    *  render a perfectly plausible transcript, so nothing about looking at it
    *  would have shown the difference. */
   let extra = 0;
-  for (let i = 1; i <= CONTEXT_BEFORE; i++) {
+  const before_ = Math.min(beforeCount, conversationLength(item.id));
+  for (let i = 1; i <= before_; i++) {
     const continuing = i > 1 && extra > 0;
     if (continuing) {
       extra -= 1;
@@ -269,9 +301,12 @@ export function buildConversation(
   return {
     anchorId: anchor.id,
     messages: [...before, anchor, ...after],
-    // Always true in v1: the fixture is a window, never the whole thread, and
-    // saying so is what the edge marker is for.
-    truncatedStart: true,
+    /* ═══ TRUE UNTIL THE TRANSCRIPT REACHES THE BEGINNING ═══
+       It was `true` unconditionally, because the fixture was a window and
+       nothing could load more. With §2.7's upward loading it is a real
+       question, and answering it honestly is what lets the edge marker stop
+       promising messages that are not coming. */
+    truncatedStart: before_ < conversationLength(item.id),
   };
 }
 

@@ -17,13 +17,10 @@ import type { RiskFlagPayload, TaskItem } from "@/lib/tasks/types";
 import {
   ESCALATION_ACK_SLA,
   ESCALATION_NOTE_SLA,
-  MENTOR_NOTE_SLA,
   MENTOR_ONLINE_HOURS,
-  MENTOR_TEEN_RESPONSE_SLA,
 } from "@/lib/monitoring/constants";
 import { flagEvent, type MonitoringEvent } from "@/lib/monitoring/event";
 import type { CloseOutId, EscalationRecord } from "@/lib/monitoring/escalation";
-import { practiceEventsFor, stubbedConductEvent, type MentorShiftFacts } from "@/lib/monitoring/practice";
 import type { SupervisedConversation } from "@/lib/monitoring/coverage";
 import type { LiveItem, LiveKind } from "@/lib/monitoring/live";
 
@@ -67,14 +64,13 @@ export interface MonitoringScenarioGroup {
  *  groups are in the pack's order. */
 export const MONITORING_SCENARIO_GROUPS: MonitoringScenarioGroup[] = [
   {
-    label: "Volume and coverage",
+    label: "Volume",
     scenarios: [
       { id: "clean-day", label: "Clean day" },
       { id: "classifier-degraded", label: "Classifier degraded" },
       { id: "shift-start-backlog", label: "Shift-start backlog" },
       { id: "normal-day", label: "Normal day" },
       { id: "surge", label: "Surge" },
-      { id: "coverage-debt", label: "Coverage debt" },
     ],
   },
   {
@@ -109,18 +105,7 @@ export const MONITORING_SCENARIO_GROUPS: MonitoringScenarioGroup[] = [
       { id: "flag-repeat-pattern", label: "Repeat pattern" },
       { id: "flag-no-mentor-reply", label: "No mentor reply" },
       { id: "flag-false-positive-cluster", label: "False-positive cluster" },
-    ],
-  },
-  {
-    label: "Mentor practice",
-    scenarios: [
-      { id: "mentor-offline", label: "Offline during hours" },
-      { id: "mentor-outreach-missed", label: "Outreach missed" },
-      { id: "mentor-response-slow", label: "Response time breach" },
-      { id: "mentor-note-overdue", label: "Progress note overdue" },
-      { id: "mentor-conduct-flag", label: "Conduct — stubbed" },
-      { id: "mentor-perf-escalation", label: "Raised by a lead mentor" },
-      { id: "mentor-post-crisis", label: "Post-crisis coverage" },
+      { id: "flag-user-reported", label: "Raised by a person" },
     ],
   },
   {
@@ -222,6 +207,10 @@ function escalation(
     mentorId: o.mentorId ?? mentor.id,
     mentorName: o.mentorName ?? mentor.name,
     conversationId: o.conversationId ?? (o.teenId ?? teen.id),
+    /* NO FIXTURE ATTACHES A FLAG. Linking is a supervisor's action or the
+       interim auto-rule's, both page-local — a fixture that shipped linked
+       flags would be asserting a decision nobody made. */
+    linkedFlagIds: o.linkedFlagIds ?? [],
     triggeredAt: o.triggeredAt ?? triggeredAt,
     acknowledgedAt: o.acknowledgedAt ?? null,
     resolvedAt: o.resolvedAt ?? null,
@@ -282,23 +271,6 @@ let liveSeq = 0;
 function liveItem(kind: LiveKind, line: string, at: number, conversationId: string | null = null): LiveItem {
   liveSeq += 1;
   return { id: `live-${liveSeq}`, kind, line, at, conversationId };
-}
-
-/** One mentor's shift facts, with the breach the fixture wants. */
-function shiftFacts(now: number, o: Partial<MentorShiftFacts> = {}): MentorShiftFacts {
-  const mentor = MENTOR_POOL[0];
-  return {
-    mentorId: o.mentorId ?? mentor.id,
-    mentorName: o.mentorName ?? mentor.name,
-    shiftStart: o.shiftStart ?? now - 3 * HOUR,
-    offlineSince: o.offlineSince ?? null,
-    waitingWhenOffline: o.waitingWhenOffline ?? 0,
-    outreachSentAt: o.outreachSentAt ?? now - 2 * HOUR,
-    teensNeedingOutreach: o.teensNeedingOutreach ?? 0,
-    longestWait: o.longestWait ?? null,
-    leadership: o.leadership ?? null,
-    notesDue: o.notesDue ?? [],
-  };
 }
 
 function base(now: number, events: MonitoringEvent[], reviewedFraction = 0.35): MonitoringData {
@@ -380,6 +352,7 @@ export function escalationsFromTasks(
       is911: p.kind === "escalation" ? p.is911 : false,
       caregiverInvolved: null,
       closeOutDone: [],
+    linkedFlagIds: [],
       /* ═══ THE PAYLOAD IS THE ONLY THING THAT KNOWS WHETHER IT KNOWS ═══
          A DOCUMENTATION task carries the escalation id and the close time and
          nothing else — so both of these are genuinely unknown for a record
@@ -491,13 +464,6 @@ const BUILDERS: Record<string, Builder> = {
       escalations: escalationsFromTasks(ts, now),
     };
   },
-
-  /* FLAGS CLEARED, CONVERSATIONS UNREVIEWED — the state coverage exists to make
-     visible, and the one an event-only queue reports as "done". */
-  "coverage-debt": (now, ts) => ({
-    ...base(now, [], 0.12),
-    escalations: escalationsFromTasks(ts, now),
-  }),
 
   // ── Escalation lifecycle ──────────────────────────────────────────────────
   "escalation-unacked": (now, ts) => ({
@@ -691,77 +657,31 @@ const BUILDERS: Record<string, Builder> = {
     return base(now, events, 0.4);
   },
 
-  // ── Mentor practice ───────────────────────────────────────────────────────
-  "mentor-offline": (now, ts) => {
-    const facts = [shiftFacts(now, { offlineSince: now - 40 * MINUTE, waitingWhenOffline: 3 })];
-    return base(now, [...practiceEventsFor(facts, now), ...eventsFromFlags(flagPool(ts, now).slice(0, 4), now)], 0.4);
-  },
-
-  "mentor-outreach-missed": (now, ts) => {
-    const facts = [shiftFacts(now, { outreachSentAt: null, teensNeedingOutreach: 4 })];
-    return base(now, [...practiceEventsFor(facts, now), ...eventsFromFlags(flagPool(ts, now).slice(0, 3), now)], 0.4);
-  },
-
-  "mentor-response-slow": (now, ts) => {
-    const teen = ROSTER[4];
-    const facts = [
-      shiftFacts(now, {
-        longestWait: { teenId: teen.id, teenName: teen.name, since: now - (MENTOR_TEEN_RESPONSE_SLA + 70 * MINUTE) },
-      }),
-    ];
-    return base(now, [...practiceEventsFor(facts, now), ...eventsFromFlags(flagPool(ts, now).slice(0, 3), now)], 0.4);
-  },
-
-  "mentor-note-overdue": (now, ts) => {
-    const teen = ROSTER[9];
-    const facts = [
-      shiftFacts(now, {
-        notesDue: [{ teenId: teen.id, teenName: teen.name, callEndedAt: now - (MENTOR_NOTE_SLA + 5 * HOUR) }],
-      }),
-    ];
-    return base(now, [...practiceEventsFor(facts, now), ...eventsFromFlags(flagPool(ts, now).slice(0, 3), now)], 0.4);
-  },
-
-  /* THE STUB, VISIBLE. The event exists so the queue and the pane are exercised;
-     it states on its face that no automated measure produced it. */
-  "mentor-conduct-flag": (now, ts) => base(
-    now,
-    [
-      stubbedConductEvent({ mentorId: MENTOR_POOL[2].id, mentorName: MENTOR_POOL[2].name }, now - 3 * HOUR),
-      ...eventsFromFlags(flagPool(ts, now).slice(0, 3), now),
-    ],
-    0.4
-  ),
-
-  "mentor-perf-escalation": (now, ts) => base(
-    now,
-    [
-      {
-        ...stubbedConductEvent({ mentorId: MENTOR_POOL[1].id, mentorName: MENTOR_POOL[1].name }, now - 5 * HOUR),
-        id: "mp-lead-raised",
-        /* NEEDS-COPY-NICOLE. Raised by a person, and it says who rather than
-           implying a system produced it. */
-        practice: { measure: "raised by a lead mentor", againstLabel: "human review", stubbed: true },
+  /* ═══ A FLAG NO CLASSIFIER PRODUCED (addendum §2.8) ═══
+     The axis-2 suppression is the kind of rule that is easy to assert over an
+     empty set: every flag in every other fixture comes from the classifier, so
+     a check that "user-reported flags hide the accuracy axis" would have
+     passed on a queue with no user-reported flag in it.
+     THE FIRST ROW ONLY, so one queue holds both kinds and the pane can be
+     compared against its neighbour in a single run. */
+  "flag-user-reported": (now, ts) => {
+    const flags = flagPool(ts, now).slice(0, 6);
+    const [first, ...rest] = flags;
+    const reported: TaskItem = {
+      ...first,
+      payload: {
+        ...(first.payload as RiskFlagPayload),
+        reportedBy: "user",
+        /* NEEDS-COPY-NICOLE. NOT AN "AI RATIONALE" — a person raised this, so
+           the prose is theirs and the pane attributes it as such. Leaving the
+           classifier's paragraph in place would put machine-written text under
+           a human's report, which is the provenance error this whole surface
+           is built to avoid. */
+        aiRationale:
+          "Reported by Priscilla Vance: teen mentioned not wanting to wake up, twice in one call.",
       },
-      ...eventsFromFlags(flagPool(ts, now).slice(0, 4), now),
-    ],
-    0.4
-  ),
-
-  /* ON BREAK OR GONE, AND THE COVERAGE COST IS THE POINT — the events are the
-     mentor's, the debt is the teens'. */
-  "mentor-post-crisis": (now, ts) => {
-    const facts = [shiftFacts(now, { offlineSince: now - 75 * MINUTE, waitingWhenOffline: 6 })];
-    return {
-      ...base(now, [...practiceEventsFor(facts, now), ...eventsFromFlags(flagPool(ts, now).slice(0, 5), now)], 0.15),
-      escalations: [
-        escalation(now, {
-          triggeredMinsAgo: 260,
-          acknowledgedAt: now - 258 * MINUTE,
-          resolvedAt: now - 100 * MINUTE,
-        }),
-      ],
     };
+    return base(now, eventsFromFlags([reported, ...rest], now), 0.4);
   },
 };
 

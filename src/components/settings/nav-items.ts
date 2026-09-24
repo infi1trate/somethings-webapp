@@ -24,8 +24,9 @@
 //
 // There were THREE definitions of the same navigation:
 //   · `sidebar.tsx`      SIDEBAR_ITEMS  — the mentor base
-//   · `mentor-shell.tsx` LEAD_ITEMS     — the base, filtered
-//   · `admin-shell.tsx`  NAV            — its own literal array
+//   · `mentor-shell.tsx` LEAD_ITEMS     — the base, filtered (both shells
+//   · `admin-shell.tsx`  NAV            — its own literal array; both files
+//     are gone, folded into `app-shell/app-chrome.tsx` by addendum §2.3)
 //
 // They had already drifted: the mentor base called the messaging destination
 // `chat` and the supervisor console called it `chats`, so the same place had two
@@ -42,7 +43,7 @@
 //
 // Activity leaves the bar for the top-bar bell; Team folds into People for staff.
 // Mentors never see People: a one-option menu is a worse Mentees button, and the
-// comment at `mentor-shell.tsx` records why leads have no Mentees destination at
+// comment below records why leads have no Mentees destination at
 // all — they supervise mentors, not teens.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -55,15 +56,14 @@ import {
   ListChecks,
   Megaphone,
   MessageCircle,
-  MessagesSquare,
   Radar,
   ShieldAlert,
-  UserCog,
   Users,
   UsersRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Persona } from "@/lib/types";
+import { isSupervisorTier } from "@/lib/record/permission-map";
 
 /** A nav destination. THE TYPE LIVES HERE, not in `sidebar.tsx`, so the nav
  *  source does not import from a component that imports it back — a type-only
@@ -126,29 +126,16 @@ export const NAV = {
   /** ONE destination, no tiers. The three-way split was a severity taxonomy
    *  this system stamped onto individual flags without computing it. */
   riskFlags: { id: "risk-flags", label: "Risk Flags", icon: Flag },
-  /** THE MENTOR'S PRACTICE, not the teen's safety. Same event primitive, a
-   *  different review subject and a different disposition meaning — which is
-   *  why it is a destination rather than a second tab inside Risk Flags. */
-  mentorPractice: {
-    id: "mentor-practice",
-    label: "Mentor Practice",
-    icon: UserCog,
-  },
-  /** ═══ THE NAME IS BLOCKED ON NICOLE, AND THE ROUTE IS NOT ═══
-   *  `chat`, `messages` and every messaging synonym are prohibited site-wide —
-   *  visible copy, aria labels, alt text, component names. The Figma mockup
-   *  nests `Chat` under Monitoring, where it is the COVERAGE surface, and
-   *  `Conversations` is arguably the same violation: the surface is named for
-   *  the medium when its object is the supervised mentor-mentee relationship.
-   *  Candidates with Nicole, in order of preference: Mentorships (names the
-   *  object) · Coverage (names the work) · Pairs (names the unit).
-   *  The ROUTE is `/app/coverage` and does not wait for her. */
-  coverage: {
-    id: "coverage",
-    // NEEDS-COPY-NICOLE — see above. Placeholder names the work.
-    label: "Coverage",
-    icon: MessagesSquare,
-  },
+  /* ═══ `mentorPractice` AND `coverage` ARE GONE (addendum §2.1, §2.2) ═══
+     Mentor Practice is not a real concept in this product. Coverage IS Chat,
+     and `NAV.chat` above is the item it became — the supervisor's rail gained
+     that existing entry rather than keeping a second one pointing at a second
+     surface for the same conversations.
+     THE COPY QUESTION THE COVERAGE ENTRY CARRIED IS LOGGED, NOT RESOLVED:
+     `chat` and every messaging synonym are on the prohibited list, and the
+     surface is still named for its medium rather than for the supervised
+     relationship it holds. That is Nicole's, it does not block the route, and
+     §1 is explicit that it is not to be raised again here. */
   /** `Care review`, not `Billing code review`. The work is clinical
    *  presentation review that produces a billing artifact, not code entry — and
    *  it moves billing off the safety surface, which was the naming pass's own
@@ -196,7 +183,12 @@ export interface BadgeStyle {
 export const BADGE_STYLE: Record<string, BadgeStyle> = {
   escalations: { shape: "count", tone: "alarm" },
   "risk-flags": { shape: "count", tone: "attention" },
-  "care-reviews": { shape: "clockCount", tone: "neutral" },
+  /* ═══ A BARE COUNT, NOT A CLOCK (addendum §2.9) ═══
+     It was `clockCount`, on the argument that Care Reviews was "the one
+     destination with a real published SLA". §2.9 retires that: care reviews
+     have no deadline, so the clock was drawing an obligation the product does
+     not have. */
+  "care-reviews": { shape: "count", tone: "neutral" },
   /* Today's is the time-critical count. Alarm tone because every member of that
      set is either an unacknowledged escalation or something already breached —
      there is no non-urgent way for this badge to be non-zero. */
@@ -228,8 +220,8 @@ const BADGE_NOUN: Record<string, string> = {
      already late or already unacknowledged. */
   escalations: "needing a response",
   "risk-flags": "open",
-  "mentor-practice": "open",
-  "care-reviews": "due",
+  /* NOT "due" — nothing here is due. See `BADGE_STYLE`. */
+  "care-reviews": "open",
   today: "needing attention now",
   /* NOT "open" — Monitoring's badge counts what is OWED, not what is open, and
    *  the two differ by two orders of magnitude on this surface. See
@@ -261,7 +253,7 @@ export function railItems(persona: Persona): SidebarItemDef[] {
     NAV.mentees,
     NAV.team,
   ];
-  // A lead supervises mentors, not teens — see `mentor-shell.tsx`. Supervisors
+  // A lead supervises mentors, not teens. Supervisors
   // and admins keep Mentees: the roster is theirs.
   return persona === "lead-mentor"
     ? base.filter((i) => i.id !== NAV.mentees.id)
@@ -306,16 +298,37 @@ export interface NavGroup {
 }
 
 export function railGroups(persona: Persona): NavGroup[] {
-  const supervisorTier = isStaff(persona) && persona !== "lead-mentor";
-  /* ADMIN KEEPS THE FLAT RAIL TOO. `isStaff` is true for admin, and §11 puts
-     the admin rail out of scope — so the grouped rail is gated on the
-     supervisor persona alone rather than on the tier. */
-  if (persona !== "supervisor") {
-    void supervisorTier;
+  /* ═══ EVERY PERSONA COMES THROUGH HERE NOW (addendum §2.3) ═══
+     It returned early for anyone who was not a supervisor, so a Lead Mentor and
+     an Admin got the flat icon rail while the supervisor got groups — a fork in
+     the SHELL rather than in the item set, which is the thing §2.3 forbids.
+     THE NON-SUPERVISOR ANSWER IS STILL ONE UNLABELLED GROUP, and that is not
+     the early return wearing a disguise: a null-id group renders no label and
+     no collapse affordance, so the rail is pixel-identical to the flat one
+     while going through the same code path. What changed is that the path is
+     the same, so a group added for another persona is an item-set edit here
+     rather than a shell change somewhere else. */
+  /* ═══ ADMIN IS SUPERVISOR-TIER, SO IT GETS THE SUPERVISOR'S DESTINATIONS ═══
+     The restructure gated this on `persona === "supervisor"` and put the admin
+     rail out of scope, which left it on the flat set — and the flat set still
+     lists `Tasks` and `Monitoring`, both of which are retired hops now. So an
+     admin pressed an item labelled Monitoring and landed on Risk Flags: two
+     stale labels, recorded at the time as the stated cost of restructuring a
+     shared console one persona at a time. `isSupervisorTier` is the real
+     boundary — the destination routes already serve an admin the same content
+     they serve a supervisor — so the rail now agrees with what the routes do. */
+  if (!isSupervisorTier(persona)) {
     return [{ id: null, label: null, items: railItems(persona) }];
   }
   return [
-    { id: null, label: null, items: [NAV.today] },
+    /* ═══ CHAT SITS BESIDE TODAY, NOT UNDER MONITORING ═══
+       The Figma mockup nests it under Monitoring, where it was the coverage
+       surface. It is not a monitoring destination: a supervisor's threads are
+       their own conversations with the leads they oversee, and filing them
+       under a group label that means "work queued for your judgment" would
+       describe them as somebody else's output. Ungrouped, with Today, which is
+       where the two non-queue destinations belong. */
+    { id: null, label: null, items: [NAV.today, NAV.chat] },
     {
       id: "monitoring",
       // NEEDS-COPY-NICOLE. A category of destinations, never a destination.
@@ -323,10 +336,8 @@ export function railGroups(persona: Persona): NavGroup[] {
       items: [
         NAV.escalations,
         NAV.riskFlags,
-        /* BELOW RISK FLAGS, per the target nav. The three judgment destinations
-           sit together and the two reading surfaces follow them. */
-        NAV.mentorPractice,
-        NAV.coverage,
+        /* MENTOR PRACTICE AND COVERAGE WERE HERE, between these two and
+           Activity. Both are gone — see `NAV` above. */
         NAV.activity,
       ],
     },

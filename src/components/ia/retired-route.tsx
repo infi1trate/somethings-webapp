@@ -30,10 +30,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useEffect } from "react";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { MentorShell } from "@/components/mentor/mentor-shell";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
@@ -69,7 +68,7 @@ export function RetiredRoute({
 
   if (supervisor) {
     return (
-      <AdminShell active="today">
+      <AppChrome active="today">
         <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
           <p
             role="status"
@@ -88,7 +87,7 @@ export function RetiredRoute({
             Go to {destinationLabel}
           </Link>
         </div>
-      </AdminShell>
+      </AppChrome>
     );
   }
 
@@ -97,7 +96,7 @@ export function RetiredRoute({
      must not be able to tell that a supervisor route was retired underneath
      them. */
   return (
-    <MentorShell active={fallbackActive}>
+    <AppChrome active={fallbackActive}>
       <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
         <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
           {fallbackTitle}
@@ -107,7 +106,7 @@ export function RetiredRoute({
           here.
         </p>
       </div>
-    </MentorShell>
+    </AppChrome>
   );
 }
 

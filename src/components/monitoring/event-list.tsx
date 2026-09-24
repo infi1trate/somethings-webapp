@@ -47,76 +47,64 @@
 import { riskCategoryLabel } from "@/lib/record/risk-taxonomy";
 import { useEffect, useRef, useState } from "react";
 import { MessageSquareOff, Repeat2, ShieldAlert } from "lucide-react";
-import { WorklistGroupHeader } from "@/components/tasks/group-header";
 import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
+import { type MonitoringEvent } from "@/lib/monitoring/event";
 import {
-  EVENT_KIND_LABEL,
-  SUBJECT_LABEL,
-  type EventGroup,
-  type MonitoringEvent,
-  type ReviewSubject,
-} from "@/lib/monitoring/event";
-import { FLAG_PATTERN_MIN } from "@/lib/monitoring/constants";
+  isRepeatPattern,
+  type FlagGroup,
+} from "@/lib/monitoring/flag-group";
 import { cn } from "@/lib/utils";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
-/** NEEDS-COPY-NICOLE. Age, from the event's own moment — the flagged message for
- *  a flag, the breach for a practice event. "2h ago", never "due in". */
-/** ═══ ONLY A FLAG'S CATEGORY IS A PLAYBOOK ID ═══
+/** ═══ THE CATEGORY IS ALWAYS A PLAYBOOK ID NOW (addendum §2.1) ═══
  *
- *  `MonitoringEvent.category` is documented as two things: "the classifier's
- *  category for a flag; THE RULE'S OWN NAME for practice". Phase 4 mapped every
- *  event's category through `riskCategoryLabel`, which is right for the first and
- *  wrong for the second — measured on `/app/mentor-practice`, every practice row
- *  read "Category not recognised", because a rule name is correctly not in the
- *  risk playbook.
+ *  It used to be two things — "the classifier's category for a flag, THE RULE'S
+ *  OWN NAME for practice" — and Phase 4 mapped both through `riskCategoryLabel`,
+ *  which is right for the first and wrong for the second: measured on
+ *  `/app/mentor-practice`, every practice row read "Category not recognised",
+ *  because a rule name is correctly not in the risk playbook. With one event
+ *  kind there is one producer and the gate is gone.
  *
- *  The lookup is therefore gated on the KIND, not on whether the lookup happens
- *  to succeed. A `?? e.category` fallback would have hidden this: practice rows
- *  would have rendered fine and a genuinely unrecognised FLAG category would
- *  have leaked its raw id, which is the defect the mapping exists to prevent. */
+ *  NO `?? e.category` FALLBACK, then or now. That is what would have hidden the
+ *  original defect, and what would let an unrecognised playbook id leak its raw
+ *  enum onto the row — which is the whole reason the mapping exists. */
 function categoryTextFor(e: MonitoringEvent): string {
-  if (e.category == null) return EVENT_KIND_LABEL[e.kind];
-  return e.kind === "riskFlag" ? riskCategoryLabel(e.category) : e.category;
+  /* NEEDS-COPY-NICOLE. A flag with no category at all is a classifier that
+     produced no answer, which is a different statement from one this playbook
+     does not know — and `riskCategoryLabel` already owns the second. */
+  if (e.category == null) return "Category not recorded";
+  return riskCategoryLabel(e.category);
 }
 
 export function ageLabel(at: number, now: number): string {
   return `${elapsedLabel(at, now)} ago`;
 }
 
-/** ═══ THE SUBJECT OF REVIEW COMES FIRST, AND THAT IS THE DISAMBIGUATION ═══
- *  "Naomi R. to Maria Lopez" left a reader to work out which name was the teen.
- *  On a teen-safety row the teen is the subject and leads; on a mentor-practice
- *  row the mentor is. The group header above states which kind of row this is,
- *  so the leading name's role is never in question — and the accessible name
- *  spells both roles out regardless. */
-function rowNames(e: MonitoringEvent): { lead: string; counterpart: string | null } {
-  if (e.subject === "mentorPractice") {
-    return { lead: e.mentorName, counterpart: e.teenName };
-  }
-  return { lead: e.teenName ?? e.mentorName, counterpart: e.mentorName };
-}
-
-function ariaFor(e: MonitoringEvent, now: number, groupLabel: string): string {
+/** ═══ THE TEEN LEADS, AND THAT IS THE DISAMBIGUATION ═══
+ *  "Naomi R. to Maria Lopez" left a reader to work out which name was the teen,
+ *  in the one state where identifying the teen instantly matters most. The teen
+ *  is the subject of every row on this surface, so the teen leads and the
+ *  accessible name spells both roles out regardless.
+ *
+ *  IT BRANCHED ON SUBJECT until §2.1 — a mentor-practice row led with the
+ *  mentor. One subject, one rule. */
+function ariaFor(g: FlagGroup, now: number): string {
   const parts = [
-    groupLabel,
-    e.subject === "mentorPractice"
-      ? `mentor ${e.mentorName}`
-      : `teen ${e.teenName ?? "unknown"}`,
-    e.subject === "mentorPractice"
-      ? e.teenName
-        ? `teen ${e.teenName}`
-        : null
-      : `mentor ${e.mentorName}`,
-    e.category ? categoryTextFor(e) : null,
-    e.practice?.measure ?? null,
-    e.escalationOpen ? "escalation open for this teen" : null,
-    e.patternCount >= FLAG_PATTERN_MIN ? `${e.patternCount} flags in this conversation` : null,
-    !e.mentorReplied && e.subject === "teenSafety" ? "no mentor reply" : null,
-    ageLabel(e.at, now),
+    `teen ${g.teenName}`,
+    `mentor ${g.mentorName}`,
+    categoryTextFor(g.events[0]),
+    /* ═══ THE COUNT IS IN THE ACCESSIBLE NAME WHENEVER IT IS MORE THAN ONE ═══
+       The visible marker only appears at `FLAG_PATTERN_MIN`, because below that
+       it is not a pattern. But a row standing for two flags is standing for two
+       flags whether or not that is a pattern, and a screen-reader user choosing
+       between rows needs to know the row is a set before they open it. */
+    g.events.length > 1 ? `${g.events.length} flags in this conversation` : null,
+    g.escalationOpen ? "escalation open for this teen" : null,
+    g.anyUnanswered ? "no mentor reply" : null,
+    ageLabel(g.oldestAt, now),
   ];
   return parts.filter(Boolean).join(", ");
 }
@@ -134,22 +122,20 @@ function Marker({ icon: Icon, children }: { icon: typeof Repeat2; children: Reac
 }
 
 function Row({
-  event: e,
+  group: g,
   now,
-  groupLabel,
   selected,
   active,
   onSelect,
 }: {
-  event: MonitoringEvent;
+  group: FlagGroup;
   now: number;
-  groupLabel: string;
   selected: boolean;
   active: boolean;
   onSelect: () => void;
 }) {
-  const { lead, counterpart } = rowNames(e);
-  const disc = discFor(e.subject === "mentorPractice" ? e.mentorId : (e.teenId ?? e.mentorId));
+  const disc = discFor(g.teenId);
+  const n = g.events.length;
   return (
     <div
       /* ═══ TREE / GROUP / TREEITEM, AND NOT LISTBOX / OPTION ═══
@@ -163,8 +149,10 @@ function Row({
       role="treeitem"
       aria-selected={selected}
       tabIndex={active ? 0 : -1}
-      data-anno-ref={`event-row:${e.id}`}
-      data-event-subject={e.subject}
+      /* THE CONVERSATION IS THE ROW'S IDENTITY, not the flag. A row survives
+         its members being resolved one at a time. */
+      data-anno-ref={`event-row:${g.id}`}
+      data-flag-count={n}
       onClick={onSelect}
       onKeyDown={(ev) => {
         if (ev.key === " " || ev.key === "Enter") {
@@ -172,7 +160,7 @@ function Row({
           onSelect();
         }
       }}
-      aria-label={ariaFor(e, now, groupLabel)}
+      aria-label={ariaFor(g, now)}
       className={cn(
         "flex h-14 cursor-pointer items-center gap-3 px-3",
         "border-t border-[color:var(--border-subtle)] first:border-t-0",
@@ -185,103 +173,68 @@ function Row({
         className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
         style={{ backgroundColor: disc.bg, color: disc.fg }}
       >
-        {lead.charAt(0)}
+        {g.teenName.charAt(0)}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-1.5">
           {/* THE ONE EMPHASISED ELEMENT. */}
           <span className="truncate font-display text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {lead}
+            {g.teenName}
           </span>
-          {counterpart && (
-            <>
-              <span aria-hidden className="shrink-0 text-[12px] text-[var(--text-muted)]">
-                ↔
-              </span>
-              <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                {counterpart}
-              </span>
-            </>
-          )}
+          <span aria-hidden className="shrink-0 text-[12px] text-[var(--text-muted)]">
+            ↔
+          </span>
+          <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {g.mentorName}
+          </span>
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-          {/* CATEGORY, THEN AGE. No repeated noun phrase: the header says what
-              these are, so the row never says "flag" again. */}
+          {/* ═══ THE WORST CATEGORY, AND THE OLDEST AGE ═══
+              Both are the comparator's own answers — see `flag-group.ts` on why
+              a set's category is its highest-ranking member and its age is its
+              oldest. A row that sorted on one member and displayed another
+              would be a queue whose order cannot be read off it. */}
           <span className="truncate">
-            {e.category ? categoryTextFor(e) : EVENT_KIND_LABEL[e.kind]}
+            {categoryTextFor({ ...g.events[0], category: g.worstCategory })}
           </span>
           <span aria-hidden className="shrink-0 opacity-40">·</span>
           <span
             className="shrink-0 tabular-nums"
             style={{ fontFamily: "var(--font-mono)" }}
           >
-            {ageLabel(e.at, now)}
+            {ageLabel(g.oldestAt, now)}
           </span>
         </span>
       </span>
       {/* WHAT THE COMPARATOR ACTED ON, SAID OUT LOUD. A queue whose order cannot
           be explained from the rows is a queue a supervisor learns to distrust. */}
       <span className="flex shrink-0 items-center gap-1.5">
-        {e.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
-        {e.patternCount >= FLAG_PATTERN_MIN && (
-          <Marker icon={Repeat2}>{e.patternCount} in this conversation</Marker>
-        )}
-        {!e.mentorReplied && e.subject === "teenSafety" && (
-          <Marker icon={MessageSquareOff}>No reply</Marker>
-        )}
+        {g.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
+        {/* ═══ THE MARKER FINALLY DESCRIBES ITS OWN ROW ═══
+            It read "3 in this conversation" on each of three separate rows for
+            the same conversation. One row per conversation, so the count is a
+            fact about the row a reader is looking at. */}
+        {isRepeatPattern(g) && <Marker icon={Repeat2}>{n} in this conversation</Marker>}
+        {g.anyUnanswered && <Marker icon={MessageSquareOff}>No reply</Marker>}
       </span>
     </div>
   );
 }
 
-/** ═══ THE SUBJECT FILTER — CHIPS, ONE QUEUE ═══
- *  Not tabs and not a second structure: these narrow one list that keeps its
- *  order, its groups and its selection. Same contract as Tasks' kind filter
- *  (`kind-filter.tsx`): `role="group"` with `aria-pressed`, deliberately not a
- *  tablist, and hidden entirely below two subjects. */
-export const ALL_SUBJECTS = "__all__";
-
-export function SubjectFilter({
-  present,
-  value,
-  onChange,
-}: {
-  present: ReviewSubject[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  if (present.length < 2) return null;
-  const chips = [
-    { id: ALL_SUBJECTS, label: "All" },
-    ...present.map((s) => ({ id: s, label: SUBJECT_LABEL[s] })),
-  ];
-  return (
-    <div
-      role="group"
-      /* NEEDS-COPY-NICOLE */
-      aria-label="Filter by review subject"
-      className="mt-3 flex shrink-0 flex-wrap items-center gap-1.5"
-    >
-      {chips.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          aria-pressed={value === c.id}
-          onClick={() => onChange(c.id)}
-          className={cn(
-            "inline-flex min-h-8 items-center rounded-full border px-3 text-[12.5px] font-semibold",
-            value === c.id
-              ? "border-[color:var(--border-contour)] bg-[var(--surface-s2)] text-[var(--text-primary)]"
-              : "border-[color:var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-            RING
-          )}
-        >
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+/* ═══ THE SUBJECT FILTER IS GONE (addendum §2.1) ═══
+ *
+ *  It narrowed one queue to teen safety or mentor practice, with `All` as the
+ *  default and the whole row hidden below two subjects. With Mentor Practice
+ *  removed there is one subject, so the control could only ever have offered
+ *  one choice — and `AGENTS.md` settled that case explicitly: a single filter
+ *  offering no choice is dead chrome, which is the same reasoning that removed
+ *  the one-tab row in arch-A.
+ *
+ *  THE `present.length < 2` GUARD MEANT IT ALREADY RENDERED NOTHING, so this
+ *  deletion changes no pixel. It is here because a hidden control that can never
+ *  un-hide is worse than no control: the next reader has to work out that the
+ *  condition is now unsatisfiable. If a second review subject ever lands, the
+ *  chip pattern is `kind-filter.tsx`, which is where it was copied from. */
 
 export function EventList({
   groups,
@@ -290,15 +243,23 @@ export function EventList({
   onSelect,
   emptyLine,
 }: {
-  groups: EventGroup[];
+  /** ONE PER CONVERSATION, pre-sorted by `compareGroups`. */
+  groups: FlagGroup[];
   now: number;
+  /** The selected CONVERSATION's id — see the row's note on identity. */
   selectedId: string | null;
-  onSelect: (e: MonitoringEvent) => void;
+  onSelect: (g: FlagGroup) => void;
   /** NEEDS-COPY-NICOLE. What an empty queue says — and it never says "you're
    *  done", because coverage is the floor and the queue emptying is weather. */
   emptyLine: string;
 }) {
-  const flat = groups.flatMap((g) => g.events.map((e) => ({ e, label: g.label })));
+  /* ═══ NO GROUP LAYER, AND NO GROUP HEADER (addendum §2.1, §3.1) ═══
+     The list was grouped by review subject, and with one subject the header read
+     "Teen safety — 9" over every row on a page titled Risk Flags: the same noun
+     twice and a count that, per §3.1, was counting the wrong unit anyway. The
+     count moved to the page header's metric pair, which is where §2.10 puts it,
+     and stating it in both places would be the clock told twice. */
+  const flat = groups;
   const [activeIdx, setActiveIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -328,7 +289,7 @@ export function EventList({
   const move = (d: number) => {
     const next = Math.max(0, Math.min(flat.length - 1, idx + d));
     setActiveIdx(next);
-    onSelect(flat[next].e);
+    onSelect(flat[next]);
   };
 
   return (
@@ -350,44 +311,18 @@ export function EventList({
         }
       }}
     >
-      {groups.map((g) => (
-        /* THE COUNT IS IN THE ACCESSIBLE NAME, not only in the visible header —
-           the header is `aria-hidden`, so without this a screen-reader user
-           entering the group hears "Teen safety" and has no idea whether it holds
-           three rows or sixty. Tasks' bands already read "Due today — 2"; the two
-           surfaces now say it the same way. */
-        <div
-          key={g.subject}
-          role="group"
-          aria-label={`${g.label} — ${g.events.length}`}
-          className="min-w-0"
-        >
-          {/* THE SHARED HEADER COMPONENT — one treatment for every group header
-              on every supervisor surface, which is what arch-D settled. The
-              header is also the only place the noun phrase lives. It is
-              `aria-hidden`, and the group's `aria-label` is what a screen reader
-              gets instead. */}
-          <WorklistGroupHeader label={g.label} count={g.events.length} />
-          <div className="min-w-0">
-            {g.events.map((e) => {
-              const i = flat.findIndex((f) => f.e.id === e.id);
-              return (
-                <Row
-                  key={e.id}
-                  event={e}
-                  now={now}
-                  groupLabel={g.label}
-                  selected={selectedId === e.id}
-                  active={i === idx}
-                  onSelect={() => {
-                    setActiveIdx(i);
-                    onSelect(e);
-                  }}
-                />
-              );
-            })}
-          </div>
-        </div>
+      {flat.map((g, i) => (
+        <Row
+          key={g.id}
+          group={g}
+          now={now}
+          selected={selectedId === g.id}
+          active={i === idx}
+          onSelect={() => {
+            setActiveIdx(i);
+            onSelect(g);
+          }}
+        />
       ))}
     </div>
   );

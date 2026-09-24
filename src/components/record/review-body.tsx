@@ -40,7 +40,7 @@
 // a prop called `expanded` would be a lie there.
 
 import { useState, useRef } from "react";
-import { ArrowLeftRight, ChevronRight, FilePlus, Pencil, RefreshCw } from "lucide-react";
+import { ChevronRight, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +62,7 @@ import {
 } from "@/lib/record/care-demo";
 import { Provenance } from "@/components/record/provenance";
 import { proposalKindFor } from "@/lib/record/proposal-kind";
+import { ProposalCodes } from "@/components/record/proposal-codes";
 import { cn } from "@/lib/utils";
 
 /* VERBATIM FROM THE CARD, and it was wrong for one run: this was written with a
@@ -282,46 +283,34 @@ export function ReviewBody({
         Revert back to {review.recommended.statement} (
         <span className="tabular-nums">{review.recommended.code}</span>)
       </button>
-    ) : proposalKind === "assign" ? (
-      /* ═══ NOTHING IS ON RECORD, SO NOTHING IS BEING CHANGED ═══
-         The first presentation a record ever gets. NEUTRAL, not the attention
-         band: `EVENT_TONE.presentation_assigned` is already "neutral" where the
-         timeline renders the committed version of this same event, and a first
-         assignment is the expected course of a new record rather than something
-         to look twice at.
-         "PROPOSED", NOT "ASSIGNED", which is the timeline's word. Nothing has
-         been assigned yet — this card is the proposal, and the parallel with
-         the other two chips is what says so. NO ARROW AND NO CODE: there is no
-         second code to point at, and the header states the one there is. */
-      <span
-        title="Presentation proposed"
-        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]"
-      >
-        <FilePlus className="size-3 shrink-0" aria-hidden />
-        {/* TODO-COPY — PLACEHOLDER. */}
-        Presentation proposed
-      </span>
-    ) : proposalKind === "change" ? (
-      <span
-        title={`Change proposed → ${review.recommended.code}`}
-        className="flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-[var(--band-amber-bg)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--band-amber-fg)]"
-      >
-        <ArrowLeftRight className="size-3 shrink-0" aria-hidden />
-        {/* TODO-COPY */}
-        Change proposed
-        <span className="min-w-0 truncate tabular-nums">
-          → {review.recommended.code}
-        </span>
-      </span>
     ) : (
-      <span
-        title="Renewal proposed"
-        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]"
-      >
-        <RefreshCw className="size-3 shrink-0" aria-hidden />
-        {/* TODO-COPY */}
-        Renewal proposed
-      </span>
+      /* ═══ THE THREE CHIPS BECAME LOZENGES (addendum §2.9) ═══
+       *
+       *  They were three tinted pills — "Presentation proposed", "Change
+       *  proposed → F41.1", "Renewal proposed" — each with its own icon, and
+       *  the change case stated the code it was changing TO while never
+       *  showing the code it was changing FROM. That is the fact a reviewer
+       *  most needs, and the pill form had nowhere to put it.
+       *
+       *  ═══ THIS UNFREEZES THE SHARED MODULE, ON INSTRUCTION ═══
+       *  `PresentationReviewModule` is rendered byte-identical on the Care page
+       *  and gated by `review-body-parity`. §2.9 asked whether the lozenges
+       *  should apply to the row only or to the card as well; the answer was
+       *  both, so the parity baseline is re-taken with this commit and the
+       *  Care page's output changes with it. Stated because a frozen module
+       *  unfreezing is exactly the kind of thing that should never be quiet.
+       *
+       *  WHAT THE PILLS CARRIED THAT SURVIVES: the amber tone on a change. It
+       *  is on the PROPOSED CODE now rather than on a pill around the whole
+       *  phrase, so the tint marks the decision instead of the sentence.
+       *  WHAT DOES NOT: the three icons. A `FilePlus` beside "Presentation
+       *  proposed" and a `RefreshCw` beside "Renewal proposed" were decoration
+       *  on a phrase that already said it. */
+      <ProposalCodes
+        currentCode={currentCode}
+        recommendedCode={review.recommended.code}
+        className="min-w-0 shrink"
+      />
     )}
     </>
   ) : null;

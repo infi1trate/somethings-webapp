@@ -1,6 +1,6 @@
 {
   "base": "http://localhost:3000",
-  "generated": "2026-09-16T16:17:01.547Z",
+  "generated": "2026-09-24T00:34:35.659Z",
   "byView": {
     "A1": 1,
     "A2": 1,
@@ -32,7 +32,7 @@
     "D7": 1,
     "D8": 1,
     "D9": 1,
-    "D10": 1,
+    "D10": 3,
     "D11": 1,
     "D12": 2,
     "D12w": 2,
@@ -78,9 +78,9 @@
     "m": 13,
     "md": 13,
     "lg": 34,
-    "xl": 33,
+    "xl": 34,
     "zoom400": 13,
-    "text200": 21,
+    "text200": 22,
     "landscape": 81
   },
   "byRule": {
@@ -162,7 +162,7 @@
     },
     "color-contrast": {
       "impact": "serious",
-      "count": 155,
+      "count": 157,
       "views": [
         "B4@xs",
         "B4@s",
@@ -191,6 +191,8 @@
         "B12@lg",
         "B12@xl",
         "B12@text200",
+        "D10@xl",
+        "D10@text200",
         "H2@xs",
         "H2@s",
         "H2@m",
@@ -245,7 +247,7 @@
       ]
     }
   },
-  "total": 234,
+  "total": 236,
   "errors": [],
   "viewCount": 69,
   "viewportCount": 9,

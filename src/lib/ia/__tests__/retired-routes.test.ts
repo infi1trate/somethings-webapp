@@ -42,9 +42,17 @@ describe("the destination map", () => {
     expect(destinationOf("riskFlagReview")).toBe("risk-flags");
   });
 
-  it("gives the two non-task destinations no types rather than an empty promise", () => {
-    expect(DESTINATION_TYPES["mentor-practice"]).toEqual([]);
-    expect(DESTINATION_TYPES.coverage).toEqual([]);
+  it("holds exactly the three destinations that own work", () => {
+    /* ═══ THE TWO EMPTY ONES ARE GONE (addendum §2.1, §2.2) ═══
+       This asserted that `mentor-practice` and `coverage` mapped to `[]` —
+       "no types rather than an empty promise". Both destinations are removed,
+       so the honest assertion is that nothing in this table maps to nothing:
+       a destination with no task types is one this file cannot answer
+       questions about, and the reason the two were tolerable was that they
+       were temporary. */
+    for (const [id, types] of Object.entries(DESTINATION_TYPES)) {
+      expect(types.length, `${id} owns no task types`).toBeGreaterThan(0);
+    }
   });
 });
 

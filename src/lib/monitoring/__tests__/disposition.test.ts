@@ -36,12 +36,7 @@ import {
   ACCURACY_VALUES,
   DISPOSITION_REQUIRED_HINT,
   DISPOSITION_VALUES,
-  PRACTICE_DISPOSITION_REQUIRED_HINT,
-  PRACTICE_DISPOSITION_VALUES,
-  RULE_FEEDBACK_VALUES,
   dispositionById,
-  practiceCloses,
-  practiceDispositionById,
   resolves,
 } from "@/lib/monitoring/disposition";
 
@@ -54,12 +49,32 @@ describe("only a clinical disposition can close an event", () => {
     }
   });
 
-  it("does not resolve on the escalate value", () => {
-    // Resolving here would file the event as handled at the moment it stopped
-    // being handled — the path the old control did not have at all.
-    const esc = DISPOSITION_VALUES.find((d) => d.effect === "escalate");
-    expect(esc, "an escalate value exists").toBeDefined();
-    expect(resolves(esc!)).toBe(false);
+  it("holds no verb at all — escalating is an action, not a disposition", () => {
+    /* ═══ THE INVERSION (addendum §2.8) ═══
+       This used to assert that an `escalate` value EXISTED and did not
+       resolve. It exists no longer: a disposition is a statement about the
+       teen that a supervisor is recorded as having made, and putting a verb
+       in the radiogroup meant the required clinical question could be
+       answered with an action.
+       WHAT IS ASSERTED NOW IS THE ABSENCE, and it is asserted over the LABELS
+       as well as the effects — re-adding it as a `watch`-effect value called
+       "Escalate now" would satisfy an effects-only check while putting the
+       verb straight back on the control. */
+    expect(DISPOSITION_VALUES.map((d) => d.effect)).not.toContain("escalate");
+    for (const d of DISPOSITION_VALUES) {
+      expect(d.label.toLowerCase(), d.id).not.toContain("escalat");
+    }
+  });
+
+  it("offers exactly the three values §2.8 names", () => {
+    /* THE COUNT AND THE IDS, because the primary is gated on this array being
+       answerable and a fourth value would change what "required" costs. Still
+       BLOCKED · Dr. Nissan — these three are proposed, not signed off. */
+    expect(DISPOSITION_VALUES.map((d) => d.id)).toEqual([
+      "no-concern",
+      "support-in-place",
+      "watching",
+    ]);
   });
 
   it("does not resolve on the watch value, which is the open question", () => {
@@ -135,8 +150,9 @@ describe("the blocked values stay one edit away", () => {
   it("covers every effect the page branches on, and no others", () => {
     // `DispositionEffect` is the union the page switches over. A value with an
     // effect nothing handles would fall through to doing nothing at all.
+    /* TWO ARMS SINCE §2.8 — `escalate` went with the value that carried it. */
     const effects = new Set(DISPOSITION_VALUES.map((d) => d.effect));
-    expect([...effects].sort()).toEqual(["escalate", "resolve", "watch"]);
+    expect([...effects].sort()).toEqual(["resolve", "watch"]);
   });
 
   it("carries a reader-facing label on every value", () => {
@@ -149,119 +165,24 @@ describe("the blocked values stay one edit away", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AXIS 1 AND 2, FOR A MENTOR PRACTICE EVENT (Phase 8)
+// THE SECOND VOCABULARY IS GONE (addendum §2.1)
 //
-// Gap row 421 left one question open: does a practice event take a SECOND
-// vocabulary, or does the required axis become flag-only? It takes a second one,
-// and these pin the properties that make it a different axis rather than the
-// clinical one relabelled.
-
-describe("a practice event takes its own vocabulary", () => {
-  it("shares no value id with the clinical axis", () => {
-    // ═══ THE COLLAPSE THIS PREVENTS ═══
-    // A shared id is the seam where one axis could be passed for the other, and
-    // the pane routes by SUBJECT rather than by id — so an overlap would make a
-    // clinical disposition satisfiable from the practice destination.
-    const clinical = new Set(DISPOSITION_VALUES.map((d) => d.id));
-    for (const d of PRACTICE_DISPOSITION_VALUES) {
-      expect(clinical.has(d.id), `${d.id} is in both vocabularies`).toBe(false);
-      expect(dispositionById(d.id), `${d.id} resolves as clinical`).toBeNull();
-    }
-    for (const d of DISPOSITION_VALUES) {
-      expect(practiceDispositionById(d.id), `${d.id} resolves as practice`).toBeNull();
-    }
-  });
-
-  it("says nothing clinical, because nobody asked a clinical question", () => {
-    // The defect gap 421 recorded, asserted as a property of the words: a
-    // mentor's missed video note was offered "No clinical concern".
-    for (const d of PRACTICE_DISPOSITION_VALUES) {
-      const text = `${d.label} ${d.consequence}`.toLowerCase();
-      for (const w of ["clinical", "teen", "escalat"]) {
-        expect(text, `${d.id} says "${w}"`).not.toContain(w);
-      }
-    }
-  });
-
-  it("can record that the rule did not apply, which is what makes it usable", () => {
-    // Every threshold these rules read is PROVISIONAL and none can see PTO, an
-    // unreachable teen, or a swapped shift. Without this value a supervisor
-    // would have to record having spoken to a mentor who did nothing wrong in
-    // order to clear the row.
-    const v = PRACTICE_DISPOSITION_VALUES.find((d) => d.id === "rule-did-not-apply");
-    expect(v, "the value exists").toBeDefined();
-    expect(practiceCloses(v!)).toBe(true);
-  });
-
-  it("does not close on a pattern — noticing one is not resolving it", () => {
-    const v = PRACTICE_DISPOSITION_VALUES.find((d) => d.effect === "pattern");
-    expect(v, "a pattern value exists").toBeDefined();
-    expect(practiceCloses(v!)).toBe(false);
-    // Its ROUTING is what is blocked, not the value — there is no lead-mentor
-    // object to hand it to — and the flag is what says so.
-    expect(v!.unresolvedRouting).toBe(true);
-    expect(v!.consequence.toLowerCase()).toContain("lead");
-  });
-
-  it("closes on nothing at all, and on a clinical id", () => {
-    expect(practiceCloses(null)).toBe(false);
-    expect(practiceCloses(practiceDispositionById("no-concern"))).toBe(false);
-  });
-
-  it("gives every value a consequence, because one of them does not close", () => {
-    for (const d of PRACTICE_DISPOSITION_VALUES) {
-      expect(d.consequence.length, d.id).toBeGreaterThan(10);
-    }
-  });
-});
-
-describe("axis 2 asks about the producer, and each subject has a different one", () => {
-  it("asks about the THRESHOLD on practice, never about a classifier", () => {
-    // Phase 5 removed the classifier axis from practice events because the five
-    // rules are deterministic. The threshold is the question that remains, and
-    // it is the only feedback that could un-provisional a constant.
-    for (const v of RULE_FEEDBACK_VALUES) {
-      expect(v.label.toLowerCase()).toContain("threshold");
-      expect(v.label.toLowerCase()).not.toContain("classifier");
-    }
-  });
-
-  it("and about the CLASSIFIER on a flag, never about a threshold", () => {
-    for (const v of ACCURACY_VALUES) {
-      expect(v.label.toLowerCase()).toContain("classifier");
-      expect(v.label.toLowerCase()).not.toContain("threshold");
-    }
-  });
-
-  it("is two answers on both, so leaving it alone stays the default", () => {
-    expect(RULE_FEEDBACK_VALUES).toHaveLength(2);
-    expect(ACCURACY_VALUES).toHaveLength(2);
-  });
-
-  it("shares no id with either axis 1, so neither can resolve anything", () => {
-    for (const v of [...RULE_FEEDBACK_VALUES, ...ACCURACY_VALUES]) {
-      expect(practiceCloses(practiceDispositionById(v.id))).toBe(false);
-      expect(resolves(dispositionById(v.id))).toBe(false);
-    }
-  });
-
-  it("is not axis 1 restated — the two ask about different things", () => {
-    // "Rule didn't apply here" is about THIS INSTANCE (a mentor on PTO).
-    // "Threshold looks wrong" is about THE CONSTANT (a cutoff that trips
-    // everybody daily). Conflating them loses the only signal that can settle a
-    // provisional number, so no label may appear on both axes.
-    const a1 = PRACTICE_DISPOSITION_VALUES.map((d) => d.label.toLowerCase());
-    for (const v of RULE_FEEDBACK_VALUES) {
-      expect(a1, v.label).not.toContain(v.label.toLowerCase());
-    }
-  });
-});
-
-describe("the practice hint names its own axis", () => {
-  it("does not ask for a disposition, which is the other axis's word", () => {
-    expect(PRACTICE_DISPOSITION_REQUIRED_HINT.toLowerCase()).not.toContain(
-      "disposition"
-    );
-    expect(PRACTICE_DISPOSITION_REQUIRED_HINT.length).toBeGreaterThan(10);
-  });
-});
+// Phase 8 added ~110 lines here pinning a practice event's own axis 1 and
+// axis 2: that they shared no value id with the clinical axis, that they said
+// nothing clinical, that "Pattern — for their lead" did not close, and that
+// axis 2 asked about a THRESHOLD rather than a classifier. All of it described
+// Mentor Practice, which is removed.
+//
+// WHAT THE PHASE LEFT BEHIND IS ABOVE, and it is the part worth keeping: the
+// separation invariants on the one remaining pair of axes — that an accuracy
+// answer cannot satisfy a disposition under any id, that only a disposition
+// closes an event, and that nothing is pre-selected. Those were written for
+// the collapse this file exists to prevent, and that collapse is still
+// possible with one vocabulary.
+//
+// THE MUTATION THAT GOT THROUGH IN PHASE 8 is worth recording too, because the
+// check it produced survives: renaming a `RULE_FEEDBACK_VALUES` label to
+// "Classifier was right" passed every probe check, because the probe read the
+// radiogroup's `aria-label` and the shortcut sheet but never the buttons. The
+// `axes.*.axis2-values-agree` check in `monitoring-states.mjs` came from that
+// and now guards the surviving axis 2.

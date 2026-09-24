@@ -6,9 +6,6 @@ import {
   FLAG_REVIEW_SLA,
   LIVE_BAND_MAX,
   LIVE_LAYER_ENABLED,
-  MENTOR_NOTE_SLA,
-  MENTOR_TEEN_RESPONSE_SLA,
-  MENTOR_OUTREACH_CUTOFF,
 } from "@/lib/monitoring/constants";
 import {
   coverageLine,
@@ -16,7 +13,6 @@ import {
   creditsCoverage,
   type SupervisedConversation,
 } from "@/lib/monitoring/coverage";
-import { conductEventsFor, practiceEventsFor, type MentorShiftFacts } from "@/lib/monitoring/practice";
 import { bandItems, bandStateFor, interrupts, type LiveItem } from "@/lib/monitoring/live";
 import { DISPOSITION_VALUES, dispositionById, resolves } from "@/lib/monitoring/disposition";
 import { MONITORING_SCENARIOS, monitoringData } from "@/lib/monitoring/scenarios";
@@ -68,82 +64,16 @@ describe("coverage", () => {
   });
 });
 
-describe("mentor practice", () => {
-  function facts(o: Partial<MentorShiftFacts> = {}): MentorShiftFacts {
-    return {
-      mentorId: "m1",
-      mentorName: "Brandon Forant",
-      shiftStart: NOW - 3 * HOUR,
-      offlineSince: null,
-      waitingWhenOffline: 0,
-      outreachSentAt: NOW - 2 * HOUR,
-      teensNeedingOutreach: 0,
-      longestWait: null,
-      leadership: null,
-      notesDue: [],
-      ...o,
-    };
-  }
-
-  it("reads its constants rather than inlining a duration", () => {
-    /* EACH RULE IS A COMPARISON AGAINST A NAMED CONSTANT. The test straddles the
-       constant instead of a literal, so moving the constant moves the test. */
-    const under = practiceEventsFor([facts({ notesDue: [{ teenId: "t", teenName: "Ava M.", callEndedAt: NOW - MENTOR_NOTE_SLA + HOUR }] })], NOW);
-    expect(under).toHaveLength(0);
-    const over = practiceEventsFor([facts({ notesDue: [{ teenId: "t", teenName: "Ava M.", callEndedAt: NOW - MENTOR_NOTE_SLA - HOUR }] })], NOW);
-    expect(over.map((e) => e.kind)).toEqual(["noteOverdue"]);
-  });
-
-  it("raises a response-time event only past the teen response SLA", () => {
-    const wait = (ms: number) => practiceEventsFor([facts({ longestWait: { teenId: "t", teenName: "Ava M.", since: NOW - ms } })], NOW);
-    expect(wait(MENTOR_TEEN_RESPONSE_SLA - MINUTE)).toHaveLength(0);
-    expect(wait(MENTOR_TEEN_RESPONSE_SLA + MINUTE).map((e) => e.kind)).toEqual(["teenResponseSlow"]);
-  });
-
-  it("raises an outreach event only when teens are actually waiting for one", () => {
-    const past = { shiftStart: NOW - MENTOR_OUTREACH_CUTOFF - HOUR, outreachSentAt: null };
-    expect(practiceEventsFor([facts({ ...past, teensNeedingOutreach: 0 })], NOW)).toHaveLength(0);
-    expect(practiceEventsFor([facts({ ...past, teensNeedingOutreach: 3 })], NOW).map((e) => e.kind)).toEqual([
-      "outreachMissed",
-    ]);
-  });
-
-  it("does not raise an offline event outside shift hours", () => {
-    const offline = facts({ offlineSince: NOW - 30 * MINUTE });
-    const midnight = new Date("2026-09-16T01:00:00").getTime();
-    expect(practiceEventsFor([offline], NOW).map((e) => e.kind)).toEqual(["offlineDuringHours"]);
-    expect(practiceEventsFor([offline], midnight)).toHaveLength(0);
-  });
-
-  it("every practice event names what it was measured against", () => {
-    const all = practiceEventsFor(
-      [
-        facts({
-          offlineSince: NOW - 30 * MINUTE,
-          longestWait: { teenId: "t", teenName: "Ava M.", since: NOW - 9 * HOUR },
-          notesDue: [{ teenId: "t2", teenName: "Kai N.", callEndedAt: NOW - 40 * HOUR }],
-          leadership: { at: NOW - 40 * HOUR, answeredAt: null },
-        }),
-      ],
-      NOW
-    );
-    expect(all.length).toBeGreaterThanOrEqual(4);
-    for (const e of all) {
-      expect(e.practice?.againstLabel).toBeTruthy();
-      expect(e.practice?.measure).toBeTruthy();
-      expect(e.practice?.stubbed).toBe(false);
-      expect(e.subject).toBe("mentorPractice");
-    }
-  });
-
-  it("has no producer for the judgment events, and that is the design", () => {
-    /* TONE, PRESENCE, PERSONALIZATION, BOUNDARIES, CONDUCT, ATTENDANCE. Shipping
-       these with a rules engine behind them would repeat, on mentors, the
-       mistake Phase 1 removed from teens. */
-    expect(conductEventsFor([facts()])).toHaveLength(0);
-  });
-});
-
+/* ═══ THE `mentor practice` BLOCK IS GONE (addendum §2.1) ═══
+   It tested the five deterministic timing rules in `lib/monitoring/practice.ts`
+   — each threshold either side of its constant, the shift-hours gate, and that
+   every emitted event named what it was measured against and did not claim a
+   measurement it had not made. The module is deleted, so these were the only
+   tests of code that no longer exists.
+   THE STANDING RULE THEY ENCODED OUTLIVES THEM and is worth restating where a
+   future producer will read it: a fabricated practice assessment feeding a
+   mentor's record is forbidden, so any rule that cannot measure must say it did
+   not. `stubbed` was how this file made that checkable. */
 describe("the live band", () => {
   const item = (at: number): LiveItem => ({ id: `l${at}`, kind: "awaitingReply", line: "x", at, conversationId: "c" });
 
@@ -187,10 +117,15 @@ describe("the live band", () => {
 });
 
 describe("the disposition model", () => {
-  it("has a path that escalates rather than resolving", () => {
-    const escalate = DISPOSITION_VALUES.find((d) => d.effect === "escalate");
-    expect(escalate).toBeTruthy();
-    expect(resolves(escalate ?? null)).toBe(false);
+  it("has a value that neither closes nor escalates, and it is the open question", () => {
+    /* WAS "has a path that escalates rather than resolving", over a fourth
+       disposition value that §2.8 removed — escalating is a button now. The
+       property worth keeping is that not every value closes the event, which
+       `watching` carries. */
+    const watch = DISPOSITION_VALUES.find((d) => d.effect === "watch");
+    expect(watch).toBeTruthy();
+    expect(resolves(watch ?? null)).toBe(false);
+    expect(watch?.unresolvedQuestion).toBe(true);
   });
 
   it("only a resolving disposition closes anything", () => {
@@ -222,12 +157,25 @@ describe("flags carry age, not a deadline", () => {
 });
 
 describe("every scenario fixture", () => {
-  it("is exactly the 40 keys the phase file lists, plus arch-G's terminal record", () => {
-    /* 39 FROM THE PHASE FILE + `escalation-documented` (arch-G, G6), which the
-       phase file does not list because the state it reaches did not exist then:
-       nothing could be `closed · documented`, so the surface's finished state
-       was unreachable and therefore unverifiable. */
-    expect(MONITORING_SCENARIOS).toHaveLength(40);
+  it("is the phase file's keys, less the eight the addendum removed", () => {
+    /* WAS 40: 39 from the phase file + `escalation-documented` (arch-G, G6),
+       which the phase file does not list because the state it reaches did not
+       exist then — nothing could be `closed · documented`, so the surface's
+       finished state was unreachable and therefore unverifiable.
+       NOW 33. The addendum drops the seven `mentor-*` practice fixtures with
+       the destination (§2.1) and `coverage-debt` with the coverage surface
+       (§2.2), and adds `flag-user-reported` (§2.8) — because the axis-2
+       suppression it exercises is exactly the rule that would otherwise be
+       asserted over an empty set. The count is asserted rather than the list
+       because a fixture arriving unannounced is the thing worth catching. */
+    expect(MONITORING_SCENARIOS).toHaveLength(33);
+    /* AND NONE OF THE REMOVED ONES IS STILL REACHABLE. A key left in the
+       switch with no group entry is a fixture nobody can select and nobody
+       will notice is broken. */
+    for (const s of MONITORING_SCENARIOS) {
+      expect(s.id.startsWith("mentor-"), s.id).toBe(false);
+      expect(s.id, s.id).not.toBe("coverage-debt");
+    }
   });
 
   it("builds without throwing, for every key", () => {
@@ -282,7 +230,6 @@ describe("every scenario fixture", () => {
     expect(monitoringData("flag-in-escalation", "typical-shift", NOW).events.some((e) => e.escalationOpen)).toBe(true);
     expect(monitoringData("flag-repeat-pattern", "typical-shift", NOW).events.some((e) => e.patternCount >= 3)).toBe(true);
     expect(monitoringData("flag-no-mentor-reply", "typical-shift", NOW).events.some((e) => !e.mentorReplied)).toBe(true);
-    expect(monitoringData("mentor-conduct-flag", "typical-shift", NOW).events.some((e) => e.practice?.stubbed)).toBe(true);
     expect(monitoringData("live-transport-lost", "typical-shift", NOW).transport).toBe("lost");
     expect(monitoringData("live-paused", "typical-shift", NOW).paused).toBe(true);
     expect(monitoringData("live-busy-shift", "typical-shift", NOW).live.length).toBeGreaterThan(LIVE_BAND_MAX);
@@ -308,6 +255,9 @@ describe("every scenario fixture", () => {
   it("falls back to the task scenario when no monitoring key is set", () => {
     const derived = monitoringData(null, "typical-shift", NOW);
     expect(derived.events.length).toBeGreaterThan(0);
-    expect(derived.events.every((e) => e.subject === "teenSafety")).toBe(true);
+    /* EVERY EVENT CARRIES ITS FLAG. It used to assert `subject === "teenSafety"`
+       — the same claim, made against a field that no longer exists because
+       there is nothing for it to distinguish this from. */
+    expect(derived.events.every((e) => e.flag != null)).toBe(true);
   });
 });

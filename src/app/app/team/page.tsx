@@ -7,12 +7,11 @@
 //
 // A real route, so it takes precedence over the /app/[section] catch-all.
 
-import { MentorShell } from "@/components/mentor/mentor-shell";
-import { AdminShell } from "@/components/admin/admin-shell";
 import {
   TeamDirectory,
   type TeamScope,
 } from "@/components/admin/team-directory";
+import { AppChrome } from "@/components/app-shell/app-chrome";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useMounted } from "@/lib/use-mounted";
@@ -33,15 +32,15 @@ export default function TeamPage() {
   // mentor app shell (the role migration's "two rails, one route" rule).
   if (mounted && isSupervisorTier(persona)) {
     return (
-      <AdminShell active="team">
+      <AppChrome active="team">
         <TeamDirectory scope={scope} />
-      </AdminShell>
+      </AppChrome>
     );
   }
 
   return (
-    <MentorShell active="team">
+    <AppChrome active="team">
       <TeamDirectory scope={scope} />
-    </MentorShell>
+    </AppChrome>
   );
 }

@@ -27,7 +27,7 @@ import { mkdir, writeFile } from "node:fs/promises";
  *  them, because the order is part of what was asked for. */
 const EXPECTED_KEYS = [
   // Volume and coverage
-  "clean-day", "classifier-degraded", "shift-start-backlog", "normal-day", "surge", "coverage-debt",
+  "clean-day", "classifier-degraded", "shift-start-backlog", "normal-day", "surge",
   // Escalation lifecycle
   "escalation-unacked", "escalation-breach", "escalation-911", "escalation-concurrent",
   "escalation-closeout", "escalation-note-overdue", "escalation-no-caregiver", "escalation-afterhours",
@@ -40,9 +40,12 @@ const EXPECTED_KEYS = [
   "explicit-media", "suspected-death",
   // Risk flags
   "flag-in-escalation", "flag-repeat-pattern", "flag-no-mentor-reply", "flag-false-positive-cluster",
-  // Mentor practice
-  "mentor-offline", "mentor-outreach-missed", "mentor-response-slow", "mentor-note-overdue",
-  "mentor-conduct-flag", "mentor-perf-escalation", "mentor-post-crisis",
+  /* ADDED BY §2.8 — the one fixture with a flag no classifier produced. */
+  "flag-user-reported",
+  /* THE SEVEN `mentor-*` FIXTURES AND `coverage-debt` ARE GONE (addendum §2.1,
+     §2.2) — with the destinations they exercised. The list shrinks rather than
+     the count being loosened, which is the same rule the arch-G addition
+     followed in the other direction. */
   // Live layer
   "live-offhours", "live-transport-lost", "live-quiet-shift", "live-busy-shift", "live-response-clock",
   "live-mentor-drop", "live-outreach-window", "live-flag-arrival", "live-escalation-arrival", "live-paused",
@@ -130,20 +133,25 @@ const rowText = (page) =>
   const { context, page } = await open("tiers-gone");
   await page.waitForTimeout(600);
   const t = await mainText(page);
-  const headers = await page
-    .locator('[role="group"][aria-label]')
-    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  check("input.headers", "group headers were readable at all", headers.length > 0, headers.join(" | "));
-  check(
-    "tier.no-band-headers",
-    "no tier names a group",
-    !headers.some((h) => /Imminent|Clinical review|Routine review/.test(h ?? "")),
-    headers.join(" | ")
-  );
+  /* ═══ THE GROUP-HEADER CHECK IS GONE, AND NOT BECAUSE IT PASSED ═══
+     `input.headers` asserted that group headers existed, and
+     `tier.no-band-headers` asserted that none of them named a tier. The list
+     has no group layer since §2.1: with one review subject the header read
+     "Teen safety — 9" over every row on a page titled Risk Flags.
+     THIS IS THE CASE THE INPUT GUARD WAS WRITTEN FOR. With no headers the
+     tier-name assertion would pass over an empty array — a green check on a
+     claim nothing was tested. So rather than let it go vacuous, the claim is
+     carried by `tier.no-tier-anywhere` below, which reads the whole surface's
+     text and therefore covers whatever a group header would have said, and by
+     `input.rows`, which is the input guard that still has a subject. */
   check(
     "tier.no-tier-anywhere",
-    "and the words appear nowhere on the surface",
-    !/\bImminent\b|\bClinical review\b|\bRoutine review\b/.test(t)
+    "no tier name appears anywhere on the surface",
+    !/\bImminent\b|\bClinical review\b|\bRoutine review\b/.test(t),
+    /* THE DETAIL REPORTS THE OBSERVATION. A pass prints the surface's opening
+       words, so a reader can see WHICH surface was read — the previous version
+       printed nothing at all and a misrouted probe would have looked clean. */
+    t.replace(/\s+/g, " ").slice(0, 80)
   );
 
   const texts = await rowText(page);
@@ -283,11 +291,21 @@ const rowText = (page) =>
     els.map((e) => ({ id: e.getAttribute("data-disposition"), effect: e.getAttribute("data-effect"), text: e.innerText.trim() }))
   );
   check("input.dispositions", "the disposition axis rendered", dispositions.length >= 3, dispositions.map((d) => d.id).join(","));
+  /* ═══ INVERTED BY §2.8, AND THE ASSERTION IS NOW THE ABSENCE ═══
+     It asserted that one disposition VALUE opened an escalation instead of
+     resolving — the path the original control did not have at all. That path
+     still exists and is checked at `footer.two-ctas`; what changed is that it
+     is a button rather than a radio, because a disposition is a statement
+     about the teen and escalating is a thing a supervisor DOES.
+     CHECKED ON THE LABELS TOO: re-adding it as a `watch`-effect value called
+     "Escalate now" would satisfy an effects-only check while putting the verb
+     straight back in the required question. */
   check(
-    "axis1.has-escalate-path",
-    "one value opens an escalation instead of resolving",
-    dispositions.some((d) => d.effect === "escalate"),
-    dispositions.find((d) => d.effect === "escalate")?.text
+    "axis1.holds-no-verb",
+    "the required clinical question cannot be answered with an action",
+    !dispositions.some((d) => d.effect === "escalate") &&
+      !dispositions.some((d) => /escalat/i.test(d.text)),
+    dispositions.map((d) => `${d.text} [${d.effect}]`).join(" · ")
   );
   check(
     "axis.no-disabled-button",
@@ -403,8 +421,12 @@ const rowText = (page) =>
     beforeRows > 0,
     `${beforeRows} rows`
   );
-  await page.locator('[data-effect="escalate"]').first().click();
-  await page.locator('[data-action="record"]').click();
+  /* ═══ ONE CONTROL, NOT TWO (addendum §2.8) ═══
+     It was `[data-effect="escalate"]` — a disposition radio — followed by the
+     primary. Escalating is a button now and is never gated on the radiogroup,
+     which is the whole point: under-escalation is the expensive error on this
+     surface and it should not cost two interactions. */
+  await page.locator('[data-action="escalate"]').click();
   await page.waitForTimeout(700);
   const after = await page.evaluate(() => {
     const pane = document.querySelector('[data-slot="event-pane"]');
@@ -438,10 +460,17 @@ const rowText = (page) =>
     /Escalation opened/i.test(after.announcement),
     after.announcement.replace(/\s+/g, " ").slice(0, 80) || "nothing announced"
   );
+  /* ═══ THIS CHECK IS INVERTED, AND THE INVERSION IS THE PHASE (§2.8) ═══
+     It asserted the flag STAYED in the queue: "escalating is when it stopped
+     being handled", so resolving it would have filed it as handled. §2.8
+     links the flag to the record instead, where it renders in full — so it
+     has not stopped being handled, it has moved to where the handling is, and
+     leaving it in the queue would ask for a second disposition on an incident
+     already being worked. */
   check(
-    "escalate.does-not-resolve",
-    "and does not close the event — escalating is when it stopped being handled",
-    (await rowText(page)).length === beforeRows,
+    "escalate.leaves-the-queue",
+    "and the flag leaves the queue, because it is attached to the record now",
+    (await rowText(page)).length === beforeRows - 1,
     `${beforeRows} rows before, ${(await rowText(page)).length} after`
   );
   await context.close();
@@ -534,81 +563,28 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6 · COVERAGE (Phase 4)
+// 6 · COVERAGE — THE WHOLE SECTION IS GONE (addendum §2.2)
 // ═══════════════════════════════════════════════════════════════════════════
-{
-  const { context, page } = await open("coverage", { scenario: "coverage-debt" });
-  await page.waitForTimeout(600);
-  const header = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
-  check(
-    "header.coverage-is-progress",
-    "the header states coverage as progress against a period",
-    / of \d+ conversations reviewed this shift/.test(header.replace(/\s+/g, " ")),
-    header.replace(/\s+/g, " ")
-  );
-  check(
-    "header.no-backlog-count",
-    "and never as a backlog of items",
-    !/unreviewed|to review|left|remaining|inbox/i.test(header)
-  );
-  check(
-    "header.no-bare-flag-count",
-    "and does not lead with an open flag count",
-    !/\d+ flags? in review/.test(header)
-  );
-  /* ═══ COVERAGE IS A ROUTE, NOT A TAB (Phase 2) ═══
-     The segmented control is hidden under a scope — the URL says which view this
-     is, and a one-tab row offering no choice is dead chrome. So the coverage
-     half opens its own destination instead of clicking for a control that is
-     deliberately not there. The header checks above stay on the queue, which is
-     whose header they are about. */
-  const covView = await open("coverage-view", {
-    scenario: "coverage-debt",
-    url: "/app/coverage",
-  });
-  await covView.page.waitForTimeout(700);
-  const convos = await covView.page
-    .locator("[data-anno-ref^='coverage-row:']")
-    .count();
-  check("coverage.view-exists", "a coverage view lists supervised conversations", convos > 0, `${convos} conversations`);
-  const unreviewedFirst = await covView.page.locator("[data-anno-ref^='coverage-row:']").first().getAttribute("data-reviewed");
-  /* THE DETAIL SAYS WHAT THE VALUE MEANS. It printed the raw `data-reviewed`
-     attribute, so a PASSING check reported "false" — correct, and it reads as a
-     failure at a glance. Third instance of this family (gap rows 424, and the
-     escalate announcement in Phase 6): a detail has to be legible on its own. */
-  check(
-    "coverage.unreviewed-first",
-    "unreviewed conversations sort first",
-    unreviewedFirst === "false",
-    `first row is ${unreviewedFirst === "false" ? "unreviewed" : "reviewed"}`
-  );
-  await page.screenshot({ path: `${OUT}/03-coverage.png` });
-  await covView.context.close();
-  await context.close();
-}
-{
-  /* REVIEWING A FLAG CREDITS ITS CONVERSATION — the rule that stops a supervisor
-     doing the same reading twice. */
-  const { context, page } = await open("coverage-credit", { scenario: "normal-day" });
-  await page.waitForTimeout(700);
-  const before = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
-  await page.locator('[data-effect="resolve"]').first().click();
-  await page.locator('[data-action="record"]').click();
-  await page.waitForTimeout(700);
-  const after = await page.locator('[data-anno-ref="monitoring-header"]').innerText();
-  const n = (s) => Number((s.replace(/\s+/g, " ").match(/(\d+) of \d+ conversations/) ?? [])[1] ?? -1);
-  check("input.credit", "the coverage figure was readable before and after", n(before) >= 0 && n(after) >= 0, `${n(before)} → ${n(after)}`);
-  check(
-    "coverage.credits-on-review",
-    "reviewing an event credits its conversation",
-    n(after) === n(before) + 1,
-    `${n(before)} → ${n(after)}`
-  );
-  await context.close();
-}
+//
+// It held six checks over three fixtures: that the header stated coverage as
+// progress against a period rather than as a remainder, that the view listed
+// supervised conversations with the unreviewed first, that reviewing a flag
+// credited its teen, and that the destination took the full width with no
+// empty pane beside it. Coverage IS Chat now and none of it has a subject.
+//
+// NOT RETARGETED, DELETED — and the distinction matters, because this file's
+// own rule is that a check whose subject moved gets retargeted with the move
+// named rather than relaxed. Nothing moved: the chat view these conversations
+// now live in is existing work with its own probes (`chat-thread`,
+// `chat-shell`), and pointing coverage's assertions at it would be inventing a
+// claim about a surface this phase did not build.
+//
+// THE ONE IDEA WORTH CARRYING FORWARD is that progress is never expressed as a
+// count of what is LEFT. §2.11 puts a progress track back on Risk Flags and
+// Care Reviews, measuring flags reviewed, and that rule is asserted there.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6b · THE TWO AXES, PER DESTINATION (Phase 5)
+// 6b · THE TWO AXES (Phase 5, narrowed by addendum §2.1)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // The unit tests own the axes' MODEL — only a disposition closes an event, the
@@ -617,18 +593,22 @@ for (const [scenario, id, want] of [
 // defects: the accuracy axis on events no classifier produced, and a shortcut
 // sheet teaching those keys on the destination where they do nothing.
 {
-  /* ═══ PHASE 8 CHANGED THE PRACTICE EXPECTATION FROM ABSENT TO DIFFERENT ═══
+  /* ═══ IT RAN OVER TWO DESTINATIONS AND NOW RUNS OVER ONE ═══
      Phase 5 asserted the accuracy axis was ABSENT on a practice event, because
      the five rules are deterministic and there was no classifier to judge.
      Phase 8 gave that destination an axis 2 with a different producer — the
-     rule's provisional THRESHOLD — so the claim is no longer "no second axis"
-     but "the second axis asks about this subject's own producer".
-     CHECKED BY THE LABEL, in both directions: each destination must name its own
-     producer AND must not name the other's. A presence check alone would pass on
-     a practice pane that had simply kept the classifier wording. */
+     rule's provisional THRESHOLD — so the claim became "the second axis asks
+     about this subject's own producer", checked in both directions.
+     MENTOR PRACTICE IS GONE, so the second case goes. The both-directions check
+     STAYS, and it is not vestigial: it is what would catch a threshold question
+     reappearing on a classifier's pane, and the words it forbids are exactly
+     the ones this codebase has already written once. */
+  /* ONE ROW, AND IT STAYS A TABLE. The loop shape survives the second case so
+     that adding a review subject back is a row rather than a rewrite — and so
+     the "not the other's" half of every assertion keeps its second vocabulary
+     to name. */
   const cases = [
     ["risk-flags", "/app/risk-flags", "normal-day", "Classifier accuracy", "Rule threshold", "Clinical disposition", "What you did"],
-    ["mentor-practice", "/app/mentor-practice", "mentor-note-overdue", "Rule threshold", "Classifier accuracy", "What you did", "Clinical disposition"],
   ];
   for (const [name, url, scenario, ownsAxis2, otherAxis2, ownsAxis1, otherAxis1] of cases) {
     const { context, page } = await open(`axes-${name}`, { scenario, url });
@@ -692,12 +672,16 @@ for (const [scenario, id, want] of [
           .querySelector('[data-slot="event-pane"] [data-action="record"]')
           ?.textContent?.trim() ?? ""
     );
+    /* ═══ THE PRIMARY IS THE COMMIT NOW, AND ITS NOUN IS THE ACT (§2.8) ═══
+       It read "Record disposition" — the noun of the axis above it — and the
+       check asserted that the noun followed the axis. Splitting the control
+       changed what the button IS: the disposition is the what, this is the
+       commit, and "Mark reviewed" names the commit rather than restating the
+       question. */
     check(
-      `axes.${name}.primary-noun`,
-      "and the primary's noun follows the axis it commits",
-      ownsAxis1 === "What you did"
-        ? primary === "Record what you did"
-        : primary === "Record disposition",
+      `axes.${name}.primary-is-the-commit`,
+      "and the primary names the commit rather than restating the axis",
+      primary === "Mark reviewed",
       primary || "no primary"
     );
     /* THE HEADING AND THE BUTTONS MUST AGREE. Asserted on the word each subject
@@ -838,10 +822,18 @@ for (const [scenario, id, want] of [
 // checked in BOTH directions — that each owns its clause and that it does not
 // carry a neighbour's — because a check for absence alone passes on a header
 // that says nothing at all.
+//
+// ═══ RETARGETED ONTO THE SHARED HEADER (addendum §2.10) ═══
+//
+// There is no subtitle. §2.10 split what that line was doing into two things
+// it was conflating: a PURPOSE that does not change with the data, and METRICS
+// that do. The bleed this section exists to catch is still possible and still
+// worth catching — it just has two places to happen now, so both are read and
+// both directions are kept.
 {
   const CASES = [
-    ["escalations", "/app/escalations", /escalation|close-out/i, /pipeline/i],
-    ["risk-flags", "/app/risk-flags", /pipeline|flags are arriving/i, /acknowledgement|close-out/i],
+    ["escalations", "/app/escalations", /incident|close-out|active/i, /pipeline|flag was raised/i],
+    ["risk-flags", "/app/risk-flags", /pipeline|flag was raised|oldest/i, /close-out|acknowledgement|active/i],
   ];
   for (const [name, url, owns, borrows] of CASES) {
     const { context, page } = await open(`hdr-own-${name}`, {
@@ -849,31 +841,33 @@ for (const [scenario, id, want] of [
       url,
     });
     await page.waitForTimeout(800);
+    /* THE PURPOSE AND THE METRICS TOGETHER — the bleed can happen in either,
+       and reading only one would let a neighbour's clause move into the other
+       and pass. */
     const header = await page.evaluate(
       () =>
         (
-          document.querySelector('[data-anno-ref="monitoring-header"]')
-            ?.innerText ?? ""
+          document.querySelector('[data-anno-ref="page-header"]')?.innerText ?? ""
         ).replace(/\s+/g, " ")
     );
     check(
       `hdr.own.${name}.input`,
-      "the header rendered a subtitle at all",
-      header.length > 20,
-      header.slice(0, 90)
+      "the header rendered a title, a purpose and its metrics",
+      header.length > 40,
+      header.slice(0, 110)
     );
     check(
       `hdr.own.${name}.states-its-own`,
-      "it states the clause this destination owns",
+      "it states what this destination owns",
       owns.test(header),
-      header.slice(0, 110)
+      header.slice(0, 130)
     );
     check(
       `hdr.own.${name}.borrows-none`,
       "and does not carry a neighbour's",
       !borrows.test(header),
       borrows.test(header)
-        ? `found a neighbour's clause: ${header.slice(0, 90)}`
+        ? `found a neighbour's clause: ${header.slice(0, 110)}`
         : "clean"
     );
     await context.close();
@@ -881,185 +875,713 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6c · COVERAGE AS A DESTINATION (Phase 7)
+// 6c AND 7 — COVERAGE AS A ROUTE, AND MENTOR PRACTICE (both gone)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// The checks above verify coverage's CONTENTS — the list, the sort, the credit
-// path. These verify it as a ROUTE, which is what Phase 2 made it and nothing
-// had checked: its width, its header, and the absence of a control that records
-// having looked at something without opening it.
-{
-  const { context, page } = await open("coverage-dest", {
-    scenario: "coverage-debt",
-    url: "/app/coverage",
-  });
-  await page.waitForTimeout(900);
-  const seen = await page.evaluate(() => {
-    const grid = document.querySelector("main .grid");
-    const header =
-      document.querySelector('[data-anno-ref="monitoring-header"]')?.innerText ??
-      "";
-    const rows = [
-      ...document.querySelectorAll('[data-anno-ref^="coverage-row:"]'),
-    ];
-    return {
-      cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 0,
-      /* A DETAIL PANE ON THIS ROUTE IS PERMANENTLY EMPTY — the scope pins the
-         subject to nothing, so it cannot ever hold an event. */
-      chooseAnEvent: /Choose an event/i.test(
-        document.querySelector("main")?.innerText ?? ""
-      ),
-      header: header.replace(/\s+/g, " "),
-      rowCount: rows.length,
-      /* EVERY FOCUSABLE THING INSIDE A ROW. A control here would be one that
-         acts on a conversation, and the two destinations it could act TOWARD
-         are a mentor route and an id namespace this roster is not in. */
-      rowControls: rows.flatMap((r) =>
-        [...r.querySelectorAll("a, button, [role=button]")].map((e) =>
-          (e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)
-        )
-      ),
-      rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
-    };
-  });
+// 6c checked Coverage as a ROUTE rather than as contents: that it took the
+// full width with no empty detail pane beside it, that its rows were one
+// height so the list read as a roster, that it offered no row control — a
+// credit that fires without leaving being a fabricated measurement — and that
+// its shortcut sheet taught one key rather than five that did nothing.
+//
+// 7 checked Mentor Practice: that the destination held only practice events,
+// that it offered no dead chip row, that a row named the rule and its measure,
+// that the pane said what the measure was taken against, and that a STUBBED
+// event stated on its face that nothing had computed it.
+//
+// Both destinations are removed (§2.2, §2.1), so both blocks go.
+//
+// ═══ ONE CHECK FROM SECTION 7 IS WORTH ITS OWN LINE, BECAUSE IT WAS A RULE ═══
+//
+// `practice.stub-says-so`. The standing rule it enforced — a producer that
+// cannot measure must say so rather than imply a measurement — outlives the
+// surface it was written for. There is nothing on Monitoring making a claim of
+// that shape today; the flag pane's classifier rationale is the nearest, and
+// it is already covered by `disposition.*`. Recorded here so the rule is not
+// lost with the block that happened to hold it.
 
-  check(
-    "coverage.input",
-    "the destination rendered its roster",
-    seen.rowCount > 0,
-    `${seen.rowCount} rows`
+// ═══════════════════════════════════════════════════════════════════════════
+// 7 · ONE ROW PER CONVERSATION (addendum §3.1)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The unit tests own the grouping's MODEL — which member answers each of the
+// comparator's five keys, all four mutation-tested. What only the DOM can
+// answer is whether the row a supervisor reads describes the set it stands
+// for, which is where the defect was: three separate Marcus L. rows, each
+// reading "3 in this conversation".
+{
+  const { context, page } = await open("coalesce", { scenario: "flag-repeat-pattern" });
+  await page.waitForTimeout(900);
+  const rows = await page.locator('[role="treeitem"]').evaluateAll((els) =>
+    els.map((e) => ({
+      n: Number(e.getAttribute("data-flag-count") ?? 0),
+      text: (e.innerText || "").replace(/\s+/g, " ").trim(),
+      name: (e.getAttribute("aria-label") || "").replace(/\s+/g, " "),
+    }))
   );
   check(
-    "coverage.one-column",
-    "it takes the full width — its unit opens as a route, not in a pane",
-    seen.cols === 1 && !seen.chooseAnEvent,
-    `${seen.cols} column(s)` +
-      (seen.chooseAnEvent ? ' · still renders "Choose an event"' : "")
+    "coalesce.input",
+    "the fixture renders a queue, and one of its rows stands for several flags",
+    rows.length > 0 && rows.some((r) => r.n > 1),
+    `${rows.length} row(s), largest set ${Math.max(0, ...rows.map((r) => r.n))}`
+  );
+  /* ═══ THE DEFECT, AS AN ASSERTION ═══
+     Two rows for one conversation is the un-coalesced state. Identity is the
+     teen-and-mentor pair as the row prints it, because that is what a reader
+     compares — the conversation id is not on screen. */
+  const leads = rows.map((r) => r.text.split(" · ")[0]);
+  const dupes = leads.filter((l, i) => leads.indexOf(l) !== i);
+  check(
+    "coalesce.one-row-each",
+    "no conversation appears twice in the queue",
+    dupes.length === 0,
+    dupes.length ? `repeated: ${[...new Set(dupes)].join(" · ")}` : `${leads.length} distinct`
+  );
+  /* ═══ AND THE COUNT DESCRIBES THE ROW IT IS ON ═══
+     The marker said "3 in this conversation" on a row standing for one flag.
+     Checked against `data-flag-count`, which is the row's own set size. */
+  const wrong = rows.filter((r) => {
+    const m = r.text.match(/(\d+) in this conversation/);
+    return m ? Number(m[1]) !== r.n : r.n > 1 && r.n >= 2;
+  });
+  check(
+    "coalesce.count-matches-row",
+    "and where a row states a count, it is that row's own",
+    wrong.length === 0,
+    wrong.length
+      ? wrong.map((r) => `says ${r.text.match(/(\d+) in this/)?.[1]}, holds ${r.n}`).join(" · ")
+      : rows.filter((r) => r.n > 1).map((r) => `${r.n} flags`).join(" · ") || "no multi-flag rows"
   );
   check(
-    "coverage.own-header",
-    "and its header states its own subject, not another destination's",
-    !/escalation|close-out|pipeline/i.test(seen.header),
-    seen.header.slice(0, 110)
+    "coalesce.name-says-set",
+    "a multi-flag row says so in its accessible name, not only in a marker",
+    rows.filter((r) => r.n > 1).every((r) => /\d+ flags in this conversation/.test(r.name)),
+    rows.find((r) => r.n > 1)?.name.slice(0, 110) ?? "no multi-flag row"
   );
+
+  /* ═══ THE PANE MOVES WITHIN THE CONVERSATION ═══
+     A row standing for three flags is only honest if all three are reachable. */
+  await page.locator('[role="treeitem"][data-flag-count="3"]').first().click();
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => ({
+    pos: document.querySelector("[data-within-conversation]")?.getAttribute("data-within-conversation") ?? null,
+    steps: document.querySelectorAll("[data-within-step]").length,
+  }));
   check(
-    "coverage.no-remainder",
-    "and never states what is left — progress with its unit, never an inbox count",
-    /\d+ of \d+ conversations reviewed/.test(seen.header) &&
-      !/unreviewed|remaining|left|to go/i.test(seen.header),
-    seen.header.match(/\d+ of \d+ conversations reviewed this \w+/)?.[0] ?? "no progress line"
+    "coalesce.stepper",
+    "the pane states which flag of the set it is showing",
+    before.pos === "1/3" && before.steps === 2,
+    `position ${before.pos} · ${before.steps} step control(s)`
   );
-  /* ═══ THE CONTROL THAT RECORDED "LOOKED" WITHOUT LOOKING ═══
-     It was a button whose accessible name was "Open the conversation between
-     teen X and mentor Y", wired to a handler that credited the conversation and
-     navigated nowhere. Asserted as an ABSENCE of row controls, not as an absence
-     of that one label, because the defect is the pattern: any control here that
-     credits without leaving is the same fabricated measurement under a new name. */
+  await page.locator('[data-within-step="1"]').click();
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => ({
+    pos: document.querySelector("[data-within-conversation]")?.getAttribute("data-within-conversation") ?? null,
+  }));
   check(
-    "coverage.no-credit-without-looking",
-    "and offers no row control — a credit that fires without leaving is a fabricated measurement",
-    seen.rowControls.length === 0,
-    seen.rowControls.length
-      ? `${seen.rowControls.length}: ${seen.rowControls.slice(0, 2).join(" · ")}`
-      : "read-only"
-  );
-  check(
-    "coverage.uniform-rows",
-    "and every row is one height, so the list reads as a roster",
-    seen.rowHeights.length === 1 && seen.rowHeights[0] === 56,
-    seen.rowHeights.join("/")
+    "coalesce.stepper-moves",
+    "and stepping shows the next one",
+    after.pos === "2/3",
+    `${before.pos} → ${after.pos}`
   );
   await context.close();
 }
 
-/* COVERAGE BINDS ONE KEY, and a sheet listing five that do nothing is worse
-   than a short one. Its own case, because it has no queue to select from. */
+/* ═══ A DISPOSITION DOES NOT SURVIVE A CHANGE OF SUBJECT ═══
+   FOUND WHILE WIRING §3.1, and it predates it: the pane's axis state is
+   `useState` and nothing reset it between events, so picking "No clinical
+   concern" on one teen's flag left the radio CHECKED on the next teen's. The
+   unit tests assert nothing is pre-selected; they cannot see this, because
+   the model was never wrong — the component's lifetime was.
+   THE FIX IS A KEY on the pane, and this is the check that would catch its
+   removal. */
 {
-  const { context, page } = await open("axes-coverage", {
-    scenario: "coverage-debt",
-    url: "/app/coverage",
-  });
+  const { context, page } = await open("pane-reset", { scenario: "normal-day" });
   await page.waitForTimeout(900);
+  const rows = page.locator('[role="treeitem"]');
+  const n = await rows.count();
+  await rows.first().click();
+  await page.waitForTimeout(300);
+  await page.locator("[data-disposition]").first().click();
+  await page.waitForTimeout(200);
+  const picked = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-slot="event-pane"] [role="radio"][aria-checked="true"]')]
+      .map((e) => e.getAttribute("data-disposition"))
+  );
+  check(
+    "pane.reset-input",
+    "a disposition was selectable, so the check below has something to clear",
+    n > 1 && picked.length === 1,
+    `${n} row(s), picked ${picked.join(",") || "nothing"}`
+  );
+  await rows.nth(1).click();
+  await page.waitForTimeout(400);
+  const carried = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-slot="event-pane"] [role="radio"][aria-checked="true"]')]
+      .map((e) => e.getAttribute("data-disposition") ?? e.getAttribute("data-accuracy"))
+  );
+  check(
+    "pane.no-carried-disposition",
+    "and it does not follow the reader to the next teen's flag",
+    carried.length === 0,
+    carried.length ? `still checked: ${carried.join(",")}` : "cleared"
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7b · THE FOOTER SPLIT, AND THE FLAG→ESCALATION LINK (addendum §2.8)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { context, page } = await open("footer", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(400);
+  const seen = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    const b = (sel) => {
+      const el = pane?.querySelector(sel);
+      return el ? { text: (el.textContent ?? "").trim(), disabled: !!el.disabled } : null;
+    };
+    return {
+      dispositions: [...(pane?.querySelectorAll("[data-disposition]") ?? [])].map((e) =>
+        (e.textContent ?? "").trim()
+      ),
+      record: b('[data-action="record"]'),
+      escalate: b('[data-action="escalate"]'),
+    };
+  });
+  check(
+    "footer.three-dispositions",
+    "the required axis offers three clinical values and no verb",
+    seen.dispositions.length === 3 &&
+      !seen.dispositions.some((t) => /escalat/i.test(t)),
+    seen.dispositions.join(" · ") || "none"
+  );
+  check(
+    "footer.two-ctas",
+    "the commit and the action are separate controls, and NEITHER is disabled",
+    seen.record?.text === "Mark reviewed" &&
+      seen.escalate?.text === "Escalate now" &&
+      !seen.record.disabled &&
+      !seen.escalate.disabled,
+    `${seen.record?.text ?? "no commit"} / ${seen.escalate?.text ?? "no action"}`
+  );
+  /* ═══ NOT DISABLED, SO PRESSING IT HAS TO SAY WHY ═══
+     §2.8 is explicit that the primary is not disabled: a disabled button
+     announces nothing and gives no reason. The obligation that creates is
+     this one — the refusal has to be legible AND nothing may resolve. */
+  const rowsBefore = await page.locator('[role="treeitem"]').count();
+  await page.locator('[data-action="record"]').click();
+  await page.waitForTimeout(350);
+  const refused = await page.evaluate(() => ({
+    hint: document.querySelector("#disposition-hint")?.textContent ?? null,
+    rows: document.querySelectorAll('[role="treeitem"]').length,
+  }));
+  check(
+    "footer.ungated-press-explains",
+    "pressing the commit with no disposition explains itself and closes nothing",
+    !!refused.hint && refused.rows === rowsBefore,
+    `${refused.hint ?? "no hint"} · rows ${rowsBefore} → ${refused.rows}`
+  );
+  await context.close();
+}
+
+/* ═══ AXIS 2 ASKS ABOUT A CLASSIFIER, SO IT GOES WHERE ONE DID NOT RUN ═══
+   `flag-user-reported` exists for this check: every other fixture is
+   classifier-only, so the rule would otherwise be asserted over an empty set.
+   THE FIRST VERSION OF THE GATE NEVER FIRED — it compared `reportedBy`
+   against `"user-report"`, a value the field cannot hold — and this is the
+   check that found it. */
+{
+  const { context, page } = await open("user-reported", { scenario: "flag-user-reported" });
+  await page.waitForTimeout(900);
+  const rows = await page.locator('[role="treeitem"]').count();
+  const reads = [];
+  for (let i = 0; i < rows; i += 1) {
+    await page.locator('[role="treeitem"]').nth(i).click();
+    await page.waitForTimeout(260);
+    reads.push(
+      await page.evaluate(() => {
+        const pane = document.querySelector('[data-slot="event-pane"]');
+        const text = (pane?.innerText ?? "").toLowerCase();
+        return {
+          axis2: (pane?.querySelectorAll("[data-accuracy]") ?? []).length,
+          person: text.includes("reported by a person"),
+          classifier: text.includes("classifier rationale"),
+        };
+      })
+    );
+  }
+  const person = reads.filter((r) => r.person);
+  const model = reads.filter((r) => r.classifier);
+  check(
+    "axis2.input",
+    "the queue holds both a classifier flag and a person's report",
+    person.length > 0 && model.length > 0,
+    `${person.length} reported by a person · ${model.length} by the classifier`
+  );
+  check(
+    "axis2.suppressed-for-people",
+    "a flag a person raised does not ask whether the classifier was right",
+    person.every((r) => r.axis2 === 0),
+    person.map((r) => `${r.axis2} control(s)`).join(" · ") || "no person-reported flag"
+  );
+  check(
+    "axis2.present-for-the-classifier",
+    "and a flag the classifier raised still does",
+    model.every((r) => r.axis2 === 2),
+    model.map((r) => `${r.axis2} control(s)`).join(" · ") || "no classifier flag"
+  );
+  await context.close();
+}
+
+/* ═══ ESCALATING LINKS THE FLAG AND TAKES IT OUT OF THE QUEUE ═══ */
+{
+  const { context, page } = await open("escalate-links", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  const before = await page.locator('[role="treeitem"]').count();
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(300);
+  await page.locator('[data-action="escalate"]').click();
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => {
+    const sec = document.querySelector('[data-anno-ref="escalation-linked-flags"]');
+    return {
+      rows: document.querySelectorAll('[role="treeitem"]').length,
+      linked: document.querySelectorAll("[data-linked-flag]").length,
+      text: (sec?.innerText ?? "").replace(/\s+/g, " ").slice(0, 160),
+    };
+  });
+  check(
+    "link.leaves-the-queue",
+    "escalating a flag takes it out of the queue rather than leaving it to be dispositioned twice",
+    after.rows === before - 1,
+    `${before} → ${after.rows} row(s)`
+  );
+  check(
+    "link.renders-inside-the-record",
+    "and it renders inside the record with its evidence intact",
+    after.linked === 1 &&
+      /Playbook match/.test(after.text) &&
+      /Classifier rationale/.test(after.text),
+    after.text || "no linked-flag section"
+  );
+  /* ═══ THE PICKER'S ONLY REACHABLE STATE IN THESE FIXTURES ═══
+     Every flag on a teen is on that teen's ONE conversation — `objectId` is
+     the teen id throughout the seed — so the interim auto-link rule has
+     already claimed anything the picker could offer. The case it exists for
+     (a flag on the teen's OTHER thread) needs a fixture with two
+     conversations per teen, which the data model does not currently express.
+     Reported rather than faked: what is checkable is that the empty state
+     names its scope instead of reading as a broken list. */
+  await page.locator('[data-action="attach-flag"]').click();
+  await page.waitForTimeout(300);
+  const picker = await page.evaluate(() => {
+    const sec = document.querySelector('[data-anno-ref="escalation-linked-flags"]');
+    return {
+      options: sec?.querySelectorAll("[data-attach]").length ?? 0,
+      text: (sec?.innerText ?? "").replace(/\s+/g, " "),
+    };
+  });
+  check(
+    "link.picker-states-its-scope",
+    "the attach picker names what it searched when it finds nothing",
+    picker.options > 0 || /No other open flags on \w/.test(picker.text),
+    picker.options > 0
+      ? `${picker.options} attachable flag(s)`
+      : picker.text.slice(0, 120)
+  );
+  await context.close();
+}
+
+/* ═══ THE KEYBOARD PATH IS ONE KEYSTROKE, AND ONLY WHERE IT SHOULD BE ═══ */
+{
+  const { context, page } = await open("digits", { scenario: "normal-day" });
+  await page.waitForTimeout(900);
+  const before = await page.locator('[role="treeitem"]').count();
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("1");
+  await page.waitForTimeout(800);
+  const afterResolve = await page.locator('[role="treeitem"]').count();
+  check(
+    "keys.digit-commits",
+    "a digit selects a disposition AND commits it, in one keystroke",
+    afterResolve === before - 1,
+    `${before} → ${afterResolve} row(s)`
+  );
+  await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("3");
+  await page.waitForTimeout(800);
+  const watch = await page.evaluate(() => ({
+    rows: document.querySelectorAll('[role="treeitem"]').length,
+    checked: [...document.querySelectorAll('[data-slot="event-pane"] [role="radio"][aria-checked="true"]')].map(
+      (e) => e.getAttribute("data-disposition")
+    ),
+  }));
+  check(
+    "keys.watch-does-not-close",
+    "and the watch value records itself without closing anything",
+    watch.rows === afterResolve && watch.checked.includes("watching"),
+    `${afterResolve} → ${watch.rows} row(s) · checked ${watch.checked.join(",") || "nothing"}`
+  );
+  /* THE SHEET HAS TO SAY THAT. A row reading "Watching — not resolved — and
+     mark reviewed" teaches that the key closes an event the value keeps
+     open, which is what the first version printed. */
   await page.keyboard.press("?");
   await page.waitForTimeout(400);
   const sheet = await page.evaluate(
     () => document.querySelector('[role="dialog"]')?.innerText ?? ""
   );
   check(
-    "axes.coverage.sheet-input",
-    "the shortcut sheet opened on Coverage",
-    /Keyboard shortcuts/i.test(sheet),
-    sheet.slice(0, 40).replace(/\s+/g, " ")
-  );
-  check(
-    "axes.coverage.sheet-minimal",
-    "and teaches no queue, pane or accuracy key — Coverage binds none of them",
-    !/queue|review pane|Classifier/i.test(sheet),
-    sheet.replace(/\s+/g, " ").slice(0, 120)
+    "keys.sheet-teaches-the-effect",
+    "the sheet distinguishes the keys that close from the one that does not",
+    /Watching — not resolved(?! — and mark reviewed)/.test(sheet) &&
+      /No clinical concern — and mark reviewed/.test(sheet) &&
+      /Open an escalation from this flag/.test(sheet),
+    sheet
+      .split("\n")
+      .filter((l) => /mark reviewed|Watching|escalation/.test(l))
+      .join(" · ") || "teaches none of them"
   );
   await context.close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7 · MENTOR PRACTICE (Phase 5)
+// 7c · THE TRANSCRIPT SCROLLS, AND IT DOES NOT JUMP (addendum §2.7)
 // ═══════════════════════════════════════════════════════════════════════════
 {
-  /* ═══ THE SUBJECT SPLIT IS A ROUTE BOUNDARY NOW (Phase 2) ═══
-     Practice events used to share one queue with flags, narrowed by a chip row.
-     They are two destinations: `/app/risk-flags` pins teen safety and
-     `/app/mentor-practice` pins mentor practice. So this opens the practice
-     destination rather than clicking a chip that is deliberately hidden.
-     THE TWO CHIP CHECKS BELOW ARE RETIRED, not relaxed — `practice.one-queue`
-     asserted both subjects in one list and `practice.filter-chips` asserted the
-     control that narrowed it. Both describe a surface Phase 2 replaced; the
-     claim that survived is that the practice queue holds ONLY practice events,
-     which `practice.filter-works` already makes and which the route now
-     guarantees rather than a chip. */
-  const { context, page } = await open("practice", {
-    scenario: "mentor-note-overdue",
-    url: "/app/mentor-practice",
-  });
-  await page.waitForTimeout(800);
-  const headers = await page.locator('[role="group"][aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  /* PREFIX MATCH: the group's accessible name carries its count ("Mentor
-     practice — 3"), which is what a screen-reader user needs on entry. */
-  const named = (want) => headers.some((h) => (h ?? "").startsWith(want));
-  check(
-    "practice.own-destination",
-    "the practice queue names its subject and holds nothing else",
-    named("Mentor practice") && !named("Teen safety"),
-    headers.join(" | ") || "no groups"
-  );
-  check(
-    "practice.no-dead-chip-row",
-    "and offers no subject filter, because the route already chose",
-    (await page.locator('[role="group"][aria-label*="review subject"] button:visible').count()) === 0
-  );
-  const subjects = await page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-event-subject")));
-  check("practice.filter-works", "the chip narrows the one queue", subjects.length > 0 && subjects.every((s) => s === "mentorPractice"), subjects.join(","));
-  const row = await page.locator('[role="treeitem"]').first().innerText();
-  check("practice.states-measure", "a practice row names the rule and the measure", /overdue/.test(row.replace(/\s+/g, " ")), row.replace(/\s+/g, " "));
+  const { context, page } = await open("transcript", { scenario: "normal-day" });
+  const BODY = '[data-slot="event-pane"] .overflow-y-auto';
+  await page.waitForTimeout(900);
   await page.locator('[role="treeitem"]').first().click();
+  await page.waitForTimeout(700);
+
+  /* ═══ ONE REGION IN THE PANE, AND IT IS THE TRANSCRIPT ═══
+     `structure.two-scrollers` already counts the page's regions. This is the
+     narrower claim §2.7 makes: nothing nests INSIDE the pane. */
+  const nested = await page.evaluate(() => {
+    const pane = document.querySelector('[data-slot="event-pane"]');
+    return [...(pane?.querySelectorAll("*") ?? [])].filter((e) => {
+      const oy = getComputedStyle(e).overflowY;
+      return oy === "auto" || oy === "scroll";
+    }).length;
+  });
+  check(
+    "transcript.one-region",
+    "the pane has exactly one scroll region and the transcript is in it",
+    nested === 1,
+    `${nested} scrollable element(s) inside the pane`
+  );
+
+  /* ═══ SCROLL ANCHORING, MEASURED AGAINST A MARKED LINE ═══
+     The arithmetic is the whole check: a line is marked while the transcript
+     is parked ABOVE the load threshold, the reader then scrolls 160px up,
+     which crosses it — so the line must move exactly 160px and not one pixel
+     more. The first implementation moved it 1400. */
+  await page.evaluate((B) => {
+    document.querySelector(B).scrollTop = 200;
+  }, BODY);
   await page.waitForTimeout(400);
-  const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
-  check("practice.pane-names-constant", "and the pane says what it was measured against", /Measured against/.test(pane), pane.slice(0, 120));
-  await page.screenshot({ path: `${OUT}/04-practice.png` });
+  const mark = await page.evaluate((B) => {
+    const b = document.querySelector(B);
+    const r = b.getBoundingClientRect();
+    const li = [...b.querySelectorAll("li")].find(
+      (e) => e.getBoundingClientRect().top >= r.top - 2
+    );
+    if (!li) return null;
+    li.setAttribute("data-watch", "1");
+    return {
+      offset: Math.round(li.getBoundingClientRect().top - r.top),
+      n: b.querySelectorAll("li").length,
+    };
+  }, BODY);
+  await page.evaluate((B) => {
+    document.querySelector(B).scrollTop = 40;
+  }, BODY);
+  await page.waitForTimeout(1100);
+  const moved = await page.evaluate((B) => {
+    const b = document.querySelector(B);
+    const li = b.querySelector("[data-watch]");
+    if (!li) return null;
+    return {
+      offset: Math.round(li.getBoundingClientRect().top - b.getBoundingClientRect().top),
+      n: b.querySelectorAll("li").length,
+    };
+  }, BODY);
+  check(
+    "transcript.loads-older",
+    "scrolling to the top loads older messages",
+    !!mark && !!moved && moved.n > mark.n,
+    mark && moved ? `${mark.n} → ${moved.n} message(s)` : "could not mark a line"
+  );
+  check(
+    "transcript.anchored",
+    "and the reader's line moves only by the amount they scrolled",
+    !!mark && !!moved && Math.abs(moved.offset - mark.offset - 160) <= 4,
+    mark && moved
+      ? `the watched line moved ${moved.offset - mark.offset}px; the reader scrolled 160`
+      : "could not measure"
+  );
+
+  /* ═══ THE RETURN CONTROL APPEARS ONLY WHEN IT HAS SOMEWHERE TO GO ═══ */
+  await page.evaluate((B) => {
+    document.querySelector(B).scrollTop = 0;
+  }, BODY);
+  await page.waitForTimeout(700);
+  const away = await page.evaluate(
+    () => document.querySelector("[data-return-to-flag]")?.getAttribute("data-return-to-flag") ?? null
+  );
+  check(
+    "transcript.return-names-its-direction",
+    "with the flagged message off screen, the control says which way it is",
+    away === "below" || away === "above",
+    away ?? "no control"
+  );
+  if (away) {
+    await page.locator("[data-return-to-flag]").click();
+    await page.waitForTimeout(900);
+    const back = await page.evaluate(() => ({
+      pill: document.querySelector("[data-return-to-flag]") ? "still there" : "gone",
+      visible: (() => {
+        const b = document.querySelector('[data-slot="event-pane"] .overflow-y-auto');
+        const li = b?.querySelector("[data-anno-ref], li");
+        const flagged = [...(b?.querySelectorAll("li") ?? [])].find((e) =>
+          (e.textContent ?? "").includes("Flagged message")
+        );
+        if (!b || !flagged) return "no flagged line";
+        const r = b.getBoundingClientRect();
+        const f = flagged.getBoundingClientRect();
+        void li;
+        return f.top >= r.top - 2 && f.bottom <= r.bottom + 2 ? "in view" : "out of view";
+      })(),
+    }));
+    check(
+      "transcript.return-goes-there",
+      "and pressing it puts the flagged message back on screen, which dismisses it",
+      back.visible === "in view" && back.pill === "gone",
+      `${back.visible} · control ${back.pill}`
+    );
+  }
   await context.close();
 }
+
+/* ═══ THE EDGE MARKER STOPS PROMISING WHAT IS NOT COMING ═══
+   It read "Earlier messages not shown" unconditionally, which is true of a
+   window and a lie at the beginning of a conversation. */
 {
-  const { context, page } = await open("practice-stub", {
-    scenario: "mentor-conduct-flag",
-    url: "/app/mentor-practice",
-  });
-  await page.waitForTimeout(800);
+  const { context, page } = await open("transcript-start", { scenario: "normal-day" });
+  const BODY = '[data-slot="event-pane"] .overflow-y-auto';
+  await page.waitForTimeout(900);
   await page.locator('[role="treeitem"]').first().click();
-  await page.waitForTimeout(400);
-  const pane = (await page.locator('[data-slot="event-pane"]').innerText()).replace(/\s+/g, " ");
+  await page.waitForTimeout(700);
+  const edge = () =>
+    page.evaluate((B) => {
+      const b = document.querySelector(B);
+      return (
+        [...(b?.querySelectorAll("p") ?? [])]
+          .map((e) => e.innerText)
+          .find((t) => /earlier|start of this/i.test(t)) ?? null
+      );
+    }, BODY);
+  const opening = await edge();
+  for (let i = 0; i < 6; i += 1) {
+    await page.evaluate((B) => {
+      document.querySelector(B).scrollTop = 0;
+    }, BODY);
+    await page.waitForTimeout(420);
+  }
+  const atStart = await edge();
   check(
-    "practice.stub-says-so",
-    "a stubbed event states that nothing computed it",
-    /No automated measure|no automated measure/.test(pane),
-    pane.slice(0, 140)
+    "transcript.edge-is-honest",
+    "the edge marker says more is coming, then says this is the beginning",
+    /as you scroll/i.test(opening ?? "") && /start of this conversation/i.test(atStart ?? ""),
+    `opened with "${opening ?? "nothing"}" · ended with "${atStart ?? "nothing"}"`
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7d · ONE HEADER, AND A TRACK THAT MEASURES COVERAGE (addendum §2.10, §2.11)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  /* ═══ EVERY DESTINATION, INCLUDING THE ONES THIS FILE DOES NOT OWN ═══
+     §2.10's claim is that ONE component serves them all, and a check that
+     only looked at Monitoring's two could not tell a shared header from a
+     fourth copy of one. */
+  const DESTINATIONS = [
+    ["/app/today", 0],
+    ["/app/escalations", 2],
+    ["/app/risk-flags", 2],
+    ["/app/care-reviews", 2],
+    ["/app/team", 1],
+    ["/app/mentees", 1],
+  ];
+  const seen = [];
+  for (const [url, wantMetrics] of DESTINATIONS) {
+    const { context, page } = await open(`hdr${url}`, { url });
+    await page.waitForTimeout(900);
+    seen.push({
+      url,
+      wantMetrics,
+      ...(await page.evaluate(() => {
+        const h = document.querySelector('[data-anno-ref="page-header"]');
+        if (!h) return { present: false };
+        const title = h.querySelector("h1");
+        return {
+          present: true,
+          titlePx: title ? Number(getComputedStyle(title).fontSize.replace("px", "")) : 0,
+          purpose: (h.querySelector('[data-anno-ref="page-purpose"]')?.innerText ?? "").trim(),
+          metrics: [...h.querySelectorAll("[data-metric-value]")].map((e) => ({
+            value: (e.innerText ?? "").trim(),
+            label: e.getAttribute("data-metric-value") ?? "",
+            tabular: getComputedStyle(e).fontVariantNumeric.includes("tabular"),
+          })),
+        };
+      })),
+    });
+    await context.close();
+  }
+  check(
+    "header.shared",
+    "every destination renders the one header component",
+    seen.every((d) => d.present),
+    seen.filter((d) => !d.present).map((d) => d.url).join(", ") || `${seen.length} destinations`
+  );
+  check(
+    "header.one-title-size",
+    "and one title size across all of them",
+    new Set(seen.map((d) => d.titlePx)).size === 1 && seen[0].titlePx >= 28,
+    [...new Set(seen.map((d) => `${d.titlePx}px`))].join(" / ")
+  );
+  check(
+    "header.purpose-everywhere",
+    "each one says what the destination is for, in a sentence",
+    seen.every((d) => d.purpose.length > 25),
+    seen.map((d) => `${d.url}: ${d.purpose.length}`).join(" · ")
+  );
+  check(
+    "header.metric-count",
+    "with the metrics §2.10 names — at most two, and none on Today",
+    seen.every((d) => d.metrics.length === d.wantMetrics),
+    seen.map((d) => `${d.url} ${d.metrics.length}/${d.wantMetrics}`).join(" · ")
+  );
+  check(
+    "header.metrics-tabular",
+    "and every figure is tabular, so the column does not jitter as it changes",
+    seen.every((d) => d.metrics.every((m) => m.tabular)),
+    seen.flatMap((d) => d.metrics.map((m) => `${m.value} ${m.label}`)).join(" · ") || "no metrics"
+  );
+  /* ═══ NO METRIC MAY FRAME WORK AS AN INBOX TO EMPTY (§2.10) ═══
+     A remainder — "left", "remaining", "to go" — is the framing this whole
+     restructure exists to escape, and the coverage view's own rule before it
+     became Chat. Asserted over the labels rather than trusted to review. */
+  const labels = seen.flatMap((d) => d.metrics.map((m) => m.label.toLowerCase()));
+  check(
+    "header.no-remainder",
+    "and no metric counts what is LEFT",
+    labels.every((l) => !/\b(left|remaining|to go|outstanding)\b/.test(l)),
+    labels.join(" · ") || "no labels"
+  );
+}
+
+/* ═══ THE TRACK MEASURES COVERAGE, NEVER SPEED (§2.11, §3.4) ═══
+   The clinical risk in a completion mechanic is that it rewards throughput,
+   and the failure mode here is a supervisor dispositioning faster to finish
+   the bar — on a queue of self-harm flags. So the checks are about what the
+   track MAY NOT say as much as what it does. */
+{
+  const { context, page } = await open("track", { scenario: "flag-repeat-pattern" });
+  await page.waitForTimeout(900);
+  const read = () =>
+    page.evaluate(() => {
+      const t = document.querySelector('[data-anno-ref="shift-track"]');
+      if (!t) return null;
+      const fill = t.querySelector('[role="img"] > div');
+      const cs = fill ? getComputedStyle(fill) : null;
+      return {
+        progress: t.getAttribute("data-progress"),
+        complete: t.getAttribute("data-complete"),
+        text: (t.innerText ?? "").replace(/\s+/g, " ").trim(),
+        name: t.querySelector('[role="img"]')?.getAttribute("aria-label") ?? "",
+        fill: cs?.backgroundColor ?? "",
+        width: fill?.style.width ?? "",
+        segments: t.querySelectorAll('[role="img"] > div').length,
+      };
+    });
+  const start = await read();
+  check(
+    "track.present",
+    "the flag queue carries a shift track",
+    !!start && /^0\//.test(start.progress ?? ""),
+    start ? `${start.progress} · "${start.text}"` : "no track"
+  );
+  check(
+    "track.one-continuous-bar",
+    "one continuous track, not segments — segments read as points scored",
+    start?.segments === 1,
+    `${start?.segments} fill element(s)`
+  );
+  /* ═══ NEVER GREEN ═══
+     Green on a safety surface reads as a clinical all-clear rather than as
+     task completion. Measured off the fill, not asserted of the token. */
+  const rgb = (start?.fill ?? "").match(/\d+/g)?.map(Number) ?? [];
+  check(
+    "track.never-green",
+    "and it is never green",
+    rgb.length >= 3 && !(rgb[1] > rgb[0] + 20 && rgb[1] > rgb[2] + 20),
+    start?.fill || "no fill"
+  );
+  check(
+    "track.states-no-remainder",
+    "it states progress with its unit, never a count of what is left",
+    !!start && !/\b(left|remaining|to go)\b/i.test(start.text) && /of/.test(start.text),
+    start?.text ?? "no text"
+  );
+  /* ═══ AND NOTHING IN IT IS A CLOCK (§3.4) ═══
+     No elapsed time, no rate, no streak, no per-item timing, no comparison.
+     Every one of those rewards going faster; coverage rewards going through. */
+  check(
+    "track.no-speed",
+    "and says nothing about speed — no rate, no streak, no elapsed time",
+    !!start &&
+      !/(per hour|\/hr|streak|avg|average|faster|\bmin\b|\bsec\b)/i.test(start.text + " " + start.name),
+    `${start?.text} | ${start?.name}`
+  );
+  check(
+    "track.name-carries-the-fraction",
+    "and the bar is never the only carrier — the fraction is in its name",
+    /\d+ of \d+/.test(start?.name ?? ""),
+    start?.name ?? "no accessible name"
+  );
+
+  /* ═══ THE ENDING IS THE PAYOFF, AND IT IS REACHABLE ═══
+     §3.4 invests in the completion state rather than the filling. A state
+     nothing in the product can reach is a state nobody has designed. */
+  const rows = await page.locator('[role="treeitem"]').count();
+  for (let i = 0; i < rows + 2; i += 1) {
+    if ((await page.locator('[role="treeitem"]').count()) === 0) break;
+    await page.locator('[role="treeitem"]').first().click();
+    await page.waitForTimeout(180);
+    await page.keyboard.press("1");
+    await page.waitForTimeout(420);
+  }
+  const end = await read();
+  check(
+    "track.completion-is-reachable",
+    "working the queue reaches the completion state",
+    end?.complete === "true" && end.width === "100%",
+    end ? `${end.progress} · ${end.width} · complete=${end.complete}` : "no track"
+  );
+  check(
+    "track.completion-does-not-congratulate",
+    "and it states the coverage achieved rather than praising anybody",
+    !!end &&
+      !/(nice|great|well done|good job|congrat|!|🎉)/i.test(end.text) &&
+      /shift/.test(end.text),
+    end?.text ?? "no completion line"
   );
   await context.close();
 }
@@ -1246,11 +1768,13 @@ for (const [scenario, id, want] of [
     "grouped in the order the phase file lists",
     groups.join(" | ") ===
       [
-        "Monitoring · Volume and coverage",
+        /* WAS "Volume and coverage" — coverage is Chat (§2.2) and the group
+           no longer holds a coverage fixture. "Mentor practice" is gone
+           entirely (§2.1), with its seven keys. */
+        "Monitoring · Volume",
         "Monitoring · Escalation lifecycle",
         "Monitoring · Compliance paths",
         "Monitoring · Risk flags",
-        "Monitoring · Mentor practice",
         "Monitoring · Live layer",
         "Monitoring · System and edge",
       ].join(" | "),
@@ -1264,7 +1788,10 @@ for (const [scenario, id, want] of [
     page.on("pageerror", (e) => errs.push(String(e).slice(0, 120)));
     page.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 120)); });
     await page.waitForTimeout(450);
-    const header = await page.locator('[data-anno-ref="monitoring-header"]').count();
+    /* `monitoring-header` UNTIL §2.10 — the destination renders the shared
+       `PageHeader` now, and the smoke test's claim is unchanged: the fixture
+       built and the page drew its top. */
+    const header = await page.locator('[data-anno-ref="page-header"]').count();
     if (!header || errs.length) broken.push(`${key}${errs.length ? `: ${errs[0]}` : " (no header)"}`);
     await context.close();
   }
