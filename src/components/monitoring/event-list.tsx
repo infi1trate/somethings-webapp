@@ -54,10 +54,17 @@ import {
   isRepeatPattern,
   type FlagGroup,
 } from "@/lib/monitoring/flag-group";
+import {
+  ROW_GEOMETRY,
+  type Density,
+} from "@/lib/ui/view-options";
 import { cn } from "@/lib/utils";
 
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+/* The row's focus ring is a `group-focus-visible:ring` on the pill now, so it
+   traces the same inset rounded box the selection fill does — see the row
+   note. The outline constant is gone rather than left unused, because an
+   unused focus constant in a list file is an invitation to put the outline
+   back. */
 
 /** ═══ THE CATEGORY IS ALWAYS A PLAYBOOK ID NOW (addendum §2.1) ═══
  *
@@ -114,28 +121,72 @@ function ariaFor(g: FlagGroup, now: number): string {
  *  glyph plus words. */
 function Marker({ icon: Icon, children }: { icon: typeof Repeat2; children: React.ReactNode }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[11px] leading-[14px] text-[var(--text-secondary)]">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
       <Icon className="size-3 shrink-0" aria-hidden />
       {children}
     </span>
   );
 }
 
+/** ═══ THE ROW IS THREE LAYERS, AND THAT IS WHAT MAKES §3 POSSIBLE ═══
+ *
+ *  §3 asks for two things that fight each other in a one-element row:
+ *
+ *   · "Selection becomes an inset rounded pill with margin on all four sides."
+ *   · "Separators inset — start after the avatar, stop before the trailing
+ *     metadata."
+ *
+ *  A `border-t` on the row root cannot be inset horizontally, and a border on
+ *  an inner element renders at that element's top rather than at the row
+ *  boundary — so put it on a child that is FULL HEIGHT and the two stop
+ *  competing:
+ *
+ *    root      height = ROW_H exactly, `relative`     ← the virtualizer's box
+ *    ├ pill    absolute, inset-x-2 inset-y-1          ← fill, hover, focus ring
+ *    └ content flex, h-full, items-stretch            ← the row as read
+ *        ├ disc          shrink-0, centred
+ *        ├ text column   flex-1, `border-t`, h-full   ← THE SEPARATOR
+ *        └ trailing      shrink-0, pl-6
+ *
+ *  The separator is the text column's top border. Because that column is a
+ *  stretched flex child it spans exactly from after the disc to before the
+ *  trailing block — §3's two ends, derived from the layout rather than from two
+ *  hardcoded insets that would drift the day the disc changes size.
+ *
+ *  AND IT NEVER CROSSES A PILL. The line sits at y=0 of the row box; the pill
+ *  starts at y=4. So a hairline falls in the 8px gutter between two pills
+ *  instead of cutting across a fill — which is the thing that made the old
+ *  full-bleed treatment read as a table.
+ *
+ *  THE ROOT'S HEIGHT IS STILL EXACT. `h-full` everywhere inside it means the
+ *  taller row costs the same invariant the old one had, which is what let this
+ *  become a density axis rather than a rewrite. */
 function Row({
   group: g,
   now,
+  density,
+  hairline,
+  wide,
   selected,
   active,
   onSelect,
 }: {
   group: FlagGroup;
   now: number;
+  density: Density;
+  /** False on the first row only — a hairline at the top of the card's inner
+   *  edge is a line against the card's own border, two hairlines 1px apart. */
+  hairline: boolean;
+  /** `Full width` (§5). The list has the whole container, so the row stops
+   *  truncating the mentor name and the markers it cannot fit beside a pane. */
+  wide: boolean;
   selected: boolean;
   active: boolean;
   onSelect: () => void;
 }) {
   const disc = discFor(g.teenId);
   const n = g.events.length;
+  const geo = ROW_GEOMETRY[density];
   return (
     <div
       /* ═══ TREE / GROUP / TREEITEM, AND NOT LISTBOX / OPTION ═══
@@ -153,6 +204,7 @@ function Row({
          its members being resolved one at a time. */
       data-anno-ref={`event-row:${g.id}`}
       data-flag-count={n}
+      data-density={density}
       onClick={onSelect}
       onKeyDown={(ev) => {
         if (ev.key === " " || ev.key === "Enter") {
@@ -161,62 +213,143 @@ function Row({
         }
       }}
       aria-label={ariaFor(g, now)}
-      className={cn(
-        "flex h-14 cursor-pointer items-center gap-3 px-3",
-        "border-t border-[color:var(--border-subtle)] first:border-t-0",
-        selected ? "bg-[var(--surface-s2)]" : "hover:bg-[var(--tint-hover)]",
-        RING
-      )}
+      /* EXACT, NOT A MINIMUM — the geometry note in `lib/ui/view-options.ts`.
+         Inline because it is a number that moves with the density, which a
+         Tailwind class cannot be. */
+      style={{ height: geo.height }}
+      /* THE RING IS ON THE PILL, so it traces the inset shape rather than a
+         full-bleed rectangle. `outline-none` here stops the root drawing a
+         second one around the whole row. */
+      className="group relative cursor-pointer outline-none"
     >
+      {/* ═══ THE PILL — FILL, HOVER AND FOCUS, ALL INSET ═══
+          One element for all three states so they cannot disagree about the
+          shape. `inset-x-2 inset-y-1` is §3's "margin on all four sides": 8px
+          horizontal, 4px vertical, which puts an 8px gutter between adjacent
+          pills without the vertical cost of detached cards — the thing §3
+          rules out by name, because on a 123-item queue card gaps roughly
+          halve items per screen. */}
       <span
         aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
-        style={{ backgroundColor: disc.bg, color: disc.fg }}
+        className={cn(
+          "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[var(--radius-inset)] transition-colors",
+          "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--focus-ring)]",
+          selected
+            ? "bg-[var(--surface-s2)]"
+            : "group-hover:bg-[var(--tint-hover)]"
+        )}
+      />
+      <div
+        /* px-6 = 24px. The row's own padding is 16px and the pill's track is
+           8px, so content starts 24px inside the card and 16px inside the
+           pill — §3's "increase horizontal padding", spent where it calms the
+           row rather than on the gap between rows. */
+        className="relative flex h-full items-stretch gap-3 px-6"
       >
-        {g.teenName.charAt(0)}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-1.5">
-          {/* THE ONE EMPHASISED ELEMENT. */}
-          <span className="truncate font-display text-[14px] leading-[20px] text-[var(--text-primary)]">
-            {g.teenName}
-          </span>
-          <span aria-hidden className="shrink-0 text-[12px] text-[var(--text-muted)]">
-            ↔
-          </span>
-          <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
-            {g.mentorName}
+        <span className="flex shrink-0 items-center">
+          <span
+            aria-hidden
+            className="flex items-center justify-center rounded-full text-[12px] font-semibold"
+            style={{
+              backgroundColor: disc.bg,
+              color: disc.fg,
+              width: geo.disc,
+              height: geo.disc,
+            }}
+          >
+            {g.teenName.charAt(0)}
           </span>
         </span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-          {/* ═══ THE WORST CATEGORY, AND THE OLDEST AGE ═══
-              Both are the comparator's own answers — see `flag-group.ts` on why
-              a set's category is its highest-ranking member and its age is its
-              oldest. A row that sorted on one member and displayed another
-              would be a queue whose order cannot be read off it. */}
-          <span className="truncate">
-            {categoryTextFor({ ...g.events[0], category: g.worstCategory })}
+        {/* THE SEPARATOR LIVES HERE — see the component note. */}
+        <span
+          className={cn(
+            "flex min-w-0 flex-1 flex-col justify-center",
+            hairline && "border-t border-[color:var(--border-subtle)]"
+          )}
+        >
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            {/* THE ONE EMPHASISED ELEMENT. */}
+            <span
+              className="truncate font-display text-[var(--text-primary)]"
+              style={{
+                fontSize: geo.primary.size,
+                lineHeight: `${geo.primary.leading}px`,
+              }}
+            >
+              {g.teenName}
+            </span>
+            <span aria-hidden className="shrink-0 text-[12px] text-[var(--text-muted)]">
+              ↔
+            </span>
+            {/* ═══ 13px WAS OFF BLOOM'S RAMP ═══
+                The ramp is 32/40 · 24/32 · 16/24 · 14/20 · 12/16 and this line
+                sat at 13/18, which is not a stop on it. It takes the stop below
+                the primary line instead, which is also what §3 asks for
+                directly: a clearer step down so the pair reads as one scan
+                target with a subject rather than as two titles. */}
+            <span
+              className={cn(
+                "text-[var(--text-secondary)]",
+                wide ? "shrink-0" : "truncate"
+              )}
+              style={{
+                fontSize: geo.secondary.size,
+                lineHeight: `${geo.secondary.leading}px`,
+              }}
+            >
+              {g.mentorName}
+            </span>
           </span>
-          <span aria-hidden className="shrink-0 opacity-40">·</span>
           <span
-            className="shrink-0 tabular-nums"
-            style={{ fontFamily: "var(--font-mono)" }}
+            className="flex items-center gap-1.5 text-[var(--text-secondary)]"
+            style={{
+              marginTop: geo.lineGap,
+              fontSize: geo.secondary.size,
+              lineHeight: `${geo.secondary.leading}px`,
+            }}
+          >
+            {/* ═══ THE WORST CATEGORY, AND THE OLDEST AGE ═══
+                Both are the comparator's own answers — see `flag-group.ts` on why
+                a set's category is its highest-ranking member and its age is its
+                oldest. A row that sorted on one member and displayed another
+                would be a queue whose order cannot be read off it. */}
+            <span className={wide ? "shrink-0" : "truncate"}>
+              {categoryTextFor({ ...g.events[0], category: g.worstCategory })}
+            </span>
+          </span>
+        </span>
+        {/* WHAT THE COMPARATOR ACTED ON, SAID OUT LOUD. A queue whose order cannot
+            be explained from the rows is a queue a supervisor learns to distrust.
+            ═══ pl-6 IS §3's "REAL SEPARATION FROM THE CONTENT BLOCK" ═══
+            The markers used to sit 6px from a truncating category label, so on a
+            narrow column the two read as one run of text. */}
+        <span className="flex shrink-0 items-center gap-1.5 pl-6">
+          {g.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
+          {/* ═══ THE MARKER FINALLY DESCRIBES ITS OWN ROW ═══
+              It read "3 in this conversation" on each of three separate rows for
+              the same conversation. One row per conversation, so the count is a
+              fact about the row a reader is looking at. */}
+          {isRepeatPattern(g) && <Marker icon={Repeat2}>{n} in this conversation</Marker>}
+          {g.anyUnanswered && <Marker icon={MessageSquareOff}>No reply</Marker>}
+          {/* ═══ THE ONE MONO STRING ON THIS ROW ═══
+              §3: "Mono — time values only". This row already complied and still
+              does; the age is the only mono on it. RIGHT-ALIGNED ON A CONSISTENT
+              AXIS: the markers to its left vary in width, so the age is given a
+              floor and its own right edge lands at the same x on every row,
+              which is the axis §3 asks for. */}
+          <span
+            className="shrink-0 text-right tabular-nums"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: geo.secondary.size,
+              lineHeight: `${geo.secondary.leading}px`,
+              minWidth: 60,
+            }}
           >
             {ageLabel(g.oldestAt, now)}
           </span>
         </span>
-      </span>
-      {/* WHAT THE COMPARATOR ACTED ON, SAID OUT LOUD. A queue whose order cannot
-          be explained from the rows is a queue a supervisor learns to distrust. */}
-      <span className="flex shrink-0 items-center gap-1.5">
-        {g.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
-        {/* ═══ THE MARKER FINALLY DESCRIBES ITS OWN ROW ═══
-            It read "3 in this conversation" on each of three separate rows for
-            the same conversation. One row per conversation, so the count is a
-            fact about the row a reader is looking at. */}
-        {isRepeatPattern(g) && <Marker icon={Repeat2}>{n} in this conversation</Marker>}
-        {g.anyUnanswered && <Marker icon={MessageSquareOff}>No reply</Marker>}
-      </span>
+      </div>
     </div>
   );
 }
@@ -242,6 +375,8 @@ export function EventList({
   selectedId,
   onSelect,
   emptyLine,
+  density,
+  wide,
 }: {
   /** ONE PER CONVERSATION, pre-sorted by `compareGroups`. */
   groups: FlagGroup[];
@@ -252,6 +387,11 @@ export function EventList({
   /** NEEDS-COPY-NICOLE. What an empty queue says — and it never says "you're
    *  done", because coverage is the floor and the queue emptying is weather. */
   emptyLine: string;
+  /** §5's row scale. Not defaulted — a surface that forgets to pass it should
+   *  fail to compile rather than silently render the other density. */
+  density: Density;
+  /** §5's `Full width`. The row stops truncating when the pane is gone. */
+  wide: boolean;
 }) {
   /* ═══ NO GROUP LAYER, AND NO GROUP HEADER (addendum §2.1, §3.1) ═══
      The list was grouped by review subject, and with one subject the header read
@@ -280,7 +420,7 @@ export function EventList({
 
   if (flat.length === 0) {
     return (
-      <p className="px-3 py-6 text-[13.5px] leading-[19px] text-[var(--text-secondary)]">
+      <p className="px-6 py-6 text-[14px] leading-[20px] text-[var(--text-secondary)]">
         {emptyLine}
       </p>
     );
@@ -316,6 +456,9 @@ export function EventList({
           key={g.id}
           group={g}
           now={now}
+          density={density}
+          wide={wide}
+          hairline={i > 0}
           selected={selectedId === g.id}
           active={i === idx}
           onSelect={() => {

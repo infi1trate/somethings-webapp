@@ -11,7 +11,7 @@
       "id": "tasks.teen-leads",
       "label": "and it is the teen, which is what varies row to row",
       "ok": true,
-      "detail": "Theo L. · 14px/400 avantt"
+      "detail": "Theo L. · 16px/400 avantt"
     },
     {
       "id": "tasks.no-job-chip",
@@ -40,7 +40,7 @@
       "id": "tasks.spans-read",
       "label": "the row's spans were readable at all",
       "ok": true,
-      "detail": "11 spans"
+      "detail": "12 spans"
     },
     {
       "id": "tasks.caption-codes",
@@ -58,7 +58,7 @@
       "id": "tasks.height",
       "label": "row height",
       "ok": true,
-      "detail": "56px"
+      "detail": "80px"
     },
     {
       "id": "mon.rows-read",
@@ -76,7 +76,7 @@
       "id": "mon.subject-leads",
       "label": "and it is the subject of review, not a clock",
       "ok": true,
-      "detail": "Naomi R. · 14px/400 avantt"
+      "detail": "Naomi R. · 16px/400 avantt"
     },
     {
       "id": "mon.age-quiet",
@@ -94,19 +94,19 @@
       "id": "sr.tasks.no-group-prefix",
       "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 11:14 "
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 4:53 A"
     },
     {
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 11:14 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 4:53 AM"
     },
     {
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "0 countdown, 19 elapsed, of 19"
+      "detail": "0 countdown, 16 elapsed, of 16"
     },
     {
       "id": "sr.monitoring.no-group-prefix",
@@ -136,7 +136,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 11:14 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 4:53 AM"
     },
     {
       "id": "e.no-avatar",
@@ -147,13 +147,13 @@
       "id": "e.height",
       "label": "row height",
       "ok": true,
-      "detail": "56px"
+      "detail": "80px"
     },
     {
       "id": "e.one-sorted-sequence",
       "label": "the list is one sequence, oldest first, with nothing restarting inside it",
       "ok": true,
-      "detail": "19 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
+      "detail": "16 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
     },
     {
       "id": "e.monitoring-no-invented-bands",

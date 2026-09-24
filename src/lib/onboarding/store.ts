@@ -3,6 +3,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
+  VIEW_OPTIONS_DEFAULT,
+  type ViewOptions,
+} from "@/lib/ui/view-options";
+import {
   emptyDraft,
   type ChangeRequest,
   type HubStepKey,
@@ -377,6 +381,21 @@ interface OnboardingState {
    *  survive, and a reading-density preference that resets every session is worse
    *  than no toggle at all. */
   activityDensity: ActivityDensity;
+  /** ═══ LIST VIEW OPTIONS, PER DESTINATION (Layout Pass §5, v46) ═══
+   *
+   *  Density and layout for the queue surfaces. SPARSE AND KEYED BY
+   *  DESTINATION: §5 asks for per-destination persistence, and a supervisor who
+   *  wants 123 flags compact does not necessarily want sixteen billing reviews
+   *  compact. An absent key means "never touched the control", which reads as
+   *  the default rather than as a stored choice — so the day a default changes,
+   *  everyone who never expressed a preference moves with it.
+   *
+   *  PERSISTED FOR THE SAME REASON `activityDensity` IS (v38): a reading-density
+   *  preference that resets every session is worse than no toggle at all. It
+   *  rides the one store this app already persists, so it is per-user in the
+   *  only sense this prototype has a user. */
+  viewOptions: Record<string, ViewOptions>;
+  setViewOptions: (scope: string, next: Partial<ViewOptions>) => void;
   setTasksLastVisitAt: (at: number) => void;
   setActivityDensity: (density: ActivityDensity) => void;
   seedActivityRead: (overlay: ReadOverlay) => void;
@@ -625,6 +644,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       tasksLastVisitAt: 0,
       shiftLastSeenAt: 0,
       activityDensity: "dense",
+      viewOptions: {},
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -1012,6 +1032,18 @@ export const useOnboardingStore = create<OnboardingState>()(
       // deleting, and the module deliberately exports no delete.
       setTasksLastVisitAt: (at) => set({ tasksLastVisitAt: at }),
       setActivityDensity: (density) => set({ activityDensity: density }),
+      /** MERGED PER SCOPE, so setting density does not clear layout. */
+      setViewOptions: (scope, next) =>
+        set((st) => ({
+          viewOptions: {
+            ...st.viewOptions,
+            [scope]: {
+              ...VIEW_OPTIONS_DEFAULT,
+              ...st.viewOptions[scope],
+              ...next,
+            },
+          },
+        })),
       setActivityScenarioId: (id) =>
         // Switching scenario drops the overlay so the new scenario seeds from its
         // own fixture decision about what starts unread. NOT a delete of anything
@@ -1217,6 +1249,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           tasksLastVisitAt: 0,
           shiftLastSeenAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
+      viewOptions: {},
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -1342,7 +1375,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      sparse maps, so {} is the correct backfill and reads as "this mentor
       //      has raised nothing, sent nothing and written nothing" — which is true
       //      of every state persisted before this version existed.
-      version: 45,
+      // v46: viewOptions — the Layout Pass §5 density/layout map, keyed by
+      //      destination. Sparse and additive, so {} is the correct backfill and
+      //      reads as "this user has not opened the control", which is true of
+      //      every state persisted before this version existed.
+      version: 46,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2075,6 +2112,34 @@ export const useOnboardingStore = create<OnboardingState>()(
         ) {
           merged.activityDensity = "dense";
         }
+        /* ═══ viewOptions IS SANITISED PER ENTRY, NOT JUST PER TYPE (v46) ═══
+           The same posture as `activityDensity` above and for the same stated
+           reason: reading a two-word union back off disk is safer than
+           trusting a persisted string to still be one of two words. A map adds
+           one failure this scalar does not have — a VALID map holding an
+           invalid entry — so each entry is checked and a bad one is dropped
+           rather than the whole map discarded. Dropping the entry falls back to
+           the default, which is what an untouched control already does. */
+        const vo = (merged as { viewOptions?: unknown }).viewOptions;
+        if (typeof vo !== "object" || vo === null || Array.isArray(vo)) {
+          merged.viewOptions = {};
+        } else {
+          const clean: Record<string, ViewOptions> = {};
+          for (const [k, v] of Object.entries(vo as Record<string, unknown>)) {
+            const o = v as Partial<ViewOptions> | null;
+            if (!o || typeof o !== "object") continue;
+            const density =
+              o.density === "comfortable" || o.density === "compact"
+                ? o.density
+                : VIEW_OPTIONS_DEFAULT.density;
+            const layout =
+              o.layout === "split" || o.layout === "full"
+                ? o.layout
+                : VIEW_OPTIONS_DEFAULT.layout;
+            clean[k] = { density, layout };
+          }
+          merged.viewOptions = clean;
+        }
         if (
           typeof (merged as { personSchedules?: unknown }).personSchedules !==
             "object" ||
@@ -2176,6 +2241,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         devLoadState: state.devLoadState,
         tasksLastVisitAt: state.tasksLastVisitAt,
         activityDensity: state.activityDensity,
+        viewOptions: state.viewOptions,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,

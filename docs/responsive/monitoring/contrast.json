@@ -4,13 +4,10 @@
     {
       "theme": "light",
       "label": "group header",
-      "fg": "rgb(110, 107, 103)",
-      "bg": "rgb(255, 255, 255)",
-      "px": 12,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 5.3,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
@@ -26,13 +23,10 @@
     {
       "theme": "light",
       "label": "row · category (secondary)",
-      "fg": "rgb(88, 83, 75)",
-      "bg": "rgb(229, 224, 210)",
-      "px": 12,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 5.78,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
@@ -93,90 +87,66 @@
     {
       "theme": "light",
       "label": "escalation fill · role label",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 11,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "escalation fill · teen name",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 14,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "escalation fill · state",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 11.5,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "escalation fill · ack clock",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 12,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "escalation fill · action",
-      "fg": "rgb(201, 53, 29)",
-      "bg": "rgb(255, 255, 255)",
-      "px": 13,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "escalation calm · state",
-      "fg": "rgb(88, 83, 75)",
-      "bg": "rgb(246, 244, 239)",
-      "px": 11.5,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 6.94,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "escalation calm · age",
-      "fg": "rgb(88, 83, 75)",
-      "bg": "rgb(255, 255, 255)",
-      "px": 13,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 7.63,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
       "label": "breach chip (overdue)",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 12,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "light",
@@ -225,245 +195,209 @@
     {
       "theme": "light",
       "label": "coverage line",
-      "fg": "rgb(31, 30, 29)",
-      "bg": "rgb(246, 244, 239)",
-      "px": 13,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 15.14,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "group header",
-      "fg": "rgb(160, 153, 141)",
-      "bg": "rgb(50, 47, 44)",
-      "px": 12,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 4.71,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "row · subject",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(14, 13, 12)",
+      "fg": "rgb(31, 30, 29)",
+      "bg": "rgb(229, 224, 210)",
       "px": 14,
       "weight": "400",
       "min": 4.5,
-      "ratio": 19.42,
+      "ratio": 12.62,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "row · category (secondary)",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(14, 13, 12)",
-      "px": 12,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 8.99,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "row · age (mono)",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(14, 13, 12)",
+      "fg": "rgb(88, 83, 75)",
+      "bg": "rgb(229, 224, 210)",
       "px": 12,
       "weight": "400",
       "min": 4.5,
-      "ratio": 8.99,
+      "ratio": 5.78,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "row marker · escalation open",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(39, 36, 33)",
+      "fg": "rgb(88, 83, 75)",
+      "bg": "rgb(246, 244, 239)",
       "px": 11,
       "weight": "400",
       "min": 4.5,
-      "ratio": 7.15,
+      "ratio": 6.94,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "row marker · pattern",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(39, 36, 33)",
+      "fg": "rgb(88, 83, 75)",
+      "bg": "rgb(246, 244, 239)",
       "px": 11,
       "weight": "400",
       "min": 4.5,
-      "ratio": 7.15,
+      "ratio": 6.94,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "identity disc initial",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "oklab(0.329715 -0.0101755 0.00313444)",
+      "fg": "rgb(31, 30, 29)",
+      "bg": "oklab(0.870056 -0.012186 -0.00178453)",
       "px": 12,
       "weight": "600",
       "min": 4.5,
-      "ratio": 12.17,
+      "ratio": 11.29,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "identity disc ground (must stay quiet)",
-      "fg": "oklab(0.329715 -0.0101755 0.00313444)",
-      "bg": "rgb(14, 13, 12)",
+      "fg": "oklab(0.870056 -0.012186 -0.00178453)",
+      "bg": "rgb(229, 224, 210)",
       "px": 99,
       "weight": "400",
       "min": 3,
       "ceiling": 2.5,
-      "ratio": 1.6,
+      "ratio": 1.12,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "escalation fill · role label",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 11,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "escalation fill · teen name",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 14,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "escalation fill · state",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 11.5,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "escalation fill · ack clock",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 12,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "escalation fill · action",
-      "fg": "rgb(201, 53, 29)",
-      "bg": "rgb(255, 255, 255)",
-      "px": 13,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "escalation calm · state",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(39, 36, 33)",
-      "px": 11.5,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 7.15,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "escalation calm · age",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(50, 47, 44)",
-      "px": 13,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 6.16,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "breach chip (overdue)",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(201, 53, 29)",
-      "px": 12,
-      "weight": "600",
       "min": 4.5,
-      "ratio": 5.24,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     },
     {
       "theme": "dark",
       "label": "pane · category chip",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(50, 47, 44)",
+      "fg": "rgb(31, 30, 29)",
+      "bg": "rgb(255, 255, 255)",
       "px": 16,
       "weight": "400",
       "min": 4.5,
-      "ratio": 13.3,
+      "ratio": 16.64,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "pane · disposition (chosen)",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(50, 47, 44)",
+      "fg": "rgb(31, 30, 29)",
+      "bg": "rgb(255, 255, 255)",
       "px": 13,
       "weight": "600",
       "min": 4.5,
-      "ratio": 13.3,
+      "ratio": 16.64,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "pane · accuracy (optional)",
-      "fg": "rgb(181, 176, 166)",
-      "bg": "rgb(50, 47, 44)",
+      "fg": "rgb(88, 83, 75)",
+      "bg": "rgb(255, 255, 255)",
       "px": 12.5,
       "weight": "400",
       "min": 4.5,
-      "ratio": 6.16,
+      "ratio": 7.63,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "pane · record button",
-      "fg": "rgb(50, 47, 44)",
-      "bg": "rgb(255, 255, 255)",
+      "fg": "rgb(255, 255, 255)",
+      "bg": "rgb(31, 30, 29)",
       "px": 14,
       "weight": "600",
       "min": 4.5,
-      "ratio": 13.3,
+      "ratio": 16.64,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "coverage line",
-      "fg": "rgb(255, 255, 255)",
-      "bg": "rgb(39, 36, 33)",
-      "px": 13,
-      "weight": "400",
       "min": 4.5,
-      "ratio": 15.43,
-      "ok": true
+      "missing": true,
+      "ratio": null,
+      "ok": false
     }
   ]
 }

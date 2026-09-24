@@ -62,6 +62,14 @@ import {
 import { bandStateFor } from "@/lib/monitoring/live";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { ViewOptionsButton } from "@/components/ia/view-options";
+import {
+  listMinHeight,
+  ROW_GEOMETRY,
+  VIEW_OPTIONS_DEFAULT,
+  type Density,
+  type ViewOptions,
+} from "@/lib/ui/view-options";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 
@@ -180,13 +188,39 @@ function PaneError() {
   );
 }
 
-function ListSkeleton() {
+/** ═══ THE SKELETON TAKES THE DENSITY TOO ═══
+ *  It was `h-14` and `size-7` — the compact row, hardcoded, on a list that can
+ *  now render an 80px row. A skeleton that is not exactly as tall as the row
+ *  replacing it produces a jump at the moment the data lands: seven rows at 56
+ *  becoming seven at 80 is 168px of content sliding down under the reader's
+ *  eye. `Worklist`'s skeleton already carried this contract in a comment
+ *  ("sized from ROW_H so a skeleton row occupies exactly what a real row
+ *  will"); this one carried the number without the reason, which is how it
+ *  survived the density becoming a variable. */
+function ListSkeleton({ density }: { density: Density }) {
+  const geo = ROW_GEOMETRY[density];
   return (
     <div aria-hidden className="space-y-0">
       {Array.from({ length: 7 }, (_, i) => (
-        <div key={i} className="flex h-14 items-center gap-3 border-t border-[color:var(--border-subtle)] px-3 first:border-t-0">
-          <span className="size-7 shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
-          <span className="min-w-0 flex-1 space-y-1.5">
+        <div
+          key={i}
+          style={{ height: geo.height }}
+          className="relative flex items-stretch gap-3 px-6"
+        >
+          <span className="flex shrink-0 items-center">
+            <span
+              style={{ width: geo.disc, height: geo.disc }}
+              className="shrink-0 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse"
+            />
+          </span>
+          {/* THE SAME INSET HAIRLINE THE REAL ROW DRAWS, on the same stretched
+              column — so the swap changes the content and nothing else. */}
+          <span
+            className={cn(
+              "flex min-w-0 flex-1 flex-col justify-center gap-1.5",
+              i > 0 && "border-t border-[color:var(--border-subtle)]"
+            )}
+          >
             <span className="block h-3 w-44 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
             <span className="block h-2.5 w-28 rounded-full bg-[var(--surface-s2)] motion-safe:animate-pulse" />
           </span>
@@ -306,8 +340,14 @@ const SCOPE_TITLE: Record<MonitoringScope, string> = {
 const SCOPE_PURPOSE: Record<MonitoringScope, string> = {
   escalations:
     "Live incidents and the paperwork they owe. The only clocks in the product run here.",
-  "risk-flags":
-    "Every conversation a flag was raised on, worst first. Each row is one conversation and holds all of its flags.",
+  /* ═══ CUT TO ONE PURPOSE LINE (Layout Pass §6) ═══
+     It read "Every conversation a flag was raised on, worst first. Each row is
+     one conversation and holds all of its flags." — two sentences where the
+     second was teaching the reader to interpret the list. The `n in this
+     conversation` marker on the row already says the load-bearing part, at the
+     row it is true of, which is where a reader needs it. */
+  /* NEEDS-COPY-NICOLE */
+  "risk-flags": "Every conversation a flag was raised on, worst first.",
 };
 
 export function MonitoringPage({
@@ -366,6 +406,14 @@ export function MonitoringPage({
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
   const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
+  /** ═══ §5's TWO AXES, PERSISTED PER DESTINATION ═══
+   *  Read with the default folded in here rather than in the store, so an
+   *  absent key stays absent: a stored `{}` and a stored default are the same
+   *  rendering but different facts, and only the first moves if the default
+   *  ever does. */
+  const storedView = useOnboardingStore((st) => st.viewOptions["risk-flags"]);
+  const setViewOptions = useOnboardingStore((st) => st.setViewOptions);
+  const view: ViewOptions = { ...VIEW_OPTIONS_DEFAULT, ...storedView };
 
   /** THE CLOCK IS FIXED AT MOUNT. `Date.now()` in render scope is impure and the
    *  React Compiler rejects it. Every age and every clock on this page is
@@ -571,6 +619,20 @@ export function MonitoringPage({
      unit in the pane. */
   const paneTakeover =
     paneOnly || (takeoverWanted && (groups.length > 0 || escalations.length > 0));
+  /** ═══ `Full width` AND WHAT A SELECTION DOES TO IT (§5) ═══
+   *
+   *  The mode is off the moment a row is picked, and the STORED PREFERENCE IS
+   *  NOT TOUCHED — so the pane is a takeover for this one record and closing it
+   *  returns to the full-width list. §5 asked for the reasoning before it
+   *  ships; `view-options.tsx` carries it, and the short form is that there is
+   *  no detail ROUTE to send anyone to (both panes are components reading page
+   *  state) and that picking a row is the end of the scanning this mode is for.
+   *
+   *  IT READS `takeoverWanted`, NOT `selectedGroup`. `selectedGroup` falls back
+   *  to `groups[0]`, so something is always selected and a check against it
+   *  would mean `Full width` never rendered once. The raw intent is the only
+   *  honest signal for "the reader has opened something". */
+  const fullWidth = !paneOnly && view.layout === "full" && !takeoverWanted;
   const paneRef = useRef<HTMLDivElement | null>(null);
   const paneHandle = useRef<PaneHandle>({});
 
@@ -757,7 +819,24 @@ export function MonitoringPage({
   });
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col px-6 py-6 lg:px-8">
+    <div
+      /* ═══ 1800px, AND WHY NOT 1400 AND WHY NOT UNCAPPED (Layout Pass §2) ═══
+         MEASURED at 2560×1440 before this change: the container capped at 1400
+         and `mx-auto` centred it, so the dead space was not pooled on the right
+         as it looked — it was 448px on the left and 464px on the right, 944px
+         of a 2312px main area carrying nothing. 41%.
+         1800 IS DERIVED FROM THE LIST, NOT THE VIEWPORT. At 1800 the content
+         column is 1736 (px-8 either side); the pane takes its fixed 790 and the
+         20px gap, leaving the list 926px. That is about the widest a two-line
+         row reads as one object: past it the identity block and the
+         right-aligned age are far enough apart that the eye has to travel
+         between them, which is the failure an uncapped list would produce
+         rather than the crampedness this pass is fixing.
+         WHAT IT DOES NOT DO is fill a 2560 display. 248px stays dead either
+         side, deliberately — §2 asked for "a sensible max", and a list row is
+         not a thing that benefits from 1736px of width. */
+      className="mx-auto flex h-full min-h-0 w-full max-w-[1800px] flex-col px-6 py-6 lg:px-8"
+    >
       <PageHeader
         title={SCOPE_TITLE[scope]}
         purpose={SCOPE_PURPOSE[scope]}
@@ -810,6 +889,15 @@ export function MonitoringPage({
             page — and it is a STATE rather than a figure, so it cannot be a
             metric pair. It sits beside them, and it outranks them: when the
             pipeline is down the numbers below it are not measuring anything. */}
+        {/* ═══ ONE CONTROL, AND ONLY WHERE THERE IS A LIST TO SHAPE ═══
+            Escalations renders its own region rather than `EventList`, so the
+            axes would have nothing to act on there. */}
+        {mounted && scope === "risk-flags" && (
+          <ViewOptionsButton
+            options={view}
+            onChange={(next) => setViewOptions("risk-flags", next)}
+          />
+        )}
         {mounted && scope === "risk-flags" && data?.classifier === "degraded" && (
           <p
             role="status"
@@ -873,7 +961,12 @@ export function MonitoringPage({
         />
       )}
 
-      <div className="mt-6 min-h-0 flex-1">
+      {/* ═══ 40px UNDER THE HEADER (§2) ═══
+          MEASURED before: 36px here (24 + the scroller's own 12) on Risk Flags
+          against 24px on Care Reviews — two surfaces disagreeing about the same
+          gap. One value, on both, and a step up from either: §2 asks the header
+          to feel like a header rather than a line of text sitting on a table. */}
+      <div className="mt-10 min-h-0 flex-1">
         <div
           className={cn(
             "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
@@ -881,9 +974,29 @@ export function MonitoringPage({
                first child leaves the pane in the 60% track and 40% of the width
                blank, which reads as a failed render rather than a full-width
                record. */
-            paneOnly
+            paneOnly || fullWidth
               ? "xl:grid-cols-[minmax(0,1fr)]"
-              : "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
+              : /* ═══ THE PANE STOPS GROWING AT 1645px (§0, §2) ═══
+                   §0: "The pane is a fixed-width column in this pass. Every unit
+                   of new horizontal space goes to the list." Below 1645 nothing
+                   changes — the 40/60 split is what shipped. AT 1645 the 60%
+                   track measures 790px, which is what the pane already rendered
+                   at on a 2560 display, so the switch to a fixed track happens
+                   at the width where the two are EQUAL and the pane's rendered
+                   width never changes at any viewport. Above it the pane holds
+                   790 and the list takes every remaining pixel.
+                   The breakpoint is arithmetic, not taste: 790 / 0.6 = 1317 of
+                   content, + 64 padding + 16 the shell's pr-4 + 248 rail. */
+                /* BOTH VARIANTS ARE ARBITRARY, AND THAT IS NOT A STYLE CHOICE.
+                   MEASURED: written as `xl:` + `min-[1645px]:`, Tailwind emitted
+                   the named breakpoint AFTER the arbitrary one, so at 2560 the
+                   40/60 rule won and the columns came out 686/1030 — the pane
+                   1030px WIDER than it had ever rendered, which is the §0
+                   violation this rule exists to prevent. Two arbitrary `min-[]`
+                   variants sort against each other by value, so the order is
+                   the arithmetic rather than the emitter's category ranking.
+                   1280 is `xl` spelled out; nothing below this line changed. */
+                "min-[1280px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)] min-[1645px]:grid-cols-[minmax(0,1fr)_790px]"
           )}
         >
           {!paneOnly && (
@@ -897,10 +1010,19 @@ export function MonitoringPage({
                 One column, one scroller, one list. */}
             <div
               data-anno-ref="monitoring-scroller"
-              className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+              /* ═══ CONTENT-SIZED WITH A FLOOR, NOT A 1200px BOX (§2) ═══
+                 MEASURED before: `flex-1` on a column inside a `1fr` grid row
+                 inside a full-height page, so the card absorbed the viewport —
+                 1202px tall at a 1440px viewport, holding two rows. §2 is right
+                 that this reads as a rendering fault rather than a short queue.
+                 `flex-none` + `max-h-full` makes it size to its rows and stop at
+                 the page; the floor is three rows at the current density, which
+                 is the smallest count that still reads as a list. */
+              style={{ minHeight: listMinHeight(view.density) }}
+              className="max-h-full flex-none overflow-y-auto rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
             >
               {listState === "loading" ? (
-                <ListSkeleton />
+                <ListSkeleton density={view.density} />
               ) : listState === "error" ? (
                 <div role="alert" className="px-3 py-6">
                   <p className="text-[13.5px] leading-[19px] text-[var(--text-primary)]">
@@ -922,6 +1044,8 @@ export function MonitoringPage({
                 <EventList
                   groups={groups}
                   now={now}
+                  density={view.density}
+                  wide={fullWidth}
                   selectedId={selectedGroup?.id ?? null}
                   onSelect={(g) => {
                     setSelectedEventId(g.id);
@@ -958,7 +1082,7 @@ export function MonitoringPage({
               The pane is a DETAIL surface, so with no record selected and no
               list column beside it there is no detail to be empty about. It
               renders when there is something in it. */}
-          {!(paneOnly && !selectedEscalation) && (
+          {!fullWidth && !(paneOnly && !selectedEscalation) && (
           <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
             {/* NO LIST, NO WAY BACK TO IT. Under `paneOnly` the region above IS
                 the list and it is still on screen. */}
@@ -967,7 +1091,14 @@ export function MonitoringPage({
                 type="button"
                 onClick={() => setPaneTakeover(false)}
                 className={cn(
-                  "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold xl:hidden",
+                  "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
+                  /* ═══ IT STAYS ON XL IN `Full width` ═══
+                     Elsewhere this is the narrow-screen way back to a list the
+                     pane is covering, so it hides once both columns fit. Under
+                     `Full width` the pane is covering a list that WOULD fit,
+                     and the stored preference still says full width — so this
+                     is the only control that honours it. */
+                  view.layout !== "full" && "xl:hidden",
                   "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
                 )}

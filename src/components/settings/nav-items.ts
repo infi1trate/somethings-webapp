@@ -321,14 +321,12 @@ export function railGroups(persona: Persona): NavGroup[] {
     return [{ id: null, label: null, items: railItems(persona) }];
   }
   return [
-    /* ═══ CHAT SITS BESIDE TODAY, NOT UNDER MONITORING ═══
-       The Figma mockup nests it under Monitoring, where it was the coverage
-       surface. It is not a monitoring destination: a supervisor's threads are
-       their own conversations with the leads they oversee, and filing them
-       under a group label that means "work queued for your judgment" would
-       describe them as somebody else's output. Ungrouped, with Today, which is
-       where the two non-queue destinations belong. */
-    { id: null, label: null, items: [NAV.today, NAV.chat] },
+    /* ═══ TODAY IS ALONE UP HERE AGAIN ═══
+       Chat moved into the Monitoring group below, on instruction — see the
+       note there. Today is the only ungrouped destination, which is what the
+       null group was for: a mirror is not a queue and a label over one item
+       would make it a fourth category. */
+    { id: null, label: null, items: [NAV.today] },
     {
       id: "monitoring",
       // NEEDS-COPY-NICOLE. A category of destinations, never a destination.
@@ -336,8 +334,25 @@ export function railGroups(persona: Persona): NavGroup[] {
       items: [
         NAV.escalations,
         NAV.riskFlags,
-        /* MENTOR PRACTICE AND COVERAGE WERE HERE, between these two and
-           Activity. Both are gone — see `NAV` above. */
+        /* ═══ CHAT SITS HERE, WHERE THE MOCKUP PUT IT — DECIDED ═══
+           MENTOR PRACTICE AND COVERAGE WERE IN THIS SLOT, between Risk Flags
+           and Activity, and both are gone (see `NAV` above). Chat takes the
+           position Coverage had, which is also where the Figma mockup nests
+           it.
+           ═══ THE ARGUMENT AGAINST, RECORDED BECAUSE IT WAS MINE AND IT LOST ═══
+           §2.2 asked where Chat should go and I put it beside Today, reasoning
+           that a supervisor's threads are their own conversations with the
+           leads they oversee — so a group label meaning "work queued for your
+           judgment" would file their own messages as somebody else's output.
+           REVERSED ON INSTRUCTION, and the mockup's placement is the better
+           read of what the group label actually claims: Monitoring is the
+           category of destinations a supervisor WATCHES, and the conversations
+           are the thing being watched. Activity sits under the same label for
+           the same reason and nobody has objected to that.
+           IT IS ABOVE ACTIVITY, not below: the three judgment destinations come
+           first and the two reading surfaces follow them, which is the order
+           the group has had since `ia-01`. */
+        NAV.chat,
         NAV.activity,
       ],
     },

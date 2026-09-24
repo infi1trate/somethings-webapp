@@ -69,7 +69,15 @@ export function PageHeader({
   return (
     <div
       data-anno-ref="page-header"
-      className={cn("flex shrink-0 flex-wrap items-start justify-between gap-x-6 gap-y-3", className)}
+      /* ═══ items-baseline, NOT items-start (Layout Pass §2) ═══
+         §2: "title, subtitle, and metric cluster share a baseline grid". They
+         did not — the two sides were top-aligned, so the title's baseline sat
+         at ~29px and the first metric's at ~22px, seven pixels apart and
+         reading as two components that happened to be on the same row.
+         Baseline alignment is what makes them one band: the figure and the
+         title now sit on one line, and everything each side owns hangs below
+         its own. */
+      className={cn("flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-3", className)}
     >
       <div className="min-w-0 flex-1">
         <h1 className="font-display text-[28px] font-bold leading-[36px] text-[var(--text-primary)]">
@@ -88,14 +96,36 @@ export function PageHeader({
         </p>
       </div>
       {(metrics.length > 0 || progress || children) && (
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        /* ═══ ONE RIGHT-HAND CLUSTER, TWO ROWS DEEP — NOT THREE ═══
+           MEASURED before: the metric cluster was 86px wide at x=1978 and the
+           progress track 183px at x=1881, so the track stuck out 97px to the
+           left of the figures it belongs with — which is most of why §2 read
+           them as "two unrelated components". `w-full` on the track makes the
+           column as wide as its widest child and stretches the bar to it, so
+           the two share both edges instead of one.
+           AND `children` SITS BESIDE THE FIGURES RATHER THAN UNDER THE TRACK.
+           Stacked, the §5 control was a THIRD row on the right of a header
+           whose left side is two — measured, it pushed the list 44px further
+           down and left a band of empty page beside the purpose line. Inline,
+           the right-hand side is two rows like the left, which is also what
+           the pipeline-down note already asked for in words: "It sits beside
+           them, and it outranks them." */
+        <div className="flex shrink-0 items-baseline gap-5">
+          {children}
+          <div className="flex flex-col items-end gap-2">
           {metrics.length > 0 && (
             <div data-anno-ref="page-metrics" className="flex items-start gap-6">
               {metrics.map((m) => (
                 <div key={m.label} className="min-w-0 text-right">
                   <p
                     data-metric-value={m.label}
-                    className="font-display text-[22px] font-bold leading-[28px] tabular-nums text-[var(--text-primary)]"
+                    /* ═══ 24/32 IS A BLOOM STOP; 22/28 WAS NOT ═══
+                       The ramp is 32/40 · 24/32 · 16/24 · 14/20 · 12/16 and
+                       this figure sat between two of them. It takes the step
+                       below the 28px title, which is also what lets the two
+                       share a baseline without the figure looking undersized
+                       beside it. */
+                    className="font-display text-[24px] font-bold leading-[32px] tabular-nums text-[var(--text-primary)]"
                   >
                     {m.value}
                   </p>
@@ -110,8 +140,8 @@ export function PageHeader({
               ))}
             </div>
           )}
-          {progress}
-          {children}
+          {progress && <div className="w-full">{progress}</div>}
+          </div>
         </div>
       )}
     </div>

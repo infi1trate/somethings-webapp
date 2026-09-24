@@ -1,11 +1,11 @@
 {
-  "at": 1790208883144,
+  "at": 1790272370198,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Each row is one"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. View 69 open 5d"
     },
     {
       "id": "input.rows",
@@ -23,7 +23,7 @@
       "id": "tier.age-not-deadline",
       "label": "every flag row states an age instead",
       "ok": true,
-      "detail": "N Naomi R. ↔ Brandy Forrestor Unsafe home environment · 9h ago Escalation open"
+      "detail": "N Naomi R. ↔ Brandy Forrestor Unsafe home environment Escalation open 9h ago"
     },
     {
       "id": "tier.breach-is-escalations-only",
@@ -35,13 +35,13 @@
       "id": "input.parts",
       "label": "the row's parts were readable",
       "ok": true,
-      "detail": "8 parts"
+      "detail": "7 parts"
     },
     {
       "id": "row.one-emphasis",
       "label": "exactly one emphasised element per row",
       "ok": true,
-      "detail": "Naomi R. 14/400 avantt"
+      "detail": "Naomi R. 16/400 avantt"
     },
     {
       "id": "row.subject-leads",
@@ -77,13 +77,13 @@
       "id": "cmp.escalation-first",
       "label": "an event on an escalated teen sorts to the top",
       "ok": true,
-      "detail": "S Simone B. ↔ Omar Haddad Assessment scores below threshold · 3d ago Escalation open"
+      "detail": "S Simone B. ↔ Omar Haddad Assessment scores below threshold Escalation open 3d ago"
     },
     {
       "id": "cmp.pattern-before-single",
       "label": "a repeat-flagged conversation sorts above a single flag",
       "ok": true,
-      "detail": "M Marcus L. ↔ Brandon Forant Passive suicidal ideation · 8h ago 3 in this conversation"
+      "detail": "M Marcus L. ↔ Brandon Forant Passive suicidal ideation 3 in this conversation 8h ago"
     },
     {
       "id": "input.noreply",
@@ -95,7 +95,7 @@
       "id": "cmp.silence-beats-age",
       "label": "an unanswered flagged message outranks older answered ones",
       "ok": true,
-      "detail": "M Marcus L. ↔ Brandon Forant Passive suicidal ideation · 1d ago No reply  ||  J Jordan P. ↔ Maria Lopez Unsafe home environment · 1d ago"
+      "detail": "M Marcus L. ↔ Brandon Forant Passive suicidal ideation No reply 1d ago  ||  J Jordan P. ↔ Maria Lopez Unsafe home environment 1d ago"
     },
     {
       "id": "input.dispositions",
@@ -369,13 +369,13 @@
       "id": "hdr.own.risk-flags.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Each row is one conversation and holds all of"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. View Flag pipeline is down — no flags are arr"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Each row is one conversation and holds all of its flags. 0 open —"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. View Flag pipeline is down — no flags are arriving 0 open — oldes"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -555,7 +555,7 @@
       "id": "header.purpose-everywhere",
       "label": "each one says what the destination is for, in a sentence",
       "ok": true,
-      "detail": "/app/today: 56 · /app/escalations: 83 · /app/risk-flags: 110 · /app/care-reviews: 70 · /app/team: 47 · /app/mentees: 65"
+      "detail": "/app/today: 56 · /app/escalations: 83 · /app/risk-flags: 53 · /app/care-reviews: 56 · /app/team: 47 · /app/mentees: 65"
     },
     {
       "id": "header.metric-count",
@@ -650,13 +650,13 @@
       "id": "focus.order",
       "label": "escalations → list → pane → footer, in that order",
       "ok": true,
-      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell,shell,shell,shell,shell"
+      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell,shell,shell,shell"
     },
     {
       "id": "focus.always-visible",
-      "label": "every stop draws a focus ring",
+      "label": "every stop draws a focus ring — as its own outline, or as a ring on the element that carries its shape",
       "ok": true,
-      "detail": "min 2px"
+      "detail": "min 2px at \"Account\" in shell"
     },
     {
       "id": "focus.never-obscured",
@@ -678,9 +678,9 @@
     },
     {
       "id": "targets.rows",
-      "label": "a queue row is a comfortable target",
+      "label": "a queue row is exactly the height its density declares, and clears HIG's 44px",
       "ok": true,
-      "detail": "56x371"
+      "detail": "density=comfortable 80x371 (declared 80)"
     },
     {
       "id": "a11y.live-inventory",
