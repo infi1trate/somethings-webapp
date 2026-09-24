@@ -79,12 +79,18 @@ const READ = `(() => {
         label: (t.textContent ?? "").replace(/\\s+/g, " ").trim() } : null;
     })(),
     /* GROUPED OR NOT is read from the DOM rather than from the label: a Chats
-       row inside the Monitoring section would still say "Chats". */
+       row inside the Monitoring section would still say "Chats".
+       AND ITS NEIGHBOURS, read off the rail's full row order rather than off
+       the group — the position within the group is the part that was
+       instructed, and "is in a section" cannot see it. */
     chatRow: (() => {
-      const a = [...rail.querySelectorAll("nav a")].find((e) =>
-        /^Chats/.test((e.textContent ?? "").trim()));
-      return a ? { label: (a.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 20),
-        grouped: !!a.closest("section") } : null;
+      const rows = [...rail.querySelectorAll("nav a")];
+      const i = rows.findIndex((e) => /^Chats/.test((e.textContent ?? "").trim()));
+      if (i < 0) return null;
+      const name = (e) => (e ? (e.textContent ?? "").replace(/\\s+/g, " ").trim().split(/\\d/)[0].trim() : null);
+      return { label: name(rows[i])?.slice(0, 20),
+        grouped: !!rows[i].closest("section"),
+        after: name(rows[i - 1]), before: name(rows[i + 1]) };
     })() };
 })()`;
 
@@ -191,12 +197,26 @@ console.log("\nPhase 1 · the grouped rail\n");
         ? `${r.themeToggleCount} control(s) · role=${r.themeToggle.role} · checked=${r.themeToggle.checked} · "${r.themeToggle.label}"`
         : "no theme control in the rail"
     );
+    /* ═══ THE POSITION FLIPPED, AND THE CHECK FLIPPED WITH IT ═══
+       This asserted Chats sat ungrouped beside Today, which is where §2.2 put
+       it. Reversed on instruction: it is in the Monitoring group, between Risk
+       Flags and Activity, where the Figma mockup nests it.
+       WHAT THE CHECK IS ACTUALLY FOR IS UNCHANGED — Chats is REACHABLE from
+       the rail at all, which it was not for three phases (row 449). The
+       placement is asserted alongside it because a row that drifted back out
+       of the group would be the same decision being re-litigated silently.
+       ORDER IS ASSERTED TOO: above Activity, below Risk Flags. Presence and
+       group membership alone would pass on a Chats row at the bottom of the
+       group, which is a different decision from this one. */
     check(
       "rail.chat-present",
-      "and Chats is a destination in the rail, beside Today rather than under Monitoring",
-      r.chatRow != null && r.chatRow.grouped === false,
+      "and Chats is in the Monitoring group, below Risk Flags and above Activity",
+      r.chatRow != null &&
+        r.chatRow.grouped === true &&
+        r.chatRow.after === "Risk Flags" &&
+        r.chatRow.before === "Activity",
       r.chatRow
-        ? `"${r.chatRow.label}" in the ${r.chatRow.grouped ? "Monitoring group" : "ungrouped top"}`
+        ? `"${r.chatRow.label}" ${r.chatRow.grouped ? "in the Monitoring group" : "in the ungrouped top"}, after "${r.chatRow.after}" and before "${r.chatRow.before}"`
         : "no Chats row"
     );
   }
