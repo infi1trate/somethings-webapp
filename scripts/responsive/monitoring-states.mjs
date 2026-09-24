@@ -1635,7 +1635,46 @@ for (const [scenario, id, want] of [
         name: (el.getAttribute('aria-label') || el.innerText || '').replace(/\\s+/g,' ').trim().slice(0,34),
         h: Math.round(r.height), w: Math.round(r.width), top: Math.round(r.top), bottom: Math.round(r.bottom),
         left: Math.round(r.left), right: Math.round(r.right),
-        ring: parseFloat(cs.outlineWidth) }; })()`);
+        /* ═══ AN OUTLINE *OR* A RING DRAWN FOR IT (Layout Pass §3) ═══
+           NOTE: no backticks anywhere in this comment — it lives inside the
+           template literal below and one would close it. Cost me a parse
+           error to learn; left as a warning rather than a silent constraint.
+           This read outlineWidth on the focused element alone. That covered
+           every indicator in the app until the queue row's focus moved to a
+           group-focus-visible ring on its inset pill — a box-shadow on a
+           CHILD, because the ring has to trace the pill's rounded shape rather
+           than the row's full-bleed box. Measured on the new row: the root
+           reports the 1px UA outline and the pill carries a 2px ring in
+           --focus-ring, so the old instrument saw 1px and called a visible
+           2px ring a failure.
+           IT IS WIDENED, NOT WEAKENED: still >= 2px, still required at EVERY
+           stop, and zero on both channels still fails. What changed is where
+           it is allowed to be drawn. */
+        ring: (() => {
+          /* NO BACKSLASH CLASSES IN THIS REGEX. It lives inside a template
+             literal, which eats the escape: a /[\d]/ written here arrives as
+             /[d]/ and the function silently returns 0 for every shadow, which
+             is how the first version of this check reported 1px for a row
+             drawing a visible 2px ring. [0-9.] needs no escape and cannot be
+             eaten. */
+          const spread = (el) => {
+            const sh = getComputedStyle(el).boxShadow;
+            if (!sh || sh === 'none') return 0;
+            // the LAST length of each shadow is its spread — split on the
+            // commas between shadows, which rgb()/rgba() also contain, so
+            // strip the colour functions before splitting.
+            const parts = sh.replace(/rgba?\([^)]*\)/g, '').split(',');
+            let best = 0;
+            for (const part of parts) {
+              const lens = part.match(/-?[0-9.]+px/g);
+              if (lens && lens.length) best = Math.max(best, parseFloat(lens[lens.length - 1]));
+            }
+            return best;
+          };
+          const own = parseFloat(cs.outlineWidth) || 0;
+          const kids = Math.max(0, ...[...el.children].map(spread));
+          return Math.max(own, spread(el), kids);
+        })() }; })()`);
     if (d) seq.push(d);
   }
   const zones = seq.map((d) => d.zone);
@@ -1647,7 +1686,17 @@ for (const [scenario, id, want] of [
     firstOf("escalations") < firstOf("list") && firstOf("list") < firstOf("pane") && firstOf("pane") < firstOf("footer"),
     zones.join(",")
   );
-  check("focus.always-visible", "every stop draws a focus ring", seq.every((d) => d.ring >= 2), `min ${Math.min(...seq.map((d) => d.ring))}px`);
+  check(
+    "focus.always-visible",
+    "every stop draws a focus ring — as its own outline, or as a ring on the element that carries its shape",
+    seq.every((d) => d.ring >= 2),
+    /* NAMES THE WORST STOP, not just the number: "min 1px" sent the last
+       reader looking through thirty tab stops to find which one. */
+    (() => {
+      const worst = seq.reduce((a, d) => (d.ring < a.ring ? d : a), seq[0]);
+      return `min ${worst.ring}px at "${worst.name || "(unnamed)"}" in ${worst.zone}`;
+    })()
+  );
   /* BOTH AXES. The first version compared only the y band, which flagged the
      left rail's Team/Settings/Help — controls 550px to the left of the footer
      and obscured by nothing. An overlap is an overlap in two dimensions. */
@@ -1721,11 +1770,35 @@ for (const [scenario, id, want] of [
       ? escTargets.map((d) => `${d.name}:${d.h}x${d.w}`).join(" · ")
       : "no escalation controls reached — the zone is not on this route"
   );
+  /* ═══ RETARGETED, NOT RELAXED (Layout Pass §3, §5) ═══
+     This asserted `/^56x/` — the row's height as a literal. §3 raised the row
+     and §5 made the height a DENSITY, so the literal is superseded: 56 is now
+     one of two correct answers and the wrong one to demand by default.
+     WHAT IT ASSERTS INSTEAD IS STRICTER, not looser. The row must be EXACTLY
+     the height its own `data-density` declares — which is the virtualizer's
+     contract, and the one failure in `worklist.tsx` that nothing else can see:
+     a row rendering 81px against a table saying 80 puts the window one pixel
+     out per row and forty rows down the list selects the wrong thing. And it
+     must clear HIG's 44px at either setting.
+     THE TABLE IS DUPLICATED HERE ON PURPOSE. Importing `ROW_GEOMETRY` would
+     make the probe agree with the app by construction — it would pass while
+     both were wrong together. A second copy is what makes a change to the
+     app's number show up as a failure here. */
+  const ROW_H_BY_DENSITY = { comfortable: 80, compact: 56 };
   const rowBox = await page.locator('[role="treeitem"]').first().evaluate((e) => {
     const r = e.getBoundingClientRect();
-    return `${Math.round(r.height)}x${Math.round(r.width)}`;
+    return { h: Math.round(r.height), w: Math.round(r.width), density: e.dataset.density ?? null };
   });
-  check("targets.rows", "a queue row is a comfortable target", /^56x/.test(rowBox), rowBox);
+  const rowExpect = ROW_H_BY_DENSITY[rowBox.density];
+  check(
+    "targets.rows",
+    "a queue row is exactly the height its density declares, and clears HIG's 44px",
+    rowBox.density != null && rowBox.h === rowExpect && rowBox.h >= 44,
+    /* THE OBSERVATION, INCLUDING THE INPUT. A null density is a row that never
+       got the prop, which would otherwise read as an unknown-key pass. */
+    `density=${rowBox.density ?? "MISSING"} ${rowBox.h}x${rowBox.w}` +
+      (rowExpect ? ` (declared ${rowExpect})` : " (no declared height for this density)")
+  );
 
   const live = await page.evaluate(`(() => [...document.querySelectorAll('[aria-live],[role=status],[role=alert],[role=log]')]
     .map((e) => (e.getAttribute('aria-live') || e.getAttribute('role')) + ':' + ((e.getAttribute('aria-label') || e.innerText || '').replace(/\\s+/g,' ').trim().slice(0,26) || '(empty)')))()`);

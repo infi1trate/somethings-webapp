@@ -69,6 +69,11 @@ import {
   RetiringBand,
   WorklistGroupHeader,
 } from "@/components/tasks/group-header";
+import {
+  LIST_MIN_ROWS,
+  ROW_GEOMETRY,
+  type Density,
+} from "@/lib/ui/view-options";
 import { cn } from "@/lib/utils";
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
@@ -83,7 +88,20 @@ import { cn } from "@/lib/utils";
  *  (20 + 16 = 36, plus 10 top and bottom). Adding a third line to a row means
  *  changing this constant, and the compiler will not tell you — the list will
  *  simply drift. */
-const ROW_H = 56;
+/* ═══ AND WHY IT IS NOW A FUNCTION OF DENSITY (Layout Pass §3, §5) ═══
+   56px was the only row this list had, so the contract above could be a
+   module constant. §3 raises the row and §5 makes the raise a choice, which
+   changes nothing about the contract and everything about where it lives: the
+   number is still exact, still the thing every offset is computed from, and
+   still a value the compiler will not check — it just has two values now.
+   `ROW_GEOMETRY` in `lib/ui/view-options.ts` holds both, with the arithmetic
+   that produces them. `Worklist` reads `rowH` off it once and every piece of
+   window arithmetic below uses that, so the two cannot drift apart within a
+   render. `Row` and `ListSkeleton` take the density and derive the same number
+   from the same table.
+   COMPACT IS 56 EXACTLY — the density the virtualizer's measurements were taken
+   against is still one of the two settings, which is the setting to fall back
+   to if the taller row ever misbehaves. */
 /** THE HEADER'S HEIGHT, from the component that draws it. Two constants for one
  *  box is how the virtualizer's offsets and the rendered header drift apart, and
  *  that drift is invisible: the list simply stops scrolling rows to where the
@@ -115,8 +133,14 @@ const OVERSCAN = 6;
  *  seven-word line, and it is the only reason the band lingers at all. */
 const RETIRE_HOLD_MS = 2600;
 
-const RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+/* ═══ THE ROW'S FOCUS RING MOVED TO THE PILL (§3) ═══
+   It was an `outline` on the row root, which traced a full-bleed rectangle —
+   correct for the full-bleed row it was drawn around, and wrong for an inset
+   one: the ring would have sat 8px outside the shape it was indicating. It is
+   a `group-focus-visible:ring` on the pill element now, so focus traces the
+   same rounded box selection does. The constant is gone rather than left
+   unused, because an unused focus constant in a list file is an invitation to
+   put the outline back. */
 
 export type ListState = "ready" | "loading" | "error";
 
@@ -241,7 +265,18 @@ function Row({
   onSelect,
   onToggle,
   registerRef,
+  density,
+  wide,
+  hairline,
 }: {
+  /** §5's row scale. See the geometry note on why this is not a class. */
+  density: Density;
+  /** §5's `Full width` — the row stops truncating when the pane is gone. */
+  wide: boolean;
+  /** False on the first row under a band header, and on the first row of an
+   *  ungrouped list: a hairline there is a second line 1px from the header's
+   *  own, or from the card's border. */
+  hairline: boolean;
   entry: ListEntry;
   /** See `rowVariant` on the list. A CHILD is always `subject`: inside an
    *  expanded group every member shares the teen and the tier, so job-first would
@@ -446,6 +481,8 @@ function Row({
     .filter(Boolean)
     .join(", ");
 
+  const geo = ROW_GEOMETRY[density];
+
   return (
     <div
       ref={registerRef}
@@ -474,41 +511,56 @@ function Row({
       /* ONE `style`, BOTH FACTS. The height is the virtualizer's invariant and
          cannot be a class; the fill is a token that Tailwind cannot compose with
          an inline height without two attributes, which JSX refuses. */
-      style={{
-        height: ROW_H,
-        ...(isResponse ? { backgroundColor: "var(--task-respond-bg)" } : null),
-      }}
+      /* EXACT HEIGHT, NOT A MINIMUM — see the geometry note. Inline because it
+         is a number that moves with the density, which a class cannot be. */
+      style={{ height: geo.height }}
+      data-density={density}
       className={cn(
-        /* EXACT HEIGHT, NOT A MINIMUM — see ROW_H. `border-t` on EVERY row,
-           including the first: a band header sits above it and the hairline is
-           what separates the two. The old `first:border-t-0` made the first row
-           55px while every other row was 56, which the virtualizer would have
-           accumulated into a real offset error. */
-        "flex cursor-pointer items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 transition-colors",
-        // SELECTED AND FOCUSED ARE DISTINCT (§4): selected is a filled ground,
-        // focus is the ring. A reader arrowing through a list sees the ring move
-        // while the fill stays put.
-        /* ═══ THE ONE SATURATED FILL IN THE TASKS LIST (arch-G, G2) ═══
-           A live escalation, and nothing else on this surface. The alarm budget
-           has room for exactly one filled treatment and this is where it is
-           spent — the same rule Monitoring's escalation region follows, and the
-           reason the Overdue bucket gets a tint rather than a fill. */
+        "group relative cursor-pointer",
+        /* THE RING MOVED TO THE PILL, so it traces the inset shape instead of a
+           full-bleed rectangle; `outline-none` stops the root drawing a second
+           one around the whole row. */
+        "outline-none",
         isResponse && "text-[var(--task-respond-fg)]",
-        selected
-          ? isResponse
-            ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
-            : "bg-[var(--surface-s2)]"
-          : isResponse
-            ? "transition-opacity hover:opacity-95"
-            : "hover:bg-[var(--tint-hover)]",
-        indent && "pl-11",
         /* RESOLVING: dimmed, and the word is in the accessible name above. The
            row keeps its height and its place — the whole point is that the list
            does not move while the undo window is open. */
-        resolving && "opacity-55",
-        RING
+        resolving && "opacity-55"
       )}
     >
+      {/* ═══ THE PILL — FILL, HOVER, FOCUS AND THE ESCALATION BAND ═══
+          §3: "Selection becomes an inset rounded pill with margin on all four
+          sides." One element carries every ground this row can have, so they
+          cannot disagree about the shape. 8px horizontal, 4px vertical — an 8px
+          gutter between adjacent pills, without the vertical cost of detached
+          cards, which §3 rules out by name because on a 123-item queue card
+          gaps roughly halve items per screen.
+          THE SATURATED FILL COMES WITH IT (arch-G, G2). A live escalation is
+          still the one filled treatment on this surface; it is now an inset
+          filled pill rather than a full-bleed band, which changes its shape and
+          not its rank. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[var(--radius-inset)] transition-colors",
+          "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--focus-ring)]",
+          selected
+            ? isResponse
+              ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
+              : "bg-[var(--surface-s2)]"
+            : !isResponse && "group-hover:bg-[var(--tint-hover)]"
+        )}
+        style={isResponse ? { backgroundColor: "var(--task-respond-bg)" } : undefined}
+      />
+      <div
+        /* px-6 = 24px: 8px of pill track plus 16px of row padding, so content
+           starts 24px inside the card — §3's horizontal breathing room, spent
+           where it calms a row rather than on the gap between rows. */
+        className={cn(
+          "relative flex h-full items-stretch gap-3 px-6",
+          indent && "pl-14"
+        )}
+      >
       {/* THE DISCLOSURE INDICATOR. aria-hidden — the state is on the option. Its
           own click zone so a pointer reader can expand without selecting. */}
       {isGroup ? (
@@ -552,21 +604,45 @@ function Row({
       {taskLed ? (
         <span
           aria-hidden
-          className="flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--surface-s1)] text-[var(--text-secondary)]"
+          className="flex shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--surface-s1)] text-[var(--text-secondary)]"
+          style={{ width: geo.disc, height: geo.disc }}
         >
           <KindIcon className="size-3.5" />
         </span>
       ) : (
         <span
           aria-hidden
-          className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
-          style={{ backgroundColor: disc.bg, color: disc.fg }}
+          className="flex shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
+          style={{
+            backgroundColor: disc.bg,
+            color: disc.fg,
+            width: geo.disc,
+            height: geo.disc,
+          }}
         >
           {item.teenDisplayName.charAt(0)}
         </span>
       )}
 
-      <span className="min-w-0 flex-1">
+      {/* ═══ THE SEPARATOR LIVES ON THIS COLUMN (§3) ═══
+          "Separators inset — start after the avatar, stop before the trailing
+          metadata." A border on the row root cannot be inset horizontally, and
+          a border on a vertically-centred child renders at that child's top
+          rather than at the row boundary. A STRETCHED flex child solves both:
+          it spans exactly from after the disc to before the trailing block, so
+          §3's two ends are derived from the layout instead of from hardcoded
+          insets that would drift the day the disc changes size — which it now
+          does, per density.
+          IT NEVER CROSSES A PILL. The line sits at y=0 of the row box and the
+          pill starts at y=4, so a hairline falls in the gutter between two
+          pills rather than cutting across a fill. That crossing is what made
+          the old full-bleed treatment read as a table. */}
+      <span
+        className={cn(
+          "flex min-w-0 flex-1 flex-col justify-center",
+          hairline && "border-t border-[color:var(--border-subtle)]"
+        )}
+      >
         {/* ═══ LINE 1 — THE JOB, OR THE PERSON ═══
             DEADLINE-FORWARD: the task name, at the row's strongest available
             weight. `font-display` is Avantt, which ships Bold only, so it is the
@@ -597,8 +673,12 @@ function Row({
             versions forbid is two focal points competing inside one zone. */}
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span
+            style={{
+              fontSize: geo.primary.size,
+              lineHeight: `${geo.primary.leading}px`,
+            }}
             className={cn(
-              "truncate text-[14px] leading-[20px]",
+              "truncate",
               /* ═══ THE FILL CHANGES THE GROUND, SO IT CHANGES THE INK ═══
                  MEASURED by axe: `--text-primary` (#1f1e1d) on the respond fill
                  (#c9351d) is 3.17:1 — a WCAG failure on the most urgent row on
@@ -635,8 +715,14 @@ function Row({
             load-bearing, and on the pane header and the transcript, where it
             attributes who said what. */}
         <span
+          style={{
+            marginTop: geo.lineGap,
+            fontSize: geo.secondary.size,
+            lineHeight: `${geo.secondary.leading}px`,
+          }}
           className={cn(
-            "block truncate text-[12px] leading-[16px]",
+            "block",
+            wide ? "shrink-0" : "truncate",
             /* ═══ 1.45:1 — THE WORST PAIR ON THE SURFACE (arch-G, G6) ═══
                MEASURED by axe: `--text-secondary` (#58534b) on the respond fill
                (#c9351d). At 12px. On the line that says "911 dispatched".
@@ -684,7 +770,10 @@ function Row({
         </span>
       </span>
 
-      <span className="flex shrink-0 items-center gap-1.5">
+      {/* pl-6 IS §3's "real separation from the content block" — the chips used
+          to sit 6px from a truncating caption, so on a narrow column the two
+          read as one run of text. */}
+      <span className="flex shrink-0 items-center gap-1.5 pl-6">
         <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION SPAN IS GONE WITH THE TIERS (Phase 4) ═══
             arch-D moved it here from the mentor caption, on the reasoning that
@@ -755,7 +844,8 @@ function Row({
           {/* TODO-COPY */}
           {temporal}
         </span>
-      </span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -772,13 +862,13 @@ function Row({
  *  Sized from `ROW_H` so a skeleton row occupies exactly what a real row will —
  *  which is what makes the swap from skeleton to content produce no layout shift
  *  at all. */
-function ListSkeleton({ rows }: { rows: number }) {
+function ListSkeleton({ rows, density }: { rows: number; density: Density }) {
   return (
     <div aria-hidden>
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          style={{ height: ROW_H }}
+          style={{ height: ROW_GEOMETRY[density].height }}
           className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 first:border-t-0"
         >
           <span className="w-5 shrink-0" />
@@ -926,7 +1016,16 @@ export function Worklist({
   state,
   onSelect,
   onRetry,
+  density,
+  wide,
 }: {
+  /** §5's row scale. Required rather than defaulted — see the geometry note:
+   *  a surface that forgot to pass it would render rows the virtualizer is not
+   *  measuring, which is the one failure in this file that is invisible. */
+  density: Density;
+  /** §5's `Full width`. The list has the whole container, so a row stops
+   *  truncating what it truncates beside a pane. */
+  wide: boolean;
   entries: ListEntry[];
   /** THE WHOLE DOMAIN'S ITEMS, open and resolved. Needed only by band
    *  retirement, which reports how many of a cleared tier closed today — a fact
@@ -1008,6 +1107,14 @@ export function Worklist({
   onSelect: (entry: ListEntry, item: TaskItem) => void;
   onRetry: () => void;
 }) {
+  /** ═══ THE ROW HEIGHT, READ ONCE PER RENDER ═══
+   *  Every offset below computes from `rowH` — the window, the spacers, the
+   *  section tops, `revealRow`'s arithmetic and the skeleton's count. Reading it
+   *  once is what stops two of those disagreeing inside one render, which is the
+   *  drift the geometry note warns about and the reason the height was a
+   *  constant in the first place. */
+  const geo = ROW_GEOMETRY[density];
+  const rowH = geo.height;
   /** TODO-COPY. The list's own name, in three places that must agree. */
   const subjectLabel = subject ?? (domain ? DOMAIN_LABEL[domain] : "Worklist");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -1080,10 +1187,16 @@ export function Worklist({
         }
       }
       out.push({ band, rows, rowsTop: y });
-      y += rows.length * ROW_H;
+      y += rows.length * rowH;
     }
     return out;
-  }, [bands, showBands, expanded]);
+    /* `rowH` IS A REAL DEPENDENCY, NOT A LINT APPEASEMENT. Every `rowsTop` in
+       this table is accumulated from it, so a density change that did not
+       recompute here would leave the virtualizer measuring 56px rows while the
+       DOM rendered 80px ones — the exact drift the geometry note describes,
+       and the reason it is invisible: nothing throws, the list simply scrolls
+       to the wrong row. */
+  }, [bands, showBands, expanded, rowH]);
 
   /** The flattened, visible sequence — what the arrow keys walk. */
   const visible = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
@@ -1093,10 +1206,11 @@ export function Worklist({
   const offsets = useMemo(() => {
     const m = new Map<string, number>();
     for (const s of sections) {
-      s.rows.forEach((r, i) => m.set(r.id, s.rowsTop + i * ROW_H));
+      s.rows.forEach((r, i) => m.set(r.id, s.rowsTop + i * rowH));
     }
     return m;
-  }, [sections]);
+    // Same reason as `sections` above — every offset is a multiple of `rowH`.
+  }, [sections, rowH]);
 
   const activeIndex = Math.max(
     0,
@@ -1123,8 +1237,8 @@ export function Worklist({
   /* THE WINDOW. `height || 900` covers the first render, before the effect above
      has measured anything: mounting a screenful is right, mounting zero rows
      would make the first paint empty. */
-  const winTop = viewport.top - OVERSCAN * ROW_H;
-  const winBottom = viewport.top + (viewport.height || 900) + OVERSCAN * ROW_H;
+  const winTop = viewport.top - OVERSCAN * rowH;
+  const winBottom = viewport.top + (viewport.height || 900) + OVERSCAN * rowH;
 
   // ── Keyboard movement, including across the boundary ─────────────────────
 
@@ -1140,7 +1254,7 @@ export function Worklist({
     const pad = showBands ? HEADER_H : 0;
     let next = el.scrollTop;
     if (top - pad < el.scrollTop) next = Math.max(0, top - pad);
-    else if (top + ROW_H > el.scrollTop + vh) next = top + ROW_H - vh;
+    else if (top + rowH > el.scrollTop + vh) next = top + rowH - vh;
     if (next === el.scrollTop) return;
     el.scrollTop = next;
     // AND UPDATE STATE IN THE SAME TICK. The scroll event fires asynchronously,
@@ -1305,7 +1419,7 @@ export function Worklist({
       next.set(s.band.id, {
         label: s.band.label,
         ids: s.rows.filter((r) => !r.child).flatMap((r) => itemsOf(r.entry).map((i) => i.id)),
-        height: s.rows.length * ROW_H,
+        height: s.rows.length * rowH,
         domain,
       });
     }
@@ -1350,13 +1464,16 @@ export function Worklist({
           bands.map((band) => (
             <div key={band.id} role="group" aria-label={bandHeaderLabel(band, subjectLabel)}>
               <WorklistGroupHeader label={band.label} count={band.taskCount} />
-              <ListSkeleton rows={Math.min(band.entries.length, 6)} />
+              <ListSkeleton rows={Math.min(band.entries.length, 6)} density={density} />
             </div>
           ))
         ) : (
           /* Enough rows to fill whatever height this frame got, so the load does
              not read as a five-item list. */
-          <ListSkeleton rows={Math.max(5, Math.ceil((viewport.height || 560) / ROW_H))} />
+          <ListSkeleton
+            rows={Math.max(5, Math.ceil((viewport.height || 560) / rowH))}
+            density={density}
+          />
         )}
         <p className="sr-only" role="status">
           {/* TODO-COPY */}
@@ -1427,7 +1544,14 @@ export function Worklist({
          down would have no idea which tier they were in. Moving the scroll here
          gives the headers something to stick to — the card's own top edge. */
       data-anno-ref="tasks-worklist-scroller"
-      className={cn(frame, "h-full overflow-y-auto overscroll-contain")}
+      /* ═══ CONTENT-SIZED WITH A FLOOR (§2) ═══
+         `h-full` made the card absorb the page, so a two-row queue rendered
+         inside a box the height of the viewport — §2 is right that this reads
+         as a rendering fault rather than a short list. `max-h-full` keeps the
+         scroll bounded by the page; the floor is three rows at the current
+         density, the smallest count that still reads as a list. */
+      style={{ minHeight: rowH * LIST_MIN_ROWS }}
+      className={cn(frame, "max-h-full overflow-y-auto overscroll-contain")}
     >
       {sections.map((section) => {
         const n = section.rows.length;
@@ -1439,8 +1563,8 @@ export function Worklist({
          *  visible. It holds one or two rows on every shipped fixture, so
          *  rendering all of them costs nothing the spacers were protecting. */
         const pinned = section.band.id === "needsResponse";
-        const first = pinned ? 0 : clamp(Math.floor((winTop - section.rowsTop) / ROW_H), 0, n);
-        const last = pinned ? n : clamp(Math.ceil((winBottom - section.rowsTop) / ROW_H), 0, n);
+        const first = pinned ? 0 : clamp(Math.floor((winTop - section.rowsTop) / rowH), 0, n);
+        const last = pinned ? n : clamp(Math.ceil((winBottom - section.rowsTop) / rowH), 0, n);
         return (
           <div
             key={section.band.id}
@@ -1480,10 +1604,23 @@ export function Worklist({
             {/* SPACERS, NOT RENDERED ROWS. Two divs stand in for everything
                 outside the window, which is what keeps a hundred-row list at a
                 dozen mounted nodes. */}
-            {first > 0 && <div aria-hidden style={{ height: first * ROW_H }} />}
-            {section.rows.slice(first, last).map((v) => (
+            {first > 0 && <div aria-hidden style={{ height: first * rowH }} />}
+            {section.rows.slice(first, last).map((v, vi) => (
               <Row
                 key={v.id}
+                density={density}
+                wide={wide}
+                /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
+                   Under a band header, every row keeps one: the header is a
+                   filled strip and the line beneath it separates two different
+                   things rather than doubling a border.
+                   With no header — which is every row on Care Reviews since the
+                   grouping was removed — only the very first row drops it, so
+                   the card's own border is not shadowed by a hairline 1px
+                   inside it. `first + vi` is the ABSOLUTE index: `first` is the
+                   virtualizer's window start, and `vi` alone would put a gap at
+                   the top of every scroll position. */
+                hairline={showBands || first + vi > 0}
                 resolving={resolvingIds?.has(v.item.id) ?? false}
                 entry={v.entry}
                 variant={rowVariant}
@@ -1513,7 +1650,7 @@ export function Worklist({
                 }}
               />
             ))}
-            {last < n && <div aria-hidden style={{ height: (n - last) * ROW_H }} />}
+            {last < n && <div aria-hidden style={{ height: (n - last) * rowH }} />}
           </div>
         );
       })}

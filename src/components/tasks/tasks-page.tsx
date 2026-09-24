@@ -46,6 +46,11 @@ import { ShiftTrack } from "@/components/ia/shift-progress";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import { ViewOptionsButton } from "@/components/ia/view-options";
+import {
+  VIEW_OPTIONS_DEFAULT,
+  type ViewOptions,
+} from "@/lib/ui/view-options";
 import { listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
@@ -382,6 +387,11 @@ export function TasksPage({
    *  demo. It resets whenever the load state changes, so re-selecting "Loading"
    *  replays it. */
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
+  /** §5's two axes, persisted under this destination's own key — see the store
+   *  field's note on why the map is sparse. */
+  const storedView = useOnboardingStore((st) => st.viewOptions["care-reviews"]);
+  const setViewOptions = useOnboardingStore((st) => st.setViewOptions);
+  const view: ViewOptions = { ...VIEW_OPTIONS_DEFAULT, ...storedView };
   /** ═══ THE STAGE CARRIES THE STATE IT BELONGS TO ═══
    *
    *  The first version reset with `setLoadStage(0)` in the effect body, which the
@@ -479,6 +489,10 @@ export function TasksPage({
 
   /** Below 1100px the pane is a takeover, so it needs a way back to the list. */
   const [paneTakeover, setPaneTakeover] = useState(false);
+  /** `Full width` until something is opened — the reasoning is in
+   *  `view-options.tsx`, and the preference is deliberately not rewritten by
+   *  the selection. */
+  const fullWidth = view.layout === "full" && !paneTakeover;
   /** Enter focuses the pane — it needs a target, and tabIndex={-1} makes the
    *  scroll container focusable without adding a tab stop. */
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -763,7 +777,12 @@ export function TasksPage({
      *  content, so without it the columns refuse to shrink, the frame grows past
      *  its parent, and the page scrolls again — the same trap the care-update
      *  modal and the dialog primitive both documented. */
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col px-6 py-6 lg:px-8">
+    <div
+      /* 1800px — the derivation is on Monitoring's container, and both
+         destinations take the same number because §2's problem is the page
+         rather than the surface. */
+      className="mx-auto flex h-full min-h-0 w-full max-w-[1800px] flex-col px-6 py-6 lg:px-8"
+    >
       {/* ── HEADER (§1) — PINNED. Never scrolls away. ─────────────────── */}
       {/* ANNO REGION. The worklist scroller and the task pane were already
           tagged; this top strip and the tab cards below were not, so a comment
@@ -780,7 +799,11 @@ export function TasksPage({
           /* NEEDS-COPY-NICOLE. It says what the work IS, which the old line
              never did: a reader arriving for the first time learned only how
              much of it there was. */
-          "Presentation reviews waiting on a supervisor's decision, oldest first."
+          /* ═══ THE ORDERING STATEMENT IS CUT (Layout Pass §6) ═══
+             "…, oldest first" described the list to a reader who can see the
+             list. What survives is the half a first-time reader cannot work out
+             from looking: what these are and who is being waited on. */
+          "Presentation reviews waiting on a supervisor's decision."
         }
         metrics={
           /* ═══ TWO, AND "overdue" IS NOT ONE OF THEM (addendum §2.9) ═══
@@ -805,7 +828,14 @@ export function TasksPage({
             completeLine="Every review that arrived this shift is done"
           />
         }
-      />
+      >
+        {/* §5's one control, beside the metrics rather than above the list —
+            the header is where the page's other settings-shaped things live. */}
+        <ViewOptionsButton
+          options={view}
+          onChange={(next) => setViewOptions("care-reviews", next)}
+        />
+      </PageHeader>
 
       {/* ═══ THE RESPOND STRIP AND THE TAB-CARD ROW ARE BOTH GONE (arch-A) ═══
           THE RESPOND STRIP was escalations only — a persistent "respond within
@@ -840,7 +870,8 @@ export function TasksPage({
         tabIndex={-1}
         // THE FLEXIBLE ROW. Everything above is `shrink-0`; this is what absorbs
         // the remaining height and hands it to the two columns.
-        className="mt-6 min-h-0 flex-1"
+        // 40px under the header — §2, and the same value Monitoring takes.
+        className="mt-10 min-h-0 flex-1"
       >
         {nothingOpen ? (
           <WholePageEmpty />
@@ -862,7 +893,25 @@ export function TasksPage({
               // rather than the page. Same fix, same reason, as the dialog's
               // body row.
               "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
-              "xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
+              /* ═══ THE PANE PINS AT 790px FROM 1645px UP (§0) ═══
+                 The full derivation is on Monitoring's grid. What matters here
+                 is §0's hard constraint: 1645 is the width at which the 60%
+                 track ALREADY measured 790, so the Care Reviews pane's rendered
+                 width is unchanged at every viewport — below the breakpoint it
+                 is the same fraction it was, above it it holds the figure it had
+                 reached. Every pixel this pass adds goes to the list. */
+              fullWidth
+                ? "xl:grid-cols-[minmax(0,1fr)]"
+                : /* BOTH VARIANTS ARE ARBITRARY, AND THAT IS NOT A STYLE CHOICE.
+                   MEASURED: written as `xl:` + `min-[1645px]:`, Tailwind emitted
+                   the named breakpoint AFTER the arbitrary one, so at 2560 the
+                   40/60 rule won and the columns came out 686/1030 — the pane
+                   1030px WIDER than it had ever rendered, which is the §0
+                   violation this rule exists to prevent. Two arbitrary `min-[]`
+                   variants sort against each other by value, so the order is
+                   the arithmetic rather than the emitter's category ranking.
+                   1280 is `xl` spelled out; nothing below this line changed. */
+                "min-[1280px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)] min-[1645px]:grid-cols-[minmax(0,1fr)_790px]"
             )}
           >
             {/* ── THE LIST SCROLLS ON ITS OWN, INSIDE ITSELF ──
@@ -881,6 +930,8 @@ export function TasksPage({
               )}
             >
               <Worklist
+                density={view.density}
+                wide={fullWidth}
                 entries={entries}
                 items={domainItems}
                 domain={activeDomain}
@@ -965,7 +1016,9 @@ export function TasksPage({
                    read as rounding, and not), and `flex-1` everywhere overflowed
                    at DESKTOP by 234px. The cases genuinely differ. */
                 "flex min-h-0 flex-col xl:block",
-                !paneTakeover && "hidden xl:block"
+                !paneTakeover && "hidden xl:block",
+                // `Full width`: no pane at all until a row is picked.
+                fullWidth && "hidden xl:hidden"
               )}
             >
               {paneTakeover && (
@@ -975,7 +1028,10 @@ export function TasksPage({
                   className={cn(
                     // `shrink-0 self-start`: a control, not a row — in a flex
                     // column a stretched button would span the width.
-                    "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold xl:hidden",
+                    "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
+                    // Stays on xl under `Full width` — the only way back to the
+                    // list the stored preference still asks for.
+                    view.layout !== "full" && "xl:hidden",
                     "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                     RING
                   )}
