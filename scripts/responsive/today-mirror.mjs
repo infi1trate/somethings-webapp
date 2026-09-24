@@ -488,9 +488,16 @@ console.log("\n§4 · the mirror agrees with the destination\n");
   /* ── CARE REVIEWS · the header's open count ─────────────────────────────── */
   {
     const { context, page } = await open("mirror-care", "/app/care-reviews");
+    /* ═══ THE METRIC PAIR, NOT A SENTENCE (addendum §2.10) ═══
+       It parsed "N open" out of the header's three-segment line. That line is
+       gone — the figure is a metric with `data-metric-value="open"` — and
+       reading the element rather than a regex over prose is also what stops
+       this check from matching a different "N open" elsewhere in the header. */
     const dest = await page.evaluate(() => {
-      const t = document.querySelector('[data-anno-ref="tasks-header"]')?.innerText ?? "";
-      return Number(t.match(/(\d+) open/)?.[1] ?? NaN);
+      const el = [...document.querySelectorAll("[data-metric-value]")].find(
+        (e) => e.getAttribute("data-metric-value") === "open"
+      );
+      return Number((el?.textContent ?? "").trim());
     });
     const onToday = Number(byId["care-reviews"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
     check(
@@ -514,28 +521,42 @@ console.log("\n§4 · the mirror agrees with the destination\n");
      strict: it is what fails if either surface ever recomputes it locally. */
   {
     const { context, page } = await open("mirror-esc", "/app/escalations");
+    /* ═══ RETARGETED ONTO THE METRIC PAIR (addendum §2.10) ═══
+       The destination's header stated obligations as a sentence — "2
+       escalations awaiting acknowledgement · 3 close-out items overdue" — and
+       this parsed it. §2.10 replaced that with a purpose and two metrics, and
+       changed WHAT is counted: `active` records rather than unacknowledged
+       ones, and close-out items that are OPEN rather than only overdue (which
+       is the defect §2.10 sent us here to fix — "No escalation clocks
+       outstanding" above four running clocks).
+       THE CARD'S FIGURE WAS ALREADY `active`, so the two now agree on the same
+       word as well as the same number — which is what this check has always
+       been for. */
     const dest = await page.evaluate(() => {
-      const t = document.querySelector('[data-anno-ref="monitoring-header"]')?.innerText ?? "";
+      const metric = (label) => {
+        const el = [...document.querySelectorAll("[data-metric-value]")].find(
+          (e) => e.getAttribute("data-metric-value") === label
+        );
+        return el ? Number((el.textContent ?? "").trim()) : null;
+      };
       return {
-        ack: Number(t.match(/(\d+) escalations? awaiting acknowledgement/)?.[1] ?? 0),
-        closeOut: Number(t.match(/(\d+) close-out items? overdue/)?.[1] ?? 0),
+        active: metric("active"),
+        closeOut: metric("close-out items open"),
         rows: document.querySelectorAll('[data-anno-ref^="escalation-row:"]').length,
       };
     });
     const onToday = {
+      /* THE DESTINATION'S OWN WORD. A regex for wording the card does not use
+         is how this check would silently start reading 0 off a card that says
+         2 — which is the failure mode it was written after. */
       active: Number(byId.escalations?.text.match(/(\d+) active/)?.[1] ?? 0),
-      /* THE DESTINATION'S OWN PHRASE. A regex for the card's old wording is how
-         this check would silently start reading 0 off a card that says 2. */
-      ack: Number(
-        byId.escalations?.text.match(/(\d+) awaiting acknowledgement/)?.[1] ?? 0
-      ),
     };
     check(
-      "agree.escalations.ack",
-      "the acknowledgement count is the same on both, and in the same words",
-      dest.ack === onToday.ack && dest.ack > 0,
-      `destination ${dest.ack} · today ${onToday.ack}` +
-        (dest.ack === 0 ? " — ZERO ON BOTH: this scenario cannot exercise the check" : "")
+      "agree.escalations.active",
+      "the active count is the same on both, and in the same word",
+      dest.active === onToday.active && dest.active > 0,
+      `destination ${dest.active} · today ${onToday.active}` +
+        (dest.active === 0 ? " — ZERO ON BOTH: this scenario cannot exercise the check" : "")
     );
     check(
       "agree.escalations.reachable",

@@ -41,6 +41,8 @@ import {
 } from "@/components/tasks/kind-filter";
 import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
+import { PageHeader } from "@/components/ia/page-header";
+import { ShiftTrack } from "@/components/ia/shift-progress";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -766,45 +768,44 @@ export function TasksPage({
       {/* ANNO REGION. The worklist scroller and the task pane were already
           tagged; this top strip and the tab cards below were not, so a comment
           on either fell back to `app-main`. */}
-      <div data-anno-ref="tasks-header" className="flex shrink-0 flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-            {scope ? SCOPE_TITLE[scope] : /* TODO-COPY */ "Tasks"}
-          </h1>
-          {/* 4px under the display title — the spacing scale's first step, and
-              the only value between these two lines (Part 2). */}
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {/* ═══ THREE SEGMENTS, EVERY ZERO OMITTED (arch-F, F4) ═══
-                NEEDS-COPY-NICOLE. "19 open · 2 overdue · 3 completed today".
-                A zero segment is dropped entirely rather than rendered as "0
-                overdue" — a number nobody needs — and with nothing open at all
-                the line says so in words instead of leading with a zero.
-                NOTHING BEYOND THIS AND THE COMPLETED GROUP. No 24h/7d/30d strip:
-                the bucket headers already carry those counts, and a progress or
-                streak display on a clinical queue becomes a productivity
-                scoreboard — which is exactly what was designed out of Home. */}
-            {[
-              /* ═══ ZERO OPEN IS STATED IN WORDS, NOT OMITTED ═══
-                 "Omit any segment that is zero" read literally turned an emptied
-                 queue with one completion into "1 completed today" — which drops
-                 the fact a supervisor opens this page for. A zero NUMBER is what
-                 nobody needs ("0 open"); the state still needs saying. */
-              counts.open > 0 ? `${counts.open} open` : "Nothing open",
-              counts.overdue > 0 ? `${counts.overdue} overdue` : null,
-              completed.length > 0 ? `${completed.length} completed today` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        </div>
-
-        {/* ═══ THE TOP-RIGHT "CLOSED TODAY" UNIT WAS HERE (Part 3) ═══
-            Its data moved into the tab-cards, where the work happened: a card
-            reads "4 open · 2 closed", and an empty one "All clear · 5 closed
-            today". The Activity deep link travelled with it unchanged.
-            The unit was a second place to look for a number that belongs to a
-            domain, and it stated the domain's name a second time to say so. */}
-      </div>
+      {/* ═══ THE SHARED HEADER (addendum §2.10) ═══
+          It was an h1 at 24px and a three-segment sentence — "19 open · 2
+          overdue · 3 completed today" — written here and nowhere else, while
+          Monitoring wrote its own two inches away. One component now, and the
+          sentence splits into the two things it was conflating: a PURPOSE that
+          does not change with the data, and METRICS that do. */}
+      <PageHeader
+        title={scope ? SCOPE_TITLE[scope] : /* TODO-COPY */ "Tasks"}
+        purpose={
+          /* NEEDS-COPY-NICOLE. It says what the work IS, which the old line
+             never did: a reader arriving for the first time learned only how
+             much of it there was. */
+          "Presentation reviews waiting on a supervisor's decision, oldest first."
+        }
+        metrics={
+          /* ═══ TWO, AND "overdue" IS NOT ONE OF THEM (addendum §2.9) ═══
+             The third segment counted breaches against a deadline this
+             destination no longer has. What is left is the pair §2.10 names.
+             NEEDS-COPY-NICOLE. Neither frames the work as an inbox: "open" is
+             a state, and "completed today" is a fact about the shift rather
+             than a score — it is the same figure the completed group below
+             already shows, stated once at the top. */
+          [
+            { value: String(counts.open), label: "open" },
+            { value: String(completed.length), label: "completed today" },
+          ]
+        }
+        progress={
+          <ShiftTrack
+            progress={{
+              done: completed.length,
+              total: counts.open + completed.length,
+            }}
+            unit="reviews completed this shift"
+            completeLine="Every review that arrived this shift is done"
+          />
+        }
+      />
 
       {/* ═══ THE RESPOND STRIP AND THE TAB-CARD ROW ARE BOTH GONE (arch-A) ═══
           THE RESPOND STRIP was escalations only — a persistent "respond within

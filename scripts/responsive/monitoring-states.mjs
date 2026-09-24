@@ -822,10 +822,18 @@ for (const [scenario, id, want] of [
 // checked in BOTH directions — that each owns its clause and that it does not
 // carry a neighbour's — because a check for absence alone passes on a header
 // that says nothing at all.
+//
+// ═══ RETARGETED ONTO THE SHARED HEADER (addendum §2.10) ═══
+//
+// There is no subtitle. §2.10 split what that line was doing into two things
+// it was conflating: a PURPOSE that does not change with the data, and METRICS
+// that do. The bleed this section exists to catch is still possible and still
+// worth catching — it just has two places to happen now, so both are read and
+// both directions are kept.
 {
   const CASES = [
-    ["escalations", "/app/escalations", /escalation|close-out/i, /pipeline/i],
-    ["risk-flags", "/app/risk-flags", /pipeline|flags are arriving/i, /acknowledgement|close-out/i],
+    ["escalations", "/app/escalations", /incident|close-out|active/i, /pipeline|flag was raised/i],
+    ["risk-flags", "/app/risk-flags", /pipeline|flag was raised|oldest/i, /close-out|acknowledgement|active/i],
   ];
   for (const [name, url, owns, borrows] of CASES) {
     const { context, page } = await open(`hdr-own-${name}`, {
@@ -833,31 +841,33 @@ for (const [scenario, id, want] of [
       url,
     });
     await page.waitForTimeout(800);
+    /* THE PURPOSE AND THE METRICS TOGETHER — the bleed can happen in either,
+       and reading only one would let a neighbour's clause move into the other
+       and pass. */
     const header = await page.evaluate(
       () =>
         (
-          document.querySelector('[data-anno-ref="monitoring-header"]')
-            ?.innerText ?? ""
+          document.querySelector('[data-anno-ref="page-header"]')?.innerText ?? ""
         ).replace(/\s+/g, " ")
     );
     check(
       `hdr.own.${name}.input`,
-      "the header rendered a subtitle at all",
-      header.length > 20,
-      header.slice(0, 90)
+      "the header rendered a title, a purpose and its metrics",
+      header.length > 40,
+      header.slice(0, 110)
     );
     check(
       `hdr.own.${name}.states-its-own`,
-      "it states the clause this destination owns",
+      "it states what this destination owns",
       owns.test(header),
-      header.slice(0, 110)
+      header.slice(0, 130)
     );
     check(
       `hdr.own.${name}.borrows-none`,
       "and does not carry a neighbour's",
       !borrows.test(header),
       borrows.test(header)
-        ? `found a neighbour's clause: ${header.slice(0, 90)}`
+        ? `found a neighbour's clause: ${header.slice(0, 110)}`
         : "clean"
     );
     await context.close();
@@ -1394,6 +1404,189 @@ for (const [scenario, id, want] of [
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 7d · ONE HEADER, AND A TRACK THAT MEASURES COVERAGE (addendum §2.10, §2.11)
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  /* ═══ EVERY DESTINATION, INCLUDING THE ONES THIS FILE DOES NOT OWN ═══
+     §2.10's claim is that ONE component serves them all, and a check that
+     only looked at Monitoring's two could not tell a shared header from a
+     fourth copy of one. */
+  const DESTINATIONS = [
+    ["/app/today", 0],
+    ["/app/escalations", 2],
+    ["/app/risk-flags", 2],
+    ["/app/care-reviews", 2],
+    ["/app/team", 1],
+    ["/app/mentees", 1],
+  ];
+  const seen = [];
+  for (const [url, wantMetrics] of DESTINATIONS) {
+    const { context, page } = await open(`hdr${url}`, { url });
+    await page.waitForTimeout(900);
+    seen.push({
+      url,
+      wantMetrics,
+      ...(await page.evaluate(() => {
+        const h = document.querySelector('[data-anno-ref="page-header"]');
+        if (!h) return { present: false };
+        const title = h.querySelector("h1");
+        return {
+          present: true,
+          titlePx: title ? Number(getComputedStyle(title).fontSize.replace("px", "")) : 0,
+          purpose: (h.querySelector('[data-anno-ref="page-purpose"]')?.innerText ?? "").trim(),
+          metrics: [...h.querySelectorAll("[data-metric-value]")].map((e) => ({
+            value: (e.innerText ?? "").trim(),
+            label: e.getAttribute("data-metric-value") ?? "",
+            tabular: getComputedStyle(e).fontVariantNumeric.includes("tabular"),
+          })),
+        };
+      })),
+    });
+    await context.close();
+  }
+  check(
+    "header.shared",
+    "every destination renders the one header component",
+    seen.every((d) => d.present),
+    seen.filter((d) => !d.present).map((d) => d.url).join(", ") || `${seen.length} destinations`
+  );
+  check(
+    "header.one-title-size",
+    "and one title size across all of them",
+    new Set(seen.map((d) => d.titlePx)).size === 1 && seen[0].titlePx >= 28,
+    [...new Set(seen.map((d) => `${d.titlePx}px`))].join(" / ")
+  );
+  check(
+    "header.purpose-everywhere",
+    "each one says what the destination is for, in a sentence",
+    seen.every((d) => d.purpose.length > 25),
+    seen.map((d) => `${d.url}: ${d.purpose.length}`).join(" · ")
+  );
+  check(
+    "header.metric-count",
+    "with the metrics §2.10 names — at most two, and none on Today",
+    seen.every((d) => d.metrics.length === d.wantMetrics),
+    seen.map((d) => `${d.url} ${d.metrics.length}/${d.wantMetrics}`).join(" · ")
+  );
+  check(
+    "header.metrics-tabular",
+    "and every figure is tabular, so the column does not jitter as it changes",
+    seen.every((d) => d.metrics.every((m) => m.tabular)),
+    seen.flatMap((d) => d.metrics.map((m) => `${m.value} ${m.label}`)).join(" · ") || "no metrics"
+  );
+  /* ═══ NO METRIC MAY FRAME WORK AS AN INBOX TO EMPTY (§2.10) ═══
+     A remainder — "left", "remaining", "to go" — is the framing this whole
+     restructure exists to escape, and the coverage view's own rule before it
+     became Chat. Asserted over the labels rather than trusted to review. */
+  const labels = seen.flatMap((d) => d.metrics.map((m) => m.label.toLowerCase()));
+  check(
+    "header.no-remainder",
+    "and no metric counts what is LEFT",
+    labels.every((l) => !/\b(left|remaining|to go|outstanding)\b/.test(l)),
+    labels.join(" · ") || "no labels"
+  );
+}
+
+/* ═══ THE TRACK MEASURES COVERAGE, NEVER SPEED (§2.11, §3.4) ═══
+   The clinical risk in a completion mechanic is that it rewards throughput,
+   and the failure mode here is a supervisor dispositioning faster to finish
+   the bar — on a queue of self-harm flags. So the checks are about what the
+   track MAY NOT say as much as what it does. */
+{
+  const { context, page } = await open("track", { scenario: "flag-repeat-pattern" });
+  await page.waitForTimeout(900);
+  const read = () =>
+    page.evaluate(() => {
+      const t = document.querySelector('[data-anno-ref="shift-track"]');
+      if (!t) return null;
+      const fill = t.querySelector('[role="img"] > div');
+      const cs = fill ? getComputedStyle(fill) : null;
+      return {
+        progress: t.getAttribute("data-progress"),
+        complete: t.getAttribute("data-complete"),
+        text: (t.innerText ?? "").replace(/\s+/g, " ").trim(),
+        name: t.querySelector('[role="img"]')?.getAttribute("aria-label") ?? "",
+        fill: cs?.backgroundColor ?? "",
+        width: fill?.style.width ?? "",
+        segments: t.querySelectorAll('[role="img"] > div').length,
+      };
+    });
+  const start = await read();
+  check(
+    "track.present",
+    "the flag queue carries a shift track",
+    !!start && /^0\//.test(start.progress ?? ""),
+    start ? `${start.progress} · "${start.text}"` : "no track"
+  );
+  check(
+    "track.one-continuous-bar",
+    "one continuous track, not segments — segments read as points scored",
+    start?.segments === 1,
+    `${start?.segments} fill element(s)`
+  );
+  /* ═══ NEVER GREEN ═══
+     Green on a safety surface reads as a clinical all-clear rather than as
+     task completion. Measured off the fill, not asserted of the token. */
+  const rgb = (start?.fill ?? "").match(/\d+/g)?.map(Number) ?? [];
+  check(
+    "track.never-green",
+    "and it is never green",
+    rgb.length >= 3 && !(rgb[1] > rgb[0] + 20 && rgb[1] > rgb[2] + 20),
+    start?.fill || "no fill"
+  );
+  check(
+    "track.states-no-remainder",
+    "it states progress with its unit, never a count of what is left",
+    !!start && !/\b(left|remaining|to go)\b/i.test(start.text) && /of/.test(start.text),
+    start?.text ?? "no text"
+  );
+  /* ═══ AND NOTHING IN IT IS A CLOCK (§3.4) ═══
+     No elapsed time, no rate, no streak, no per-item timing, no comparison.
+     Every one of those rewards going faster; coverage rewards going through. */
+  check(
+    "track.no-speed",
+    "and says nothing about speed — no rate, no streak, no elapsed time",
+    !!start &&
+      !/(per hour|\/hr|streak|avg|average|faster|\bmin\b|\bsec\b)/i.test(start.text + " " + start.name),
+    `${start?.text} | ${start?.name}`
+  );
+  check(
+    "track.name-carries-the-fraction",
+    "and the bar is never the only carrier — the fraction is in its name",
+    /\d+ of \d+/.test(start?.name ?? ""),
+    start?.name ?? "no accessible name"
+  );
+
+  /* ═══ THE ENDING IS THE PAYOFF, AND IT IS REACHABLE ═══
+     §3.4 invests in the completion state rather than the filling. A state
+     nothing in the product can reach is a state nobody has designed. */
+  const rows = await page.locator('[role="treeitem"]').count();
+  for (let i = 0; i < rows + 2; i += 1) {
+    if ((await page.locator('[role="treeitem"]').count()) === 0) break;
+    await page.locator('[role="treeitem"]').first().click();
+    await page.waitForTimeout(180);
+    await page.keyboard.press("1");
+    await page.waitForTimeout(420);
+  }
+  const end = await read();
+  check(
+    "track.completion-is-reachable",
+    "working the queue reaches the completion state",
+    end?.complete === "true" && end.width === "100%",
+    end ? `${end.progress} · ${end.width} · complete=${end.complete}` : "no track"
+  );
+  check(
+    "track.completion-does-not-congratulate",
+    "and it states the coverage achieved rather than praising anybody",
+    !!end &&
+      !/(nice|great|well done|good job|congrat|!|🎉)/i.test(end.text) &&
+      /shift/.test(end.text),
+    end?.text ?? "no completion line"
+  );
+  await context.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 8 · THE LIVE LAYER (Phase 6)
 // ═══════════════════════════════════════════════════════════════════════════
 {
@@ -1595,7 +1788,10 @@ for (const [scenario, id, want] of [
     page.on("pageerror", (e) => errs.push(String(e).slice(0, 120)));
     page.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 120)); });
     await page.waitForTimeout(450);
-    const header = await page.locator('[data-anno-ref="monitoring-header"]').count();
+    /* `monitoring-header` UNTIL §2.10 — the destination renders the shared
+       `PageHeader` now, and the smoke test's claim is unchanged: the fixture
+       built and the page drew its top. */
+    const header = await page.locator('[data-anno-ref="page-header"]').count();
     if (!header || errs.length) broken.push(`${key}${errs.length ? `: ${errs[0]}` : " (no header)"}`);
     await context.close();
   }

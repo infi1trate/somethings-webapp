@@ -54,6 +54,11 @@ import { homeObligations } from "@/lib/home/obligations";
 import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+import {
+  escalationObligations,
+  isSettled,
+} from "@/lib/monitoring/escalation";
+import { monitoringData } from "@/lib/monitoring/scenarios";
 import { tasksScenario } from "@/lib/tasks/seed";
 import { openTasks } from "@/lib/tasks/sort";
 import { useAppearance } from "@/lib/use-appearance";
@@ -105,6 +110,7 @@ export function AppChrome({
   const status = useOnboardingStore((s) => s.status);
   const profileUpdate = useOnboardingStore((s) => s.profileUpdate);
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
+  const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
 
   /** THE CLOCK IS FIXED AT MOUNT. `Date.now()` in render scope is impure and
    *  the React Compiler rejects it. It costs nothing for a count: the scenario
@@ -136,8 +142,9 @@ export function AppChrome({
    *  different kind of thing per badge, which is why `badgeStyleFor` gives each
    *  a shape as well as a tone:
    *
-   *   · ESCALATIONS counts live escalations. An obligation against a
-   *     five-minute clock, so red and bare.
+   *   · ESCALATIONS counts live escalation RECORDS — the same primitive and
+   *     the same function the destination's own header calls. An obligation
+   *     against a five-minute clock, so red and bare.
    *   · RISK FLAGS counts open flags. Volume with no deadline — amber, and
    *     deliberately not a breach count, because no flag deadline is published.
    *   · CARE REVIEWS counts what is OPEN. It carried a clock and the word "due"
@@ -152,17 +159,45 @@ export function AppChrome({
     () => homeObligations(scenarioItems, badgeNow),
     [scenarioItems, badgeNow]
   );
+  /** ═══ THE ESCALATION BADGE READS RECORDS, NOT TASK ITEMS (addendum §2.10) ═══
+   *
+   *  MEASURED before this: the rail badge read 1 while the header two inches
+   *  to the right read "2 escalations awaiting acknowledgement". Both were
+   *  counting honestly and neither was wrong — they were counting DIFFERENT
+   *  PRIMITIVES. Phase 6 moved the Escalations destination onto
+   *  `EscalationRecord` and the badge stayed on `TaskItem`, which is the kind
+   *  of divergence that survives because each side looks right on its own.
+   *
+   *  ONE PRIMITIVE, AND IT IS THE RECORD — the thing the destination renders
+   *  and the thing a supervisor opens. `escalationObligations` is the same
+   *  function the header calls, so the two are now two CALLERS of one function
+   *  rather than two functions, which is what `today-mirror` already enforces
+   *  between Today and this destination.
+   *
+   *  THE COST, STATED: the rail now builds the monitoring fixture on every
+   *  route. It is a pure function of two scenario ids and a frozen clock,
+   *  memoised on them — the same shape as `scenarioItems` beside it. */
+  const escalationRecords = useMemo(
+    () =>
+      mounted && staff
+        ? monitoringData(monitoringScenarioId, tasksScenarioId, badgeNow).escalations
+        : [],
+    [mounted, staff, monitoringScenarioId, tasksScenarioId, badgeNow]
+  );
   const openBy = useMemo(() => {
     const count = (id: keyof typeof DESTINATION_TYPES) =>
       openTasks(scenarioItems).filter((i) =>
         DESTINATION_TYPES[id].includes(i.taskType)
       ).length;
     return {
-      escalations: count("escalations"),
+      escalations: escalationObligations(
+        escalationRecords.filter((r) => !isSettled(r, badgeNow)),
+        badgeNow
+      ).active,
       "risk-flags": count("risk-flags"),
       "care-reviews": count("care-reviews"),
     };
-  }, [scenarioItems]);
+  }, [scenarioItems, escalationRecords, badgeNow]);
 
   const badges: Record<string, number> = {
     ...(unread > 0 ? { activity: unread } : {}),

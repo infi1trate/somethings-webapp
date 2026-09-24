@@ -31,6 +31,7 @@ import {
   MentorStatusMenu,
 } from "@/components/admin/mentor-status-badge";
 import { ReviewQueues } from "@/components/admin/review-queues";
+import { PageHeader } from "@/components/ia/page-header";
 import {
   DEMO_MENTORS,
   DEMO_STAFF,
@@ -190,21 +191,26 @@ export function TeamDirectory({ scope }: { scope: TeamScope }) {
   return (
     /* ANNO REGIONS — see the note in roster.tsx. Inert markers only. */
     <div data-anno-ref="team-directory" className="px-6 py-6 lg:px-10">
-      <header className="max-w-prose">
-        <h1
-          className="text-[var(--text-primary)]"
-          style={{ font: "var(--type-title-lg)" }}
-        >
-          Team
-        </h1>
-        <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-          {scope === "mentor"
+      <PageHeader
+        title="Team"
+        purpose={
+          scope === "mentor"
             ? "The leads and supervisors supporting your mentoring."
             : scope === "lead"
               ? "The mentors you lead, and the leads and supervisors alongside you."
-              : "Everyone on the mentoring side of the platform."}
-        </p>
-      </header>
+              : "Everyone on the mentoring side of the platform."
+        }
+        metrics={[
+          {
+            /* ═══ THE ACTIVE FILTER'S TOTAL (addendum §2.10) ═══
+               `view` is the filtered, sorted set the table renders — so this
+               moves with the search box and the role chips rather than stating
+               a total nobody is looking at. NEEDS-COPY-NICOLE. */
+            value: String(view.length),
+            label: view.length === rows.length ? "people" : "of " + rows.length,
+          },
+        ]}
+      />
 
       {/* Review inbox — renders nothing when nothing needs acting on. */}
       {scope !== "mentor" && <ReviewQueues className="mt-6" />}

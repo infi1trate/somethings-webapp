@@ -36,6 +36,8 @@ import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { EscalationRegion } from "@/components/monitoring/escalation-region";
 import { EventList, ageLabel } from "@/components/monitoring/event-list";
+import { PageHeader } from "@/components/ia/page-header";
+import { ShiftTrack } from "@/components/ia/shift-progress";
 import { EventPane, type PaneHandle } from "@/components/monitoring/event-pane";
 import { NowBand } from "@/components/monitoring/now-band";
 import {
@@ -295,6 +297,19 @@ const SCOPE_TITLE: Record<MonitoringScope, string> = {
   "risk-flags": "Risk Flags",
 };
 
+/** ═══ WHAT THE DESTINATION IS FOR, IN ONE LINE (addendum §2.10) ═══
+ *  NEEDS-COPY-NICOLE, both. A PURPOSE, not a reading: it does not change when
+ *  the data does, which is the distinction the old subtitle collapsed — it
+ *  stated obligations, so the header changed sentence as the shift went on and
+ *  a reader arriving for the first time learned nothing about the surface.
+ *  THE METRICS CARRY THE READING now, which is what they are for. */
+const SCOPE_PURPOSE: Record<MonitoringScope, string> = {
+  escalations:
+    "Live incidents and the paperwork they owe. The only clocks in the product run here.",
+  "risk-flags":
+    "Every conversation a flag was raised on, worst first. Each row is one conversation and holds all of its flags.",
+};
+
 export function MonitoringPage({
   /** ═══ `?band=` IS ACCEPTED AND IGNORED (arch-mon Phase 1) ═══
    *  Home's shift sequence links here with a TIER — the taxonomy this phase
@@ -400,6 +415,41 @@ export function MonitoringPage({
      two are the same set, and the alias stays only because it names what the
      pane and the keyboard read: the list as the reader sees it. */
   const filtered = events;
+
+  /** ═══ THE HEADER'S TWO FIGURES, AND THE SHIFT'S SET (addendum §2.10, §2.11) ═══
+   *
+   *  `openFlagCount` counts FLAGS, not rows: a row is a conversation and holds
+   *  several, and "60 open" on a queue of 123 flags would be the coalescing
+   *  telling a reader the work is half what it is.
+   *
+   *  THE TRACK'S DENOMINATOR IS THE SHIFT'S SET — everything that arrived,
+   *  open or already reviewed — which is the only denominator that can reach
+   *  100%. Counting against what is still OPEN would give a fraction that
+   *  moves both ways and never completes, and §3.4's whole argument is that
+   *  the ending is the thing worth investing in.
+   *
+   *  MEASURED FROM `resolvedIds`, which is this session's closures. A
+   *  supervisor who reloads starts the track at zero, and that is honest for a
+   *  prototype that persists no decision — gap row 430. Stated rather than
+   *  faked with a seeded head start. */
+  const allFlagCount = useMemo(
+    () => allEvents.length,
+    [allEvents]
+  );
+  const openFlagCount = events.length;
+  const flagProgress = useMemo(
+    () => ({ done: allFlagCount - openFlagCount, total: allFlagCount }),
+    [allFlagCount, openFlagCount]
+  );
+  /** NEEDS-COPY-NICOLE. The oldest OPEN flag's age — the second metric §2.10
+   *  names. Null when nothing is open, which the header renders as an em dash
+   *  rather than "0h": there is no oldest flag, which is different from one
+   *  that is zero hours old. */
+  const oldestFlagAge = useMemo(() => {
+    if (events.length === 0) return null;
+    const oldest = Math.min(...events.map((e) => e.at));
+    return ageLabel(oldest, now).replace(/ ago$/, "");
+  }, [events, now]);
 
   /** ═══ THE LIST'S UNIT IS A CONVERSATION (addendum §3.1) ═══
    *  Built from the already-filtered, already-resolve-filtered events, so a
@@ -708,44 +758,68 @@ export function MonitoringPage({
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col px-6 py-6 lg:px-8">
-      <div
-        data-anno-ref="monitoring-header"
-        className="flex shrink-0 flex-wrap items-start justify-between gap-4"
+      <PageHeader
+        title={SCOPE_TITLE[scope]}
+        purpose={SCOPE_PURPOSE[scope]}
+        metrics={
+          /* ═══ THE METRICS, AND THE DEFECT THEY FIX (addendum §2.10) ═══
+             The subtitle here stated OBLIGATIONS — "2 escalations awaiting
+             acknowledgement · 3 close-out items overdue" — which is a reading,
+             not a purpose, and it competed with the sentence saying what the
+             destination is for.
+             MEASURED, the reading was also wrong: `closeOutOverdue` counts
+             BREACHES, so a record with four close-out items and 22h left on
+             them produced "No escalation clocks outstanding" directly above
+             those clocks. `closeOutOpen` is the count §2.10 asks for.
+             NEEDS-COPY-NICOLE on every label. None frames the work as an inbox:
+             "open" is a state, "left" would be a remainder. */
+          mounted
+            ? scope === "escalations"
+              ? [
+                  { value: String(obligations.active), label: "active" },
+                  {
+                    value: String(obligations.closeOutOpen),
+                    label: "close-out items open",
+                  },
+                ]
+              : [
+                  { value: String(openFlagCount), label: "open" },
+                  {
+                    value: oldestFlagAge ?? "—",
+                    label: "oldest",
+                  },
+                ]
+            : []
+        }
+        progress={
+          mounted && scope === "risk-flags" ? (
+            /* NEEDS-COPY-NICOLE. THE UNIT IS FLAGS, not conversations: §2.11
+               measures what a supervisor has been through, and the row is a
+               conversation while the work is a flag. */
+            <ShiftTrack
+              progress={flagProgress}
+              unit="flags reviewed this shift"
+              completeLine="Every flag that arrived this shift has been reviewed"
+            />
+          ) : null
+        }
       >
-        <div className="min-w-0">
-          <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
-            {SCOPE_TITLE[scope]}
-          </h1>
-          <p className="mt-1 text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {/* ═══ THE SUBTITLE IS THE OWNING DESTINATION'S (Phase 7) ═══
-                `monitoringSubtitle` states escalation obligations and the flag
-                pipeline's health, and it used to render on all four
-                destinations — measured on `/app/coverage`: "2 escalations
-                awaiting acknowledgement · 3 close-out items overdue", above a
-                coverage meter, on a page about conversations. Gap row 406.
-                The two destinations that did not own these clauses are gone, so
-                the gating in `monitoringSubtitle` now separates the only two
-                left: escalation clocks on one, pipeline health on the other. */}
-            {mounted
-              ? monitoringSubtitle({
-                  ackOutstanding: obligations.ackOutstanding,
-                  closeOutOverdue: obligations.closeOutOverdue,
-                  classifierDegraded: data?.classifier === "degraded",
-                  scope,
-                })
-              : ""}
+        {/* ═══ THE PIPELINE'S HEALTH IS NOT A METRIC ═══
+            NEEDS-COPY-NICOLE. Zero flags is ambiguous between a quiet shift and
+            a broken safety pipe, which is the highest-value distinction on this
+            page — and it is a STATE rather than a figure, so it cannot be a
+            metric pair. It sits beside them, and it outranks them: when the
+            pipeline is down the numbers below it are not measuring anything. */}
+        {mounted && scope === "risk-flags" && data?.classifier === "degraded" && (
+          <p
+            role="status"
+            data-anno-ref="pipeline-down"
+            className="max-w-[18rem] text-right text-[12.5px] leading-[17px] font-semibold text-[var(--state-error)]"
+          >
+            Flag pipeline is down — no flags are arriving
           </p>
-        </div>
-        {/* ═══ THE COVERAGE METER IS GONE FROM THIS HEADER (addendum §2.2) ═══
-            It rendered on all four destinations, then on three: Coverage,
-            because it was the page, and Risk Flags, on arch-mon's argument that
-            coverage is the floor under the queue. Coverage is Chat now and no
-            longer computes a shift fraction, so the element has no subject.
-            §2.11 puts a progress track back in this header region, measuring
-            FLAGS REVIEWED rather than conversations covered — a different
-            denominator with a different meaning, which is why this one is
-            deleted rather than repointed. */}
-      </div>
+        )}
+      </PageHeader>
 
       {mounted && (
         <NowBand

@@ -309,6 +309,12 @@ export interface EscalationObligations {
   closeOutOverdue: number;
   /** Records that are open right now, acknowledged or not. */
   active: number;
+  /** ═══ CLOSE-OUT ITEMS THAT ARE OPEN, NOT ONLY LATE (addendum §2.10) ═══
+   *  `closeOutOverdue` counts breaches, and the header only ever stated
+   *  breaches — so a record with four close-out items and 22h left on them
+   *  read as "No escalation clocks outstanding". The clocks were running; the
+   *  sentence was counting the wrong thing. */
+  closeOutOpen: number;
 }
 
 export function escalationObligations(
@@ -321,6 +327,7 @@ export function escalationObligations(
   let ackOutstanding = 0;
   let ackBreached = 0;
   let closeOutOverdue = 0;
+  let closeOutOpenCount = 0;
   let active = 0;
   for (const r of records) {
     if (isActive(r)) {
@@ -331,7 +338,15 @@ export function escalationObligations(
         if (ack === "breached") ackBreached += 1;
       }
     }
-    closeOutOverdue += closeOutOpen(r, now).filter((i) => i.overdue).length;
+    const open = closeOutOpen(r, now);
+    closeOutOpenCount += open.length;
+    closeOutOverdue += open.filter((i) => i.overdue).length;
   }
-  return { ackOutstanding, ackBreached, closeOutOverdue, active };
+  return {
+    ackOutstanding,
+    ackBreached,
+    closeOutOverdue,
+    closeOutOpen: closeOutOpenCount,
+    active,
+  };
 }

@@ -1,11 +1,11 @@
 {
-  "at": 1790206631625,
+  "at": 1790208237037,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags N Naomi R. ↔ Brandy Forrestor Unsafe home environment · 9h ago Escala"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Each row is one"
     },
     {
       "id": "input.rows",
@@ -349,15 +349,15 @@
     },
     {
       "id": "hdr.own.escalations.input",
-      "label": "the header rendered a subtitle at all",
+      "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Escalations 2 escalations awaiting acknowledgement · 3 close-out items overdue"
+      "detail": "Escalations Live incidents and the paperwork they owe. The only clocks in the product run here. 2 active 16 cl"
     },
     {
       "id": "hdr.own.escalations.states-its-own",
-      "label": "it states the clause this destination owns",
+      "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Escalations 2 escalations awaiting acknowledgement · 3 close-out items overdue"
+      "detail": "Escalations Live incidents and the paperwork they owe. The only clocks in the product run here. 2 active 16 close-out items open"
     },
     {
       "id": "hdr.own.escalations.borrows-none",
@@ -367,15 +367,15 @@
     },
     {
       "id": "hdr.own.risk-flags.input",
-      "label": "the header rendered a subtitle at all",
+      "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Each row is one conversation and holds all of"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
-      "label": "it states the clause this destination owns",
+      "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Each row is one conversation and holds all of its flags. 0 open —"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -538,6 +538,90 @@
       "label": "the edge marker says more is coming, then says this is the beginning",
       "ok": true,
       "detail": "opened with \"Loading earlier messages as you scroll\" · ended with \"The start of this conversation\""
+    },
+    {
+      "id": "header.shared",
+      "label": "every destination renders the one header component",
+      "ok": true,
+      "detail": "6 destinations"
+    },
+    {
+      "id": "header.one-title-size",
+      "label": "and one title size across all of them",
+      "ok": true,
+      "detail": "28px"
+    },
+    {
+      "id": "header.purpose-everywhere",
+      "label": "each one says what the destination is for, in a sentence",
+      "ok": true,
+      "detail": "/app/today: 56 · /app/escalations: 83 · /app/risk-flags: 110 · /app/care-reviews: 70 · /app/team: 47 · /app/mentees: 65"
+    },
+    {
+      "id": "header.metric-count",
+      "label": "with the metrics §2.10 names — at most two, and none on Today",
+      "ok": true,
+      "detail": "/app/today 0/0 · /app/escalations 2/2 · /app/risk-flags 2/2 · /app/care-reviews 2/2 · /app/team 1/1 · /app/mentees 1/1"
+    },
+    {
+      "id": "header.metrics-tabular",
+      "label": "and every figure is tabular, so the column does not jitter as it changes",
+      "ok": true,
+      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 0 completed today · 10 people · 26 teens"
+    },
+    {
+      "id": "header.no-remainder",
+      "label": "and no metric counts what is LEFT",
+      "ok": true,
+      "detail": "active · close-out items open · open · oldest · open · completed today · people · teens"
+    },
+    {
+      "id": "track.present",
+      "label": "the flag queue carries a shift track",
+      "ok": true,
+      "detail": "0/9 · \"0 of 9 flags reviewed this shift\""
+    },
+    {
+      "id": "track.one-continuous-bar",
+      "label": "one continuous track, not segments — segments read as points scored",
+      "ok": true,
+      "detail": "1 fill element(s)"
+    },
+    {
+      "id": "track.never-green",
+      "label": "and it is never green",
+      "ok": true,
+      "detail": "rgb(31, 30, 29)"
+    },
+    {
+      "id": "track.states-no-remainder",
+      "label": "it states progress with its unit, never a count of what is left",
+      "ok": true,
+      "detail": "0 of 9 flags reviewed this shift"
+    },
+    {
+      "id": "track.no-speed",
+      "label": "and says nothing about speed — no rate, no streak, no elapsed time",
+      "ok": true,
+      "detail": "0 of 9 flags reviewed this shift | 0 of 9 flags reviewed this shift"
+    },
+    {
+      "id": "track.name-carries-the-fraction",
+      "label": "and the bar is never the only carrier — the fraction is in its name",
+      "ok": true,
+      "detail": "0 of 9 flags reviewed this shift"
+    },
+    {
+      "id": "track.completion-is-reachable",
+      "label": "working the queue reaches the completion state",
+      "ok": true,
+      "detail": "9/9 · 100% · complete=true"
+    },
+    {
+      "id": "track.completion-does-not-congratulate",
+      "label": "and it states the coverage achieved rather than praising anybody",
+      "ok": true,
+      "detail": "Every flag that arrived this shift has been reviewed"
     },
     {
       "id": "live.off-by-default",
