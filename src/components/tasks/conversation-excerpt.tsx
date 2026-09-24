@@ -204,14 +204,10 @@ export function ConversationExcerpt({
    *  the effect below can set it for the anchor it just scrolled to and a
    *  re-render with the same anchor cannot fire a second one. */
   const [bloomFor, setBloomFor] = useState<string | null>(null);
-  /** ═══ THE ROLE CAPTION, DISMISSED FOR GOOD ═══
-   *  A supervisor learns "left is the teen, right is the mentor" once and then
-   *  reads it fifty more times a shift. Dismissible, and the dismissal sticks for
-   *  the session — `localStorage` was considered and rejected: this is a
-   *  prototype with no per-user store on this surface, and a preference that
-   *  outlives the session but is written nowhere a reader can see or reset is a
-   *  worse trade than one they re-dismiss tomorrow. */
-  const [captionOpen, setCaptionOpen] = useState(true);
+  /* ═══ THE ROLE CAPTION'S STATE GOES WITH THE CAPTION (addendum §3.6) ═══
+     It was a session-scoped `useState` holding whether the onboarding line had
+     been dismissed, with `localStorage` considered and rejected. The line is
+     gone — see the render — so the state it protected has nothing to protect. */
 
   /** ═══ ANCHOR WITHOUT SCROLLING THE PAGE ═══
    *
@@ -531,31 +527,18 @@ export function ConversationExcerpt({
         </div>
       )}
 
-      {/* ═══ ONE LINE, ONCE ═══
-          Left is the teen, right is the mentor. The alignment and tint carry it
-          after the first read, and the names are on the bubbles regardless — so
-          this is an onboarding line, not a legend, and it goes away when it has
-          done its job. Sits BELOW the region rather than inside it, so dismissing
-          it cannot change the transcript's scroll position. */}
-      {captionOpen && (
-        <p className="mt-2 flex items-center gap-2 text-[11.5px] leading-[16px] text-[var(--text-muted)]">
-          {/* TODO-COPY */}
-          <span className="min-w-0">
-            {teenName} on the left, mentor on the right.
-          </span>
-          <button
-            type="button"
-            onClick={() => setCaptionOpen(false)}
-            className={cn(
-              "shrink-0 rounded-sm font-semibold text-[var(--text-secondary)] underline decoration-[color:var(--border-contour)] underline-offset-2 hover:text-[var(--text-primary)]",
-              RING
-            )}
-          >
-            {/* TODO-COPY */}
-            Hide
-          </button>
-        </p>
-      )}
+      {/* ═══ THE ROLE CAPTION IS GONE (addendum §3.6) ═══
+          It read "{teen} on the left, mentor on the right." with a Hide link,
+          and its own note called it an onboarding line rather than a legend.
+          §3.6's test is whether the transcript itself can carry the role
+          labelling, and it can: every cluster prints its sender's NAME above
+          the bubble — that is what `needsHeader` is for — so the teen's name
+          and the mentor's are both on screen, attached to their own words,
+          before a reader could need a sentence explaining which side is which.
+          A caption that repeats what the content already says is the
+          explanatory text §3.6 calls a design smell, and the dismiss control
+          was the tell: a legend nobody can dismiss is a legend; one that
+          invites dismissal knows it is in the way. */}
 
       {/* PINNED BELOW, ALWAYS. The excerpt is a window; the way out of it is not
           something a reader should have to scroll to find. */}

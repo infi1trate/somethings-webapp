@@ -1250,23 +1250,37 @@ export function EventPane({
           it (WCAG 2.4.11). */}
       <div
         data-slot="event-pane-footer"
-        className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-5 py-4"
+        className={cn(
+          "shrink-0 bg-[var(--surface-card)]",
+          /* NO RULE AND NO PADDING WHEN THERE IS NOTHING IN IT — a hairline
+             across an empty strip is the visual version of the sentence this
+             removed. */
+          escalation
+            ? "hidden"
+            : "border-t border-[color:var(--border-subtle)] px-5 py-4"
+        )}
       >
         {escalation ? (
-          <p className="text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
-            {/* ═══ IT POINTED AT ITSELF (arch-G, G6) ═══
-                It read "the record is where the work happens" — written when
-                this pane was a summary and the record was somewhere else. Since
-                G6 this IS the record: the note module is above, the timeline is
-                above, and every "Open the escalation record" lands here. A
-                sentence sending a reader where they already are is worse than
-                no sentence.
-                WHAT IS STILL TRUE is the part decision 3 actually protects, and
-                that is what it says. NEEDS-COPY-NICOLE, both. */}
-            {recordLifecycleOf(escalation, now) === "closedDocumented"
-              ? "Nothing further is owed on this escalation. The record stays here as it ages."
-              : "The escalation's own state is not changed from a queue. What is owed is above, and the note is filed here."}
-          </p>
+          /* ═══ THE FOOTER IS EMPTY ON A RECORD, WHICH IS THE FIX (§3.6) ═══
+           *
+           *  It held one sentence: "The escalation's own state is not changed
+           *  from a queue. What is owed is above, and the note is filed here."
+           *  §3.6's reading is right — that sentence existed because the
+           *  LAYOUT did not make the relationship legible. A footer on this
+           *  pane looks like it should hold the commit, so a reader who found
+           *  nothing in it had to be told why.
+           *
+           *  A FOOTER WITH NOTHING IN IT SHOULD NOT BE A FOOTER. Rendering
+           *  nothing makes the same point without a sentence: what is owed is
+           *  above, in the close-out list, and the note module is above too.
+           *  The terminal variant went the same way — "Nothing further is owed
+           *  on this escalation" restated a lifecycle the body already carries
+           *  on `data-record-lifecycle` and states in words.
+           *
+           *  LOCKED DECISION 3 IS UNCHANGED and is now structural rather than
+           *  narrated: nothing in this pane mutates the escalation, and there
+           *  is no longer a control-shaped space suggesting otherwise. */
+          null
         ) : deactivated ? (
           <p className="text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
             {/* NEEDS-COPY-NICOLE */}

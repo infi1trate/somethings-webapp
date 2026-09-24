@@ -1,5 +1,5 @@
 {
-  "at": 1790208237037,
+  "at": 1790208883144,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
@@ -650,7 +650,7 @@
       "id": "focus.order",
       "label": "escalations → list → pane → footer, in that order",
       "ok": true,
-      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell,shell,shell,shell"
+      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell,shell,shell,shell,shell"
     },
     {
       "id": "focus.always-visible",
@@ -668,7 +668,7 @@
       "id": "targets.24px-floor",
       "label": "every new control clears the 24×24 floor (WCAG 2.5.8)",
       "ok": true,
-      "detail": "10 controls, smallest 16px high"
+      "detail": "9 controls, smallest 32px high"
     },
     {
       "id": "targets.escalations-44",
