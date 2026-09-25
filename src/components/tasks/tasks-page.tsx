@@ -47,6 +47,7 @@ import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { ListToolbar } from "@/components/ia/list-toolbar";
+import { shiftDateLabel } from "@/lib/home/shift-date";
 import {
   VIEW_OPTIONS_DEFAULT,
   type ViewPreset,
@@ -448,7 +449,10 @@ export function TasksPage({
           id: "code",
           /* NEEDS-COPY-NICOLE */
           label: "Billing code",
-          primary: true,
+          /* ═══ NO LONGER THE PRIMARY (§4.2) ═══
+             The toolbar simplifies to search + Filters; this moves inside the
+             popover with the other three. It stays FIRST in the array, so it
+             is the first dimension a reader meets when they open Filters. */
           options: (items) => {
             const seen = new Set<string>();
             for (const e of items) {
@@ -962,14 +966,13 @@ export function TasksPage({
       <PageHeader
         title={scope ? SCOPE_TITLE[scope] : /* TODO-COPY */ "Tasks"}
         purpose={
-          /* NEEDS-COPY-NICOLE. It says what the work IS, which the old line
-             never did: a reader arriving for the first time learned only how
-             much of it there was. */
-          /* ═══ THE ORDERING STATEMENT IS CUT (Layout Pass §6) ═══
-             "…, oldest first" described the list to a reader who can see the
-             list. What survives is the half a first-time reader cannot work out
-             from looking: what these are and who is being waited on. */
-          "Presentation reviews waiting on a supervisor's decision."
+          /* ═══ THE DATE, NOT A PURPOSE SENTENCE (§4.1) ═══
+             It read "Presentation reviews waiting on a supervisor's decision."
+             The destination's name says that. What a supervisor cannot read
+             off the page is which day they are on, and the schedule module
+             below shares this date's timezone. Applied to Risk Flags too —
+             §4.1's own rule, so the two list surfaces keep one grammar. */
+          shiftDateLabel(now)
         }
         metrics={
           /* ═══ TWO, AND "overdue" IS NOT ONE OF THEM (addendum §2.9) ═══
@@ -1002,6 +1005,11 @@ export function TasksPage({
         }
         progress={
           <ShiftTrack
+              /* §5.3: `band` read as a browser loading bar in situ, so this is
+                 the fallback §5.3 named. `PageHeader` places it in the band's
+                 right cluster; the hairline there carries the bottom rule that
+                 `band` used to be. Measurement in that file. */
+              layout="contained"
             progress={{
               done: completed.length,
               total: counts.open + completed.length,
@@ -1111,6 +1119,8 @@ export function TasksPage({
                 onFilters={setFilters}
                 preset={preset}
                 onPreset={(p) => setViewOptions("care-reviews", { preset: p })}
+                /* §4.2, confirmed: two controls on this surface. */
+                showView={false}
                 /* NEEDS-COPY-NICOLE. §6.1: one field for both names — and see
                    the adapter's note on the mentor not being drawn. */
                 searchHint="Search teen or mentor"

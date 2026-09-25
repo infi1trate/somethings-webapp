@@ -63,6 +63,7 @@ import { bandStateFor } from "@/lib/monitoring/live";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { ListToolbar } from "@/components/ia/list-toolbar";
+import { shiftDateLabel } from "@/lib/home/shift-date";
 import {
   applyFilters,
   EMPTY_FILTERS,
@@ -356,6 +357,13 @@ const SCOPE_PURPOSE: Record<MonitoringScope, string> = {
      conversation` marker on the row already says the load-bearing part, at the
      row it is true of, which is where a reader needs it. */
   /* NEEDS-COPY-NICOLE */
+  /* ═══ THE PURPOSE LINE BECOMES THE DATE (§4.1) ═══
+     Applied here as well as on Care Reviews, per §4.1's own rule that the two
+     list surfaces must share a header grammar. The destination's NAME already
+     says what it is; the date is shift context a supervisor actually uses.
+     The constant stays so the escalations scope keeps its sentence — only the
+     flag queue swaps, and `SCOPE_PURPOSE` is no longer the whole story, which
+     is why the caller branches rather than this table. */
   "risk-flags": "Every conversation a flag was raised on, worst first.",
 };
 
@@ -972,7 +980,10 @@ export function MonitoringPage({
     >
       <PageHeader
         title={SCOPE_TITLE[scope]}
-        purpose={SCOPE_PURPOSE[scope]}
+        purpose={
+          /* Escalations keeps its sentence; the flag QUEUE takes the date. */
+          scope === "risk-flags" ? shiftDateLabel(now) : SCOPE_PURPOSE[scope]
+        }
         metrics={
           /* ═══ THE METRICS, AND THE DEFECT THEY FIX (addendum §2.10) ═══
              The subtitle here stated OBLIGATIONS — "2 escalations awaiting
@@ -1021,6 +1032,12 @@ export function MonitoringPage({
                measures what a supervisor has been through, and the row is a
                conversation while the work is a flag. */
             <ShiftTrack
+              /* §5.3: `band` read as a browser loading bar in situ. Same
+                 fallback as Care Reviews, for the same measurement, because
+                 §4.1's rule is that the two list surfaces keep one grammar —
+                 a header that differed only here would be the drift that rule
+                 exists to prevent. */
+              layout="contained"
               progress={flagProgress}
               unit="flags reviewed this shift"
               completeLine="Every flag that arrived this shift has been reviewed"

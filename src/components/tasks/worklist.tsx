@@ -56,6 +56,7 @@ import { CompletedGroup, type CompletedEntry } from "@/components/tasks/complete
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { ProposalCodes, proposalSpoken } from "@/components/record/proposal-codes";
+import { PROPOSAL_LABEL, proposalKindFor } from "@/lib/record/proposal-kind";
 import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
   deadlineLabel,
@@ -127,6 +128,97 @@ const HEADER_H = GROUP_HEADER_H;
  *  arithmetic `revealRow` with it — which exists BECAUSE of virtualization but is
  *  the only reason keyboard movement to an off-screen row works at all. */
 const OVERSCAN = 6;
+
+/** ═══ THE TABLE'S TWO FIXED COLUMNS (Figma alignment §4.3) ═══
+ *
+ *  Care Reviews becomes a table with column headers. A header can only line up
+ *  with its rows if both read the SAME widths, so they are declared here and
+ *  imported by both — the alternative is two sets of Tailwind classes that
+ *  agree until somebody edits one.
+ *
+ *  THE MENTEE COLUMN IS NOT HERE because it is `flex-1`: it takes whatever the
+ *  other two leave, which is what lets the table survive the pane's fixed width
+ *  changing under it.
+ *
+ *  ═══ WHY A TABLE HERE AND A LIST ON RISK FLAGS ═══
+ *
+ *  Stated because it partly reverses two passes of moving away from table
+ *  affect. Care Reviews' data IS tabular — every row has the same three
+ *  attributes and a reader compares them down a column. Risk Flags' rows are
+ *  conversations whose facts differ per row, which is a list.
+ *  WHAT DOES NOT COME BACK is the old table ROW: the avatar, the type scale,
+ *  the inset selection pill, the full-width dividers and the three density
+ *  presets all stay exactly as built. This is a header added to the existing
+ *  row system, not a return to the thing that system replaced. */
+/* ═══ MEASURED, NOT ESTIMATED ═══
+   The widest presentation cell is a CHANGE — two lozenges and an arrow, e.g.
+   `F33.0 → F33.1` — which measures 130px at the lozenge's 11.5px mono. 144
+   clears it with room for a five-character code like `R45.89`.
+   The age column is sized by its HEADER, not its cells: `12d` measures 30px at
+   13px mono, but "Review age" needs 68px at 12px — and MEASURED at 56 the
+   header wrapped to two lines ("Review / age") while the cells sat in a column
+   twice as wide as they needed. A column is as wide as the widest thing in it,
+   and on a short-value column that is the label.
+   FIRST TUNING WAS 168/96 AND IT COST THE MENTEE COLUMN: at a 499px list the
+   type line truncated to "Renewal propo…" on every row. Fixed columns take
+   their width from the content they hold, not from a round number. */
+const COL_PRESENTATION = 144;
+const COL_AGE = 72;
+
+/** ═══ THE TABLE HEADER ROW (§4.3) ═══
+ *
+ *  Reads the SAME two constants the cells do, so the labels cannot drift from
+ *  the columns they name. The mentee column is `flex-1` in both.
+ *
+ *  `aria-hidden`, AND THAT IS NOT A SHORTCUT. Every row already states its own
+ *  fields in its accessible name — a screen-reader user hears "Theo L., change
+ *  proposed, 3d open" rather than being asked to hold three column headers in
+ *  mind and map them onto cells. Announcing the header row as well would be the
+ *  same three nouns twice. The `role="tree"` below is unchanged: this is a
+ *  legend for the sighted reader, not a `columnheader` in a grid the keyboard
+ *  navigates.
+ *
+ *  STICKY, because it is a header for a scrolling list and a reader forty rows
+ *  down needs it for the same reason the band headers were made sticky. */
+function TableHeader({ preset }: { preset: ViewPreset }) {
+  const geo = ROW_GEOMETRY[preset];
+  return (
+    <div
+      aria-hidden
+      data-anno-ref="worklist-table-header"
+      className="sticky top-0 z-10 flex items-center gap-3 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-6 py-2"
+    >
+      {/* The avatar's own width plus the flex gap, so "Mentee" starts where a
+          mentee's NAME starts rather than where their disc does. */}
+      <span aria-hidden style={{ width: geo.disc }} className="shrink-0" />
+      <span className="min-w-0 flex-1 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+        {/* NEEDS-COPY-NICOLE */}
+        Mentee
+      </span>
+      <span
+        className="shrink-0 whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        style={{ width: COL_PRESENTATION }}
+      >
+        {/* NEEDS-COPY-NICOLE */}
+        Presentation
+      </span>
+      <span
+        /* `whitespace-nowrap`: a column header that wraps makes the header row
+           taller than its own type and stops looking like a header. */
+        className="shrink-0 whitespace-nowrap pl-6 text-right text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        style={{ width: COL_AGE + 24 }}
+      >
+        {/* ═══ "Review age", NOT "Due date" (§2, answered) ═══
+            The Figma's column reads `Due date` over a value of `15 days` — a
+            date header over a duration. Deadlines were removed from this
+            destination two passes ago and `CARE_REVIEW_SLA` is retired, so the
+            column is named for what the value actually is. */}
+        {/* NEEDS-COPY-NICOLE */}
+        Review age
+      </span>
+    </div>
+  );
+}
 
 
 /** And how long the retired header stays before it goes. Long enough to read a
@@ -778,16 +870,25 @@ function Row({
                    is a state nobody can read (SC 1.4.1). */
                 "Closing…"
               ) : item.payload.kind === "billing" ? (
-                /* ═══ THE CODES AS LOZENGES (addendum §2.9) ═══
-                   The same component the detail card uses. A code is an
-                   identifier a reviewer matches against a record, and the
-                   sentence form — "Change proposed → F41.1" — buried the code
-                   being changed FROM at the end of a run of prose. */
-                <ProposalCodes
-                  currentCode={item.payload.current?.code ?? null}
-                  recommendedCode={item.payload.recommended.code}
-                  compact
-                />
+                /* ═══ THE REVIEW TYPE, IN WORDS (§4.4) ═══
+                   The lozenges moved to their own column. This line now names
+                   the KIND of review — "Change proposed" / "Presentation
+                   proposed" / "Renewal proposed" — which is a real improvement
+                   over the `Billing code review` label §2.9 removed, because
+                   these values DIFFER PER ROW and carry information.
+                   ONE CARRIER, AND IT IS THE TEXT. §4.4: a lozenge pair used
+                   to mean "a change was proposed" and a single lozenge meant it
+                   did not, which made the count a second carrier of the same
+                   fact. The lozenges show CODES now and nothing else; this
+                   says what kind of review it is. A pair still appears when
+                   there are two codes to show, because two codes is data — but
+                   it is no longer what a reader has to infer the kind from. */
+                PROPOSAL_LABEL[
+                  proposalKindFor(
+                    item.payload.current?.code ?? null,
+                    item.payload.recommended.code
+                  )
+                ]
               ) : (
                 (disposition ?? TASK_KIND_LABEL[item.taskType])
               )}
@@ -803,10 +904,33 @@ function Row({
         </span>
       </span>
 
+      {/* ═══ THE PRESENTATION COLUMN (§4.3, §4.4) ═══
+          The lozenges left the mentee column and became a column of their own,
+          so they line up down the list and under their header. They show CODES
+          and nothing else now — the review's KIND is the line under the name.
+          FIXED WIDTH, from the shared constant: a column that sized to its
+          content would shift every time a row held one code instead of two,
+          and the header would line up with none of them. */}
+      {item.payload.kind === "billing" && (
+        <span
+          className="flex shrink-0 items-center"
+          style={{ width: COL_PRESENTATION }}
+        >
+          <ProposalCodes
+            currentCode={item.payload.current?.code ?? null}
+            recommendedCode={item.payload.recommended.code}
+            compact
+          />
+        </span>
+      )}
+
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
           to sit 6px from a truncating caption, so on a narrow column the two
           read as one run of text. */}
-      <span className="flex shrink-0 items-center gap-1.5 pl-6">
+      <span
+        className="flex shrink-0 items-center justify-end gap-1.5 pl-6"
+        style={item.payload.kind === "billing" ? { width: COL_AGE + 24 } : undefined}
+      >
         <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION SPAN IS GONE WITH THE TIERS (Phase 4) ═══
             arch-D moved it here from the mentor caption, on the reasoning that
@@ -874,8 +998,15 @@ function Row({
           )}
           style={{ fontFamily: "var(--font-mono)" }}
         >
-          {/* TODO-COPY */}
-          {temporal}
+          {/* ═══ THE COLUMN HEADER CARRIES THE NOUN, SO THE CELL DOES NOT ═══
+              `temporal` is "3d open"; under a column headed "Review age" the
+              suffix is the header repeated on every row. The cell shows the
+              age alone — which is also the Figma's shape.
+              THE ACCESSIBLE NAME KEEPS THE NOUN. A screen-reader user reaching
+              a row hears its fields in sequence with no column header above
+              them, so `temporal` is still what `ariaLabel` is built from: the
+              suffix is dropped from the CELL, not from the row. */}
+          {item.payload.kind === "billing" ? elapsedLabel(ageAt, now) : temporal}
         </span>
         </span>
         </div>
@@ -1598,6 +1729,15 @@ export function Worklist({
       style={{ minHeight: rowH * LIST_MIN_ROWS }}
       className={cn(frame, "min-h-0 overflow-y-auto overscroll-contain")}
     >
+      {/* ═══ THE TABLE HEADER, ON THE BILLING SURFACE ONLY (§4.3) ═══
+          `Worklist` is Care Reviews' list and nothing else's today, but the
+          guard is on the DATA rather than on that fact: a header naming
+          "Presentation" over rows that carry none would be a legend for
+          columns that are not there. */}
+      {entries.some((e) => paneItemFor(e).payload.kind === "billing") && (
+        <TableHeader preset={preset} />
+      )}
+
       {sections.map((section) => {
         const n = section.rows.length;
         /** ═══ THE PINNED BUCKET IS NEVER WINDOWED (arch-G, G2) ═══

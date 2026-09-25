@@ -1456,12 +1456,48 @@ for (const [scenario, id, want] of [
     new Set(seen.map((d) => d.titlePx)).size === 1 && seen[0].titlePx >= 28,
     [...new Set(seen.map((d) => `${d.titlePx}px`))].join(" / ")
   );
+  /* ═══ RETARGETED BY §4.1 — SPLIT, NOT RELAXED ═══
+     This was one claim: every destination's second line is a purpose sentence,
+     tested as `length > 25`. §4.1 replaced that line with the DATE on the two
+     LIST surfaces — "the destination's name says what it is for; what a
+     supervisor cannot read off the page is which day they are on" — and
+     "Friday September 25, 2026" is 25 characters, so the old check failed on
+     the boundary by one.
+     RAISING THE THRESHOLD WOULD HAVE BEEN THE WRONG FIX. The input changed
+     kind, not size. So the claim splits along the same line §4.1 drew, and
+     each half is now checked for what it actually is — which is why this is
+     three assertions where there was one, and why a date that degraded into a
+     sentence (or the reverse) now fails instead of passing on a length. */
+  const LIST_SURFACES = ["/app/risk-flags", "/app/care-reviews"];
+  const isList = (d) => LIST_SURFACES.includes(d.url);
   check(
-    "header.purpose-everywhere",
-    "each one says what the destination is for, in a sentence",
-    seen.every((d) => d.purpose.length > 25),
+    "header.second-line-everywhere",
+    "every destination carries a second line under its title",
+    seen.every((d) => d.purpose.trim().length > 0),
     seen.map((d) => `${d.url}: ${d.purpose.length}`).join(" · ")
   );
+  check(
+    "header.purpose-everywhere",
+    "and off the list surfaces it says what the destination is for, in a sentence",
+    seen.filter((d) => !isList(d)).every((d) => d.purpose.length > 25),
+    seen.filter((d) => !isList(d)).map((d) => `${d.url}: ${d.purpose.length}`).join(" · ")
+  );
+  /* ═══ §4.1'S ONE-GRAMMAR RULE, ASSERTED ═══
+     "Applied to Risk Flags too — the two list surfaces keep one grammar." A
+     rule that lives only in a comment is one a future phase changes on one
+     surface and not the other, so the identity is checked, not just the shape. */
+  {
+    const lists = seen.filter(isList);
+    const dates = [...new Set(lists.map((d) => d.purpose.trim()))];
+    check(
+      "header.list-surfaces-date",
+      "the list surfaces carry the shift date instead, and both carry the same one",
+      lists.length === LIST_SURFACES.length &&
+        lists.every((d) => /^[A-Z][a-z]+ [A-Z][a-z]+ \d{1,2}, \d{4}$/.test(d.purpose.trim())) &&
+        dates.length === 1,
+      `${lists.length} list surfaces · ${dates.join(" | ")}`
+    );
+  }
   check(
     "header.metric-count",
     "with the metrics §2.10 names — at most two, and none on Today",

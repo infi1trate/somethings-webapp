@@ -196,12 +196,29 @@ const rowReport = `(row) => {
      temporal facts. Age is the only one left, and it is the one the list is
      ORDERED by — oldest-first, which fell out of the null SLA rather than
      being added as a rule. */
-  const clocks = data.map((r) => r.parts.find((p) => /\d+[mhd] open$/.test(p.text)));
+  /* ═══ RETARGETED: THE CELL IS BARE NOW (Figma alignment §4) ═══
+     This matched `/\d+[mhd] open$/`. §4 made the column a TABLE column under a
+     "Review age" header, and a column header that says "Review age" over cells
+     that each repeat "open" is the label stated twice — so the cell is
+     `elapsedLabel` alone, "3d".
+     THE WORD DID NOT GO, IT MOVED: `temporal` still feeds the row's accessible
+     name, which is why `sr.tasks.same-temporal` reads "3d open" and passes. A
+     screen-reader user gets no column header, so the cell has to carry its own
+     unit there.
+     NOT A RELAXATION — the matcher is STRICTER. `^\d+[mhd]$` is anchored both
+     ends, so a cell that regained a deadline word, a suffix, or a second
+     figure no longer matches and this check fails rather than passing on a
+     substring. */
+  const clocks = data.map((r) => r.parts.find((p) => /^\d+[mhd]$/.test(p.text)));
   check(
     "tasks.age-column",
     "the temporal column is mono and tabular, and it is an age",
     clocks.every((c) => c && /mono/.test(c.fam) && c.px >= 12),
-    clocks[0] && `${clocks[0].text} · ${clocks[0].px}px/${clocks[0].weight} ${clocks[0].fam}`
+    /* Reports the OBSERVATION, including when there is none — the old detail
+       collapsed to a blank string on failure, which says nothing about why. */
+    clocks[0]
+      ? `${clocks[0].text} · ${clocks[0].px}px/${clocks[0].weight} ${clocks[0].fam}`
+      : `no bare-age cell on ${clocks.filter((c) => !c).length}/${clocks.length} rows · row 1 = ${data[0]?.parts.map((p) => p.text).join(" | ")}`
   );
   check(
     "tasks.no-deadline",
@@ -209,10 +226,22 @@ const rowReport = `(row) => {
     data.every((r) => !r.parts.some((p) => /^(due |overdue |no review deadline)/i.test(p.text))),
     data[0]?.parts.map((p) => p.text).join(" | ")
   );
+  /* ═══ SAME SUPERSESSION, SAME REASON (Figma alignment §4) ═══
+     The third alternative was `\d+[mhd] open`, which §4 retired with the
+     suffix. The claim is untouched and it is the one the whole section above
+     was protecting: a row states ONE temporal fact, so an age and a deadline
+     can never appear together.
+     `( open)?` KEEPS THE OLD FORM MATCHING. If the suffix ever comes back the
+     row still counts one fact rather than silently counting two. */
   check(
     "tasks.one-temporal",
     "one temporal fact per row",
-    data.every((r) => r.parts.filter((p) => /(^due |^overdue |\d+[mhd] open)/.test(p.text)).length === 1)
+    data.every(
+      (r) => r.parts.filter((p) => /(^due |^overdue |^\d+[mhd]( open)?$)/.test(p.text)).length === 1
+    ),
+    data
+      .map((r) => r.parts.filter((p) => /(^due |^overdue |^\d+[mhd]( open)?$)/.test(p.text)).length)
+      .join(",")
   );
   /* WAS a standalone-leaf match on the teen name. arch-E puts the subject on
      line 2 beside its disposition — "Theo L. · Renewal proposed" — so the name is
@@ -496,9 +525,21 @@ for (const [url, name, scroller, monitoring] of [
      teen's name a second time. */
   check(
     "e.code-caption",
-    "line 2 carries the billing code, and not the name a second time",
+    "line 2 says what KIND of proposal this is, and not the name a second time",
+    /* ═══ RETARGETED: THE CODE LEFT LINE 2 (Figma alignment §4.4) ═══
+       This required a billing code IN line 2. §4.4 split the row into columns
+       and gave the codes their own, as lozenges — so line 2 is the proposal
+       KIND in words ("Renewal proposed") and the code sits one column along.
+       THE CODE CLAIM IS NOT DROPPED, IT HAS A LIVE OWNER: `tasks.caption-codes`
+       asserts the lozenge column carries the code in the mono face, and it
+       passes. Asserting it here as well would pin the code to a position §4.4
+       deliberately moved it out of.
+       WHAT THIS NOW PINS is the half that had no other owner — line 2 is
+       WORDS, not a repeat of line 1. The name clause is unchanged and is the
+       reason the check exists: arch-F moved the teen to line 1, and a caption
+       echoing it spends the line on a string six pixels above. */
     rows.length > 0 &&
-      rows.every((r) => /[A-Z]\d{2}(\.\d+)?/.test(r.line2?.text ?? "")) &&
+      rows.every((r) => /[a-z]{3}/.test(r.line2?.text ?? "")) &&
       !rows.some((r) => /^[A-Z][a-z]+ [A-Z][.]/.test(r.line2?.text ?? "")),
     rows[0]?.line2?.text
   );

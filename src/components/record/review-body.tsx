@@ -122,7 +122,34 @@ export function ReviewBody({
   canAct,
   /** See the module note. Care passes its `expanded`; Tasks passes `true`. */
   interactive,
+  surface = "care",
 }: {
+  /** ═══ THE FORK, AND WHY IT IS A PROP AND NOT A COPY ═══
+   *
+   *  This module was hard-frozen against the Care page across three passes:
+   *  Care Reviews duplicates settled Care work and had to render byte-identical
+   *  to it. The Figma alignment pack changes that pane substantially, and
+   *  Brandon authorised the fork explicitly.
+   *
+   *  IT IS IMPLEMENTED AS A BRANCH RATHER THAN A SECOND FILE. A copy of a
+   *  clinical module is how two surfaces silently come to disagree about
+   *  something that matters — a Care-page correction would reach one of them
+   *  and nobody would notice for months. In one file every divergence is
+   *  visible in a diff, each is `surface`-gated at its own site, and a future
+   *  Care change has to decide about Care Reviews rather than miss it.
+   *
+   *  `"care"` IS THE DEFAULT, so the Care page is unaffected BY CONSTRUCTION
+   *  rather than by my having remembered: a caller that passes nothing gets
+   *  exactly what it got before this prop existed. Only `task-pane.tsx` opts
+   *  in, and `review-module-host` still asserts the Care rendering.
+   *
+   *  WHAT DIVERGES, EXHAUSTIVELY — five things, each marked `§3 fork` at its
+   *  site: the proposal lozenge row, the `Change code` label, the assessment
+   *  section's heading, the `View results (n)` label, and a `Care Update`
+   *  heading above the compose fields.
+   *  NOT `View AI notes`: out of scope for this pass at §1's own instruction,
+   *  and it already ships on the Care page regardless. */
+  surface?: "care" | "care-reviews";
   review: PresentationReview;
   currentCode?: string | null;
   currentStatement?: string | null;
@@ -306,11 +333,18 @@ export function ReviewBody({
        *  WHAT DOES NOT: the three icons. A `FilePlus` beside "Presentation
        *  proposed" and a `RefreshCw` beside "Renewal proposed" were decoration
        *  on a phrase that already said it. */
-      <ProposalCodes
-        currentCode={currentCode}
-        recommendedCode={review.recommended.code}
-        className="min-w-0 shrink"
-      />
+      /* ═══ §3 fork · THE LOZENGE ROW GOES ON CARE REVIEWS ═══
+         The list already states the review's KIND in words under the mentee's
+         name (§4.4) and shows the codes in their own column, so repeating both
+         at the top of the pane is the row read twice. The Care page keeps it:
+         there the card is the only place the proposal appears. */
+      surface === "care-reviews" ? null : (
+        <ProposalCodes
+          currentCode={currentCode}
+          recommendedCode={review.recommended.code}
+          className="min-w-0 shrink"
+        />
+      )
     )}
     </>
   ) : null;
@@ -399,8 +433,12 @@ export function ReviewBody({
               )}
             >
               <Pencil className="size-3.5 shrink-0" aria-hidden />
-              {/* TODO-COPY — PLACEHOLDER. */}
-              Change code
+              {/* ═══ §3 fork · THE NOUN IS THE ONE THE PANE USES ═══
+                  "Change code" beside a heading reading "Recommended
+                  presentation" names two different things for one decision.
+                  NEEDS-COPY-NICOLE on the new string; the Care page keeps its
+                  own until that surface is revisited. */}
+              {surface === "care-reviews" ? "Change presentation" : "Change code"}
             </button>
           )}
         </div>
@@ -615,10 +653,15 @@ export function ReviewBody({
             className="flex items-center gap-1.5 text-[var(--text-muted)]"
             style={LABEL_STYLE}
           >
-            {/* TODO-COPY */}
-            {review.aggregate
-              ? `Weighted across ${review.aggregate.surveys.length} assessments`
-              : "Most recent assessment"}
+            {/* ═══ §3 fork · ONE WORD, NOT A SENTENCE ═══
+                The block below is already labelled column by column —
+                `Assigned assessment`, `Score`, `Assessments` — so the heading
+                only has to name the section. NEEDS-COPY-NICOLE. */}
+            {surface === "care-reviews"
+              ? "Assessments"
+              : review.aggregate
+                ? `Weighted across ${review.aggregate.surveys.length} assessments`
+                : "Most recent assessment"}
             <Provenance triggerLabel="About this score" />
           </p>
         )}
@@ -761,7 +804,29 @@ export function ReviewBody({
                     results are on screen. Open drops the count with the verb —
                     "Hide results (3)" would be offering to hide three of
                     something. */}
-                {open ? "Hide results" : `View results (${surveyCount})`}
+                {/* ═══ §3 fork · THE CHEVRON CARRIES IT ═══
+                    The count is already the `Assessments` datum two columns
+                    left, and on this surface the pane is the only thing in its
+                    column — the aiming problem the Care card has does not
+                    exist here. The chevron keeps its rotation, and the control
+                    keeps its accessible name below, so nothing is carried by
+                    the glyph alone. */}
+                {surface === "care-reviews" ? (
+                  /* ═══ THE PHRASE SURVIVES FOR THE NAME ═══
+                     This control's accessible name is built from its contents,
+                     and its contents are the whole stat block — so dropping the
+                     visible phrase would leave a button announced as a run of
+                     data with no verb in it. `sr-only` keeps the action in the
+                     name while the chevron carries it on screen, which is the
+                     same split the row's own `sr-only` sentence uses. */
+                  <span className="sr-only">
+                    {open ? "Hide results" : `View results (${surveyCount})`}
+                  </span>
+                ) : open ? (
+                  "Hide results"
+                ) : (
+                  `View results (${surveyCount})`
+                )}
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",

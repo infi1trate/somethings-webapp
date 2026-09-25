@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ExternalLink, MessageSquare } from "lucide-react";
+import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { ReviewBody } from "@/components/record/review-body";
@@ -35,7 +35,11 @@ import {
   type BillingSubmitHandle,
 } from "@/components/tasks/billing-review";
 import { elapsedLabel } from "@/components/tasks/strips";
-import { chatThreadHref } from "@/lib/record/chat";
+/* `chatThreadHref` AND `MessageSquare` LEFT WITH THE SECOND LINK (§3).
+   The conversation link is gone — one way out, not two — and the import
+   goes with it rather than sitting unused above a pane that no longer
+   offers that destination. `chatThreadHref` is still exported and still
+   used by the record header and the Risk Flags pane. */
 import type { CompletedEntry } from "@/components/tasks/completed-group";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
@@ -197,6 +201,13 @@ function RiskFlagBody({
  *
  *  A REAL <button> WITH `aria-expanded`, the whole row as the target, the caret
  *  `aria-hidden` — the same arrangement the score strip settled on. */
+/* ═══ UNMOUNTED, NOT DELETED (strangler rule) ═══
+   §3 removes this accordion from the pane; the component stays because its
+   removal is the thing under review, not a settled deletion. The day the
+   mentorship figure is wanted back — or wanted somewhere else — this is it,
+   with its own reasoning intact above. `eslint-disable` rather than a `void`
+   reference, so nothing pretends to use it. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function RecordContext({ payload }: { payload: BillingPayload }) {
   const [open, setOpen] = useState(false);
   return (
@@ -325,7 +336,17 @@ function BillingBody({
       recommended={recommended}
       onCommit={onCommit}
       handleRef={handleRef}
-      recordContext={<RecordContext payload={payload} />}
+      /* ═══ THE RECORD CONTEXT ACCORDION IS REMOVED (Figma alignment §3) ═══
+         WHAT IT COST, STATED, because arch-F's own note argued the other way:
+         "the mentorship length is the one figure that changes how the rest
+         reads". That figure is gone from this pane. It remains on the mentee's
+         record, one click away through `View care journey` above.
+         THE FIGMA REMOVES IT and the fork was authorised; this is the one
+         change in the set that removes CLINICAL CONTEXT rather than chrome, so
+         it is the one worth a second look before it ships.
+         `RecordContext` is not deleted — the strangler rule — and the prop is
+         optional, so nothing else that renders `BillingReview` is affected. */
+      recordContext={null}
       onGapsChange={onGapsChange}
       onBlocked={onBlocked}
     >
@@ -335,6 +356,12 @@ function BillingBody({
           for a pending change to hide in. `canAct` is the tier gate, and only a
           supervisor tier reaches this route at all. */}
       <ReviewBody
+        /* ═══ THE FORK, OPTED INTO ON THIS SURFACE (§3) ═══
+           `ReviewBody` defaults to `"care"`, so the Care page renders exactly
+           what it rendered before this prop existed. `task-pane.tsx` is the
+           only file that passes anything. See the prop's own note for the
+           exhaustive list of what diverges. */
+        surface="care-reviews"
         review={billingReviewFor(item, payload)}
         currentCode={payload.current?.code ?? null}
         currentStatement={payload.current?.statement ?? null}
@@ -671,7 +698,11 @@ export function TaskPane({
                 them die with the duplicate. */}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-                {`${elapsedLabel(item.openedAt, now)} open`}
+                {/* ═══ THE AGE, BARE (Figma alignment §3) ═══
+                    The list's own column is headed "Review age" and its cells
+                    read `3d`; the pane header repeating " open" made the same
+                    fact wear two shapes two inches apart. */}
+                {elapsedLabel(item.openedAt, now)}
               </span>
               {/* ═══ AND SO IS THE DUE FACT (addendum §2.9) ═══
                   The meta line read "2d open · due 6:24 PM", and with
@@ -708,42 +739,32 @@ export function TaskPane({
                 harmless in a cluster whose whole design note above is about not
                 competing for the eye: it doubles one destination's weight
                 against the two beside it. */}
-            {(
-              <Link
-                href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
-                className={cn(
-                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
-                  "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                  RING
-                )}
-              >
-                <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-                {/* NEEDS-COPY-NICOLE */}
-                View care profile
-              </Link>
-            )}
-            {/* ═══ THE CONVERSATION OPENS AT THE TOP, AND THAT IS A GAP ═══
-                `conversationHref` builds `?msg=` and nothing reads it:
-                `/app/chat` redirects through `chatThreadHref`, which takes a
-                person id only. So the anchor is dropped today — logged as a gap
-                row rather than papered over with a link that pretends to anchor.
-                FOR A BILLING REVIEW THERE IS NO ANCHOR ANYWAY: nothing here was
-                flagged, so there is no relevant message to land on, and the top
-                of the thread is the honest destination even once `?msg=` works. */}
-            {(
-              <Link
-                href={chatThreadHref(item.teenId)}
-                className={cn(
-                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
-                  "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                  RING
-                )}
-              >
-                <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-                {/* NEEDS-COPY-NICOLE */}
-                View conversation
-              </Link>
-            )}
+            {/* ═══ ONE WAY OUT, NOT TWO (Figma alignment §3) ═══
+                It was `View care profile` + `View conversation`. The Figma
+                collapses them to a single `View care journey`, and that is the
+                better shape for the reason the cluster's own note above
+                already argues: two tertiary links side by side split the eye,
+                and this pane's job is the decision below them rather than the
+                navigation beside them.
+                IT GOES TO THE CARE TAB, which is where the journey is — the
+                conversation link's own note records that `?msg=` anchoring does
+                not work and that a billing review has no message to anchor to
+                anyway, so the dropped link was the weaker of the two.
+                NOT A FORK: these links are this pane's chrome. `ReviewBody` —
+                the module frozen against the Care page — renders none of them,
+                so the Care page is untouched by this change. */}
+            <Link
+              href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
+              className={cn(
+                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                RING
+              )}
+            >
+              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+              {/* NEEDS-COPY-NICOLE */}
+              View care journey
+            </Link>
             {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
                 component, so the two escalation task types carry the same set. */}
           </div>
@@ -803,6 +824,10 @@ export function TaskPane({
              The module with `canAct={false}`: no proposal chip, no picker, no
              documentation gate. What a supervisor gets is what they submitted. */
           <ReviewBody
+            /* THE CLOSED REVIEW FORKS TOO — a supervisor reading back what they
+               submitted should see the pane they submitted it in, not the Care
+               page's rendering of it. */
+            surface="care-reviews"
             review={billingReviewFor(item, p)}
             currentCode={p.current?.code ?? null}
             currentStatement={p.current?.statement ?? null}

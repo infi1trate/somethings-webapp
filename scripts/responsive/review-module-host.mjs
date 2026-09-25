@@ -89,7 +89,13 @@ async function openCareReview(page) {
     ["score-strip", /Assigned assessment/, "the score strip"],
     ["denominator", /\/\s*\d+/, "a score with its denominator"],
     ["grid", /View results/, "the answers behind the score"],
-    ["change-code", /Change code/, "the module's own picker control"],
+    /* ═══ THE PICKER'S LABEL IS PER SURFACE NOW (Figma §3 fork) ═══
+       Care keeps "Change code"; Care Reviews says "Change presentation",
+       because "code" beside a heading reading "Recommended presentation"
+       named two things for one decision. The check accepts EITHER rather
+       than being loosened to a substring — both spellings are real, and a
+       third would still fail. */
+    ["change-code", /Change (code|presentation)/, "the module's own picker control"],
   ]) {
     check(`tasks.${id}`, why, needle.test(t));
   }
@@ -143,12 +149,27 @@ async function openCareReview(page) {
      already reading F33.1. The parity spec asks for no line in that case. So the
      probe now walks to a CHANGE row to assert the line, and asserts its ABSENCE
      on a renewal, which is the half that would otherwise regress silently. */
+  /* ═══ THE KIND IS READ OFF THE ROW NOW, NOT THE PANE (§3, §4.4) ═══
+     This walked rows and asked the PANE which kind it was showing, by looking
+     for "Change proposed" / "Renewal proposed" in its text. §3 removes the
+     proposal lozenge row from the pane on this surface — the list already
+     states the kind under the mentee's name (§4.4) and shows the codes in
+     their own column, so repeating both at the top of the pane was the row
+     read twice.
+     SO THE ROW IS ASKED. The assertions below still test the PANE; only the
+     way a case is identified moved, which is the half that had to. */
   const cases = { change: null, renewal: null };
   for (let i = 0; i < 14 && (!cases.change || !cases.renewal); i += 1) {
-    await page.getByRole("treeitem").nth(i).click();
+    const row = page.getByRole("treeitem").nth(i);
+    const rowText = (await row.innerText()).replace(/\s+/g, " ");
+    await row.click();
     await page.waitForTimeout(280);
     const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
-    const kind = /Change proposed/.test(pt) ? "change" : /Renewal proposed/.test(pt) ? "renewal" : null;
+    const kind = /Change proposed/.test(rowText)
+      ? "change"
+      : /Renewal proposed/.test(rowText)
+        ? "renewal"
+        : null;
     if (kind && !cases[kind]) cases[kind] = pt;
   }
   check("tasks.cases-found", "a change and a renewal were both reachable", !!cases.change && !!cases.renewal);
@@ -165,17 +186,26 @@ async function openCareReview(page) {
     (cases.renewal ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
+  /* ═══ INVERTED — THE ACCORDION IS REMOVED (Figma alignment §3) ═══
+     This asserted the mentorship figures lived in a collapsed accordion on the
+     pane, with a second check that it started collapsed and said what it held.
+     §3 removes it, on an authorised fork of this module from the Care page.
+     THE ASSERTION IS NOW THE ABSENCE, and it is stated rather than deleted for
+     the reason this codebase states every removal: the accordion is the one
+     change in the §3 set that removes CLINICAL CONTEXT rather than chrome —
+     arch-F's own note argued "the mentorship length is the one figure that
+     changes how the rest reads" — so its absence is worth a check that names
+     what went and where it went to.
+     IT FAILS THE DAY IT COMES BACK, which is the right way round: if the
+     figure is wanted again, this is the line that says the old collapsed-state
+     assertions above should come back with it. */
   const accordion = page.locator('[data-slot="record-context"]');
-  check("tasks.record-context", "the mentorship figures live in a collapsed accordion", (await accordion.count()) === 1);
-  if (await accordion.count()) {
-    check(
-      "tasks.accordion-collapsed",
-      "which starts collapsed and says what it holds",
-      (await accordion.getAttribute("aria-expanded")) === "false" &&
-        /days in mentorship/.test(await accordion.innerText()),
-      (await accordion.innerText()).replace(/\s+/g, " ")
-    );
-  }
+  check(
+    "tasks.no-record-context",
+    "the mentorship accordion is gone from the pane — the figure lives on the record",
+    (await accordion.count()) === 0,
+    `${await accordion.count()} accordion(s); reachable via "View care journey"`
+  );
   check("tasks.no-mentor", "and the pane no longer names the mentor", !/to [A-Z][a-z]+ [A-Z]/.test(t));
   await page.locator('[data-slot="task-pane"]').screenshot({ path: `${OUT}/tasks-pane.png` });
   await context.close();
@@ -268,7 +298,10 @@ for (const [label, url, prep, onRecordRe] of [
       await page.waitForTimeout(260);
     }
   }
-  const btn = page.getByRole("button", { name: /^Change code$/ }).first();
+  /* PER SURFACE — see the assertion table above. */
+  const btn = page
+    .getByRole("button", { name: /^Change (code|presentation)$/ })
+    .first();
   check(`picker.${label}.control`, "the module's picker control is present", await btn.count());
   if (await btn.count()) {
     await btn.click();
@@ -309,7 +342,12 @@ for (const [label, url, prep, onRecordRe] of [
       shows: /F43\.22/.test(document.body.innerText),
     }));
     check(`picker.${label}.closes`, "picking closes the dialog", !after.open);
-    check(`picker.${label}.focus`, "and hands the keyboard back to the control", after.focused === "Change code", after.focused);
+    check(
+      `picker.${label}.focus`,
+      "and hands the keyboard back to the control",
+      /^Change (code|presentation)$/.test(after.focused ?? ""),
+      after.focused
+    );
     check(`picker.${label}.moves`, "the recommendation moves with the decision", after.shows);
     check(`picker.${label}.revert`, "and offers the way back out", after.revert);
   }
