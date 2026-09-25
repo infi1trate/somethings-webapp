@@ -1,11 +1,11 @@
 {
-  "generated": "2026-09-24T14:44:00.351Z",
+  "generated": "2026-09-25T16:30:14.258Z",
   "rows": [
     {
       "id": "store.present",
       "label": "the persisted store exists, so a diff of it means something",
       "ok": true,
-      "detail": "50 keys"
+      "detail": "53 keys"
     },
     {
       "id": "store.baseline-off-today",
@@ -140,7 +140,7 @@
       "tone": "breach",
       "directive": true,
       "href": "/app/escalations",
-      "text": "Escalations 2 active · 2 awaiting acknowledgement · 3 close-out items overdue 2 Escalations. 2 active · 2 awaiting acknowledgement · 3 close-out items overdue. Start here."
+      "text": "Escalations 2 active · 3 close-out items overdue 2 Escalations. 2 active · 3 close-out items overdue. Start here."
     },
     {
       "id": "risk-flags",
@@ -154,7 +154,7 @@
       "tone": "attention",
       "directive": false,
       "href": "/app/care-reviews",
-      "text": "Care Reviews 16 open 16 Care Reviews. 16 open."
+      "text": "Care Reviews 16 open · oldest 3d ago 16 Care Reviews. 16 open · oldest 3d ago."
     }
   ]
 }

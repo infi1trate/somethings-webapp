@@ -467,6 +467,46 @@
      dead on contact. Three semantic levels replace five ad-hoc opacities that
      had accumulated (0.02/0.03/0.04/0.05/0.06); the largest light-mode change is
      1% alpha — imperceptible, and the set is now legible as intent. */
+  /* ═══════════════════════════════════════════════════════════════════
+     --gradient-header — A DELIBERATE, DOCUMENTED EXTENSION (Today Phase G.2)
+
+     BLOOM HAS NO GRADIENT TOKEN. Audited before minting this: the only
+     matches for "gradient" anywhere in the token files were comments about a
+     removed chart's SVG fill. So this is a new token, and G.2 requires it to
+     be a documented extension in the design system rather than a one-off
+     value in a component file — which is why it lives here beside the tints
+     rather than inline in `today-page.tsx`.
+
+     ═══ WARM, BECAUSE THE BASE IS WARM ═══
+
+     The reference mock's wash is COOL. The production base is warm neutral
+     cream (`--surface-s1` #f6f4ef) and is shared with every other supervisor
+     route, which this pack does not change — so a cool wash on it would read
+     as two palettes rather than one system. G.2's default is to warm the
+     gradient into the base's own family and that is what this is: the top
+     stop is `--band-sand-bg` (#f4efe1), an EXISTING warm token, so the
+     extension introduces a new gradient and no new hue.
+
+     ═══ IT FADES TO NOTHING, WHICH IS WHY IT BOUNDS NOTHING ═══
+
+     G.2's region semantics, option (a): atmosphere, grouping nothing. A
+     gradient with a visible edge would bound an arbitrary subset and imply a
+     relationship that does not exist (Law of Common Region). This one ends at
+     zero alpha, so it has no edge to group with.
+
+     ═══ DECORATIVE. NO STATE, NO DATA. ═══
+
+     It does not indicate priority, recency or urgency and does not change
+     with anything. The component that applies it passes no props.
+
+     THE RAW VALUES ARE CORRECT HERE AND ONLY HERE. A token file is where raw
+     values live; the standing constraint forbids them in components. */
+  --gradient-header: linear-gradient(
+    180deg,
+    #f4efe1 0%,
+    rgb(244 239 225 / 0) 100%
+  );
+
   --tint-faint: rgb(0 0 0 / 0.02); /* barely-there row wash */
   --tint-hover: rgb(0 0 0 / 0.04); /* the standard hover */
   --tint-press: rgb(0 0 0 / 0.06); /* pressed / active */
@@ -710,6 +750,17 @@
      Slightly higher alpha than light: an equal-opacity white on dark reads
      weaker than black on light. */
   --tint-faint: rgb(255 255 255 / 0.04);
+  /* The dark counterpart. Same construction, same reasoning: the top stop is
+     `--surface-card` (#322f2c), an existing warm dark token one step above the
+     panel, fading to nothing. NOT a lightened version of the light gradient —
+     a wash that reads as a gentle lift on cream reads as a smudge on charcoal,
+     so each mode's top stop is chosen against its own ground. */
+  --gradient-header: linear-gradient(
+    180deg,
+    #322f2c 0%,
+    rgb(50 47 44 / 0) 100%
+  );
+
   --tint-hover: rgb(255 255 255 / 0.06);
   --tint-press: rgb(255 255 255 / 0.09);
 

@@ -62,13 +62,22 @@ import {
 import { bandStateFor } from "@/lib/monitoring/live";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { ViewOptionsButton } from "@/components/ia/view-options";
+import { ListToolbar } from "@/components/ia/list-toolbar";
+import {
+  applyFilters,
+  EMPTY_FILTERS,
+  isFiltering,
+  timeDimension,
+  type Filterable,
+  type FilterDimension,
+  type FilterState,
+} from "@/lib/ui/filters";
+import { tierOf, TIER_LABEL, TIER_ORDER } from "@/lib/record/risk-taxonomy";
 import {
   listMinHeight,
   ROW_GEOMETRY,
   VIEW_OPTIONS_DEFAULT,
-  type Density,
-  type ViewOptions,
+  type ViewPreset,
 } from "@/lib/ui/view-options";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
@@ -197,14 +206,14 @@ function PaneError() {
  *  ("sized from ROW_H so a skeleton row occupies exactly what a real row
  *  will"); this one carried the number without the reason, which is how it
  *  survived the density becoming a variable. */
-function ListSkeleton({ density }: { density: Density }) {
-  const geo = ROW_GEOMETRY[density];
+function ListSkeleton({ preset }: { preset: ViewPreset }) {
+  const geo = ROW_GEOMETRY[preset];
   return (
     <div aria-hidden className="space-y-0">
       {Array.from({ length: 7 }, (_, i) => (
         <div
           key={i}
-          style={{ height: geo.height }}
+          style={{ height: geo.pitch }}
           className="relative flex items-stretch gap-3 px-6"
         >
           <span className="flex shrink-0 items-center">
@@ -413,7 +422,14 @@ export function MonitoringPage({
    *  ever does. */
   const storedView = useOnboardingStore((st) => st.viewOptions["risk-flags"]);
   const setViewOptions = useOnboardingStore((st) => st.setViewOptions);
-  const view: ViewOptions = { ...VIEW_OPTIONS_DEFAULT, ...storedView };
+  const preset: ViewPreset = storedView?.preset ?? VIEW_OPTIONS_DEFAULT.preset;
+  /** ═══ FILTERS ARE `useState`, AND THAT IS THE ENFORCEMENT (§6.4) ═══
+   *  "Filters do not persist across sessions. This is a safety rule, not a
+   *  preference." Held here rather than in the store, so the rule is a fact
+   *  about where the state lives rather than a comment asking the next person
+   *  to remember it — `view-options` is the persisted axis and these are not,
+   *  and the difference is visible in one line. */
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
 
   /** THE CLOCK IS FIXED AT MOUNT. `Date.now()` in render scope is impure and the
    *  React Compiler rejects it. Every age and every clock on this page is
@@ -485,27 +501,152 @@ export function MonitoringPage({
     [allEvents]
   );
   const openFlagCount = events.length;
+  /** ═══ THE TRACK IS THE SHIFT'S, AND FILTERS DO NOT TOUCH IT ═══
+   *  §3.4's argument is that the ending is the thing worth investing in, and
+   *  the denominator is everything that arrived this shift. A filtered
+   *  denominator would make the bar jump backwards when a supervisor typed in
+   *  the search box — progress is a fact about the shift, not about the
+   *  current view of it. So this reads `openFlagCount`, the unfiltered open
+   *  count, while the header's figures read the filtered set. */
   const flagProgress = useMemo(
     () => ({ done: allFlagCount - openFlagCount, total: allFlagCount }),
     [allFlagCount, openFlagCount]
   );
-  /** NEEDS-COPY-NICOLE. The oldest OPEN flag's age — the second metric §2.10
-   *  names. Null when nothing is open, which the header renders as an em dash
-   *  rather than "0h": there is no oldest flag, which is different from one
-   *  that is zero hours old. */
-  const oldestFlagAge = useMemo(() => {
-    if (events.length === 0) return null;
-    const oldest = Math.min(...events.map((e) => e.at));
-    return ageLabel(oldest, now).replace(/ ago$/, "");
-  }, [events, now]);
 
   /** ═══ THE LIST'S UNIT IS A CONVERSATION (addendum §3.1) ═══
    *  Built from the already-filtered, already-resolve-filtered events, so a
    *  row disappears when its last member is closed and shrinks when one is. */
-  const groups = useMemo(
+  /** THE UNFILTERED ROWS, in comparator order. */
+  const allGroups = useMemo(
     () => sortGroups(groupByConversation(filtered)),
     [filtered]
   );
+
+  /** ═══ THE FILTER ADAPTER (§6) ═══
+   *  `lib/ui/filters.ts` depends on neither surface's model — it asks for a
+   *  haystack and an instant, which is all any dimension here needs. Decorating
+   *  rather than widening `FlagGroup` keeps the comparator's own keys the only
+   *  things that file defines, and the spread is safe because a group is a
+   *  plain object.
+   *  THE HAYSTACK IS BOTH NAMES, which is §6.1's collapse: "`mentee` and
+   *  `mentor` collapse into search. One field matching either name is more
+   *  useful than two dropdowns and covers both." */
+  type G = FlagGroup & Filterable;
+  const decorated = useMemo<G[]>(
+    () =>
+      allGroups.map((g) => ({
+        ...g,
+        searchText: `${g.teenName} ${g.mentorName}`,
+        at: g.oldestAt,
+      })),
+    [allGroups]
+  );
+
+  /** ═══ THREE DIMENSIONS, AND TWO THAT WERE CUT (§6.1, §6.2, §6.3) ═══
+   *
+   *  CUT, both reported before this was built and both cut on the answer:
+   *
+   *   · DIRECTION (teen- / mentor-authored). Nothing records the flagged
+   *     message's author. `RiskFlagPayload` has `sourceType`, `reportedBy`,
+   *     `categories`, `flaggedExcerpt`, `aiRationale`, `flaggedCorrectly` and
+   *     `conversationFlagCount` — and it is not derivable either, because
+   *     `conversation.ts` builds the anchor with `sender: "teen"` hardcoded.
+   *     So 100% of flags are teen-authored by construction: the control would
+   *     have offered one value returning everything and one returning the
+   *     filtered-empty state, which on a safety queue reads as "no
+   *     mentor-authored flags exist" when the system cannot represent one.
+   *   · DISPOSITION STATE. A `watch`-effect disposition calls `setDisposition`
+   *     in the PANE and returns without reaching this page, so the mark is
+   *     gone the moment another row is selected. There is nothing to filter.
+   *
+   *  ═══ AND THE PLAYBOOK GROUP IS (a), NOT SEVERITY (§6.2) ═══
+   *
+   *  `tierOf(category)` is a pure derived read of the playbook — 21 enumerated
+   *  categories behind it — which is why `risk-taxonomy.ts` kept it when
+   *  arch-mon removed the per-flag assertion: "THIS one is a clinical registry
+   *  […] rather than a severity guess, which is why it survives."
+   *  IT MUST NEVER READ `RiskFlagPayload.tier`. That field is still populated
+   *  and would "work", and reading it would silently restore exactly the
+   *  assertion arch-mon removed.
+   *  LABELLED FROM `TIER_LABEL`, so it says "Clinical support" — the product
+   *  owner's term, and the label every other surface uses (gap rows 362/374).
+   *  NO PERCENTILES: the playbook defines these bands as "Top 1%" / "Top 5%",
+   *  and that file is explicit that "a percentile attached to a child IS a risk
+   *  score". The band is named by its response, never by its rank. */
+  const dimensions = useMemo<FilterDimension<G>[]>(
+    () => [
+      {
+        id: "category",
+        /* NEEDS-COPY-NICOLE */
+        label: "Category",
+        primary: true,
+        options: (items) => {
+          const seen = new Map<string, string>();
+          for (const g of items) {
+            if (g.worstCategory == null) continue;
+            seen.set(g.worstCategory, riskCategoryLabel(g.worstCategory));
+          }
+          return [...seen]
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label));
+        },
+        match: (g, v) => g.worstCategory === v,
+      },
+      {
+        id: "playbookGroup",
+        /* NEEDS-COPY-NICOLE. Named for what it IS — the playbook's own
+           grouping — and deliberately not "Risk", which would imply the
+           per-flag severity this product removed. */
+        label: "Playbook group",
+        options: (items) => {
+          const present = new Set(
+            items.map((g) => tierOf(g.worstCategory ?? "")).filter(Boolean)
+          );
+          return TIER_ORDER.filter((t) => present.has(t)).map((t) => ({
+            value: t,
+            label: TIER_LABEL[t],
+          }));
+        },
+        match: (g, v) => tierOf(g.worstCategory ?? "") === v,
+      },
+      timeDimension<G>(now),
+    ],
+    [now]
+  );
+
+  /** SUBSET, NEVER A RE-SORT — see `applyFilters`. */
+  const groups = useMemo(
+    () => applyFilters(decorated, dimensions, filters),
+    [decorated, dimensions, filters]
+  );
+  const filtering = isFiltering(filters);
+
+  /** ═══ THE HEADER'S TWO FIGURES DESCRIBE WHAT IS ON SCREEN (§6.4) ═══
+   *
+   *  Both are computed from `groups` — the filtered rows — because a count
+   *  beside a list it does not describe is the lie §6.4 names. Unfiltered they
+   *  equal what they were: `groups` is `allGroups` when nothing is narrowing.
+   *
+   *  THE UNIT IS STILL FLAGS, NOT ROWS (addendum §3.1). A row is a conversation
+   *  and holds several, so summing members is what keeps "69 open" from
+   *  becoming the coalescing telling a reader the work is half what it is.
+   *
+   *  `flagProgress` IS DELIBERATELY NOT FILTERED — see its own note below. */
+  const shownFlagCount = useMemo(
+    () => groups.reduce((n, g) => n + g.events.length, 0),
+    [groups]
+  );
+  /** NEEDS-COPY-NICOLE. The oldest flag's age in the visible set. Null when
+   *  there is none, which the header renders as an em dash rather than "0h":
+   *  there is no oldest flag, which is different from one that is zero hours
+   *  old. */
+  const oldestFlagAge = useMemo(() => {
+    if (groups.length === 0) return null;
+    return ageLabel(Math.min(...groups.map((g) => g.oldestAt)), now).replace(
+      / ago$/,
+      ""
+    );
+  }, [groups, now]);
 
   /** ═══ A SETTLED ESCALATION FINALLY LEAVES ═══
    *  Resolved AND every owed close-out item done. Anything less stays on screen
@@ -619,20 +760,12 @@ export function MonitoringPage({
      unit in the pane. */
   const paneTakeover =
     paneOnly || (takeoverWanted && (groups.length > 0 || escalations.length > 0));
-  /** ═══ `Full width` AND WHAT A SELECTION DOES TO IT (§5) ═══
-   *
-   *  The mode is off the moment a row is picked, and the STORED PREFERENCE IS
-   *  NOT TOUCHED — so the pane is a takeover for this one record and closing it
-   *  returns to the full-width list. §5 asked for the reasoning before it
-   *  ships; `view-options.tsx` carries it, and the short form is that there is
-   *  no detail ROUTE to send anyone to (both panes are components reading page
-   *  state) and that picking a row is the end of the scanning this mode is for.
-   *
-   *  IT READS `takeoverWanted`, NOT `selectedGroup`. `selectedGroup` falls back
-   *  to `groups[0]`, so something is always selected and a check against it
-   *  would mean `Full width` never rendered once. The raw intent is the only
-   *  honest signal for "the reader has opened something". */
-  const fullWidth = !paneOnly && view.layout === "full" && !takeoverWanted;
+  /* ═══ `Full width` IS GONE (Refinement §4) ═══
+     The layout axis is removed: "the pane is the point of the workflow on both
+     surfaces", so a mode that hid it never earned itself. What went with it —
+     recorded because each piece existed for a reason and the reasons no longer
+     apply — is the `fullWidth` derivation, the one-column grid arm, the `wide`
+     prop on `EventList` and its row, and the back control's `xl` exception. */
   const paneRef = useRef<HTMLDivElement | null>(null);
   const paneHandle = useRef<PaneHandle>({});
 
@@ -862,7 +995,19 @@ export function MonitoringPage({
                   },
                 ]
               : [
-                  { value: String(openFlagCount), label: "open" },
+                  /* ═══ THE COUNT DESCRIBES THE VISIBLE LIST, AND SAYS SO (§6.4) ═══
+                     "Header counts must reflect the filtered set when filters
+                     are active, and say so — a count that silently describes a
+                     different set than the visible list is lying."
+                     THE LABEL IS WHERE IT SAYS SO. `6 of 69 open` would put the
+                     unfiltered total in the figure position, which is the one
+                     place a reader is entitled to read the list's own size; the
+                     figure stays the list's and the label carries the
+                     qualification. NEEDS-COPY-NICOLE on both forms. */
+                  {
+                    value: String(shownFlagCount),
+                    label: filtering ? "open · filtered" : "open",
+                  },
                   {
                     value: oldestFlagAge ?? "—",
                     label: "oldest",
@@ -889,15 +1034,11 @@ export function MonitoringPage({
             page — and it is a STATE rather than a figure, so it cannot be a
             metric pair. It sits beside them, and it outranks them: when the
             pipeline is down the numbers below it are not measuring anything. */}
-        {/* ═══ ONE CONTROL, AND ONLY WHERE THERE IS A LIST TO SHAPE ═══
-            Escalations renders its own region rather than `EventList`, so the
-            axes would have nothing to act on there. */}
-        {mounted && scope === "risk-flags" && (
-          <ViewOptionsButton
-            options={view}
-            onChange={(next) => setViewOptions("risk-flags", next)}
-          />
-        )}
+        {/* ═══ THE VIEW CONTROL MOVED TO THE LIST'S TOOLBAR (§5) ═══
+            MEASURED here: it sat at x=1374 while the list column it governs
+            ended at x=842 — 532px away, in the gap between the list and the
+            metric cluster, belonging to neither. It is in the toolbar below,
+            right-aligned to the list column's own edge. */}
         {mounted && scope === "risk-flags" && data?.classifier === "degraded" && (
           <p
             role="status"
@@ -974,7 +1115,7 @@ export function MonitoringPage({
                first child leaves the pane in the 60% track and 40% of the width
                blank, which reads as a failed render rather than a full-width
                record. */
-            paneOnly || fullWidth
+            paneOnly
               ? "xl:grid-cols-[minmax(0,1fr)]"
               : /* ═══ THE PANE STOPS GROWING AT 1645px (§0, §2) ═══
                    §0: "The pane is a fixed-width column in this pass. Every unit
@@ -1000,7 +1141,23 @@ export function MonitoringPage({
           )}
         >
           {!paneOnly && (
-          <div className={cn("flex min-h-0 flex-col", paneTakeover && "hidden xl:flex")}>
+          <div className={cn("flex min-h-0 flex-col gap-3", paneTakeover && "hidden xl:flex")}>
+            {/* ═══ THE TOOLBAR SPANS THE LIST COLUMN (§5) ═══
+                Filters left, View right-aligned to this column's own edge. It
+                is inside the column rather than above the grid, so both are
+                true at every width the grid reflows through. */}
+            {mounted && (
+              <ListToolbar
+                items={decorated}
+                dimensions={dimensions}
+                filters={filters}
+                onFilters={setFilters}
+                preset={preset}
+                onPreset={(p) => setViewOptions("risk-flags", { preset: p })}
+                /* NEEDS-COPY-NICOLE. §6.1: one field for both names. */
+                searchHint="Search teen or mentor"
+              />
+            )}
             {/* ═══ THE VIEW TOGGLE AND THE SUBJECT CHIPS ARE BOTH GONE ═══
                 The toggle swapped this column between the queue and the
                 coverage roster; the chips narrowed the queue by review subject.
@@ -1018,11 +1175,26 @@ export function MonitoringPage({
                  `flex-none` + `max-h-full` makes it size to its rows and stop at
                  the page; the floor is three rows at the current density, which
                  is the smallest count that still reads as a list. */
-              style={{ minHeight: listMinHeight(view.density) }}
-              className="max-h-full flex-none overflow-y-auto rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+              /* ═══ CONTENT-SIZED, BUT IT MUST STILL SHRINK ═══
+                 `flex-none max-h-full` was right when the card was the column's
+                 only child: content-sized, capped at the column. §5 put a
+                 toolbar above it, and then `max-h-full` meant 100% of a column
+                 that ALSO holds 44px of toolbar and a 12px gap — so the column's
+                 content exceeded the column by 56px and the overflow propagated
+                 to the shell. MEASURED by `structure.two-scrollers`, which
+                 counted three scroll regions where the locked decision allows
+                 two: the PAGE had started scrolling, which carries the pinned
+                 header off the top.
+                 THE IDIOM IS THE DEFAULT ONE. A flex item with `basis: auto`
+                 and `flex-shrink: 1` sizes to its content and shrinks when the
+                 container cannot hold it — which is content-sizing AND fitting,
+                 the two things this needs. `flex-none` was the mistake; the
+                 floor below still holds it above three rows. */
+              style={{ minHeight: listMinHeight(preset) }}
+              className="min-h-0 overflow-y-auto rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
             >
               {listState === "loading" ? (
-                <ListSkeleton density={view.density} />
+                <ListSkeleton preset={preset} />
               ) : listState === "error" ? (
                 <div role="alert" className="px-3 py-6">
                   <p className="text-[13.5px] leading-[19px] text-[var(--text-primary)]">
@@ -1041,11 +1213,44 @@ export function MonitoringPage({
                   </button>
                 </div>
               ) : (
+                groups.length === 0 && filtering ? (
+                /* ═══ FILTERED TO NOTHING IS NOT NOTHING TO REVIEW (§6.4) ═══
+                   "A supervisor must never be able to mistake 'filtered to
+                   nothing' for 'nothing to review.'" The queue's own empty
+                   line refuses to congratulate — and on a filtered list it
+                   would be worse than congratulating, because it would assert
+                   a quiet shift while rows sit behind a dropdown.
+                   IT STATES THE HIDDEN COUNT, which is the fact that
+                   distinguishes the two states, and carries the way out. */
+                <div role="status" className="px-6 py-6">
+                  <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
+                    {/* NEEDS-COPY-NICOLE */}
+                    No flags match these filters.
+                  </p>
+                  <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                    {/* NEEDS-COPY-NICOLE */}
+                    {allGroups.length === 1
+                      ? "1 conversation is hidden."
+                      : `${allGroups.length} conversations are hidden.`}
+                  </p>
+                  <button
+                    type="button"
+                    data-anno-ref="clear-filters-empty"
+                    onClick={() => setFilters(EMPTY_FILTERS)}
+                    className={cn(
+                      "mt-3 inline-flex min-h-11 items-center rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold",
+                      RING
+                    )}
+                  >
+                    {/* NEEDS-COPY-NICOLE */}
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
                 <EventList
                   groups={groups}
                   now={now}
-                  density={view.density}
-                  wide={fullWidth}
+                  preset={preset}
                   selectedId={selectedGroup?.id ?? null}
                   onSelect={(g) => {
                     setSelectedEventId(g.id);
@@ -1068,6 +1273,7 @@ export function MonitoringPage({
                       : "Nothing waiting for judgment. This queue emptying is not the same as the shift being covered."
                   }
                 />
+              )
               )}
             </div>
           </div>
@@ -1082,7 +1288,7 @@ export function MonitoringPage({
               The pane is a DETAIL surface, so with no record selected and no
               list column beside it there is no detail to be empty about. It
               renders when there is something in it. */}
-          {!fullWidth && !(paneOnly && !selectedEscalation) && (
+          {!(paneOnly && !selectedEscalation) && (
           <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
             {/* NO LIST, NO WAY BACK TO IT. Under `paneOnly` the region above IS
                 the list and it is still on screen. */}
@@ -1092,13 +1298,7 @@ export function MonitoringPage({
                 onClick={() => setPaneTakeover(false)}
                 className={cn(
                   "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
-                  /* ═══ IT STAYS ON XL IN `Full width` ═══
-                     Elsewhere this is the narrow-screen way back to a list the
-                     pane is covering, so it hides once both columns fit. Under
-                     `Full width` the pane is covering a list that WOULD fit,
-                     and the stored preference still says full width — so this
-                     is the only control that honours it. */
-                  view.layout !== "full" && "xl:hidden",
+                  "xl:hidden",
                   "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
                 )}

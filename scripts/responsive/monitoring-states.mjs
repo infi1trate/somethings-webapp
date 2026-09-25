@@ -1784,20 +1784,34 @@ for (const [scenario, id, want] of [
      make the probe agree with the app by construction — it would pass while
      both were wrong together. A second copy is what makes a change to the
      app's number show up as a failure here. */
-  const ROW_H_BY_DENSITY = { comfortable: 80, compact: 56 };
+  /* ═══ RETARGETED AGAIN — THE AXIS RENAMED (Refinement §4) ═══
+     Last pass this read `data-density` against a two-value table. §4 collapsed
+     density and layout into one three-step PRESET, so the attribute is
+     `data-preset` and the table has three rows.
+     IT CAUGHT ITS OWN SUPERSESSION, which is the point of the shape: the row
+     kept rendering an exact height and the probe reported
+     `density=MISSING … (no declared height for this density)` rather than
+     passing on an unknown key. An assertion whose input has gone must fail
+     loudly, and this one did.
+     THE TABLE IS STILL DUPLICATED ON PURPOSE. Importing `ROW_GEOMETRY` would
+     make the probe agree with the app by construction and pass while both were
+     wrong together. And it is the PITCH, not the card height: `Cards` carries
+     its gutter inside the row box, so the box a reader clicks is 92px while the
+     panel drawn in it is 80. */
+  const PITCH_BY_PRESET = { cards: 92, comfortable: 80, compact: 56 };
   const rowBox = await page.locator('[role="treeitem"]').first().evaluate((e) => {
     const r = e.getBoundingClientRect();
-    return { h: Math.round(r.height), w: Math.round(r.width), density: e.dataset.density ?? null };
+    return { h: Math.round(r.height), w: Math.round(r.width), preset: e.dataset.preset ?? null };
   });
-  const rowExpect = ROW_H_BY_DENSITY[rowBox.density];
+  const rowExpect = PITCH_BY_PRESET[rowBox.preset];
   check(
     "targets.rows",
-    "a queue row is exactly the height its density declares, and clears HIG's 44px",
-    rowBox.density != null && rowBox.h === rowExpect && rowBox.h >= 44,
-    /* THE OBSERVATION, INCLUDING THE INPUT. A null density is a row that never
+    "a queue row is exactly the pitch its preset declares, and clears HIG's 44px",
+    rowBox.preset != null && rowBox.h === rowExpect && rowBox.h >= 44,
+    /* THE OBSERVATION, INCLUDING THE INPUT. A null preset is a row that never
        got the prop, which would otherwise read as an unknown-key pass. */
-    `density=${rowBox.density ?? "MISSING"} ${rowBox.h}x${rowBox.w}` +
-      (rowExpect ? ` (declared ${rowExpect})` : " (no declared height for this density)")
+    `preset=${rowBox.preset ?? "MISSING"} ${rowBox.h}x${rowBox.w}` +
+      (rowExpect ? ` (declared ${rowExpect})` : " (no declared pitch for this preset)")
   );
 
   const live = await page.evaluate(`(() => [...document.querySelectorAll('[aria-live],[role=status],[role=alert],[role=log]')]

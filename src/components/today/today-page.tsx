@@ -64,6 +64,8 @@ import {
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { NowBand } from "@/components/monitoring/now-band";
 import { PageHeader } from "@/components/ia/page-header";
+import { PinnedMentees } from "@/components/today/pinned-mentees";
+import { SuggestedSchedule } from "@/components/today/suggested-schedule";
 import { bandStateFor } from "@/lib/monitoring/live";
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
 import {
@@ -75,8 +77,14 @@ import { HOME_LOAD_STAGES, homeLoadPlanFor } from "@/lib/tasks/load-plan";
 import { isNewShift, shiftFactsFor } from "@/lib/tasks/shift";
 import {
   directiveCardId,
+  todayRationale,
   todayCards,
-  todayDigestLine,
+  /* `todayDigestLine` IS NO LONGER IMPORTED HERE (Phase C.2). It is still
+     exported and still tested — it is the shift-start DIGEST, which names
+     destinations — but the banner's body is the rationale now, and C.2 rules
+     out the digest's sentence there for being a restatement of the rows. The
+     function keeps its tests so the day something else wants a digest, the
+     sentence is still proven; no current caller means no current render. */
   type CardTone,
   type TodayCard,
 } from "@/lib/home/today";
@@ -354,6 +362,7 @@ export function TodayPage() {
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
   const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
   const shiftLastSeenAt = useOnboardingStore((s) => s.shiftLastSeenAt);
+  const firstName = useOnboardingStore((s) => s.draft.firstName);
   const setShiftSeenAt = useOnboardingStore((s) => s.setShiftSeenAt);
 
   /** FIXED AT MOUNT, matching every other surface. `Date.now()` in render scope
@@ -366,7 +375,10 @@ export function TodayPage() {
    *  before the effect below stamps the new visit. Read the other way round, the
    *  digest would disqualify itself every time. */
   const [wasNewShift] = useState(() => shiftLastSeenAt);
-  const [dismissed, setDismissed] = useState(false);
+  const shiftDigestDismissedAt = useOnboardingStore(
+    (st) => st.shiftDigestDismissedAt
+  );
+  const dismissShiftDigest = useOnboardingStore((st) => st.dismissShiftDigest);
 
   /** ═══ THE ONLY STORE WRITE ON THIS ROUTE (§4) ═══
    *  A visit stamp about this reader, not state on any record. The acceptance
@@ -436,25 +448,39 @@ export function TodayPage() {
 
   const facts = useMemo(() => shiftFactsFor(items, now), [items, now]);
 
+  /* ═══ DISMISSAL IS PERSISTED, PER SHIFT (Phase C.6) ═══
+     It was `useState(false)`, which survived nothing — navigating to a
+     destination and coming back brought the banner straight back, which is the
+     one thing a supervisor does immediately after reading it. The store holds
+     the INSTANT; `isNewShift` decides whether that instant is in this shift, so
+     the dismissal expires on its own at the same eight-hour boundary the banner
+     already uses to decide a shift is new. */
+  const dismissed = !isNewShift(shiftDigestDismissedAt, now);
+
   /** THE FIVE CARDS. Every figure inside is the owning destination's — see
    *  `lib/home/today.ts`. */
-  const cards = useMemo(
-    () =>
-      todayCards({
-        items,
-        facts,
-        events: data?.events ?? [],
-        /* THE RECORDS, which is what the Escalations destination counts. `raised`
-           has no analogue here: an escalation opened from a flag's disposition is
-           page-local to the queue that opened it, and Today can only see what
-           survives a navigation — the same honest limit coverage credit has. */
-        escalations: data?.escalations ?? [],
-        conversations: data?.conversations ?? [],
-        classifierDegraded: data?.classifier === "degraded",
-        now,
-      }),
+  /** ═══ ONE INPUT OBJECT, TWO READERS (Phase C) ═══
+   *  `todayCards` and `todayRationale` both need it, and the rationale's whole
+   *  job is to explain a card — so building it twice is two chances for the
+   *  banner to reason about a slightly different set than the rows show. */
+  const todayInput = useMemo(
+    () => ({
+      items,
+      facts,
+      events: data?.events ?? [],
+      /* THE RECORDS, which is what the Escalations destination counts. `raised`
+         has no analogue here: an escalation opened from a flag's disposition is
+         page-local to the queue that opened it, and Today can only see what
+         survives a navigation — the same honest limit coverage credit has. */
+      escalations: data?.escalations ?? [],
+      conversations: data?.conversations ?? [],
+      classifierDegraded: data?.classifier === "degraded",
+      now,
+    }),
     [items, facts, data, now]
   );
+
+  const cards = useMemo(() => todayCards(todayInput), [todayInput]);
 
   /** AT MOST ONE CARD CARRIES IT, and it is read off the cards rather than from
    *  the ladder — which consulted `ShiftFacts` and put "start here" on a card
@@ -519,14 +545,48 @@ export function TodayPage() {
     [data, livePaused, now]
   );
 
-  const digestLine = useMemo(() => todayDigestLine(cards), [cards]);
-  const ctaCard = cards.find((c) => c.id === directiveCard) ?? null;
+  /* ═══ THE BANNER'S BODY IS THE RATIONALE NOW (Phase C.2) ═══
+     `todayDigestLine` is still exported and still tested — it is the
+     shift-start DIGEST, a different sentence with a different job — but it is
+     no longer what this banner says. C.2: the banner's only job is why THIS
+     destination, "not a restatement of the list below it", which is exactly
+     what naming all three destinations was. */
+  const rationale = useMemo(
+    () => todayRationale(cards, todayInput),
+    [cards, todayInput]
+  );
+  const ctaCard = rationale
+    ? (cards.find((c) => c.id === rationale.id) ?? null)
+    : null;
   const showDigest =
-    mounted && !dismissed && isNewShift(wasNewShift, now) && digestLine != null;
+    /* RATIONALE-OR-NOTHING (C.3). The last clause was `digestLine != null`,
+       which is true whenever anything at all needs attention — so the banner
+       rendered generic copy in every non-empty state. It now requires a derived
+       rationale, and `todayRationale` returns null rather than inventing one. */
+    mounted && !dismissed && isNewShift(wasNewShift, now) && rationale != null;
 
   return (
     <div
       data-anno-ref="today-page"
+      /* ═══ THE GRADIENT — ATMOSPHERE, GROUPING NOTHING (Phase G.2) ═══
+         REGION SEMANTICS: OPTION (a). It is anchored at the top of the content
+         area and fades to zero alpha, so it has no edge — and a wash with no
+         edge cannot bound an arbitrary subset or imply a relationship that
+         does not exist (Law of Common Region). G.2.1 says "header region
+         only"; that is where it is READ, and it dissipates rather than
+         stopping, which is how both instructions hold at once.
+         `background-repeat: no-repeat` and a fixed height so it washes the
+         header and nothing below it, rather than tiling down a scrolling page.
+         THE TOKEN CARRIES THE COLOUR AND THIS FILE CARRIES NONE. Raw values
+         belong in the token file; `--gradient-header` is a documented design
+         system extension, minted because Bloom has no gradient token.
+         IT DEPENDS ON NO PROPS. Nothing about it varies with data, state,
+         priority, recency or urgency. */
+      style={{
+        backgroundImage: "var(--gradient-header)",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "100% 220px",
+      }}
       className="mx-auto flex h-full min-h-0 w-full max-w-[860px] flex-col gap-5 overflow-y-auto px-6 py-6 lg:px-8"
     >
       {/* ═══ THE SHARED HEADER, AND TODAY TAKES NO METRICS (addendum §2.10) ═══
@@ -535,6 +595,38 @@ export function TodayPage() {
           would be a sixth copy of a number already on a card — and the first
           one a reader would meet, which would make Today the place the
           counting happens rather than the place it is reflected. */}
+      {/* ═══ THE GREETING, AND THE ONE DECORATIVE MOMENT (Phase G.1) ═══
+          OPTION (b) — TIME-NEUTRAL, NO TIME WORD. The pack allows (a),
+          computing the word from the clock, and defaults to (b) if that word
+          could ever be wrong during a shift. It could, for a reason the pack's
+          own open items name: SUPERVISOR TIMEZONE LOCALISATION IS UNRESOLVED
+          (Meg). So there are only two places to compute from and both can lie:
+           · the SCHEDULE's zone (`America/New_York`, what Phase D reads) would
+             tell a supervisor in California "Good evening" at 2pm their time;
+           · the DEVICE's zone contradicts this pack's own timezone discipline
+             and would render "Good morning" mid-shift for a western reader —
+             the exact failure G.1.2 names.
+          A greeting is a claim about the READER's time of day, and this product
+          cannot currently make one. So it makes none. The wave survives, which
+          is the part G.1 requires.
+          NO DATE LINE. G.1.5 permits one only if computed from real time; it is
+          not required, and one less element asserting something is the right
+          trade on a surface whose whole job is orientation. */}
+      <p
+        data-anno-ref="today-greeting"
+        className="shrink-0 font-display text-[20px] leading-[28px] font-bold text-[var(--text-primary)]"
+      >
+        {/* ═══ aria-hidden, AND THE TEXT CARRIES EVERYTHING (G.1.3) ═══
+            Emoji rendering varies across platforms and fonts, so the glyph can
+            never be the sole carrier of anything. It is sized to the type scale
+            by INHERITING it — no arbitrary dimension (G.1.4). */}
+        <span aria-hidden className="mr-2">
+          👋
+        </span>
+        {/* NEEDS-COPY-NICOLE: Hi, {firstName} / Hi there */}
+        {mounted && firstName?.trim() ? `Hi, ${firstName.trim()}` : "Hi there"}
+      </p>
+
       <PageHeader
         className="shrink-0"
         // TODO-COPY. The route's name and the rail's label, one string.
@@ -598,7 +690,7 @@ export function TodayPage() {
             </p>
             <button
               type="button"
-              onClick={() => setDismissed(true)}
+              onClick={() => dismissShiftDigest(now)}
               data-today-local="dismiss"
               /* TODO-COPY */
               aria-label="Dismiss the shift summary"
@@ -611,17 +703,20 @@ export function TodayPage() {
               <X className="size-4" aria-hidden />
             </button>
           </div>
-          {/* ═══ NAMES, NOT COUNTS, AND NOT A SECOND SET OF LINKS ═══
-              The destinations it names are five rows below with their own
-              figures and their own links. A chip row here would be the cards
-              again — and the counts it used to carry came from a source that
-              disagreed with them. Breach-first survives: the sentence names
-              breaching destinations first. */}
+          {/* ═══ THE REASON, NOT THE LIST (Phase C.2) ═══
+              One sentence saying why the CTA below points where it does. It
+              cites a clock or a verified "oldest" — see `todayRationale`, which
+              returns null rather than asserting a comparison it has not
+              checked, and the banner then does not render at all.
+              NO SECOND SET OF LINKS, which was already true and stays true: the
+              destinations are three rows below with their own figures and their
+              own hrefs. */}
           <p
-            data-anno-ref="today-digest-line"
+            data-anno-ref="today-rationale"
+            data-rationale-basis={rationale?.basis}
             className="mt-1 text-[13px] leading-[19px] text-[var(--text-secondary)]"
           >
-            {digestLine}
+            {rationale?.reason}
           </p>
           {ctaCard && (
             /* ONE PRIMARY CTA, TARGETING THE LADDER'S HEAD. The item it names is
@@ -679,7 +774,26 @@ export function TodayPage() {
         </section>
       )}
 
+      {/* ═══ PINNED MENTEES — BELOW THE DESTINATIONS, ABOVE "Closed today" ═══
+          F.6 asks for one and says which: it must not sit above the
+          destination rows, because destinations remain the primary
+          orientation. Above "Closed today" rather than below, because
+          "Closed today" is a footnote about work that is FINISHED and the
+          pinned set is about people who may still need something — putting a
+          live section under a settled one buries it. */}
+      {mounted && <PinnedMentees input={todayInput} />}
+
       {stateOf("closed") === "ready" && <ClosedToday facts={facts} />}
+
+      {/* ═══ THE SCHEDULE SITS BELOW THE WORK (Phase D) ═══
+          Placement is not specified by the phase, so it is stated here: below
+          the destination rows and below "Closed today". It is a REFERENCE a
+          supervisor glances at, not an orientation surface — putting it above
+          the rows would make the page open on a suggestion rather than on what
+          is owed. The reference mock has it in a right rail; Today is a single
+          column and introducing a second one is a layout change this phase did
+          not ask for. */}
+      {mounted && <SuggestedSchedule now={now} />}
     </div>
   );
 }
@@ -702,14 +816,22 @@ function ClosedToday({ facts }: { facts: ReturnType<typeof shiftFactsFor> }) {
 
   return (
     <section
-      /* TODO-COPY */
-      aria-label="Closed today"
+      /* ═══ THE LABEL NOW STATES THE SEMANTIC (Phase A.5) ═══
+         "Closed today" sat directly under three open counts and said nothing
+         about being a different quantity, so the page read as four rows of one
+         measure. A.5: the values stay and the label carries the distinction.
+         IN THE ACCESSIBLE NAME AS WELL AS ON SCREEN, because the visible line
+         is a `<p>` rather than a heading — a screen-reader user reaching this
+         region by landmark gets the qualification from the region's own name or
+         not at all. */
+      /* NEEDS-COPY-NICOLE: Closed today — not counted above */
+      aria-label="Closed today — not counted above"
       data-anno-ref="today-closed-today"
       className="shrink-0"
     >
       <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
-        {/* TODO-COPY */}
-        Closed today
+        {/* NEEDS-COPY-NICOLE: Closed today — not counted above */}
+        Closed today — not counted above
       </p>
       <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
         {entries.map(([domain, n]) => (

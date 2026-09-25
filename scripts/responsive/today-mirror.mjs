@@ -44,20 +44,41 @@ const OUT = process.env.SHOT_OUT ?? "docs/responsive/today-mirror";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1100 };
 const STORE_KEY = "somethings.mentor-onboarding";
 
-/** ═══ THE ONE KEY TODAY MAY WRITE, AND THE REASON ═══
+/** ═══ THE KEYS TODAY MAY WRITE, AND THE REASON FOR EACH ═══
  *  `shiftLastSeenAt` is a visit stamp about this READER — it is what makes the
  *  shift digest appear once per shift instead of on every visit. It is UI memory,
  *  not state on any record, and that distinction is the whole of what this
  *  allowlist encodes. Anything else appearing in the diff is a §4 violation, and
  *  the check names the key so the failure is actionable rather than a red light.
  *
- *  ADDING TO THIS LIST IS THE DECISION. It is deliberately one line long. */
-const WRITABLE = new Set(["shiftLastSeenAt"]);
+ *  ADDING TO THIS LIST IS THE DECISION. It was deliberately one line long and is
+ *  now two; the second was taken deliberately and is recorded here.
+ *
+ *  ═══ `shiftDigestDismissedAt` — TODAY PHASE C.6 ═══
+ *
+ *  C.6 requires the banner's dismissal to persist "for the current shift only,
+ *  per supervisor". It was `useState(false)`, which survived nothing — so this
+ *  check passed because the feature was absent, not because the page was
+ *  disciplined.
+ *
+ *  IT IS THE SAME CLASS AS THE KEY ABOVE, which is why it is admitted rather
+ *  than the check being loosened: an instant recording that THIS READER closed
+ *  a banner. It is not state on any record, nobody else can observe it, and it
+ *  changes no task, no disposition and no clinical field. The mirror rule
+ *  forbids Today CONTAINING work; remembering that you dismissed a hint is not
+ *  work.
+ *
+ *  WHAT IS STILL FORBIDDEN, UNCHANGED: any key that is state on a record. The
+ *  check below still fails on one and still names it. */
+const WRITABLE = new Set(["shiftLastSeenAt", "shiftDigestDismissedAt"]);
 
-/** Non-link controls Today is allowed to have, each with what it does. All three
- *  are `useState` on the page component and die with the mount. */
+/** Non-link controls Today is allowed to have, each with what it does.
+ *  `retry` is `useState` on the page and dies with the mount; `dismiss` writes
+ *  the one allowlisted preference above and outlives it by design. */
 const LOCAL_CONTROLS = {
-  dismiss: "hides the shift digest for this mount",
+  /* NO LONGER "for this mount" — Phase C.6 persists it for the shift, through
+     `shiftDigestDismissedAt` in the allowlist above. */
+  dismiss: "hides the shift digest for the rest of this shift",
   retry: "flips a page-local region state back to ready",
 };
 
