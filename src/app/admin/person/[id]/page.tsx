@@ -66,6 +66,7 @@ const TEEN_STATUS_LABEL: Record<"active" | "paused" | "deactivated", string> = {
   deactivated: "Deactivated",
 };
 
+import { PinMenteeToggle } from "@/components/record/pin-mentee-toggle";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { toast } from "sonner";
@@ -296,11 +297,26 @@ export default function PersonRecordPage({
           // CALL SITE ONLY (audited: /app/profile and /admin/mentor pass neither),
           // so nothing else in the app shifts.
           isTeen ? (
-            <PillButton onClick={() => router.push(chatHrefFor(subject.id))}>
-              <MessagesSquare className="size-4" aria-hidden />
-              {/* TODO-COPY */}
-              Open chat
-            </PillButton>
+            /* ═══ THE PIN TOGGLE SITS BESIDE THE PRIMARY (Today Phase E.1) ═══
+               Beside, not instead of: the primary is still the thing a
+               supervisor came here to do. The toggle is a private working-set
+               control and reads as secondary chrome next to it.
+               MENTEE RECORDS ONLY. `isTeen` already gates this branch, so a
+               mentor or staff record cannot grow one — E's scope is the mentee
+               record header and nowhere else, and "do not build: pin from a
+               list, or pin from Today" is enforced by there being no other
+               call site. */
+            <>
+              <PinMenteeToggle
+                menteeId={subject.id}
+                menteeName={subjectDisplayName(subject)}
+              />
+              <PillButton onClick={() => router.push(chatHrefFor(subject.id))}>
+                <MessagesSquare className="size-4" aria-hidden />
+                {/* TODO-COPY */}
+                Open chat
+              </PillButton>
+            </>
           ) : (
             <PillButton
               onClick={() => toast("Messaging isn't part of this prototype yet.")}

@@ -96,6 +96,52 @@ export function readReviewDraft(
   }, null);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// A SUBSCRIPTION, SO A LIST CAN FILTER ON DRAFT STATE (Refinement §6.3)
+//
+// Care Reviews' `Draft saved / not started` filter has to know, per row, whether
+// a draft exists. `readReviewDraft` answers that — but a component cannot read
+// `sessionStorage` during render: it is impure, the React Compiler in this repo
+// rejects it, and it produces a hydration mismatch because the server has no
+// session storage at all. The same two problems the theme toggle hit, and the
+// same instrument fixes them: `useSyncExternalStore`.
+//
+// SO THIS MODULE BECOMES THE STORE. A monotonic version, bumped on every write
+// and clear, is all a subscriber needs — the reader re-reads the keys it cares
+// about when the version moves, and `getServerSnapshot` returns 0 so the server
+// renders "no drafts" and the client corrects it on hydration.
+//
+// WHY A COUNTER AND NOT THE DRAFT SET. The set is per (teen, review) and only
+// the caller knows which pairs it is asking about; a snapshot of all of them
+// would have to be a new object every read, which is the one thing
+// `useSyncExternalStore` forbids (it compares snapshots by identity and would
+// loop). A number is stable by construction.
+
+let draftVersion = 0;
+const draftListeners = new Set<() => void>();
+
+function announceDraftChange(): void {
+  draftVersion += 1;
+  for (const fn of draftListeners) fn();
+}
+
+export function subscribeReviewDrafts(onChange: () => void): () => void {
+  draftListeners.add(onChange);
+  return () => {
+    draftListeners.delete(onChange);
+  };
+}
+
+/** The client snapshot. Stable between changes — see the module note. */
+export function reviewDraftsVersion(): number {
+  return draftVersion;
+}
+
+/** The server snapshot: no session storage exists there, so no draft does. */
+export function reviewDraftsVersionServer(): number {
+  return 0;
+}
+
 export function writeReviewDraft(
   teenId: string,
   reviewId: string,
@@ -104,12 +150,18 @@ export function writeReviewDraft(
   safe(() => {
     sessionStorage.setItem(keyFor(teenId, reviewId), JSON.stringify(draft));
   }, undefined);
+  /* ANNOUNCED EVEN IF THE WRITE FAILED. `safe` swallows a quota or private-mode
+     throw, and a subscriber's job is to re-read — which will correctly find no
+     draft. Announcing unconditionally keeps "the store changed" and "the store
+     persisted" as two separate claims, and only the first one is this line's. */
+  announceDraftChange();
 }
 
 export function clearReviewDraft(teenId: string, reviewId: string): void {
   safe(() => {
     sessionStorage.removeItem(keyFor(teenId, reviewId));
   }, undefined);
+  announceDraftChange();
 }
 
 /** ═══ SUPERSEDED DRAFTS ═══

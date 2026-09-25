@@ -1,11 +1,11 @@
 {
-  "at": 1790272370198,
+  "at": 1790353991488,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. View 69 open 5d"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. 69 open 5d olde"
     },
     {
       "id": "input.rows",
@@ -369,13 +369,13 @@
       "id": "hdr.own.risk-flags.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. View Flag pipeline is down — no flags are arr"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. View Flag pipeline is down — no flags are arriving 0 open — oldes"
+      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Flag pipeline is down — no flags are arriving 0 open — oldest"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -549,7 +549,7 @@
       "id": "header.one-title-size",
       "label": "and one title size across all of them",
       "ok": true,
-      "detail": "28px"
+      "detail": "32px"
     },
     {
       "id": "header.purpose-everywhere",
@@ -567,13 +567,13 @@
       "id": "header.metrics-tabular",
       "label": "and every figure is tabular, so the column does not jitter as it changes",
       "ok": true,
-      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 0 completed today · 10 people · 26 teens"
+      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 3d oldest · 10 people · 26 teens"
     },
     {
       "id": "header.no-remainder",
       "label": "and no metric counts what is LEFT",
       "ok": true,
-      "detail": "active · close-out items open · open · oldest · open · completed today · people · teens"
+      "detail": "active · close-out items open · open · oldest · open · oldest · people · teens"
     },
     {
       "id": "track.present",
@@ -650,7 +650,7 @@
       "id": "focus.order",
       "label": "escalations → list → pane → footer, in that order",
       "ok": true,
-      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell,shell,shell,shell"
+      "detail": "shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,shell,list,pane,footer,footer,footer,footer,footer,footer,footer,shell,shell,shell,shell"
     },
     {
       "id": "focus.always-visible",
@@ -678,9 +678,9 @@
     },
     {
       "id": "targets.rows",
-      "label": "a queue row is exactly the height its density declares, and clears HIG's 44px",
+      "label": "a queue row is exactly the pitch its preset declares, and clears HIG's 44px",
       "ok": true,
-      "detail": "density=comfortable 80x371 (declared 80)"
+      "detail": "preset=comfortable 80x371 (declared 80)"
     },
     {
       "id": "a11y.live-inventory",

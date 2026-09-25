@@ -25,7 +25,7 @@
 // produce zero console errors, so the gate is the only thing between a persisted
 // scenario id and a hydration mismatch.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
@@ -46,11 +46,27 @@ import { ShiftTrack } from "@/components/ia/shift-progress";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import { ViewOptionsButton } from "@/components/ia/view-options";
+import { ListToolbar } from "@/components/ia/list-toolbar";
 import {
   VIEW_OPTIONS_DEFAULT,
-  type ViewOptions,
+  type ViewPreset,
 } from "@/lib/ui/view-options";
+import {
+  applyFilters,
+  EMPTY_FILTERS,
+  isFiltering,
+  timeDimension,
+  type Filterable,
+  type FilterDimension,
+  type FilterState,
+} from "@/lib/ui/filters";
+import {
+  readReviewDraft,
+  reviewDraftsVersion,
+  reviewDraftsVersionServer,
+  subscribeReviewDrafts,
+} from "@/lib/record/review-draft";
+import { proposalKindFor, PROPOSAL_LABEL } from "@/lib/record/proposal-kind";
 import { listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
@@ -369,6 +385,160 @@ export function TasksPage({
     [items, domains]
   );
 
+  const storedView = useOnboardingStore((st) => st.viewOptions["care-reviews"]);
+  const setViewOptions = useOnboardingStore((st) => st.setViewOptions);
+  const preset: ViewPreset = storedView?.preset ?? VIEW_OPTIONS_DEFAULT.preset;
+  /** Filters are session state by rule, not by preference — §6.4, and the note
+   *  on Monitoring's own `filters` says why it is `useState` rather than a
+   *  store field. */
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  /** ═══ DRAFT STATE, THROUGH A SUBSCRIPTION ═══
+   *  `sessionStorage` cannot be read during render — impure, and the server has
+   *  none, so it would hydrate wrong. This is the version counter
+   *  `review-draft.ts` exposes for exactly this; the dimension below re-derives
+   *  when it moves. */
+  const draftVersion = useSyncExternalStore(
+    subscribeReviewDrafts,
+    reviewDraftsVersion,
+    reviewDraftsVersionServer
+  );
+
+  /** ═══ THE FILTER ADAPTER (§6) ═══
+   *  Decorated rather than widening `ListEntry`, for the same reason Monitoring
+   *  decorates its groups: `lib/ui/filters.ts` asks for a haystack and an
+   *  instant, and the list's own model should not grow fields for a control.
+   *  THE HAYSTACK IS BOTH NAMES (§6.1). The mentor is NOT drawn on these rows —
+   *  arch-E removed it, because a mentor does not perform a billing review —
+   *  but the item still carries it, and one search field matching either name
+   *  is what §6.1 asks for. STATED because it means a search can match on a
+   *  string the row does not show: the chip says what was typed, and the row
+   *  that survives shows the teen it matched on. */
+  type E = ListEntry & Filterable;
+  const decorated = useMemo<E[]>(
+    () =>
+      entries.map((e) => {
+        const head = e.kind === "group" ? e.head : e.item;
+        return {
+          ...e,
+          searchText: `${head.teenDisplayName} ${head.mentorName}`,
+          at: head.openedAt,
+        };
+      }),
+    [entries]
+  );
+
+  /** ═══ FOUR DIMENSIONS, AND ONE DUPLICATE DROPPED (§6.3) ═══
+   *
+   *  §6.3 lists `Billing code` as the always-visible primary AND `Code` behind
+   *  the Filters button. Those are one dimension, so it renders once — as the
+   *  primary — and the panel holds the other three. Reported rather than
+   *  silently reconciled.
+   *
+   *  `Draft saved / not started` reads the version counter above, not
+   *  `sessionStorage` directly: see that field's note. */
+  const dimensions = useMemo<FilterDimension<E>[]>(
+    () => {
+      const headOf = (e: E) => (e.kind === "group" ? e.head : e.item);
+      const billing = (e: E) => {
+        const h = headOf(e);
+        return h.payload.kind === "billing" ? h.payload : null;
+      };
+      return [
+        {
+          id: "code",
+          /* NEEDS-COPY-NICOLE */
+          label: "Billing code",
+          primary: true,
+          options: (items) => {
+            const seen = new Set<string>();
+            for (const e of items) {
+              const p = billing(e);
+              if (p) seen.add(p.recommended.code);
+            }
+            return [...seen].sort().map((value) => ({ value, label: value }));
+          },
+          match: (e, v) => billing(e)?.recommended.code === v,
+        },
+        {
+          id: "proposal",
+          /* NEEDS-COPY-NICOLE. §6.3's "Change proposed vs presentation
+             proposed" — and the values come from `PROPOSAL_LABEL`, the same
+             table the lozenges and the accessible name read, so the filter
+             cannot drift from what the row says. */
+          label: "Proposal",
+          options: (items) => {
+            const seen = new Set<string>();
+            for (const e of items) {
+              const p = billing(e);
+              if (p) {
+                seen.add(proposalKindFor(p.current?.code ?? null, p.recommended.code));
+              }
+            }
+            return [...seen].map((value) => ({
+              value,
+              label: PROPOSAL_LABEL[value as keyof typeof PROPOSAL_LABEL],
+            }));
+          },
+          match: (e, v) => {
+            const p = billing(e);
+            return (
+              p != null &&
+              proposalKindFor(p.current?.code ?? null, p.recommended.code) === v
+            );
+          },
+        },
+        timeDimension<E>(now),
+        {
+          id: "draft",
+          /* NEEDS-COPY-NICOLE */
+          label: "Draft",
+          options: (items) => {
+            /* READS THROUGH THE VERSION, so this recomputes when a draft is
+               written or cleared. `draftVersion` is referenced here rather than
+               only in the dep array because a value the callback ignores is a
+               dependency the next reader will delete. */
+            void draftVersion;
+            let some = false;
+            let none = false;
+            for (const e of items) {
+              const h = headOf(e);
+              if (readReviewDraft(h.teenId, h.id)) some = true;
+              else none = true;
+              if (some && none) break;
+            }
+            return [
+              /* NEEDS-COPY-NICOLE */
+              ...(some ? [{ value: "saved", label: "Draft saved" }] : []),
+              ...(none ? [{ value: "none", label: "Not started" }] : []),
+            ];
+          },
+          match: (e, v) => {
+            const h = headOf(e);
+            const has = readReviewDraft(h.teenId, h.id) != null;
+            return v === "saved" ? has : !has;
+          },
+        },
+      ];
+    },
+    [now, draftVersion]
+  );
+
+  /** SUBSET, NEVER A RE-SORT — see `applyFilters`. */
+  const shown = useMemo(
+    () => applyFilters(decorated, dimensions, filters),
+    [decorated, dimensions, filters]
+  );
+  const filtering = isFiltering(filters);
+
+  /** NEEDS-COPY-NICOLE. The oldest visible review's age — §3.1's second metric,
+   *  and the same figure Risk Flags carries. Null when the list is empty, which
+   *  the header renders as an em dash rather than "0d": there is no oldest
+   *  review, which is different from one that is zero days old. */
+  const oldestReviewAge = useMemo(() => {
+    if (shown.length === 0) return null;
+    return elapsedLabel(Math.min(...shown.map((e) => e.at)), now);
+  }, [shown, now]);
+
   /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves
    *  the other three alone — that is the requirement, and a single page-level
    *  state could not express it. */
@@ -389,9 +559,6 @@ export function TasksPage({
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
   /** §5's two axes, persisted under this destination's own key — see the store
    *  field's note on why the map is sparse. */
-  const storedView = useOnboardingStore((st) => st.viewOptions["care-reviews"]);
-  const setViewOptions = useOnboardingStore((st) => st.setViewOptions);
-  const view: ViewOptions = { ...VIEW_OPTIONS_DEFAULT, ...storedView };
   /** ═══ THE STAGE CARRIES THE STATE IT BELONGS TO ═══
    *
    *  The first version reset with `setLoadStage(0)` in the effect body, which the
@@ -489,10 +656,9 @@ export function TasksPage({
 
   /** Below 1100px the pane is a takeover, so it needs a way back to the list. */
   const [paneTakeover, setPaneTakeover] = useState(false);
-  /** `Full width` until something is opened — the reasoning is in
-   *  `view-options.tsx`, and the preference is deliberately not rewritten by
-   *  the selection. */
-  const fullWidth = view.layout === "full" && !paneTakeover;
+  /* `fullWidth` IS GONE WITH THE LAYOUT AXIS (Refinement §4) — the pane is the
+     point of the workflow on this surface, so a mode that hid it never earned
+     itself. */
   /** Enter focuses the pane — it needs a target, and tabIndex={-1} makes the
    *  scroll container focusable without adding a tab stop. */
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -813,9 +979,25 @@ export function TasksPage({
              a state, and "completed today" is a fact about the shift rather
              than a score — it is the same figure the completed group below
              already shows, stated once at the top. */
+          /* ═══ TWO FACTS, NOT THREE (Refinement §3.1) ═══
+             It showed `19 open`, `0 completed today` AND a track reading "0 of
+             19 reviews completed this shift" — the second and third nearly the
+             same number stated twice. `completed today` is removed: the shift
+             is the meaningful unit for a supervisor, the track already states
+             it against a denominator, and two overlapping completion counts is
+             noise.
+             SO BOTH DESTINATIONS NOW CARRY THE SAME PAIR — open plus oldest —
+             which is honest given neither has a deadline: `CARE_REVIEW_SLA` is
+             retired and `FLAG_REVIEW_SLA` is null, so age is the only temporal
+             fact either surface can state.
+             FILTER-AWARE, AND IT SAYS SO (§6.4) — see Monitoring's own note on
+             why the qualification lives in the label rather than the figure. */
           [
-            { value: String(counts.open), label: "open" },
-            { value: String(completed.length), label: "completed today" },
+            {
+              value: String(shown.length),
+              label: filtering ? "open · filtered" : "open",
+            },
+            { value: oldestReviewAge ?? "—", label: "oldest" },
           ]
         }
         progress={
@@ -828,14 +1010,7 @@ export function TasksPage({
             completeLine="Every review that arrived this shift is done"
           />
         }
-      >
-        {/* §5's one control, beside the metrics rather than above the list —
-            the header is where the page's other settings-shaped things live. */}
-        <ViewOptionsButton
-          options={view}
-          onChange={(next) => setViewOptions("care-reviews", next)}
-        />
-      </PageHeader>
+      />
 
       {/* ═══ THE RESPOND STRIP AND THE TAB-CARD ROW ARE BOTH GONE (arch-A) ═══
           THE RESPOND STRIP was escalations only — a persistent "respond within
@@ -900,9 +1075,7 @@ export function TasksPage({
                  width is unchanged at every viewport — below the breakpoint it
                  is the same fraction it was, above it it holds the figure it had
                  reached. Every pixel this pass adds goes to the list. */
-              fullWidth
-                ? "xl:grid-cols-[minmax(0,1fr)]"
-                : /* BOTH VARIANTS ARE ARBITRARY, AND THAT IS NOT A STYLE CHOICE.
+              /* BOTH VARIANTS ARE ARBITRARY, AND THAT IS NOT A STYLE CHOICE.
                    MEASURED: written as `xl:` + `min-[1645px]:`, Tailwind emitted
                    the named breakpoint AFTER the arbitrary one, so at 2560 the
                    40/60 rule won and the columns came out 686/1030 — the pane
@@ -925,14 +1098,68 @@ export function TasksPage({
                 height to scroll inside. */}
             <div
               className={cn(
-                "min-h-0",
+                "flex min-h-0 flex-col gap-3",
                 paneTakeover && "hidden xl:block"
               )}
             >
+              {/* THE TOOLBAR SPANS THE LIST COLUMN (§5) — filters left, View
+                  right-aligned to this column's own edge. */}
+              <ListToolbar
+                items={decorated}
+                dimensions={dimensions}
+                filters={filters}
+                onFilters={setFilters}
+                preset={preset}
+                onPreset={(p) => setViewOptions("care-reviews", { preset: p })}
+                /* NEEDS-COPY-NICOLE. §6.1: one field for both names — and see
+                   the adapter's note on the mentor not being drawn. */
+                searchHint="Search teen or mentor"
+              />
+              {shown.length === 0 && filtering ? (
+                /* ═══ FILTERED TO NOTHING IS NOT NOTHING TO REVIEW (§6.4) ═══
+                   "A supervisor must never be able to mistake 'filtered to
+                   nothing' for 'nothing to review.'" `Worklist`'s own empty
+                   state is written for a cleared queue and would assert one
+                   here while rows sit behind a dropdown. This states the hidden
+                   count — the fact that distinguishes the two — and carries the
+                   way out. Deliberately NOT `WholePageEmpty`, which is the
+                   surface resting and is a different claim entirely. */
+                <div
+                  role="status"
+                  data-anno-ref="filtered-empty"
+                  className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-6 py-6"
+                >
+                  <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
+                    {/* NEEDS-COPY-NICOLE */}
+                    No reviews match these filters.
+                  </p>
+                  <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                    {/* NEEDS-COPY-NICOLE */}
+                    {entries.length === 1
+                      ? "1 review is hidden."
+                      : `${entries.length} reviews are hidden.`}
+                  </p>
+                  <button
+                    type="button"
+                    data-anno-ref="clear-filters-empty"
+                    onClick={() => setFilters(EMPTY_FILTERS)}
+                    className={cn(
+                      "mt-3 inline-flex min-h-11 items-center rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold",
+                      RING
+                    )}
+                  >
+                    {/* NEEDS-COPY-NICOLE */}
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
               <Worklist
-                density={view.density}
-                wide={fullWidth}
-                entries={entries}
+                preset={preset}
+                hasGroups={entries.some((e) => e.kind === "group")}
+                /* THE FILTERED SET. `applyFilters` is a `filter`, so this is a
+                   subsequence of `entries` and the comparator's order is intact
+                   — §6.4's "filters subset; they never reorder". */
+                entries={shown}
                 items={domainItems}
                 domain={activeDomain}
                 now={now}
@@ -997,6 +1224,7 @@ export function TasksPage({
                   setListStates((prev) => ({ ...prev, [activeDomain]: "ready" }))
                 }
               />
+              )}
             </div>
             {/* ── THE PANE SCROLLS ON ITS OWN ──
                 Its footer is sticky at the pane's own bottom edge — see
@@ -1016,9 +1244,8 @@ export function TasksPage({
                    read as rounding, and not), and `flex-1` everywhere overflowed
                    at DESKTOP by 234px. The cases genuinely differ. */
                 "flex min-h-0 flex-col xl:block",
-                !paneTakeover && "hidden xl:block",
+                !paneTakeover && "hidden xl:block"
                 // `Full width`: no pane at all until a row is picked.
-                fullWidth && "hidden xl:hidden"
               )}
             >
               {paneTakeover && (
@@ -1029,9 +1256,7 @@ export function TasksPage({
                     // `shrink-0 self-start`: a control, not a row — in a flex
                     // column a stretched button would span the width.
                     "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
-                    // Stays on xl under `Full width` — the only way back to the
-                    // list the stored preference still asks for.
-                    view.layout !== "full" && "xl:hidden",
+                    "xl:hidden",
                     "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                     RING
                   )}

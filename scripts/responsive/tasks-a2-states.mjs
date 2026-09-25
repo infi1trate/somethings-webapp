@@ -280,7 +280,16 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   // select is both the way to catch it and the way to prove the replay: the
   // stage stamp used to survive a finished run, so Loading → Ready → Loading
   // resolved in the same frame and the second selection did nothing.
-  const load = page.locator("select").nth(1);
+  /* ═══ ADDRESSED BY NAME, NOT BY INDEX (Refinement §6) ═══
+     This was `locator("select").nth(1)` — the dev bar's load-state control, by
+     its position among every `select` on the page. §6 put a `select` in the
+     list's own toolbar (the primary filter), which shifted every index after it
+     and made `.nth(1)` resolve to the scenario picker. It failed loudly —
+     "did not find some options", because the scenario select has no `ready` —
+     which is the right way round, but it was never a stable selector: ANY
+     future control would have broken it the same way.
+     The dev bar labels this one, so the label is what identifies it. */
+  const load = page.getByLabel(/^Load state/);
   for (const run of [1, 2]) {
     await load.selectOption("ready");
     await page.waitForTimeout(150);

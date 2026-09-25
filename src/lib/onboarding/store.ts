@@ -4,8 +4,11 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
   VIEW_OPTIONS_DEFAULT,
+  VIEW_PRESETS,
   type ViewOptions,
+  type ViewPreset,
 } from "@/lib/ui/view-options";
+import { PIN_CAP, type PinnedMentee } from "@/lib/record/pinned";
 import {
   emptyDraft,
   type ChangeRequest,
@@ -396,6 +399,35 @@ interface OnboardingState {
    *  only sense this prototype has a user. */
   viewOptions: Record<string, ViewOptions>;
   setViewOptions: (scope: string, next: Partial<ViewOptions>) => void;
+  /** ═══ WHEN THE SHIFT BANNER WAS DISMISSED (Today Phase C.6, v48) ═══
+   *
+   *  C.6: "Dismissal persists for the current shift only, per supervisor." It
+   *  was `useState(false)` on the page — so it survived nothing, not even a
+   *  navigation to a destination and back, which is the single most likely
+   *  thing a supervisor does immediately after reading the banner.
+   *
+   *  AN INSTANT, NOT A BOOLEAN, AND THAT IS WHAT MAKES IT SHIFT-SCOPED. A flag
+   *  would need a second field saying which shift it belonged to, and the two
+   *  could disagree. One timestamp compared through `isNewShift` — the same
+   *  eight-hour boundary the banner already uses to decide whether a shift is
+   *  new — expires itself: once eight hours pass the dismissal is in a previous
+   *  shift and the banner returns without anything having to clear it.
+   *
+   *  0 MEANS NEVER DISMISSED, the same sentinel `shiftLastSeenAt` uses. */
+  shiftDigestDismissedAt: number;
+  dismissShiftDigest: (at: number) => void;
+  /** ═══ THE SUPERVISOR'S PINNED MENTEES (Today Phase E, v49) ═══
+   *
+   *  A private working set — see `lib/record/pinned.ts` for why it lives on the
+   *  SUPERVISOR rather than on the teen. Ordered by pin time ascending, which
+   *  is insertion order, which is Phase F's rendering order.
+   *
+   *  CAPPED IN THE SETTER AS WELL AS IN THE CONTROL. The control explains at
+   *  the cap rather than disabling (E.8), and this refuses regardless — a cap
+   *  enforced only in a component is a cap the next caller does not have. */
+  pinnedMentees: PinnedMentee[];
+  pinMentee: (id: string, at: number) => void;
+  unpinMentee: (id: string) => void;
   setTasksLastVisitAt: (at: number) => void;
   setActivityDensity: (density: ActivityDensity) => void;
   seedActivityRead: (overlay: ReadOverlay) => void;
@@ -645,6 +677,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       shiftLastSeenAt: 0,
       activityDensity: "dense",
       viewOptions: {},
+      shiftDigestDismissedAt: 0,
+      pinnedMentees: [],
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -1033,6 +1067,17 @@ export const useOnboardingStore = create<OnboardingState>()(
       setTasksLastVisitAt: (at) => set({ tasksLastVisitAt: at }),
       setActivityDensity: (density) => set({ activityDensity: density }),
       /** MERGED PER SCOPE, so setting density does not clear layout. */
+      dismissShiftDigest: (at) => set({ shiftDigestDismissedAt: at }),
+      pinMentee: (id, at) =>
+        set((st) => {
+          if (st.pinnedMentees.some((p) => p.id === id)) return st;
+          if (st.pinnedMentees.length >= PIN_CAP) return st;
+          return { pinnedMentees: [...st.pinnedMentees, { id, at }] };
+        }),
+      unpinMentee: (id) =>
+        set((st) => ({
+          pinnedMentees: st.pinnedMentees.filter((p) => p.id !== id),
+        })),
       setViewOptions: (scope, next) =>
         set((st) => ({
           viewOptions: {
@@ -1250,6 +1295,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           shiftLastSeenAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
       viewOptions: {},
+      shiftDigestDismissedAt: 0,
+      pinnedMentees: [],
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -1379,7 +1426,20 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      destination. Sparse and additive, so {} is the correct backfill and
       //      reads as "this user has not opened the control", which is true of
       //      every state persisted before this version existed.
-      version: 46,
+      // v47: viewOptions entries become {preset} — Refinement §4 collapsed the
+      //      density and layout axes into one three-step preset. NO `migrate`
+      //      ARM: the `merge` sanitiser reads the v46 shape and carries
+      //      `density: "compact"` across as `preset: "compact"`, which is the
+      //      only value with a same-named destination. Everything else falls to
+      //      the default, including every `layout` a user had chosen — the axis
+      //      is gone and there is nothing to carry it to.
+      // v48: shiftDigestDismissedAt — Today's banner dismissal, as an instant
+      //      rather than a flag so `isNewShift` expires it. 0 backfills as
+      //      "never dismissed", true of every state persisted before this.
+      // v49: pinnedMentees — the supervisor's private working set, ordered by
+      //      pin time. [] backfills as "nothing pinned", true of every state
+      //      persisted before this version existed.
+      version: 49,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2120,23 +2180,53 @@ export const useOnboardingStore = create<OnboardingState>()(
            invalid entry — so each entry is checked and a bad one is dropped
            rather than the whole map discarded. Dropping the entry falls back to
            the default, which is what an untouched control already does. */
+        /* ═══ pinnedMentees IS SANITISED AND RE-CAPPED ON MERGE (v49) ═══
+           Same posture as `viewOptions` below. The extra thing checked here is
+           the CAP: a persisted state from a build with a larger cap — or a
+           hand-edited one — would otherwise put more than five in a section
+           that promises five, and Today does not paginate. Truncating keeps
+           the OLDEST pins, because they are the ones the supervisor has lived
+           with longest. */
+        const pm = (merged as { pinnedMentees?: unknown }).pinnedMentees;
+        if (!Array.isArray(pm)) {
+          merged.pinnedMentees = [];
+        } else {
+          const seen = new Set<string>();
+          merged.pinnedMentees = pm
+            .filter((e): e is PinnedMentee => {
+              const o = e as Partial<PinnedMentee> | null;
+              if (!o || typeof o !== "object") return false;
+              if (typeof o.id !== "string" || !o.id) return false;
+              if (typeof o.at !== "number" || !Number.isFinite(o.at)) return false;
+              if (seen.has(o.id)) return false;
+              seen.add(o.id);
+              return true;
+            })
+            .slice(0, PIN_CAP);
+        }
+
         const vo = (merged as { viewOptions?: unknown }).viewOptions;
         if (typeof vo !== "object" || vo === null || Array.isArray(vo)) {
           merged.viewOptions = {};
         } else {
           const clean: Record<string, ViewOptions> = {};
           for (const [k, v] of Object.entries(vo as Record<string, unknown>)) {
-            const o = v as Partial<ViewOptions> | null;
+            const o = v as { preset?: unknown; density?: unknown } | null;
             if (!o || typeof o !== "object") continue;
-            const density =
-              o.density === "comfortable" || o.density === "compact"
-                ? o.density
-                : VIEW_OPTIONS_DEFAULT.density;
-            const layout =
-              o.layout === "split" || o.layout === "full"
-                ? o.layout
-                : VIEW_OPTIONS_DEFAULT.layout;
-            clean[k] = { density, layout };
+            /* ═══ THE v46 SHAPE IS READ, NOT DISCARDED (v47) ═══
+               v46 stored `{density, layout}`. §4 collapsed the two axes into
+               one three-step preset, and the honest mapping is that both of
+               v46's density values SURVIVE as presets of the same name — so a
+               supervisor who chose Compact yesterday still has Compact, and
+               only the layout half is dropped because the axis is gone.
+               Done here rather than in `migrate` because this map is sparse
+               and per-entry: `migrate` would have to walk it anyway, and one
+               reader is better than two that can disagree. */
+            const legacy = o.density === "compact" ? "compact" : null;
+            const preset = VIEW_PRESETS.includes(o.preset as ViewPreset)
+              ? (o.preset as ViewPreset)
+              : (legacy ?? VIEW_OPTIONS_DEFAULT.preset);
+            clean[k] = { preset };
           }
           merged.viewOptions = clean;
         }
@@ -2242,6 +2332,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         tasksLastVisitAt: state.tasksLastVisitAt,
         activityDensity: state.activityDensity,
         viewOptions: state.viewOptions,
+        shiftDigestDismissedAt: state.shiftDigestDismissedAt,
+        pinnedMentees: state.pinnedMentees,
         careUpdates: state.careUpdates,
         careSummaryRefreshedAt: state.careSummaryRefreshedAt,
         relationshipEvents: state.relationshipEvents,

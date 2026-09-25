@@ -54,7 +54,7 @@ import { elapsedLabel } from "@/components/tasks/strips";
 import { discFor } from "@/lib/tasks/avatar";
 import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
-import { TASK_KIND_ICON, TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
+import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { ProposalCodes, proposalSpoken } from "@/components/record/proposal-codes";
 import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
@@ -72,7 +72,7 @@ import {
 import {
   LIST_MIN_ROWS,
   ROW_GEOMETRY,
-  type Density,
+  type ViewPreset,
 } from "@/lib/ui/view-options";
 import { cn } from "@/lib/utils";
 
@@ -97,9 +97,9 @@ import { cn } from "@/lib/utils";
    `ROW_GEOMETRY` in `lib/ui/view-options.ts` holds both, with the arithmetic
    that produces them. `Worklist` reads `rowH` off it once and every piece of
    window arithmetic below uses that, so the two cannot drift apart within a
-   render. `Row` and `ListSkeleton` take the density and derive the same number
+   render. `Row` and `ListSkeleton` take the preset and derive the same number
    from the same table.
-   COMPACT IS 56 EXACTLY — the density the virtualizer's measurements were taken
+   COMPACT IS 56 EXACTLY — the preset the virtualizer's measurements were taken
    against is still one of the two settings, which is the setting to fall back
    to if the taller row ever misbehaves. */
 /** THE HEADER'S HEIGHT, from the component that draws it. Two constants for one
@@ -265,14 +265,14 @@ function Row({
   onSelect,
   onToggle,
   registerRef,
-  density,
-  wide,
+  preset,
+  hasGroups,
   hairline,
 }: {
   /** §5's row scale. See the geometry note on why this is not a class. */
-  density: Density;
-  /** §5's `Full width` — the row stops truncating when the pane is gone. */
-  wide: boolean;
+  preset: ViewPreset;
+  /** Whether ANY row in this list is a group — see the list's own prop. */
+  hasGroups: boolean;
   /** False on the first row under a band header, and on the first row of an
    *  ungrouped list: a hairline there is a second line 1px from the header's
    *  own, or from the card's border. */
@@ -307,7 +307,10 @@ function Row({
   const isTeenGroup = isGroup && entry.groupBy === "teen";
   const disc = discFor(item.teenId);
   const mentorFirstName = item.mentorName.split(" ")[0];
-  const KindIcon = TASK_KIND_ICON[item.taskType];
+  /* `KindIcon` IS GONE WITH THE ICON WELL (Refinement §1.3). `TASK_KIND_ICON`
+     is NOT deleted — the strangler rule, and the pane and the ledger still read
+     it. What went is the ROW's use of it, because one glyph on a surface holding
+     one kind of work drew the same thing on every row. */
   /** JOB-FIRST ANATOMY. A child row is never task-led — see `variant`. */
   const taskLed = variant === "task" && !indent;
   /** A LIVE ESCALATION'S ROW. Drives the elapsed counter and the fill's ink. */
@@ -481,7 +484,7 @@ function Row({
     .filter(Boolean)
     .join(", ");
 
-  const geo = ROW_GEOMETRY[density];
+  const geo = ROW_GEOMETRY[preset];
 
   return (
     <div
@@ -511,10 +514,15 @@ function Row({
       /* ONE `style`, BOTH FACTS. The height is the virtualizer's invariant and
          cannot be a class; the fill is a token that Tailwind cannot compose with
          an inline height without two attributes, which JSX refuses. */
-      /* EXACT HEIGHT, NOT A MINIMUM — see the geometry note. Inline because it
-         is a number that moves with the density, which a class cannot be. */
-      style={{ height: geo.height }}
-      data-density={density}
+      /* ═══ THE ROW BOX IS THE PITCH, NOT THE CARD (Refinement §4) ═══
+         EXACT, NOT A MINIMUM — see the geometry note. `Cards` needs a gap
+         between rows, and a margin cannot provide it: a margin is not in the
+         virtualizer's offset arithmetic, so every card would draw 12px lower
+         than the window thinks it is. The gutter is carried INSIDE the row box
+         instead — the box steps by `pitch`, the card draws `height`, and the
+         difference is the gap. One number moves; the arithmetic does not. */
+      style={{ height: geo.pitch }}
+      data-preset={preset}
       className={cn(
         "group relative cursor-pointer",
         /* THE RING MOVED TO THE PILL, so it traces the inset shape instead of a
@@ -528,37 +536,65 @@ function Row({
         resolving && "opacity-55"
       )}
     >
-      {/* ═══ THE PILL — FILL, HOVER, FOCUS AND THE ESCALATION BAND ═══
-          §3: "Selection becomes an inset rounded pill with margin on all four
-          sides." One element carries every ground this row can have, so they
-          cannot disagree about the shape. 8px horizontal, 4px vertical — an 8px
-          gutter between adjacent pills, without the vertical cost of detached
-          cards, which §3 rules out by name because on a 123-item queue card
-          gaps roughly halve items per screen.
+      {/* ═══ ONE ELEMENT FOR EVERY GROUND THIS ROW CAN HAVE ═══
+          Selection, hover, focus and the escalation band, so they cannot
+          disagree about the shape. GROUPED presets draw it as an inset pill —
+          4px of vertical margin, an 8px gutter between neighbours, no border,
+          because the divider is what separates them. `Cards` draws it as a
+          detached panel with its own contour and fill, filling the card region
+          with the gutter below it.
           THE SATURATED FILL COMES WITH IT (arch-G, G2). A live escalation is
-          still the one filled treatment on this surface; it is now an inset
-          filled pill rather than a full-bleed band, which changes its shape and
-          not its rank. */}
+          still the one filled treatment on this surface; its shape changes with
+          the preset and its rank does not. */}
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[var(--radius-inset)] transition-colors",
+          "pointer-events-none absolute inset-x-2 rounded-[var(--radius-inset)] transition-colors",
           "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--focus-ring)]",
+          geo.detached && "border border-[color:var(--border-contour)]",
           selected
             ? isResponse
               ? "ring-2 ring-inset ring-[var(--task-respond-fg)]"
               : "bg-[var(--surface-s2)]"
-            : !isResponse && "group-hover:bg-[var(--tint-hover)]"
+            : isResponse
+              ? null
+              : cn(
+                  geo.detached && "bg-[var(--surface-card)]",
+                  "group-hover:bg-[var(--tint-hover)]"
+                )
         )}
-        style={isResponse ? { backgroundColor: "var(--task-respond-bg)" } : undefined}
+        /* THE CARD FILLS ITS REGION; THE PILL INSETS INSIDE IT. Inline because
+           both numbers come off the geometry table. */
+        style={{
+          top: geo.detached ? 0 : 4,
+          height: geo.detached ? geo.height : geo.height - 8,
+          ...(isResponse ? { backgroundColor: "var(--task-respond-bg)" } : null),
+        }}
       />
       <div
-        /* px-6 = 24px: 8px of pill track plus 16px of row padding, so content
-           starts 24px inside the card — §3's horizontal breathing room, spent
-           where it calms a row rather than on the gap between rows. */
+        /* THE CONTENT REGION IS THE CARD'S HEIGHT, not the row box's — so under
+           `Cards` the content centres in the panel and the gutter stays empty.
+           px-6 = 8px of card track plus 16px of row padding, so content starts
+           24px inside the panel. */
+        style={{ height: geo.height }}
+        className={cn("relative px-6", indent && "pl-14")}
+      >
+      {/* ═══ THE DIVIDER RUNS THE FULL CONTENT BOX (Refinement §1.2) ═══
+          REVERSING the prior pack's inset separator, and the reversal is
+          measured: inset, the line stopped 272px short of the row's right edge
+          on Risk Flags, so the age hung past a ragged edge and read as a
+          rendering fault rather than as intent.
+          IT IS ON THIS WRAPPER, NOT THE PADDED PARENT. A border on the parent
+          would span its border box — 8px to 8px, the card's own edges — while
+          this element IS the padding box, so the line runs 24px to 24px,
+          symmetrically, and never bleeds to the panel edge.
+          NOT UNDER `Cards`: a detached panel carries its own contour and a
+          divider as well would be two separators for one boundary. */
+      }
+      <div
         className={cn(
-          "relative flex h-full items-stretch gap-3 px-6",
-          indent && "pl-14"
+          "flex h-full items-stretch gap-3",
+          hairline && !geo.detached && "border-t border-[color:var(--border-subtle)]"
         )}
       >
       {/* THE DISCLOSURE INDICATOR. aria-hidden — the state is on the option. Its
@@ -580,36 +616,34 @@ function Row({
           />
         </span>
       ) : (
-        !indent && <span aria-hidden className="w-5 shrink-0" />
+        /* THE ALIGNMENT SPACER, ONLY WHEN THERE IS SOMETHING TO ALIGN TO. */
+        !indent && hasGroups && <span aria-hidden className="w-5 shrink-0" />
       )}
 
-      {/* ═══ WHAT SITS AT THE HEAD OF THE ROW — PERSON OR JOB (arch-E) ═══
-          PERSON-FORWARD (Monitoring's coalesced rows): the identity disc. HUE
-          MEANS WHO, AND NEVER WHAT — not the tier, not breach, not the flag
-          count. See `lib/tasks/avatar.ts`; the short form is that the row already
+      {/* ═══ THE IDENTITY DISC, ON BOTH SURFACES NOW (Refinement §1.3) ═══
+          arch-E gave Tasks a TASK-TYPE ICON in a neutral well instead of the
+          disc, reasoning that "a supervisor works this queue in deadline order
+          rather than hunting for a named teen" and that it makes the two
+          surfaces visibly different species.
+          THE DEADLINE IS GONE (addendum §2.9) AND THE ICON WENT WITH ITS
+          ARGUMENT. With one icon for a surface holding one kind of work, every
+          row drew the SAME glyph — which is the defect arch-F removed from the
+          emphasis channel and §2.9 removed from the label channel, arriving a
+          third time in the icon channel: the most prominent element on nineteen
+          rows carrying no information. The disc carries the teen, which varies.
+          HUE MEANS WHO, AND NEVER WHAT — not the tier, not breach, not a count.
+          See `lib/tasks/avatar.ts`; the short form is that the row already
           carries every state in words and a second colour language would leave a
           reader fluent in neither.
-          DEADLINE-FORWARD (Tasks): the TASK-TYPE ICON in a neutral well. The disc
-          is gone from these rows and that is a real loss, taken deliberately — a
-          supervisor works this queue in deadline order rather than hunting for a
-          named teen, and person-first lookup belongs on Mentees. It also makes
-          the two surfaces visibly different species, which is correct: Tasks'
-          unit is the review, Monitoring's is the person.
-          THE WELL IS NEUTRAL, NOT PER-TYPE. A hue per task type would compete
-          with breach, which is the one thing colour is spent on here — and with
-          one task type on the surface today it would be a colour that never
-          varies. The icon plus the label beside it carry the type (SC 1.4.1).
-          `aria-hidden` on both: the initial shortens a name printed beside it,
-          and the icon duplicates the task name printed beside it. */}
-      {taskLed ? (
-        <span
-          aria-hidden
-          className="flex shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--surface-s1)] text-[var(--text-secondary)]"
-          style={{ width: geo.disc, height: geo.disc }}
-        >
-          <KindIcon className="size-3.5" />
-        </span>
-      ) : (
+          `aria-hidden`: the initial shortens a name printed beside it.
+          ═══ AND IT CENTRES TO THE ROW BOX (§1.1) ═══
+          MEASURED before: the well sat 22px above the row's centre while the
+          trailing metadata was centred — two alignment logics in one row. The
+          cause was mine: the content row became `items-stretch` last pass so
+          the text column could carry a full-height border, and a fixed-height
+          child of a stretch container aligns to its START. The wrapper is what
+          re-centres it, and it is the same wrapper Risk Flags already had. */}
+      <span className="flex shrink-0 items-center">
         <span
           aria-hidden
           className="flex shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
@@ -622,7 +656,7 @@ function Row({
         >
           {item.teenDisplayName.charAt(0)}
         </span>
-      )}
+      </span>
 
       {/* ═══ THE SEPARATOR LIVES ON THIS COLUMN (§3) ═══
           "Separators inset — start after the avatar, stop before the trailing
@@ -632,7 +666,7 @@ function Row({
           it spans exactly from after the disc to before the trailing block, so
           §3's two ends are derived from the layout instead of from hardcoded
           insets that would drift the day the disc changes size — which it now
-          does, per density.
+          does, per preset.
           IT NEVER CROSSES A PILL. The line sits at y=0 of the row box and the
           pill starts at y=4, so a hairline falls in the gutter between two
           pills rather than cutting across a fill. That crossing is what made
@@ -721,8 +755,7 @@ function Row({
             lineHeight: `${geo.secondary.leading}px`,
           }}
           className={cn(
-            "block",
-            wide ? "shrink-0" : "truncate",
+            "block truncate",
             /* ═══ 1.45:1 — THE WORST PAIR ON THE SURFACE (arch-G, G6) ═══
                MEASURED by axe: `--text-secondary` (#58534b) on the respond fill
                (#c9351d). At 12px. On the line that says "911 dispatched".
@@ -845,6 +878,7 @@ function Row({
           {temporal}
         </span>
         </span>
+        </div>
       </div>
     </div>
   );
@@ -862,13 +896,13 @@ function Row({
  *  Sized from `ROW_H` so a skeleton row occupies exactly what a real row will —
  *  which is what makes the swap from skeleton to content produce no layout shift
  *  at all. */
-function ListSkeleton({ rows, density }: { rows: number; density: Density }) {
+function ListSkeleton({ rows, preset }: { rows: number; preset: ViewPreset }) {
   return (
     <div aria-hidden>
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          style={{ height: ROW_GEOMETRY[density].height }}
+          style={{ height: ROW_GEOMETRY[preset].height }}
           className="flex items-center gap-3 border-t border-[color:var(--border-subtle)] px-4 first:border-t-0"
         >
           <span className="w-5 shrink-0" />
@@ -1016,16 +1050,23 @@ export function Worklist({
   state,
   onSelect,
   onRetry,
-  density,
-  wide,
+  preset,
+  hasGroups,
 }: {
   /** §5's row scale. Required rather than defaulted — see the geometry note:
    *  a surface that forgot to pass it would render rows the virtualizer is not
    *  measuring, which is the one failure in this file that is invisible. */
-  density: Density;
-  /** §5's `Full width`. The list has the whole container, so a row stops
-   *  truncating what it truncates beside a pane. */
-  wide: boolean;
+  preset: ViewPreset;
+  /** ═══ ANY GROUP IN THIS LIST AT ALL (Refinement §1.3) ═══
+   *  Not "is THIS row a group" — that is `entry.kind`. A non-group row renders
+   *  a 20px spacer so its avatar lines up with a group row's disclosure
+   *  chevron, and that only earns its width when a chevron exists somewhere in
+   *  the list. MEASURED: every Care Reviews entry is `kind: "item"` (billing
+   *  types are not flag tasks, so `list.ts` never coalesces them), so the
+   *  spacer was 20px of dead space on every row of that surface — and it was
+   *  the reason the two lists still did not align after §1.3 gave both the
+   *  same disc. */
+  hasGroups: boolean;
   entries: ListEntry[];
   /** THE WHOLE DOMAIN'S ITEMS, open and resolved. Needed only by band
    *  retirement, which reports how many of a cleared tier closed today — a fact
@@ -1113,8 +1154,8 @@ export function Worklist({
    *  once is what stops two of those disagreeing inside one render, which is the
    *  drift the geometry note warns about and the reason the height was a
    *  constant in the first place. */
-  const geo = ROW_GEOMETRY[density];
-  const rowH = geo.height;
+  const geo = ROW_GEOMETRY[preset];
+  const rowH = geo.pitch;
   /** TODO-COPY. The list's own name, in three places that must agree. */
   const subjectLabel = subject ?? (domain ? DOMAIN_LABEL[domain] : "Worklist");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -1191,7 +1232,7 @@ export function Worklist({
     }
     return out;
     /* `rowH` IS A REAL DEPENDENCY, NOT A LINT APPEASEMENT. Every `rowsTop` in
-       this table is accumulated from it, so a density change that did not
+       this table is accumulated from it, so a preset change that did not
        recompute here would leave the virtualizer measuring 56px rows while the
        DOM rendered 80px ones — the exact drift the geometry note describes,
        and the reason it is invisible: nothing throws, the list simply scrolls
@@ -1464,7 +1505,7 @@ export function Worklist({
           bands.map((band) => (
             <div key={band.id} role="group" aria-label={bandHeaderLabel(band, subjectLabel)}>
               <WorklistGroupHeader label={band.label} count={band.taskCount} />
-              <ListSkeleton rows={Math.min(band.entries.length, 6)} density={density} />
+              <ListSkeleton rows={Math.min(band.entries.length, 6)} preset={preset} />
             </div>
           ))
         ) : (
@@ -1472,7 +1513,7 @@ export function Worklist({
              not read as a five-item list. */
           <ListSkeleton
             rows={Math.max(5, Math.ceil((viewport.height || 560) / rowH))}
-            density={density}
+            preset={preset}
           />
         )}
         <p className="sr-only" role="status">
@@ -1549,9 +1590,13 @@ export function Worklist({
          inside a box the height of the viewport — §2 is right that this reads
          as a rendering fault rather than a short list. `max-h-full` keeps the
          scroll bounded by the page; the floor is three rows at the current
-         density, the smallest count that still reads as a list. */
+         preset, the smallest count that still reads as a list. */
+      /* CONTENT-SIZED AND STILL SHRINKABLE — the full reasoning is on
+         Monitoring's scroller, and the short form is that `max-h-full` meant
+         100% of a column that now also holds a toolbar, so the page started
+         scrolling. */
       style={{ minHeight: rowH * LIST_MIN_ROWS }}
-      className={cn(frame, "max-h-full overflow-y-auto overscroll-contain")}
+      className={cn(frame, "min-h-0 overflow-y-auto overscroll-contain")}
     >
       {sections.map((section) => {
         const n = section.rows.length;
@@ -1608,8 +1653,8 @@ export function Worklist({
             {section.rows.slice(first, last).map((v, vi) => (
               <Row
                 key={v.id}
-                density={density}
-                wide={wide}
+                preset={preset}
+                hasGroups={hasGroups}
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
                    Under a band header, every row keeps one: the header is a
                    filled strip and the line beneath it separates two different
@@ -1620,7 +1665,19 @@ export function Worklist({
                    inside it. `first + vi` is the ABSOLUTE index: `first` is the
                    virtualizer's window start, and `vi` alone would put a gap at
                    the top of every scroll position. */
-                hairline={showBands || first + vi > 0}
+                /* ═══ AND NOT DIRECTLY UNDER THE SELECTION ═══
+                   §1.2's full-width divider and the inset pill are both
+                   correct and they meet badly at one edge: the next row's
+                   hairline sits 4px below the selected pill and reads as an
+                   underline on it rather than as a boundary between two rows.
+                   The row ABOVE the line is the one that owns the problem, so
+                   the row below it drops its hairline. `first + vi - 1` is the
+                   absolute previous index — `vi` alone would compare against
+                   the wrong row at every scroll position. */
+                hairline={
+                  (showBands || first + vi > 0) &&
+                  section.rows[first + vi - 1]?.id !== selectedId
+                }
                 resolving={resolvingIds?.has(v.item.id) ?? false}
                 entry={v.entry}
                 variant={rowVariant}

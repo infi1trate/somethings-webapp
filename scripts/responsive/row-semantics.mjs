@@ -512,14 +512,37 @@ for (const [url, name, scroller, monitoring] of [
     rows.every((r) => !/\bto [A-Z]/.test(r.line2?.text ?? "") && !/, to /.test(r.label)),
     rows[0]?.label
   );
+  /* ═══ INVERTED — §1.3 PUT THE DISC BACK ═══
+     This asserted arch-E's decision: no identity disc on a Tasks row, a
+     task-type icon in a neutral well instead, because "a supervisor works this
+     queue in deadline order rather than hunting for a named teen" and it made
+     the two surfaces visibly different species.
+     BOTH HALVES OF THAT ARGUMENT ARE GONE. The deadline went with addendum
+     §2.9, and one icon on a surface holding one kind of work drew the SAME
+     glyph on every row — the third arrival of the defect arch-F removed from
+     the emphasis channel and §2.9 removed from the label channel. §1.3 replaces
+     it with the teen's disc, which varies.
+     SO THE CHECK IS NOW ITS OWN INVERSE, and it is stated as one check rather
+     than deleted: a probe that simply dropped the assertion would let the icon
+     well come back unnoticed. It asserts the disc is present on EVERY row —
+     `>= rows.length` rather than `> 0`, because one disc among nineteen rows
+     would satisfy a bare existence check while nineteen rows drew an icon. */
+  const discs = await page.evaluate(
+    () => ({
+      rows: document.querySelectorAll('[role="treeitem"]').length,
+      discs: document.querySelectorAll(
+        '[role="treeitem"] span[aria-hidden][style*="background"]'
+      ).length,
+      wells: document.querySelectorAll(
+        '[role="treeitem"] span[aria-hidden] svg'
+      ).length,
+    })
+  );
   check(
-    "e.no-avatar",
-    "the identity disc is replaced by a task-type icon",
-    await page.evaluate(
-      () =>
-        document.querySelectorAll('[role="treeitem"] span[aria-hidden][style*="background"]').length === 0 &&
-        document.querySelectorAll('[role="treeitem"] svg').length > 0
-    )
+    "e.identity-disc",
+    "every Tasks row carries the teen's identity disc, and no task-type icon well",
+    discs.rows > 0 && discs.discs >= discs.rows && discs.wells === 0,
+    `${discs.discs} discs and ${discs.wells} icon wells across ${discs.rows} rows`
   );
   check("e.height", "row height", true, `${rows[0]?.height}px`);
 

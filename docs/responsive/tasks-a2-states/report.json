@@ -4,14 +4,14 @@
     {
       "id": "default.subtitle",
       "label": "the subtitle counts billing, and agrees with the list",
-      "ok": true,
-      "detail": "\"19 open · 2 overdue\" against 16 mounted rows"
+      "ok": false,
+      "detail": "\"Presentation reviews waiting on a supervisor's decision.\" against 15 mounted rows"
     },
     {
       "id": "default.buckets",
       "label": "the list is grouped by deadline, in fixed order",
-      "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
+      "ok": false,
+      "detail": "Care Reviews — 19"
     },
     {
       "id": "default.no-tabs",
@@ -21,13 +21,13 @@
     {
       "id": "default.first-row-top",
       "label": "y of the first row",
-      "measured": 203
+      "measured": 172
     },
     {
       "id": "default.kind-filter",
       "label": "the filter chip row renders now that two task types are present",
-      "ok": true,
-      "detail": "1 chip row(s)"
+      "ok": false,
+      "detail": "0 chip row(s)"
     },
     {
       "id": "one-kind.no-chip-row",
@@ -38,17 +38,17 @@
     {
       "id": "breach.subtitle",
       "label": "overdue clause appears",
-      "ok": true
+      "ok": false
     },
     {
       "id": "breach.chip",
       "label": "the row carries an Overdue chip",
-      "ok": true
+      "ok": false
     },
     {
       "id": "breach.single-band",
       "label": "a lone bucket still labels itself",
-      "ok": true
+      "ok": false
     },
     {
       "id": "error.retry",
@@ -68,13 +68,13 @@
     {
       "id": "error.retry-works",
       "label": "retry restores the list",
-      "ok": true
+      "ok": false
     },
     {
       "id": "partial.billing-healthy",
       "label": "partial leaves billing fully loaded",
-      "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
+      "ok": false,
+      "detail": ""
     },
     {
       "id": "loading.run1",
@@ -113,7 +113,7 @@
       "id": "mechanics.row-holds-during-window",
       "label": "the resolved row holds its place while undo is still possible",
       "ok": true,
-      "detail": "Theo L. Billing code review Closing… overdue by 9h"
+      "detail": "Theo L. Closing… 3d open"
     },
     {
       "id": "mechanics.says-closing",
@@ -157,14 +157,14 @@
     {
       "id": "retire.others-stay",
       "label": "and the remaining buckets are intact",
-      "ok": true,
-      "detail": "Overdue — 2 | Due today — 2 | Due tomorrow — 7 | Later — 8"
+      "ok": false,
+      "detail": ""
     },
     {
       "id": "empty.copy",
       "label": "the emptied surface says nothing is open",
-      "ok": true,
-      "detail": "Tasks Nothing open · 1 completed today No open tasks Every queue is clear. Go to"
+      "ok": false,
+      "detail": "Care Reviews Presentation reviews waiting on a supervisor's decision. View 0 ope"
     },
     {
       "id": "empty.skips-retirement",

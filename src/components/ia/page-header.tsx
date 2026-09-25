@@ -69,79 +69,94 @@ export function PageHeader({
   return (
     <div
       data-anno-ref="page-header"
-      /* ═══ items-baseline, NOT items-start (Layout Pass §2) ═══
-         §2: "title, subtitle, and metric cluster share a baseline grid". They
-         did not — the two sides were top-aligned, so the title's baseline sat
-         at ~29px and the first metric's at ~22px, seven pixels apart and
-         reading as two components that happened to be on the same row.
-         Baseline alignment is what makes them one band: the figure and the
-         title now sit on one line, and everything each side owns hangs below
-         its own. */
-      className={cn("flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-3", className)}
+      /* ═══ TWO PEER BLOCKS, TOPS ALIGNED (Refinement §2, §3.2) ═══
+         It was `items-baseline`, which put the title's baseline and the first
+         metric figure's on one line — right for two runs of text, wrong now
+         that §3.2 gives the metric cluster a PANEL. A bordered box cannot sit
+         on a text baseline without its top edge floating above the title.
+         Tops aligned is what makes them read as one band of two peers, which
+         is what §2 asked for and what the baseline trick was approximating. */
+      className={cn("flex shrink-0 flex-wrap items-start justify-between gap-x-6 gap-y-3", className)}
     >
       <div className="min-w-0 flex-1">
-        <h1 className="font-display text-[28px] font-bold leading-[36px] text-[var(--text-primary)]">
+        {/* ═══ 32/40 — A BLOOM STOP, AND THE OFF-RAMP TITLE RETIRES ═══
+            It was 28/36, which is not a step on the ramp (32/40 · 24/32 ·
+            16/24 · 14/20 · 12/16). §2 asks for one more step up and the ramp's
+            next stop is exactly that, so the instruction and the scale agree.
+            Reported last pass as the one off-ramp value left deliberately
+            alone; this is where it goes. */}
+        <h1 className="font-display text-[32px] font-bold leading-[40px] text-[var(--text-primary)]">
           {title}
         </h1>
         {/* ═══ THE PURPOSE, NOT THE STATE ═══
             A sentence about what this destination IS, which does not change
             when the data does. Monitoring's old subtitle stated obligations —
             a reading, which is what the metrics are for — and the two were
-            competing for the same line. */}
+            competing for the same line.
+            ═══ 16/24, AND `mt-1` TIGHTENS THE LOCKUP (§2) ═══
+            Larger rather than higher-contrast: against a 32px title, 14px read
+            as a caption hanging off the heading rather than as its second line.
+            16/24 is the ramp stop below 24/32, so the title and the purpose are
+            two steps apart — enough hierarchy without the purpose receding.
+            The gap goes 6px → 4px so the two read as ONE lockup; the air moves
+            below the header instead, where it separates the block from the
+            content. */}
         <p
           data-anno-ref="page-purpose"
-          className="mt-1.5 max-w-prose text-[14px] leading-[20px] text-[var(--text-secondary)]"
+          className="mt-1 max-w-prose text-[16px] leading-[24px] text-[var(--text-secondary)]"
         >
           {purpose}
         </p>
       </div>
       {(metrics.length > 0 || progress || children) && (
-        /* ═══ ONE RIGHT-HAND CLUSTER, TWO ROWS DEEP — NOT THREE ═══
-           MEASURED before: the metric cluster was 86px wide at x=1978 and the
-           progress track 183px at x=1881, so the track stuck out 97px to the
-           left of the figures it belongs with — which is most of why §2 read
-           them as "two unrelated components". `w-full` on the track makes the
-           column as wide as its widest child and stretches the bar to it, so
-           the two share both edges instead of one.
-           AND `children` SITS BESIDE THE FIGURES RATHER THAN UNDER THE TRACK.
-           Stacked, the §5 control was a THIRD row on the right of a header
-           whose left side is two — measured, it pushed the list 44px further
-           down and left a band of empty page beside the purpose line. Inline,
-           the right-hand side is two rows like the left, which is also what
-           the pipeline-down note already asked for in words: "It sits beside
-           them, and it outranks them." */
-        <div className="flex shrink-0 items-baseline gap-5">
-          {children}
-          <div className="flex flex-col items-end gap-2">
-          {metrics.length > 0 && (
-            <div data-anno-ref="page-metrics" className="flex items-start gap-6">
-              {metrics.map((m) => (
-                <div key={m.label} className="min-w-0 text-right">
-                  <p
-                    data-metric-value={m.label}
-                    /* ═══ 24/32 IS A BLOOM STOP; 22/28 WAS NOT ═══
-                       The ramp is 32/40 · 24/32 · 16/24 · 14/20 · 12/16 and
-                       this figure sat between two of them. It takes the step
-                       below the 28px title, which is also what lets the two
-                       share a baseline without the figure looking undersized
-                       beside it. */
-                    className="font-display text-[24px] font-bold leading-[32px] tabular-nums text-[var(--text-primary)]"
-                  >
-                    {m.value}
+        /* ═══ THE CLUSTER IS A PANEL NOW (§3.2) ═══
+           MEASURED before: `backgroundColor: rgba(0,0,0,0)`, `borderWidth: 0`,
+           `borderRadius: 0` — bare page background, while the list and the pane
+           both sit on `--surface-card` inside `--border-contour` at
+           `--radius-elevated`. That is why it receded: it was the only content
+           on the page with no panel under it.
+           THE SAME THREE TOKENS, NOT A NEW TREATMENT. Zero new tokens is the
+           standing rule, and a peer element should be built from the peers'
+           own parts.
+           ═══ AND IT IS ONE OBJECT, NOT THREE FRAGMENTS (§3.3) ═══
+           Figures, labels and the track are inside one border with one padding
+           box, so the grouping is structural rather than implied by proximity. */
+        <div
+          data-anno-ref="page-metric-panel"
+          className="flex shrink-0 flex-col items-end gap-3 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-5 py-4"
+        >
+          <div className="flex items-baseline gap-5">
+            {children}
+            {metrics.length > 0 && (
+              <div data-anno-ref="page-metrics" className="flex items-baseline gap-6">
+                {metrics.map((m) => (
+                  /* ═══ THE FIGURE AND ITS LABEL ON ONE LINE (§3.3) ═══
+                     They were stacked — figure over label — which made each
+                     pair two fragments and the cluster four. Inline, a pair is
+                     one phrase ("69 open"), and the two pairs are two phrases
+                     rather than a 2×2 grid.
+                     THE NUMERAL CARRIES THE WEIGHT and the label stays quiet,
+                     which is the same division the row uses. */
+                  <p key={m.label} className="flex min-w-0 items-baseline gap-1.5">
+                    <span
+                      data-metric-value={m.label}
+                      className="font-display text-[24px] font-bold leading-[32px] tabular-nums text-[var(--text-primary)]"
+                    >
+                      {m.value}
+                    </span>
+                    {/* QUIET, AND NOT UPPERCASE. An all-caps label at 11px is
+                        the treatment this codebase uses for an EYEBROW above
+                        content; beside a figure it would compete with the
+                        figure it describes. */}
+                    <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                      {m.label}
+                    </span>
                   </p>
-                  {/* QUIET, AND NOT UPPERCASE. An all-caps label at 11px is
-                      the treatment this codebase uses for an EYEBROW above
-                      content; under a figure it would compete with the figure
-                      it describes. */}
-                  <p className="mt-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-                    {m.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-          {progress && <div className="w-full">{progress}</div>}
+                ))}
+              </div>
+            )}
           </div>
+          {progress && <div className="w-full">{progress}</div>}
         </div>
       )}
     </div>

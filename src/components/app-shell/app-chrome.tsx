@@ -49,18 +49,18 @@ import {
   railItems,
 } from "@/components/settings/nav-items";
 import { roleForPersona } from "@/components/settings/tabs-config";
-import { DESTINATION_TYPES } from "@/lib/ia/destinations";
+import { openCounts } from "@/lib/ia/open-counts";
 import { homeObligations } from "@/lib/home/obligations";
 import { isMentorVisibleActivity } from "@/lib/onboarding/profile-update";
 import { isSupervisorTier } from "@/lib/record/permission-map";
 import { useOnboardingStore } from "@/lib/onboarding/store";
-import {
-  escalationObligations,
-  isSettled,
-} from "@/lib/monitoring/escalation";
+/* `escalationObligations`, `isSettled` and `openTasks` moved BEHIND
+   `openCounts` — the rail no longer derives any destination count itself, which
+   is the point of Phase A. They are gone from here rather than left imported,
+   because an unused count helper in the file that used to compute counts is an
+   invitation to compute one again. */
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { tasksScenario } from "@/lib/tasks/seed";
-import { openTasks } from "@/lib/tasks/sort";
 import { useAppearance } from "@/lib/use-appearance";
 import { useMounted } from "@/lib/use-mounted";
 
@@ -177,27 +177,69 @@ export function AppChrome({
    *  THE COST, STATED: the rail now builds the monitoring fixture on every
    *  route. It is a pure function of two scenario ids and a frozen clock,
    *  memoised on them — the same shape as `scenarioItems` beside it. */
-  const escalationRecords = useMemo(
+  /** ═══ THE WHOLE FIXTURE, NOT JUST ITS ESCALATIONS (Refinement §7) ═══
+   *  Two of the three badges below are derived from this, so it is built once
+   *  and destructured rather than called per badge. */
+  const monitoring = useMemo(
     () =>
       mounted && staff
-        ? monitoringData(monitoringScenarioId, tasksScenarioId, badgeNow).escalations
-        : [],
+        ? monitoringData(monitoringScenarioId, tasksScenarioId, badgeNow)
+        : null,
     [mounted, staff, monitoringScenarioId, tasksScenarioId, badgeNow]
   );
-  const openBy = useMemo(() => {
-    const count = (id: keyof typeof DESTINATION_TYPES) =>
-      openTasks(scenarioItems).filter((i) =>
-        DESTINATION_TYPES[id].includes(i.taskType)
-      ).length;
-    return {
-      escalations: escalationObligations(
-        escalationRecords.filter((r) => !isSettled(r, badgeNow)),
-        badgeNow
-      ).active,
-      "risk-flags": count("risk-flags"),
-      "care-reviews": count("care-reviews"),
-    };
-  }, [scenarioItems, escalationRecords, badgeNow]);
+  /** ═══ THE FLAG BADGE READS THE FIXTURE, NOT THE TASK ITEMS (§7) ═══
+   *
+   *  MEASURED, and reported at the end of the last pass: the Risk Flags header
+   *  read `9 open` while this badge read `123`. Both counted honestly and
+   *  neither was wrong — they were counting DIFFERENT SETS. The header reads
+   *  `monitoringData(...).events`, which a monitoring scenario TRUNCATES via
+   *  `flagPool(...).slice(0, n)`; this badge read `openTasks(scenarioItems)`
+   *  and never consulted `monitoringScenarioId` at all, so it reported the
+   *  untruncated pool.
+   *
+   *  THE DIVERGENCE WAS INSIDE THIS OBJECT. `escalations` already called
+   *  `monitoringData(monitoringScenarioId, …)` two lines up while its two
+   *  neighbours did not — which is exactly the shape the escalation badge's own
+   *  note warns about: "each side looks right on its own". Same fix, same
+   *  reason, one phase later: ONE PRIMITIVE PER DESTINATION, and it is the one
+   *  the destination renders.
+   *
+   *  `care-reviews` KEEPS READING TASK ITEMS, and that is not an inconsistency:
+   *  `tasks-page.tsx` builds from `tasksScenario(tasksScenarioId)` directly and
+   *  never touches the monitoring fixture, so task items ARE that destination's
+   *  primitive. The rule is "read what the page reads", not "read the fixture".
+   *
+   *  IT IS THE UNFILTERED TOTAL, DELIBERATELY (§6.4). Session filters and
+   *  in-session resolves are page state and do not reach the rail — a badge
+   *  that moved when a supervisor typed in a search box would stop being a
+   *  count of what is waiting. */
+  /** ═══ ONE EXPRESSION PER DESTINATION, AND IT LIVES IN `lib/ia` (Phase A) ═══
+   *
+   *  This object used to hold three derivations written here: escalations
+   *  through `escalationObligations`, risk flags through the fixture, and care
+   *  reviews through a task-type filter — while `todayCards` wrote its own
+   *  three, one of which (care reviews) filtered by DOMAIN instead. Those two
+   *  agreed only because the type table happened to make them agree.
+   *
+   *  `openCounts` is now the single source and both surfaces read it. The rail
+   *  and Today cannot disagree about a destination, because there is no longer a
+   *  second expression to disagree with.
+   *
+   *  WHAT STAYS HERE: the rail's own three non-destination badges (`activity`,
+   *  `team`, `today`), which count different things for different reasons and
+   *  are not destinations. `today`'s is called out in the report — it is a DEBT
+   *  count, not an open count, and no phase in this pack specifies what it
+   *  should become, so it is left exactly as it was. */
+  const openBy = useMemo(
+    () =>
+      openCounts({
+        items: scenarioItems,
+        events: monitoring?.events ?? [],
+        escalations: monitoring?.escalations ?? [],
+        now: badgeNow,
+      }),
+    [scenarioItems, monitoring, badgeNow]
+  );
 
   const badges: Record<string, number> = {
     ...(unread > 0 ? { activity: unread } : {}),

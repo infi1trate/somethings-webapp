@@ -93,8 +93,31 @@ export function ProposalCodes({
    *  renewal or a first assignment, which are different decisions — confirm
    *  what is on record, versus put something there for the first time — and
    *  nothing but the word distinguishes them.
-   *  SO `compact` DROPS IT ONLY FOR A CHANGE. The card keeps all three, where
-   *  "proposed" is doing work beside a Submit button. */
+   *  ═══ `compact` NOW DROPS IT ALWAYS (Refinement §1.4) ═══
+   *
+   *  It dropped the word only for a change, on the reasoning above: two
+   *  lozenges with an arrow ARE a change, while one lozenge is either a renewal
+   *  or a first assignment and nothing but the word tells those apart.
+   *
+   *  §1.4 overrides that for the ROW, and states the principle it is applying:
+   *  the list showed two treatments for one idea — a lozenge pair for a change,
+   *  a lozenge plus a text label for everything else — and "the shape already
+   *  says it". MEASURED across ten rows: 5 pairs, 4 "Presentation proposed",
+   *  1 "Renewal proposed".
+   *
+   *  WHAT IS LOST, STATED PLAINLY: on a row, a renewal and a first assignment
+   *  now draw the same single filled lozenge. That was reported before this was
+   *  built and accepted.
+   *
+   *  WHAT CARRIES IT INSTEAD is `proposalSpoken`, which states the kind for
+   *  every case and is already in every row's accessible name. That is not a
+   *  consolation prize — it is the same mitigation §2.9 chose when it removed
+   *  the `Billing code review` chip from these rows: "IT SURVIVES IN THE
+   *  ACCESSIBLE NAME for exactly one reason: a screen-reader user arriving
+   *  mid-list has no page title above them."
+   *
+   *  The card keeps all three, where "proposed" is doing work beside a Submit
+   *  button. */
   compact = false,
   className,
 }: {
@@ -121,7 +144,7 @@ export function ProposalCodes({
         code={recommendedCode}
         tone={kind === "change" ? "changed" : "proposed"}
       />
-      {!(compact && kind === "change") && (
+      {!compact && (
         <span className="min-w-0 truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
           {PROPOSAL_LABEL[kind]}
         </span>

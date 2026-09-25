@@ -56,7 +56,7 @@ import {
 } from "@/lib/monitoring/flag-group";
 import {
   ROW_GEOMETRY,
-  type Density,
+  type ViewPreset,
 } from "@/lib/ui/view-options";
 import { cn } from "@/lib/utils";
 
@@ -148,45 +148,47 @@ function Marker({ icon: Icon, children }: { icon: typeof Repeat2; children: Reac
  *        ├ text column   flex-1, `border-t`, h-full   ← THE SEPARATOR
  *        └ trailing      shrink-0, pl-6
  *
- *  The separator is the text column's top border. Because that column is a
- *  stretched flex child it spans exactly from after the disc to before the
- *  trailing block — §3's two ends, derived from the layout rather than from two
- *  hardcoded insets that would drift the day the disc changes size.
+ *  ═══ AND THE DIVIDER REVERSED (Refinement §1.2) ═══
  *
- *  AND IT NEVER CROSSES A PILL. The line sits at y=0 of the row box; the pill
- *  starts at y=4. So a hairline falls in the 8px gutter between two pills
- *  instead of cutting across a fill — which is the thing that made the old
- *  full-bleed treatment read as a table.
+ *  It was the text column's top border, inset to start after the disc and stop
+ *  before the trailing block. MEASURED on this surface: the marker chips are
+ *  wide, so the line stopped 272px short of the row's right edge and the age
+ *  hung past a ragged edge — which reads as a rendering fault rather than as
+ *  intent. §1.2 reverses it, and the inset selection pill stays: the pill was
+ *  doing the work of making rows read as regions and the divider inset was
+ *  redundant.
+ *  IT IS ON THE PADDING BOX, so the line runs 24px to 24px symmetrically and
+ *  never bleeds to the panel edge. A border on the padded parent would span
+ *  its border box — the pill's own edges — which is a different line.
+ *  IT NEVER CROSSES A PILL: it sits at y=0 of the content region and the pill
+ *  starts at y=4, so it falls in the gutter between two pills.
+ *  NOT UNDER `Cards`, where each row carries its own contour.
  *
  *  THE ROOT'S HEIGHT IS STILL EXACT. `h-full` everywhere inside it means the
  *  taller row costs the same invariant the old one had, which is what let this
- *  become a density axis rather than a rewrite. */
+ *  become a preset axis rather than a rewrite. */
 function Row({
   group: g,
   now,
-  density,
+  preset,
   hairline,
-  wide,
   selected,
   active,
   onSelect,
 }: {
   group: FlagGroup;
   now: number;
-  density: Density;
+  preset: ViewPreset;
   /** False on the first row only — a hairline at the top of the card's inner
    *  edge is a line against the card's own border, two hairlines 1px apart. */
   hairline: boolean;
-  /** `Full width` (§5). The list has the whole container, so the row stops
-   *  truncating the mentor name and the markers it cannot fit beside a pane. */
-  wide: boolean;
   selected: boolean;
   active: boolean;
   onSelect: () => void;
 }) {
   const disc = discFor(g.teenId);
   const n = g.events.length;
-  const geo = ROW_GEOMETRY[density];
+  const geo = ROW_GEOMETRY[preset];
   return (
     <div
       /* ═══ TREE / GROUP / TREEITEM, AND NOT LISTBOX / OPTION ═══
@@ -204,7 +206,7 @@ function Row({
          its members being resolved one at a time. */
       data-anno-ref={`event-row:${g.id}`}
       data-flag-count={n}
-      data-density={density}
+      data-preset={preset}
       onClick={onSelect}
       onKeyDown={(ev) => {
         if (ev.key === " " || ev.key === "Enter") {
@@ -213,10 +215,9 @@ function Row({
         }
       }}
       aria-label={ariaFor(g, now)}
-      /* EXACT, NOT A MINIMUM — the geometry note in `lib/ui/view-options.ts`.
-         Inline because it is a number that moves with the density, which a
-         Tailwind class cannot be. */
-      style={{ height: geo.height }}
+      /* THE ROW BOX IS THE PITCH — `Cards` carries its gutter inside the box,
+         because a margin is not in the virtualizer's offset arithmetic. */
+      style={{ height: geo.pitch }}
       /* THE RING IS ON THE PILL, so it traces the inset shape rather than a
          full-bleed rectangle. `outline-none` here stops the root drawing a
          second one around the whole row. */
@@ -232,19 +233,34 @@ function Row({
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[var(--radius-inset)] transition-colors",
+          "pointer-events-none absolute inset-x-2 rounded-[var(--radius-inset)] transition-colors",
           "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--focus-ring)]",
+          geo.detached && "border border-[color:var(--border-contour)]",
           selected
             ? "bg-[var(--surface-s2)]"
-            : "group-hover:bg-[var(--tint-hover)]"
+            : cn(
+                geo.detached && "bg-[var(--surface-card)]",
+                "group-hover:bg-[var(--tint-hover)]"
+              )
         )}
+        style={{
+          top: geo.detached ? 0 : 4,
+          height: geo.detached ? geo.height : geo.height - 8,
+        }}
       />
       <div
-        /* px-6 = 24px. The row's own padding is 16px and the pill's track is
-           8px, so content starts 24px inside the card and 16px inside the
-           pill — §3's "increase horizontal padding", spent where it calms the
-           row rather than on the gap between rows. */
-        className="relative flex h-full items-stretch gap-3 px-6"
+        /* THE CONTENT REGION IS THE CARD'S HEIGHT, not the row box's, so under
+           `Cards` the content centres in the panel and the gutter stays empty.
+           px-6 = 8px of card track plus 16px of row padding. */
+        style={{ height: geo.height }}
+        className="relative px-6"
+      >
+      {/* THE DIVIDER — see the component note on the reversal. */}
+      <div
+        className={cn(
+          "flex h-full items-stretch gap-3",
+          hairline && !geo.detached && "border-t border-[color:var(--border-subtle)]"
+        )}
       >
         <span className="flex shrink-0 items-center">
           <span
@@ -260,13 +276,7 @@ function Row({
             {g.teenName.charAt(0)}
           </span>
         </span>
-        {/* THE SEPARATOR LIVES HERE — see the component note. */}
-        <span
-          className={cn(
-            "flex min-w-0 flex-1 flex-col justify-center",
-            hairline && "border-t border-[color:var(--border-subtle)]"
-          )}
-        >
+        <span className="flex min-w-0 flex-1 flex-col justify-center">
           <span className="flex min-w-0 items-baseline gap-1.5">
             {/* THE ONE EMPHASISED ELEMENT. */}
             <span
@@ -288,10 +298,7 @@ function Row({
                 directly: a clearer step down so the pair reads as one scan
                 target with a subject rather than as two titles. */}
             <span
-              className={cn(
-                "text-[var(--text-secondary)]",
-                wide ? "shrink-0" : "truncate"
-              )}
+              className="truncate text-[var(--text-secondary)]"
               style={{
                 fontSize: geo.secondary.size,
                 lineHeight: `${geo.secondary.leading}px`,
@@ -313,7 +320,7 @@ function Row({
                 a set's category is its highest-ranking member and its age is its
                 oldest. A row that sorted on one member and displayed another
                 would be a queue whose order cannot be read off it. */}
-            <span className={wide ? "shrink-0" : "truncate"}>
+            <span className="truncate">
               {categoryTextFor({ ...g.events[0], category: g.worstCategory })}
             </span>
           </span>
@@ -349,6 +356,7 @@ function Row({
             {ageLabel(g.oldestAt, now)}
           </span>
         </span>
+        </div>
       </div>
     </div>
   );
@@ -375,8 +383,7 @@ export function EventList({
   selectedId,
   onSelect,
   emptyLine,
-  density,
-  wide,
+  preset,
 }: {
   /** ONE PER CONVERSATION, pre-sorted by `compareGroups`. */
   groups: FlagGroup[];
@@ -388,10 +395,8 @@ export function EventList({
    *  done", because coverage is the floor and the queue emptying is weather. */
   emptyLine: string;
   /** §5's row scale. Not defaulted — a surface that forgets to pass it should
-   *  fail to compile rather than silently render the other density. */
-  density: Density;
-  /** §5's `Full width`. The row stops truncating when the pane is gone. */
-  wide: boolean;
+   *  fail to compile rather than silently render the other preset. */
+  preset: ViewPreset;
 }) {
   /* ═══ NO GROUP LAYER, AND NO GROUP HEADER (addendum §2.1, §3.1) ═══
      The list was grouped by review subject, and with one subject the header read
@@ -456,9 +461,10 @@ export function EventList({
           key={g.id}
           group={g}
           now={now}
-          density={density}
-          wide={wide}
-          hairline={i > 0}
+          preset={preset}
+          /* NOT DIRECTLY UNDER THE SELECTION — see `worklist.tsx`'s note on
+             why the row below the selected one drops its hairline. */
+          hairline={i > 0 && flat[i - 1].id !== selectedId}
           selected={selectedId === g.id}
           active={i === idx}
           onSelect={() => {

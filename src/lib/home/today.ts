@@ -55,13 +55,20 @@
 // exists to have only one of.
 
 import { DESTINATION_ORDER, type DestinationId } from "@/lib/ia/destinations";
+import {
+  activeEscalations,
+  openCareReviews,
+  openCounts,
+} from "@/lib/ia/open-counts";
 import type { MonitoringEvent } from "@/lib/monitoring/event";
 import type { SupervisedConversation } from "@/lib/monitoring/coverage";
 import {
+  ackStateFor,
   escalationObligations,
   isSettled,
   type EscalationRecord,
 } from "@/lib/monitoring/escalation";
+import { ESCALATION_ACK_SLA } from "@/lib/monitoring/constants";
 import type { ShiftFacts } from "@/lib/tasks/shift";
 import type { TaskItem } from "@/lib/tasks/types";
 
@@ -94,7 +101,10 @@ export interface TodayCard {
 
 /** NEEDS-COPY-NICOLE, all five. The rail's labels, deliberately the same
  *  strings — see `TodayCard.label`. */
-const LABEL: Record<DestinationId, string> = {
+/** The destination names, in one place. EXPORTED since Phase D: the schedule
+ *  module names a destination in its CTA, and a second copy of these three
+ *  strings is how "Care Reviews" becomes "Care reviews" on one surface. */
+export const LABEL: Record<DestinationId, string> = {
   escalations: "Escalations",
   "risk-flags": "Risk Flags",
   "care-reviews": "Care Reviews",
@@ -136,6 +146,30 @@ function oldest(events: MonitoringEvent[]): number | null {
   return min;
 }
 
+/** ═══ THE OLDEST INSTANT, PER PRIMITIVE (Phase B.2) ═══
+ *
+ *  Phase B makes "open count + age of oldest" the shape of every row, matching
+ *  the Risk Flags line it names as the quality bar. The three destinations hold
+ *  three different primitives, so "oldest" is three different fields —
+ *  `MonitoringEvent.at`, `EscalationRecord.triggeredAt`, `TaskItem.openedAt` —
+ *  and each needs its own reader.
+ *
+ *  THEY TAKE THE SET THE COUNT WAS DRAWN FROM, NOT THE WHOLE FIXTURE. An age
+ *  computed over a different set than the count beside it is the same class of
+ *  defect Phase A closed one level up: "19 open · oldest 6d ago" where the 6d
+ *  item is not one of the 19. So each caller passes the filtered list. */
+function oldestTriggered(records: EscalationRecord[]): number | null {
+  let min: number | null = null;
+  for (const r of records) if (min == null || r.triggeredAt < min) min = r.triggeredAt;
+  return min;
+}
+
+function oldestOpened(items: TaskItem[]): number | null {
+  let min: number | null = null;
+  for (const i of items) if (min == null || i.openedAt < min) min = i.openedAt;
+  return min;
+}
+
 /** ═══ PLURALS SPELLED OUT RATHER THAN SUFFIXED ═══
  *  NEEDS-COPY-NICOLE. Kept local and dumb: an `s`-appending helper is where
  *  "1 escalations" comes from, and every string on this surface is read by
@@ -167,8 +201,16 @@ function plural(n: number, one: string, many: string): string {
  * tab cards kept their position and the opposite of the rule for buckets.
  */
 export function todayCards(input: TodayInput): TodayCard[] {
-  const { facts, events, escalations, classifierDegraded, now } =
-    input;
+  /* ═══ `facts` IS NO LONGER DESTRUCTURED, AND STAYS ON THE INPUT (Phase B) ═══
+     Care Reviews was its only reader — `facts.billing.open` for the count and
+     `.overdue` for a clause that could not fire. Phase A moved the count to
+     `openCounts` and Phase B removed the dead clause, so no card reads `facts`.
+     THE FIELD STAYS ON `TodayInput`, which is the posture this file already
+     takes for `conversations` one field below: "removing it from this type
+     would be a change to every caller for no behaviour". The page still builds
+     `shiftFactsFor` for `ClosedToday`, so nothing is computed that is not
+     used — it simply is not used HERE. */
+  const { items, events, escalations, classifierDegraded, now } = input;
   /** ═══ THE DESTINATION'S OWN COUNT, THROUGH THE DESTINATION'S OWN FUNCTION ═══
    *  This read `homeObligations(items, now)` — the nav BADGE's debt count, off
    *  TASK ITEMS. Measured by the §4 mirror probe: the card said "1 past
@@ -181,6 +223,14 @@ export function todayCards(input: TodayInput): TodayCard[] {
     now
   );
 
+  /** ═══ THE COUNTS COME FROM `lib/ia/open-counts`, NOT FROM HERE (Phase A) ═══
+   *  Every `count:` below, and every open FIGURE inside a `state:` sentence,
+   *  reads this map. The rail reads the same function, so the two surfaces
+   *  cannot disagree about a destination — and a row cannot say "19 open"
+   *  beside a figure of 18, which a second local expression would eventually
+   *  allow. See that module on the domain-vs-task-type accident this closes. */
+  const open = openCounts({ items, events, escalations, now });
+
   /* EVERY EVENT IS A FLAG SINCE §2.1 — the subject filter went with Mentor
      Practice, so this is the whole set rather than a half of it. */
   const flags = events;
@@ -188,36 +238,76 @@ export function todayCards(input: TodayInput): TodayCard[] {
   const build: Record<DestinationId, TodayCard> = {
     /* ── ESCALATIONS · the only destination with two real clocks ──────────── */
     escalations: (() => {
+      /** ═══ COUNT + AGE OF OLDEST, AND A BREACH THAT OUTRANKS THE AGE ═══
+       *
+       *  Phase B.2 gives every row the shape of the Risk Flags line —
+       *  "5 open · oldest 21h ago" — and names it for Escalations as "open
+       *  count + age of oldest". This line WAS three clauses: "2 active · 2
+       *  awaiting acknowledgement · 3 close-out items overdue".
+       *
+       *  TWO CLAUSES, LIKE THE EXEMPLAR. The acknowledgement clause goes: it
+       *  was the third fact on a row Phase B allows two, and the age carries
+       *  the same urgency less precisely but in the shape every other row now
+       *  uses.
+       *
+       *  THE BREACH CLAUSE STAYS, AND REPLACES THE AGE RATHER THAN JOINING IT.
+       *  Stated as a deviation because it is one: Phase B's literal list is
+       *  count-plus-age and nothing else. Two reasons it survives —
+       *   · PRECEDENCE IS THE EXEMPLAR'S OWN PATTERN. Risk Flags already
+       *     overrides its whole line when the pipeline is degraded, because a
+       *     zero there means something different. Same move, same clause
+       *     budget: a passed clock replaces the age, it does not add a third
+       *     fact.
+       *   · THESE ARE THE ONLY PUBLISHED CLOCKS IN THE PRODUCT. `AGENTS.md`:
+       *     "the only published clocks left anywhere on this surface are the
+       *     escalation pair", and arch-mon put breach treatment there
+       *     deliberately after removing it from flags. Dropping it would leave
+       *     Today unable to say a clock had passed at all — and it would
+       *     produce "Nothing open" on a fixture with three overdue close-out
+       *     items, which is measurably worse than the row it replaced. */
+      const breached = ob.ackBreached > 0 || ob.closeOutOverdue > 0;
       const parts: string[] = [];
-      if (ob.active > 0) parts.push(`${ob.active} active`);
-      /* ═══ THE DESTINATION'S WORDING, NOT A PARAPHRASE OF IT ═══
-         "awaiting acknowledgement", which is what `/app/escalations` says in its
-         header. The card used to say "past acknowledgement" and report a smaller
-         number — a different quantity under a similar phrase, which is the worse
-         of the two failures because it looks like agreement.
-         A SUBSET AND NOT ADDED: `ackOutstanding` is drawn from the actives above,
-         so summing them would count one escalation twice. */
-      if (ob.ackOutstanding > 0) {
-        parts.push(`${ob.ackOutstanding} awaiting acknowledgement`);
-      }
+      if (open.escalations > 0) parts.push(`${open.escalations} active`);
       if (ob.closeOutOverdue > 0) {
         parts.push(
           `${plural(ob.closeOutOverdue, "close-out item", "close-out items")} overdue`
         );
+      } else if (ob.ackBreached > 0) {
+        /* ═══ A PASSED ACK CLOCK MUST BE IN THE TEXT, NOT ONLY THE TONE ═══
+           MEASURED on `active-escalation`: with the age clause here the row
+           read "2 active · oldest 12m ago" at `tone: "breach"`. The breach was
+           carried by the tone and by an `aria-hidden` AlertTriangle — so for a
+           screen-reader user it was carried by NOTHING, and the standing
+           constraint is that colour is never the sole carrier. The old
+           three-clause line said "awaiting acknowledgement" and covered this by
+           accident; two clauses have to cover it on purpose.
+           `ackBreached`, NOT `ackOutstanding` — an escalation inside its five
+           minutes is the most urgent thing in the console and is not yet a
+           breach, which is the `attention` arm. And "overdue" rather than the
+           destination's "awaiting": this is the PASSED clock, a different
+           quantity, and the file already records what it cost to phrase a
+           different quantity like a similar one. */
+        parts.push(
+          `${plural(ob.ackBreached, "acknowledgement", "acknowledgements")} overdue`
+        );
+      } else if (open.escalations > 0) {
+        /* THE AGE IS OVER THE SET THE COUNT CAME FROM — `activeEscalations` is
+           the array whose length IS `open.escalations`, so the two cannot
+           describe different records. */
+        parts.push(
+          `oldest ${ageOf(oldestTriggered(activeEscalations(escalations, now)), now)}`
+        );
       }
-      /* BREACH IS THE PASSED CLOCK, NOT THE OPEN ONE. `ackBreached` rather than
-         `ackOutstanding`: an escalation inside its five minutes is the most
-         urgent thing in the console, and it is not yet a breach. That is the
-         `attention` arm below. */
-      const breached = ob.ackBreached > 0 || ob.closeOutOverdue > 0;
       return {
         id: "escalations" as const,
         label: LABEL.escalations,
-        /* NEEDS-COPY-NICOLE */
+        /* NEEDS-COPY-NICOLE: {n} active · oldest {age}
+           NEEDS-COPY-NICOLE: {n} close-out items overdue
+           NEEDS-COPY-NICOLE: {n} acknowledgements overdue */
         state: parts.length ? parts.join(" · ") : "Nothing open",
-        tone: breached ? "breach" : ob.active > 0 ? "attention" : "clear",
+        tone: breached ? "breach" : open.escalations > 0 ? "attention" : "clear",
         href: "/app/escalations",
-        count: ob.active,
+        count: open.escalations,
       };
     })(),
 
@@ -236,7 +326,7 @@ export function todayCards(input: TodayInput): TodayCard[] {
           state: "Flag pipeline is down — no flags are arriving",
           tone: "unavailable" as const,
           href: "/app/risk-flags",
-          count: flags.length,
+          count: open["risk-flags"],
         };
       }
       return {
@@ -244,29 +334,47 @@ export function todayCards(input: TodayInput): TodayCard[] {
         label: LABEL["risk-flags"],
         /* NEEDS-COPY-NICOLE. "21 open · oldest 4d ago". NO BREACH CLAUSE IS
            REACHABLE HERE — see the header. */
-        state: flags.length
-          ? `${plural(flags.length, "open", "open")} · oldest ${ageOf(at, now)}`
+        state: open["risk-flags"]
+          ? `${plural(open["risk-flags"], "open", "open")} · oldest ${ageOf(at, now)}`
           : "Nothing waiting for judgment",
-        tone: flags.length ? "attention" : "clear",
+        tone: open["risk-flags"] ? "attention" : "clear",
         href: "/app/risk-flags",
-        count: flags.length,
+        count: open["risk-flags"],
       };
     })(),
 
     /* ── CARE REVIEWS · the one queue with a published deadline ───────────── */
     "care-reviews": (() => {
-      const { open, overdue } = facts.billing;
-      const parts: string[] = [];
-      if (open > 0) parts.push(`${open} open`);
-      if (overdue > 0) parts.push(`${overdue} overdue`);
+      /** ═══ COUNT + AGE OF OLDEST, AND THE OVERDUE CLAUSE WAS DEAD ═══
+       *
+       *  Phase B.2: "Care Reviews: open count + age of oldest." The line was
+       *  "19 open" with an `overdue` clause beside it and a `breach` tone.
+       *
+       *  MEASURED: `facts.billing.overdue` is 0 on every one of the five task
+       *  scenarios, and structurally so — `TASK_SLA_MS.intakeBillingReview` and
+       *  `.monthlyReReview` are both null (`CARE_REVIEW_SLA` was retired), so
+       *  `deadlineFor` returns null, `slaDeadline` is null, and `isBreached` is
+       *  false for every billing item that can exist. The clause and the
+       *  `breach` arm could not fire. Removing them costs no information; the
+       *  age Phase B asks for replaces a branch that was already unreachable.
+       *
+       *  THE TONE LOSES ITS BREACH ARM WITH IT. A tone nothing can reach is the
+       *  same dead chrome as a filter with one value — and if a billing SLA is
+       *  ever published, the clock belongs to `sla.ts` and a review, not to a
+       *  branch left behind in case. */
+      const openCount = open["care-reviews"];
+      /* THE SAME ARRAY THE COUNT IS THE LENGTH OF. */
+      const openItems = openCareReviews(items);
       return {
         id: "care-reviews" as const,
         label: LABEL["care-reviews"],
-        /* NEEDS-COPY-NICOLE */
-        state: parts.length ? parts.join(" · ") : "Nothing open",
-        tone: overdue > 0 ? "breach" : open > 0 ? "attention" : "clear",
+        /* NEEDS-COPY-NICOLE: {n} open · oldest {age} */
+        state: openCount
+          ? `${plural(openCount, "open", "open")} · oldest ${ageOf(oldestOpened(openItems), now)}`
+          : "Nothing open",
+        tone: openCount > 0 ? "attention" : "clear",
         href: "/app/care-reviews",
-        count: open,
+        count: openCount,
       };
     })(),
   };
@@ -376,6 +484,175 @@ export function directiveCardId(cards: TodayCard[]): DestinationId | null {
  *  phase's work into this one's diff.
  *
  *  NEEDS-COPY-NICOLE on the joined sentence and on the empty answer. */
+// ═══════════════════════════════════════════════════════════════════════════
+// THE BANNER'S RATIONALE — WHY *THIS* DESTINATION (Phase C)
+//
+// ═══ WHAT IT REPLACES ═══
+//
+// The banner body was `todayDigestLine` — "Escalations, Risk Flags and Care
+// Reviews need attention." That is a restatement of the three rows directly
+// below it, each of which carries its own count, its own age and its own link.
+// Phase C.2: the banner's only job is the rationale, "not a restatement of the
+// list below it".
+//
+// ═══ RATIONALE-OR-NOTHING, AND WHY THAT IS A REAL CONSTRAINT ═══
+//
+// C.3 says the banner does not render when no rationale can be derived. That is
+// only meaningful if the rationale is allowed to FAIL to derive — so this
+// function returns null rather than falling back to a sentence that is true of
+// anything. The two bases it can prove:
+//
+//  · A CLOCK. Only Escalations has published clocks — the five-minute
+//    acknowledgement and the 24-hour close-out note. `FLAG_REVIEW_SLA` is null
+//    and both billing SLAs are null, so no other destination can cite one.
+//    Strongest basis, because a passed or running deadline outranks an age.
+//  · THE OLDEST UNRESOLVED WORK, *verified to be the oldest*. Asserted only
+//    when the recommended destination genuinely holds the oldest item on the
+//    board. If it does not, this returns null instead of saying "oldest" about
+//    something that is not — a banner that lies about its reason is worse than
+//    no banner, and C.3 already provides for its absence.
+//
+// ═══ THE THIRD BASIS C.2 OFFERS IS NOT DERIVABLE ═══
+//
+// "Blocking another person's work" — nothing in the data models it. A care
+// review does plausibly block a mentor, and an escalation plausibly blocks the
+// teen's mentor, but neither is a field: there is no dependency edge, no
+// waiting-on, and no assignee state to read. Inventing one would be a
+// fabricated statistic. Reported rather than approximated.
+//
+// ═══ IT NEVER REORDERS THE LIST (C.5) ═══
+//
+// This function returns a DestinationId and a sentence. It does not sort, and
+// `todayCards` does not read it — the cards come from `DESTINATION_ORDER` and
+// nothing else. A fixed list plus a variable recommendation, which is the shape
+// C.5 asks for.
+
+export interface TodayRationale {
+  /** The destination the CTA navigates to. */
+  id: DestinationId;
+  /** NEEDS-COPY-NICOLE. One sentence: why here, citing the concrete fact. */
+  reason: string;
+  /** Which basis proved it. Exposed for the report and asserted in tests, so a
+   *  future change cannot quietly downgrade a clock claim to an age claim. */
+  basis: "clock" | "oldest";
+}
+
+/** The instant a card's oldest open item arrived, or null when it holds none.
+ *  ONE READER PER PRIMITIVE, over the same sets the counts come from — see
+ *  `open-counts.ts`. */
+function oldestFor(
+  id: DestinationId,
+  input: TodayInput
+): number | null {
+  const { items, events, escalations, now } = input;
+  if (id === "escalations") {
+    return oldestTriggered(activeEscalations(escalations, now));
+  }
+  if (id === "risk-flags") return oldest(events);
+  return oldestOpened(openCareReviews(items));
+}
+
+export function todayRationale(
+  cards: TodayCard[],
+  input: TodayInput
+): TodayRationale | null {
+  const id = directiveCardId(cards);
+  /* NO RECOMMENDATION, NO RATIONALE. `directiveCardId` already refuses to point
+     at a clear or unavailable destination, so this covers "nothing is owed" and
+     "the pipeline is down" without restating either rule. */
+  if (id == null) return null;
+  const { escalations, now } = input;
+
+  if (id === "escalations") {
+    const ob = escalationObligations(
+      escalations.filter((r) => !isSettled(r, now)),
+      now
+    );
+    /* ═══ THE STRONGEST CLOCK FIRST ═══
+       A passed 24-hour note outranks a passed five minutes, because the
+       five-minute clock is an alarm a supervisor may still be inside of while
+       the note is simply late. Both outrank a running clock. */
+    if (ob.closeOutOverdue > 0) {
+      return {
+        id,
+        basis: "clock",
+        /* NEEDS-COPY-NICOLE: {n} close-out notes have passed their 24-hour deadline. */
+        reason: `${plural(
+          ob.closeOutOverdue,
+          "close-out note has",
+          "close-out notes have"
+        )} passed the 24-hour deadline.`,
+      };
+    }
+    if (ob.ackBreached > 0) {
+      return {
+        id,
+        basis: "clock",
+        /* NEEDS-COPY-NICOLE: {n} escalations passed the five-minute acknowledgement. */
+        reason: `${plural(
+          ob.ackBreached,
+          "escalation has",
+          "escalations have"
+        )} passed the five-minute acknowledgement.`,
+      };
+    }
+    if (ob.ackOutstanding > 0) {
+      /* A RUNNING CLOCK, AND THE ONLY FUTURE-TENSE REASON ON THE SURFACE. The
+         remaining time is derived from the OLDEST unacknowledged escalation,
+         which is the one whose clock runs out first. */
+      const at = oldestTriggered(
+        activeEscalations(escalations, now).filter(
+          (r) => ackStateFor(r, now) !== "acknowledged"
+        )
+      );
+      const left = at == null ? 0 : Math.max(0, at + ESCALATION_ACK_SLA - now);
+      return {
+        id,
+        basis: "clock",
+        /* NEEDS-COPY-NICOLE: An acknowledgement is due in {n}m. */
+        reason: `An acknowledgement is due in ${Math.ceil(left / 60_000)}m.`,
+      };
+    }
+  }
+
+  /* ═══ THE OLDEST BASIS, AND IT IS VERIFIED BEFORE IT IS CLAIMED ═══
+     "It holds the oldest" is a comparative claim, so it is checked against
+     every other destination that has work. If the recommendation is not
+     actually the oldest, nothing is returned — see the module note. */
+  const mine = oldestFor(id, input);
+  if (mine == null) return null;
+  for (const card of cards) {
+    if (card.id === id) continue;
+    if (card.tone === "clear" || card.tone === "unavailable") continue;
+    const theirs = oldestFor(card.id, input);
+    if (theirs != null && theirs < mine) return null;
+  }
+  return {
+    id,
+    basis: "oldest",
+    /* NEEDS-COPY-NICOLE: {destination} holds the oldest work waiting — {age}.
+       ═══ IT NAMES ITS SUBJECT, AND THAT WAS A DEFECT SEEN IN CONTEXT ═══
+       This read "It holds the oldest work waiting — 6h." The pronoun has no
+       antecedent: the banner's reason is the FIRST thing read and the only
+       thing naming the destination is the CTA below it, so a reader met "It"
+       before meeting what it referred to. Caught by looking at the assembled
+       page in Phase G rather than by any assertion.
+       NAMING ONE DESTINATION IS NOT A LIST. The rule C.2 sets is that the
+       banner must not restate the rows; the digest sentence it replaced named
+       every destination needing attention, and this names the single one it
+       recommends. The test moved from "names none" to "names at most one"
+       for that reason, not to accommodate this string.
+       THE " ago" IS STRIPPED. `ageOf` returns "6h ago", which the row's
+       "oldest 6h ago" needs and this sentence does not — "waiting — 6h ago"
+       says the same thing twice. Row and banner render the same instant
+       through the same function and differ only in the suffix. */
+    reason: `${LABEL[id]} holds the oldest work waiting — ${ageOf(
+      mine,
+      now
+    ).replace(/ ago$/, "")}.`,
+  };
+}
+
 export function todayDigestLine(cards: TodayCard[]): string | null {
   const breach = cards.filter((c) => c.tone === "breach").map((c) => c.label);
   const attention = cards
