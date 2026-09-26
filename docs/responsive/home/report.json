@@ -8,28 +8,34 @@
       "detail": "Supervisor sections"
     },
     {
-      "id": "sequence.order",
-      "label": "four stages, fixed order, never hidden",
+      "id": "sequence.read",
+      "label": "the destination cards were readable at all",
       "ok": true,
-      "detail": "escalations > billing > flags > chatReview"
+      "detail": "3 cards"
+    },
+    {
+      "id": "sequence.order",
+      "label": "three destinations, fixed order, never hidden",
+      "ok": true,
+      "detail": "escalations > risk-flags > care-reviews"
     },
     {
       "id": "sequence.one-directive",
-      "label": "exactly one stage carries the directive emphasis",
+      "label": "exactly one destination carries the directive emphasis",
       "ok": true,
-      "detail": "escalations"
+      "detail": "1 of 3 · escalations"
     },
     {
       "id": "sequence.names",
-      "label": "every stage's accessible name carries its state",
+      "label": "every destination's accessible name carries its state",
       "ok": true,
-      "detail": "Risk flags, 2 imminent past 24h"
+      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here. | Risk Flags. 69 open · oldest 6d ago. | Care Reviews. 19 open · oldest 3d ago."
     },
     {
       "id": "sequence.directive-in-name",
       "label": "and the directive one says so in words, not only by shape",
       "ok": true,
-      "detail": "Escalations, 1 open now, next"
+      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here."
     },
     {
       "id": "boundary.no-controls",
@@ -47,7 +53,7 @@
       "id": "boundary.links-out",
       "label": "every link leaves for a surface that owns the work",
       "ok": true,
-      "detail": "/app/escalation/esc-naomi-live /app/monitoring?region=escalations /app/monitoring?band=imminentFlagReview /app/tasks /app/monitoring?band=clinicalFlagReview /app/monitoring /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
+      "detail": "/app/escalation/esc-theo-9 /app/escalation/esc-naomi-live /app/escalations?escalation=esc-theo-9 /app/escalations?escalation=esc-naomi-live /app/escalations /app/risk-flags /app/care-reviews /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
     },
     {
       "id": "ladder.active-escalation",
@@ -57,32 +63,45 @@
     },
     {
       "id": "ladder.breach-overnight",
-      "label": "a breached imminent flag outranks billing past SLA",
+      "label": "an open escalation still outranks a breached flag",
       "ok": true,
-      "detail": "flags (expected flags)"
+      "detail": "escalations (expected escalations)"
     },
     {
       "id": "ladder.quiet-day",
       "label": "billing before clinical, whatever the counts",
       "ok": true,
-      "detail": "billing (expected billing)"
+      "detail": "care-reviews (expected care-reviews)"
     },
     {
       "id": "digest.present",
       "label": "the digest renders after a gap",
-      "ok": true
+      "ok": true,
+      "detail": "2 preview items"
     },
     {
-      "id": "digest.breach-first",
-      "label": "breach lines come before any neutral count",
+      "id": "digest.one-rationale",
+      "label": "it carries exactly one derived rationale line, not a list of counts",
       "ok": true,
-      "detail": "breach:1 escalation open now | breach:2 imminent past 24h | breach:2 billing past SLA | breach:1 escalation note overdue | attention:23 imminent | attention:19 billing | attention:26 clinical | attention:20 routine"
+      "detail": "3 close-out notes have passed the 24-hour deadline."
+    },
+    {
+      "id": "digest.shows-total",
+      "label": "and every preview states how many of the total it is showing",
+      "ok": true,
+      "detail": "Showing 2 of 2"
     },
     {
       "id": "digest.one-cta",
-      "label": "one primary CTA, naming where it goes",
+      "label": "at most one affordance points at the recommended destination (I.0)",
       "ok": true,
-      "detail": "Start with escalations — Naomi first"
+      "detail": "0 · none"
+    },
+    {
+      "id": "digest.no-controls",
+      "label": "and the preview carries no form control of any kind",
+      "ok": true,
+      "detail": "0 controls"
     },
     {
       "id": "digest.gated",
@@ -98,7 +117,7 @@
       "id": "state.allclear-plain",
       "label": "an all-clear Home says what is true and does not celebrate",
       "ok": true,
-      "detail": "Your shift Work through the sequence in order Escalations All clear Bi"
+      "detail": "👋Hi there Today Every count below belongs to the destination it links"
     },
     {
       "id": "state.partial",
@@ -120,7 +139,8 @@
     {
       "id": "state.retry-works",
       "label": "and retrying restores that region alone",
-      "ok": true
+      "ok": true,
+      "detail": "strip back: true · another region still down: true"
     },
     {
       "id": "scope.no-trend",

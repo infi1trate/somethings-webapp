@@ -382,6 +382,10 @@ export function MonitoringPage({
    *  link is a link to a WORKLIST ROW; this is a link to an OBJECT, which is why
    *  it resolves against the whole set rather than the region's contents. */
   focusEscalation = null,
+  /** ═══ A FLAG TO LAND ON (Today Phase I.5.2) ═══
+   *  Today's start-here preview deep-links to an individual flag. It resolves
+   *  to the conversation row that holds it — see `focusedGroup`. */
+  focusFlag = null,
   /** ═══ ONE PAGE, FOUR DESTINATIONS (supervisor IA restructure, Phase 2) ═══
    *
    *  Monitoring stops being a destination and becomes a GROUP LABEL, and the
@@ -416,6 +420,7 @@ export function MonitoringPage({
   focusBand?: string | null;
   focusRegion?: string | null;
   focusEscalation?: string | null;
+  focusFlag?: string | null;
   scope: MonitoringScope;
 }) {
   void focusBand;
@@ -729,9 +734,23 @@ export function MonitoringPage({
     !allEscalations.some((e) => e.id === focusEscalation)
       ? focusEscalation
       : null;
+  /* ═══ THE DEEP LINK LANDS ON A CONVERSATION, NOT A FLAG (Phase I.5.2) ═══
+     Today's preview links `?flag={id}`, and a row here is a CONVERSATION that
+     coalesces several flags (§3.1). So the flag id resolves to the GROUP that
+     contains it, and then to that flag within the group — landing on the row
+     the queue would have shown it in, with the named flag selected inside.
+     A FALLBACK, NOT AN OVERRIDE, and only while nothing has been selected —
+     the same rule as Care Reviews' `focusReview`. */
+  const focusedGroup: FlagGroup | null =
+    focusFlag != null
+      ? (groups.find((g) => g.events.some((e) => e.id === focusFlag)) ?? null)
+      : null;
   const selectedGroup: FlagGroup | null = selectedEscalation
     ? null
-    : (groups.find((g) => g.id === selectedEventId) ?? groups[0] ?? null);
+    : (groups.find((g) => g.id === selectedEventId) ??
+      focusedGroup ??
+      groups[0] ??
+      null);
   /** ═══ WHICH FLAG WITHIN THE CONVERSATION (addendum §3.1) ═══
    *  Held as an ID rather than an index, and READ THROUGH THE GROUP rather
    *  than reset when the row changes: an index would point at a different
@@ -742,6 +761,8 @@ export function MonitoringPage({
   const [selectedFlagId, setSelectedFlagId] = useState<string | null>(null);
   const selectedEvent =
     selectedGroup?.events.find((e) => e.id === selectedFlagId) ??
+    /* The deep-linked flag, when its group is the one showing. */
+    selectedGroup?.events.find((e) => e.id === focusFlag) ??
     selectedGroup?.events[0] ??
     null;
   const flagIdx = selectedGroup

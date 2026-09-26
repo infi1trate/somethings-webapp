@@ -99,13 +99,24 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
            does not link there, because F rules out "a CTA that implies an
            action available on Today". Pinning happens on a mentee's record;
            saying so is the whole of the empty state. */
-        <p
+        /* ═══ IT SITS IN A CONTAINER NOW (Phase H.5) ═══
+           MEASURED before: a bare `<p>` with no surface, no border and no
+           padding, directly on the page ground between two bordered cards. It
+           read as a rendering fault rather than as a state — which is H.5's
+           own diagnosis and is visible in the 1900px capture.
+           SAME REGISTER AS EVERY OTHER MODULE: `--surface-card`,
+           `--border-contour`, `--radius-elevated`, `p-4`. Copy is unchanged
+           and still one line (F.1), still with no CTA — the fix is the
+           container, not the words. */
+        <div
           data-anno-ref="today-pinned-empty"
-          className="mt-1.5 text-[13px] leading-[19px] text-[var(--text-secondary)]"
+          className="mt-1.5 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4"
         >
-          {/* NEEDS-COPY-NICOLE */}
-          Pin a mentee from their record to keep them here for the week.
-        </p>
+          <p className="text-[13px] leading-[19px] text-[var(--text-secondary)]">
+            {/* NEEDS-COPY-NICOLE */}
+            Pin a mentee from their record to keep them here for the week.
+          </p>
+        </div>
       ) : (
         <ul className="mt-1.5 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
           {rows.map((r, i) => {

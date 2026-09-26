@@ -190,11 +190,19 @@ export function TasksPage({
   /** arch-C's stage link — a band to land on. Validated here rather than at the
    *  route, so a stale bookmark falls back to the default view. */
   focusBand = null,
+  /** ═══ AN ITEM TO LAND ON (Today Phase I.5.2) ═══
+   *  Today's start-here preview deep-links to a specific review. Validated the
+   *  same way `focusBand` is — against the list actually present — so a stale
+   *  link falls back to the default selection rather than showing an empty
+   *  pane. It seeds SELECTION, which is what clicking a row already does; the
+   *  detail pane's output is not involved. */
+  focusReview = null,
   /** Which destination is mounting this. `null` is the old whole-surface
    *  behaviour, which `/app/tasks` is a redirect away from reaching. */
   scope = null,
 }: {
   focusBand?: string | null;
+  focusReview?: string | null;
   scope?: TasksScope | null;
 } = {}) {
   const domains = scope ? SCOPE_DOMAINS[scope] : TASKS_DOMAINS;
@@ -635,8 +643,17 @@ export function TasksPage({
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [pickedId, setPickedId] = useState<string | null>(null);
 
+  /* ═══ THE DEEP LINK IS A FALLBACK, NOT AN OVERRIDE (Phase I.5.2) ═══
+     It resolves only while the reader has selected nothing — so arriving from
+     Today lands on the named review, and the first click afterwards behaves
+     exactly as it always did. Written as a lookup rather than an effect
+     because a `useState` seeded from a prop would go stale on navigation and
+     a `useEffect` that sets state is what the React Compiler rejects. */
+  const focusedEntry: ListEntry | null =
+    focusReview != null ? (entries.find((e) => e.id === focusReview) ?? null) : null;
+
   const activeEntry: ListEntry | null =
-    entries.find((e) => e.id === selectedEntryId) ?? entries[0] ?? null;
+    entries.find((e) => e.id === selectedEntryId) ?? focusedEntry ?? entries[0] ?? null;
   /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
    *  It carries `status: "resolved"`, so the buckets have filtered it out — and
    *  `entries.find(...)` returns undefined for it, which is exactly the shape of
