@@ -49,6 +49,7 @@ import {
 } from "@/lib/home/schedule";
 import { LABEL } from "@/lib/home/today";
 import { cn } from "@/lib/utils";
+import { CalendarClock } from "lucide-react";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -68,7 +69,20 @@ function Block({
     <li
       data-anno-ref={`schedule-block:${block.start}`}
       data-position={position}
-      className="relative flex gap-3 py-2"
+      /* ═══ THE CURRENT BLOCK TAKES A SURFACE FILL (K.5.3) ═══
+         K.5.3 NAMES THE PAIR: `surface/s2` with `text/primary`, measured
+         15.93:1, plus the "Now" word and full weight. It supersedes H.3.b's
+         instruction to derive the treatment — and H.3.b's prohibition stands:
+         no semantic state token. `--text-warning` measured 2.62:1 on this
+         ground and fails even the 3:1 large-text floor, quite apart from
+         meaning "warning" where this means "you are here".
+         THE FILL IS A FOURTH CARRIER, NOT THE CARRIER. The word, the gutter
+         rule and the weight already carry it; the fill makes the row findable
+         at a glance without any of them becoming colour-dependent. */
+      className={cn(
+        "relative flex gap-3 rounded-[var(--radius-inset)] px-2 py-2",
+        now && "bg-[var(--surface-s2)]"
+      )}
     >
       {/* ═══ THE POSITIONAL INDICATOR (D.2) ═══
           A filled rule in the gutter on the current block, a hairline on every
@@ -217,10 +231,31 @@ export function SuggestedSchedule({ now }: { now: number }) {
          module out of register, which is the defect H.5 had just fixed one
          component along. So `p-4` there, matching every other module, and the
          rail's own padding only where the rail exists. */
-      className="shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4 min-[1470px]:p-8"
+      /* ═══ A TALL FIXED CONTAINER (Phase L.7) ═══
+         L.7 measures the rail at 285 × 784. It was an auto-height card, which
+         L.7 calls "a small auto-height card" against "a tall fixed container"
+         — and the difference is what made the rail read as an afterthought
+         beside an 857 column of content.
+         `min-h` RATHER THAN `h`, and only in the two-column layout: a fixed
+         height would clip on a variant whose block list is longer than the
+         reference's, and below the breakpoint the rail is a full-width module
+         where 784 of empty surface would be absurd. */
+      className="shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4 min-[1470px]:min-h-[784px] min-[1470px]:p-8"
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
+      {/* ═══ THE HEADER ICON IS REQUIRED (L.7, reversed Superseded #5) ═══
+          Superseded #5 banned it as decoration and L reverses that: it is a
+          SECTION IDENTIFIER. The page's one DECORATIVE glyph is still the
+          hero's wave; this is functional, which is the distinction the
+          reversal draws. */}
+      <div className="flex items-start gap-2">
+        <CalendarClock
+          aria-hidden
+          className="mt-0.5 size-6 shrink-0 text-[var(--text-primary)]"
+        />
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        {/* ═══ Avantt Bold 20/24 (L.7) ═══ It was 13px semibold, which is a
+            caption rather than a section title. */}
+        <p className="font-display text-[20px] font-bold leading-[24px] text-[var(--text-primary)]">
           {/* NEEDS-COPY-NICOLE */}
           Suggested schedule
         </p>
@@ -235,6 +270,7 @@ export function SuggestedSchedule({ now }: { now: number }) {
         >
           {variant ? `${variant.label} · ${at.zoneAbbrev}` : at.zoneAbbrev}
         </p>
+        </div>
       </div>
 
       {state.kind === "out-of-shift" ? (

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-28T14:46:44.599Z",
+  "generated": "2026-09-28T19:17:23.850Z",
   "rows": [
     {
       "id": "store.present",
@@ -29,7 +29,7 @@
       "id": "controls.all-named",
       "label": "every non-link control on Today is declared page chrome",
       "ok": true,
-      "detail": "BUTTON:dismiss(Dismiss the shift summary)"
+      "detail": "BUTTON:collapse-care-reviews(Collapse care reviews)"
     },
     {
       "id": "controls.write-nothing",
@@ -47,7 +47,7 @@
       "id": "links.present",
       "label": "Today offers links at all",
       "ok": true,
-      "detail": "9 link(s)"
+      "detail": "10 link(s)"
     },
     {
       "id": "links.leave",
@@ -80,22 +80,34 @@
       "detail": "1 directive · escalations"
     },
     {
-      "id": "strip.agrees.degraded",
-      "label": "the escalation strip and the Escalations card state the same number",
+      "id": "strip.absent.degraded",
+      "label": "no escalation strip and no full-width red banner renders on Today",
       "ok": true,
-      "detail": "strip 2 row(s) · card claims 2 active"
+      "detail": "0 strip row(s) · 0 wide red fill(s)"
     },
     {
-      "id": "strip.agrees.live",
-      "label": "the escalation strip and the Escalations card state the same number",
+      "id": "strip.card-states-it.degraded",
+      "label": "and the Escalations card states the condition in text",
       "ok": true,
-      "detail": "strip 2 row(s) · card claims 2 active"
+      "detail": "card claims 2 active · \"2 Escalations 2 active · 3 close-out notes overdue Esc\""
+    },
+    {
+      "id": "strip.absent.live",
+      "label": "no escalation strip and no full-width red banner renders on Today",
+      "ok": true,
+      "detail": "0 strip row(s) · 0 wide red fill(s)"
+    },
+    {
+      "id": "strip.card-states-it.live",
+      "label": "and the Escalations card states the condition in text",
+      "ok": true,
+      "detail": "card claims 2 active · \"2 Escalations 2 active · 3 close-out notes overdue Esc\""
     },
     {
       "id": "strip.exercised",
-      "label": "and at least one fixture actually rendered a strip, so the above is not zero-vs-zero",
+      "label": "and at least one fixture actually had a live escalation, so the above is not zero-vs-zero",
       "ok": true,
-      "detail": "2 of 2 pair(s) had a non-empty strip"
+      "detail": "2 of 2 pair(s) had an active escalation"
     },
     {
       "id": "cards.no-tiers",
@@ -140,7 +152,7 @@
       "tone": "breach",
       "directive": true,
       "href": "/app/escalations",
-      "text": "2 Escalations 2 active · 3 close-out items overdue Escalations. 2 active · 3 close-out items overdue. Start here."
+      "text": "2 Escalations 2 active · 3 close-out notes overdue Escalations. 2 active · 3 close-out notes overdue."
     },
     {
       "id": "risk-flags",

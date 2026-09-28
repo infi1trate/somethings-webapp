@@ -29,19 +29,19 @@
       "id": "sequence.names",
       "label": "every destination's accessible name carries its state",
       "ok": true,
-      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here. | Risk Flags. 69 open · oldest 5d ago. | Care Reviews. 19 open · oldest 3d ago."
+      "detail": "2Escalations2 active · 3 close-out notes overdueEscalations. 2 active · 3 close-out notes overdue. | 69Risk Flags69 open · oldest 5d agoRisk Flags. 69 open · oldest 5d ago. | 19Care Reviews19 open · oldest 3d agoCare Reviews. 19 open · oldest 3d ago."
     },
     {
-      "id": "sequence.directive-in-name",
-      "label": "and the directive one says so in words, not only by shape",
+      "id": "sequence.no-priority-claim",
+      "label": "and no card visibly claims priority, because the recommendation is withdrawn",
       "ok": true,
-      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here."
+      "detail": "2Escalations2 active · 3 close-out notes overdueEscalations. 2 active · 3 close-out notes overdue."
     },
     {
       "id": "boundary.no-controls",
-      "label": "the only control is the digest's dismissal",
+      "label": "every control acts on this page's presentation, never on work",
       "ok": true,
-      "detail": "Dismiss the shift summary"
+      "detail": "Collapse care reviews"
     },
     {
       "id": "boundary.no-queue",
@@ -53,7 +53,7 @@
       "id": "boundary.links-out",
       "label": "every link leaves for a surface that owns the work",
       "ok": true,
-      "detail": "/app/escalation/esc-theo-9 /app/escalation/esc-naomi-live /app/escalations?escalation=esc-theo-9 /app/escalations?escalation=esc-naomi-live /app/escalations /app/risk-flags /app/care-reviews /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
+      "detail": "/app/escalations /app/risk-flags /app/care-reviews /app/care-reviews?review=task-9 /app/care-reviews?review=task-10 /app/care-reviews?review=task-12 /app/care-reviews?review=task-11 /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
     },
     {
       "id": "ladder.active-escalation",
@@ -74,38 +74,50 @@
       "detail": "care-reviews (expected care-reviews)"
     },
     {
-      "id": "digest.present",
-      "label": "the digest renders after a gap",
+      "id": "tasks.present",
+      "label": "the Tasks section renders",
       "ok": true,
-      "detail": "2 preview items"
+      "detail": "4 rows"
     },
     {
-      "id": "digest.one-rationale",
-      "label": "it carries exactly one derived rationale line, not a list of counts",
+      "id": "tasks.titled",
+      "label": "titled, with a Care reviews sub-header",
       "ok": true,
-      "detail": "3 close-out notes have passed the 24-hour deadline."
+      "detail": "Tasks / Care reviews"
     },
     {
-      "id": "digest.shows-total",
-      "label": "and every preview states how many of the total it is showing",
+      "id": "tasks.total-disclosed",
+      "label": "and the total is disclosed as a badge",
       "ok": true,
-      "detail": "Showing 2 of 2"
+      "detail": "19"
     },
     {
-      "id": "digest.one-cta",
-      "label": "at most one affordance points at the recommended destination (I.0)",
+      "id": "tasks.no-footer",
+      "label": "with no shown-of-total footer, which L.3 removed",
       "ok": true,
-      "detail": "0 · none"
+      "detail": "none"
     },
     {
-      "id": "digest.no-controls",
-      "label": "and the preview carries no form control of any kind",
+      "id": "tasks.no-rationale",
+      "label": "and no generated rationale line, which Phase C withdrew",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "id": "tasks.one-cta",
+      "label": "at most one affordance points at the destination",
+      "ok": true,
+      "detail": "1 · /app/care-reviews"
+    },
+    {
+      "id": "tasks.no-controls",
+      "label": "and the table carries no form control of any kind",
       "ok": true,
       "detail": "0 controls"
     },
     {
-      "id": "digest.gated",
-      "label": "and not again inside the same shift",
+      "id": "tasks.not-gated",
+      "label": "and it is not gated on the visit stamp",
       "ok": true
     },
     {
@@ -117,30 +129,30 @@
       "id": "state.allclear-plain",
       "label": "an all-clear Home says what is true and does not celebrate",
       "ok": true,
-      "detail": "👋Hi there Today Every count below belongs to the destination it links"
+      "detail": "👋 Good afternoon Every count below belongs to the destination it link"
     },
     {
-      "id": "state.partial",
-      "label": "a failed escalation read says what is unknown, not what failed",
+      "id": "state.partial-is-noop",
+      "label": "the partial plan degrades nothing on Today, because it targeted escalations",
       "ok": true,
-      "detail": "Escalations couldn’t be loaded, so this page can’t say whether any are"
+      "detail": "no region degraded"
     },
     {
       "id": "state.partial-intact",
-      "label": "and the other regions are intact",
+      "label": "and the rest of the page is intact",
       "ok": true
     },
     {
       "id": "state.error-retry",
-      "label": "each failed region offers its own retry",
+      "label": "the failed region offers its own retry",
       "ok": true,
-      "detail": "2 retries"
+      "detail": "1 retries"
     },
     {
       "id": "state.retry-works",
-      "label": "and retrying restores that region alone",
+      "label": "and retrying restores it",
       "ok": true,
-      "detail": "strip back: true · another region still down: true"
+      "detail": "cards back: true"
     },
     {
       "id": "scope.no-trend",

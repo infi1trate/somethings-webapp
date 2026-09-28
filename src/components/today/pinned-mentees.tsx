@@ -48,6 +48,7 @@ import {
 import { DEMO_PEOPLE, DEMO_TEENS } from "@/lib/record/people-demo";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
+import { SECTION_LABEL } from "@/components/today/today-page";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -88,7 +89,9 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
       aria-label="Pinned mentees"
       className="shrink-0"
     >
-      <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+      {/* THE SHARED SECTION-LABEL TREATMENT (K.7.1) — one style, one gap, and
+          it is the same one "Closed today" uses. */}
+      <p className={SECTION_LABEL}>
         {/* NEEDS-COPY-NICOLE */}
         Pinned mentees
       </p>
@@ -108,9 +111,20 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
            `--border-contour`, `--radius-elevated`, `p-4`. Copy is unchanged
            and still one line (F.1), still with no CTA — the fix is the
            container, not the words. */
+        /* ═══ THE EMPTY STATE IS A LINE, NOT A BOX (K.8) ═══
+           H.5 put it in a container because it had been bare text on the page
+           ground and read as a rendering fault. MEASURED at 1900, that
+           container is 857px wide holding one short sentence, and K.8's
+           reading is right: a full-width bordered box with one line in it
+           reads as an unfinished placeholder rather than a designed state.
+           SO IT KEEPS THE SURFACE AND DROPS THE BORDER. `--surface-s1` on the
+           page ground is a quiet inset rather than an empty card, the padding
+           is the modules' own `p-4`, and the copy is unchanged and still one
+           line (F.1) with no CTA. What H.5 was fixing — text with no surface
+           and no padding — stays fixed. */
         <div
           data-anno-ref="today-pinned-empty"
-          className="mt-1.5 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4"
+          className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-4 py-3"
         >
           <p className="text-[13px] leading-[19px] text-[var(--text-secondary)]">
             {/* NEEDS-COPY-NICOLE */}
@@ -118,7 +132,7 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
           </p>
         </div>
       ) : (
-        <ul className="mt-1.5 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
+        <ul className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
           {rows.map((r, i) => {
             const disc = discFor(r.teen.id);
             return (
