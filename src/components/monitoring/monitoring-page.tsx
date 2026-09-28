@@ -63,6 +63,7 @@ import { bandStateFor } from "@/lib/monitoring/live";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { ListToolbar } from "@/components/ia/list-toolbar";
+import { shiftDateLabel } from "@/lib/home/shift-date";
 import {
   applyFilters,
   EMPTY_FILTERS,
@@ -356,6 +357,13 @@ const SCOPE_PURPOSE: Record<MonitoringScope, string> = {
      conversation` marker on the row already says the load-bearing part, at the
      row it is true of, which is where a reader needs it. */
   /* NEEDS-COPY-NICOLE */
+  /* ═══ THE PURPOSE LINE BECOMES THE DATE (§4.1) ═══
+     Applied here as well as on Care Reviews, per §4.1's own rule that the two
+     list surfaces must share a header grammar. The destination's NAME already
+     says what it is; the date is shift context a supervisor actually uses.
+     The constant stays so the escalations scope keeps its sentence — only the
+     flag queue swaps, and `SCOPE_PURPOSE` is no longer the whole story, which
+     is why the caller branches rather than this table. */
   "risk-flags": "Every conversation a flag was raised on, worst first.",
 };
 
@@ -374,6 +382,10 @@ export function MonitoringPage({
    *  link is a link to a WORKLIST ROW; this is a link to an OBJECT, which is why
    *  it resolves against the whole set rather than the region's contents. */
   focusEscalation = null,
+  /** ═══ A FLAG TO LAND ON (Today Phase I.5.2) ═══
+   *  Today's start-here preview deep-links to an individual flag. It resolves
+   *  to the conversation row that holds it — see `focusedGroup`. */
+  focusFlag = null,
   /** ═══ ONE PAGE, FOUR DESTINATIONS (supervisor IA restructure, Phase 2) ═══
    *
    *  Monitoring stops being a destination and becomes a GROUP LABEL, and the
@@ -408,6 +420,7 @@ export function MonitoringPage({
   focusBand?: string | null;
   focusRegion?: string | null;
   focusEscalation?: string | null;
+  focusFlag?: string | null;
   scope: MonitoringScope;
 }) {
   void focusBand;
@@ -721,9 +734,23 @@ export function MonitoringPage({
     !allEscalations.some((e) => e.id === focusEscalation)
       ? focusEscalation
       : null;
+  /* ═══ THE DEEP LINK LANDS ON A CONVERSATION, NOT A FLAG (Phase I.5.2) ═══
+     Today's preview links `?flag={id}`, and a row here is a CONVERSATION that
+     coalesces several flags (§3.1). So the flag id resolves to the GROUP that
+     contains it, and then to that flag within the group — landing on the row
+     the queue would have shown it in, with the named flag selected inside.
+     A FALLBACK, NOT AN OVERRIDE, and only while nothing has been selected —
+     the same rule as Care Reviews' `focusReview`. */
+  const focusedGroup: FlagGroup | null =
+    focusFlag != null
+      ? (groups.find((g) => g.events.some((e) => e.id === focusFlag)) ?? null)
+      : null;
   const selectedGroup: FlagGroup | null = selectedEscalation
     ? null
-    : (groups.find((g) => g.id === selectedEventId) ?? groups[0] ?? null);
+    : (groups.find((g) => g.id === selectedEventId) ??
+      focusedGroup ??
+      groups[0] ??
+      null);
   /** ═══ WHICH FLAG WITHIN THE CONVERSATION (addendum §3.1) ═══
    *  Held as an ID rather than an index, and READ THROUGH THE GROUP rather
    *  than reset when the row changes: an index would point at a different
@@ -734,6 +761,8 @@ export function MonitoringPage({
   const [selectedFlagId, setSelectedFlagId] = useState<string | null>(null);
   const selectedEvent =
     selectedGroup?.events.find((e) => e.id === selectedFlagId) ??
+    /* The deep-linked flag, when its group is the one showing. */
+    selectedGroup?.events.find((e) => e.id === focusFlag) ??
     selectedGroup?.events[0] ??
     null;
   const flagIdx = selectedGroup
@@ -972,7 +1001,10 @@ export function MonitoringPage({
     >
       <PageHeader
         title={SCOPE_TITLE[scope]}
-        purpose={SCOPE_PURPOSE[scope]}
+        purpose={
+          /* Escalations keeps its sentence; the flag QUEUE takes the date. */
+          scope === "risk-flags" ? shiftDateLabel(now) : SCOPE_PURPOSE[scope]
+        }
         metrics={
           /* ═══ THE METRICS, AND THE DEFECT THEY FIX (addendum §2.10) ═══
              The subtitle here stated OBLIGATIONS — "2 escalations awaiting
@@ -1021,6 +1053,12 @@ export function MonitoringPage({
                measures what a supervisor has been through, and the row is a
                conversation while the work is a flag. */
             <ShiftTrack
+              /* §5.3: `band` read as a browser loading bar in situ. Same
+                 fallback as Care Reviews, for the same measurement, because
+                 §4.1's rule is that the two list surfaces keep one grammar —
+                 a header that differed only here would be the drift that rule
+                 exists to prevent. */
+              layout="contained"
               progress={flagProgress}
               unit="flags reviewed this shift"
               completeLine="Every flag that arrived this shift has been reviewed"

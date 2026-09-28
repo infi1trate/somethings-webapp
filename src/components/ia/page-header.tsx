@@ -69,96 +69,138 @@ export function PageHeader({
   return (
     <div
       data-anno-ref="page-header"
-      /* ═══ TWO PEER BLOCKS, TOPS ALIGNED (Refinement §2, §3.2) ═══
-         It was `items-baseline`, which put the title's baseline and the first
-         metric figure's on one line — right for two runs of text, wrong now
-         that §3.2 gives the metric cluster a PANEL. A bordered box cannot sit
-         on a text baseline without its top edge floating above the title.
-         Tops aligned is what makes them read as one band of two peers, which
-         is what §2 asked for and what the baseline trick was approximating. */
-      className={cn("flex shrink-0 flex-wrap items-start justify-between gap-x-6 gap-y-3", className)}
-    >
-      <div className="min-w-0 flex-1">
-        {/* ═══ 32/40 — A BLOOM STOP, AND THE OFF-RAMP TITLE RETIRES ═══
-            It was 28/36, which is not a step on the ramp (32/40 · 24/32 ·
-            16/24 · 14/20 · 12/16). §2 asks for one more step up and the ramp's
-            next stop is exactly that, so the instruction and the scale agree.
-            Reported last pass as the one off-ramp value left deliberately
-            alone; this is where it goes. */}
-        <h1 className="font-display text-[32px] font-bold leading-[40px] text-[var(--text-primary)]">
-          {title}
-        </h1>
-        {/* ═══ THE PURPOSE, NOT THE STATE ═══
-            A sentence about what this destination IS, which does not change
-            when the data does. Monitoring's old subtitle stated obligations —
-            a reading, which is what the metrics are for — and the two were
-            competing for the same line.
-            ═══ 16/24, AND `mt-1` TIGHTENS THE LOCKUP (§2) ═══
-            Larger rather than higher-contrast: against a 32px title, 14px read
-            as a caption hanging off the heading rather than as its second line.
-            16/24 is the ramp stop below 24/32, so the title and the purpose are
-            two steps apart — enough hierarchy without the purpose receding.
-            The gap goes 6px → 4px so the two read as ONE lockup; the air moves
-            below the header instead, where it separates the block from the
-            content. */}
-        <p
-          data-anno-ref="page-purpose"
-          className="mt-1 max-w-prose text-[16px] leading-[24px] text-[var(--text-secondary)]"
-        >
-          {purpose}
-        </p>
-      </div>
-      {(metrics.length > 0 || progress || children) && (
-        /* ═══ THE CLUSTER IS A PANEL NOW (§3.2) ═══
-           MEASURED before: `backgroundColor: rgba(0,0,0,0)`, `borderWidth: 0`,
-           `borderRadius: 0` — bare page background, while the list and the pane
-           both sit on `--surface-card` inside `--border-contour` at
-           `--radius-elevated`. That is why it receded: it was the only content
-           on the page with no panel under it.
-           THE SAME THREE TOKENS, NOT A NEW TREATMENT. Zero new tokens is the
-           standing rule, and a peer element should be built from the peers'
-           own parts.
-           ═══ AND IT IS ONE OBJECT, NOT THREE FRAGMENTS (§3.3) ═══
-           Figures, labels and the track are inside one border with one padding
-           box, so the grouping is structural rather than implied by proximity. */
-        <div
-          data-anno-ref="page-metric-panel"
-          className="flex shrink-0 flex-col items-end gap-3 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-5 py-4"
-        >
-          <div className="flex items-baseline gap-5">
-            {children}
-            {metrics.length > 0 && (
-              <div data-anno-ref="page-metrics" className="flex items-baseline gap-6">
-                {metrics.map((m) => (
-                  /* ═══ THE FIGURE AND ITS LABEL ON ONE LINE (§3.3) ═══
-                     They were stacked — figure over label — which made each
-                     pair two fragments and the cluster four. Inline, a pair is
-                     one phrase ("69 open"), and the two pairs are two phrases
-                     rather than a 2×2 grid.
-                     THE NUMERAL CARRIES THE WEIGHT and the label stays quiet,
-                     which is the same division the row uses. */
-                  <p key={m.label} className="flex min-w-0 items-baseline gap-1.5">
-                    <span
-                      data-metric-value={m.label}
-                      className="font-display text-[24px] font-bold leading-[32px] tabular-nums text-[var(--text-primary)]"
-                    >
-                      {m.value}
-                    </span>
-                    {/* QUIET, AND NOT UPPERCASE. An all-caps label at 11px is
-                        the treatment this codebase uses for an EYEBROW above
-                        content; beside a figure it would compete with the
-                        figure it describes. */}
-                    <span className="truncate text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                      {m.label}
-                    </span>
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-          {progress && <div className="w-full">{progress}</div>}
-        </div>
+      /* ═══ A BAND, NOT TWO CORNERS (Figma alignment §5.1, §5.2) ═══
+         MEASURED before: the title sat left and a small dense metric panel sat
+         right with nothing spanning between them. The eye landed on the title,
+         crossed empty space and arrived at the panel — which is why it read as
+         disappearing. The panel was not too small; it was unaccompanied.
+         SO THE BAND SPANS THE CONTENT WIDTH and the two sides are bound by a
+         shared bottom rule rather than by proximity. */
+      className={cn(
+        "flex shrink-0 flex-col",
+        /* ═══ THE RULE IS A HAIRLINE NOW, NOT THE TRACK (§5.3) ═══
+           §5.2 made the progress fill the band's bottom rule. Judged in situ
+           at 1440 with 8 of 19 done, that rule READ AS A BROWSER LOADING BAR —
+           see the note on the progress slot below. The rule still has to exist,
+           because §5.1's fix for the disappearing metric panel was binding the
+           two sides with something that SPANS rather than with proximity. So
+           the span survives and the fill does not: one hairline, which is the
+           "no added chrome" §5.2 was protecting, to within a pixel.
+
+           ═══ AND IT IS GATED ON `progress`, WHICH IS NOT ARBITRARY ═══
+           This component is mounted by seven destinations and §5's scope is
+           the two LIST surfaces. Ungated, the rule would appear under Today,
+           Mentees, Roster and the team directory — an unreviewed change to
+           surfaces that shipped without one, made by a component edit rather
+           than by a decision about them.
+           `progress` is the honest gate because it selects exactly the
+           surfaces that ALREADY HAD this rule: the track drew it, so a
+           destination with a track had one and a destination without had none.
+           Gating reproduces that set precisely and changes nothing elsewhere.
+           It is also §5.1's own rationale — the rule binds a left cluster to a
+           right one, and the track is what puts a cluster on the right. */
+        progress && "border-b border-[var(--border-subtle)] pb-4",
+        className
       )}
+    >
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-[32px] font-bold leading-[40px] text-[var(--text-primary)]">
+            {title}
+          </h1>
+          {/* ═══ THE SECOND LINE IS THE DESTINATION'S CONTEXT ═══
+              On the two list surfaces this is the date (§4.1); elsewhere it is
+              still the purpose sentence. The component does not know which —
+              it renders the string it is given, which is why the prop is named
+              for its position rather than for one of its two uses. */}
+          <p
+            data-anno-ref="page-purpose"
+            className="mt-1 max-w-prose text-[16px] leading-[24px] text-[var(--text-secondary)]"
+          >
+            {purpose}
+          </p>
+          {/* ═══ QUEUE STATE BELONGS WITH THE PAGE'S NAME (§5.2) ═══
+              `16 open · 2d oldest` are facts about the QUEUE; the progress on
+              the right is a fact about this supervisor's SESSION. They were
+              stacked in one box as though they were one kind of thing, which
+              is the third of §5.1's three problems. Split by what they
+              describe: the queue's state sits under the queue's name.
+              ONE TYPE SCALE, not three. Numerals at 24/32 in the display face,
+              labels at 13/18 quiet, separated by a middot — a phrase, not a
+              grid. §5.1's second problem was three scales and two alignment
+              logics inside 95px; this is one scale and one baseline. */}
+          {metrics.length > 0 && (
+            <p
+              data-anno-ref="page-metrics"
+              className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1"
+            >
+              {metrics.map((m, i) => (
+                <span key={m.label} className="flex items-baseline gap-1.5">
+                  {i > 0 && (
+                    <span aria-hidden className="mr-0.5 text-[var(--text-muted)]">
+                      ·
+                    </span>
+                  )}
+                  <span
+                    data-metric-value={m.label}
+                    className="font-display text-[24px] font-bold leading-[32px] tabular-nums text-[var(--text-primary)]"
+                  >
+                    {m.value}
+                  </span>
+                  <span className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                    {m.label}
+                  </span>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+        {(children || progress) && (
+          <div className="flex shrink-0 items-end gap-4">
+            {children}
+            {/* ═══ THE TRACK IS A WIDGET IN THE CORNER AGAIN, DELIBERATELY ═══
+                §5.2 moved it out of the corner because a contained track "reads
+                as a widget" — and that was the right complaint about a track
+                sitting alone in dead space. It does not sit alone now: §4.2
+                took the `View` control out of this slot, so the track occupies
+                the cluster the band already had, bottom-aligned with the
+                metrics and bound to them by the hairline above. A widget
+                beside two figures is a reading; a widget in empty space was
+                the thing §5.1 called disappearing. */}
+            {progress && <div className="w-64">{progress}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* ═══ WHAT WAS HERE: THE FULL-WIDTH RULE (§5.2), AND WHY IT WENT ═══
+          `{progress && <div className="mt-4">{progress}</div>}` — the track
+          rendered BELOW the band at the full content width, as the band's
+          bottom rule.
+
+          §5.2's argument was good and one clause of it turned out to be the
+          defect: "it reads as THE PAGE FILLING UP". That is the loading-bar
+          read, described approvingly, and §5.3 required a judgement on exactly
+          it. MEASURED at 1440 with the fill at 8 of 19: a 1224×8 bar — a 153:1
+          aspect ratio — carrying a solid `--text-primary` fill, sitting as a
+          horizontal rule directly beneath a header. That is the canonical
+          page-load form, and all five of §5.3's mitigations were present and
+          working while it still read that way. The shape is the signature;
+          thickness and a visible remainder do not overcome it.
+
+          THE REMAINDER WAS ALSO THE WEAKEST MITIGATION ON ITS OWN TERMS.
+          `ShiftTrack` calls a visible unfilled remainder "the strongest single
+          cue that this is a measure rather than a wait". Measured, that
+          remainder is `--surface-s2` on `--surface-s1` = 1.2:1 light, 1.26:1
+          dark. Bloom has no stronger neutral to move to — `--border-subtle` is
+          LIGHTER than `--surface-s2` — and the fill's colour is settled and
+          not reopenable ("NEVER GREEN"). So the cue could not be strengthened
+          where it stood.
+
+          IT RENDERS NOTHING WHEN THE SHIFT HAS NO WORK — still true, and now
+          it is the hairline rather than the track that guarantees the band
+          terminates. `ShiftTrack` returns null at `total === 0`, so an empty
+          queue gets no track; a supervisor who was given no work has not
+          failed to do it. */}
     </div>
   );
 }

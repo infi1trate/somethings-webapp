@@ -34,11 +34,13 @@ export default function RiskFlagsRoute({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  /* READ AND DISCARDED. Next 16's prop pattern: `searchParams` is a promise and
+  /* READ AND USED NOW — `?flag={id}` is Today's deep link into an individual
+     flag (Phase I.5.2). Next 16's prop pattern: `searchParams` is a promise and
      must be awaited even when nothing is read from it, or a param on the URL
      leaves the page suspended. This destination takes no params — the two it
      used to take, `?band=` and `?region=`, are what the route itself now says. */
-  void use(searchParams);
+  const query = use(searchParams);
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
   const mounted = useMounted();
   const persona = useOnboardingStore((s) => s.persona);
   // Gated behind `mounted`: persona is persisted, and branching on it before
@@ -52,7 +54,11 @@ export default function RiskFlagsRoute({
        item; the chrome is the same component either way. */
     <AppChrome active={supervisor ? "risk-flags" : "home"}>
       {supervisor ? (
-        <MonitoringPage scope="risk-flags" />
+        <MonitoringPage
+          scope="risk-flags"
+          /* `?flag={id}` — the same deep link one destination along (I.5.2). */
+          focusFlag={str(query.flag)}
+        />
       ) : (
         /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
          true one for them: this destination is not offered to their persona, so

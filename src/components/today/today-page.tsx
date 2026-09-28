@@ -64,6 +64,10 @@ import {
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { NowBand } from "@/components/monitoring/now-band";
 import { PageHeader } from "@/components/ia/page-header";
+import {
+  startHerePreview,
+  type StartHerePreview,
+} from "@/lib/home/start-here";
 import { PinnedMentees } from "@/components/today/pinned-mentees";
 import { SuggestedSchedule } from "@/components/today/suggested-schedule";
 import { bandStateFor } from "@/lib/monitoring/live";
@@ -253,36 +257,79 @@ function DestinationCard({
         data-tone={card.tone}
         data-directive={directive ? "true" : undefined}
         className={cn(
-          /* 44px minimum via the padding, and the whole row is the target. */
-          "flex min-h-[60px] w-full items-center gap-3 px-4 py-3 transition-colors",
-          "hover:bg-[var(--tint-hover)]",
+          /* ═══ 80 TALL, AND THE WHOLE CARD IS THE TARGET (H.2.2, H.2.3) ═══
+             Well clear of 2.5.8's 24px floor and of the 44px practical bar.
+             ELEVATION IS `--shadow-card`, AND THAT NAME IS A FINDING. H.2.4
+             says "`Elevation/2` is a Bloom token" — it is not, in this
+             codebase: Bloom ships `--shadow-card`, `--shadow-card-hover`,
+             `--shadow-panel`, `--shadow-tile`, `--shadow-alert` and
+             `--shadow-elevation-4`, and there is no `-2`. `--shadow-card` is
+             the existing card elevation, so nothing new is authored here,
+             which is the instruction that actually matters. Reported under
+             H.6 rather than resolved silently. */
+          "flex min-h-[80px] w-full flex-col justify-center gap-1 rounded-[var(--radius-elevated)]",
+          "border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-3",
+          "shadow-[var(--shadow-card)] transition-colors hover:bg-[var(--tint-hover)]",
           RING
         )}
       >
-        {/* THE DIRECTIVE MARKER. `aria-hidden` because the accessible name below
-            carries the same fact in words — a screen-reader user hears "start
-            here" rather than being told about a dot. */}
-        <span
-          aria-hidden
-          className={cn(
-            "size-2 shrink-0 rounded-full",
-            directive
-              ? "bg-[var(--text-primary)]"
-              : "border border-[color:var(--border-contour)]"
+        <span className="flex min-w-0 items-baseline gap-2">
+          {/* THE DIRECTIVE MARKER. `aria-hidden` because the accessible name
+              below carries the same fact in words — a screen-reader user hears
+              "start here" rather than being told about a dot.
+              IT SITS IN THE HEADLINE ROW NOW. The card is a column, so left as
+              a direct child it became a row of its own — a dot on a line above
+              the count. Baseline-aligned against the figure with a small
+              nudge, because a 8px disc centred on a 28px line sits high. */}
+          <span
+            aria-hidden
+            className={cn(
+              "size-2 shrink-0 translate-y-[-3px] rounded-full",
+              directive
+                ? "bg-[var(--text-primary)]"
+                : "border border-[color:var(--border-contour)]"
+            )}
+          />
+          {/* ═══ THE COUNT LEADS THE HEADLINE (H.2.3) ═══
+              "count + destination name as the headline". It was a figure
+              right-aligned at the far end of a 794px row, which at 275 has
+              nowhere to be — and on a card the count is the thing being
+              counted's own headline rather than a trailing annotation.
+              TABULAR AND MONO so a column of three cards does not jitter as
+              the figures change, and `aria-hidden` for the reason the trailing
+              figure was: the state sentence below already says the number, and
+              the `sr-only` line speaks it once in order. */}
+          {count != null && count > 0 && (
+            <span
+              aria-hidden
+              className="shrink-0 text-[20px] leading-[28px] tabular-nums text-[var(--text-primary)]"
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              {count}
+            </span>
           )}
-        />
-        <span className="min-w-0 flex-1">
           <span
             className={cn(
-              "block truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
+              "min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
               directive && "font-display font-bold"
             )}
           >
             {card.label}
           </span>
+        </span>
+        {/* ═══ THE SECOND LINE AND THE CHEVRON SHARE A ROW ═══
+            H.2.3 puts the decision-relevant fact second and the chevron last.
+            On a 275px card the chevron goes at the end of that line rather
+            than in a third row: it is an affordance for the card, not a fact
+            about it, and giving it its own row would spend a third of an 80px
+            card on decoration.
+            THE TRAILING FIGURE IS GONE — it moved into the headline above,
+            where H.2.3 puts it. Rendering it in both places would be the row
+            saying one fact twice, which is what its old note was guarding. */}
+        <span className="flex min-w-0 items-center gap-2">
           <span
             className={cn(
-              "block truncate text-[12px] leading-[16px]",
+              "min-w-0 flex-1 truncate text-[12px] leading-[16px]",
               TONE_TEXT[card.tone]
             )}
           >
@@ -291,29 +338,120 @@ function DestinationCard({
             )}
             {card.state}
           </span>
-        </span>
-        {/* THE FIGURE, WHERE THERE IS ONE. `aria-hidden`: the state sentence
-            above already contains the number, and announcing "16" a second time
-            after "16 open · 2 overdue" is the row saying one fact twice. */}
-        {count != null && count > 0 && (
-          <span
+          <ChevronRight
             aria-hidden
-            className="shrink-0 text-[14px] tabular-nums text-[var(--text-secondary)]"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            {count}
-          </span>
-        )}
-        <ChevronRight
-          aria-hidden
-          className="size-4 shrink-0 text-[var(--text-muted)]"
-        />
+            className="size-4 shrink-0 text-[var(--text-muted)]"
+          />
+        </span>
         {/* THE WHOLE SENTENCE, ONCE, IN ORDER. TODO-COPY on "Start here". */}
         <span className="sr-only">
           {`${card.label}. ${card.state}.${directive ? " Start here." : ""}`}
         </span>
       </Link>
     </li>
+  );
+}
+
+/** ═══ THE BOUNDED PREVIEW (Phase I) ═══
+ *
+ *  ORIENTATION WITH A SHORTCUT, NOT A WORK SURFACE. Every row is a `Link` and
+ *  nothing else: no checkbox, no hover action, no swipe, no drawer, no
+ *  disposition. The only interactive elements in this whole subtree are the
+ *  rows and the one `See all`.
+ *
+ *  THE PARTIAL-LIST DISCLOSURE IS THE SAFETY PART (I.3). A supervisor who
+ *  clears four items and sees an empty preview must not be able to conclude the
+ *  queue is empty — the same hazard as a filtered-empty safety queue. So the
+ *  count of shown-against-total renders whenever anything is open, and it reads
+ *  off `preview.total`, which is the destination card's own figure.
+ */
+function StartHere({
+  preview,
+  now,
+}: {
+  preview: StartHerePreview;
+  now: number;
+}) {
+  const more = preview.total > preview.items.length;
+  return (
+    <div data-anno-ref="today-start-here" className="mt-3">
+      <ul
+        data-anno-ref="start-here-items"
+        className="overflow-hidden rounded-[var(--radius-inset)] border border-[color:var(--border-subtle)]"
+      >
+        {preview.items.map((it, i) => (
+          <li key={it.id}>
+            <Link
+              href={it.href}
+              data-anno-ref="start-here-item"
+              className={cn(
+                /* 44px via `min-h-11` (I.5.1), and the WHOLE ROW is the target. */
+                "flex min-h-11 w-full items-center gap-3 px-3 py-2 transition-colors",
+                "hover:bg-[var(--tint-hover)]",
+                i > 0 && "border-t border-[color:var(--border-subtle)]",
+                RING
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-[var(--text-primary)]">
+                {it.name}
+              </span>
+              {/* THE STATUS WORD, WHERE THE DESTINATION HAS ONE. Risk Flags
+                  does not — see `start-here.ts` on why a flag's category is
+                  clinical content rather than a workflow state. */}
+              {it.status && (
+                <span className="hidden shrink-0 truncate text-[12px] leading-[16px] text-[var(--text-secondary)] sm:block">
+                  {it.status}
+                </span>
+              )}
+              {/* THE AGE — the field the ordering derives from, so I.4.2
+                  requires it visible. Mono and tabular so four rows of figures
+                  form a column rather than a ragged edge. */}
+              <span
+                className="shrink-0 text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
+                {elapsedLabel(it.at, now)}
+              </span>
+              <ChevronRight
+                aria-hidden
+                className="size-4 shrink-0 text-[var(--text-muted)]"
+              />
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        {/* ═══ SHOWN OF TOTAL (I.3.1) ═══
+            NEEDS-COPY-NICOLE: Showing {n} of {total}
+            It renders even when the preview holds everything, because "4 of 4"
+            and a silent list of four are different claims and only one of them
+            is checkable by the reader. */}
+        <p
+          data-anno-ref="start-here-count"
+          className="text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        >
+          Showing {preview.items.length} of {preview.total}
+        </p>
+        {/* ═══ THE MODULE'S ONE CTA (I.3.2, I.0) ═══
+            Required whenever anything is open beyond the shown set, and it is
+            the ONLY affordance pointing at the recommended destination — the
+            banner's own button was removed rather than kept beside it. */}
+        {more && (
+          <Link
+            href={preview.href}
+            data-anno-ref="start-here-see-all"
+            className={cn(
+              "inline-flex min-h-11 items-center rounded-full bg-[var(--text-primary)] px-4 text-[13px] font-semibold text-[var(--text-inverse)]",
+              "transition-opacity hover:opacity-90",
+              RING
+            )}
+          >
+            {/* NEEDS-COPY-NICOLE: See all {n} */}
+            See all {preview.total}
+          </Link>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -555,9 +693,22 @@ export function TodayPage() {
     () => todayRationale(cards, todayInput),
     [cards, todayInput]
   );
+  /* ═══ THE PREVIEW IS KEYED TO THE RATIONALE (FORK I-1 = KEYED) ═══
+     `rationale.id` and nothing else, so I.2.3 holds by construction: the
+     module previews the destination the sentence above it names.
+     `ctaCard` IS RETIRED, NOT DELETED. It resolved the rationale's destination
+     to its card so the banner's own button could link there; I.0's merged form
+     removes that button, and `See all` carries the link from `preview.href`.
+     Kept because FORK I-2 flipping to `separate` restores the banner's CTA,
+     and this is the one line that fork needs back. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const ctaCard = rationale
     ? (cards.find((c) => c.id === rationale.id) ?? null)
     : null;
+  const preview = useMemo(
+    () => startHerePreview(rationale?.id, todayInput),
+    [rationale, todayInput]
+  );
   const showDigest =
     /* RATIONALE-OR-NOTHING (C.3). The last clause was `digestLine != null`,
        which is true whenever anything at all needs attention — so the banner
@@ -587,7 +738,19 @@ export function TodayPage() {
         backgroundRepeat: "no-repeat",
         backgroundSize: "100% 220px",
       }}
-      className="mx-auto flex h-full min-h-0 w-full max-w-[860px] flex-col gap-5 overflow-y-auto px-6 py-6 lg:px-8"
+      /* ═══ THE COLUMN PAIR'S WIDTH (Phase H.1) ═══
+         857 + 16 + 285 = 1158 of content, plus `lg:px-8`'s 64 = 1222. The
+         857 is `275 × 3 + 16 × 2` — a 3-up card grid at a 16px gutter — and
+         H.1.1 forbids rounding it, approximating it or expressing it as a
+         percentage, so it is written once, here and in the column itself.
+         BELOW THE BREAKPOINT the old single-column width is kept exactly, so
+         the narrow rendering is unchanged by this phase.
+         ONE ARBITRARY VARIANT, NOT A NAMED ONE. Tailwind orders `lg:` and
+         `min-[…]:` by where they fall in its own emitted sheet, not by
+         specificity, and a named variant landing after an arbitrary one has
+         silently won an argument on this codebase before. Both widths here are
+         arbitrary so the cascade order is the source order. */
+      className="mx-auto flex h-full min-h-0 w-full max-w-[860px] flex-col gap-5 overflow-y-auto px-6 py-6 min-[1470px]:max-w-[1222px] lg:px-8"
     >
       {/* ═══ THE SHARED HEADER, AND TODAY TAKES NO METRICS (addendum §2.10) ═══
           Deliberate, and the mirror rule is why: every figure on this page
@@ -676,6 +839,23 @@ export function TodayPage() {
         />
       )}
 
+      {/* ═══ THE COLUMN PAIR (Phase H.1) ═══
+          THE INTERRUPT AND THE BAND STAY ABOVE IT, full width. Both are
+          perishable layers addressed to the whole page, and narrowing them to
+          857 to sit beside a reference rail would rank a schedule alongside an
+          escalation.
+          `items-start` SO THE RAIL DOES NOT STRETCH. A schedule is as tall as
+          its blocks; a stretched aside would put its dividers against a column
+          of empty surface.
+          STACKED IS THE DEFAULT AND THE ROW IS THE OVERRIDE (H.1.4). Below the
+          breakpoint the rail moves under the main column at full width, which
+          is what a mobile-first default gives for free — and it means the
+          320px case is the base rendering rather than a special one. */}
+      <div className="flex shrink-0 flex-col gap-5 min-[1470px]:flex-row min-[1470px]:items-start min-[1470px]:gap-4">
+        <div
+          data-anno-ref="today-main"
+          className="flex min-w-0 flex-col gap-5 min-[1470px]:w-[857px] min-[1470px]:shrink-0"
+        >
       {showDigest && (
         <section
           /* TODO-COPY */
@@ -718,30 +898,19 @@ export function TodayPage() {
           >
             {rationale?.reason}
           </p>
-          {ctaCard && (
-            /* ONE PRIMARY CTA, TARGETING THE LADDER'S HEAD. The item it names is
-               the comparator's answer — see `ladderTargetFor` — so the digest
-               cannot point somewhere the destination's own list would not have
-               put first. */
-            <Link
-              href={ctaCard.href}
-              className={cn(
-                "mt-3 inline-flex min-h-11 items-center rounded-full bg-[var(--text-primary)] px-4 text-[13px] font-semibold text-[var(--text-inverse)]",
-                "transition-opacity hover:opacity-90",
-                RING
-              )}
-            >
-              {/* TODO-COPY. The CTA names where it GOES, not what it does —
-                  "Resolve" would be a promise this route cannot keep. */}
-              {/* ═══ NO NAMED TEEN, AND THAT IS A SOURCE REMOVED ═══
-                  It read "Start with escalations — Simone first", from
-                  `ladderTargetFor(items)` — a THIRD count of the same work, off
-                  task items, which named a teen the destination did not have
-                  under the degraded fixture. The destination's own comparator
-                  already puts the right item first, so the name here was a
-                  promise this route had to duplicate data to keep. */}
-              Start with {ctaCard.label}
-            </Link>
+          {/* ═══ THE PREVIEW, MERGED INTO THE BANNER (FORK I-2 = MERGED) ═══
+              One module, one container, one CTA: heading, rationale, items,
+              See all. The banner's own `Start with {label}` button is REMOVED
+              as redundant — it and `See all` pointed at the same destination,
+              which I.0 names as the thing not to build.
+              WHAT THE REMOVED BUTTON ARGUED IS PRESERVED: it deliberately named
+              no teen, because naming one meant a third count of the same work
+              off a different source. The preview names teens, but it does so
+              from the destination's OWN open set (`start-here.ts` reads the
+              sets `open-counts.ts` exports), so there is still no third
+              source — which is exactly the condition that objection set. */}
+          {preview && (
+            <StartHere preview={preview} now={now} />
           )}
         </section>
       )}
@@ -759,9 +928,21 @@ export function TodayPage() {
           /* TODO-COPY */
           aria-label="Destinations"
           data-anno-ref="today-destinations"
-          className="shrink-0 overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+          className="shrink-0"
         >
-          <ul className="divide-y divide-[color:var(--border-subtle)]">
+          {/* ═══ THREE ACROSS THE 857 COLUMN (Phase H.2) ═══
+              `grid-cols-3` with `gap-4` on a container that is exactly 857
+              yields exactly 275 per card — the grid computes H.1.1's own
+              arithmetic rather than restating it, so the two cannot drift.
+              THE SECTION LOST ITS SHARED SHELL. The rows were one bordered
+              surface divided by hairlines; three cards each carry their own
+              border, surface and elevation, so the wrapper is now layout only.
+              STACKED BELOW THE BREAKPOINT, one card per row at full width.
+              H.2.5's warning is live: a FOURTH destination breaks this grid,
+              and the instruction is to revert to full-width stacked rows
+              rather than invent a 4-up. `cards.length` is the thing to check
+              the day Chat/Coverage resolves in. */}
+          <ul className="grid grid-cols-1 gap-4 min-[1470px]:grid-cols-3">
             {cards.map((card) => (
               <DestinationCard
                 key={card.id}
@@ -784,16 +965,28 @@ export function TodayPage() {
       {mounted && <PinnedMentees input={todayInput} />}
 
       {stateOf("closed") === "ready" && <ClosedToday facts={facts} />}
+        </div>
 
-      {/* ═══ THE SCHEDULE SITS BELOW THE WORK (Phase D) ═══
-          Placement is not specified by the phase, so it is stated here: below
-          the destination rows and below "Closed today". It is a REFERENCE a
-          supervisor glances at, not an orientation surface — putting it above
-          the rows would make the page open on a suggestion rather than on what
-          is owed. The reference mock has it in a right rail; Today is a single
-          column and introducing a second one is a layout change this phase did
-          not ask for. */}
-      {mounted && <SuggestedSchedule now={now} />}
+        {/* ═══ THE SCHEDULE MOVES TO THE RAIL (Phase H.1, H.4) ═══
+            PHASE D LEFT THIS BELOW THE WORK and said why: "the reference mock
+            has it in a right rail; Today is a single column and introducing a
+            second one is a layout change this phase did not ask for." H.1 asks
+            for it, so the reasoning is now satisfied rather than overruled —
+            the rail holds the schedule AND NOTHING ELSE (H.1.2), which is what
+            keeps it a reference rather than a second place work appears.
+            AND IT ANSWERS H.1.5. Below a long column a glance-all-shift
+            reference is not glanceable; in the rail it is on screen at the
+            default viewport, which the phase requires and the report measures.
+            IT IS AN `aside`, not a `section`: complementary to the page's
+            content rather than part of its sequence, which is exactly the
+            relationship "reference, not work" describes. */}
+        <aside
+          data-anno-ref="today-rail"
+          className="w-full min-[1470px]:w-[285px] min-[1470px]:shrink-0"
+        >
+          {mounted && <SuggestedSchedule now={now} />}
+        </aside>
+      </div>
     </div>
   );
 }

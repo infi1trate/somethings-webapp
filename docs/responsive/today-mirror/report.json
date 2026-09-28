@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-25T16:30:14.258Z",
+  "generated": "2026-09-28T14:27:27.173Z",
   "rows": [
     {
       "id": "store.present",
@@ -47,7 +47,7 @@
       "id": "links.present",
       "label": "Today offers links at all",
       "ok": true,
-      "detail": "8 link(s)"
+      "detail": "9 link(s)"
     },
     {
       "id": "links.leave",
@@ -140,21 +140,21 @@
       "tone": "breach",
       "directive": true,
       "href": "/app/escalations",
-      "text": "Escalations 2 active · 3 close-out items overdue 2 Escalations. 2 active · 3 close-out items overdue. Start here."
+      "text": "2 Escalations 2 active · 3 close-out items overdue Escalations. 2 active · 3 close-out items overdue. Start here."
     },
     {
       "id": "risk-flags",
       "tone": "attention",
       "directive": false,
       "href": "/app/risk-flags",
-      "text": "Risk Flags 123 open · oldest 8d ago 123 Risk Flags. 123 open · oldest 8d ago."
+      "text": "123 Risk Flags 123 open · oldest 8d ago Risk Flags. 123 open · oldest 8d ago."
     },
     {
       "id": "care-reviews",
       "tone": "attention",
       "directive": false,
       "href": "/app/care-reviews",
-      "text": "Care Reviews 16 open · oldest 3d ago 16 Care Reviews. 16 open · oldest 3d ago."
+      "text": "16 Care Reviews 16 open · oldest 3d ago Care Reviews. 16 open · oldest 3d ago."
     }
   ]
 }

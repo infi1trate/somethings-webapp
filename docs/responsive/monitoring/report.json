@@ -1,11 +1,11 @@
 {
-  "at": 1790353991488,
+  "at": 1790381836764,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. 69 open 5d olde"
+      "detail": "Risk Flags Friday September 25, 2026 69 open · 5d oldest 0 of 69 flags reviewed "
     },
     {
       "id": "input.rows",
@@ -351,13 +351,13 @@
       "id": "hdr.own.escalations.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Escalations Live incidents and the paperwork they owe. The only clocks in the product run here. 2 active 16 cl"
+      "detail": "Escalations Live incidents and the paperwork they owe. The only clocks in the product run here. 2 active · 16 "
     },
     {
       "id": "hdr.own.escalations.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Escalations Live incidents and the paperwork they owe. The only clocks in the product run here. 2 active 16 close-out items open"
+      "detail": "Escalations Live incidents and the paperwork they owe. The only clocks in the product run here. 2 active · 16 close-out items open"
     },
     {
       "id": "hdr.own.escalations.borrows-none",
@@ -369,13 +369,13 @@
       "id": "hdr.own.risk-flags.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Friday September 25, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Every conversation a flag was raised on, worst first. Flag pipeline is down — no flags are arriving 0 open — oldest"
+      "detail": "Risk Flags Friday September 25, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -552,10 +552,22 @@
       "detail": "32px"
     },
     {
-      "id": "header.purpose-everywhere",
-      "label": "each one says what the destination is for, in a sentence",
+      "id": "header.second-line-everywhere",
+      "label": "every destination carries a second line under its title",
       "ok": true,
-      "detail": "/app/today: 56 · /app/escalations: 83 · /app/risk-flags: 53 · /app/care-reviews: 56 · /app/team: 47 · /app/mentees: 65"
+      "detail": "/app/today: 56 · /app/escalations: 83 · /app/risk-flags: 25 · /app/care-reviews: 25 · /app/team: 47 · /app/mentees: 65"
+    },
+    {
+      "id": "header.purpose-everywhere",
+      "label": "and off the list surfaces it says what the destination is for, in a sentence",
+      "ok": true,
+      "detail": "/app/today: 56 · /app/escalations: 83 · /app/team: 47 · /app/mentees: 65"
+    },
+    {
+      "id": "header.list-surfaces-date",
+      "label": "the list surfaces carry the shift date instead, and both carry the same one",
+      "ok": true,
+      "detail": "2 list surfaces · Friday September 25, 2026"
     },
     {
       "id": "header.metric-count",

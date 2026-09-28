@@ -52,7 +52,15 @@ export default function CareReviewsRoute({
        item; the chrome is the same component either way. */
     <AppChrome active={supervisor ? "care-reviews" : "home"}>
       {supervisor ? (
-        <TasksPage scope="care-reviews" focusBand={str(query.band)} />
+        <TasksPage
+          scope="care-reviews"
+          focusBand={str(query.band)}
+          /* `?review={id}` — Today's start-here preview deep-links to the
+             individual review (Phase I.5.2). It seeds the list's existing
+             selection; the detail pane renders exactly what it renders when a
+             supervisor clicks the row, so the frozen surface is untouched. */
+          focusReview={str(query.review)}
+        />
       ) : (
         /* THE NON-SUPERVISOR BRANCH KEEPS THE PLACEHOLDER. Its sentence is still the
          true one for them: this destination is not offered to their persona, so

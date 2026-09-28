@@ -102,6 +102,7 @@ export function ListToolbar<T extends Filterable>({
   preset,
   onPreset,
   searchHint,
+  showView = true,
 }: {
   /** The UNFILTERED set, so every dimension's options describe what exists
    *  rather than what the other filters have already left. */
@@ -113,6 +114,16 @@ export function ListToolbar<T extends Filterable>({
   onPreset: (p: ViewPreset) => void;
   /** NEEDS-COPY-NICOLE. What the search box matches, per destination. */
   searchHint: string;
+  /** ═══ CARE REVIEWS DROPS IT; RISK FLAGS KEEPS IT (§4.2) ═══
+   *  §4.2 simplifies the Care Reviews toolbar to two controls, and that was
+   *  confirmed rather than inferred from the mockup's silence.
+   *  THE PRESETS THEMSELVES STAY, per §4.3's "the three density presets stay
+   *  as built" — it is the CONTROL that goes, not the row system. So Care
+   *  Reviews renders at whatever preset is stored, defaulting to comfortable,
+   *  with no way to change it from that surface. That asymmetry is stated in
+   *  the report rather than smoothed over: a stored preference with no control
+   *  is an odd state, and it is the state §4.2 asks for. */
+  showView?: boolean;
 }) {
   const primary = dimensions.find((d) => d.primary);
   const behind = dimensions.filter((d) => !d.primary);
@@ -236,9 +247,11 @@ export function ListToolbar<T extends Filterable>({
         )}
 
         {/* RIGHT-ALIGNED TO THE LIST COLUMN'S EDGE (§5). */}
-        <span className="ml-auto shrink-0">
-          <ViewOptionsButton preset={preset} onChange={onPreset} />
-        </span>
+        {showView && (
+          <span className="ml-auto shrink-0">
+            <ViewOptionsButton preset={preset} onChange={onPreset} />
+          </span>
+        )}
       </div>
 
       {chips.length > 0 && (

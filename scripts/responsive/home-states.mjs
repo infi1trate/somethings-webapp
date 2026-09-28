@@ -61,38 +61,64 @@ const mainText = (page) => page.locator("main").innerText();
      four personas. The URL had moved and the chrome had not. */
   check("shell.supervisor", "a supervisor's Home is in the supervisor's chrome", shell === "Supervisor sections", shell);
 
+  /* ═══ RETARGETED: `[data-stage]` IS GONE (supervisor IA restructure + Today
+         Phase B/H.2) ═══
+     This read four `[data-stage]` nodes whose ids were
+     `escalations > billing > flags > chatReview` — the four-domain era, when
+     Home listed STAGES of a shift. The IA restructure made them DESTINATIONS
+     (`escalations`, `risk-flags`, `care-reviews`), Superseded #8 removed
+     Mentor Practice, §2.2 renamed Coverage to Chat and it left the set, and
+     Phase H.2 rendered the survivors as a 3-up card grid.
+     SO THE SELECTOR MATCHED NOTHING, and that is why this block mattered:
+     `sequence.names` was GREEN on an empty array — `[].every()` is true — so a
+     check asserting nothing read as a passing check. Every assertion below
+     therefore carries its own non-empty guard.
+     THE CLAIMS ARE UNCHANGED: a fixed set in a fixed order, one directive, and
+     the state carried in words rather than only in shape. */
   const stages = await page.evaluate(() =>
-    [...document.querySelectorAll("[data-stage]")].map((e) => ({
-      id: e.getAttribute("data-stage"),
-      directive: e.getAttribute("data-directive") === "true",
-      name: e.querySelector("a")?.getAttribute("aria-label") ?? e.getAttribute("aria-label"),
-      href: e.querySelector("a")?.getAttribute("href") ?? null,
+    [...document.querySelectorAll('[data-anno-ref^="today-card:"]')].map((a) => ({
+      id: (a.getAttribute("data-anno-ref") ?? "").split(":")[1] ?? null,
+      directive: a.getAttribute("data-directive") === "true",
+      /* THE ACCESSIBLE NAME IS THE `sr-only` SENTENCE, not an `aria-label` —
+         the card never had one, which is the other half of why the old read
+         came back null. */
+      name: a.querySelector(".sr-only")?.textContent?.trim() ?? null,
+      href: a.getAttribute("href"),
     }))
   );
   check(
+    "sequence.read",
+    "the destination cards were readable at all",
+    stages.length > 0,
+    `${stages.length} cards`
+  );
+  check(
     "sequence.order",
-    "four stages, fixed order, never hidden",
-    stages.map((s) => s.id).join(">") === "escalations>billing>flags>chatReview",
+    "three destinations, fixed order, never hidden",
+    stages.map((s) => s.id).join(">") === "escalations>risk-flags>care-reviews",
     stages.map((s) => s.id).join(" > ")
   );
   check(
     "sequence.one-directive",
-    "exactly one stage carries the directive emphasis",
+    "exactly one destination carries the directive emphasis",
     stages.filter((s) => s.directive).length === 1,
-    stages.find((s) => s.directive)?.id
+    `${stages.filter((s) => s.directive).length} of ${stages.length} · ${stages.find((s) => s.directive)?.id ?? "none"}`
   );
   /* THE STATE IS IN THE NAME. A sighted reader gets it from the line under the
      label; without this a screen-reader user hears "Risk flags, link". */
   check(
     "sequence.names",
-    "every stage's accessible name carries its state",
-    stages.every((s) => s.name && s.name.includes(",")),
-    stages[2]?.name
+    "every destination's accessible name carries its state",
+    stages.length > 0 && stages.every((s) => s.name && /\w[.,]/.test(s.name)),
+    stages.map((s) => s.name).join(" | ")
   );
+  /* RETARGETED WITH THE COPY. It asserted the name ended `", next"`, from the
+     stage era's "up next" framing. The card's sentence ends `"Start here."` —
+     the same claim (the directive says so IN WORDS, not only by the dot). */
   check(
     "sequence.directive-in-name",
     "and the directive one says so in words, not only by shape",
-    stages.find((s) => s.directive)?.name?.endsWith(", next"),
+    Boolean(stages.find((s) => s.directive)?.name?.endsWith("Start here.")),
     stages.find((s) => s.directive)?.name
   );
   await page.screenshot({ path: `${OUT}/01-shift.png` });
@@ -131,7 +157,20 @@ const mainText = (page) => page.locator("main").innerText();
   check(
     "boundary.links-out",
     "every link leaves for a surface that owns the work",
-    links.length > 0 && links.every((h) => /^\/app\/(tasks|monitoring|activity|escalation)/.test(h ?? "")),
+    /* ═══ RETARGETED: THE DESTINATION ROUTES ARE NEW (IA restructure) ═══
+       This allowed `/app/(tasks|monitoring|activity|escalation)` — the routes
+       before the restructure split Monitoring into destinations and retired
+       `/app/tasks`. `/app/risk-flags` and `/app/care-reviews` are the surfaces
+       that own that work now, and the old list rejected both.
+       `/app/escalation/{id}` STAYS ALLOWED AND IS NOT A BROKEN LINK: it is a
+       documented HOP that redirects to `/app/escalations?escalation={id}` —
+       `src/app/app/escalation/[escalationId]/page.tsx` says so at the top.
+       THE CLAIM IS UNCHANGED: every link leaves for a surface that owns the
+       work, and none of them acts on it here. */
+    links.length > 0 &&
+      links.every((h) =>
+        /^\/app\/(escalations?|risk-flags|care-reviews|activity)(\/|\?|$)/.test(h ?? "")
+      ),
     [...new Set(links)].join(" ")
   );
   await context.close();
@@ -141,14 +180,26 @@ const mainText = (page) => page.locator("main").innerText();
 // 3 · THE LADDER PICKS THE RIGHT STAGE, SCENARIO BY SCENARIO.
 // ═══════════════════════════════════════════════════════════════════════════
 for (const [scenario, expected, why] of [
+  /* ═══ RETARGETED WITH THE IDS (IA restructure) ═══
+     `billing` is `care-reviews` and `flags` is `risk-flags`. The ladder itself
+     is unchanged — these are the same three claims about the same ordering. */
   ["active-escalation", "escalations", "an open escalation outranks everything"],
-  ["breach-overnight", "flags", "a breached imminent flag outranks billing past SLA"],
-  ["quiet-day", "billing", "billing before clinical, whatever the counts"],
+  /* ═══ breach-overnight NO LONGER ISOLATES THE CLAIM IT WAS WRITTEN FOR ═══
+     It asserted flags-over-billing. MEASURED, this fixture also carries an
+     OPEN ESCALATION, and the ladder's top rule — asserted one line above — is
+     that an escalation outranks everything. So the directive is `escalations`,
+     correctly, and the flags-vs-billing edge is not exercised by any fixture
+     that exists. Retargeted to what this fixture actually proves rather than
+     relaxed to whatever it returns; the uncovered edge is reported, not
+     silently dropped. */
+  ["breach-overnight", "escalations", "an open escalation still outranks a breached flag"],
+  ["quiet-day", "care-reviews", "billing before clinical, whatever the counts"],
 ]) {
   const { context, page } = await open(`ladder-${scenario}`, { scenario });
-  const directive = await page.evaluate(
-    () => document.querySelector('[data-directive="true"]')?.getAttribute("data-stage")
-  );
+  const directive = await page.evaluate(() => {
+    const a = document.querySelector('[data-anno-ref^="today-card:"][data-directive="true"]');
+    return a ? ((a.getAttribute("data-anno-ref") ?? "").split(":")[1] ?? null) : null;
+  });
   check(`ladder.${scenario}`, why, directive === expected, `${directive} (expected ${expected})`);
   await context.close();
 }
@@ -158,43 +209,68 @@ for (const [scenario, expected, why] of [
 // ═══════════════════════════════════════════════════════════════════════════
 {
   const { context, page } = await open("digest", { seen: 0 });
+  /* ═══ RETARGETED: THE DIGEST IS THE MERGED START-HERE MODULE NOW ═══
+     `[data-anno-ref="home-digest"]` has not existed since the rename to
+     `today-digest`, so this read null and `digest.present` failed loudly —
+     while `digest.gated` below PASSED on the same dead selector, because its
+     claim is an absence and absent-from-a-typo looks identical to absent. Both
+     selectors are fixed; the guard is that `digest.present` must pass for
+     `digest.gated` to mean anything, and it does.
+     WHAT THE SECTION ASSERTED AND NO LONGER CAN: the old digest was a LIST OF
+     TONE CHIPS, breach-first. Phase C replaced it with ONE derived rationale
+     sentence ("rationale-or-nothing"), and Phase I added the bounded preview
+     under it. There are no chips to order, so `digest.breach-first` has no
+     subject — its successor is `digest.one-rationale`, which pins the thing
+     that replaced it. */
   const d = await page.evaluate(() => {
-    const el = document.querySelector('[data-anno-ref="home-digest"]');
+    const el = document.querySelector('[data-anno-ref="today-digest"]');
     if (!el) return null;
-    const chips = [...el.querySelectorAll("li a")].map((a) => ({
-      text: a.innerText.replace(/\s+/g, " ").trim(),
-      tone: a.getAttribute("data-tone"),
-    }));
-    /* THE CTA BY ITS TEXT, not by a class fragment. `a[class*='bg-']` matched
-       the first breach CHIP, which also carries a background — so the check
-       reported the chip's text as the CTA and would have passed with no CTA at
-       all. */
-    const cta = [...el.querySelectorAll("a")].map((a) => a.innerText.trim()).find((t) => /^Start with /.test(t));
-    return { chips, cta };
+    const dest = /^\/app\/(escalations|risk-flags|care-reviews)$/;
+    return {
+      rationale: el.querySelector('[data-anno-ref="today-rationale"]')?.textContent?.trim() ?? null,
+      items: [...el.querySelectorAll('[data-anno-ref="start-here-item"]')].length,
+      count: el.querySelector('[data-anno-ref="start-here-count"]')?.textContent?.trim() ?? null,
+      /* EVERY link that points at a DESTINATION ROOT. I.0 forbids two
+         affordances to the same place, and the removed banner button is
+         exactly what this would catch coming back. */
+      destLinks: [...el.querySelectorAll("a")]
+        .map((a) => a.getAttribute("href"))
+        .filter((h) => dest.test(h ?? "")),
+      controls: [...el.querySelectorAll("input,select,textarea,form")].length,
+    };
   });
-  check("digest.present", "the digest renders after a gap", Boolean(d));
+  check("digest.present", "the digest renders after a gap", Boolean(d), d ? `${d.items} preview items` : "absent");
   if (d) {
-    /* ═══ BREACH LINES FIRST, ALWAYS ═══
-       Not sorted by count and not in stage order. A digest that opened with "26
-       clinical" and buried "2 imminent past 24h" would hide the only part worth
-       reading in the first two seconds.
-       READ FROM `data-tone`, NOT FROM A COMPUTED BACKGROUND. The first version
-       compared each chip's background against the first and last chip's, which is
-       SYMMETRIC — reversing the order produced the same answer and the check
-       passed with the digest ordered exactly backwards. A mutation run caught it.
-       A tone the component declares cannot be read two ways. */
-    const tones = d.chips.map((c) => c.tone);
-    const lastBreach = tones.lastIndexOf("breach");
-    const firstNeutral = tones.findIndex((t) => t !== "breach");
     check(
-      "digest.breach-first",
-      "breach lines come before any neutral count",
-      tones.includes("breach") &&
-        firstNeutral >= 0 &&
-        lastBreach < firstNeutral,
-      d.chips.map((c) => `${c.tone}:${c.text}`).join(" | ")
+      "digest.one-rationale",
+      "it carries exactly one derived rationale line, not a list of counts",
+      Boolean(d.rationale && d.rationale.length > 0),
+      d.rationale
     );
-    check("digest.one-cta", "one primary CTA, naming where it goes", Boolean(d.cta), d.cta);
+    /* ═══ I.3.1 — THE PARTIAL-LIST DISCLOSURE IS THE SAFETY CLAIM ═══
+       A supervisor who clears four items and sees an empty preview must not be
+       able to conclude the queue is empty, so the shown-of-total renders
+       whenever the preview does. */
+    check(
+      "digest.shows-total",
+      "and every preview states how many of the total it is showing",
+      d.items === 0 || Boolean(d.count && /\d+\s+of\s+\d+/.test(d.count)),
+      d.count
+    );
+    check(
+      "digest.one-cta",
+      "at most one affordance points at the recommended destination (I.0)",
+      d.destLinks.length <= 1,
+      `${d.destLinks.length} · ${d.destLinks.join(" ") || "none"}`
+    );
+    /* THE MIRROR RULE, INSIDE THE MODULE. Today may preview work and navigate
+       to it; it may never dispose of it. */
+    check(
+      "digest.no-controls",
+      "and the preview carries no form control of any kind",
+      d.controls === 0,
+      `${d.controls} controls`
+    );
   }
   await context.close();
 }
@@ -202,7 +278,7 @@ for (const [scenario, expected, why] of [
   /* GATED ON THE SHIFT. A stamp inside the window means the supervisor has
      already been here this shift, and the digest does not come back. */
   const { context, page } = await open("digest-same-shift", { seen: Date.now() - 60_000 });
-  const present = await page.evaluate(() => Boolean(document.querySelector('[data-anno-ref="home-digest"]')));
+  const present = await page.evaluate(() => Boolean(document.querySelector('[data-anno-ref="today-digest"]')));
   check("digest.gated", "and not again inside the same shift", !present);
   await context.close();
 }
@@ -245,7 +321,10 @@ for (const [scenario, expected, why] of [
     t.split("\n").find((l) => /couldn['\u2019]t be loaded/.test(l))?.slice(0, 70)
   );
   const others = await page.evaluate(
-    () => Boolean(document.querySelector('[data-anno-ref="home-sequence"]'))
+    /* RETARGETED: `home-sequence` became `today-destinations` in the IA
+       restructure. The claim is unchanged — a failed escalation read must not
+       take the destination grid down with it. */
+    () => Boolean(document.querySelector('[data-anno-ref="today-destinations"]'))
   );
   check("state.partial-intact", "and the other regions are intact", others);
   await page.screenshot({ path: `${OUT}/03-partial.png` });
@@ -253,12 +332,35 @@ for (const [scenario, expected, why] of [
 }
 {
   const { context, page } = await open("error", { load: "error" });
-  const retry = await page.getByRole("button", { name: /^Retry$/ }).count();
+  /* RETARGETED TO THE COPY THAT SHIPS. `RegionError`'s button reads "Try
+     again", not "Retry" — so this waited on a name that never existed and
+     timed out rather than failing. The claim is unchanged: a failed region
+     offers its own way back, and there is more than one of them. */
+  const retry = await page.getByRole("button", { name: /^Try again$/ }).count();
   check("state.error-retry", "each failed region offers its own retry", retry >= 2, `${retry} retries`);
-  await page.getByRole("button", { name: /^Retry$/ }).first().click();
+  await page.getByRole("button", { name: /^Try again$/ }).first().click();
   await page.waitForTimeout(400);
   const after = await mainText(page);
-  check("state.retry-works", "and retrying restores that region alone", /Escalations,|open now/.test(after));
+  /* ═══ RETARGETED, AND IT HAD NEVER RUN ═══
+     It matched `/Escalations,|open now/` — an aria-label shape and a copy
+     string that no longer exist. It never failed on that, because the CLICK
+     above waited on a "Retry" button that is called "Try again", timed out,
+     and took the whole suite down before this line was reached. Fixing the
+     click is what made this assertion reachable for the first time.
+     MEASURED after the retry: the escalation strip is back — "Theo L. to
+     Brandy Forrestor … Open escalation" — and its failure sentence is gone.
+     BOTH HALVES ARE CHECKED, because "restores that region ALONE" is two
+     claims and the old regex tested neither: the strip returns, AND the other
+     region that was failing is still failing. A retry that quietly healed
+     everything would be the bug this check exists for. */
+  const restored = /Open escalation/.test(after) && !/can['\u2019]t say whether any are open/.test(after);
+  const othersStillDown = /couldn['\u2019]t be summarised|couldn['\u2019]t be loaded/i.test(after);
+  check(
+    "state.retry-works",
+    "and retrying restores that region alone",
+    restored && othersStillDown,
+    `strip back: ${restored} · another region still down: ${othersStillDown}`
+  );
   await page.screenshot({ path: `${OUT}/04-error.png` });
   await context.close();
 }

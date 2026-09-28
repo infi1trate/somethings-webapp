@@ -52,8 +52,26 @@ export interface ShiftProgress {
   total: number;
 }
 
+export type TrackLayout =
+  /** Label and rail stacked in a 16rem column. Today's shape, and — since the
+   *  §5.3 judgement — every caller's. `PageHeader` puts it in the band's right
+   *  cluster, so it is no longer the "widget alone in dead space" §5.2
+   *  objected to. */
+  | "contained"
+  /** RETIRED at §5.3, kept rather than deleted. §5.2's shape: the label
+   *  right-aligned above and the RAIL AS THE HEADER BAND'S BOTTOM RULE, full
+   *  content width. Measured in situ at 1440 with the fill at 8 of 19, it read
+   *  as a browser loading bar — 1224×8 is a 153:1 bar in solid primary ink,
+   *  sitting as a rule under a header, which is the canonical page-load form.
+   *  All five mitigations below were present and working while it still read
+   *  that way, which is the finding: the SHAPE is the signature.
+   *  Do not restore this without a new judgement — §5.3 required one, and this
+   *  is its answer. */
+  | "band";
+
 export function ShiftTrack({
   progress,
+  layout = "contained",
   /** NEEDS-COPY-NICOLE. What the figures COUNT, in the surface's own noun —
    *  "flags reviewed", "reviews completed". Never "left", never "remaining". */
   unit,
@@ -66,6 +84,13 @@ export function ShiftTrack({
   progress: ShiftProgress;
   unit: string;
   completeLine: string;
+  /** ═══ WHY THIS IS A LAYOUT AND NOT TWO COMPONENTS ═══
+   *  §5.3 requires a named fallback if the full-width rule reads as a browser
+   *  loading bar. Two components would mean two copies of the increment-only
+   *  motion, the completion state and the accessible name — and the fallback
+   *  would drift from the thing it is a fallback for. One component, two
+   *  arrangements, one set of rules. */
+  layout?: TrackLayout;
   className?: string;
 }) {
   const { done, total } = progress;
@@ -98,7 +123,12 @@ export function ShiftTrack({
       data-anno-ref="shift-track"
       data-progress={`${done}/${total}`}
       data-complete={complete ? "true" : "false"}
-      className={cn("w-full max-w-[16rem] min-w-0", className)}
+      data-track-layout={layout}
+      className={cn(
+        "min-w-0",
+        layout === "band" ? "w-full" : "w-full max-w-[16rem]",
+        className
+      )}
     >
       <p className="flex items-baseline justify-end gap-1.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
         {complete ? (
@@ -132,7 +162,28 @@ export function ShiftTrack({
            words, so the track is never the only carrier. */
         role="img"
         aria-label={`${done} of ${total} ${unit}`}
-        className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-s2)]"
+        /* ═══ THE MITIGATIONS, AND WHAT MEASURING THEM SETTLED (§5.3) ═══
+           A full-width bar near the top of a page reads as a browser loading
+           indicator (Jakob's Law). §5.3 listed five mitigations as required
+           and asked for an in-situ judgement on whether they were enough. They
+           were not — see `TrackLayout.band`. Two of the five lived here:
+            · 8px rather than 6 on the band — a loading bar is 2–3px.
+            · THE UNFILLED REMAINDER IS ALWAYS VISIBLE, called the strongest
+              single cue that this is a measure rather than a wait. MEASURED,
+              it is the weakest: `--surface-s2` on `--surface-s1` is 1.2:1
+              light and 1.26:1 dark, so the remainder reads as empty space and
+              the fill reads as progress toward an unknown end rather than as a
+              fraction of a visible vessel. Bloom carries nothing stronger to
+              move to — `--border-subtle` is LIGHTER than `--surface-s2` — and
+              the fill's colour is settled above and not reopenable.
+           `contained` does not need them: at 256×6 it is a 43:1 instrument in
+           a cluster, not a 153:1 rule spanning the page. The contrast that
+           carries the reading is the FILL against the track, measured at
+           12.62:1 light and 19.42:1 dark, and that is unchanged by the move. */
+        className={cn(
+          "mt-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-s2)]",
+          layout === "band" ? "h-2" : "h-1.5"
+        )}
       >
         <div
           className={cn(

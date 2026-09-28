@@ -416,6 +416,23 @@ export function BillingReview({
           A key remounts the subtree, so the select re-initialises from the new
           body. It costs one remount per queue advance, on a pane that already
           replaces its entire contents in that frame. */}
+      {/* ═══ THE COMPOSE FIELDS GET A HEADING (Figma alignment §3) ═══
+          The Figma names this block `Care Update`, and it earns the name: above
+          it is everything the supervisor READS — recommendation, rationale,
+          assessments — and below it is the only thing they WRITE. The pane had
+          no marker for that turn.
+          NOT A FORK. `CareUpdateFields` is untouched and `billing-review.tsx`
+          is this surface's own compose module — the Care page reaches those
+          fields through `care-update-compose.tsx` instead. So this heading is
+          Care-Reviews-only by construction rather than by a flag. */}
+      <p
+        data-anno-ref="care-update-heading"
+        className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]"
+      >
+        {/* NEEDS-COPY-NICOLE */}
+        Care Update
+      </p>
+
       <CareUpdateFields
         key={item.id}
         idPrefix="tk-billing"

@@ -57,7 +57,7 @@
       "id": "tasks.no-line-on-renewal",
       "label": "and a RENEWAL renders none — the code would be stated twice",
       "ok": true,
-      "detail": "Renewal proposed Change code Rationale Scores have moved"
+      "detail": "none"
     },
     {
       "id": "tasks.no-on-record-strip",
@@ -65,15 +65,10 @@
       "ok": true
     },
     {
-      "id": "tasks.record-context",
-      "label": "the mentorship figures live in a collapsed accordion",
-      "ok": true
-    },
-    {
-      "id": "tasks.accordion-collapsed",
-      "label": "which starts collapsed and says what it holds",
+      "id": "tasks.no-record-context",
+      "label": "the mentorship accordion is gone from the pane — the figure lives on the record",
       "ok": true,
-      "detail": "Record context 140 days in mentorship"
+      "detail": "0 accordion(s); reachable via \"View care journey\""
     },
     {
       "id": "tasks.no-mentor",
@@ -112,7 +107,7 @@
       "id": "picker.tasks.focus",
       "label": "and hands the keyboard back to the control",
       "ok": true,
-      "detail": "Change code"
+      "detail": "Change presentation"
     },
     {
       "id": "picker.tasks.moves",
