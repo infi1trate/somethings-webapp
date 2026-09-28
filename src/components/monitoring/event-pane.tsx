@@ -1346,8 +1346,40 @@ export function EventPane({
                        commit, so the tonal fill has to do real work. It carries
                        a border AND a fill AND an icon, against the commit's
                        solid ink. */
-                    "border border-[color:var(--state-error)]/35 bg-[var(--state-error)]/10 text-[var(--state-error)]",
-                    "hover:bg-[var(--state-error)]/15",
+                    /* ═══ THE CLAY PAIR, NOT A SELF-TINTED `--state-error` ═══
+                       IT WAS `text-[var(--state-error)]` on
+                       `bg-[var(--state-error)]/10` — the label in the same hue
+                       as its own ground, which is the whole defect. MEASURED,
+                       compositing the 10% fill over the pane:
+                         light  #cc3300 on rgb(250,235,230) = 4.48:1
+                         dark   #ff6f2f on rgb(71,53,44)    = 4.17:1
+                       Both under 4.5, and 14px at weight 600 is not large text
+                       — large needs 18.66px, or 14px at 700. `monitoring-axe`
+                       reported it as two serious `color-contrast` violations at
+                       xl, in both themes, and it predates this pack.
+                       REDUCING THE TINT WAS THE OBVIOUS FIX AND IS THE WRONG
+                       ONE: measured, it takes 4% opacity to clear the floor in
+                       both themes (light 4.90, dark 4.52), and a 4% fill is
+                       invisible — it would buy the ratio by deleting the
+                       channel the note above says has to do real work.
+                       BLOOM ALREADY HAS THE PAIR. `--band-clay-bg` /
+                       `--band-clay-fg` exist in both themes and the token
+                       file's own comment says what they are for: "escalation;
+                       earthy, not pink". Verified rather than trusted:
+                         light  #75301f on #f6d3c6 = 6.84:1
+                         dark   #f2ac92 on #673928 = 5.06:1
+                       EVERY STATED INTENT SURVIVES — tonal rather than a
+                       saturated red fill, not red-as-destructive, and still
+                       three channels. The BORDER is now full-strength clay ink
+                       rather than 35% `--state-error`, which also makes it a
+                       real boundary: measured 6.84:1 against the fill and
+                       9.55:1 against the pane in light, 5.06 and 7.03 in dark,
+                       where the old 35% border was 1.77:1 and carried nothing.
+                       HOVER MATCHES ITS SIBLING — `opacity-90`, the same
+                       treatment the commit beside it uses, so neither button
+                       introduces a colour value for a hover state. */
+                    "border border-[color:var(--band-clay-fg)] bg-[var(--band-clay-bg)] text-[var(--band-clay-fg)]",
+                    "transition-opacity hover:opacity-90",
                     RING
                   )}
                 >

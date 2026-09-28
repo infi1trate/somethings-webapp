@@ -34,24 +34,14 @@
     {
       "viewport": "xl",
       "theme": "light",
-      "violations": 1
+      "violations": 0
     },
     {
       "viewport": "xl",
       "theme": "dark",
-      "violations": 1
+      "violations": 0
     }
   ],
-  "byRule": {
-    "color-contrast": {
-      "impact": "serious",
-      "count": 2,
-      "where": [
-        "xl/light",
-        "xl/dark"
-      ],
-      "sample": "<button type=\"button\" data-action=\"escalate\" class=\"inline-flex min-h-11...\">"
-    }
-  },
-  "total": 2
+  "byRule": {},
+  "total": 0
 }

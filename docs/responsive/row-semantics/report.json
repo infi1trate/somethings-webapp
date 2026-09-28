@@ -101,13 +101,13 @@
       "id": "sr.tasks.no-group-prefix",
       "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:13 A"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:41 A"
     },
     {
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:13 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:41 AM"
     },
     {
       "id": "sr.tasks.same-temporal",
@@ -143,7 +143,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:13 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:41 AM"
     },
     {
       "id": "e.identity-disc",
