@@ -60,6 +60,8 @@ for (const label of TIERS) {
     const { context, page } = await openView(
       browser,
       {
+        /* Theme from the seed, not emulateMedia — see home-contrast. */
+        theme,
         id: `monitoring-${label}-${theme}`,
         url: "/app/risk-flags",
         seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } },
@@ -67,7 +69,6 @@ for (const label of TIERS) {
       vp,
       version
     );
-    await page.emulateMedia({ colorScheme: theme });
     await page.waitForTimeout(300);
     await prepare(page);
 
