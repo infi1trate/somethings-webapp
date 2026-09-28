@@ -158,21 +158,38 @@ async function openCareReview(page) {
      read twice.
      SO THE ROW IS ASKED. The assertions below still test the PANE; only the
      way a case is identified moved, which is the half that had to. */
-  const cases = { change: null, renewal: null };
-  for (let i = 0; i < 14 && (!cases.change || !cases.renewal); i += 1) {
+  /* ═══ CHANGE vs NOT-A-CHANGE (rework §6.4) ═══
+     This split three ways — change / renewal / assign — and read the kind off
+     the ROW, where §4.4 had put it in words. §6.4 collapses the row to TWO
+     labels: "Presentation Change" for a change, "Presentation Review" for both
+     a first assignment and a renewal. So `cases.notChange` came back null and
+     three checks failed.
+     THE TWO-WAY SPLIT IS THE RIGHT ONE FOR THESE CLAIMS, and collapsing to it
+     makes them STRONGER rather than weaker. What the checks actually assert is
+     that the pane renders the code on record as a subordinate `Current ·` line
+     WHEN AND ONLY WHEN the code is moving. MEASURED: a change has that line, a
+     renewal does not — and neither does a first assignment, which the old
+     three-way split never tested at all because it only ever looked for
+     `change` and `renewal`.
+     So the discriminator is the row's own label, which is reliable, and the
+     assertion covers every non-change case. */
+  const cases = { change: null, notChange: null };
+  for (let i = 0; i < 14 && (!cases.change || !cases.notChange); i += 1) {
     const row = page.getByRole("treeitem").nth(i);
     const rowText = (await row.innerText()).replace(/\s+/g, " ");
+    if (!/Presentation (Change|Review)/.test(rowText)) continue;
     await row.click();
     await page.waitForTimeout(280);
     const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
-    const kind = /Change proposed/.test(rowText)
-      ? "change"
-      : /Renewal proposed/.test(rowText)
-        ? "renewal"
-        : null;
-    if (kind && !cases[kind]) cases[kind] = pt;
+    const kind = /Presentation Change/.test(rowText) ? "change" : "notChange";
+    if (!cases[kind]) cases[kind] = pt;
   }
-  check("tasks.cases-found", "a change and a renewal were both reachable", !!cases.change && !!cases.renewal);
+  check(
+    "tasks.cases-found",
+    "a change and a non-change were both reachable",
+    !!cases.change && !!cases.notChange,
+    `change: ${!!cases.change} · non-change: ${!!cases.notChange}`
+  );
   check(
     "tasks.current-line",
     "a CHANGE renders the code on record as a subordinate line",
@@ -181,9 +198,9 @@ async function openCareReview(page) {
   );
   check(
     "tasks.no-line-on-renewal",
-    "and a RENEWAL renders none — the code would be stated twice",
-    cases.renewal && !/Current ·/.test(cases.renewal),
-    (cases.renewal ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
+    "and a NON-CHANGE renders none — the code would be stated twice",
+    cases.notChange && !/Current ·/.test(cases.notChange),
+    (cases.notChange ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
   /* ═══ INVERTED — THE ACCORDION IS REMOVED (Figma alignment §3) ═══

@@ -260,24 +260,38 @@ const rowReport = `(row) => {
      arch-E put the teen name here beside its disposition. The name moved to line
      1 with the emphasis, so repeating it in the caption would spend the line on
      a string six pixels above it. */
-  /* ═══ THE CAPTION IS LOZENGES NOW (addendum §2.9) ═══
-     It carried `proposalPreview`'s sentence — "Change proposed → F41.1". A
-     billing code is an identifier a reviewer matches against a record, not
-     prose, so it renders as one lozenge per code in the mono face. The claim
-     that survives is the one arch-F made: whatever the caption holds, it is
-     NOT the teen's name a second time and it does not take the emphasis. */
+  /* ═══ CODES LEFT THE LIST ENTIRELY (rework §6.3) ═══
+     This asserted the caption carried the billing code as a lozenge in the
+     mono face — §2.9's decision, which moved the codes OUT of prose and into
+     lozenges, and which §4.3 then moved into a column of their own so they
+     lined up under a header.
+     §6.3 REVERSES ALL OF IT: "codes leave the list entirely. They are only
+     shown in the detail now." So the claim has no subject, and the column that
+     held them carries the review cadence instead (§6.1).
+     THE LOZENGE WORK IS NOT WASTED AND IS NOT WRONG — `ProposalCodes` still
+     renders exactly that treatment in the detail pane, which is where triage
+     against a record happens. What changed is which surface shows them.
+     WHAT REPLACES IT IS THE ABSENCE PLUS THE REPLACEMENT, both asserted: no
+     code may render on a list row, and the cadence cell must be there instead.
+     An absence alone would pass on a row that lost its whole trailing block. */
   const codes = await page.evaluate(
-    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => [...row.querySelectorAll("[data-billing-code]")].map((e) => ({ code: e.getAttribute("data-billing-code"), tone: e.getAttribute("data-code-tone"), fam: getComputedStyle(e).fontFamily })))`
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => [...row.querySelectorAll("[data-billing-code]")].length)`
   );
   check(
-    "tasks.caption-codes",
-    "the caption carries the billing code as a lozenge, in the mono face",
-    codes.every((cs) => cs.length >= 1 && cs.every((c) => /mono/i.test(c.fam))),
-    codes[0]?.map((c) => `${c.code}[${c.tone}]`).join(" ") || "no code lozenges"
+    "tasks.no-codes-on-list",
+    "no billing code renders on a list row — they live in the detail now",
+    codes.length > 0 && codes.every((n) => n === 0),
+    `${codes.filter((n) => n > 0).length} of ${codes.length} rows carried a code`
   );
-  /* READ OFF THE LEAVES, not off every span: a wrapper span reports the text of
-     everything inside it, so an ancestor of the name also "is" the name and the
-     first version of this check failed on its own instrumentation. */
+  const cycles = await page.evaluate(
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => { const m = (row.innerText || "").match(/\\b(30|90)-day\\b/); return m ? m[0] : null; })`
+  );
+  check(
+    "tasks.cycle-cell",
+    "and the column that held them carries the review cadence instead",
+    cycles.length > 0 && cycles.every((c) => c === "30-day" || c === "90-day"),
+    cycles.join(" · ") || "none"
+  );
   check(
     "tasks.caption-not-the-name",
     "and not the name a second time",

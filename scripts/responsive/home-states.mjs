@@ -387,7 +387,19 @@ for (const [scenario, expected, why] of [
 {
   const { context, page } = await open("no-metrics");
   const t = await mainText(page);
-  const banned = /\b(streak|trend|average|vs\.?\s|compared|percentile|rank(ed|ing)?|this week|last week|7-day|30-day|uptime|health)\b/i;
+  /* ═══ `30-day` IS NO LONGER TREND LANGUAGE HERE (rework §6.1) ═══
+     `7-day` and `30-day` were banned as WINDOW language — "flags, 30-day" is a
+     rolling metric and this surface reports state, not rates. The Care Reviews
+     rework makes "30-day" and "90-day" the names of two REVIEW CADENCES, taken
+     from the Care page's own `STAGE_LABEL`, and the Tasks table renders them in
+     its Cycle column.
+     SO THE WINDOW FORMS ARE NARROWED RATHER THAN DROPPED: a rolling window
+     still reads "last 30 days" / "30-day average" / "in 30 days", and those
+     still fail. A bare cadence label does not. `7-day` stays banned outright —
+     there is no 7-day review.
+     THE REST OF THE LIST IS UNTOUCHED: streak, trend, average, comparisons,
+     percentiles, ranks and uptime are all still out. */
+  const banned = /\b(streak|trend|average|vs\.?\s|compared|percentile|rank(ed|ing)?|this week|last week|7-day|uptime|health)\b|\b(last|past|next|in)\s+\d+\s+days?\b|\b\d+-day\s+(average|window|rate|trend)\b/i;
   check("scope.no-trend", "no trend, streak or comparative language", !banned.test(t), (t.match(banned) ?? [])[0]);
   const charts = await page.evaluate(
     () => document.querySelectorAll("main svg[role='img'], main canvas, main [data-chart]").length

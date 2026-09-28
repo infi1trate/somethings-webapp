@@ -39,7 +39,9 @@
 import { ProposalCodes } from "@/components/record/proposal-codes";
 import { discFor } from "@/lib/tasks/avatar";
 import { elapsedLabel } from "@/lib/ia/age";
-import { PROPOSAL_LABEL, proposalKindFor } from "@/lib/record/proposal-kind";
+import { proposalKindFor } from "@/lib/record/proposal-kind";
+import { cycleLabelFor } from "@/lib/tasks/review-cycle";
+import type { TaskType } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 /** ═══ THE TWO COLUMN WIDTHS (§4.3) ═══
@@ -50,12 +52,40 @@ import { cn } from "@/lib/utils";
  *  header.
  *  FIRST TUNING WAS 168/96 AND IT COST THE MENTEE COLUMN: at a 499px list the
  *  type line truncated to "Renewal propo…" on every row. */
+/** ═══ RETIRED BY §6.1 — THE PRESENTATION COLUMN IS GONE ═══
+ *  Codes leave the list entirely and live only in the detail pane (§6.3,
+ *  answered). Kept because `ReviewPresentationCell` below is retired rather
+ *  than deleted, and a width with no column is still the record of what that
+ *  column measured. */
 export const COL_PRESENTATION = 144;
+
+/** ═══ THE REVIEW-CYCLE COLUMN (§6.1) ═══
+ *  MEASURED against its widest content the way every other column here was:
+ *  the header "Review" is 48px and the widest cell "90-day" is 46px, so 72
+ *  leaves room for a sort indicator (§3) without the header wrapping — which
+ *  is the defect `COL_AGE` hit at 56.
+ *  MUCH NARROWER THAN THE 144 IT REPLACES, and that is what fixes §6.5: the
+ *  mentee column takes the remainder, and 72px of fixed width leaves it 72
+ *  more than the codes column did. */
+export const COL_REVIEW = 72;
 export const COL_AGE = 72;
 
 /** The age cell's own box includes its left separation, so the header and the
  *  cell can share one number. */
 export const COL_AGE_BOX = COL_AGE + 24;
+
+/** ═══ THE MENTEE COLUMN CANNOT COLLAPSE (§6.5) ═══
+ *  MEASURED at 1280 before this: the flexible mentee cell was **11px** wide and
+ *  the NAME truncated — "Theo L." at 50px of content in an 11px box. §6.5
+ *  describes the second line truncating "while the cell has room"; the cell had
+ *  no room at all, because three fixed columns plus the detail pane had taken
+ *  everything.
+ *  A `min-width` MAKES THE ROW SCROLL-PROOF RATHER THAN COLLAPSE-PROOF: at a
+ *  width where even this does not fit, the trailing columns shrink first
+ *  because they are `shrink-0` on a flex line that has already run out — so the
+ *  name survives and the cadence label is what gives. That is the right
+ *  priority: a row without a name identifies nobody. */
+export const COL_MENTEE_MIN = 168;
 
 /** ═══ THE TASKS TABLE'S EQUAL COLUMNS (Phase L.4) ═══
  *  L.4 measures Today's table as three EQUAL 285px cells against the
@@ -155,8 +185,19 @@ export function ReviewRowHeader({
         className="shrink-0 whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
         style={{ width: presentationWidth }}
       >
+        {/* ═══ `Cycle`, AND `Review` WAS THE FIRST TRY (§6.2) ═══
+            §6.2 offered "`Review` or `Cycle`" and was confirmed without
+            picking. `Review` shipped first and MEASURED BADLY: the header row
+            read "Mentee · Review · Review age", two adjacent columns both
+            starting with the same word, and the sort control (§3) would have
+            offered "Review" and "Review age" as separate options.
+            `Cycle` is the other confirmed option and collides with nothing.
+            §6.2's naming split holds either way: this header is the taxonomy's
+            name, the cell is a position in it ("30-day"), and the row's SECOND
+            LINE carries the request nature — three different things that were
+            all heading for the word "type". */}
         {/* NEEDS-COPY-NICOLE */}
-        Presentation
+        Cycle
       </span>
       <span
         /* `whitespace-nowrap`: a column header that wraps makes the header row
@@ -222,6 +263,45 @@ export function ReviewDisc({
  *  surfaces render this cell, the reversal was a one-line change at the call
  *  site rather than a second code renderer.
  */
+/** ═══ THE REVIEW-CYCLE CELL (§6.1) ═══
+ *  The cadence position — "30-day" or "90-day" — derived from the task type
+ *  rather than stored. See `review-cycle.ts` on why these two values and not
+ *  §6.1's even series.
+ *  MONO AND TABULAR, matching the age column: both are figures, and a column of
+ *  figures that does not share a face reads as two columns. */
+export function ReviewCycleCell({
+  taskType,
+  width = COL_REVIEW,
+}: {
+  taskType: TaskType;
+  width?: number;
+}) {
+  const label = cycleLabelFor(taskType);
+  return (
+    <span className="flex shrink-0 items-center" style={{ width }}>
+      {label && (
+        <span
+          className="truncate text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
+          style={{ fontFamily: "var(--font-mono)" }}
+        >
+          {label}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** ═══ RETIRED BY §6.3 — CODES LEAVE BOTH LISTS ═══
+ *  "Codes leave the list entirely. They are only shown in the detail now"
+ *  (answered). Unmounted rather than deleted, and the reason it is worth
+ *  keeping is the reversal it records: two passes ago the lozenges were moved
+ *  OUT of the mentee column and INTO a column of their own, so that they lined
+ *  up under a header. That work is not wrong — it is superseded by the codes
+ *  not being on the list at all.
+ *  IT LEAVES TODAY'S TABLE TOO, and that is a consequence of K.1 rather than a
+ *  separate decision: the two surfaces share this component precisely so the
+ *  same object cannot be identified two ways. A Today preview showing codes
+ *  that its own destination no longer shows is that defect. Reported. */
 export function ReviewPresentationCell({
   currentCode,
   recommendedCode,
@@ -304,7 +384,11 @@ export function ReviewIdentityCell({
   return (
     <span
       className="min-w-0"
-      style={width ? { width, flex: "none" } : { flex: "1 1 0%" }}
+      style={
+        width
+          ? { width, flex: "none" }
+          : { flex: "1 1 0%", minWidth: COL_MENTEE_MIN }
+      }
     >
       <span className={cn(NAME_CLASS, nameClassName)}>{name}</span>
       <span
@@ -322,9 +406,27 @@ export function ReviewIdentityCell({
 
 /** The caption a billing review shows: the KIND of proposal, in words. Shared
  *  so the preview and the queue cannot name the same proposal differently. */
+/** ═══ TWO VALUES, NOT THREE (§6.4, answered) ═══
+ *
+ *  `proposalKindFor` derives THREE kinds — `assign` (no code yet), `change`
+ *  (code differs) and `renewal` (code confirmed unchanged). Brandon named two
+ *  labels: "Presentation Review" and "Presentation Change".
+ *
+ *  SO THE COLLAPSE IS THE ONLY ONE THAT WORKS: a change is a change, and
+ *  everything else — a first assignment and a confirmation — is a review. That
+ *  is also the honest reading, because what distinguishes `change` is that the
+ *  code MOVES, and that is the fact a supervisor is being asked to look at.
+ *  `renewal` IS NOT DROPPED, which §6.4 warned against. It keeps a label; it
+ *  just stops having a private one. The kind is still derived and still
+ *  distinguishable in the pane.
+ *  `PROPOSAL_LABEL`'s three strings stay — the detail pane reads them, and the
+ *  list's caption is not the pane's chip. */
 export function proposalCaption(
   currentCode: string | null,
   recommendedCode: string
 ): string {
-  return PROPOSAL_LABEL[proposalKindFor(currentCode, recommendedCode)];
+  /* NEEDS-COPY-NICOLE, both. */
+  return proposalKindFor(currentCode, recommendedCode) === "change"
+    ? "Presentation Change"
+    : "Presentation Review";
 }

@@ -42,6 +42,9 @@ import {
 import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
 import { PageHeader } from "@/components/ia/page-header";
+/* RETIRED BY §5.4 — unmounted on both list surfaces, kept for the reason
+   every retired piece here is. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ShiftTrack } from "@/components/ia/shift-progress";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
@@ -84,6 +87,7 @@ import {
 } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { oldestAgeLabel } from "@/lib/ia/age";
+import { overdueCount } from "@/lib/tasks/care-overdue";
 
 /** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
  *  The two domains whose work CLEARS: billing reviews and the two escalation
@@ -547,6 +551,32 @@ export function TasksPage({
    *  and the same figure Risk Flags carries. Null when the list is empty, which
    *  the header renders as an em dash rather than "0d": there is no oldest
    *  review, which is different from one that is zero days old. */
+  /* ═══ §5.2, §5.3 — THE VIEWED TRACE AND THE TWO FIGURES IT FEEDS ═══
+     `viewedCareReviews` is a private per-supervisor reading trace (store v52).
+     A Set because membership is tested once per row in a list that can be 123
+     long. */
+  const viewedIds = useOnboardingStore((st) => st.viewedCareReviews);
+  const viewed = useMemo(() => new Set(viewedIds), [viewedIds]);
+  /* OVER THE SHOWN SET, so the figures describe the list a reader is looking
+     at — the same rule `open` already follows. With §4's filters gone `shown`
+     is the open set, but that is a fact about today's toolbar rather than a
+     reason to count something else. */
+  const unviewedCount = useMemo(
+    () => shown.filter((e) => !viewed.has(e.id)).length,
+    [shown, viewed]
+  );
+  const overdue = useMemo(
+    () => overdueCount(shown.map((e) => paneItemFor(e)), now),
+    [shown, now]
+  );
+
+/* ═══ RETIRED BY §5.3 ═══
+     `3d oldest` left the metric line: age is on every row in its own column,
+     where a reader compares it against the rows around it rather than against
+     one aggregate. The expression stays because it is the only place "the
+     oldest thing in the shown set" is computed, and §3 sorting by review age
+     is the next thing that would want it. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const oldestReviewAge = useMemo(() => {
     /* ═══ THE SHARED EXPRESSION (Phase K.2) ═══
        It was `elapsedLabel(Math.min(...))` inline here while Today derived its
@@ -1023,26 +1053,59 @@ export function TasksPage({
           [
             {
               value: String(shown.length),
-              label: filtering ? "open · filtered" : "open",
+              label: "open",
             },
-            { value: oldestReviewAge ?? "—", label: "oldest" },
+            /* ═══ §5.3 — UNVIEWED REPLACES `oldest` ═══
+               The line was `16 open · 3d oldest`. §5.3 makes it
+               `16 open · 4 unviewed · 2 overdue` and removes `oldest`
+               explicitly — age is still on every row, in its own column, where
+               a reader compares it against the rows around it rather than
+               against a single aggregate.
+               `filtering` IS GONE FROM THE LABEL because §4 removed filters
+               from this surface: there is no filtered state to qualify, and a
+               label reading "open · filtered" that can never be filtered is
+               the dead chrome the extensibility threshold forbids. */
+            {
+              value: String(unviewedCount),
+              /* NEEDS-COPY-NICOLE */
+              label: "unviewed",
+            },
+            /* ═══ §5.3 — THE OVERDUE SLOT, AND IT IS NO LONGER A SLOT ═══
+               §5.3 said to build the line with open and unviewed only and
+               "leave a typed slot for overdue" because §2 was unanswered. It
+               is answered — 48 hours since reception, unreviewed — so the
+               figure is real. `care-overdue.ts` holds the rule and the note on
+               why it is not a deadline.
+               IT RENDERS ONLY WHEN NON-ZERO. `2 overdue` is a condition; `0
+               overdue` is the resting state of the work, and a permanent zero
+               teaches a reader to stop reading the line. */
+            ...(overdue > 0
+              ? [
+                  {
+                    value: String(overdue),
+                    /* NEEDS-COPY-NICOLE */
+                    label: "overdue",
+                  },
+                ]
+              : []),
           ]
         }
-        progress={
-          <ShiftTrack
-              /* §5.3: `band` read as a browser loading bar in situ, so this is
-                 the fallback §5.3 named. `PageHeader` places it in the band's
-                 right cluster; the hairline there carries the bottom rule that
-                 `band` used to be. Measurement in that file. */
-              layout="contained"
-            progress={{
-              done: completed.length,
-              total: counts.open + completed.length,
-            }}
-            unit="reviews completed this shift"
-            completeLine="Every review that arrived this shift is done"
-          />
-        }
+        /* ═══ §5.4 — THE SHIFT TRACK COMES OFF CARE REVIEWS ═══
+           `0 of 16 reviews completed this shift` and its rail are gone.
+           CONFIRMED SCOPE: Risk Flags loses it too ("no" to "does Risk Flags
+           keep its track"), so the element is unmounted on both surfaces and
+           `ShiftTrack` itself is retired rather than deleted — see
+           `shift-progress.tsx`.
+           THIS ALSO SUPERSEDES THE §5.2 PROPOSAL from the previous pack — the
+           progress fill as the header band's bottom rule. That shipped, was
+           judged to read as a browser loading bar, and fell back to a
+           contained track; now the track is gone entirely and the band's
+           hairline is what terminates it. The hairline stays: it is gated on
+           `progress` in `PageHeader`, so with no track there is no rule —
+           which is why the gate moves to a literal below.
+           THE HEADER'S RIGHT SIDE IS NOW EMPTY and §5.4 says that is
+           acceptable because the metric line carries more. Reported with a
+           measurement rather than asserted. */
       />
 
       {/* ═══ THE RESPOND STRIP AND THE TAB-CARD ROW ARE BOTH GONE (arch-A) ═══
@@ -1146,6 +1209,15 @@ export function TasksPage({
                 onPreset={(p) => setViewOptions("care-reviews", { preset: p })}
                 /* §4.2, confirmed: two controls on this surface. */
                 showView={false}
+                /* ═══ §4 — FILTERS COME OFF CARE REVIEWS ═══
+                   Confirmed scope: "just care reviews for now". Risk Flags
+                   keeps them, which is why this is a prop and not a deletion —
+                   Risk Flags has no table and no sorting, so removing them
+                   there would leave search and comparator order as the only
+                   way through 123 items.
+                   CARE REVIEWS LOSES NOTHING because §3 gives it column
+                   sorting as its organising mechanism. */
+                showFilters={false}
                 /* NEEDS-COPY-NICOLE. §6.1: one field for both names — and see
                    the adapter's note on the mentor not being drawn. */
                 searchHint="Search teen or mentor"

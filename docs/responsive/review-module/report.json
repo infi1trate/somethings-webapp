@@ -44,8 +44,9 @@
     },
     {
       "id": "tasks.cases-found",
-      "label": "a change and a renewal were both reachable",
-      "ok": true
+      "label": "a change and a non-change were both reachable",
+      "ok": true,
+      "detail": "change: true · non-change: true"
     },
     {
       "id": "tasks.current-line",
@@ -55,7 +56,7 @@
     },
     {
       "id": "tasks.no-line-on-renewal",
-      "label": "and a RENEWAL renders none — the code would be stated twice",
+      "label": "and a NON-CHANGE renders none — the code would be stated twice",
       "ok": true,
       "detail": "none"
     },

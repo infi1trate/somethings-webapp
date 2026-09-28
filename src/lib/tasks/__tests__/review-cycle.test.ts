@@ -1,102 +1,94 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// THE CYCLE IS THE ONE THIS PRODUCT SCHEDULES (rework §6.1)
+// THE CYCLE IS THE ONE THE CARE PAGE ALREADY NAMES (rework §6.1, §6.2)
 //
-// §6.1 asks for an even 30-day series — "30-day, 60-day, 90-day, 120-day,
-// 150-day, and onward". The Care page's cadence is not that, and the difference
-// is the whole reason this file exists: `care-demo.ts` derives
-// `intake → day-30 next`, `day30 → day-120 next`, `quarterly → every 90 after`.
+// §6.1 asks for an even 30-day series; the cadence does not run one. The
+// survey-day sequence (30, 120, 210, 300) is accurate and renders nothing a
+// supervisor thinks in. What the Care page SAYS is two things — "30-day review"
+// and "90-day review", with two stages deliberately sharing the second — and
+// matching it is the semantics Brandon asked for.
 //
-// So the real sequence is 30, 120, 210, 300 — and a "60-day review" is a
-// delivery schedule this product does not run. Inventing one would render a
-// clinical cadence authoritatively and wrongly, which `care-demo.ts` already
-// paid for once: its chip read "due in 8 days · Day 30" on a teen 134 days in,
-// and it was reported twice from the app.
-//
-// These tests pin the sequence against the two constants rather than against a
-// list, so the day Meg confirms an even series there is one table to change and
-// this file says exactly what changed.
+// So these tests pin two claims: the values are the Care page's own, and the
+// derivation comes off `taskType` rather than a stored field that could drift
+// from it.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { STAGE_LABEL } from "@/lib/record/care-demo";
 import {
-  CYCLE_INTERVAL_DAYS,
-  FIRST_CYCLE_DAY,
-  cycleDays,
-  cycleLabel,
+  CYCLE_LABEL,
+  cycleFor,
+  cycleLabelFor,
   cycleSortKey,
-  isCycleDay,
 } from "@/lib/tasks/review-cycle";
 
-describe("the sequence is day 30, then every 90", () => {
-  it("starts at 30 and steps by 90, from the Care page's own derivation", () => {
-    expect(FIRST_CYCLE_DAY).toBe(30);
-    expect(CYCLE_INTERVAL_DAYS).toBe(90);
+describe("the two cycles are the Care page's two", () => {
+  it("derives the first review from the intake type and the recurring from the re-review", () => {
+    expect(cycleFor("intakeBillingReview")).toBe("first");
+    expect(cycleFor("monthlyReReview")).toBe("recurring");
   });
 
-  it("generates 30, 120, 210, 300, 390, 480", () => {
-    expect(cycleDays(6)).toEqual([30, 120, 210, 300, 390, 480]);
-  });
-
-  it("is generated, not listed — a longer run keeps stepping by the interval", () => {
-    const ten = cycleDays(10);
-    for (let i = 1; i < ten.length; i++) {
-      expect(ten[i] - ten[i - 1]).toBe(CYCLE_INTERVAL_DAYS);
+  it("and nothing else has a cycle", () => {
+    for (const t of ["riskFlagReview", "activeEscalation", "escalationDocumentation"] as const) {
+      expect(cycleFor(t), `${t} claimed a cadence it has no part in`).toBeNull();
+      expect(cycleLabelFor(t)).toBeNull();
     }
   });
 
-  /* ═══ THE TWO THE PACK NAMES THAT DO NOT EXIST ═══
-     60 and 150 are in §6.1's list and are not cadence days. Asserted, so a
-     fixture seeding one fails rather than rendering a plausible wrong value —
-     and so that if the even series IS confirmed, this test is the thing that
-     tells you the model changed. */
-  it("rejects 60-day and 150-day, which §6.1 names and the cadence does not run", () => {
-    expect(isCycleDay(60)).toBe(false);
-    expect(isCycleDay(150)).toBe(false);
-    expect(isCycleDay(90)).toBe(false);
+  /* ═══ THE CROSS-SURFACE CHECK, AND IT IS THE POINT OF THIS FILE ═══
+     The cell is the Care page's label minus the noun. If `STAGE_LABEL` is ever
+     re-worded, this fails and names the drift — which is the failure mode the
+     shared-row work one pack ago was all about. */
+  it("says what the Care page says, minus the noun the column header carries", () => {
+    expect(STAGE_LABEL.intake).toBe("30-day review");
+    expect(STAGE_LABEL.quarterly).toBe("90-day review");
+    expect(STAGE_LABEL.intake).toBe(`${CYCLE_LABEL.first} review`);
+    expect(STAGE_LABEL.quarterly).toBe(`${CYCLE_LABEL.recurring} review`);
   });
 
-  it("accepts every day the cadence does produce", () => {
-    for (const d of cycleDays(8)) expect(isCycleDay(d), `${d} should be a cycle day`).toBe(true);
-  });
-
-  it("rejects anything before the first review", () => {
-    expect(isCycleDay(0)).toBe(false);
-    expect(isCycleDay(29)).toBe(false);
-  });
-});
-
-describe("the label is a position, not a repeated noun (§6.2)", () => {
-  it("reads '30-day', without the word review", () => {
-    expect(cycleLabel(30)).toBe("30-day");
-    expect(cycleLabel(120)).toBe("120-day");
-  });
-
-  it("so the header can be `Review` without saying it twice", () => {
-    /* §6.2's naming split: the column header is the taxonomy's name and the
-       cell is a position in it. "30-day review" under a header reading
-       `Review` is the noun twice. */
-    for (const d of cycleDays(4)) {
-      expect(cycleLabel(d).toLowerCase()).not.toContain("review");
+  it("and the cell does not repeat the word review (§6.2)", () => {
+    for (const v of Object.values(CYCLE_LABEL)) {
+      expect(v.toLowerCase()).not.toContain("review");
     }
   });
+
+  it("keeps the two stages that share a label sharing it", () => {
+    /* `care-demo.ts`: two stages sharing a label is "correct, not a collapse
+       worth avoiding" — a teen has one first review and then a recurring one. */
+    expect(STAGE_LABEL.day30).toBe(STAGE_LABEL.quarterly);
+  });
 });
 
-describe("sorting is by the day, never by the label (§3)", () => {
-  it("orders numerically, which a lexicographic sort would not", () => {
-    const days = cycleDays(4);
-    const byLabel = [...days].sort((a, b) => cycleLabel(a).localeCompare(cycleLabel(b)));
-    const byKey = [...days].sort((a, b) => cycleSortKey(a) - cycleSortKey(b));
-    /* THE TRAP, DEMONSTRATED: sorting the rendered string puts "120-day"
-       before "30-day", because "1" < "3". */
-    expect(byLabel[0]).toBe(120);
-    expect(byKey).toEqual([30, 120, 210, 300]);
+describe("sorting is cycle order, never the label (§3)", () => {
+  it("puts the first review before the recurring one", () => {
+    expect(cycleSortKey("intakeBillingReview")).toBeLessThan(
+      cycleSortKey("monthlyReReview")
+    );
   });
 
   it("puts an unknown cycle last in ascending order, not first", () => {
-    /* An item with no cycle is not the earliest cycle — it is unknown, and
-       unknown sorts to the end so it never heads a list a reader is scanning
-       for the soonest review. */
-    const mixed = [210, null, 30];
-    const sorted = [...mixed].sort((a, b) => cycleSortKey(a) - cycleSortKey(b));
-    expect(sorted).toEqual([30, 210, null]);
+    expect(cycleSortKey("riskFlagReview")).toBeGreaterThan(
+      cycleSortKey("monthlyReReview")
+    );
+  });
+
+  it("is a rank and not a string compare, which a third cycle would break", () => {
+    /* "120-day" sorts before "30-day" lexicographically. The rank does not
+       care, which is why the sort reads the rank. */
+    expect("120-day".localeCompare("30-day")).toBeLessThan(0);
+    const src = readFileSync(
+      join(process.cwd(), "src/lib/tasks/review-cycle.ts"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(src).not.toContain("localeCompare");
+  });
+});
+
+describe("the cycle is derived, not stored", () => {
+  it("adds no field to the billing payload", () => {
+    const types = readFileSync(join(process.cwd(), "src/lib/tasks/types.ts"), "utf8");
+    /* A stored cycle would be a second statement of what `taskType` already
+       says, and the two would drift. */
+    expect(types).not.toMatch(/\bcycle\b/i);
   });
 });

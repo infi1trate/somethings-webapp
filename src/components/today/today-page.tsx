@@ -108,7 +108,7 @@ import {
   ReviewAgeCell,
   ReviewDisc,
   ReviewIdentityCell,
-  ReviewPresentationCell,
+  ReviewCycleCell,
   ReviewRowHeader,
 } from "@/components/tasks/review-row";
 import { NAV } from "@/components/settings/nav-items";
@@ -607,17 +607,15 @@ function TasksSection({
                   <ReviewDisc teenId={it.teenId} name={it.name} size={PREVIEW_DISC} />
                   <ReviewIdentityCell name={it.name} caption={it.status ?? ""} />
                 </span>
-                {/* CODES, REQUIRED SINCE K.1, through the destination's own
-                    cell — so the pair arrow and the mono face cannot differ.
-                    ALWAYS PRESENT NOW: FORK I-1 is resolved to Care Reviews
-                    only, so there is no type whose rows would leave this
-                    column empty. That empty column was L.3's named symptom of
-                    a switching type. */}
-                <ReviewPresentationCell
-                  currentCode={it.codes?.current ?? null}
-                  recommendedCode={it.codes?.recommended ?? ""}
-                  width={COL_EQUAL}
-                />
+                {/* ═══ THE CYCLE, NOT THE CODES (rework §6.1, §6.3) ═══
+                    K.1 put codes here and the Care Reviews rework takes them
+                    off BOTH lists — they live only in the detail pane now.
+                    THIS FOLLOWS FROM K.1 RATHER THAN OVERRIDING IT: the two
+                    surfaces share this cell precisely so the same object
+                    cannot be identified two ways, so a Today preview showing
+                    codes its own destination no longer shows would be that
+                    defect. The column stays; its content changed. */}
+                <ReviewCycleCell taskType={it.taskType} width={COL_EQUAL} />
                 <ReviewAgeCell at={it.at} now={now} width={COL_EQUAL} />
               </Link>
             </li>

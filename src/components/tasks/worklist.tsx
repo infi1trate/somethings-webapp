@@ -76,9 +76,11 @@ import {
 import { cn } from "@/lib/utils";
 import {
   COL_AGE,
+  COL_MENTEE_MIN,
   COL_PRESENTATION,
+  COL_REVIEW,
+  ReviewCycleCell,
   ReviewDisc,
-  ReviewPresentationCell,
   ReviewRowHeader,
   proposalCaption,
 } from "@/components/tasks/review-row";
@@ -716,6 +718,20 @@ function Row({
           "flex min-w-0 flex-1 flex-col justify-center",
           hairline && "border-t border-[color:var(--border-subtle)]"
         )}
+        /* ═══ THE MENTEE COLUMN CANNOT COLLAPSE (§6.5) ═══
+           MEASURED at 1280 before the cadence column replaced the codes
+           column: this cell was **11px** wide and the NAME truncated — "Theo
+           L." at 50px of content in an 11px box. §6.5 describes the second
+           line truncating "while the cell has room"; the cell had no room at
+           all, because three fixed columns plus the detail pane had taken
+           everything.
+           SWAPPING 144 FOR 72 GOT IT TO 83px AND THAT WAS STILL SHORT — the
+           caption "Presentation Review" is 110px. This floor is what closes
+           it. The same constant is on `ReviewIdentityCell`, which Today's
+           table uses; this row renders its own identity spans (the one fork
+           K.1 named), so the floor has to be stated in both places until that
+           fork closes. */
+        style={{ minWidth: COL_MENTEE_MIN }}
       >
         {/* ═══ LINE 1 — THE JOB, OR THE PERSON ═══
             DEADLINE-FORWARD: the task name, at the row's strongest available
@@ -860,10 +876,10 @@ function Row({
           and the header would line up with none of them. */}
       {item.payload.kind === "billing" && (
         /* SHARED WITH TODAY'S PREVIEW (K.1) — one presentation cell. */
-        <ReviewPresentationCell
-          currentCode={item.payload.current?.code ?? null}
-          recommendedCode={item.payload.recommended.code}
-        />
+        /* ═══ THE REVIEW CYCLE, NOT THE CODES (§6.1, §6.3) ═══
+           Codes leave the list entirely and live only in the detail pane. This
+           column carries the cadence position instead. */
+        <ReviewCycleCell taskType={item.taskType} />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
@@ -1677,7 +1693,14 @@ export function Worklist({
           "Presentation" over rows that carry none would be a legend for
           columns that are not there. */}
       {entries.some((e) => paneItemFor(e).payload.kind === "billing") && (
-        <ReviewRowHeader disc={ROW_GEOMETRY[preset].disc} sticky />
+        <ReviewRowHeader
+          disc={ROW_GEOMETRY[preset].disc}
+          /* §6.1: the codes column became the cadence column, and it is half
+             its width — which is what gives the mentee column back the room
+             §6.5's collapse took. */
+          presentationWidth={COL_REVIEW}
+          sticky
+        />
       )}
 
       {sections.map((section) => {

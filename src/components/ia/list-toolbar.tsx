@@ -103,6 +103,15 @@ export function ListToolbar<T extends Filterable>({
   onPreset,
   searchHint,
   showView = true,
+  /** ═══ §4 — FILTERS ARE PER-SURFACE NOW ═══
+   *  Care Reviews removes them; Risk Flags keeps them. Confirmed scope: "just
+   *  care reviews for now". A GATE RATHER THAN A DELETION, because the control
+   *  is shared and Risk Flags has no table and no sorting — removing it there
+   *  would leave search and comparator order as the only way through 123
+   *  items, which is the reasoning §4 asked to check before touching it.
+   *  DEFAULTS TRUE, so the surface that keeps them is unchanged by this prop
+   *  existing. */
+  showFilters = true,
 }: {
   /** The UNFILTERED set, so every dimension's options describe what exists
    *  rather than what the other filters have already left. */
@@ -124,9 +133,18 @@ export function ListToolbar<T extends Filterable>({
    *  the report rather than smoothed over: a stored preference with no control
    *  is an odd state, and it is the state §4.2 asks for. */
   showView?: boolean;
+  showFilters?: boolean;
 }) {
-  const primary = dimensions.find((d) => d.primary);
-  const behind = dimensions.filter((d) => !d.primary);
+  /* ═══ §4 — BOTH THE PRIMARY SELECT AND THE `Filters` POPOVER ARE GATED ═══
+     "Remove the `Filters` control and its dimension config. Keep search." The
+     primary dimension goes with it: it is a filter that happens to be always
+     visible, and leaving Billing code on the toolbar while removing the
+     popover would keep one filter and call it something else.
+     THE COUNT BADGE, THE ACTIVE CHIPS AND THE FILTERED-EMPTY STATE all fall
+     out of this — they render only when something is filtering, and nothing on
+     this surface can filter now. */
+  const primary = showFilters ? dimensions.find((d) => d.primary) : undefined;
+  const behind = showFilters ? dimensions.filter((d) => !d.primary) : [];
   const n = activeCount(filters);
   const searchId = useId();
   const set = (patch: Partial<FilterState>) =>
