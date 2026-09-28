@@ -204,7 +204,20 @@ export function SuggestedSchedule({ now }: { now: number }) {
     <section
       data-anno-ref="today-schedule"
       aria-label="Suggested schedule"
-      className="shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4"
+      /* ═══ THE RAIL'S OWN PADDING (Phase H.1.2) ═══
+         H.1.2 specifies a 285px rail with 33px padding each side, giving 219
+         of content. 33 IS OFF BLOOM'S ONLY REAL SPACING SCALE — Bloom carries
+         no spacing tokens beyond four component pads, so Tailwind's 4px step
+         is the scale, and the nearest step is 32 (`p-8`) for 221 of content.
+         Two pixels from the Figma, and on the grid rather than beside it.
+         IT IS SCOPED TO THE TWO-COLUMN LAYOUT, because 33px is a fact about a
+         285px RAIL. Below `min-[1470px]` the rail stacks to full width and this
+         card is an ordinary module beside the digest and the destination
+         cards — 32px of padding on a 327px phone card would be the one
+         module out of register, which is the defect H.5 had just fixed one
+         component along. So `p-4` there, matching every other module, and the
+         rail's own padding only where the rail exists. */
+      className="shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4 min-[1470px]:p-8"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
