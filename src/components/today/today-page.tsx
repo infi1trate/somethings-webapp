@@ -96,6 +96,28 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 import { devClockAt } from "@/lib/home/dev-clock";
+import {
+  ReviewAgeCell,
+  ReviewDisc,
+  ReviewIdentityCell,
+  ReviewPresentationCell,
+  ReviewRowHeader,
+} from "@/components/tasks/review-row";
+import { NAV } from "@/components/settings/nav-items";
+import type { DestinationId } from "@/lib/ia/destinations";
+import type { LucideIcon } from "lucide-react";
+
+/** ═══ ONE SECTION-LABEL TREATMENT (K.7.1) ═══
+ *  "Pinned mentees" and "Closed today — not counted above" floated as small
+ *  grey text between containers with no shared treatment — different inks,
+ *  different gaps, no relationship to each other or to the modules they label.
+ *  ONE STYLE, ONE GAP ABOVE, ONE GAP BELOW, declared once. `--text-secondary`
+ *  rather than `--text-muted`: muted is 4.82:1 on the page ground and secondary
+ *  is 6.94:1, and K.5 makes the same substitution wherever a de-emphasised ink
+ *  carries text. The gap below is the label's own `mb`, so a section cannot
+ *  set its own and drift. */
+export const SECTION_LABEL =
+  "mb-1.5 text-[12px] leading-[16px] font-semibold text-[var(--text-secondary)]";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -238,6 +260,18 @@ function EscalationStrip({
  *  two colour languages in one row teach neither. Weight is not available —
  *  Lausanne ships one face — so the channels are the FACE and the MARKER, which
  *  is the rule `row-emphasis` records. */
+/** ═══ THE DESTINATION ICONS (K.4.1) ═══
+ *  THE SAME GLYPH THE NAV USES, read from the nav's own table rather than
+ *  restated — shield for Escalations, flag for Risk Flags, document for Care
+ *  Reviews. A second copy here would be two answers to "what does this
+ *  destination look like", and the rail is the one a reader has already
+ *  learned. A destination added to `NAV` without an icon fails to compile. */
+const CARD_ICON: Record<DestinationId, LucideIcon> = {
+  escalations: NAV.escalations.icon,
+  "risk-flags": NAV.riskFlags.icon,
+  "care-reviews": NAV.careReviews.icon,
+};
+
 function DestinationCard({
   card,
   directive,
@@ -250,6 +284,7 @@ function DestinationCard({
    *  the mirror failure this whole surface is built to avoid. */
   count: number | null;
 }) {
+  const Icon = CARD_ICON[card.id];
   return (
     <li>
       <Link
@@ -274,22 +309,18 @@ function DestinationCard({
           RING
         )}
       >
-        <span className="flex min-w-0 items-baseline gap-2">
-          {/* THE DIRECTIVE MARKER. `aria-hidden` because the accessible name
-              below carries the same fact in words — a screen-reader user hears
-              "start here" rather than being told about a dot.
-              IT SITS IN THE HEADLINE ROW NOW. The card is a column, so left as
-              a direct child it became a row of its own — a dot on a line above
-              the count. Baseline-aligned against the figure with a small
-              nudge, because a 8px disc centred on a 28px line sits high. */}
-          <span
+        <span className="flex min-w-0 items-center gap-2">
+          {/* ═══ THE DOT IS GONE, THE ICON HAS ITS SLOT (K.4.2) ═══
+              The dot was a filled-or-hollow indicator carrying no stated
+              meaning, occupying the slot the icon belongs in, and
+              distinguishing its two states BY FILL ALONE. K.4.2 resolves
+              Phase B.5 in favour of removal.
+              WHAT IT WAS DOING IS NOT LOST: the directive is carried in words
+              by the `sr-only` sentence ("Start here.") and, since K.4.5, by a
+              visible text signal on the card — see `directive` below. */}
+          <Icon
             aria-hidden
-            className={cn(
-              "size-2 shrink-0 translate-y-[-3px] rounded-full",
-              directive
-                ? "bg-[var(--text-primary)]"
-                : "border border-[color:var(--border-contour)]"
-            )}
+            className="size-4 shrink-0 text-[var(--text-secondary)]"
           />
           {/* ═══ THE COUNT LEADS THE HEADLINE (H.2.3) ═══
               "count + destination name as the headline". It was a figure
@@ -300,6 +331,29 @@ function DestinationCard({
               the figures change, and `aria-hidden` for the reason the trailing
               figure was: the state sentence below already says the number, and
               the `sr-only` line speaks it once in order. */}
+          <span
+            className={cn(
+              "min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
+              /* `font-display` IS the emphasis here and `font-bold` is not:
+                 Avantt ships Bold only, so the weight declaration has no
+                 rendering behind it — the FACE is the channel. */
+              directive && "font-display"
+            )}
+          >
+            {card.label}
+          </span>
+          {/* ═══ THE COUNT FOLLOWS THE NAME (K.4.3) ═══
+              H.2.3 put it first. MEASURED, that broke the thing K.4.3 asks
+              for: two cards led with a large numeral and the zero-state card
+              led with nothing, so the destination NAME sat at a different x on
+              each and the three did not share a structure.
+              Trailing, every card is `[icon] [name]` and the figure appends —
+              identical whether the count is 16 or absent, which is K.4.3's own
+              test. The figure keeps its prominence; it just stops displacing
+              the name.
+              `aria-hidden` for the reason it always was: the state line below
+              says the number in words and the `sr-only` sentence speaks it
+              once in order. */}
           {count != null && count > 0 && (
             <span
               aria-hidden
@@ -309,14 +363,28 @@ function DestinationCard({
               {count}
             </span>
           )}
-          <span
-            className={cn(
-              "min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
-              directive && "font-display font-bold"
-            )}
-          >
-            {card.label}
-          </span>
+          {/* ═══ THE VISIBLE DIRECTIVE SIGNAL (K.4.2, K.4.5) ═══
+              REMOVING THE DOT REMOVED THE ONLY VISIBLE ONE. The dot said
+              "start here" by fill; "Start here." lived in the `sr-only`
+              sentence, and the label's `font-bold` is inert on a Bold-only
+              face — so a sighted reader had nothing left.
+              SO IT IS WORDS NOW, which is what K.4.5 asks for on the
+              Escalations card and what the standing constraint asks for
+              everywhere: a state distinguished by colour must also be
+              distinguished by text. This is text ALONE — no fill, no tone —
+              so it carries on its own.
+              AND IT IS REMOVED FROM THE `sr-only` SENTENCE BELOW, because a
+              visible string is already in the accessible name and saying it
+              twice is the defect the trailing figure had. */}
+          {directive && (
+            <span
+              data-anno-ref="today-card-directive"
+              className="shrink-0 whitespace-nowrap rounded-full border border-[color:var(--border-contour)] px-1.5 py-0.5 text-[11px] leading-[14px] text-[var(--text-secondary)]"
+            >
+              {/* NEEDS-COPY-NICOLE */}
+              Start here
+            </span>
+          )}
         </span>
         {/* ═══ THE SECOND LINE AND THE CHEVRON SHARE A ROW ═══
             H.2.3 puts the decision-relevant fact second and the chevron last.
@@ -344,10 +412,10 @@ function DestinationCard({
             className="size-4 shrink-0 text-[var(--text-muted)]"
           />
         </span>
-        {/* THE WHOLE SENTENCE, ONCE, IN ORDER. TODO-COPY on "Start here". */}
-        <span className="sr-only">
-          {`${card.label}. ${card.state}.${directive ? " Start here." : ""}`}
-        </span>
+        {/* THE WHOLE SENTENCE, ONCE, IN ORDER. "Start here" is NOT repeated
+            here — it is a visible string above and therefore already in this
+            link's accessible name. */}
+        <span className="sr-only">{`${card.label}. ${card.state}.`}</span>
       </Link>
     </li>
   );
@@ -366,6 +434,14 @@ function DestinationCard({
  *  count of shown-against-total renders whenever anything is open, and it reads
  *  off `preview.total`, which is the destination card's own figure.
  */
+/** ═══ THE PREVIEW'S DISC SIZE ═══
+ *  36px, matching `ROW_GEOMETRY.comfortable.disc` on the destination. Stated
+ *  here rather than imported, because importing the worklist's preset table
+ *  would tie Today's row height to a view control Today does not have. */
+const PREVIEW_DISC = 36;
+
+
+
 function StartHere({
   preview,
   now,
@@ -376,9 +452,20 @@ function StartHere({
   const more = preview.total > preview.items.length;
   return (
     <div data-anno-ref="today-start-here" className="mt-3">
+      {/* ═══ THE COLUMN HEADER (K.1.3) ═══
+          Parity was the explicit instruction, so it is built. THE JUDGMENT
+          K.1.3 ASKS FOR, stated: over four rows the header is heavier than it
+          is over sixteen — it adds a 33px band and three labels to name columns
+          a reader can already read off four rows. It earns its place on the
+          destination and it is chrome here. Reported rather than dropped,
+          because the instruction was explicit.
+          NOT STICKY, unlike the destination's: there is nothing to scroll past
+          in a four-row list, and a sticky header over a static list is a
+          promise about scrolling that the list does not keep. */}
+      <ReviewRowHeader disc={PREVIEW_DISC} className="rounded-t-[var(--radius-inset)]" />
       <ul
         data-anno-ref="start-here-items"
-        className="overflow-hidden rounded-[var(--radius-inset)] border border-[color:var(--border-subtle)]"
+        className="overflow-hidden rounded-b-[var(--radius-inset)] border-x border-b border-[color:var(--border-subtle)]"
       >
         {preview.items.map((it, i) => (
           <li key={it.id}>
@@ -386,37 +473,40 @@ function StartHere({
               href={it.href}
               data-anno-ref="start-here-item"
               className={cn(
-                /* 44px via `min-h-11` (I.5.1), and the WHOLE ROW is the target. */
-                "flex min-h-11 w-full items-center gap-3 px-3 py-2 transition-colors",
+                /* ═══ THE SAME ANATOMY, THE SHELL THAT SUITS THIS SURFACE ═══
+                   K.1.5: the shared row navigates on both surfaces, and
+                   selection belongs to Care Reviews where it drives a pane. So
+                   this is a `Link`, not a treeitem — and every FIELD inside it
+                   comes from `review-row.tsx`, which is what K.1 is for.
+                   80px, MATCHING THE DESTINATION — K.1.4 allows the cap as the
+                   only difference and names "no density variant" among the
+                   things not to build. It was 54 here, which is a density
+                   variant however it is described. Well clear of the 44px floor
+                   (I.5.1) as a consequence rather than as the target. */
+                "flex min-h-[80px] w-full items-center gap-3 px-6 py-2 transition-colors",
                 "hover:bg-[var(--tint-hover)]",
                 i > 0 && "border-t border-[color:var(--border-subtle)]",
                 RING
               )}
             >
-              <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-[var(--text-primary)]">
-                {it.name}
-              </span>
-              {/* THE STATUS WORD, WHERE THE DESTINATION HAS ONE. Risk Flags
-                  does not — see `start-here.ts` on why a flag's category is
-                  clinical content rather than a workflow state. */}
-              {it.status && (
-                <span className="hidden shrink-0 truncate text-[12px] leading-[16px] text-[var(--text-secondary)] sm:block">
-                  {it.status}
-                </span>
-              )}
-              {/* THE AGE — the field the ordering derives from, so I.4.2
-                  requires it visible. Mono and tabular so four rows of figures
-                  form a column rather than a ragged edge. */}
-              <span
-                className="shrink-0 text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                {elapsedLabel(it.at, now)}
-              </span>
-              <ChevronRight
-                aria-hidden
-                className="size-4 shrink-0 text-[var(--text-muted)]"
+              <ReviewDisc teenId={it.teenId} name={it.name} size={PREVIEW_DISC} />
+              <ReviewIdentityCell
+                name={it.name}
+                /* NEEDS-COPY-NICOLE where the destination has no status word —
+                   Risk Flags, whose status-shaped field is its CATEGORY and so
+                   is clinical content rather than a workflow state. */
+                caption={it.status ?? ""}
               />
+              {/* CODES, REQUIRED SINCE K.1 — and rendered through the same cell
+                  the destination uses, so the pair arrow and the mono face
+                  cannot differ between the two. */}
+              {it.codes && (
+                <ReviewPresentationCell
+                  currentCode={it.codes.current}
+                  recommendedCode={it.codes.recommended}
+                />
+              )}
+              <ReviewAgeCell at={it.at} now={now} />
             </Link>
           </li>
         ))}
@@ -867,6 +957,53 @@ export function TodayPage() {
           data-anno-ref="today-main"
           className="flex min-w-0 flex-col gap-5 min-[1470px]:w-[857px] min-[1470px]:shrink-0"
         >
+      {/* ═══ THE CARDS COME FIRST (K.6) ═══
+          The page opened with a tall module containing a list, and the three
+          cards followed as a weaker afterthought. The Figma opens with a
+          composed row of three, and this also restores what H.2 and F.6 already
+          require: destinations are the primary orientation layer and the
+          RECOMMENDATION sits beneath them. A recommendation above the thing it
+          recommends is a page that argues before it reports. */}
+      {stateOf("sequence") === "loading" ? (
+        <RegionSkeleton h={308} />
+      ) : stateOf("sequence") === "error" ? (
+        <RegionError
+          /* TODO-COPY */
+          line="The destinations couldn’t be summarised, so this page can’t say what each one holds."
+          onRetry={() => setRetried((r) => ({ ...r, sequence: true }))}
+        />
+      ) : (
+        <section
+          /* TODO-COPY */
+          aria-label="Destinations"
+          data-anno-ref="today-destinations"
+          className="shrink-0"
+        >
+          {/* ═══ THREE ACROSS THE 857 COLUMN (Phase H.2) ═══
+              `grid-cols-3` with `gap-4` on a container that is exactly 857
+              yields exactly 275 per card — the grid computes H.1.1's own
+              arithmetic rather than restating it, so the two cannot drift.
+              THE SECTION LOST ITS SHARED SHELL. The rows were one bordered
+              surface divided by hairlines; three cards each carry their own
+              border, surface and elevation, so the wrapper is now layout only.
+              STACKED BELOW THE BREAKPOINT, one card per row at full width.
+              H.2.5's warning is live: a FOURTH destination breaks this grid,
+              and the instruction is to revert to full-width stacked rows
+              rather than invent a 4-up. `cards.length` is the thing to check
+              the day Chat/Coverage resolves in. */}
+          <ul className="grid grid-cols-1 gap-4 min-[1470px]:grid-cols-3">
+            {cards.map((card) => (
+              <DestinationCard
+                key={card.id}
+                card={card}
+                directive={card.id === directiveCard}
+                count={card.count}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
       {showDigest && (
         <section
           /* TODO-COPY */
@@ -923,46 +1060,6 @@ export function TodayPage() {
           {preview && (
             <StartHere preview={preview} now={now} />
           )}
-        </section>
-      )}
-
-      {stateOf("sequence") === "loading" ? (
-        <RegionSkeleton h={308} />
-      ) : stateOf("sequence") === "error" ? (
-        <RegionError
-          /* TODO-COPY */
-          line="The destinations couldn’t be summarised, so this page can’t say what each one holds."
-          onRetry={() => setRetried((r) => ({ ...r, sequence: true }))}
-        />
-      ) : (
-        <section
-          /* TODO-COPY */
-          aria-label="Destinations"
-          data-anno-ref="today-destinations"
-          className="shrink-0"
-        >
-          {/* ═══ THREE ACROSS THE 857 COLUMN (Phase H.2) ═══
-              `grid-cols-3` with `gap-4` on a container that is exactly 857
-              yields exactly 275 per card — the grid computes H.1.1's own
-              arithmetic rather than restating it, so the two cannot drift.
-              THE SECTION LOST ITS SHARED SHELL. The rows were one bordered
-              surface divided by hairlines; three cards each carry their own
-              border, surface and elevation, so the wrapper is now layout only.
-              STACKED BELOW THE BREAKPOINT, one card per row at full width.
-              H.2.5's warning is live: a FOURTH destination breaks this grid,
-              and the instruction is to revert to full-width stacked rows
-              rather than invent a 4-up. `cards.length` is the thing to check
-              the day Chat/Coverage resolves in. */}
-          <ul className="grid grid-cols-1 gap-4 min-[1470px]:grid-cols-3">
-            {cards.map((card) => (
-              <DestinationCard
-                key={card.id}
-                card={card}
-                directive={card.id === directiveCard}
-                count={card.count}
-              />
-            ))}
-          </ul>
         </section>
       )}
 
@@ -1033,11 +1130,11 @@ function ClosedToday({ facts }: { facts: ReturnType<typeof shiftFactsFor> }) {
       data-anno-ref="today-closed-today"
       className="shrink-0"
     >
-      <p className="text-[12px] leading-[16px] text-[var(--text-muted)]">
+      <p className={SECTION_LABEL}>
         {/* NEEDS-COPY-NICOLE: Closed today — not counted above */}
         Closed today — not counted above
       </p>
-      <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
         {entries.map(([domain, n]) => (
           <li key={domain}>
             <Link

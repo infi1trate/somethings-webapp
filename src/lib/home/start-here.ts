@@ -49,7 +49,7 @@
 import { DESTINATION_ORDER, type DestinationId } from "@/lib/ia/destinations";
 import { activeEscalations, openCareReviews } from "@/lib/ia/open-counts";
 import { ackStateFor } from "@/lib/monitoring/escalation";
-import { PROPOSAL_LABEL, proposalKindFor } from "@/lib/record/proposal-kind";
+import { proposalCaption } from "@/components/tasks/review-row";
 import type { TodayInput } from "@/lib/home/today";
 
 /** HARD, NOT CONFIGURABLE (I.2.2). Exported so the test and the UI read one
@@ -58,6 +58,8 @@ export const PREVIEW_CAP = 4;
 
 export interface StartHereItem {
   id: string;
+  /** For the identity disc — the same derivation the queue row uses. */
+  teenId: string;
   /** Already initialised upstream — `teenDisplayName` and `teenName` are
    *  "Theo L." shaped before they reach here, so this module never truncates a
    *  surname and never has to know how. */
@@ -68,6 +70,20 @@ export interface StartHereItem {
   at: number;
   /** NEEDS-COPY-NICOLE, where non-null. */
   status: string | null;
+  /** ═══ THE PRESENTATION CODES (I.4, REVERSED BY K.1) ═══
+   *  An earlier revision of this pack PROHIBITED codes in the preview, on the
+   *  grounds that an orienting surface open all shift is the wrong place for
+   *  the most sensitive content on the page, and that in an oldest-first list
+   *  they earn nothing because the supervisor starts at the top.
+   *  K.1 OVERRULES IT on consistency grounds — the preview must be visually
+   *  identical to the Care Reviews list, the same object must be identified the
+   *  same way everywhere (Nielsen #4), and the codes are one click away in the
+   *  destination regardless. The reasoning that lost is recorded in the pack
+   *  and in the note on `ReviewPresentationCell`, not deleted.
+   *  NULL WHERE THE DESTINATION HAS NO CODES. Escalations and flags are not
+   *  coding decisions, so the cell does not render for them rather than
+   *  rendering empty. */
+  codes: { current: string | null; recommended: string } | null;
   /** The individual record, not the destination's list top (I.5.2). */
   href: string;
 }
@@ -122,6 +138,7 @@ export function startHereCandidates(
     return activeEscalations(escalations, now)
       .map((r) => ({
         id: r.id,
+        teenId: r.teenId,
         name: r.teenName,
         at: r.triggeredAt,
         /* NEEDS-COPY-NICOLE: Response overdue / Awaiting response.
@@ -129,6 +146,7 @@ export function startHereCandidates(
            acknowledged inside its own published SLA. */
         status:
           ackStateFor(r, now) === "breached" ? "Response overdue" : "Awaiting response",
+        codes: null,
         href: itemHref(destination, r.id),
       }))
       .sort(oldestFirst);
@@ -138,10 +156,12 @@ export function startHereCandidates(
     return events
       .map((e) => ({
         id: e.id,
+        teenId: e.teenId,
         name: e.teenName,
         at: e.at,
         /* NULL BY DECISION, NOT BY OMISSION — see the module note. */
         status: null,
+        codes: null,
         href: itemHref(destination, e.id),
       }))
       .sort(oldestFirst);
@@ -150,19 +170,27 @@ export function startHereCandidates(
   return openCareReviews(items)
     .map((i) => ({
       id: i.id,
+      teenId: i.teenId,
       name: i.teenDisplayName,
       at: i.openedAt,
       /* The destination's own status word, and the same string its row shows —
          "Renewal proposed" / "Change proposed" / "Code proposed". It names the
          KIND of proposal and contains no code. */
+      /* THE SHARED CAPTION EXPRESSION — the same one the queue row renders, so
+         the two surfaces cannot name one proposal two ways. */
       status:
         i.payload.kind === "billing"
-          ? PROPOSAL_LABEL[
-              proposalKindFor(
-                i.payload.current?.code ?? null,
-                i.payload.recommended.code
-              )
-            ]
+          ? proposalCaption(
+              i.payload.current?.code ?? null,
+              i.payload.recommended.code
+            )
+          : null,
+      codes:
+        i.payload.kind === "billing"
+          ? {
+              current: i.payload.current?.code ?? null,
+              recommended: i.payload.recommended.code,
+            }
           : null,
       href: itemHref(destination, i.id),
     }))

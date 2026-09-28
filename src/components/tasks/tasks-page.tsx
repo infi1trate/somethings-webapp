@@ -83,6 +83,7 @@ import {
   type TaskItem,
 } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+import { oldestAgeLabel } from "@/lib/ia/age";
 
 /** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
  *  The two domains whose work CLEARS: billing reviews and the two escalation
@@ -547,8 +548,15 @@ export function TasksPage({
    *  the header renders as an em dash rather than "0d": there is no oldest
    *  review, which is different from one that is zero days old. */
   const oldestReviewAge = useMemo(() => {
-    if (shown.length === 0) return null;
-    return elapsedLabel(Math.min(...shown.map((e) => e.at)), now);
+    /* ═══ THE SHARED EXPRESSION (Phase K.2) ═══
+       It was `elapsedLabel(Math.min(...))` inline here while Today derived its
+       own — two expressions for one figure. `oldestAgeLabel` is the one, and it
+       also carries the empty case: null rather than a label, which the header
+       renders as an em dash.
+       THE SET STAYS FILTER-AWARE and that is deliberate — this metric's own
+       label says "open · filtered", so its oldest is over `shown`. One label
+       expression, two sets, each named at its call site. */
+    return oldestAgeLabel(shown, now);
   }, [shown, now]);
 
   /** PER-DOMAIN LIST STATE (§4). Keyed by domain so an error in one tab leaves

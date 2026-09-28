@@ -68,7 +68,20 @@ function Block({
     <li
       data-anno-ref={`schedule-block:${block.start}`}
       data-position={position}
-      className="relative flex gap-3 py-2"
+      /* ═══ THE CURRENT BLOCK TAKES A SURFACE FILL (K.5.3) ═══
+         K.5.3 NAMES THE PAIR: `surface/s2` with `text/primary`, measured
+         15.93:1, plus the "Now" word and full weight. It supersedes H.3.b's
+         instruction to derive the treatment — and H.3.b's prohibition stands:
+         no semantic state token. `--text-warning` measured 2.62:1 on this
+         ground and fails even the 3:1 large-text floor, quite apart from
+         meaning "warning" where this means "you are here".
+         THE FILL IS A FOURTH CARRIER, NOT THE CARRIER. The word, the gutter
+         rule and the weight already carry it; the fill makes the row findable
+         at a glance without any of them becoming colour-dependent. */
+      className={cn(
+        "relative flex gap-3 rounded-[var(--radius-inset)] px-2 py-2",
+        now && "bg-[var(--surface-s2)]"
+      )}
     >
       {/* ═══ THE POSITIONAL INDICATOR (D.2) ═══
           A filled rule in the gutter on the current block, a hairline on every

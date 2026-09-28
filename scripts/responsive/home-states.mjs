@@ -79,10 +79,15 @@ const mainText = (page) => page.locator("main").innerText();
     [...document.querySelectorAll('[data-anno-ref^="today-card:"]')].map((a) => ({
       id: (a.getAttribute("data-anno-ref") ?? "").split(":")[1] ?? null,
       directive: a.getAttribute("data-directive") === "true",
-      /* THE ACCESSIBLE NAME IS THE `sr-only` SENTENCE, not an `aria-label` —
-         the card never had one, which is the other half of why the old read
-         came back null. */
-      name: a.querySelector(".sr-only")?.textContent?.trim() ?? null,
+      /* ═══ THE WHOLE LINK'S TEXT, NOT JUST ITS `sr-only` SPAN (K.4) ═══
+         The card has no `aria-label`, so its accessible name is computed from
+         CONTENT — every text node inside it, visible or `sr-only`. Reading
+         only the `sr-only` span was close enough while "Start here." lived
+         there, and K.4 moved it: the dot went, so the directive needed a
+         VISIBLE signal, and a visible string is already in the accessible name.
+         Reading the span alone then reported a name the link does not have. */
+      name: (a.textContent ?? "").replace(/\s+/g, " ").trim() || null,
+      srOnly: a.querySelector(".sr-only")?.textContent?.trim() ?? null,
       href: a.getAttribute("href"),
     }))
   );
@@ -115,11 +120,24 @@ const mainText = (page) => page.locator("main").innerText();
   /* RETARGETED WITH THE COPY. It asserted the name ended `", next"`, from the
      stage era's "up next" framing. The card's sentence ends `"Start here."` —
      the same claim (the directive says so IN WORDS, not only by the dot). */
+  /* RETARGETED WITH THE SIGNAL (K.4.2). It matched `endsWith("Start here.")`
+     on the `sr-only` sentence. The directive is a VISIBLE chip now — the dot
+     that used to carry it by fill is gone — so the claim is stronger and the
+     match is on the name as a whole, wherever in it the words fall. */
   check(
     "sequence.directive-in-name",
     "and the directive one says so in words, not only by shape",
-    Boolean(stages.find((s) => s.directive)?.name?.endsWith("Start here.")),
+    /start here/i.test(stages.find((s) => s.directive)?.name ?? ""),
     stages.find((s) => s.directive)?.name
+  );
+  /* ═══ AND IT IS SAID ONCE ═══
+     A visible string is already in the accessible name, so repeating it in the
+     `sr-only` sentence would announce it twice. */
+  check(
+    "sequence.directive-not-doubled",
+    "and says it exactly once",
+    (stages.find((s) => s.directive)?.name ?? "").match(/start here/gi)?.length === 1,
+    stages.find((s) => s.directive)?.srOnly
   );
   await page.screenshot({ path: `${OUT}/01-shift.png` });
   await context.close();

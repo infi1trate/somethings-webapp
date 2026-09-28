@@ -25,20 +25,24 @@ import { AlertTriangle, Phone } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { type TaskItem } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+import { elapsedLabel } from "@/lib/ia/age";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
 /** TODO-COPY. Elapsed since open, in the house format — mono figures so a live
  *  counter does not jitter as digits change width. */
-export function elapsedLabel(openedAt: number, now: number): string {
-  const ms = Math.max(0, now - openedAt);
-  const m = Math.floor(ms / 60_000);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
+/* ═══ MOVED TO `lib/ia/age.ts`, RE-EXPORTED HERE (Phase K.2) ═══
+   The arithmetic lived here, in a component file, and `lib/home/today.ts`
+   could not import from it without inverting the dependency — so `ageOf`
+   restated it instead, and the two drifted: one floored, one rounded, and the
+   same item read "3d" on Today and "2d" on Care Reviews.
+   ONE DEFINITION NOW, in `lib/`. The re-export keeps every existing import
+   resolving rather than touching two dozen call sites for no behavioural
+   reason. */
+/* Imported AND re-exported: `export … from` does not create a local binding,
+   and this file uses it too. */
+export { elapsedLabel };
 
 /** THE ESCALATION'S OWN PATH — and it resolves now (arch-G, G6).
  *

@@ -71,6 +71,7 @@ import {
 import { ESCALATION_ACK_SLA } from "@/lib/monitoring/constants";
 import type { ShiftFacts } from "@/lib/tasks/shift";
 import type { TaskItem } from "@/lib/tasks/types";
+import { elapsedAgo, oldestAgeLabel } from "@/lib/ia/age";
 
 /** ═══ THE TONES, AND `breach` IS RESERVED ═══
  *  Lifted unchanged from the shift sequence's vocabulary rather than invented,
@@ -386,29 +387,17 @@ export function todayCards(input: TodayInput): TodayCard[] {
  *  "oldest " is the empty-label-stack defect the production audit recorded, and
  *  this is only reachable with a non-empty set anyway — so it asserts rather
  *  than guesses. */
-/* ═══ FLOOR, NOT ROUND — AND IT WAS ROUND (Today Phase J) ═══
-   MEASURED on the `care-review-backlog` fixture: the oldest care review was
-   66 hours old, this function said "oldest 3d ago", the rationale beneath it
-   said "— 3d", and the first preview row said "2d". Same item, three lines
-   apart, two answers. `elapsedLabel` — which the preview rows, the Care
-   Reviews age column and the escalation strip all use — floors; this rounded.
-
-   THAT IS THE SELF-CONTRADICTION I.2.3 EXISTS TO PREVENT, and it slipped past
-   the test that guards it because that test compares the preview's first item
-   by IDENTITY rather than by its rendered label.
-
-   FLOOR WINS ON MERIT AS WELL AS ON CONSISTENCY. Rounding OVERSTATES an age —
-   it can call a 60-hour item "3d" — and on a queue a supervisor reads as a
-   backlog, claiming work is older than it is is the worse of the two errors.
-   Floor also makes Today agree with every destination it mirrors rather than
-   only with itself. */
+/* ═══ IT DELEGATES NOW — ONE AGE EXPRESSION (Phase K.2) ═══
+   This had its own floor/hour/day arithmetic, a copy of `elapsedLabel`'s. The
+   copy is how the surfaces diverged: it ROUNDED where `elapsedLabel` floors,
+   so a 66-hour item was "oldest 3d ago" on Today's card and "2d" on the row
+   three lines beneath it. Making it floor closed the rendered defect and left
+   the real one — two expressions agreeing by accident, which is worse than two
+   that disagree because nothing fails while the accident holds.
+   So the arithmetic is gone and this is a preposition. */
 function ageOf(at: number | null, now: number): string {
   if (at == null) return "unknown";
-  const mins = Math.max(0, Math.floor((now - at) / 60_000));
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  return elapsedAgo(at, now);
 }
 
 /** ═══ WHICH CARD SAYS "START HERE" — DERIVED FROM THE CARDS ═══

@@ -29,13 +29,19 @@
       "id": "sequence.names",
       "label": "every destination's accessible name carries its state",
       "ok": true,
-      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here. | Risk Flags. 69 open · oldest 5d ago. | Care Reviews. 19 open · oldest 3d ago."
+      "detail": "Escalations2Start here2 active · 3 close-out items overdueEscalations. 2 active · 3 close-out items overdue. | Risk Flags6969 open · oldest 5d agoRisk Flags. 69 open · oldest 5d ago. | Care Reviews1919 open · oldest 3d agoCare Reviews. 19 open · oldest 3d ago."
     },
     {
       "id": "sequence.directive-in-name",
       "label": "and the directive one says so in words, not only by shape",
       "ok": true,
-      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here."
+      "detail": "Escalations2Start here2 active · 3 close-out items overdueEscalations. 2 active · 3 close-out items overdue."
+    },
+    {
+      "id": "sequence.directive-not-doubled",
+      "label": "and says it exactly once",
+      "ok": true,
+      "detail": "Escalations. 2 active · 3 close-out items overdue."
     },
     {
       "id": "boundary.no-controls",
@@ -53,7 +59,7 @@
       "id": "boundary.links-out",
       "label": "every link leaves for a surface that owns the work",
       "ok": true,
-      "detail": "/app/escalation/esc-theo-9 /app/escalation/esc-naomi-live /app/escalations?escalation=esc-theo-9 /app/escalations?escalation=esc-naomi-live /app/escalations /app/risk-flags /app/care-reviews /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
+      "detail": "/app/escalation/esc-theo-9 /app/escalation/esc-naomi-live /app/escalations /app/risk-flags /app/care-reviews /app/escalations?escalation=esc-theo-9 /app/escalations?escalation=esc-naomi-live /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
     },
     {
       "id": "ladder.active-escalation",

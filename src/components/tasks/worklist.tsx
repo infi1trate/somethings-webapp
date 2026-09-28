@@ -51,12 +51,10 @@ import {
   type TierBand,
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
-import { discFor } from "@/lib/tasks/avatar";
 import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
-import { ProposalCodes, proposalSpoken } from "@/components/record/proposal-codes";
-import { PROPOSAL_LABEL, proposalKindFor } from "@/lib/record/proposal-kind";
+import { proposalSpoken } from "@/components/record/proposal-codes";
 import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
   deadlineLabel,
@@ -76,6 +74,14 @@ import {
   type ViewPreset,
 } from "@/lib/ui/view-options";
 import { cn } from "@/lib/utils";
+import {
+  COL_AGE,
+  COL_PRESENTATION,
+  ReviewDisc,
+  ReviewPresentationCell,
+  ReviewRowHeader,
+  proposalCaption,
+} from "@/components/tasks/review-row";
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
  *
@@ -162,64 +168,13 @@ const OVERSCAN = 6;
    FIRST TUNING WAS 168/96 AND IT COST THE MENTEE COLUMN: at a 499px list the
    type line truncated to "Renewal propo…" on every row. Fixed columns take
    their width from the content they hold, not from a round number. */
-const COL_PRESENTATION = 144;
-const COL_AGE = 72;
-
-/** ═══ THE TABLE HEADER ROW (§4.3) ═══
- *
- *  Reads the SAME two constants the cells do, so the labels cannot drift from
- *  the columns they name. The mentee column is `flex-1` in both.
- *
- *  `aria-hidden`, AND THAT IS NOT A SHORTCUT. Every row already states its own
- *  fields in its accessible name — a screen-reader user hears "Theo L., change
- *  proposed, 3d open" rather than being asked to hold three column headers in
- *  mind and map them onto cells. Announcing the header row as well would be the
- *  same three nouns twice. The `role="tree"` below is unchanged: this is a
- *  legend for the sighted reader, not a `columnheader` in a grid the keyboard
- *  navigates.
- *
- *  STICKY, because it is a header for a scrolling list and a reader forty rows
- *  down needs it for the same reason the band headers were made sticky. */
-function TableHeader({ preset }: { preset: ViewPreset }) {
-  const geo = ROW_GEOMETRY[preset];
-  return (
-    <div
-      aria-hidden
-      data-anno-ref="worklist-table-header"
-      className="sticky top-0 z-10 flex items-center gap-3 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-6 py-2"
-    >
-      {/* The avatar's own width plus the flex gap, so "Mentee" starts where a
-          mentee's NAME starts rather than where their disc does. */}
-      <span aria-hidden style={{ width: geo.disc }} className="shrink-0" />
-      <span className="min-w-0 flex-1 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-        {/* NEEDS-COPY-NICOLE */}
-        Mentee
-      </span>
-      <span
-        className="shrink-0 whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
-        style={{ width: COL_PRESENTATION }}
-      >
-        {/* NEEDS-COPY-NICOLE */}
-        Presentation
-      </span>
-      <span
-        /* `whitespace-nowrap`: a column header that wraps makes the header row
-           taller than its own type and stops looking like a header. */
-        className="shrink-0 whitespace-nowrap pl-6 text-right text-[12px] leading-[16px] text-[var(--text-secondary)]"
-        style={{ width: COL_AGE + 24 }}
-      >
-        {/* ═══ "Review age", NOT "Due date" (§2, answered) ═══
-            The Figma's column reads `Due date` over a value of `15 days` — a
-            date header over a duration. Deadlines were removed from this
-            destination two passes ago and `CARE_REVIEW_SLA` is retired, so the
-            column is named for what the value actually is. */}
-        {/* NEEDS-COPY-NICOLE */}
-        Review age
-      </span>
-    </div>
-  );
-}
-
+/* ═══ THE COLUMN CONSTANTS AND THE HEADER MOVED (Phase K.1) ═══
+   They live in `review-row.tsx` now and Today's preview reads the same ones,
+   which is what makes "identical on both surfaces" true by construction rather
+   than by two files agreeing. The measured tuning that produced 144 and 72 is
+   recorded there, where the numbers are.
+   RE-EXPORTED so the list's own call sites and its probes resolve unchanged. */
+export { COL_PRESENTATION, COL_AGE };
 
 /** And how long the retired header stays before it goes. Long enough to read a
  *  seven-word line, and it is the only reason the band lingers at all. */
@@ -397,7 +352,6 @@ function Row({
   const item = paneItemFor(entry);
   const isGroup = entry.kind === "group";
   const isTeenGroup = isGroup && entry.groupBy === "teen";
-  const disc = discFor(item.teenId);
   const mentorFirstName = item.mentorName.split(" ")[0];
   /* `KindIcon` IS GONE WITH THE ICON WELL (Refinement §1.3). `TASK_KIND_ICON`
      is NOT deleted — the strangler rule, and the pane and the ledger still read
@@ -736,18 +690,12 @@ function Row({
           child of a stretch container aligns to its START. The wrapper is what
           re-centres it, and it is the same wrapper Risk Flags already had. */}
       <span className="flex shrink-0 items-center">
-        <span
-          aria-hidden
-          className="flex shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
-          style={{
-            backgroundColor: disc.bg,
-            color: disc.fg,
-            width: geo.disc,
-            height: geo.disc,
-          }}
-        >
-          {item.teenDisplayName.charAt(0)}
-        </span>
+        {/* SHARED WITH TODAY'S PREVIEW (K.1) — one disc implementation. */}
+        <ReviewDisc
+          teenId={item.teenId}
+          name={item.teenDisplayName}
+          size={geo.disc}
+        />
       </span>
 
       {/* ═══ THE SEPARATOR LIVES ON THIS COLUMN (§3) ═══
@@ -883,12 +831,11 @@ function Row({
                    says what kind of review it is. A pair still appears when
                    there are two codes to show, because two codes is data — but
                    it is no longer what a reader has to infer the kind from. */
-                PROPOSAL_LABEL[
-                  proposalKindFor(
-                    item.payload.current?.code ?? null,
-                    item.payload.recommended.code
-                  )
-                ]
+                /* SHARED WITH TODAY'S PREVIEW (K.1) — one caption expression. */
+                proposalCaption(
+                  item.payload.current?.code ?? null,
+                  item.payload.recommended.code
+                )
               ) : (
                 (disposition ?? TASK_KIND_LABEL[item.taskType])
               )}
@@ -912,16 +859,11 @@ function Row({
           content would shift every time a row held one code instead of two,
           and the header would line up with none of them. */}
       {item.payload.kind === "billing" && (
-        <span
-          className="flex shrink-0 items-center"
-          style={{ width: COL_PRESENTATION }}
-        >
-          <ProposalCodes
-            currentCode={item.payload.current?.code ?? null}
-            recommendedCode={item.payload.recommended.code}
-            compact
-          />
-        </span>
+        /* SHARED WITH TODAY'S PREVIEW (K.1) — one presentation cell. */
+        <ReviewPresentationCell
+          currentCode={item.payload.current?.code ?? null}
+          recommendedCode={item.payload.recommended.code}
+        />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
@@ -1735,7 +1677,7 @@ export function Worklist({
           "Presentation" over rows that carry none would be a legend for
           columns that are not there. */}
       {entries.some((e) => paneItemFor(e).payload.kind === "billing") && (
-        <TableHeader preset={preset} />
+        <ReviewRowHeader disc={ROW_GEOMETRY[preset].disc} sticky />
       )}
 
       {sections.map((section) => {
