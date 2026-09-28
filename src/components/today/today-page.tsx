@@ -53,7 +53,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, Phone, RotateCcw, X } from "lucide-react";
+/* ═══ `X` AND `PageHeader` ARE RETIRED BY L.2 AND L.3, NOT DELETED ═══
+   `X` was the withdrawn module's dismiss control; `PageHeader` was this
+   route's title block before the greeting became the page title. Both stay
+   imported and unmounted so the diff shows what left and why — the same
+   convention `ctaCard` and `RecordContext` follow elsewhere. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { AlertTriangle, ChevronDown, ChevronRight, ListChecks, Phone, RotateCcw, X } from "lucide-react";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { tasksScenario } from "@/lib/tasks/seed";
 import {
@@ -63,6 +69,7 @@ import {
 } from "@/lib/monitoring/escalation";
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { NowBand } from "@/components/monitoring/now-band";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { PageHeader } from "@/components/ia/page-header";
 import {
   startHerePreview,
@@ -97,6 +104,7 @@ import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 import { devClockAt } from "@/lib/home/dev-clock";
 import {
+  COL_EQUAL,
   ReviewAgeCell,
   ReviewDisc,
   ReviewIdentityCell,
@@ -106,6 +114,7 @@ import {
 import { NAV } from "@/components/settings/nav-items";
 import type { DestinationId } from "@/lib/ia/destinations";
 import type { LucideIcon } from "lucide-react";
+import { greetingFor } from "@/lib/home/greeting";
 
 /** ═══ ONE SECTION-LABEL TREATMENT (K.7.1) ═══
  *  "Pinned mentees" and "Closed today — not counted above" floated as small
@@ -168,6 +177,10 @@ const TONE_TEXT: Record<CardTone, string> = {
  *  the task scenario underneath it still holds escalation tasks. Phase 10 owns
  *  the scenarios; gap row 409 records it. What this change fixes is Today
  *  contradicting itself on screen, which no fixture repair would have. */
+/* RETIRED BY L.6, unmounted rather than deleted — see the note at its old call
+   site for why the standing constraint on the global interrupt layer does not
+   cover it. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function EscalationStrip({
   records,
   now,
@@ -304,87 +317,67 @@ function DestinationCard({
              which is the instruction that actually matters. Reported under
              H.6 rather than resolved silently. */
           "flex min-h-[80px] w-full flex-col justify-center gap-1 rounded-[var(--radius-elevated)]",
-          "border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-4 py-3",
-          "shadow-[var(--shadow-card)] transition-colors hover:bg-[var(--tint-hover)]",
+          "border bg-[var(--surface-card)] px-4 py-3",
+          card.tone !== "breach" && "border-[color:var(--border-contour)]",
+          /* ═══ THE ESCALATION STATE LIVES HERE NOW (L.6) ═══
+             An outline plus a red-retinted elevation, replacing the full-width
+             bars this page used to open with.
+             THE TWO TOKENS L.6 NAMES DO NOT EXIST UNDER THOSE NAMES. There is
+             no `border/border-error` and no `stateLayers/error/Opacity-10` in
+             this build. What DOES exist is `--state-error` (#cc3300, 4.73:1)
+             and `--shadow-alert`, which is already Bloom's card elevation
+             retinted red — `0 1px 2px rgb(201 53 29 / 0.05), 0 12px 32px -14px
+             rgb(201 53 29 / 0.22)`. That is exactly what L.6 describes, so
+             nothing is authored and nothing is approximated. Reported.
+             COLOUR IS NOT THE SOLE CARRIER: the card's count and its second
+             line state the condition in words — "2 active · 3 close-out items
+             overdue" — which is what closes the item open since H.3.5. */
+          card.tone === "breach"
+            ? "border-[color:var(--state-error)] shadow-[var(--shadow-alert)]"
+            : "shadow-[var(--shadow-card)]",
+          "transition-colors hover:bg-[var(--tint-hover)]",
           RING
         )}
       >
         <span className="flex min-w-0 items-center gap-2">
-          {/* ═══ THE DOT IS GONE, THE ICON HAS ITS SLOT (K.4.2) ═══
-              The dot was a filled-or-hollow indicator carrying no stated
-              meaning, occupying the slot the icon belongs in, and
-              distinguishing its two states BY FILL ALONE. K.4.2 resolves
-              Phase B.5 in favour of removal.
-              WHAT IT WAS DOING IS NOT LOST: the directive is carried in words
-              by the `sr-only` sentence ("Start here.") and, since K.4.5, by a
-              visible text signal on the card — see `directive` below. */}
-          <Icon
+          {/* ═══ THE ICON IS 24px AND PRIMARY INK (L.5.2) ═══
+              It was `size-4` at `--text-secondary` — L.5 measures 24×24 and
+              calls the build's "undersized and too light", which the
+              measurement bears out. The nav's own glyph, read from `NAV`. */}
+          <Icon aria-hidden className="size-6 shrink-0 text-[var(--text-primary)]" />
+          {/* ═══ THE COUNT PRECEDES THE LABEL (L.5.1) ═══
+              K.4.3 PUT IT AFTER, to make the three cards share a structure when
+              one of them had no numeral. L.5.1 measures the reference as
+              "2 Escalations" and reverses that — and L wins where they
+              disagree.
+              THE STRUCTURAL PROBLEM K.4.3 WAS SOLVING IS REAL AND IS SOLVED
+              DIFFERENTLY HERE: L.5.5 requires the label to sit in the SAME
+              POSITION in both states, so the numeral slot is reserved at a
+              fixed width and renders empty on a zero card rather than
+              collapsing and shifting the label left.
+              `aria-hidden`: the state line below says the number in words and
+              the `sr-only` sentence speaks it once in order. */}
+          <span
             aria-hidden
-            className="size-4 shrink-0 text-[var(--text-secondary)]"
-          />
-          {/* ═══ THE COUNT LEADS THE HEADLINE (H.2.3) ═══
-              "count + destination name as the headline". It was a figure
-              right-aligned at the far end of a 794px row, which at 275 has
-              nowhere to be — and on a card the count is the thing being
-              counted's own headline rather than a trailing annotation.
-              TABULAR AND MONO so a column of three cards does not jitter as
-              the figures change, and `aria-hidden` for the reason the trailing
-              figure was: the state sentence below already says the number, and
-              the `sr-only` line speaks it once in order. */}
+            className="flex shrink-0 justify-end text-[20px] leading-[28px] tabular-nums text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-mono)", width: 22 }}
+          >
+            {count != null && count > 0 ? count : ""}
+          </span>
           <span
             className={cn(
               "min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
-              /* `font-display` IS the emphasis here and `font-bold` is not:
-                 Avantt ships Bold only, so the weight declaration has no
-                 rendering behind it — the FACE is the channel. */
-              directive && "font-display"
+              /* ═══ THE TITLE IS BOLD (L.5.3) ═══
+                 L.5.3 reports the build's weights as "close to inverted" — the
+                 title was regular and only the directive card's was emphasised.
+                 `font-display` is the channel: Avantt ships Bold only, so a
+                 `font-bold` on Lausanne would be a declaration with nothing
+                 behind it. Every card's title now, not just the directive's. */
+              "font-display"
             )}
           >
             {card.label}
           </span>
-          {/* ═══ THE COUNT FOLLOWS THE NAME (K.4.3) ═══
-              H.2.3 put it first. MEASURED, that broke the thing K.4.3 asks
-              for: two cards led with a large numeral and the zero-state card
-              led with nothing, so the destination NAME sat at a different x on
-              each and the three did not share a structure.
-              Trailing, every card is `[icon] [name]` and the figure appends —
-              identical whether the count is 16 or absent, which is K.4.3's own
-              test. The figure keeps its prominence; it just stops displacing
-              the name.
-              `aria-hidden` for the reason it always was: the state line below
-              says the number in words and the `sr-only` sentence speaks it
-              once in order. */}
-          {count != null && count > 0 && (
-            <span
-              aria-hidden
-              className="shrink-0 text-[20px] leading-[28px] tabular-nums text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-mono)" }}
-            >
-              {count}
-            </span>
-          )}
-          {/* ═══ THE VISIBLE DIRECTIVE SIGNAL (K.4.2, K.4.5) ═══
-              REMOVING THE DOT REMOVED THE ONLY VISIBLE ONE. The dot said
-              "start here" by fill; "Start here." lived in the `sr-only`
-              sentence, and the label's `font-bold` is inert on a Bold-only
-              face — so a sighted reader had nothing left.
-              SO IT IS WORDS NOW, which is what K.4.5 asks for on the
-              Escalations card and what the standing constraint asks for
-              everywhere: a state distinguished by colour must also be
-              distinguished by text. This is text ALONE — no fill, no tone —
-              so it carries on its own.
-              AND IT IS REMOVED FROM THE `sr-only` SENTENCE BELOW, because a
-              visible string is already in the accessible name and saying it
-              twice is the defect the trailing figure had. */}
-          {directive && (
-            <span
-              data-anno-ref="today-card-directive"
-              className="shrink-0 whitespace-nowrap rounded-full border border-[color:var(--border-contour)] px-1.5 py-0.5 text-[11px] leading-[14px] text-[var(--text-secondary)]"
-            >
-              {/* NEEDS-COPY-NICOLE */}
-              Start here
-            </span>
-          )}
         </span>
         {/* ═══ THE SECOND LINE AND THE CHEVRON SHARE A ROW ═══
             H.2.3 puts the decision-relevant fact second and the chevron last.
@@ -421,118 +414,109 @@ function DestinationCard({
   );
 }
 
-/** ═══ THE BOUNDED PREVIEW (Phase I) ═══
- *
- *  ORIENTATION WITH A SHORTCUT, NOT A WORK SURFACE. Every row is a `Link` and
- *  nothing else: no checkbox, no hover action, no swipe, no drawer, no
- *  disposition. The only interactive elements in this whole subtree are the
- *  rows and the one `See all`.
- *
- *  THE PARTIAL-LIST DISCLOSURE IS THE SAFETY PART (I.3). A supervisor who
- *  clears four items and sees an empty preview must not be able to conclude the
- *  queue is empty — the same hazard as a filtered-empty safety queue. So the
- *  count of shown-against-total renders whenever anything is open, and it reads
- *  off `preview.total`, which is the destination card's own figure.
- */
-/** ═══ THE PREVIEW'S DISC SIZE ═══
- *  36px, matching `ROW_GEOMETRY.comfortable.disc` on the destination. Stated
- *  here rather than imported, because importing the worklist's preset table
- *  would tie Today's row height to a view control Today does not have. */
+/** The table's disc size, matching `ROW_GEOMETRY.comfortable.disc` on the
+ *  destination. Stated here rather than imported, because importing the
+ *  worklist's preset table would tie Today's rows to a view control Today does
+ *  not have. */
 const PREVIEW_DISC = 36;
 
-
-
-function StartHere({
+/** ═══ THE TASKS SECTION (Phase L.3, L.4) ═══
+ *
+ *  ═══ WHAT IT REPLACED ═══
+ *
+ *  A "Since your last shift" card holding a generated rationale sentence, a
+ *  bounded preview and a "Showing 4 of 16" footer, all dismissable. Phase C is
+ *  withdrawn, FORK I-2 resolved to "no module", and the container went with
+ *  them. The PREVIEW survives — it was always the useful half — and it is now
+ *  a labelled section rather than a recommendation.
+ *
+ *  ═══ THE LINE IT STILL WALKS (the mirror rule) ═══
+ *
+ *  Today may show a supervisor what is waiting; it may not let them act on it.
+ *  Every row is a `Link` and nothing else, the only other controls are `See
+ *  all` and the collapse chevron, and neither touches a record.
+ *
+ *  ═══ I.3's SAFETY CLAIM, RELOCATED NOT DROPPED ═══
+ *
+ *  A supervisor who clears four items and sees an empty table must not be able
+ *  to conclude the queue is empty. L.3 removes the "Showing 4 of 16" FOOTER and
+ *  puts the count in the sub-header as a badge — so the total is still on
+ *  screen, beside the thing it counts, and `See all` still renders whenever
+ *  anything is open beyond the shown set. The disclosure moved; it did not go.
+ */
+function TasksSection({
   preview,
   now,
 }: {
   preview: StartHerePreview;
   now: number;
 }) {
+  /* ═══ COLLAPSE IS LOCAL AND UNPERSISTED ═══
+     L.3 measures a chevron and does not say it persists. A dismissal that
+     outlived the visit was the withdrawn module's behaviour, and this is a
+     disclosure control rather than a dismissal — so it resets on navigation,
+     and no store write happens on this route beyond the visit stamp. */
+  const [collapsed, setCollapsed] = useState(false);
+  const bodyId = "today-tasks-body";
   const more = preview.total > preview.items.length;
+
   return (
-    <div data-anno-ref="today-start-here" className="mt-3">
-      {/* ═══ THE COLUMN HEADER (K.1.3) ═══
-          Parity was the explicit instruction, so it is built. THE JUDGMENT
-          K.1.3 ASKS FOR, stated: over four rows the header is heavier than it
-          is over sixteen — it adds a 33px band and three labels to name columns
-          a reader can already read off four rows. It earns its place on the
-          destination and it is chrome here. Reported rather than dropped,
-          because the instruction was explicit.
-          NOT STICKY, unlike the destination's: there is nothing to scroll past
-          in a four-row list, and a sticky header over a static list is a
-          promise about scrolling that the list does not keep. */}
-      <ReviewRowHeader disc={PREVIEW_DISC} className="rounded-t-[var(--radius-inset)]" />
-      <ul
-        data-anno-ref="start-here-items"
-        className="overflow-hidden rounded-b-[var(--radius-inset)] border-x border-b border-[color:var(--border-subtle)]"
-      >
-        {preview.items.map((it, i) => (
-          <li key={it.id}>
-            <Link
-              href={it.href}
-              data-anno-ref="start-here-item"
-              className={cn(
-                /* ═══ THE SAME ANATOMY, THE SHELL THAT SUITS THIS SURFACE ═══
-                   K.1.5: the shared row navigates on both surfaces, and
-                   selection belongs to Care Reviews where it drives a pane. So
-                   this is a `Link`, not a treeitem — and every FIELD inside it
-                   comes from `review-row.tsx`, which is what K.1 is for.
-                   80px, MATCHING THE DESTINATION — K.1.4 allows the cap as the
-                   only difference and names "no density variant" among the
-                   things not to build. It was 54 here, which is a density
-                   variant however it is described. Well clear of the 44px floor
-                   (I.5.1) as a consequence rather than as the target. */
-                "flex min-h-[80px] w-full items-center gap-3 px-6 py-2 transition-colors",
-                "hover:bg-[var(--tint-hover)]",
-                i > 0 && "border-t border-[color:var(--border-subtle)]",
-                RING
-              )}
-            >
-              <ReviewDisc teenId={it.teenId} name={it.name} size={PREVIEW_DISC} />
-              <ReviewIdentityCell
-                name={it.name}
-                /* NEEDS-COPY-NICOLE where the destination has no status word —
-                   Risk Flags, whose status-shaped field is its CATEGORY and so
-                   is clinical content rather than a workflow state. */
-                caption={it.status ?? ""}
-              />
-              {/* CODES, REQUIRED SINCE K.1 — and rendered through the same cell
-                  the destination uses, so the pair arrow and the mono face
-                  cannot differ between the two. */}
-              {it.codes && (
-                <ReviewPresentationCell
-                  currentCode={it.codes.current}
-                  recommendedCode={it.codes.recommended}
-                />
-              )}
-              <ReviewAgeCell at={it.at} now={now} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        {/* ═══ SHOWN OF TOTAL (I.3.1) ═══
-            NEEDS-COPY-NICOLE: Showing {n} of {total}
-            It renders even when the preview holds everything, because "4 of 4"
-            and a silent list of four are different claims and only one of them
-            is checkable by the reader. */}
-        <p
-          data-anno-ref="start-here-count"
-          className="text-[12px] leading-[16px] text-[var(--text-secondary)]"
+    <section data-anno-ref="today-tasks" aria-label="Tasks" className="shrink-0">
+      {/* ═══ THE SECTION HEADER — 24px ICON, REQUIRED (L.5, reversed #5) ═══
+          Superseded #5 banned decorative glyphs on section headers and L
+          reverses it: these are SECTION IDENTIFIERS, not decoration, and the
+          one-glyph-per-page rule was this pack's own invention. The emoji tile
+          in the hero remains the page's single DECORATIVE glyph; this is a
+          functional icon, which is the distinction the reversal draws. */}
+      <div className="flex items-start gap-2">
+        <ListChecks
+          aria-hidden
+          className="mt-1 size-6 shrink-0 text-[var(--text-primary)]"
+        />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
+            {/* NEEDS-COPY-NICOLE */}
+            Tasks
+          </h2>
+          <p className="text-[16px] leading-[20px] text-[var(--text-secondary)]">
+            {/* NEEDS-COPY-NICOLE */}
+            Reviews waiting on your decision
+          </p>
+        </div>
+      </div>
+
+      {/* ═══ THE SUB-HEADER CARRIES THE COUNT, THE CTA AND THE CHEVRON (L.3) ═══
+          All three top-right of the sub-header rather than bottom-right of the
+          table, which is where the withdrawn footer put them. */}
+      <div className="mt-4 flex items-center gap-2">
+        <h3 className="font-display text-[20px] font-bold leading-[24px] text-[var(--text-primary)]">
+          {/* NEEDS-COPY-NICOLE */}
+          Care reviews
+        </h3>
+        {/* ═══ THE COUNT AS A BADGE (L.3.1) ═══
+            THE TOTAL, NOT THE SHOWN COUNT — it is the destination card's own
+            figure, which keeps I.3.4 true: the table is never the only place a
+            total appears, and the two cannot disagree because both read
+            `openCounts`. `aria-hidden` because the `See all` label states it in
+            words for a screen reader. */}
+        <span
+          aria-hidden
+          data-anno-ref="today-tasks-count"
+          className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[10px] leading-none tabular-nums text-[var(--text-primary)]"
         >
-          Showing {preview.items.length} of {preview.total}
-        </p>
-        {/* ═══ THE MODULE'S ONE CTA (I.3.2, I.0) ═══
-            Required whenever anything is open beyond the shown set, and it is
-            the ONLY affordance pointing at the recommended destination — the
-            banner's own button was removed rather than kept beside it. */}
+          {preview.total}
+        </span>
+        <span className="flex-1" />
+        {/* ═══ `See all` IS REQUIRED WHENEVER ANYTHING IS BEYOND THE SHOWN SET
+            (I.3.2) — and it states the total in words, which is what carries
+            the disclosure to a screen reader now the footer is gone. */}
         {more && (
           <Link
             href={preview.href}
             data-anno-ref="start-here-see-all"
             className={cn(
-              "inline-flex min-h-11 items-center rounded-full bg-[var(--text-primary)] px-4 text-[13px] font-semibold text-[var(--text-inverse)]",
+              "inline-flex h-8 w-[120px] shrink-0 items-center justify-center rounded-full",
+              "bg-[var(--text-primary)] text-[13px] font-semibold text-[var(--text-inverse)]",
               "transition-opacity hover:opacity-90",
               RING
             )}
@@ -541,8 +525,106 @@ function StartHere({
             See all {preview.total}
           </Link>
         )}
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          /* ═══ DECLARED AS PAGE CHROME (today-mirror's gate) ═══
+             The mirror rule allows Today its own local chrome and forbids any
+             control that could act on WORK. A disclosure toggle acts on this
+             page's own presentation and touches no record — the same class as
+             the dismissal it replaces. Undeclared, `controls.all-named` fails
+             with UNDECLARED, which is the gate working. */
+          data-today-local="collapse-care-reviews"
+          aria-expanded={!collapsed}
+          aria-controls={bodyId}
+          /* NEEDS-COPY-NICOLE, both. The name states the ACTION and names what
+             it acts on, so it is unambiguous read out of context. */
+          aria-label={collapsed ? "Expand care reviews" : "Collapse care reviews"}
+          className={cn(
+            /* 24px glyph in a 44px target — L.3 measures the icon and 2.5.8
+               governs the hit area, so the box is larger than the mark. */
+            "flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)]",
+            "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          <ChevronDown
+            aria-hidden
+            className={cn("size-6 transition-transform", collapsed && "-rotate-90")}
+          />
+        </button>
       </div>
-    </div>
+
+      {/* ═══ THE TABLE (L.4) ═══
+          Header 40 tall, body rows 64, three equal 285px columns. The FIELDS
+          are the destination's own — same components from `review-row.tsx`,
+          same order, same treatment — and only the column widths differ, by
+          L.4's instruction. That divergence is reported rather than absorbed;
+          see `COL_EQUAL`. */}
+      <div id={bodyId} hidden={collapsed} className="mt-2">
+        {/* ═══ THREE EQUAL 285s FILLING THE 857 COLUMN (L.4) ═══
+            NO ROW PADDING, deliberately: 285 × 3 = 855 and the main column is
+            857, so a `px-6` on the row put the cells 48px over their container
+            and the last column ran past the edge — measured at 879 against an
+            809 content box. L.4's own numbers only close with the inset INSIDE
+            each cell, which is also what its "chip at x=16 within its cell"
+            measurement describes.
+            THE MENTEE COLUMN IS 285 INCLUDING ITS AVATAR — disc 36 + gap 12 +
+            237 of text — so the three columns are equal as measured from their
+            own left edges. */}
+        <ReviewRowHeader
+          disc={PREVIEW_DISC}
+          equalWidth={COL_EQUAL}
+          presentationWidth={COL_EQUAL}
+          ageWidth={COL_EQUAL}
+          className="h-10 rounded-t-[var(--radius-inset)] px-0 py-0"
+        />
+        <ul
+          data-anno-ref="start-here-items"
+          className="overflow-hidden rounded-b-[var(--radius-inset)] border-x border-b border-[color:var(--border-subtle)]"
+        >
+          {preview.items.map((it, i) => (
+            <li key={it.id}>
+              <Link
+                href={it.href}
+                data-anno-ref="start-here-item"
+                className={cn(
+                  /* 64px per L.4, comfortably over 2.5.8's floor. */
+                  /* NO INTER-COLUMN GAP — each column owns its inset, so the
+                     three 285s fill the 857 exactly. See `ReviewRowHeader`. */
+                  "flex h-16 w-full items-center transition-colors",
+                  "hover:bg-[var(--tint-hover)]",
+                  i > 0 && "border-t border-[color:var(--border-subtle)]",
+                  RING
+                )}
+              >
+                {/* THE MENTEE COLUMN IS 285 INCLUDING ITS AVATAR, so the three
+                    columns measure equal from their own left edges. */}
+                <span
+                  className="flex shrink-0 items-center gap-3"
+                  style={{ width: COL_EQUAL }}
+                >
+                  <ReviewDisc teenId={it.teenId} name={it.name} size={PREVIEW_DISC} />
+                  <ReviewIdentityCell name={it.name} caption={it.status ?? ""} />
+                </span>
+                {/* CODES, REQUIRED SINCE K.1, through the destination's own
+                    cell — so the pair arrow and the mono face cannot differ.
+                    ALWAYS PRESENT NOW: FORK I-1 is resolved to Care Reviews
+                    only, so there is no type whose rows would leave this
+                    column empty. That empty column was L.3's named symptom of
+                    a switching type. */}
+                <ReviewPresentationCell
+                  currentCode={it.codes?.current ?? null}
+                  recommendedCode={it.codes?.recommended ?? ""}
+                  width={COL_EQUAL}
+                />
+                <ReviewAgeCell at={it.at} now={now} width={COL_EQUAL} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -608,6 +690,10 @@ export function TodayPage() {
   const shiftDigestDismissedAt = useOnboardingStore(
     (st) => st.shiftDigestDismissedAt
   );
+  /* RETIRED WITH PHASE C (L.3). The store field and its migration stay — a
+     dismissal stamp already written to a supervisor's store is not worth a
+     migration to remove — and nothing reads or writes it on this route now. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const dismissShiftDigest = useOnboardingStore((st) => st.dismissShiftDigest);
 
   /** ═══ THE ONLY STORE WRITE ON THIS ROUTE (§4) ═══
@@ -806,10 +892,23 @@ export function TodayPage() {
   const ctaCard = rationale
     ? (cards.find((c) => c.id === rationale.id) ?? null)
     : null;
-  const preview = useMemo(
-    () => startHerePreview(rationale?.id, todayInput),
-    [rationale, todayInput]
+  /* ═══ ALWAYS CARE REVIEWS — FORK I-1 RESOLVED (L.3) ═══
+     It read `rationale?.id`, so the section's TYPE followed whichever
+     destination the rationale named. L.3 resolves the fork to Care Reviews
+     only, and that is what removes the defect it names: escalation rows
+     rendered inside the care-review table with an empty Presentation column,
+     because escalations have no codes.
+     `rationale` IS RETIRED, NOT DELETED — Phase C is withdrawn, so nothing
+     reads it, and it stays because `todayRationale` is still the expression
+     that would answer "where should I start" if that question returns. */
+  const tasksPreview = useMemo(
+    () => startHerePreview("care-reviews", todayInput),
+    [todayInput]
   );
+  /* RETIRED WITH PHASE C (L.3): the gate for a container that no longer
+     exists. Kept because it is the one expression that encodes "is this a new
+     shift for this reader", which the Tasks section may yet want. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const showDigest =
     /* RATIONALE-OR-NOTHING (C.3). The last clause was `digestLine != null`,
        which is true whenever anything at all needs attention — so the banner
@@ -818,105 +917,113 @@ export function TodayPage() {
     mounted && !dismissed && isNewShift(wasNewShift, now) && rationale != null;
 
   return (
+    /* ═══ THE GRADIENT IS FULL-BLEED NOW (Phase L.1.1) ═══
+       IT WAS ON THE `max-w-[1222px] mx-auto` COLUMN, so it stopped where the
+       column stopped — 239px short of the content area's edge at 1900, which
+       L.1.1 calls "a misaligned panel rather than atmosphere". Measured, and
+       it is right.
+       SO THE SCROLLER IS FULL WIDTH and carries the wash, and the max-width
+       moves to an inner column. That is G.4/G.2's option (a) — atmosphere
+       spanning the content area, grouping nothing — which L.1.1 notes was
+       specified and not built.
+       IT STILL DEPENDS ON NO PROPS. Nothing about it varies with data, state,
+       priority, recency or urgency. */
     <div
       data-anno-ref="today-page"
-      /* ═══ THE GRADIENT — ATMOSPHERE, GROUPING NOTHING (Phase G.2) ═══
-         REGION SEMANTICS: OPTION (a). It is anchored at the top of the content
-         area and fades to zero alpha, so it has no edge — and a wash with no
-         edge cannot bound an arbitrary subset or imply a relationship that
-         does not exist (Law of Common Region). G.2.1 says "header region
-         only"; that is where it is READ, and it dissipates rather than
-         stopping, which is how both instructions hold at once.
-         `background-repeat: no-repeat` and a fixed height so it washes the
-         header and nothing below it, rather than tiling down a scrolling page.
-         THE TOKEN CARRIES THE COLOUR AND THIS FILE CARRIES NONE. Raw values
-         belong in the token file; `--gradient-header` is a documented design
-         system extension, minted because Bloom has no gradient token.
-         IT DEPENDS ON NO PROPS. Nothing about it varies with data, state,
-         priority, recency or urgency. */
       style={{
         backgroundImage: "var(--gradient-header)",
         backgroundRepeat: "no-repeat",
         backgroundSize: "100% 220px",
       }}
-      /* ═══ THE COLUMN PAIR'S WIDTH (Phase H.1) ═══
-         857 + 16 + 285 = 1158 of content, plus `lg:px-8`'s 64 = 1222. The
-         857 is `275 × 3 + 16 × 2` — a 3-up card grid at a 16px gutter — and
-         H.1.1 forbids rounding it, approximating it or expressing it as a
-         percentage, so it is written once, here and in the column itself.
-         BELOW THE BREAKPOINT the old single-column width is kept exactly, so
-         the narrow rendering is unchanged by this phase.
-         ONE ARBITRARY VARIANT, NOT A NAMED ONE. Tailwind orders `lg:` and
-         `min-[…]:` by where they fall in its own emitted sheet, not by
-         specificity, and a named variant landing after an arbitrary one has
-         silently won an argument on this codebase before. Both widths here are
-         arbitrary so the cascade order is the source order. */
-      className="mx-auto flex h-full min-h-0 w-full max-w-[860px] flex-col gap-5 overflow-y-auto px-6 py-6 min-[1470px]:max-w-[1222px] lg:px-8"
+      className="h-full min-h-0 w-full overflow-y-auto"
     >
-      {/* ═══ THE SHARED HEADER, AND TODAY TAKES NO METRICS (addendum §2.10) ═══
-          Deliberate, and the mirror rule is why: every figure on this page
-          belongs to the destination it links to, so a metric pair up here
-          would be a sixth copy of a number already on a card — and the first
-          one a reader would meet, which would make Today the place the
-          counting happens rather than the place it is reflected. */}
-      {/* ═══ THE GREETING, AND THE ONE DECORATIVE MOMENT (Phase G.1) ═══
-          OPTION (b) — TIME-NEUTRAL, NO TIME WORD. The pack allows (a),
-          computing the word from the clock, and defaults to (b) if that word
-          could ever be wrong during a shift. It could, for a reason the pack's
-          own open items name: SUPERVISOR TIMEZONE LOCALISATION IS UNRESOLVED
-          (Meg). So there are only two places to compute from and both can lie:
-           · the SCHEDULE's zone (`America/New_York`, what Phase D reads) would
-             tell a supervisor in California "Good evening" at 2pm their time;
-           · the DEVICE's zone contradicts this pack's own timezone discipline
-             and would render "Good morning" mid-shift for a western reader —
-             the exact failure G.1.2 names.
-          A greeting is a claim about the READER's time of day, and this product
-          cannot currently make one. So it makes none. The wave survives, which
-          is the part G.1 requires.
-          NO DATE LINE. G.1.5 permits one only if computed from real time; it is
-          not required, and one less element asserting something is the right
-          trade on a surface whose whole job is orientation. */}
-      <p
-        data-anno-ref="today-greeting"
-        className="shrink-0 font-display text-[20px] leading-[28px] font-bold text-[var(--text-primary)]"
+      <div
+        data-anno-ref="today-column"
+        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-6 min-[1470px]:max-w-[1222px] lg:px-8"
       >
-        {/* ═══ aria-hidden, AND THE TEXT CARRIES EVERYTHING (G.1.3) ═══
-            Emoji rendering varies across platforms and fonts, so the glyph can
-            never be the sole carrier of anything. It is sized to the type scale
-            by INHERITING it — no arbitrary dimension (G.1.4). */}
-        <span aria-hidden className="mr-2">
-          👋
+      {/* ═══ ONE HERO, NOT THREE TIERS (Phase L.2) ═══
+          IT WAS a small "Hi there", a large "Today", and a subtitle. L.2's
+          reading is that this is one tier too many and creates competing
+          regions — and it is right: "Today" repeated the route name and the
+          rail label, and the greeting above it was too small to be the thing
+          the eye landed on.
+          SO THE GREETING IS THE PAGE TITLE. The separate heading is gone and
+          `PageHeader` is no longer mounted here, which means this route stops
+          sharing §2.10's header component — stated plainly because that is a
+          real IA divergence, not a detail. L.2 overrides §2.10 for this
+          surface: every other destination still renders the shared header.
+          MEASURED TO THE REFERENCE: 51×51 tile at x=0, 10px gap so the text
+          starts at x=61, greeting at Avantt Bold 32/40 with −1 tracking,
+          subtitle directly beneath at 16/20. */}
+      <header data-anno-ref="today-hero" className="flex shrink-0 items-start gap-[10px]">
+        {/* ═══ THE EMOJI IS A TILE, NOT AN INLINE GLYPH (L.2.1) ═══
+            "The tile is most of what makes the hero read as designed." It was
+            an inline glyph at body size, inheriting the type scale — which G.1.4
+            asked for and L.2 overrides with a measured dimension.
+            `aria-hidden` STILL, and that is unchanged and load-bearing: emoji
+            rendering varies across platforms and fonts, so the glyph can never
+            be the sole carrier of anything. The greeting text carries all of
+            it, and the heading's accessible name below contains no glyph. */}
+        <span
+          aria-hidden
+          data-anno-ref="today-hero-tile"
+          className="flex size-[51px] shrink-0 items-center justify-center rounded-[var(--radius-inset)] bg-[var(--surface-s1)]"
+        >
+          <span className="text-[32px] leading-[40px]">👋</span>
         </span>
-        {/* NEEDS-COPY-NICOLE: Hi, {firstName} / Hi there */}
-        {mounted && firstName?.trim() ? `Hi, ${firstName.trim()}` : "Hi there"}
-      </p>
+        <span className="min-w-0 flex-1">
+          <h1
+            data-anno-ref="today-greeting"
+            className="font-display text-[32px] font-bold leading-[40px] tracking-[-1px] text-[var(--text-primary)]"
+          >
+            {/* NEEDS-COPY-NICOLE: {Good morning|Good afternoon|Good evening|Working late}, {firstName}
+                COMPUTED FROM REAL TIME (G.1 option a, made binding by L.2).
+                `mounted` gates it because the greeting reads a clock and the
+                store's first name, and both are client-only — rendering a
+                server guess and correcting it is a visible flash on the
+                largest element on the page. */}
+            {mounted ? greetingFor(now, firstName) : ""}
+          </h1>
+          {/* NO DATE LINE (L.2.4, G.1.5). */}
+          <p
+            data-anno-ref="page-purpose"
+            /* 16/20 text in a 24 block — L.2 measures the subtitle's block at
+               24 and the hero total at 64 (greeting 40 + subtitle 24). */
+            className="flex h-6 items-center text-[16px] leading-[20px] text-[var(--text-secondary)]"
+          >
+            {/* ═══ TODO-COPY. IT SAYS WHERE TO GO, NOT HOW ANYBODY IS DOING ═══
+                Says what is true and does not celebrate: an empty board is the
+                resting state of this work rather than an achievement, and
+                "Nothing needs attention right now" must not read as broken. */}
+            {mounted && liveEscalations.length === 0 && cards.every((c) => c.tone === "clear")
+              ? "Nothing needs attention right now"
+              : "Every count below belongs to the destination it links to"}
+          </p>
+        </span>
+      </header>
 
-      <PageHeader
-        className="shrink-0"
-        // TODO-COPY. The route's name and the rail's label, one string.
-        title="Today"
-        purpose={
-          /* ═══ TODO-COPY. IT SAYS WHERE TO GO, NOT HOW ANYBODY IS DOING ═══
-             Says what is true and does not celebrate: an empty board is the
-             resting state of this work rather than an achievement, and
-             "Nothing needs attention right now" must not read as broken. */
-          mounted && liveEscalations.length === 0 && cards.every((c) => c.tone === "clear")
-            ? "Nothing needs attention right now"
-            : "Every count below belongs to the destination it links to"
-        }
-      />
-
-      {stateOf("escalations") === "loading" ? (
-        <RegionSkeleton h={72} />
-      ) : stateOf("escalations") === "error" ? (
-        <RegionError
-          /* TODO-COPY */
-          line="Escalations couldn’t be loaded, so this page can’t say whether any are open."
-          onRetry={() => setRetried((r) => ({ ...r, escalations: true }))}
-        />
-      ) : (
-        <EscalationStrip records={liveEscalations} now={now} />
-      )}
+      {/* ═══ THE FULL-WIDTH RED BARS ARE GONE (Phase L.6) ═══
+          WHAT WAS HERE: `EscalationStrip`, one saturated red bar per live
+          escalation, each naming a teen and carrying an "Open escalation"
+          link, with a loading and an error state around it.
+          L.6 REMOVES THEM: they are inverted sections, which this pack's own
+          standing constraints already prohibited, and they are not the
+          escalation treatment. The state is expressed on the Escalations
+          summary card instead — see `DestinationCard`.
+          ═══ THE STANDING CONSTRAINT THIS DOES NOT BREACH ═══
+          "Global escalation interrupt layer persists on this route as on every
+          supervisor route. Do not modify it." CHECKED BEFORE REMOVING:
+          `EscalationStrip` is declared in this file and mounted in this file
+          only — one consumer, page-local, no shell-level counterpart on any
+          other route. It is Today's MIRROR of the escalations region, which is
+          what its own module note calls it. The global layer is not this.
+          ═══ WHAT IS LOST, STATED ═══
+          A supervisor on Today no longer sees WHICH teens have live
+          escalations, or reaches one in a click from here. That is a real
+          reduction and L.6 accepts it — the card states the condition in text
+          and the destination holds the records. Flagged rather than absorbed.
+          THE COMPONENT STAYS, unmounted, for the same reason every other
+          retired piece does. */}
 
       {/* ═══ THE PERISHABLE LAYER SITS BELOW THE INTERRUPT AND ABOVE THE MAP ═══
           Order is the reader's priority: the strip is what cannot wait, the band
@@ -1004,63 +1111,23 @@ export function TodayPage() {
         </section>
       )}
 
-      {showDigest && (
-        <section
-          /* TODO-COPY */
-          aria-label="Since your last shift"
-          data-anno-ref="today-digest"
-          className="shrink-0 rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] p-4"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-              {/* TODO-COPY */}
-              Since your last shift
-            </p>
-            <button
-              type="button"
-              onClick={() => dismissShiftDigest(now)}
-              data-today-local="dismiss"
-              /* TODO-COPY */
-              aria-label="Dismiss the shift summary"
-              className={cn(
-                "-m-1 flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)]",
-                "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <X className="size-4" aria-hidden />
-            </button>
-          </div>
-          {/* ═══ THE REASON, NOT THE LIST (Phase C.2) ═══
-              One sentence saying why the CTA below points where it does. It
-              cites a clock or a verified "oldest" — see `todayRationale`, which
-              returns null rather than asserting a comparison it has not
-              checked, and the banner then does not render at all.
-              NO SECOND SET OF LINKS, which was already true and stays true: the
-              destinations are three rows below with their own figures and their
-              own hrefs. */}
-          <p
-            data-anno-ref="today-rationale"
-            data-rationale-basis={rationale?.basis}
-            className="mt-1 text-[13px] leading-[19px] text-[var(--text-secondary)]"
-          >
-            {rationale?.reason}
-          </p>
-          {/* ═══ THE PREVIEW, MERGED INTO THE BANNER (FORK I-2 = MERGED) ═══
-              One module, one container, one CTA: heading, rationale, items,
-              See all. The banner's own `Start with {label}` button is REMOVED
-              as redundant — it and `See all` pointed at the same destination,
-              which I.0 names as the thing not to build.
-              WHAT THE REMOVED BUTTON ARGUED IS PRESERVED: it deliberately named
-              no teen, because naming one meant a third count of the same work
-              off a different source. The preview names teens, but it does so
-              from the destination's OWN open set (`start-here.ts` reads the
-              sets `open-counts.ts` exports), so there is still no third
-              source — which is exactly the condition that objection set. */}
-          {preview && (
-            <StartHere preview={preview} now={now} />
-          )}
-        </section>
+      {/* ═══ THE TASKS SECTION REPLACES THE START-HERE MODULE (Phase L.3) ═══
+          PHASE C IS WITHDRAWN AND SO IS THE CONTAINER IT LIVED IN. Gone: the
+          "Since your last shift" card, the generated rationale sentence, the
+          dismiss control, and the "Showing 4 of 16" footer. L.3's reading is
+          that they read as filler in the build, and the reference has a
+          labelled Tasks section with none of them.
+          WHAT THE RATIONALE WAS FOR IS NOT REPLACED, and that is the point: it
+          told a supervisor WHERE TO START, which the destination cards above
+          now do by position. A sentence asserting which queue holds the oldest
+          work was this pack's invention.
+          FORK I-1 IS RESOLVED TO `always Care Reviews`. The section never
+          switches type — which is what removes the defect L.3 names: the
+          previous build rendered escalation rows inside the care-review table
+          with an empty Presentation column, because the type followed a
+          rationale that could name any destination. */}
+      {mounted && tasksPreview && (
+        <TasksSection preview={tasksPreview} now={now} />
       )}
 
       {/* ═══ PINNED MENTEES — BELOW THE DESTINATIONS, ABOVE "Closed today" ═══
@@ -1094,6 +1161,7 @@ export function TodayPage() {
         >
           {mounted && <SuggestedSchedule now={now} />}
         </aside>
+        </div>
       </div>
     </div>
   );

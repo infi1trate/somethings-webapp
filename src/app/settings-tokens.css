@@ -501,10 +501,20 @@
 
      THE RAW VALUES ARE CORRECT HERE AND ONLY HERE. A token file is where raw
      values live; the standing constraint forbids them in components. */
+  /* ═══ SATURATION RAISED (Phase L.1.2) ═══
+     WAS `#f4efe1`, which measures 1.05:1 against the page ground `#f6f4ef` —
+     L.1.2's "too faint to register", and the measurement agrees. This pack had
+     told the builder to keep it light; L.1 relaxes that instruction and holds
+     the contrast floor.
+     `#ead9ae` measures 1.27:1 against the ground, so the wash is roughly 2.4×
+     as present, and the text on it is measured at the gradient's TOP STOP —
+     its lowest-contrast point for dark ink — rather than its average:
+       greeting `--text-primary` #1f1e1d → 11.92:1
+       subtitle `--text-secondary` #58534b → 5.46:1  (floor 4.5) */
   --gradient-header: linear-gradient(
     180deg,
-    #f4efe1 0%,
-    rgb(244 239 225 / 0) 100%
+    #ead9ae 0%,
+    rgb(234 217 174 / 0) 100%
   );
 
   --tint-faint: rgb(0 0 0 / 0.02); /* barely-there row wash */
@@ -755,10 +765,15 @@
      panel, fading to nothing. NOT a lightened version of the light gradient —
      a wash that reads as a gentle lift on cream reads as a smudge on charcoal,
      so each mode's top stop is chosen against its own ground. */
+  /* Raised with the light stop (L.1.2), and chosen against ITS OWN ground for
+     the reason the note above states: a lightened copy of the light gradient
+     reads as a smudge on charcoal. `#413a2c` is a warm lift on
+     `--surface-s1` #272421; ink in dark mode is `#ffffff`, so the text floor is
+     not the binding constraint here — the wash's own visibility is. */
   --gradient-header: linear-gradient(
     180deg,
-    #322f2c 0%,
-    rgb(50 47 44 / 0) 100%
+    #413a2c 0%,
+    rgb(65 58 44 / 0) 100%
   );
 
   --tint-hover: rgb(255 255 255 / 0.06);

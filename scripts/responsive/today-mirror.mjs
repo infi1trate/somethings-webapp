@@ -78,8 +78,19 @@ const WRITABLE = new Set(["shiftLastSeenAt", "shiftDigestDismissedAt"]);
 const LOCAL_CONTROLS = {
   /* NO LONGER "for this mount" — Phase C.6 persists it for the shift, through
      `shiftDigestDismissedAt` in the allowlist above. */
-  dismiss: "hides the shift digest for the rest of this shift",
+  /* ═══ `dismiss` IS RETIRED BY L.3, KEPT IN THE LIST ═══
+     Phase C is withdrawn and the digest it dismissed is gone, so nothing
+     renders this control. The entry stays because the allowlist is a record of
+     what Today has been ALLOWED to own, and dropping it would make the
+     control's return silent. */
+  dismiss: "hides the shift digest for the rest of this shift (retired, L.3)",
   retry: "flips a page-local region state back to ready",
+  /* ═══ ADDED BY L.3 — AND ADDING TO THIS LIST IS THE DECISION ═══
+     The Tasks section's collapse chevron, allowed for the same reason
+     `dismiss` was: it acts on THIS PAGE'S PRESENTATION and touches no record,
+     which is the line the mirror rule draws. It persists nothing, not even for
+     the mount, so it appears in no store diff either. */
+  "collapse-care-reviews": "collapses the Tasks table for this view only",
 };
 
 /** ═══ THE LIVE BAND'S TWO CONTROLS, DECLARED BEFORE THEY APPEAR (Phase 9) ═══
@@ -413,30 +424,63 @@ let cards = [];
         version
       );
       await p2.waitForTimeout(1400);
+      /* ═══ THE STRIP IS GONE FROM TODAY (L.6) ═══
+         This compared the strip's ROW COUNT against the Escalations card's
+         claimed figure — a good check, and its `strip.exercised` guard
+         correctly fired rather than letting a zero-vs-zero pass once the strip
+         stopped rendering.
+         L.6 REMOVES the full-width red bars from this surface: "they are
+         inverted sections, which this pack already prohibited, and they are not
+         the escalation treatment." So there is no strip to agree with.
+         THE MIRROR CLAIM IS NOT DROPPED — it has a better owner. The
+         card-vs-destination checks above open `/app/escalations` and compare
+         the card's figure to the destination's OWN figure, which is the
+         comparison that matters. What died is a Today-internal one.
+         WHAT REPLACES IT IS L.6's OWN CONTRACT: no strip renders, and the card
+         states the condition IN TEXT, which is what makes colour not the sole
+         carrier once the bars are gone. */
       const seen = await p2.evaluate(() => ({
         stripRows: document.querySelectorAll(
           '[data-anno-ref="today-escalation-strip"] li'
         ).length,
+        banners: [...document.querySelectorAll("main *")].filter((e) => {
+          const bg = getComputedStyle(e).backgroundColor;
+          const m = bg.match(/\d+/g);
+          if (!m) return false;
+          const [r, g, b] = m.map(Number);
+          /* A saturated red fill spanning most of the column — the shape of the
+             thing L.6 removed, detected by its paint rather than by its
+             anno-ref, so reintroducing it under a new name still fails. */
+          return r > 150 && g < 90 && b < 80 && e.getBoundingClientRect().width > 600;
+        }).length,
         card:
           document
             .querySelector('[data-anno-ref="today-card:escalations"]')
             ?.innerText?.replace(/\s+/g, " ") ?? "",
       }));
       const claimed = Number(seen.card.match(/(\d+) active/)?.[1] ?? 0);
-      if (seen.stripRows > 0) sawNonEmpty += 1;
+      if (claimed > 0) sawNonEmpty += 1;
       check(
-        `strip.agrees.${name}`,
-        "the escalation strip and the Escalations card state the same number",
-        seen.stripRows === claimed,
-        `strip ${seen.stripRows} row(s) · card claims ${claimed} active`
+        `strip.absent.${name}`,
+        "no escalation strip and no full-width red banner renders on Today",
+        seen.stripRows === 0 && seen.banners === 0,
+        `${seen.stripRows} strip row(s) · ${seen.banners} wide red fill(s)`
+      );
+      check(
+        `strip.card-states-it.${name}`,
+        "and the Escalations card states the condition in text",
+        claimed === 0 || /active/.test(seen.card),
+        `card claims ${claimed} active · "${seen.card.slice(0, 54)}"`
       );
       await c2.close();
     }
+    /* THE GUARD SURVIVES, REPOINTED: at least one fixture must actually have a
+       live escalation, or the two checks above are asserting nothing. */
     check(
       "strip.exercised",
-      "and at least one fixture actually rendered a strip, so the above is not zero-vs-zero",
+      "and at least one fixture actually had a live escalation, so the above is not zero-vs-zero",
       sawNonEmpty > 0,
-      `${sawNonEmpty} of ${PAIRS.length} pair(s) had a non-empty strip`
+      `${sawNonEmpty} of ${PAIRS.length} pair(s) had an active escalation`
     );
   }
 

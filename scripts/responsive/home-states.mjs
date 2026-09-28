@@ -120,24 +120,24 @@ const mainText = (page) => page.locator("main").innerText();
   /* RETARGETED WITH THE COPY. It asserted the name ended `", next"`, from the
      stage era's "up next" framing. The card's sentence ends `"Start here."` —
      the same claim (the directive says so IN WORDS, not only by the dot). */
-  /* RETARGETED WITH THE SIGNAL (K.4.2). It matched `endsWith("Start here.")`
-     on the `sr-only` sentence. The directive is a VISIBLE chip now — the dot
-     that used to carry it by fill is gone — so the claim is stronger and the
-     match is on the name as a whole, wherever in it the words fall. */
+  /* ═══ THE DIRECTIVE SIGNAL IS WITHDRAWN (L.5.4) ═══
+     Two checks stood here: `sequence.directive-in-name` and
+     `sequence.directive-not-doubled`. Both asserted that the card the ladder
+     picks SAYS SO IN WORDS — first via an `sr-only` sentence, then via the
+     visible "Start here" chip K.4.2 added when the dot was removed.
+     L.5.4 REMOVES THE CHIP: "It is not in the reference and was a side effect
+     of the withdrawn rationale." Phase C is withdrawn, so there is no
+     recommendation for a card to carry, and the claim has no subject.
+     WHAT REPLACES IT IS THE ABSENCE, ASSERTED — because a chip drifting back
+     in would re-import a recommendation this pack has withdrawn twice. The
+     LADDER still computes and is still checked: `sequence.one-directive` above
+     reads `data-directive`, and the three `ladder.*` checks below read it too.
+     What is gone is the visual claim, not the derivation. */
   check(
-    "sequence.directive-in-name",
-    "and the directive one says so in words, not only by shape",
-    /start here/i.test(stages.find((s) => s.directive)?.name ?? ""),
+    "sequence.no-priority-claim",
+    "and no card visibly claims priority, because the recommendation is withdrawn",
+    !/start here/i.test(stages.map((s) => s.name ?? "").join(" ")),
     stages.find((s) => s.directive)?.name
-  );
-  /* ═══ AND IT IS SAID ONCE ═══
-     A visible string is already in the accessible name, so repeating it in the
-     `sr-only` sentence would announce it twice. */
-  check(
-    "sequence.directive-not-doubled",
-    "and says it exactly once",
-    (stages.find((s) => s.directive)?.name ?? "").match(/start here/gi)?.length === 1,
-    stages.find((s) => s.directive)?.srOnly
   );
   await page.screenshot({ path: `${OUT}/01-shift.png` });
   await context.close();
@@ -156,12 +156,18 @@ const mainText = (page) => page.locator("main").innerText();
       (e) => (e.getAttribute("aria-label") || e.innerText || e.tagName).replace(/\s+/g, " ").trim().slice(0, 40)
     )
   );
-  /* The ONLY button Home may own is the digest's dismissal. Anything else is a
-     control that could act on work, which belongs on Tasks or Monitoring. */
+  /* ═══ WHICH BUTTONS TODAY MAY OWN (updated by L.3) ═══
+     It was exactly one: the digest's dismissal. L.3 withdraws the digest and
+     its dismiss control, and the Tasks section brings a COLLAPSE chevron.
+     THE RULE IS UNCHANGED AND IS THE POINT: a control may act on this page's
+     own presentation and may not act on WORK. A disclosure toggle is the same
+     class as the dismissal it replaces — it touches no record. Anything not on
+     this list still fails, which is what catches a disposition control
+     arriving on an orienting surface. */
   check(
     "boundary.no-controls",
-    "the only control is the digest's dismissal",
-    controls.every((c) => /dismiss/i.test(c)),
+    "every control acts on this page's presentation, never on work",
+    controls.every((c) => /dismiss|collapse|expand/i.test(c)),
     controls.join(" | ") || "none"
   );
   const lists = await page.evaluate(() =>
@@ -227,77 +233,60 @@ for (const [scenario, expected, why] of [
 // ═══════════════════════════════════════════════════════════════════════════
 {
   const { context, page } = await open("digest", { seen: 0 });
-  /* ═══ RETARGETED: THE DIGEST IS THE MERGED START-HERE MODULE NOW ═══
-     `[data-anno-ref="home-digest"]` has not existed since the rename to
-     `today-digest`, so this read null and `digest.present` failed loudly —
-     while `digest.gated` below PASSED on the same dead selector, because its
-     claim is an absence and absent-from-a-typo looks identical to absent. Both
-     selectors are fixed; the guard is that `digest.present` must pass for
-     `digest.gated` to mean anything, and it does.
-     WHAT THE SECTION ASSERTED AND NO LONGER CAN: the old digest was a LIST OF
-     TONE CHIPS, breach-first. Phase C replaced it with ONE derived rationale
-     sentence ("rationale-or-nothing"), and Phase I added the bounded preview
-     under it. There are no chips to order, so `digest.breach-first` has no
-     subject — its successor is `digest.one-rationale`, which pins the thing
-     that replaced it. */
+  /* ═══ THE DIGEST IS WITHDRAWN; THE TASKS SECTION IS WHAT IS THERE (L.3) ═══
+     This section asserted a "Since your last shift" container: that it
+     rendered after a gap, carried one derived rationale line, stated a
+     shown-of-total, held at most one CTA to the recommended destination, and
+     was gated so it did not return inside the same shift.
+     PHASE C IS WITHDRAWN ENTIRELY and FORK I-2 resolved to "no module", so the
+     container, the rationale and the shift gate are all gone. L.3 replaces
+     them with a labelled Tasks section that is always present.
+     THREE OF THE FIVE CLAIMS SURVIVE, because they were never really about the
+     container: the total is still disclosed (as a badge, per L.3.1), there is
+     still at most one CTA to the destination, and there is still no form
+     control. The two that die with the container are its GATING and its
+     RATIONALE LINE. */
   const d = await page.evaluate(() => {
-    const el = document.querySelector('[data-anno-ref="today-digest"]');
+    const el = document.querySelector('[data-anno-ref="today-tasks"]');
     if (!el) return null;
     const dest = /^\/app\/(escalations|risk-flags|care-reviews)$/;
     return {
-      rationale: el.querySelector('[data-anno-ref="today-rationale"]')?.textContent?.trim() ?? null,
+      title: el.querySelector("h2")?.textContent?.trim() ?? null,
+      sub: el.querySelector("h3")?.textContent?.trim() ?? null,
+      count: el.querySelector('[data-anno-ref="today-tasks-count"]')?.textContent?.trim() ?? null,
       items: [...el.querySelectorAll('[data-anno-ref="start-here-item"]')].length,
-      count: el.querySelector('[data-anno-ref="start-here-count"]')?.textContent?.trim() ?? null,
-      /* EVERY link that points at a DESTINATION ROOT. I.0 forbids two
-         affordances to the same place, and the removed banner button is
-         exactly what this would catch coming back. */
       destLinks: [...el.querySelectorAll("a")]
         .map((a) => a.getAttribute("href"))
         .filter((h) => dest.test(h ?? "")),
       controls: [...el.querySelectorAll("input,select,textarea,form")].length,
+      /* The withdrawn container's own markers must not come back. */
+      rationale: !!el.querySelector('[data-anno-ref="today-rationale"]'),
+      footer: /showing\s+\d+\s+of\s+\d+/i.test(el.textContent ?? ""),
     };
   });
-  check("digest.present", "the digest renders after a gap", Boolean(d), d ? `${d.items} preview items` : "absent");
+  check("tasks.present", "the Tasks section renders", Boolean(d), d ? `${d.items} rows` : "absent");
   if (d) {
-    check(
-      "digest.one-rationale",
-      "it carries exactly one derived rationale line, not a list of counts",
-      Boolean(d.rationale && d.rationale.length > 0),
-      d.rationale
-    );
-    /* ═══ I.3.1 — THE PARTIAL-LIST DISCLOSURE IS THE SAFETY CLAIM ═══
-       A supervisor who clears four items and sees an empty preview must not be
-       able to conclude the queue is empty, so the shown-of-total renders
-       whenever the preview does. */
-    check(
-      "digest.shows-total",
-      "and every preview states how many of the total it is showing",
-      d.items === 0 || Boolean(d.count && /\d+\s+of\s+\d+/.test(d.count)),
-      d.count
-    );
-    check(
-      "digest.one-cta",
-      "at most one affordance points at the recommended destination (I.0)",
-      d.destLinks.length <= 1,
-      `${d.destLinks.length} · ${d.destLinks.join(" ") || "none"}`
-    );
-    /* THE MIRROR RULE, INSIDE THE MODULE. Today may preview work and navigate
-       to it; it may never dispose of it. */
-    check(
-      "digest.no-controls",
-      "and the preview carries no form control of any kind",
-      d.controls === 0,
-      `${d.controls} controls`
-    );
+    check("tasks.titled", "titled, with a Care reviews sub-header", d.title === "Tasks" && /care review/i.test(d.sub ?? ""), `${d.title} / ${d.sub}`);
+    /* I.3.1's disclosure, relocated to the badge by L.3.1 — the total is still
+       on screen beside the thing it counts. */
+    check("tasks.total-disclosed", "and the total is disclosed as a badge", Boolean(d.count && /^\d+$/.test(d.count)), d.count);
+    check("tasks.no-footer", "with no shown-of-total footer, which L.3 removed", !d.footer, d.footer ? "footer present" : "none");
+    check("tasks.no-rationale", "and no generated rationale line, which Phase C withdrew", !d.rationale, d.rationale ? "rationale present" : "none");
+    check("tasks.one-cta", "at most one affordance points at the destination", d.destLinks.length <= 1, `${d.destLinks.length} · ${d.destLinks.join(" ") || "none"}`);
+    check("tasks.no-controls", "and the table carries no form control of any kind", d.controls === 0, `${d.controls} controls`);
   }
   await context.close();
 }
 {
-  /* GATED ON THE SHIFT. A stamp inside the window means the supervisor has
-     already been here this shift, and the digest does not come back. */
+  /* ═══ THE SHIFT GATE IS GONE WITH THE CONTAINER (L.3) ═══
+     `digest.gated` asserted the container did not return inside the same
+     shift. The Tasks section is not gated on a visit — it is the page's
+     content, not a greeting — so the claim has no subject. What replaces it is
+     the inverse, asserted: the section is present REGARDLESS of the visit
+     stamp, which is what catches the gate being reintroduced. */
   const { context, page } = await open("digest-same-shift", { seen: Date.now() - 60_000 });
-  const present = await page.evaluate(() => Boolean(document.querySelector('[data-anno-ref="today-digest"]')));
-  check("digest.gated", "and not again inside the same shift", !present);
+  const present = await page.evaluate(() => Boolean(document.querySelector('[data-anno-ref="today-tasks"]')));
+  check("tasks.not-gated", "and it is not gated on the visit stamp", present);
   await context.close();
 }
 {
@@ -326,58 +315,63 @@ for (const [scenario, expected, why] of [
 {
   const { context, page } = await open("partial", { load: "partial" });
   const t = await mainText(page);
-  /* THE ONE REGION THAT CANNOT QUIETLY GO MISSING. An absent strip means "nobody
-     is in danger", which must never be asserted from an outage. */
-  /* THE SECOND CLAUSE WAS WRONG, not the app: it looked for "Shift sequence" and
-     "Escalations," in `innerText`, and both are ARIA LABELS — invisible to a text
-     read. The sequence's survival is asserted structurally in the next check;
-     this one asserts only what the failed region says. */
+  /* ═══ THE ESCALATIONS REGION LEFT THIS PAGE (L.6) ═══
+     Three checks stood here and all three were about it: that a failed
+     escalation read says what is UNKNOWN rather than what failed, that each
+     failed region offers its own retry (two of them), and that retrying
+     restores one region and leaves the other down.
+     L.6 REMOVES `EscalationStrip` FROM TODAY — with its loading state, its
+     error line and its retry — so there is one degradable region left, the
+     destinations. The claims are unchanged in kind and are asserted against
+     it: a failure says what is unknown, it offers its own way back, and using
+     it restores the region.
+     THE COUNT DROPS FROM 2 TO 1 AND THAT IS THE MEASUREMENT, not a relaxation:
+     there is one region that can fail. If a second returns, this number is
+     what says so. */
+  /* ═══ `partial` IS A NO-OP ON THIS SURFACE NOW, AND THAT IS THE FINDING ═══
+     MEASURED from `homeLoadPlanFor`: `partial` returns
+     `{ escalations: "error", sequence: "ready", closed: "ready" }` — the only
+     region it degrades is escalations, and L.6 removed that region from Today.
+     So the harness's partial state changes nothing here.
+     ASSERTED RATHER THAN DELETED. If escalations returns to this page, or the
+     plan is repointed at a region Today still has, this check fails and says
+     so — which is the prompt to restore the real claim ("a failed read says
+     what is UNKNOWN, not what failed"). That claim is still exercised, on the
+     `error` plan, in the block below. */
   check(
-    "state.partial",
-    "a failed escalation read says what is unknown, not what failed",
-    /can['\u2019]t say whether any are open/.test(t) && !/Couldn['\u2019]t load escalations/.test(t),
-    t.split("\n").find((l) => /couldn['\u2019]t be loaded/.test(l))?.slice(0, 70)
+    "state.partial-is-noop",
+    "the partial plan degrades nothing on Today, because it targeted escalations",
+    !/couldn['\u2019]t/.test(t),
+    /couldn['\u2019]t/.test(t)
+      ? JSON.stringify(t.replace(/\s+/g, " ").slice(0, 120))
+      : "no region degraded"
   );
   const others = await page.evaluate(
-    /* RETARGETED: `home-sequence` became `today-destinations` in the IA
-       restructure. The claim is unchanged — a failed escalation read must not
-       take the destination grid down with it. */
-    () => Boolean(document.querySelector('[data-anno-ref="today-destinations"]'))
+    () => Boolean(document.querySelector('[data-anno-ref="today-hero"]'))
   );
-  check("state.partial-intact", "and the other regions are intact", others);
-  await page.screenshot({ path: `${OUT}/03-partial.png` });
+  /* THE HERO IS THE REGION THAT MUST NOT GO DOWN WITH IT — it was
+     `today-destinations`, which is now the region doing the failing. */
+  check("state.partial-intact", "and the rest of the page is intact", others);
   await context.close();
 }
 {
   const { context, page } = await open("error", { load: "error" });
-  /* RETARGETED TO THE COPY THAT SHIPS. `RegionError`'s button reads "Try
-     again", not "Retry" — so this waited on a name that never existed and
-     timed out rather than failing. The claim is unchanged: a failed region
-     offers its own way back, and there is more than one of them. */
   const retry = await page.getByRole("button", { name: /^Try again$/ }).count();
-  check("state.error-retry", "each failed region offers its own retry", retry >= 2, `${retry} retries`);
+  check("state.error-retry", "the failed region offers its own retry", retry >= 1, `${retry} retries`);
   await page.getByRole("button", { name: /^Try again$/ }).first().click();
   await page.waitForTimeout(400);
   const after = await mainText(page);
-  /* ═══ RETARGETED, AND IT HAD NEVER RUN ═══
-     It matched `/Escalations,|open now/` — an aria-label shape and a copy
-     string that no longer exist. It never failed on that, because the CLICK
-     above waited on a "Retry" button that is called "Try again", timed out,
-     and took the whole suite down before this line was reached. Fixing the
-     click is what made this assertion reachable for the first time.
-     MEASURED after the retry: the escalation strip is back — "Theo L. to
-     Brandy Forrestor … Open escalation" — and its failure sentence is gone.
-     BOTH HALVES ARE CHECKED, because "restores that region ALONE" is two
-     claims and the old regex tested neither: the strip returns, AND the other
-     region that was failing is still failing. A retry that quietly healed
-     everything would be the bug this check exists for. */
-  const restored = /Open escalation/.test(after) && !/can['\u2019]t say whether any are open/.test(after);
-  const othersStillDown = /couldn['\u2019]t be summarised|couldn['\u2019]t be loaded/i.test(after);
+  /* RETARGETED WITH THE REGION. It asserted the escalation strip came back and
+     another region stayed down; with one degradable region left, the claim is
+     that retrying restores THAT region — the destination cards return and the
+     failure sentence goes. */
+  const restored =
+    /Escalations/.test(after) && !/couldn['\u2019]t be summarised/.test(after);
   check(
     "state.retry-works",
-    "and retrying restores that region alone",
-    restored && othersStillDown,
-    `strip back: ${restored} · another region still down: ${othersStillDown}`
+    "and retrying restores it",
+    restored,
+    `cards back: ${restored}`
   );
   await page.screenshot({ path: `${OUT}/04-error.png` });
   await context.close();

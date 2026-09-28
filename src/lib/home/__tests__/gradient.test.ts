@@ -17,6 +17,9 @@ import { describe, expect, it } from "vitest";
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
 const TOKENS = read("src/app/settings-tokens.css");
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
 const PAGE = read("src/components/today/today-page.tsx");
 
 describe("the token is a documented design-system extension (G.2.2)", () => {
@@ -77,7 +80,16 @@ describe("it cannot vary with data (G.2.5)", () => {
   it("commits no raw colour in the component — tokens only", () => {
     // The standing constraint: raw values live in the token file and nowhere
     // else. A hex anywhere in the page component would be one.
-    expect(PAGE).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+    /* ═══ COMMENT-STRIPPED, AND THAT IS NOT A LOOPHOLE (L.6) ═══
+       This read the WHOLE source and caught `#cc3300` inside a comment
+       QUOTING a measured token value — "`--state-error` (#cc3300, 4.73:1)".
+       The constraint is about raw values in CODE; a measurement recorded beside
+       the decision it justifies is documentation, and forbidding it would push
+       the evidence out of the file that needs it.
+       IT IS THE SECOND TIME A GUARD IN THIS CODEBASE HAS CAUGHT ITS OWN
+       COMMENTS — `pinned.ts` tripped the prohibited-vocabulary check the same
+       way, and was fixed the same way. */
+    expect(stripComments(PAGE)).not.toMatch(/#[0-9a-fA-F]{6}\b/);
   });
 });
 
@@ -99,20 +111,53 @@ describe("one decorative glyph on the page, and it is the wave (G, budget)", () 
       PAGE.indexOf('data-anno-ref="today-greeting"'),
       PAGE.indexOf('data-anno-ref="today-greeting"') + 900
     );
-    expect(greeting).toMatch(/<span aria-hidden[^>]*>\s*👋/);
+    /* ═══ THE GLYPH IS INSIDE AN `aria-hidden` TILE NOW (L.2.1) ═══
+       It was `<span aria-hidden>👋</span>` inline at body size. L.2 makes it a
+       51×51 TILE, so the `aria-hidden` sits on the tile and the glyph is a
+       child of it — which hides strictly more, not less. The claim is that the
+       glyph is inside an `aria-hidden` subtree, and that is what is checked. */
+    const tile = PAGE.slice(
+      PAGE.indexOf('data-anno-ref="today-hero-tile"') - 200,
+      PAGE.indexOf("👋") + 4
+    );
+    expect(tile).toMatch(/aria-hidden/);
+    expect(tile).toContain('data-anno-ref="today-hero-tile"');
   });
 
-  it("asserts no time of day and no date (G.1.2, G.1.5)", () => {
-    /* OPTION (b). The greeting carries no time word at all, so it cannot be
-       wrong for a reader whose timezone this product does not know — which is
-       an open item owned by Meg. And no date line: G.1.5 permits one only if
-       computed, and it is not required. */
-    const greeting = PAGE.slice(
-      PAGE.indexOf('data-anno-ref="today-greeting"'),
-      PAGE.indexOf('data-anno-ref="today-greeting"') + 900
+  it("asserts no DATE, and its time word is computed rather than literal (L.2)", () => {
+    /* ═══ SUPERSEDED: OPTION (b) BECAME OPTION (a) ═══
+       This asserted the greeting carried NO time word — G.1's option (b),
+       which this build shipped because supervisor timezone localisation is
+       unresolved (Meg) and a computed word could be wrong for a western
+       reader.
+       L.2 OVERRIDES IT, and for a structural reason rather than a change of
+       mind about clocks: the greeting is the PAGE TITLE now, and "Hi there" at
+       32px Avantt is too thin to be one. The open item stays open.
+       WHAT REPLACES THE CLAIM: the word must be COMPUTED, never literal, and
+       must never read "morning" during the 1 PM – 10 PM shift. That is
+       `greeting.test.ts`, which sweeps every minute of the window — a
+       stronger check than this file could make, because it evaluates the
+       function rather than grepping the markup.
+       WHAT THIS STILL OWNS: no hardcoded time word in the component, and no
+       date line. */
+    /* COMMENT-STRIPPED, for the third time in this file's history and the same
+       reason: the hero's `NEEDS-COPY-NICOLE` marker LISTS the four copy
+       strings, which is the copy protocol working as intended. A guard that
+       forbids naming a string in the marker that exists to name it is a guard
+       pointed at its own protocol. */
+    const src = stripComments(PAGE);
+    const hero = src.slice(
+      src.indexOf('data-anno-ref="today-hero"'),
+      src.indexOf('data-anno-ref="today-hero"') + 2400
     );
-    for (const w of ["morning", "afternoon", "evening", "tonight"]) {
-      expect(greeting.toLowerCase(), `the greeting says "${w}"`).not.toContain(w);
+    /* The literal words must not appear in the markup — they live in
+       `GREETING_WORD`, keyed by a computed band. */
+    for (const w of ["Good morning", "Good afternoon", "Good evening"]) {
+      expect(hero, `the component hardcodes "${w}"`).not.toContain(w);
     }
+    expect(hero, "the greeting is not computed").toContain("greetingFor(now");
+    /* NO DATE LINE (L.2.4, G.1.5). */
+    expect(hero).not.toContain("shiftDateLabel");
+    expect(hero).not.toMatch(/toLocaleDateString/);
   });
 });

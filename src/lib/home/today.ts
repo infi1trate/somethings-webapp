@@ -271,7 +271,16 @@ export function todayCards(input: TodayInput): TodayCard[] {
       if (open.escalations > 0) parts.push(`${open.escalations} active`);
       if (ob.closeOutOverdue > 0) {
         parts.push(
-          `${plural(ob.closeOutOverdue, "close-out item", "close-out items")} overdue`
+          /* ═══ SHORTENED, NOT ELLIPSISED — AND MEASURED, NOT GUESSED (L.5.6) ═══
+             It read "3 close-out ITEMS overdue" and clipped on a 275px card.
+             MEASURED in situ: the second line has 217px, and
+             "2 active · 3 close-out notes overdue" is 193px — it fits. "items"
+             is what went; "notes" is the authored table's own noun and stays.
+             A FIRST PASS CUT IT TO "close-out" AND "ack", which fit by a wide
+             margin and bought that with jargon. The measurement says the clear
+             words fit, so the clear words ship.
+             NEEDS-COPY-NICOLE: {n} close-out notes overdue */
+          `${plural(ob.closeOutOverdue, "close-out note", "close-out notes")} overdue`
         );
       } else if (ob.ackBreached > 0) {
         /* ═══ A PASSED ACK CLOCK MUST BE IN THE TEXT, NOT ONLY THE TONE ═══
@@ -289,6 +298,10 @@ export function todayCards(input: TodayInput): TodayCard[] {
            quantity, and the file already records what it cost to phrase a
            different quantity like a similar one. */
         parts.push(
+          /* MEASURED: "3 active · 1 acknowledgement overdue" is 207px against
+             the 217px the line has, so the full word fits and "ack" was an
+             unnecessary abbreviation.
+             NEEDS-COPY-NICOLE: {n} acknowledgement(s) overdue */
           `${plural(ob.ackBreached, "acknowledgement", "acknowledgements")} overdue`
         );
       } else if (open.escalations > 0) {

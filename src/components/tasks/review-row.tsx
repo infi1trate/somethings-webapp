@@ -57,6 +57,16 @@ export const COL_AGE = 72;
  *  cell can share one number. */
 export const COL_AGE_BOX = COL_AGE + 24;
 
+/** ═══ THE TASKS TABLE'S EQUAL COLUMNS (Phase L.4) ═══
+ *  L.4 measures Today's table as three EQUAL 285px cells against the
+ *  destination's wide-mentee / narrow-trailing layout, and L overrides K where
+ *  they disagree.
+ *  THIS IS A DIVERGENCE K.1 HAD JUST REMOVED, and it is reported rather than
+ *  quietly absorbed: the FIELDS stay identical — same components, same order,
+ *  same treatment — and the column WIDTHS now differ by instruction. One
+ *  component, two geometries, both named here. */
+export const COL_EQUAL = 285;
+
 /** ═══ THE ROW'S TYPE TREATMENT ═══
  *  K.1.2 specifies `Label/Large-Bold/Web` — TWK Lausanne 700 16/20 — for the
  *  name, and `Label-Alt/Medium/Web` — Geist Mono Medium 12/16 — for the codes.
@@ -97,6 +107,13 @@ export function ReviewRowHeader({
   disc,
   sticky = false,
   className,
+  /** Per-surface column geometry — see `COL_EQUAL`. Defaults to the
+   *  destination's measured widths so existing callers are unchanged. */
+  presentationWidth = COL_PRESENTATION,
+  ageWidth = COL_AGE_BOX,
+  /** L.4's equal-thirds layout: the mentee cell is a fixed width too, rather
+   *  than taking the remainder. */
+  equalWidth,
 }: {
   /** The avatar's width, so "Mentee" starts where a mentee's NAME starts
    *  rather than where their disc does. Passed rather than assumed, because the
@@ -104,25 +121,39 @@ export function ReviewRowHeader({
   disc: number;
   sticky?: boolean;
   className?: string;
+  presentationWidth?: number;
+  ageWidth?: number;
+  equalWidth?: number;
 }) {
   return (
     <div
       aria-hidden
       data-anno-ref="worklist-table-header"
       className={cn(
-        "flex items-center gap-3 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-6 py-2",
+        "flex items-center border-b border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-6 py-2",
+        /* A caller passing `px-0` takes the inset into its cells instead — see
+           L.4, where three equal columns have to fill the container exactly. */
+        equalWidth == null && "gap-3",
         sticky && "sticky top-0 z-10",
         className
       )}
     >
-      <span aria-hidden style={{ width: disc }} className="shrink-0" />
-      <span className="min-w-0 flex-1 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+      {/* ═══ IN EQUAL MODE THE AVATAR SPACER LIVES INSIDE THE COLUMN ═══
+          Three 285s plus three `gap-3`s is 891, not 855 — measured, the age
+          column ran past the container's right edge and its header rendered as
+          "Review ag". So the equal layout carries no inter-column gap and each
+          column owns its own inset; the default layout is unchanged. */}
+      <span
+        className="flex min-w-0 items-center gap-3 text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        style={equalWidth ? { width: equalWidth, flex: "none" } : { flex: "1 1 0%" }}
+      >
+        <span aria-hidden style={{ width: disc }} className="shrink-0" />
         {/* NEEDS-COPY-NICOLE */}
-        Mentee
+        <span className="min-w-0 truncate">Mentee</span>
       </span>
       <span
         className="shrink-0 whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
-        style={{ width: COL_PRESENTATION }}
+        style={{ width: presentationWidth }}
       >
         {/* NEEDS-COPY-NICOLE */}
         Presentation
@@ -131,7 +162,7 @@ export function ReviewRowHeader({
         /* `whitespace-nowrap`: a column header that wraps makes the header row
            taller than its own type and stops looking like a header. */
         className="shrink-0 whitespace-nowrap pl-6 text-right text-[12px] leading-[16px] text-[var(--text-secondary)]"
-        style={{ width: COL_AGE_BOX }}
+        style={{ width: ageWidth }}
       >
         {/* ═══ "Review age", NOT "Due date" (§2, answered) ═══
             The Figma's column reads `Due date` over a value of `15 days` — a
@@ -194,12 +225,14 @@ export function ReviewDisc({
 export function ReviewPresentationCell({
   currentCode,
   recommendedCode,
+  width = COL_PRESENTATION,
 }: {
   currentCode: string | null;
   recommendedCode: string;
+  width?: number;
 }) {
   return (
-    <span className="flex shrink-0 items-center" style={{ width: COL_PRESENTATION }}>
+    <span className="flex shrink-0 items-center" style={{ width }}>
       <ProposalCodes
         currentCode={currentCode}
         recommendedCode={recommendedCode}
@@ -221,10 +254,12 @@ export function ReviewAgeCell({
   at,
   now,
   className,
+  width = COL_AGE_BOX,
 }: {
   at: number;
   now: number;
   className?: string;
+  width?: number;
 }) {
   return (
     <span
@@ -232,7 +267,7 @@ export function ReviewAgeCell({
         "flex shrink-0 items-center justify-end pl-6 text-right",
         className
       )}
-      style={{ width: COL_AGE_BOX }}
+      style={{ width }}
     >
       <span
         className="text-[13px] leading-[18px] tabular-nums text-[var(--text-secondary)]"
@@ -256,14 +291,21 @@ export function ReviewIdentityCell({
   caption,
   captionClassName,
   nameClassName,
+  width,
 }: {
   name: string;
   caption: string;
   captionClassName?: string;
   nameClassName?: string;
+  /** L.4's equal-thirds geometry. Omitted, the cell takes the remainder, which
+   *  is what the destination's table does. */
+  width?: number;
 }) {
   return (
-    <span className="min-w-0 flex-1">
+    <span
+      className="min-w-0"
+      style={width ? { width, flex: "none" } : { flex: "1 1 0%" }}
+    >
       <span className={cn(NAME_CLASS, nameClassName)}>{name}</span>
       <span
         className={cn(
