@@ -85,6 +85,8 @@ import {
   cloneValue,
 } from "@/lib/onboarding/profile-update";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
+import { devClockByKey } from "@/lib/home/dev-clock";
+import { pinsFor, todayScenarioById } from "@/lib/home/scenarios";
 
 // A persisted-shape copy of the draft (no password, no volatile blob url) — the
 // approved baseline used to detect post-publish edits in the mentor's settings.
@@ -265,6 +267,19 @@ interface OnboardingState {
    *  property of the harness like `persona` and the scenario, not of one feed.
    *  See `lib/dev/load-state.ts` for why it has one consumer today. */
   devLoadState: LoadState;
+  /** ═══ THE PINNED SIMULATED CLOCK (Today Phase J.1) ═══
+   *  A `DEV_CLOCK_POSITIONS` key, or null to run on the real clock. DEV-ONLY
+   *  and null for every real session — only the dev bar writes it. Stored as a
+   *  KEY rather than a timestamp so a pinned position survives a reload as the
+   *  same wall-clock moment; a stored instant would drift into the past and a
+   *  "Mon 5:15 PM" pin would silently become last Monday. */
+  devClockKey: string | null;
+  /** ═══ THE TODAY SCENARIO (Phase J.2) ═══
+   *  Dev-only. A `TODAY_SCENARIOS` id, or null. It is a LABEL for a setting of
+   *  the tasks axis, the monitoring axis and the pin set — the setter applies
+   *  all three — so it is stored only so the picker can show which composition
+   *  is selected. Nothing reads it to derive data. */
+  todayScenarioId: string | null;
   /** WHICH TASKS SEED SCENARIO THE WORKLIST SHOWS (v42).
    *
    *  LIFTED OUT OF `tasks-page.tsx`, where it was `useState` inside a panel
@@ -354,6 +369,8 @@ interface OnboardingState {
   resetTasksReviewed: () => void;
   setShiftSeenAt: (at: number) => void;
   setDevLoadState: (state: LoadState) => void;
+  setDevClockKey: (key: string | null) => void;
+  setTodayScenarioId: (id: string | null) => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
    *
    *  The shift-start digest's gate: it renders on the first session after a gap of
@@ -665,6 +682,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       activityRead: {},
       activityScenarioId: "typical-shift",
       devLoadState: DEFAULT_LOAD_STATE,
+      devClockKey: null,
+      todayScenarioId: null,
       tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
       monitoringScenarioId: null,
       chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
@@ -1130,6 +1149,32 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((st) => ({ tasksResetNonce: st.tasksResetNonce + 1 })),
       setShiftSeenAt: (at) => set({ shiftLastSeenAt: at }),
       setDevLoadState: (state) => set({ devLoadState: state }),
+      /* Validated against the table rather than stored blind, so a stale key
+         from an older build falls back to the live clock instead of pinning
+         nothing and reading as broken. */
+      setDevClockKey: (key) =>
+        set({ devClockKey: key && devClockByKey(key) ? key : null }),
+      /* ═══ ONE SELECTION, THREE AXES WRITTEN (Phase J.3) ═══
+         A Today scenario is a composition, so choosing one sets the fixtures it
+         names rather than becoming a fourth data source. Clearing it leaves the
+         axes where they are: the reader chose those values, even if by way of a
+         composition, and silently reverting them would be the control lying
+         about its own effect. */
+      setTodayScenarioId: (id) => {
+        const sc = todayScenarioById(id);
+        if (!sc) {
+          set({ todayScenarioId: null });
+          return;
+        }
+        set({
+          todayScenarioId: sc.id,
+          tasksScenarioId: sc.tasks,
+          monitoringScenarioId: sc.monitoring,
+          /* Stamped so `pins[0]` is the oldest — F.3 orders ascending by pin
+             time, so the rendered order has to match the declared array. */
+          pinnedMentees: pinsFor(sc, Date.now()),
+        });
+      },
       seedActivityRead: (overlay) => set({ activityRead: overlay }),
       markActivityRowsRead: (viewerId, scope, eventIds) =>
         set((s) => ({
@@ -1280,6 +1325,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           // persona lens: a "start over" that left the feed in an error state
           // would look like the reset had failed.
           devLoadState: DEFAULT_LOAD_STATE,
+      devClockKey: null,
+      todayScenarioId: null,
           tasksScenarioId: DEFAULT_TASK_SCENARIO_ID,
           monitoringScenarioId: null,
           chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
@@ -1439,7 +1486,13 @@ export const useOnboardingStore = create<OnboardingState>()(
       // v49: pinnedMentees — the supervisor's private working set, ordered by
       //      pin time. [] backfills as "nothing pinned", true of every state
       //      persisted before this version existed.
-      version: 49,
+      // v50: devClockKey — the pinned simulated clock (Today Phase J.1). A
+      //      dev-harness axis, so it sanitises to null on merge exactly as
+      //      `devLoadState` does: an unknown key must not pin a nonexistent
+      //      moment.
+      // v51: todayScenarioId — the Today dev axis (Phase J.2). Sanitises to
+      //      null on merge like every other harness field.
+      version: 51,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;

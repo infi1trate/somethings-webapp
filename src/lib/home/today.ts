@@ -386,13 +386,29 @@ export function todayCards(input: TodayInput): TodayCard[] {
  *  "oldest " is the empty-label-stack defect the production audit recorded, and
  *  this is only reachable with a non-empty set anyway — so it asserts rather
  *  than guesses. */
+/* ═══ FLOOR, NOT ROUND — AND IT WAS ROUND (Today Phase J) ═══
+   MEASURED on the `care-review-backlog` fixture: the oldest care review was
+   66 hours old, this function said "oldest 3d ago", the rationale beneath it
+   said "— 3d", and the first preview row said "2d". Same item, three lines
+   apart, two answers. `elapsedLabel` — which the preview rows, the Care
+   Reviews age column and the escalation strip all use — floors; this rounded.
+
+   THAT IS THE SELF-CONTRADICTION I.2.3 EXISTS TO PREVENT, and it slipped past
+   the test that guards it because that test compares the preview's first item
+   by IDENTITY rather than by its rendered label.
+
+   FLOOR WINS ON MERIT AS WELL AS ON CONSISTENCY. Rounding OVERSTATES an age —
+   it can call a 60-hour item "3d" — and on a queue a supervisor reads as a
+   backlog, claiming work is older than it is is the worse of the two errors.
+   Floor also makes Today agree with every destination it mirrors rather than
+   only with itself. */
 function ageOf(at: number | null, now: number): string {
   if (at == null) return "unknown";
-  const mins = Math.max(0, Math.round((now - at) / 60_000));
+  const mins = Math.max(0, Math.floor((now - at) / 60_000));
   if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
+  const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 /** ═══ WHICH CARD SAYS "START HERE" — DERIVED FROM THE CARDS ═══

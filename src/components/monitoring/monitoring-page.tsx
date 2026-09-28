@@ -82,6 +82,7 @@ import {
 } from "@/lib/ui/view-options";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
+import { devClockAt } from "@/lib/home/dev-clock";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -425,6 +426,7 @@ export function MonitoringPage({
 }) {
   void focusBand;
   const mounted = useMounted();
+  const devClockKey = useOnboardingStore((st) => st.devClockKey);
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
   const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
@@ -459,7 +461,16 @@ export function MonitoringPage({
   );
   /** A fixture may pin the hour — the dormant band and the after-hours
    *  escalation are states about the time of day. */
-  const now = data?.clockOverride ?? mountedAt;
+  /** ═══ THE PINNED CLOCK OUTRANKS BOTH (Phase J.1) ═══
+   *  Precedence, widest to narrowest: the dev bar's pinned position, then the
+   *  scenario's own `clockOverride`, then the mount instant.
+   *  THE PIN WINS OVER THE SCENARIO DELIBERATELY. A scenario override moves the
+   *  HOUR and keeps today's date, so it cannot reach the Friday variant or the
+   *  Monday obligation overlap; the pin carries a weekday. When a reader has
+   *  pinned a moment, honouring the scenario's hour instead would silently
+   *  discard the thing they just asked for. */
+  const pinnedClock = devClockAt(devClockKey);
+  const now = pinnedClock ?? data?.clockOverride ?? mountedAt;
 
   // ── Page-local decisions ──────────────────────────────────────────────────
   /** Resolved events. Local, exactly as Tasks' resolutions are: the fixture is
