@@ -9,6 +9,11 @@ import {
   type ViewPreset,
 } from "@/lib/ui/view-options";
 import { PIN_CAP, type PinnedMentee } from "@/lib/record/pinned";
+
+/** ═══ THE READING-TRACE CAP (rework §5.1, §5.2) ═══
+ *  Not `PIN_CAP`: a pin is a deliberate working set of five and a trace is
+ *  incidental. See the setters for why it is bounded at all. */
+const CARE_TRACE_CAP = 500;
 import {
   emptyDraft,
   type ChangeRequest,
@@ -371,6 +376,13 @@ interface OnboardingState {
   setDevLoadState: (state: LoadState) => void;
   setDevClockKey: (key: string | null) => void;
   setTodayScenarioId: (id: string | null) => void;
+  /** Marks a review viewed. Idempotent — opening the same row twice is one
+   *  view, and the pane's effect fires on every selection change. */
+  markCareReviewViewed: (id: string) => void;
+  /** Records a committed review. Idempotent on id for the same reason. */
+  markCareReviewSubmitted: (id: string, at: number) => void;
+  /** The dev harness's reset, matching `resetTasksReviewed`'s scope. */
+  resetCareReviewState: () => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
    *
    *  The shift-start digest's gate: it renders on the first session after a gap of
@@ -443,6 +455,24 @@ interface OnboardingState {
    *  the cap rather than disabling (E.8), and this refuses regardless — a cap
    *  enforced only in a component is a cap the next caller does not have. */
   pinnedMentees: PinnedMentee[];
+  /** ═══ VIEWED CARE REVIEWS (rework §5.2) ═══
+   *  Item ids the supervisor has OPENED IN THE DETAIL PANE. Per-supervisor and
+   *  private, like `pinnedMentees` — it is a reading trace, not a clinical
+   *  fact, and it is not visible to mentors or mentees.
+   *  AN ARRAY RATHER THAN A SET because the store is JSON-persisted; the
+   *  selectors build a Set where membership is tested in a loop.
+   *  CAPPED on merge for the reason `pinnedMentees` is: an unbounded list in
+   *  localStorage grows for the life of the browser profile. */
+  viewedCareReviews: string[];
+  /** ═══ SUBMITTED CARE REVIEWS (rework §5.1) ═══
+   *  Committed reviews, persisted — Brandon's answer to the audit was
+   *  "persist". Before this they lived in `useState` on the page and the
+   *  Submitted tab would have been empty on every fresh visit, which is a tab
+   *  that lies about history rather than one that shows it.
+   *  THE ITEM ID AND WHEN IT WAS COMMITTED, and nothing else. The item's own
+   *  content is rebuilt from the fixture by id, so this never becomes a second
+   *  copy of clinical data that can drift from the first. */
+  submittedCareReviews: { id: string; at: number }[];
   pinMentee: (id: string, at: number) => void;
   unpinMentee: (id: string) => void;
   setTasksLastVisitAt: (at: number) => void;
@@ -698,6 +728,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       viewOptions: {},
       shiftDigestDismissedAt: 0,
       pinnedMentees: [],
+      viewedCareReviews: [],
+      submittedCareReviews: [],
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -1160,6 +1192,30 @@ export const useOnboardingStore = create<OnboardingState>()(
          axes where they are: the reader chose those values, even if by way of a
          composition, and silently reverting them would be the control lying
          about its own effect. */
+      /* ═══ CAPPED, AND THE CAP IS STATED (§5.2, §5.1) ═══
+         A reading trace grows for the life of a browser profile. 500 is far
+         past any real shift and far short of a localStorage problem; the
+         oldest entries fall off, which is correct for a trace — the rows a
+         supervisor looked at a month ago are not rows this list still needs to
+         mark. */
+      markCareReviewViewed: (id) =>
+        set((st) =>
+          st.viewedCareReviews.includes(id)
+            ? st
+            : { viewedCareReviews: [...st.viewedCareReviews, id].slice(-CARE_TRACE_CAP) }
+        ),
+      markCareReviewSubmitted: (id, at) =>
+        set((st) =>
+          st.submittedCareReviews.some((r) => r.id === id)
+            ? st
+            : {
+                submittedCareReviews: [...st.submittedCareReviews, { id, at }].slice(
+                  -CARE_TRACE_CAP
+                ),
+              }
+        ),
+      resetCareReviewState: () =>
+        set({ viewedCareReviews: [], submittedCareReviews: [] }),
       setTodayScenarioId: (id) => {
         const sc = todayScenarioById(id);
         if (!sc) {
@@ -1344,6 +1400,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       viewOptions: {},
       shiftDigestDismissedAt: 0,
       pinnedMentees: [],
+      viewedCareReviews: [],
+      submittedCareReviews: [],
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -1492,7 +1550,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      moment.
       // v51: todayScenarioId — the Today dev axis (Phase J.2). Sanitises to
       //      null on merge like every other harness field.
-      version: 51,
+      // v52: viewedCareReviews + submittedCareReviews — the §5.2 reading trace
+      //      and the §5.1 submitted set. Both sanitise to [] on merge and are
+      //      re-capped, exactly as `pinnedMentees` is: a persisted array from
+      //      an older build may be any shape at all.
+      version: 52,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2240,6 +2302,39 @@ export const useOnboardingStore = create<OnboardingState>()(
            that promises five, and Today does not paginate. Truncating keeps
            the OLDEST pins, because they are the ones the supervisor has lived
            with longest. */
+        /* ═══ THE CARE-REVIEW TRACES, SANITISED THE SAME WAY (v52) ═══
+           Same posture as `pinnedMentees` below and for the same reason: a
+           persisted array from an older build may be any shape at all, and a
+           malformed entry here would mark the wrong row viewed or put a
+           phantom into the Submitted tab.
+           TRUNCATION KEEPS THE NEWEST, which is the opposite of pins: a pin is
+           a working set whose oldest members are the ones lived with longest,
+           and a trace's newest entries are the ones still worth marking. */
+        const vcr = (merged as { viewedCareReviews?: unknown }).viewedCareReviews;
+        merged.viewedCareReviews = Array.isArray(vcr)
+          ? [...new Set(vcr.filter((x): x is string => typeof x === "string" && !!x))].slice(
+              -CARE_TRACE_CAP
+            )
+          : [];
+
+        const scr = (merged as { submittedCareReviews?: unknown }).submittedCareReviews;
+        if (!Array.isArray(scr)) {
+          merged.submittedCareReviews = [];
+        } else {
+          const seenSub = new Set<string>();
+          merged.submittedCareReviews = scr
+            .filter((e): e is { id: string; at: number } => {
+              const o = e as Partial<{ id: string; at: number }> | null;
+              if (!o || typeof o !== "object") return false;
+              if (typeof o.id !== "string" || !o.id) return false;
+              if (typeof o.at !== "number" || !Number.isFinite(o.at)) return false;
+              if (seenSub.has(o.id)) return false;
+              seenSub.add(o.id);
+              return true;
+            })
+            .slice(-CARE_TRACE_CAP);
+        }
+
         const pm = (merged as { pinnedMentees?: unknown }).pinnedMentees;
         if (!Array.isArray(pm)) {
           merged.pinnedMentees = [];
