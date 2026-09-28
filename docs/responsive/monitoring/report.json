@@ -1,5 +1,5 @@
 {
-  "at": 1790628039061,
+  "at": 1790630189238,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
@@ -579,7 +579,7 @@
       "id": "header.metrics-tabular",
       "label": "and every figure is tabular, so the column does not jitter as it changes",
       "ok": true,
-      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 19 unviewed · 6 overdue · 10 people · 26 teens"
+      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 18 unviewed · 6 overdue · 10 people · 26 teens"
     },
     {
       "id": "header.no-remainder",

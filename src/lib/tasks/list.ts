@@ -105,6 +105,45 @@ export function listEntriesForDomains(
   );
 }
 
+/** ═══ THE SUBMITTED SET (Care Reviews rework §5.1) ═══
+ *
+ *  `listEntriesForDomains` above runs `sortedOpen`, so it can only ever build
+ *  the open list. The Submitted tab needs the other half.
+ *
+ *  ═══ NO COALESCING, AND THAT IS NOT AN OVERSIGHT ═══
+ *
+ *  The open list groups a conversation's flags because several open items about
+ *  one conversation are one piece of work. A submitted review is a decision
+ *  that has already been made, and two decisions about one teen are two
+ *  entries in a history — collapsing them would hide one behind a disclosure
+ *  control on a list whose job is to show what happened.
+ *
+ *  ═══ NEWEST FIRST, WHICH IS THE OPPOSITE OF THE OPEN LIST ═══
+ *
+ *  Open runs oldest-first because the oldest thing is the most overdue. A
+ *  history runs newest-first because the last thing you did is the thing you
+ *  are most likely looking for. Ordered by WHEN IT WAS SUBMITTED, not by when
+ *  the item opened — the log is of decisions, not of arrivals.
+ */
+export function submittedEntries(
+  items: TaskItem[],
+  submitted: readonly { id: string; at: number }[],
+  domains: readonly TaskDomain[]
+): ListEntry[] {
+  const set = new Set(domains);
+  const byId = new Map(items.map((i) => [i.id, i]));
+  return [...submitted]
+    .sort((a, b) => b.at - a.at)
+    .map((r) => byId.get(r.id))
+    /* AN ID THAT NO LONGER RESOLVES IS DROPPED, not rendered as a blank row.
+       The store persists ids and the items come from a fixture, so switching
+       scenario leaves submissions pointing at items that do not exist in the
+       new one. That is a real state in the harness and a plausible one in
+       production after a data migration. */
+    .filter((i): i is TaskItem => !!i && set.has(i.domain))
+    .map((item) => ({ kind: "item" as const, id: item.id, item }));
+}
+
 /** ═══ EVERY FLAG — AND THERE IS ONE DOMAIN NOW (Phase 4) ═══
  *
  *  This said "Monitoring is one surface over three tiers, and the tiers do not

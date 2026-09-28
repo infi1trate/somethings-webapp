@@ -71,7 +71,7 @@ import {
   subscribeReviewDrafts,
 } from "@/lib/record/review-draft";
 import { proposalKindFor, PROPOSAL_LABEL } from "@/lib/record/proposal-kind";
-import { listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { submittedEntries, listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
   preselectedFor,
@@ -88,6 +88,7 @@ import {
 import { cn } from "@/lib/utils";
 import { oldestAgeLabel } from "@/lib/ia/age";
 import { overdueCount } from "@/lib/tasks/care-overdue";
+import { CARE_TAB_EMPTY, type CareTab } from "@/lib/ui/care-tab";
 
 /** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
  *  The two domains whose work CLEARS: billing reviews and the two escalation
@@ -385,10 +386,33 @@ export function TasksPage({
   const activeDomain: TaskDomain = "billing";
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
-  const entries = useMemo(
+  /** ═══ §5.1 — OPEN OR SUBMITTED ═══
+   *  SESSION-SCOPED, NOT PERSISTED. §3 gives the reasoning for sort and it
+   *  applies identically here: a supervisor returning to a list showing
+   *  something they switched to days ago, without remembering, misreads it —
+   *  and on this tab the misreading is the dangerous direction, because an
+   *  empty Submitted tab and an empty Open tab mean opposite things. The
+   *  default is always Open, which is where the work is. */
+  const [careTab, setCareTab] = useState<CareTab>("open");
+
+  const submittedRecords = useOnboardingStore((st) => st.submittedCareReviews);
+  const markCareReviewViewed = useOnboardingStore((st) => st.markCareReviewViewed);
+  const markCareReviewSubmitted = useOnboardingStore((st) => st.markCareReviewSubmitted);
+
+  const openEntries = useMemo(
     () => listEntriesForDomains(items, domains, now),
     [items, domains, now]
   );
+  const submitted = useMemo(
+    () => submittedEntries(items, submittedRecords, domains),
+    [items, submittedRecords, domains]
+  );
+  /* ONE `entries`, SO EVERYTHING DOWNSTREAM IS TAB-AGNOSTIC. The search
+     adapter, the virtualizer, the selection model and the pane all read this —
+     switching the source here rather than branching at each of them is what
+     keeps the Submitted tab from becoming a second list component, which is
+     the defect K.1 spent a whole pass removing one surface along. */
+  const entries = careTab === "submitted" ? submitted : openEntries;
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
    *  retirement needs to report how many of a cleared tier closed today, which is
@@ -692,6 +716,24 @@ export function TasksPage({
 
   const activeEntry: ListEntry | null =
     entries.find((e) => e.id === selectedEntryId) ?? focusedEntry ?? entries[0] ?? null;
+
+  /** ═══ §5.2 — "VIEWED" MEANS THE RECORD OPENED IN THE PANE ═══
+   *  THE THRESHOLD, STATED: an item counts as viewed when it is the pane's
+   *  active entry — which is what happens on a click, on a keyboard move, and
+   *  on the default selection of the first row.
+   *  THE DEFAULT SELECTION IS DELIBERATELY INCLUDED. `activeEntry` falls back
+   *  to `entries[0]`, so landing on the list marks its first row viewed without
+   *  a click. That is correct rather than convenient: the pane renders that
+   *  record in full beside the list, so the supervisor HAS seen it — and a
+   *  marker claiming otherwise on a row whose content is on screen would be
+   *  the list contradicting the pane.
+   *  AN EFFECT AND NOT A RENDER-TIME WRITE. The React Compiler rejects state
+   *  writes during render, and a store write in a `useMemo` would fire twice
+   *  under StrictMode. */
+  useEffect(() => {
+    if (!mounted || careTab !== "open" || !activeEntry) return;
+    markCareReviewViewed(activeEntry.id);
+  }, [mounted, careTab, activeEntry, markCareReviewViewed]);
   /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
    *  It carries `status: "resolved"`, so the buckets have filtered it out — and
    *  `entries.find(...)` returns undefined for it, which is exactly the shape of
@@ -945,6 +987,13 @@ export function TasksPage({
         return next;
       });
       setResolvedIds((prev) => new Set(prev).add(item.id));
+      /* ═══ §5.1 — THE SUBMISSION PERSISTS ═══
+         `resolvedIds` and `completed` are page state and die with the mount,
+         which is why the Submitted tab would have been empty on every fresh
+         visit. This is the persisted record — an id and an instant, nothing
+         else, so it never becomes a second copy of clinical data that can drift
+         from the fixture it points at. */
+      markCareReviewSubmitted(item.id, Date.now());
       /* THE OUTCOME COMES FROM THE COMMIT DETAIL, not from the payload: the
          supervisor may have picked a different code than the model proposed, and
          the record is what they submitted. */
@@ -1050,7 +1099,26 @@ export function TasksPage({
              fact either surface can state.
              FILTER-AWARE, AND IT SAYS SO (§6.4) — see Monitoring's own note on
              why the qualification lives in the label rather than the figure. */
-          [
+          careTab === "submitted"
+            ? /* ═══ §5.1 — THE FIGURES FOLLOW THE ACTIVE STATE ═══
+                 "Viewing Submitted must not show the open count." So the line
+                 is the submitted count alone: `unviewed` is a fact about work
+                 still waiting to be read, and `overdue` is a fact about work
+                 still open — neither means anything about a decision already
+                 made, and rendering either here would be a number that looks
+                 authoritative and describes the other tab.
+                 THE NAV BADGE IS UNAFFECTED and stays the open count whichever
+                 tab is active — it belongs to the destination, not to this
+                 control. `openCounts` is its source and nothing here touches
+                 it. */
+              [
+                {
+                  value: String(shown.length),
+                  /* NEEDS-COPY-NICOLE */
+                  label: "submitted",
+                },
+              ]
+            : [
             {
               value: String(shown.length),
               label: "open",
@@ -1218,46 +1286,54 @@ export function TasksPage({
                    CARE REVIEWS LOSES NOTHING because §3 gives it column
                    sorting as its organising mechanism. */
                 showFilters={false}
+                /* ═══ §5.1 — ONLY ON CARE REVIEWS ═══
+                   The axis is this destination's; Risk Flags has no submitted
+                   set and no such distinction. */
+                tabs={
+                  scope === "care-reviews"
+                    ? {
+                        value: careTab,
+                        onChange: setCareTab,
+                        count: { open: openEntries.length, submitted: submitted.length },
+                      }
+                    : undefined
+                }
                 /* NEEDS-COPY-NICOLE. §6.1: one field for both names — and see
                    the adapter's note on the mentor not being drawn. */
                 searchHint="Search teen or mentor"
               />
               {shown.length === 0 && filtering ? (
-                /* ═══ FILTERED TO NOTHING IS NOT NOTHING TO REVIEW (§6.4) ═══
-                   "A supervisor must never be able to mistake 'filtered to
-                   nothing' for 'nothing to review.'" `Worklist`'s own empty
-                   state is written for a cleared queue and would assert one
-                   here while rows sit behind a dropdown. This states the hidden
-                   count — the fact that distinguishes the two — and carries the
-                   way out. Deliberately NOT `WholePageEmpty`, which is the
-                   surface resting and is a different claim entirely. */
+                /* ═══ RETIRED WITH FILTERS (§4) ═══
+                   This branch was the filtered-empty state, and its rule —
+                   "a supervisor must never be able to mistake 'filtered to
+                   nothing' for 'nothing to review'" — is the reasoning §5.1's
+                   two empty states inherit. §4 removed filters from this
+                   surface, so `filtering` is permanently false and this is
+                   unreachable. Kept because the rule applies again the day
+                   filters return, which §4 asked to have recorded. */
+                null
+              ) : shown.length === 0 && scope === "care-reviews" ? (
+                /* ═══ §5.1 — THE TWO EMPTIES READ DIFFERENTLY ═══
+                   "No open reviews is an achievement; no submitted reviews is
+                   a blank history." One shared "Nothing here" would flatten
+                   those into the same sentence and teach a supervisor that an
+                   empty safety queue is unremarkable.
+                   `role="status"` so a switch to a tab that turns out to be
+                   empty is announced rather than leaving a reader looking at a
+                   blank column wondering whether it loaded. */
                 <div
                   role="status"
-                  data-anno-ref="filtered-empty"
+                  data-anno-ref={`care-empty:${careTab}`}
                   className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-6 py-6"
                 >
                   <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
-                    {/* NEEDS-COPY-NICOLE */}
-                    No reviews match these filters.
+                    {CARE_TAB_EMPTY[careTab].line}
                   </p>
-                  <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                    {/* NEEDS-COPY-NICOLE */}
-                    {entries.length === 1
-                      ? "1 review is hidden."
-                      : `${entries.length} reviews are hidden.`}
-                  </p>
-                  <button
-                    type="button"
-                    data-anno-ref="clear-filters-empty"
-                    onClick={() => setFilters(EMPTY_FILTERS)}
-                    className={cn(
-                      "mt-3 inline-flex min-h-11 items-center rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold",
-                      RING
-                    )}
-                  >
-                    {/* NEEDS-COPY-NICOLE */}
-                    Clear filters
-                  </button>
+                  {CARE_TAB_EMPTY[careTab].detail && (
+                    <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                      {CARE_TAB_EMPTY[careTab].detail}
+                    </p>
+                  )}
                 </div>
               ) : (
               <Worklist

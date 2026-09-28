@@ -71,7 +71,7 @@ import {
 import { ESCALATION_ACK_SLA } from "@/lib/monitoring/constants";
 import type { ShiftFacts } from "@/lib/tasks/shift";
 import type { TaskItem } from "@/lib/tasks/types";
-import { elapsedAgo, oldestAgeLabel } from "@/lib/ia/age";
+import { elapsedAgo } from "@/lib/ia/age";
 
 /** ═══ THE TONES, AND `breach` IS RESERVED ═══
  *  Lifted unchanged from the shift sequence's vocabulary rather than invented,

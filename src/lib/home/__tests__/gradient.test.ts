@@ -107,10 +107,6 @@ describe("one decorative glyph on the page, and it is the wave (G, budget)", () 
   it("hides it from assistive tech, because the text carries the meaning", () => {
     /* G.1.3. Emoji rendering varies across platforms and fonts, so the glyph
        can never be the sole carrier of anything. */
-    const greeting = PAGE.slice(
-      PAGE.indexOf('data-anno-ref="today-greeting"'),
-      PAGE.indexOf('data-anno-ref="today-greeting"') + 900
-    );
     /* ═══ THE GLYPH IS INSIDE AN `aria-hidden` TILE NOW (L.2.1) ═══
        It was `<span aria-hidden>👋</span>` inline at body size. L.2 makes it a
        51×51 TILE, so the `aria-hidden` sits on the tile and the glyph is a
