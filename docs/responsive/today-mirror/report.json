@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-28T14:27:27.173Z",
+  "generated": "2026-09-28T14:46:44.599Z",
   "rows": [
     {
       "id": "store.present",
@@ -147,14 +147,14 @@
       "tone": "attention",
       "directive": false,
       "href": "/app/risk-flags",
-      "text": "123 Risk Flags 123 open · oldest 8d ago Risk Flags. 123 open · oldest 8d ago."
+      "text": "123 Risk Flags 123 open · oldest 7d ago Risk Flags. 123 open · oldest 7d ago."
     },
     {
       "id": "care-reviews",
       "tone": "attention",
       "directive": false,
       "href": "/app/care-reviews",
-      "text": "16 Care Reviews 16 open · oldest 3d ago Care Reviews. 16 open · oldest 3d ago."
+      "text": "16 Care Reviews 16 open · oldest 2d ago Care Reviews. 16 open · oldest 2d ago."
     }
   ]
 }

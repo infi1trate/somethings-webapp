@@ -95,6 +95,7 @@ import {
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
+import { devClockAt } from "@/lib/home/dev-clock";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -497,6 +498,7 @@ function RegionError({ line, onRetry }: { line: string; onRetry: () => void }) {
 
 export function TodayPage() {
   const mounted = useMounted();
+  const devClockKey = useOnboardingStore((st) => st.devClockKey);
   const tasksScenarioId = useOnboardingStore((s) => s.tasksScenarioId);
   const monitoringScenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
   const shiftLastSeenAt = useOnboardingStore((s) => s.shiftLastSeenAt);
@@ -545,7 +547,16 @@ export function TodayPage() {
         : null,
     [mounted, monitoringScenarioId, tasksScenarioId, mountedAt]
   );
-  const now = data?.clockOverride ?? mountedAt;
+  /** ═══ THE PINNED CLOCK OUTRANKS BOTH (Phase J.1) ═══
+   *  Precedence, widest to narrowest: the dev bar's pinned position, then the
+   *  scenario's own `clockOverride`, then the mount instant.
+   *  THE PIN WINS OVER THE SCENARIO DELIBERATELY. A scenario override moves the
+   *  HOUR and keeps today's date, so it cannot reach the Friday variant or the
+   *  Monday obligation overlap; the pin carries a weekday. When a reader has
+   *  pinned a moment, honouring the scenario's hour instead would silently
+   *  discard the thing they just asked for. */
+  const pinnedClock = devClockAt(devClockKey);
+  const now = pinnedClock ?? data?.clockOverride ?? mountedAt;
 
   const devLoadState = useOnboardingStore((st) => st.devLoadState);
   /** Per-region retries, which WIN over the plan once a reader has used one —

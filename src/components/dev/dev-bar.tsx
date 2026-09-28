@@ -91,6 +91,10 @@ const ACTIVITY_PREFIX = "activity:";
  *  name a record, so `onChange` must be able to tell the families apart without
  *  guessing from the id. */
 const TASKS_PREFIX = "tasks:";
+/** ═══ THE TODAY AXIS (Phase J.2) ═══
+ *  Prefixed like the other four, for the same reason: one select carries five
+ *  independent axes and an unprefixed id could collide with a record scenario's. */
+const TODAY_PREFIX = "today:";
 /** And the same again for chat, which is the fifth screen level. Four prefixed
  *  families now share one select, and the prefix is the only reason `onChange` can
  *  be a switch rather than a guess. */
@@ -114,6 +118,7 @@ const MONITORING_PREFIX = "monitoring:";
  *  `/app/escalation` would also match `/app/escalation/{id}`, the record hop,
  *  which belongs to no scenario axis. */
 const TASKS_ROUTES = ["/app/care-reviews", "/app/tasks"] as const;
+const TODAY_ROUTES = ["/app/today"] as const;
 const MONITORING_ROUTES = [
   "/app/escalations",
   "/app/risk-flags",
@@ -140,6 +145,8 @@ import {
 import { AnnoModeControl } from "@/components/anno/mode-control";
 import { useWordTruncate } from "@/lib/dev/use-word-truncate";
 import { cn } from "@/lib/utils";
+import { DEV_CLOCK_POSITIONS } from "@/lib/home/dev-clock";
+import { TODAY_SCENARIOS } from "@/lib/home/scenarios";
 
 /** The bar's height, exported so the body's padding cannot drift from it. */
 export const DEV_BAR_H = 40;
@@ -182,6 +189,10 @@ const RING =
 
 /** Where each persona lands when there is no record to hold. Unchanged from the
  *  pill this replaces. */
+/** Which screens honour the pinned clock. Named in the control's own label so
+ *  a reader is never wondering why a pin changed nothing on a fifth screen. */
+const CLOCK_SCREENS = ["Today", "Monitoring"];
+
 const PERSONAS: { key: Persona; label: string; dest: string }[] = [
   { key: "mentor", label: "Mentor", dest: "__mentor__" },
   { key: "lead-mentor", label: "Lead mentor", dest: "/app/team" },
@@ -302,6 +313,10 @@ export function DevBar() {
   const barRef = useRef<HTMLDivElement>(null);
   const edges = useEdgeOverflow(barRef);
   const setDevLoadState = useOnboardingStore((s) => s.setDevLoadState);
+  const devClockKey = useOnboardingStore((s) => s.devClockKey);
+  const todayScenarioId = useOnboardingStore((s) => s.todayScenarioId);
+  const setTodayScenario = useOnboardingStore((s) => s.setTodayScenarioId);
+  const setDevClockKey = useOnboardingStore((s) => s.setDevClockKey);
 
   const pickRole = (p: (typeof PERSONAS)[number]) => {
     setPersona(p.key);
@@ -477,7 +492,9 @@ export function DevBar() {
             value={
               !mounted
                 ? ""
-                : pathname.startsWith("/app/activity")
+                : onAxis(pathname, TODAY_ROUTES)
+                  ? `${TODAY_PREFIX}${todayScenarioId ?? ""}`
+                  : pathname.startsWith("/app/activity")
                   ? `${ACTIVITY_PREFIX}${activityScenarioId}`
                   : onChat
                     ? `${CHAT_PREFIX}${chatScenarioId}`
@@ -501,6 +518,19 @@ export function DevBar() {
                 // business doing.
                 if (!pathname.startsWith("/app/activity")) {
                   router.push("/app/activity", { scroll: false });
+                }
+                return;
+              }
+              // ── TODAY: same shape, and it writes THREE axes rather than one.
+              //    A Today scenario is a named setting of the tasks axis, the
+              //    monitoring axis and the pin set — see `lib/home/scenarios.ts`
+              //    on why it composes the existing sources instead of adding a
+              //    fourth. Writing them here rather than in the store keeps the
+              //    composition in one readable place.
+              if (value.startsWith(TODAY_PREFIX)) {
+                setTodayScenario(value.slice(TODAY_PREFIX.length) || null);
+                if (!onAxis(pathname, TODAY_ROUTES)) {
+                  router.push(TODAY_ROUTES[0], { scroll: false });
                 }
                 return;
               }
@@ -588,6 +618,19 @@ export function DevBar() {
                 every tap at its coordinates was taken by the nav's subtree and the
                 control could not be operated at all. Found by Playwright naming
                 the intercepting element, not by looking at it. */}
+            {/* ═══ TODAY, THE SEVENTH SCREEN LEVEL (Phase J.2, J.3) ═══
+                Registered as "Today", matching the route and the nav label. The
+                LOADER calls this domain `Home` (`HOME_LOAD_STAGES`,
+                `homeLoadPlanFor`) — reported as an inconsistency and not
+                renamed, because the loader domain is another surface's
+                contract. */}
+            <optgroup label="Today">
+              {TODAY_SCENARIOS.map((sc) => (
+                <option key={sc.id} value={`${TODAY_PREFIX}${sc.id}`}>
+                  {sc.label}
+                </option>
+              ))}
+            </optgroup>
             <optgroup label="Tasks">
               {TASK_SCENARIOS.map((s) => (
                 <option key={s.id} value={`${TASKS_PREFIX}${s.id}`}>
@@ -655,6 +698,52 @@ export function DevBar() {
             {LOAD_STATES.map((st) => (
               <option key={st} value={st}>
                 {LOAD_STATE_LABEL[st]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* ── AXIS 4 · CLOCK ────────────────────────────────────────────────
+            Today Phase J.1. A PINNED SIMULATED MOMENT, independent of the
+            scenario axis — which is the whole point of it existing beside
+            `clockOverride` rather than instead of it. Most states this surface
+            has to demonstrate are the same data at a different time, so pinning
+            the clock is what keeps the fixture set at six scenarios rather than
+            roughly eighteen.
+
+            NAMED POSITIONS, NOT A DATE PICKER. J.4 specifies its positions in
+            terms a calendar does not carry — "inside a block, Mon–Thu", "inside
+            the obligation while a block is also running" — and working out
+            which date satisfies those is exactly what a fixture should
+            encapsulate. The pack makes the point against itself: the reference
+            Figma's "Monday October 11, 2026" is a Sunday.
+
+            THE LABEL NAMES ITS SCOPE, for the same reason `Load` does: Today
+            and the Monitoring surfaces read this and nothing else does, so an
+            unqualified "Clock" would be the version that wastes an afternoon. */}
+        <label className="flex shrink-0 items-center gap-1.5">
+          {/* TODO-COPY */}
+          <span className="hidden text-[var(--text-muted)] lg:inline">
+            Clock
+            <span className="text-[var(--text-muted)]">{` (${CLOCK_SCREENS.join(", ")})`}</span>
+          </span>
+          <select
+            aria-label={`Pinned clock (${CLOCK_SCREENS.join(", ")})`}
+            value={mounted ? (devClockKey ?? "") : ""}
+            onChange={(e) => setDevClockKey(e.target.value || null)}
+            className={cn(
+              "rounded-md border border-[color:var(--border-contour)] bg-[var(--surface-s1)] px-2 py-1",
+              "text-[var(--text-primary)]",
+              RING
+            )}
+          >
+            {/* NEEDS-COPY-NICOLE. The unpinned default, and it is FIRST because
+                the real clock is the normal state — a harness that opens
+                pinned is a harness that lies about what the app does. */}
+            <option value="">— live clock —</option>
+            {DEV_CLOCK_POSITIONS.map((pos) => (
+              <option key={pos.key} value={pos.key}>
+                {pos.label}
               </option>
             ))}
           </select>

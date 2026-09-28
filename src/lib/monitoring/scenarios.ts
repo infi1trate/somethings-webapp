@@ -611,6 +611,16 @@ const BUILDERS: Record<string, Builder> = {
 
   "flag-repeat-pattern": (now, ts) => {
     const pool = flagPool(ts, now);
+    /* ═══ AN EMPTY POOL IS A REAL STATE NOW (Today Phase J.3) ═══
+       This read `pool[0].id` unguarded. Every task fixture that existed
+       yielded at least one open flag, so it never fired — and the Today
+       `all-clear` fixture is the first that yields none, which made it crash:
+       "Cannot read properties of undefined (reading 'id')".
+       IT IS REACHABLE FROM THE DEV BAR, not only from a test. The task axis
+       and the monitoring axis are independent, so selecting this scenario with
+       a flagless shift white-screened the surface. A repeat pattern over no
+       flags is simply no flags; the guard says so rather than throwing. */
+    if (pool.length === 0) return base(now, [], 0.4);
     const one = pool[0];
     /* THREE FLAGS, ONE CONVERSATION. Same teen, same objectId, three ages — and
        `conversationFlagCount` says three, which is what step 3 reads. */

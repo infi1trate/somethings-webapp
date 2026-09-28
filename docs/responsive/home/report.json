@@ -29,7 +29,7 @@
       "id": "sequence.names",
       "label": "every destination's accessible name carries its state",
       "ok": true,
-      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here. | Risk Flags. 69 open · oldest 6d ago. | Care Reviews. 19 open · oldest 3d ago."
+      "detail": "Escalations. 2 active · 3 close-out items overdue. Start here. | Risk Flags. 69 open · oldest 5d ago. | Care Reviews. 19 open · oldest 3d ago."
     },
     {
       "id": "sequence.directive-in-name",

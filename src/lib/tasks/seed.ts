@@ -1106,6 +1106,164 @@ export interface TaskScenario {
   build: (now: number) => TaskItem[];
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE TODAY FIXTURES (Today rebuild, Phase J.3)
+//
+// Three states Today has to demonstrate and no existing scenario produces.
+// They exist because of one measured constraint in the directive ladder:
+//
+//   `directiveCardId` tries tone `breach`, then `attention`, walking
+//   DIRECTIVE_ORDER (escalations → care-reviews → risk-flags) inside each. And
+//   the Care Reviews card's tone can only ever be `attention` or `clear` — its
+//   `breach` arm was deliberately removed when `CARE_REVIEW_SLA` was retired,
+//   because nothing could reach it.
+//
+// SO CARE REVIEWS LEADS ONLY WHEN ESCALATIONS AND RISK FLAGS ARE BOTH CLEAR.
+// That is why these fixtures zero the other two destinations rather than merely
+// making care reviews older: age is not what the ladder reads.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** ═══ NOTHING OPEN ANYWHERE (J.3 "All clear") ═══
+ *  Serves A (no badge renders at zero), B (the zero-state second lines) and
+ *  I.6 (no start-here module renders at all).
+ *  RESOLVED ITEMS ONLY, NOT AN EMPTY LIST. An empty array would also produce
+ *  zero open, and would additionally empty "Closed today" — so the all-clear
+ *  state would be indistinguishable from a shift that never loaded. A cleared
+ *  board is work that got DONE, and the footer is where that shows. */
+function allClear(now: number): TaskItem[] {
+  return build(
+    [
+      /* ═══ ONE SEED FOR BOTH, SO THE TWO DOMAINS SHARE TEENS (§2.4) ═══
+         `closedFill` walks the roster as `(i * 3 + seed) % ROSTER.length`, so
+         the same seed hands the same first teens to both fills — which is what
+         the cross-domain reuse invariant requires and what a real shift looks
+         like. Different seeds produced two disjoint sets and `seed.test.ts`
+         failed with "no teen appears in more than one domain". */
+      ...closedFill("riskFlagReview", 6, () => LOW_MOOD(), 30),
+      ...closedFill(
+        "monthlyReReview",
+        3,
+        () => billingPayload(true, now, CODES.mddMild, CODES.mddMild, 7),
+        30
+      ),
+    ],
+    now
+  );
+}
+
+/** ═══ SIXTEEN CARE REVIEWS, CARE REVIEWS LEADING (J.3 "Shift-start backlog") ═══
+ *  Serves I.2 (oldest-first ordering at volume) and I.3 — the "4 of 16" partial
+ *  -list disclosure and the `See all` affordance, which is the safety claim of
+ *  the whole phase and which NO pre-existing fixture could exercise: every one
+ *  of them put the rationale on Escalations, where at most two are ever open.
+ *
+ *  THE PACK'S OWN ROW SAYS "All three destinations open", AND THAT CANNOT
+ *  COEXIST WITH THIS ROW'S OTHER HALF. See the module note: an open escalation
+ *  or an open flag takes the directive on tone, so Care Reviews could not lead
+ *  and the preview would show escalations rather than the sixteen. The row is
+ *  named for I.2/I.3, so the sixteen win and the other two destinations are
+ *  clear. "All three open" is already covered by `typical-shift`.
+ *
+ *  OLDEST AT 3d, which the ordering derives from and the rationale cites. */
+function careReviewBacklog(now: number): TaskItem[] {
+  return build(
+    [
+      /* Sixteen across sixteen distinct surveys — one review per object, because
+         a care review is about one teen's coding and coalescing them would be
+         incoherent rather than merely dense. */
+      ...fill({
+        taskType: "monthlyReReview",
+        count: 11,
+        conversations: 11,
+        minAgo: 5 * HOUR,
+        /* ═══ 80h SO THE OLDEST GENUINELY READS "3d" ═══
+           J.3 asks for "the oldest at 3d". `fill` walks the window by
+           conversation, so the last of eleven lands at
+           `5 + (80-5) * 10/11` ≈ 73h — over three whole days, which is what
+           `ageOf` and `elapsedLabel` both floor to "3d".
+           IT WAS `3 * DAY`, which put the oldest at 66h. Both formatters agree
+           now, and 66h floors to "2d" — so the fixture would have been named
+           for a 3d item and produced a 2d one. */
+        maxAgo: 80 * HOUR,
+        payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 14),
+        /* ═══ 30 AND 32, AND THE PAIR IS NOT ARBITRARY ═══
+           `fill` walks `(conv + seed * 7) % ROSTER.length` over 24 teens. The
+           first pair I used (33/34) strides by 7 and OVERLAPPED at this
+           conversation count, which produced exactly the incoherence the
+           striding comment above warns about: `seed.test.ts` reported
+           "tk-marco has both an intake and a re-review", and a teen cannot
+           plausibly have both — an intake is the first code ever assigned and
+           a re-review revises an existing one.
+           30 gives the 11 re-reviews teens {18–23, 0–4}; 32 gives the 5
+           intakes {8–12}. Disjoint, checked by the test rather than by eye. */
+        seed: 30,
+      }),
+      ...fill({
+        taskType: "intakeBillingReview",
+        count: 5,
+        conversations: 5,
+        minAgo: 2 * HOUR,
+        maxAgo: 30 * HOUR,
+        payload: () => billingPayload(false, now, null, CODES.gad, 11),
+        seed: 32,
+      }),
+      /* A cleared footer, so the scenario is a SHIFT rather than a cold start. */
+      /* ═══ SEEDED TO LAND INSIDE THE RE-REVIEW WINDOW, DELIBERATELY ═══
+         18 gives teens {18, 21, 0, 3}, all of which also hold an open
+         re-review above — so this scenario has teens carrying work in two
+         domains, which §2.4 requires and `seed.test.ts` checks. A resolved
+         flag beside an open review is also the commoner real case. */
+      ...closedFill("riskFlagReview", 4, () => LOW_MOOD(), 18),
+    ],
+    now
+  );
+}
+
+/** ═══ EXACTLY TWO OPEN OF THE RECOMMENDED TYPE (J.3 "Preview under cap") ═══
+ *  Serves I.3.3 — "show what exists, state the true total, never pad". The
+ *  preview must render two rows and say "2 of 2", and `See all` must NOT
+ *  render, because nothing is open beyond the shown set. */
+function previewUnderCap(now: number): TaskItem[] {
+  return build(
+    [
+      {
+        taskType: "monthlyReReview",
+        teen: TEENS.simone,
+        mentor: MENTORS.omar,
+        objectId: "survey-simone-cap",
+        openedAgo: 2 * DAY,
+        payload: billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15),
+      },
+      {
+        taskType: "intakeBillingReview",
+        teen: TEENS.theo,
+        mentor: MENTORS.brandy,
+        objectId: "survey-theo-cap",
+        openedAgo: 7 * HOUR,
+        payload: billingPayload(false, now, null, CODES.gad, 10),
+      },
+      /* ═══ THE CROSS-DOMAIN TEEN IS NAMED, NOT FILLED (§2.4) ═══
+         The two open reviews above belong to Simone and Theo, and the NAMED
+         EIGHT are deliberately outside the fill roster — so no `closedFill`
+         can ever share a teen with them. A resolved flag on Simone is what
+         puts one teen in two domains here. */
+      {
+        taskType: "riskFlagReview",
+        teen: TEENS.simone,
+        mentor: MENTORS.omar,
+        objectId: "conv-simone-cap-done",
+        openedAgo: 2 * DAY,
+        payload: LOW_MOOD(),
+        status: "resolved" as const,
+        resolvedFracOfDay: 0.4,
+      },
+      ...closedFill("riskFlagReview", 2, () => LOW_MOOD(), 36),
+    ],
+    now
+  );
+}
+
 /** A SIXTH SCENARIO IS ONE ENTRY. Same extensibility contract as the Activity
  *  simulator's registry. */
 export const TASK_SCENARIOS: TaskScenario[] = [
@@ -1117,6 +1275,13 @@ export const TASK_SCENARIOS: TaskScenario[] = [
      What this scenario stresses is every item that HAS a clock, past it. */
   { id: "breach-overnight", label: "Breach overnight", description: "Every deadline past its SLA.", build: breachOvernight },
   { id: "active-escalation", label: "Active escalation", description: "Two open escalations, one 911.", build: activeEscalation },
+  /* ═══ THE TODAY FIXTURES (Phase J.3) ═══
+     NEEDS-COPY-NICOLE on all three labels. Named for the STATE they produce
+     rather than for a persona, and checked against the prohibited vocabulary
+     list — no "caseload", no "at risk", no conversation synonyms. */
+  { id: "all-clear", label: "All clear", description: "Nothing open on any destination; a cleared footer.", build: allClear },
+  { id: "care-review-backlog", label: "Care review backlog", description: "16 care reviews open, oldest 3d; other destinations clear.", build: careReviewBacklog },
+  { id: "preview-under-cap", label: "Preview under cap", description: "Exactly 2 care reviews open, so the preview shows everything.", build: previewUnderCap },
 ];
 
 export const DEFAULT_TASK_SCENARIO_ID = "typical-shift";

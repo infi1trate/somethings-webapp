@@ -1,11 +1,11 @@
 {
-  "at": 1790381836764,
+  "at": 1790606991315,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags Friday September 25, 2026 69 open · 5d oldest 0 of 69 flags reviewed "
+      "detail": "Risk Flags Monday September 28, 2026 69 open · 5d oldest 0 of 69 flags reviewed "
     },
     {
       "id": "input.rows",
@@ -369,13 +369,13 @@
       "id": "hdr.own.risk-flags.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Friday September 25, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Monday September 28, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Friday September 25, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Monday September 28, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -567,7 +567,7 @@
       "id": "header.list-surfaces-date",
       "label": "the list surfaces carry the shift date instead, and both carry the same one",
       "ok": true,
-      "detail": "2 list surfaces · Friday September 25, 2026"
+      "detail": "2 list surfaces · Monday September 28, 2026"
     },
     {
       "id": "header.metric-count",
