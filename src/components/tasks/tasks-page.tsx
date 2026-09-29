@@ -1301,7 +1301,7 @@ export function TasksPage({
         ) : (
           <div
             className={cn(
-              // 40 / 60 at >=1280px. Below 1100px only ONE of the two mounts —
+              // 50 / 50 at >=1280px. Below 1100px only ONE of the two mounts —
               // switching rather than shrinking, so neither pane is ever squeezed
               // into a width it cannot use.
               // ═══ AN EXPLICIT ROW, OR THE GRID GROWS PAST ITS OWN HEIGHT ═══
@@ -1316,23 +1316,66 @@ export function TasksPage({
               // rather than the page. Same fix, same reason, as the dialog's
               // body row.
               "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
-              /* ═══ THE PANE PINS AT 790px FROM 1645px UP (§0) ═══
-                 The full derivation is on Monitoring's grid. What matters here
-                 is §0's hard constraint: 1645 is the width at which the 60%
-                 track ALREADY measured 790, so the Care Reviews pane's rendered
-                 width is unchanged at every viewport — below the breakpoint it
-                 is the same fraction it was, above it it holds the figure it had
-                 reached. Every pixel this pass adds goes to the list. */
+              /* ═══ 50 / 50, AND IT WAS 40 / 60 — ANSWERED ═══
+                 THE DEFECT IT FIXES, MEASURED. Four columns do not fit the list
+                 card the 40% track left: at 1280 the card was 367px, the row
+                 needed 428, and §3's shrink ladder paid the 61px out of the
+                 mentee caption — 66 of the 130px "Presentation Change" needs.
+                 The four widths on the table were measured before this changed
+                 (list-card width → outcome): 40/60 → 367, caption truncated;
+                 45/55 → 413, the cadence column at 0px; 48/52 → 440, "9…";
+                 50/50 → 459, and the cadence label 38 of the 43px it wants.
+                 MEASURED AFTER, at 1280: 459px of card, nothing clipped and
+                 nothing truncated on the row. The deficit is gone rather than
+                 moved — §3's ratios are still what would pay it, and there is
+                 nothing left for them to pay.
+
+                 ═══ AND THE PIN MOVES WITH IT, FROM 1645 TO 1943 (§0) ═══
+                 §0's hard constraint is that the pane's rendered width is
+                 unchanged at every viewport: the breakpoint has to be the width
+                 at which the FRACTION already measures 790, or the pane jumps
+                 across it. 1645 was that width for a 60% track. For a 50% track
+                 it is not — MEASURED at 1645: the grid is 1302, so half of it
+                 less the 20px gap is 641, and pinning 790 there would have
+                 GROWN the pane by 149px on crossing, which is precisely the §0
+                 violation the variant-ordering note below exists to prevent.
+                 1943 IS THE CROSSOVER, AND IT WAS MEASURED RATHER THAN DERIVED:
+                 at 1943 the grid is exactly 1600, so the two halves are 790 and
+                 790 — the old pinned rule and the new fraction agree there to
+                 the pixel. So the pane holds 790 from 1943 up, it is continuous
+                 across the breakpoint, and every pixel above it still goes to
+                 the list.
+                 THE COST, STATED: between 1645 and 1943 the pane is narrower
+                 than it used to be — at 1645, 641 rather than 790. That is the
+                 trade the answer chose, and it is the same trade at every width
+                 in the range: the list gets what the pane gives up. MEASURED at
+                 the pane's new narrowest (459px, at 1280): no horizontal
+                 overflow and nothing truncated inside it, and axe on this
+                 destination came back one `target-size` BETTER than before,
+                 because the wider card gave a control room.
+
+                 ═══ AND MONITORING KEEPS 40/60 — A DIVERGENCE, STATED ═══
+                 The cross-reference above sends a reader to Monitoring's grid
+                 for the derivation, and that grid is now a different split with
+                 its own pin at 1645. The reason the two can differ is the reason
+                 they were the same: this split is a consequence of THIS
+                 surface's list holding a four-column table, which Monitoring's
+                 does not — its rows are conversations. So the two grids share
+                 §0's rule (the pane never renders wider than it has, every new
+                 pixel goes to the list) and no longer share its instance. If
+                 Monitoring's list ever grows columns, this is the precedent and
+                 1645 is the number to re-derive. */
               /* BOTH VARIANTS ARE ARBITRARY, AND THAT IS NOT A STYLE CHOICE.
                    MEASURED: written as `xl:` + `min-[1645px]:`, Tailwind emitted
                    the named breakpoint AFTER the arbitrary one, so at 2560 the
                    40/60 rule won and the columns came out 686/1030 — the pane
                    1030px WIDER than it had ever rendered, which is the §0
-                   violation this rule exists to prevent. Two arbitrary `min-[]`
+                   violation this rule exists to prevent. Still true of 1280 and
+                   1943: two arbitrary variants sort by value, and 1280 < 1943. Two arbitrary `min-[]`
                    variants sort against each other by value, so the order is
                    the arithmetic rather than the emitter's category ranking.
                    1280 is `xl` spelled out; nothing below this line changed. */
-                "min-[1280px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)] min-[1645px]:grid-cols-[minmax(0,1fr)_790px]"
+                "min-[1280px]:grid-cols-[minmax(0,50fr)_minmax(0,50fr)] min-[1943px]:grid-cols-[minmax(0,1fr)_790px]"
             )}
           >
             {/* ── THE LIST SCROLLS ON ITS OWN, INSIDE ITSELF ──
