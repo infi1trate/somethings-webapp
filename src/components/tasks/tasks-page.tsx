@@ -50,6 +50,13 @@ import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { ListToolbar } from "@/components/ia/list-toolbar";
+import { CareSortNotice } from "@/components/tasks/review-row";
+import {
+  applyCareSort,
+  nextSort,
+  type CareSort,
+  type CareSortColumn,
+} from "@/lib/ui/care-sort";
 import { shiftDateLabel } from "@/lib/home/shift-date";
 import {
   VIEW_OPTIONS_DEFAULT,
@@ -395,6 +402,17 @@ export function TasksPage({
    *  default is always Open, which is where the work is. */
   const [careTab, setCareTab] = useState<CareTab>("open");
 
+  /** ═══ §3 — THE USER'S SORT, OR NONE ═══
+   *  `null` IS THE DEFAULT AND IS NOT A SORT KEY. It means the list renders in
+   *  `compareTasks`' order, which is what the surface chose; see the module
+   *  note in `care-sort.ts` on why the default is the absence of a key rather
+   *  than a key named "default".
+   *  SESSION-SCOPED, LIKE `careTab` ABOVE, and for the same reason it gives:
+   *  a supervisor returning to a queue ordered by something they set days ago,
+   *  without remembering, misreads it — and here the dangerous direction is a
+   *  list that looks like it is in urgency order and is in alphabetical order. */
+  const [careSort, setCareSort] = useState<CareSort | null>(null);
+
   const submittedRecords = useOnboardingStore((st) => st.submittedCareReviews);
   const markCareReviewViewed = useOnboardingStore((st) => st.markCareReviewViewed);
   const markCareReviewSubmitted = useOnboardingStore((st) => st.markCareReviewSubmitted);
@@ -614,6 +632,19 @@ export function TasksPage({
     [shown, now]
   );
 
+  /** ═══ §3 — THE ORDER THE LIST RENDERS IN ═══
+   *  THE ONE ORDER-DEPENDENT SET. `shown` feeds four counts above and none of
+   *  them care about sequence, so the sort is applied once, here, rather than
+   *  threaded through the derivations — `unviewedCount`, `drafted`, `overdue`
+   *  and the metrics would all be identical either way and reading them off a
+   *  re-sorted array would invite someone to believe otherwise.
+   *  IDENTICAL REFERENCE WHEN NO SORT IS SET, so the default path allocates
+   *  nothing and cannot reorder — `applyCareSort` returns its input. */
+  const ordered = useMemo(
+    () => applyCareSort(shown, careSort, paneItemFor),
+    [shown, careSort]
+  );
+
 /* ═══ RETIRED BY §5.3 ═══
      `3d oldest` left the metric line: age is on every row in its own column,
      where a reader compares it against the rows around it rather than against
@@ -734,8 +765,18 @@ export function TasksPage({
   const focusedEntry: ListEntry | null =
     focusReview != null ? (entries.find((e) => e.id === focusReview) ?? null) : null;
 
+  /* ═══ THE FALLBACK IS THE FIRST VISIBLE ROW, NOT THE FIRST ENTRY (§3) ═══
+     It read `entries[0]`, which was the same object while nothing reordered
+     the list. A sort makes them different, and `entries[0]` would select a row
+     somewhere down the list while the pane claimed to be showing the top of
+     it — and §5.2 marks the pane's active entry VIEWED, so the mismatch would
+     also put a read marker on the wrong row.
+     THE LOOKUP STAYS ON `entries`: a selected id has to resolve whatever the
+     order is, and `ordered` is a permutation of `shown`, which is a
+     subsequence of `entries` — the wider set is the correct one to resolve
+     against. */
   const activeEntry: ListEntry | null =
-    entries.find((e) => e.id === selectedEntryId) ?? focusedEntry ?? entries[0] ?? null;
+    entries.find((e) => e.id === selectedEntryId) ?? focusedEntry ?? ordered[0] ?? null;
 
   /** ═══ §5.2 — "VIEWED" MEANS THE RECORD OPENED IN THE PANE ═══
    *  THE THRESHOLD, STATED: an item counts as viewed when it is the pane's
@@ -1322,6 +1363,19 @@ export function TasksPage({
                    the adapter's note on the mentor not being drawn. */
                 searchHint="Search teen or mentor"
               />
+              {/* ═══ §3 — THE OVERRIDE SAYS IT IS ON, AND OFFERS THE WAY BACK ═══
+                  ABOVE THE LIST RATHER THAN IN THE HEADER ROW. The three
+                  columns are fixed-width and full at 1280 (§6.5 measured the
+                  mentee cell down to 11px before `COL_MENTEE_MIN`), so there is
+                  no room in the header for a fourth thing — and a reset inside
+                  the row of sort controls would be a fourth control a reader
+                  has to distinguish from the three that sort.
+                  RENDERED EVEN WITH NO SORT, and it draws nothing: it is the
+                  live region, and a region that appears with its own first
+                  message announces nothing. See the component. */}
+              {scope === "care-reviews" && (
+                <CareSortNotice value={careSort} onReset={() => setCareSort(null)} />
+              )}
               {shown.length === 0 && filtering ? (
                 /* ═══ RETIRED WITH FILTERS (§4) ═══
                    This branch was the filtered-empty state, and its rule —
@@ -1362,7 +1416,23 @@ export function TasksPage({
                 /* THE FILTERED SET. `applyFilters` is a `filter`, so this is a
                    subsequence of `entries` and the comparator's order is intact
                    — §6.4's "filters subset; they never reorder". */
-                entries={shown}
+                /* §3's ORDER. `shown` for every count, `ordered` for the
+                   list — see the memo. */
+                entries={ordered}
+                /* ═══ §3 — THE COLUMN HEADERS BECOME CONTROLS ═══
+                   Care Reviews only. Risk Flags' rows are conversations with
+                   no cycle and no mentee column, and its five-step comparator
+                   is the ordering a supervisor is meant to read — handing it a
+                   sort would let a reader silently turn that off. */
+                sort={
+                  scope === "care-reviews"
+                    ? {
+                        value: careSort,
+                        onToggle: (c: CareSortColumn) =>
+                          setCareSort((cur) => nextSort(cur, c)),
+                      }
+                    : undefined
+                }
                 /* ═══ §5.2 — ONLY WHERE THE STATE EXISTS ═══
                    Care Reviews tracks viewing; Risk Flags does not, and passing
                    the set there would mark 123 rows unviewed against a trace

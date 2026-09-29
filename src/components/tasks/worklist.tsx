@@ -84,6 +84,14 @@ import {
   ReviewRowHeader,
   proposalCaption,
 } from "@/components/tasks/review-row";
+import type { CareSort, CareSortColumn } from "@/lib/ui/care-sort";
+
+/** §5.2's leading marker slot. ONE NUMBER, TWO READERS: the row reserves it so
+ *  a dot appearing cannot shift the row, and the header reserves the same width
+ *  so its first column starts at the row's first column. It was inline in the
+ *  row and the header did not have it at all, which measured as a 16px offset
+ *  between "Mentee" and the names under it. */
+const MARKER_SLOT = 8;
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
  *
@@ -727,7 +735,11 @@ function Row({
           presence/absence a non-colour channel.
           `aria-hidden` BECAUSE THE NAME SAYS IT — see `ariaLabel`, which
           carries "unviewed" in words. */}
-      <span aria-hidden className="flex shrink-0 items-center justify-center" style={{ width: 8 }}>
+      <span
+        aria-hidden
+        className="flex shrink-0 items-center justify-center"
+        style={{ width: MARKER_SLOT }}
+      >
         {unviewed && (
           <span
             data-anno-ref="unviewed-dot"
@@ -760,23 +772,33 @@ function Row({
           the old full-bleed treatment read as a table. */}
       <span
         className={cn(
-          "flex min-w-0 flex-1 flex-col justify-center",
+          "flex min-w-0 flex-col justify-center",
           hairline && "border-t border-[color:var(--border-subtle)]"
         )}
-        /* ═══ THE MENTEE COLUMN CANNOT COLLAPSE (§6.5) ═══
+        /* ═══ THE MENTEE COLUMN'S SHARE (§6.5, CORRECTED IN §3) ═══
            MEASURED at 1280 before the cadence column replaced the codes
            column: this cell was **11px** wide and the NAME truncated — "Theo
            L." at 50px of content in an 11px box. §6.5 describes the second
            line truncating "while the cell has room"; the cell had no room at
            all, because three fixed columns plus the detail pane had taken
-           everything.
-           SWAPPING 144 FOR 72 GOT IT TO 83px AND THAT WAS STILL SHORT — the
-           caption "Presentation Review" is 110px. This floor is what closes
-           it. The same constant is on `ReviewIdentityCell`, which Today's
-           table uses; this row renders its own identity spans (the one fork
-           K.1 named), so the floor has to be stated in both places until that
-           fork closes. */
-        style={{ minWidth: COL_MENTEE_MIN }}
+           everything. Swapping 144 for 72 got it to 83px and that was still
+           short — the caption "Presentation Review" is 110px.
+           IT WAS `flex-1` PLUS `minWidth`, AND THE FLOOR IS WHAT CLIPPED THE
+           ROW. A `min-width` a flex line cannot honour does not make the line
+           yield, it makes the line OVERFLOW: measured at 1280 with the pane
+           open, the list card is 367px, this row wanted 428, and the 61px
+           remainder ran out of an `overflow-hidden` card — taking the REVIEW
+           AGE column with it, down to 1 visible pixel, on the column §3 had
+           just given a sort control.
+           SO THE NUMBER IS A BASIS AND THE PRIORITY IS A SHRINK RATIO. This
+           cell is what the row's spare width goes to and what it starts from;
+           the cadence cell gives 6× as readily, so it is still what yields
+           first; and when it has given everything, this caption truncates
+           rather than a whole column leaving the card.
+           STILL STATED IN TWO PLACES — `ReviewIdentityCell` carries the same
+           flex for Today's table, because this row renders its own identity
+           spans (the one fork K.1 named) until that fork closes. */
+        style={{ flex: `1 1 ${COL_MENTEE_MIN}px` }}
       >
         {/* ═══ LINE 1 — THE JOB, OR THE PERSON ═══
             DEADLINE-FORWARD: the task name, at the row's strongest available
@@ -1222,6 +1244,8 @@ export function Worklist({
    *  version counter. Empty default, so a surface that does not track drafts is
    *  unchanged by the prop existing. */
   drafted,
+  /** §3. Passed only by Care Reviews; omitted, the header is a legend. */
+  sort,
   domain,
   subject,
   emptyLine,
@@ -1252,6 +1276,11 @@ export function Worklist({
   viewed?: ReadonlySet<string>;
   /** §8. Same shape and the same reason. */
   drafted?: ReadonlySet<string>;
+  /** §3. */
+  sort?: {
+    value: CareSort | null;
+    onToggle: (column: CareSortColumn) => void;
+  };
   /** §5's row scale. Required rather than defaulted — see the geometry note:
    *  a surface that forgot to pass it would render rows the virtualizer is not
    *  measuring, which is the one failure in this file that is invisible. */
@@ -1266,7 +1295,14 @@ export function Worklist({
    *  the reason the two lists still did not align after §1.3 gave both the
    *  same disc. */
   hasGroups: boolean;
-  entries: ListEntry[];
+  /** ═══ `readonly` SINCE §3 ═══
+   *  The page hands this the SORTED array, and the sort must be the last thing
+   *  that decides order. `readonly` is what says so at the boundary: an
+   *  in-place `entries.sort(...)` anywhere below would be a second ordering
+   *  applied after the first, and it would not be visible at the call site.
+   *  The band builders widened to match rather than the array being copied —
+   *  neither mutates, and copying would have made the unsorted path allocate. */
+  entries: readonly ListEntry[];
   /** THE WHOLE DOMAIN'S ITEMS, open and resolved. Needed only by band
    *  retirement, which reports how many of a cleared tier closed today — a fact
    *  that by definition is not in `entries`, since `entries` is the open set. */
@@ -1388,7 +1424,7 @@ export function Worklist({
   const bands = useMemo(
     () =>
       grouping === "none"
-        ? [{ id: "all", label: "", entries, taskCount: entries.length }]
+        ? [{ id: "all", label: "", entries: [...entries], taskCount: entries.length }]
         : grouping === "deadline"
           ? deadlineBandsFor(entries, now)
           : bandsFor(entries),
@@ -1804,7 +1840,11 @@ export function Worklist({
           columns that are not there. */}
       {entries.some((e) => paneItemFor(e).payload.kind === "billing") && (
         <ReviewRowHeader
+          sort={sort}
           disc={ROW_GEOMETRY[preset].disc}
+          /* THE ROW'S LEADING SLOT, so "Mentee" sits over the names rather
+             than 16px to their left — see the header's own note. */
+          markerWidth={MARKER_SLOT}
           /* §6.1: the codes column became the cadence column, and it is half
              its width — which is what gives the mentee column back the room
              §6.5's collapse took. */

@@ -118,7 +118,7 @@ export interface TierBand {
  *  Returns a SINGLE band with `label: null` semantics handled by the caller when
  *  the domain has only one. Since arch-A that is no longer a reason to suppress
  *  the header — see `bandsAreMeaningful`, which used to and now does not. */
-export function bandsFor(entries: ListEntry[]): TierBand[] {
+export function bandsFor(entries: readonly ListEntry[]): TierBand[] {
   const byId = new Map<TaskType, TierBand>();
   const order: TaskType[] = [];
 
