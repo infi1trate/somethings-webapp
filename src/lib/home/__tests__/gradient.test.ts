@@ -32,21 +32,37 @@ describe("the token is a documented design-system extension (G.2.2)", () => {
     expect(hits, "the token is missing, or defined for only one theme").toHaveLength(2);
   });
 
-  it("is warm — its light stop is an existing warm token's value", () => {
+  it("is warm — its light stop sits in the base's own hue family", () => {
     /* G.2.2's default: warm the gradient into the base's family. The base is
        `--surface-s1` #f6f4ef, warm neutral cream, shared with every supervisor
-       route. The top stop is `--band-sand-bg` #f4efe1 — an EXISTING warm
-       token, so the extension adds a gradient and no new hue.
+       route.
        A COOL WASH IS THE THING THIS FORBIDS: the reference mock's is cool, and
-       cool on a warm base reads as two palettes rather than one system. */
-    expect(TOKENS).toContain("#f4efe1");
+       cool on a warm base reads as two palettes rather than one system.
+
+       ═══ THE NAME SAID "an existing warm token's value" AND HAD BEEN STALE
+             SINCE L.1.2 ═══
+       G.2 shipped the stop AS `--band-sand-bg` #f4efe1, which is what that
+       phrasing described. L.1.2 raised it to #ead9ae and M.6 softened it to
+       #efe3c4 — neither is a token's value, so the claim in the title has been
+       false for two phases while the test stayed green. It stayed green because
+       the `toContain("#f4efe1")` line only asserted that the token still
+       EXISTS somewhere in the file, which it does and always did: an assertion
+       whose input is not the thing under test. Removed rather than relaxed.
+       WHAT ACTUALLY SURVIVES, AND IS NOW WHAT IS CHECKED: the stop is in the
+       base's hue family. `r > g > b` is the warm-cream signature — #f6f4ef is
+       246/244/239 and #efe3c4 is 239/227/196 — and a cool wash inverts it.
+       That is stronger than the old `r > b`, which a pink or a magenta would
+       also pass. */
     const block = TOKENS.slice(TOKENS.indexOf("--gradient-header:"));
     const firstStop = block.match(/#([0-9a-f]{6})/i)?.[1];
     expect(firstStop).toBeDefined();
-    const [r, , b] = (firstStop as string).match(/../g)!.map((h) => parseInt(h, 16));
-    // WARM = red channel above blue. A cool wash inverts that, and this is the
-    // one property that distinguishes the two without naming a specific hue.
+    const [r, g, b] = (firstStop as string).match(/../g)!.map((h) => parseInt(h, 16));
     expect(r, `#${firstStop} is not warm (r ${r} <= b ${b})`).toBeGreaterThan(b);
+    expect(
+      g,
+      `#${firstStop} is not in the cream family (expected r ${r} > g ${g} > b ${b})`
+    ).toBeGreaterThan(b);
+    expect(r).toBeGreaterThan(g);
   });
 
   it("fades to zero alpha, so it bounds nothing (G.2.4, option a)", () => {

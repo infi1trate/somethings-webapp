@@ -81,6 +81,21 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
     })
     .filter((r): r is NonNullable<typeof r> => r != null);
 
+  /* ═══ NOTHING PINNED MEANS NOTHING RENDERS (M.2.1) ═══
+   *  F.1 asked for a one-line empty state, H.5 put it in a container because
+   *  bare text on the page ground read as a rendering fault, and K.8 dropped
+   *  the border because a full-width box holding one sentence read as an
+   *  unfinished placeholder. M.2.1 ends the series: the section does not
+   *  render at all — no label, no container, no copy.
+   *  AND IT IS THE RIGHT END. Each of those three passes was fixing how the
+   *  empty state LOOKED, which is the tell that the problem was that it
+   *  existed: an orienting surface explaining a feature the reader has not
+   *  used is the page teaching instead of reporting, and the toggle that
+   *  creates a pin lives on the record where a reader meets it in context.
+   *  THE RETURN IS HERE, NOT IN THE PARENT, so the parent stays one line and
+   *  the rule lives with the section it governs. */
+  if (rows.length === 0) return null;
+
   return (
     <section
       data-anno-ref="today-pinned"
@@ -96,43 +111,11 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
         Pinned mentees
       </p>
 
-      {rows.length === 0 ? (
-        /* ═══ ONE LINE, NO ILLUSTRATION, NO CTA (F.1) ═══
-           It explains what pinning is and WHERE to do it — and deliberately
-           does not link there, because F rules out "a CTA that implies an
-           action available on Today". Pinning happens on a mentee's record;
-           saying so is the whole of the empty state. */
-        /* ═══ IT SITS IN A CONTAINER NOW (Phase H.5) ═══
-           MEASURED before: a bare `<p>` with no surface, no border and no
-           padding, directly on the page ground between two bordered cards. It
-           read as a rendering fault rather than as a state — which is H.5's
-           own diagnosis and is visible in the 1900px capture.
-           SAME REGISTER AS EVERY OTHER MODULE: `--surface-card`,
-           `--border-contour`, `--radius-elevated`, `p-4`. Copy is unchanged
-           and still one line (F.1), still with no CTA — the fix is the
-           container, not the words. */
-        /* ═══ THE EMPTY STATE IS A LINE, NOT A BOX (K.8) ═══
-           H.5 put it in a container because it had been bare text on the page
-           ground and read as a rendering fault. MEASURED at 1900, that
-           container is 857px wide holding one short sentence, and K.8's
-           reading is right: a full-width bordered box with one line in it
-           reads as an unfinished placeholder rather than a designed state.
-           SO IT KEEPS THE SURFACE AND DROPS THE BORDER. `--surface-s1` on the
-           page ground is a quiet inset rather than an empty card, the padding
-           is the modules' own `p-4`, and the copy is unchanged and still one
-           line (F.1) with no CTA. What H.5 was fixing — text with no surface
-           and no padding — stays fixed. */
-        <div
-          data-anno-ref="today-pinned-empty"
-          className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-4 py-3"
-        >
-          <p className="text-[13px] leading-[19px] text-[var(--text-secondary)]">
-            {/* NEEDS-COPY-NICOLE */}
-            Pin a mentee from their record to keep them here for the week.
-          </p>
-        </div>
-      ) : (
-        <ul className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
+      {/* ═══ WHAT WAS HERE: THE EMPTY STATE (F.1 → H.5 → K.8 → M.2.1) ═══
+          A one-line explanation of pinning in a quiet inset. Removed with the
+          early return above, which records why. The three passes that restyled
+          it are worth keeping in the history rather than the markup. */}
+      <ul className="overflow-hidden rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]">
           {rows.map((r, i) => {
             const disc = discFor(r.teen.id);
             return (
@@ -212,7 +195,6 @@ export function PinnedMentees({ input }: { input: ObligationInput }) {
             );
           })}
         </ul>
-      )}
     </section>
   );
 }
