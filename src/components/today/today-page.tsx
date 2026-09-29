@@ -332,77 +332,132 @@ function DestinationCard({
              COLOUR IS NOT THE SOLE CARRIER: the card's count and its second
              line state the condition in words — "2 active · 3 close-out items
              overdue" — which is what closes the item open since H.3.5. */
+          /* ═══ M.7 IS UNBLOCKED, AND THE TOP EDGE IS THE PART THAT WAS
+                 MISSING ═══
+             M.7 reported this blocked because the frame it linked was in the
+             all-clear state, so the red treatment could not be read and L.6's
+             two tokens were inferred from a token search. THE TWO-ESCALATION
+             STATE IS IN `4081:26107` — node `4081:23462` — and it reads:
+
+               border-t-3, border-b/l/r 1px, colour `button/error` #f93b51
+               drop-shadow 0px 9px 9.45px rgba(249,59,81,0.1)
+               radius 16
+
+             THE HEAVIER TOP EDGE IS BUILT EXACTLY. `border-t-[3px]` against
+             the 1px the other three sides inherit — which is the one thing
+             M.7 named that could not be guessed, and it is now measured
+             rather than described.
+             THE COLOUR AND THE SHADOW STAY IN-SYSTEM, AND THAT IS REPORTED
+             RATHER THAN QUIETLY DECIDED. `button/error` #f93b51 has no
+             counterpart in this build: Bloom here ships `--state-error`
+             #cc3300 (4.73:1), and #f93b51 resolves to one of the four
+             non-Bloom libraries the reference file binds. Taking it would mean
+             a raw hex in a component and a SECOND red in the system, both of
+             which the standing constraints forbid — so the outline is
+             `--state-error`.
+             THE SHADOW GEOMETRY ALSO DIVERGES, measured: the node's escalation
+             shadow is offset 9 / radius 9.45 while its ordinary card is offset
+             6 / radius 4.7 — so it is NOT "Elevation/2 retinted with offset and
+             radius unchanged" as L.6 and M.7 both describe; it is a larger
+             shadow as well as a red one. `--shadow-alert` is this build's
+             red-tinted card elevation and is what ships. Both divergences are
+             in the report. */
           card.tone === "breach"
-            ? "border-[color:var(--state-error)] shadow-[var(--shadow-alert)]"
+            ? "border-t-[3px] border-[color:var(--state-error)] shadow-[var(--shadow-alert)]"
             : "shadow-[var(--shadow-card)]",
           "transition-colors hover:bg-[var(--tint-hover)]",
           RING
         )}
       >
-        <span className="flex min-w-0 items-center gap-2">
+        {/* ═══ ONE ROW, VERTICALLY CENTRED (M.4.1, read from 4081:26107) ═══
+            IT WAS TWO ROWS — icon + count + label, then state line + chevron —
+            which is why M.4.1 reports the caret "sits low": it was pinned to
+            the bottom row rather than centred in the 80px card.
+            THE NODE'S ANATOMY IS ONE ROW: `items-center` over [icon 24, a
+            column of headline + second line, chevron 24]. That centres the
+            caret by construction rather than by a nudge, and it is also what
+            L.5.1 describes — count and label on one line, the fact beneath.
+            So M.4.1 and L.5 are the same structure, and the build had drifted
+            from both. */}
+        {/* ═══ ONE ROW, VERTICALLY CENTRED (M.4.1, read from 4081:26107) ═══
+            IT WAS TWO ROWS — icon + count + label, then state line + chevron —
+            which is why M.4.1 reports the caret "sits low": it was pinned to
+            the bottom row rather than centred in the 80px card.
+            THE NODE'S ANATOMY IS ONE ROW: `items-center` over [icon 24, a
+            column of headline + second line, chevron 24], with the node's own
+            `gap/m` of 16 between them. That centres the caret by construction
+            rather than by a nudge, and it is also what L.5.1 describes — count
+            and label on one line, the fact beneath — so M.4.1 and L.5 want the
+            same structure and the build had drifted from both. */}
+        <span className="flex min-w-0 flex-1 items-center gap-4">
           {/* ═══ THE ICON IS 24px AND PRIMARY INK (L.5.2) ═══
               It was `size-4` at `--text-secondary` — L.5 measures 24×24 and
               calls the build's "undersized and too light", which the
-              measurement bears out. The nav's own glyph, read from `NAV`. */}
+              measurement bears out. The nav's own glyph, read from `NAV`.
+              CONFIRMED AT 24 in the node (M.4.2), which is why it is unchanged
+              here while the trailing chevron moved. */}
           <Icon aria-hidden className="size-6 shrink-0 text-[var(--text-primary)]" />
-          {/* ═══ THE COUNT PRECEDES THE LABEL (L.5.1) ═══
-              K.4.3 PUT IT AFTER, to make the three cards share a structure when
-              one of them had no numeral. L.5.1 measures the reference as
-              "2 Escalations" and reverses that — and L wins where they
-              disagree.
-              THE STRUCTURAL PROBLEM K.4.3 WAS SOLVING IS REAL AND IS SOLVED
-              DIFFERENTLY HERE: L.5.5 requires the label to sit in the SAME
-              POSITION in both states, so the numeral slot is reserved at a
-              fixed width and renders empty on a zero card rather than
-              collapsing and shifting the label left.
-              `aria-hidden`: the state line below says the number in words and
-              the `sr-only` sentence speaks it once in order. */}
-          <span
-            aria-hidden
-            className="flex shrink-0 justify-end text-[20px] leading-[28px] tabular-nums text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-mono)", width: 22 }}
-          >
-            {count != null && count > 0 ? count : ""}
+
+          {/* THE TEXT COLUMN — headline, then the decision-relevant fact. */}
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="flex min-w-0 items-center gap-2">
+              {/* ═══ THE COUNT PRECEDES THE LABEL (L.5.1) ═══
+                  K.4.3 PUT IT AFTER, to make the three cards share a structure
+                  when one of them had no numeral. L.5.1 measures the reference
+                  as "2 Escalations" and reverses that.
+                  THE STRUCTURAL PROBLEM K.4.3 WAS SOLVING IS REAL AND IS SOLVED
+                  DIFFERENTLY: L.5.5 requires the label in the SAME POSITION in
+                  both states, so the numeral slot is reserved at a fixed width
+                  and renders empty on a zero card rather than collapsing and
+                  shifting the label left.
+                  `aria-hidden`: the state line says the number in words and the
+                  `sr-only` sentence speaks it once, in order. */}
+              <span
+                aria-hidden
+                className="flex shrink-0 justify-end text-[20px] leading-[28px] tabular-nums text-[var(--text-primary)]"
+                style={{ fontFamily: "var(--font-mono)", width: 22 }}
+              >
+                {count != null && count > 0 ? count : ""}
+              </span>
+              <span
+                className={cn(
+                  "min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
+                  /* ═══ THE TITLE IS BOLD (L.5.3), AND THE NODE SAYS REGULAR ═══
+                     MEASURED, `4081:26107` renders this headline in the text
+                     family at 400 — `Body/Large-Regular/Web`, 16/24. M.4.3
+                     restates L.5.3's "bold title" and the pack wins over the
+                     reference by its own rule, so bold it is; reported as a
+                     divergence rather than silently taking either side.
+                     `font-display` IS THE CHANNEL THAT CAN CARRY IT. Avantt
+                     ships Bold only, so this is a real weight step; a
+                     `font-bold` on Lausanne would be a declaration with nothing
+                     behind it, which is the same measured fact the sub-header
+                     note records. */
+                  "font-display"
+                )}
+              >
+                {card.label}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "min-w-0 truncate text-[12px] leading-[16px]",
+                TONE_TEXT[card.tone]
+              )}
+            >
+              {card.tone === "breach" && (
+                <AlertTriangle className="mr-1 inline size-3 shrink-0 align-[-2px]" aria-hidden />
+              )}
+              {card.state}
+            </span>
           </span>
-          <span
-            className={cn(
-              "min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]",
-              /* ═══ THE TITLE IS BOLD (L.5.3) ═══
-                 L.5.3 reports the build's weights as "close to inverted" — the
-                 title was regular and only the directive card's was emphasised.
-                 `font-display` is the channel: Avantt ships Bold only, so a
-                 `font-bold` on Lausanne would be a declaration with nothing
-                 behind it. Every card's title now, not just the directive's. */
-              "font-display"
-            )}
-          >
-            {card.label}
-          </span>
-        </span>
-        {/* ═══ THE SECOND LINE AND THE CHEVRON SHARE A ROW ═══
-            H.2.3 puts the decision-relevant fact second and the chevron last.
-            On a 275px card the chevron goes at the end of that line rather
-            than in a third row: it is an affordance for the card, not a fact
-            about it, and giving it its own row would spend a third of an 80px
-            card on decoration.
-            THE TRAILING FIGURE IS GONE — it moved into the headline above,
-            where H.2.3 puts it. Rendering it in both places would be the row
-            saying one fact twice, which is what its old note was guarding. */}
-        <span className="flex min-w-0 items-center gap-2">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-[12px] leading-[16px]",
-              TONE_TEXT[card.tone]
-            )}
-          >
-            {card.tone === "breach" && (
-              <AlertTriangle className="mr-1 inline size-3 shrink-0 align-[-2px]" aria-hidden />
-            )}
-            {card.state}
-          </span>
+
+          {/* ═══ 24px, AND IT WAS 16 (M.4.2, read from the node) ═══
+              `4081:26107` renders the trailing chevron at 24×24, the same size
+              as the leading glyph. It was `size-4`. */}
           <ChevronRight
             aria-hidden
-            className="size-4 shrink-0 text-[var(--text-muted)]"
+            className="size-6 shrink-0 text-[var(--text-muted)]"
           />
         </span>
         {/* THE WHOLE SENTENCE, ONCE, IN ORDER. "Start here" is NOT repeated
@@ -489,7 +544,23 @@ function TasksSection({
           All three top-right of the sub-header rather than bottom-right of the
           table, which is where the withdrawn footer put them. */}
       <div className="mt-4 flex items-center gap-2">
-        <h3 className="font-display text-[20px] font-bold leading-[24px] text-[var(--text-primary)]">
+        {/* ═══ 16/20, AND IT WAS AVANTT BOLD 20/24 (M.3.1) ═══
+            The reference has this at 20 against "Tasks" at 24 — a 1.2 ratio,
+            below the 1.25–1.5 range where two levels read as distinct. 24 → 16
+            is 1.5. A DELIBERATE DEVIATION FROM THE REFERENCE, on instruction.
+            `Label/Large-Bold/Web` NAMES A WEIGHT THAT CANNOT RENDER, and that
+            is fine here for a reason worth stating rather than working around:
+            TWK Lausanne ships the 400 face only in this build and measures
+            identically at 400/500/600/700, so `font-bold` on it would be a
+            declaration with nothing behind it. M.3.1's own justification is the
+            SIZE RATIO, not the weight — so the level reads as distinct on the
+            channel the instruction actually argues from, and the inert one is
+            left off instead of being faked with Avantt at 16. Reported.
+            `font-sans` IS NOT REDUNDANT: `globals.css` applies `font-display`
+            to every `h3`, so dropping the utility left this at Avantt 16 —
+            measured. The override is what puts it in the text family M.3.1
+            actually names. */}
+        <h3 className="font-sans text-[16px] leading-[20px] text-[var(--text-primary)]">
           {/* NEEDS-COPY-NICOLE */}
           Care reviews
         </h3>
@@ -572,16 +643,31 @@ function TasksSection({
             THE MENTEE COLUMN IS 285 INCLUDING ITS AVATAR — disc 36 + gap 12 +
             237 of text — so the three columns are equal as measured from their
             own left edges. */}
+        {/* ═══ ONE BORDERED CONTAINER, RADIUS 16, CLIPPING (M.5) ═══
+            IT WAS THREE PIECES: the header carried `rounded-t` and its own
+            bottom hairline, the list carried `border-x border-b` and
+            `rounded-b`, and nothing carried a top or side border ACROSS the
+            header — so the table read as square and open at the top.
+            READ FROM THE NODE, not inferred: `4345:6175` is a single
+            `border border-[button/border/subtle #cbc6be] rounded-[16px]
+            overflow-clip` container holding the header and the rows flush, and
+            the metadata's 1px inset on every child is that border rather than
+            padding. `--radius-inset` is this build's 16 and
+            `--border-subtle` is its #dfddd8 hairline — the existing tokens,
+            so nothing is authored.
+            THE CLIP IS WHAT MAKES THE RADIUS VISIBLE: without `overflow-hidden`
+            the header's own fill squares off the top two corners from inside,
+            which is what it was doing. */}
+        <div className="overflow-hidden rounded-[var(--radius-surface)] border border-[color:var(--border-subtle)]">
         <ReviewRowHeader
           disc={PREVIEW_DISC}
           equalWidth={COL_EQUAL}
           presentationWidth={COL_EQUAL}
           ageWidth={COL_EQUAL}
-          className="h-10 rounded-t-[var(--radius-inset)] px-0 py-0"
+          className="h-10 px-0 py-0"
         />
         <ul
           data-anno-ref="start-here-items"
-          className="overflow-hidden rounded-b-[var(--radius-inset)] border-x border-b border-[color:var(--border-subtle)]"
         >
           {preview.items.map((it, i) => (
             <li key={it.id}>
@@ -621,6 +707,7 @@ function TasksSection({
             </li>
           ))}
         </ul>
+        </div>
       </div>
     </section>
   );
@@ -931,7 +1018,14 @@ export function TodayPage() {
       style={{
         backgroundImage: "var(--gradient-header)",
         backgroundRepeat: "no-repeat",
-        backgroundSize: "100% 220px",
+        /* ═══ 420px, AND IT WAS 220 (M.6) ═══
+           "Extend the falloff further down the page so it reads as atmosphere
+           rather than a band with an edge." The height is the half of M.6 that
+           does the work: the stop softened by one step in the token file, and
+           nearly doubling the painted height is what removes the horizon. Set
+           here rather than in the token because it is a property of THIS
+           surface's composition, not of the gradient. */
+        backgroundSize: "100% 420px",
       }}
       className="h-full min-h-0 w-full overflow-y-auto"
     >
@@ -1124,8 +1218,18 @@ export function TodayPage() {
           previous build rendered escalation rows inside the care-review table
           with an empty Presentation column, because the type followed a
           rationale that could name any destination. */}
+      {/* ═══ 40px ABOVE THIS SECTION, NOT THE COLUMN'S 20 (M.3.2) ═══
+          MEASURED from the reference: the cards occupy y=24–104 and the Tasks
+          frame begins at y=144, so the gap is exactly 40. The column's
+          `gap-5` is 20, and M.3.2 reports the build at "roughly half" — which
+          it was, to the pixel.
+          `mt-5` ON TOP OF THE COLUMN GAP rather than a per-child gap override:
+          20 + 20 = 40, and it leaves every other gap in the column alone. A
+          `gap-10` on the column would have moved all four. */}
       {mounted && tasksPreview && (
-        <TasksSection preview={tasksPreview} now={now} />
+        <div className="mt-5 shrink-0">
+          <TasksSection preview={tasksPreview} now={now} />
+        </div>
       )}
 
       {/* ═══ PINNED MENTEES — BELOW THE DESTINATIONS, ABOVE "Closed today" ═══
@@ -1137,7 +1241,19 @@ export function TodayPage() {
           live section under a settled one buries it. */}
       {mounted && <PinnedMentees input={todayInput} />}
 
-      {stateOf("closed") === "ready" && <ClosedToday facts={facts} />}
+      {/* ═══ "Closed today" IS GONE (M.2.2) ═══
+          A.5 kept the values and made the label carry the semantic — "not
+          counted above" — because three open counts with a fourth quantity
+          under them read as four rows of one measure. M.2.2 removes the
+          section instead, and the removal is the stronger answer to the same
+          problem: closed items belong to the destinations that own them, and a
+          count of what a supervisor got through is the one thing this route is
+          specifically not for. Its own note said so ("the moment a count of
+          what somebody got through is given weight, this route starts
+          measuring output").
+          THE COMPONENT STAYS, unmounted — the strangler rule — because the
+          `ACTIVITY_DOMAIN_OF` mapping and the no-date-param gap (row 371) are
+          recorded in it and are the only place they are. */}
         </div>
 
         {/* ═══ THE SCHEDULE MOVES TO THE RAIL (Phase H.1, H.4) ═══
@@ -1175,6 +1291,12 @@ export function TodayPage() {
  *  THE ROUTINE TIER IS ABSENT, and that is `closedToday`'s own decision rather
  *  than an omission here — "closing a routine review is not an achievement worth
  *  a counter". */
+/* ═══ UNMOUNTED BY M.2.2 (strangler rule) ═══
+   Not deleted: it holds the Tasks-domain → Activity-domain mapping and the
+   record of gap row 371 (the ledger has no "today" axis, so its links land on
+   a domain's full history). Both are findings, and a finding with no code
+   attached to it is one the next reader re-derives. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ClosedToday({ facts }: { facts: ReturnType<typeof shiftFactsFor> }) {
   const entries = Object.entries(facts.closedToday).filter(
     ([, n]) => (n ?? 0) > 0

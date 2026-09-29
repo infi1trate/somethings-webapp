@@ -306,6 +306,35 @@
   --type-label-sm-tracking: 0px;
 
   /* ── Radii ──────────────────────────────────────────────────────────── */
+  /* ═══ --radius-rail / --surface-rail — TWO DOCUMENTED EXTENSIONS (M.1) ═══
+
+     M.1 measures the Suggested Schedule rail from node `4055:22115` and asks
+     for a 32px radius over a `stateLayers/onSecondary/Opacity-08` fill. It
+     also states the rule for the case: "If no Bloom step exists at a needed
+     value, register an extension and report it." Both are that case, and both
+     are registered HERE rather than inline, because a token file is where raw
+     values live and the standing constraint forbids them in components.
+
+     ═══ WHY NEITHER COULD BE MAPPED ═══
+
+     RADIUS. Bloom here ships 8 / 10 / 12 / 16 / 21.6 / 24 / 40 / 48 and no 32.
+     `--radius-panel` (24) is the nearest step and is visibly tighter at a
+     285×1197 container — a radius reads against the box it corners, and this
+     is the largest box on the page. The scale is not strict (48 and 21.6 are
+     both in it), so 32 is a legitimate new step rather than an off-scale value.
+
+     FILL. The node's ground is warmGrey/400 #a0998d at 8% — a warm state
+     layer. This build's tints are neutral (`--tint-faint` 2%, `--tint-hover`
+     4%, both `rgb(0 0 0 / …)`), so a warm 8% layer does not exist; the nearest
+     existing thing is `--text-tertiary`, which holds #a0998d as a TEXT colour
+     and would be semantic misuse as a background. The value is stated once,
+     here, and the rail consumes the token.
+     IT IS A LAYER, NOT A COLOUR: 8% alpha over whatever the page ground is, so
+     the rail stays in the gradient's family where they overlap instead of
+     punching a flat panel through it. */
+  --radius-rail: 32px;
+  --surface-rail: rgb(160 153 141 / 0.08);
+
   --radius-panel: 24px;
   --radius-card: 21.6px; /* Figma exact (spec “~22”) */
   --radius-pill: 9999px;
@@ -501,20 +530,34 @@
 
      THE RAW VALUES ARE CORRECT HERE AND ONLY HERE. A token file is where raw
      values live; the standing constraint forbids them in components. */
-  /* ═══ SATURATION RAISED (Phase L.1.2) ═══
-     WAS `#f4efe1`, which measures 1.05:1 against the page ground `#f6f4ef` —
-     L.1.2's "too faint to register", and the measurement agrees. This pack had
-     told the builder to keep it light; L.1 relaxes that instruction and holds
-     the contrast floor.
-     `#ead9ae` measures 1.27:1 against the ground, so the wash is roughly 2.4×
-     as present, and the text on it is measured at the gradient's TOP STOP —
-     its lowest-contrast point for dark ink — rather than its average:
-       greeting `--text-primary` #1f1e1d → 11.92:1
-       subtitle `--text-secondary` #58534b → 5.46:1  (floor 4.5) */
+  /* ═══ SOFTER AND TALLER (M.6) — AND L.1.2 HAD RAISED IT ═══
+     THE SERIES, SO THE NEXT READER DOES NOT REVERSE IT AGAIN. G.2 asked for a
+     light wash and shipped `#f4efe1`, which measures 1.05:1 against the page
+     ground `#f6f4ef` — L.1.2's "too faint to register", and the measurement
+     agreed. L.1.2 raised it to `#ead9ae`, 1.27:1, roughly 2.4× as present.
+     M.6 asks for softer THAN THAT and taller, "so it reads as atmosphere
+     rather than a band with an edge" — which is a different complaint from
+     either of the first two: not intensity but SHAPE. A short strong wash has
+     a horizon; a tall weak one does not.
+     SO THE TWO MOVE TOGETHER: the stop drops to `#efe3c4` — 1.15:1 against the
+     ground, between G.2's invisible 1.05 and L.1.2's 1.27 — and the painted
+     height nearly doubles, from 220px to 420px, in the component that applies
+     it. Softer alone would have returned to "too faint"; taller alone would
+     have made the band bigger rather than softer.
+     TEXT IS STILL MEASURED AT THE TOP STOP, the lowest-contrast point for dark
+     ink, never the average. MEASURED IN THE BROWSER against the opaque stop,
+     and these are the observed numbers rather than the predicted ones:
+       greeting `--text-primary` #1f1e1d → 13.04:1
+       subtitle `--text-secondary` #58534b → 5.98:1  (floor 4.5)
+     Both rose, because a lighter stop is a lighter ground under dark ink —
+     which is why softening was free here and is not in dark mode.
+     AND THEY ARE THE ONLY TWO. Everything else inside the painted 420px sits
+     on a card with its own opaque surface, so the gradient is not its ground;
+     checked rather than assumed. */
   --gradient-header: linear-gradient(
     180deg,
-    #ead9ae 0%,
-    rgb(234 217 174 / 0) 100%
+    #efe3c4 0%,
+    rgb(239 227 196 / 0) 100%
   );
 
   --tint-faint: rgb(0 0 0 / 0.02); /* barely-there row wash */
@@ -769,7 +812,16 @@
      the reason the note above states: a lightened copy of the light gradient
      reads as a smudge on charcoal. `#413a2c` is a warm lift on
      `--surface-s1` #272421; ink in dark mode is `#ffffff`, so the text floor is
-     not the binding constraint here — the wash's own visibility is. */
+     not the binding constraint here — the wash's own visibility is.
+     ═══ M.6 SOFTENS THE LIGHT STOP AND NOT THIS ONE ═══
+     The taller falloff applies in both themes — it is set once, in the
+     component — but the stop does not move here. On charcoal the wash is
+     ALREADY at the edge of visible at 1.19:1 against its ground, so softening
+     it would return dark mode to exactly the "too faint to register" state
+     L.1.2 was fixing in light mode. M.6's complaint is that a short strong
+     wash has a horizon; the extra height answers that on its own here, and
+     spending the stop as well would buy nothing and cost the wash. Reported as
+     a deliberate per-theme divergence rather than an oversight. */
   --gradient-header: linear-gradient(
     180deg,
     #413a2c 0%,
