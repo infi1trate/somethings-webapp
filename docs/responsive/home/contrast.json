@@ -26,23 +26,23 @@
     {
       "theme": "dark",
       "label": "page title",
-      "fg": "rgb(31, 30, 29)",
-      "bg": "rgb(246, 244, 239)",
+      "fg": "rgb(255, 255, 255)",
+      "bg": "rgb(39, 36, 33)",
       "px": 32,
       "weight": "700",
       "min": 3,
-      "ratio": 15.14,
+      "ratio": 15.43,
       "ok": true
     },
     {
       "theme": "dark",
       "label": "page subtitle",
-      "fg": "rgb(88, 83, 75)",
-      "bg": "rgb(246, 244, 239)",
+      "fg": "rgb(181, 176, 166)",
+      "bg": "rgb(39, 36, 33)",
       "px": 16,
       "weight": "400",
       "min": 4.5,
-      "ratio": 6.94,
+      "ratio": 7.15,
       "ok": true
     }
   ]

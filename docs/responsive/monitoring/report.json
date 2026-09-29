@@ -1,11 +1,11 @@
 {
-  "at": 1790609138739,
+  "at": 1790694417324,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags Monday September 28, 2026 69 open · 5d oldest 0 of 69 flags reviewed "
+      "detail": "Risk Flags Tuesday September 29, 2026 69 open · 5d oldest Search teen or mentor "
     },
     {
       "id": "input.rows",
@@ -369,13 +369,13 @@
       "id": "hdr.own.risk-flags.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Monday September 28, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Tuesday September 29, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Monday September 28, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Tuesday September 29, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -543,7 +543,7 @@
       "id": "header.shared",
       "label": "every destination renders the one header component",
       "ok": true,
-      "detail": "6 destinations"
+      "detail": "5 destinations"
     },
     {
       "id": "header.one-title-size",
@@ -555,85 +555,43 @@
       "id": "header.second-line-everywhere",
       "label": "every destination carries a second line under its title",
       "ok": true,
-      "detail": "/app/today: 56 · /app/escalations: 83 · /app/risk-flags: 25 · /app/care-reviews: 25 · /app/team: 47 · /app/mentees: 65"
+      "detail": "/app/escalations: 83 · /app/risk-flags: 26 · /app/care-reviews: 26 · /app/team: 47 · /app/mentees: 65"
     },
     {
       "id": "header.purpose-everywhere",
       "label": "and off the list surfaces it says what the destination is for, in a sentence",
       "ok": true,
-      "detail": "/app/today: 56 · /app/escalations: 83 · /app/team: 47 · /app/mentees: 65"
+      "detail": "/app/escalations: 83 · /app/team: 47 · /app/mentees: 65"
     },
     {
       "id": "header.list-surfaces-date",
       "label": "the list surfaces carry the shift date instead, and both carry the same one",
       "ok": true,
-      "detail": "2 list surfaces · Monday September 28, 2026"
+      "detail": "2 list surfaces · Tuesday September 29, 2026"
     },
     {
       "id": "header.metric-count",
-      "label": "with the metrics §2.10 names — at most two, and none on Today",
+      "label": "with the metrics each surface is allowed — none on Today, three on Care Reviews (§5.3)",
       "ok": true,
-      "detail": "/app/today 0/0 · /app/escalations 2/2 · /app/risk-flags 2/2 · /app/care-reviews 2/2 · /app/team 1/1 · /app/mentees 1/1"
+      "detail": "/app/escalations 2/2 · /app/risk-flags 2/2 · /app/care-reviews 3/3 · /app/team 1/1 · /app/mentees 1/1"
     },
     {
       "id": "header.metrics-tabular",
       "label": "and every figure is tabular, so the column does not jitter as it changes",
       "ok": true,
-      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 3d oldest · 10 people · 26 teens"
+      "detail": "2 active · 16 close-out items open · 69 open · 5d oldest · 19 open · 18 unviewed · 6 overdue · 10 people · 26 teens"
     },
     {
       "id": "header.no-remainder",
       "label": "and no metric counts what is LEFT",
       "ok": true,
-      "detail": "active · close-out items open · open · oldest · open · oldest · people · teens"
+      "detail": "active · close-out items open · open · oldest · open · unviewed · overdue · people · teens"
     },
     {
-      "id": "track.present",
-      "label": "the flag queue carries a shift track",
+      "id": "track.absent",
+      "label": "no shift track renders on the flag queue",
       "ok": true,
-      "detail": "0/9 · \"0 of 9 flags reviewed this shift\""
-    },
-    {
-      "id": "track.one-continuous-bar",
-      "label": "one continuous track, not segments — segments read as points scored",
-      "ok": true,
-      "detail": "1 fill element(s)"
-    },
-    {
-      "id": "track.never-green",
-      "label": "and it is never green",
-      "ok": true,
-      "detail": "rgb(31, 30, 29)"
-    },
-    {
-      "id": "track.states-no-remainder",
-      "label": "it states progress with its unit, never a count of what is left",
-      "ok": true,
-      "detail": "0 of 9 flags reviewed this shift"
-    },
-    {
-      "id": "track.no-speed",
-      "label": "and says nothing about speed — no rate, no streak, no elapsed time",
-      "ok": true,
-      "detail": "0 of 9 flags reviewed this shift | 0 of 9 flags reviewed this shift"
-    },
-    {
-      "id": "track.name-carries-the-fraction",
-      "label": "and the bar is never the only carrier — the fraction is in its name",
-      "ok": true,
-      "detail": "0 of 9 flags reviewed this shift"
-    },
-    {
-      "id": "track.completion-is-reachable",
-      "label": "working the queue reaches the completion state",
-      "ok": true,
-      "detail": "9/9 · 100% · complete=true"
-    },
-    {
-      "id": "track.completion-does-not-congratulate",
-      "label": "and it states the coverage achieved rather than praising anybody",
-      "ok": true,
-      "detail": "Every flag that arrived this shift has been reviewed"
+      "detail": "0 track(s)"
     },
     {
       "id": "live.off-by-default",

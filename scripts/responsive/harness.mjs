@@ -164,6 +164,33 @@ export async function openView(browser, view, vp, version) {
     { key: STORE_KEY, payload, once: SEEDED_FLAG }
   );
 
+  // ═══ THE THEME, AND WHY `emulateMedia` IS NOT IT ═══
+  //
+  // This app reads its theme from `localStorage["somethings.theme"]` — see
+  // `use-appearance.ts` — and applies a `.dark` CLASS to the root. It does not
+  // consult `prefers-color-scheme` at all.
+  //
+  // SO `page.emulateMedia({ colorScheme })` CHANGES NOTHING, and a probe that
+  // used it to sample two themes sampled the light one twice while labelling
+  // one run "dark". MEASURED: `monitoring-contrast`'s `dark row · subject`
+  // reported 16.64:1, which is the light value, on every run since it was
+  // written.
+  //
+  // `view.theme` IS OPTIONAL and omitting it leaves the app's own default, so
+  // every existing caller is unaffected by this existing.
+  if (view.theme) {
+    await context.addInitScript(
+      ({ key, theme }) => {
+        try {
+          localStorage.setItem(key, theme);
+        } catch {
+          /* private mode / blocked storage — the view renders the default */
+        }
+      },
+      { key: "somethings.theme", theme: view.theme }
+    );
+  }
+
   // ═══ PIN THE DEVICE MOCK'S CLOCK ═══
   //
   // The phone preview's status bar shows the REAL time now, on a minute tick. A

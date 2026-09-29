@@ -1411,11 +1411,31 @@ for (const [scenario, id, want] of [
      §2.10's claim is that ONE component serves them all, and a check that
      only looked at Monitoring's two could not tell a shared header from a
      fourth copy of one. */
+  /* ═══ TODAY LEFT THIS LIST (Today Phase L.2) ═══
+     L.2 made the GREETING the page title and deleted the separate "Today"
+     heading, so the route stopped mounting `PageHeader`. §2.10's claim —
+     ONE header component across the destinations that have one — is unchanged
+     for the five that still do; Today now has a bespoke hero, which L.2
+     required and which was reported as a real IA divergence when it shipped.
+     THIS CHECK WAS NOT RETARGETED AT THE TIME AND SHOULD HAVE BEEN. It went
+     red on the L merge and the failure was missed, because the suite's summary
+     line was empty in the battery output and an empty line read as a pass. The
+     lesson is the grep, not the check: a probe run that produces no verdict is
+     not a probe run that passed.
+     TODAY'S HERO IS ASSERTED IN ITS OWN SUITE — `gradient.test.ts` pins the
+     tile, the computed greeting and the absence of a date line. */
   const DESTINATIONS = [
-    ["/app/today", 0],
     ["/app/escalations", 2],
     ["/app/risk-flags", 2],
-    ["/app/care-reviews", 2],
+    /* ═══ THREE ON CARE REVIEWS (rework §5.3) ═══
+       §2.10 capped the pair at two — "a third is a dashboard, which this is
+       not." §5.3 asks for `16 open · 4 unviewed · 2 overdue` and overrides it
+       for this surface. The override is defensible on §2.10's own terms: the
+       three are facts about ONE queue's state rather than three unrelated
+       readings, and `overdue` renders only when non-zero, so the resting line
+       is two. The cap still holds everywhere else, and this list is where it is
+       enforced. */
+    ["/app/care-reviews", 3],
     ["/app/team", 1],
     ["/app/mentees", 1],
   ];
@@ -1500,7 +1520,7 @@ for (const [scenario, id, want] of [
   }
   check(
     "header.metric-count",
-    "with the metrics §2.10 names — at most two, and none on Today",
+    "with the metrics each surface is allowed — none on Today, three on Care Reviews (§5.3)",
     seen.every((d) => d.metrics.length === d.wantMetrics),
     seen.map((d) => `${d.url} ${d.metrics.length}/${d.wantMetrics}`).join(" · ")
   );
@@ -1531,93 +1551,30 @@ for (const [scenario, id, want] of [
 {
   const { context, page } = await open("track", { scenario: "flag-repeat-pattern" });
   await page.waitForTimeout(900);
-  const read = () =>
-    page.evaluate(() => {
-      const t = document.querySelector('[data-anno-ref="shift-track"]');
-      if (!t) return null;
-      const fill = t.querySelector('[role="img"] > div');
-      const cs = fill ? getComputedStyle(fill) : null;
-      return {
-        progress: t.getAttribute("data-progress"),
-        complete: t.getAttribute("data-complete"),
-        text: (t.innerText ?? "").replace(/\s+/g, " ").trim(),
-        name: t.querySelector('[role="img"]')?.getAttribute("aria-label") ?? "",
-        fill: cs?.backgroundColor ?? "",
-        width: fill?.style.width ?? "",
-        segments: t.querySelectorAll('[role="img"] > div').length,
-      };
-    });
-  const start = await read();
-  check(
-    "track.present",
-    "the flag queue carries a shift track",
-    !!start && /^0\//.test(start.progress ?? ""),
-    start ? `${start.progress} · "${start.text}"` : "no track"
+  /* ═══ THE SHIFT TRACK IS GONE FROM BOTH LIST SURFACES (rework §5.4) ═══
+     Six checks stood here: that the flag queue carries a track, that it is one
+     continuous bar rather than segments, that it is never green, that it never
+     states a remainder, that the numeral carries the weight, and that the
+     completion state does not celebrate. Every one was about a component this
+     surface no longer mounts — confirmed scope, "no" to "does Risk Flags keep
+     its track".
+     WHAT THEY PROTECTED IS WORTH NAMING, because it was the most carefully
+     reasoned element on either surface: coverage measured rather than speed,
+     never a remainder, never green on a safety queue, and an ending invested in
+     rather than a bar creeping up. `shift-progress.tsx` still holds all of it,
+     unmounted. If "have I been through my shift's work" returns, that file is
+     the answer and those checks are its contract.
+     WHAT REPLACES THEM IS THE ABSENCE, ASSERTED — so a track cannot drift back
+     onto a surface that removed it without this failing and naming the
+     supersession. */
+  const trackCount = await page.evaluate(
+    () => document.querySelectorAll('[data-anno-ref="shift-track"]').length
   );
   check(
-    "track.one-continuous-bar",
-    "one continuous track, not segments — segments read as points scored",
-    start?.segments === 1,
-    `${start?.segments} fill element(s)`
-  );
-  /* ═══ NEVER GREEN ═══
-     Green on a safety surface reads as a clinical all-clear rather than as
-     task completion. Measured off the fill, not asserted of the token. */
-  const rgb = (start?.fill ?? "").match(/\d+/g)?.map(Number) ?? [];
-  check(
-    "track.never-green",
-    "and it is never green",
-    rgb.length >= 3 && !(rgb[1] > rgb[0] + 20 && rgb[1] > rgb[2] + 20),
-    start?.fill || "no fill"
-  );
-  check(
-    "track.states-no-remainder",
-    "it states progress with its unit, never a count of what is left",
-    !!start && !/\b(left|remaining|to go)\b/i.test(start.text) && /of/.test(start.text),
-    start?.text ?? "no text"
-  );
-  /* ═══ AND NOTHING IN IT IS A CLOCK (§3.4) ═══
-     No elapsed time, no rate, no streak, no per-item timing, no comparison.
-     Every one of those rewards going faster; coverage rewards going through. */
-  check(
-    "track.no-speed",
-    "and says nothing about speed — no rate, no streak, no elapsed time",
-    !!start &&
-      !/(per hour|\/hr|streak|avg|average|faster|\bmin\b|\bsec\b)/i.test(start.text + " " + start.name),
-    `${start?.text} | ${start?.name}`
-  );
-  check(
-    "track.name-carries-the-fraction",
-    "and the bar is never the only carrier — the fraction is in its name",
-    /\d+ of \d+/.test(start?.name ?? ""),
-    start?.name ?? "no accessible name"
-  );
-
-  /* ═══ THE ENDING IS THE PAYOFF, AND IT IS REACHABLE ═══
-     §3.4 invests in the completion state rather than the filling. A state
-     nothing in the product can reach is a state nobody has designed. */
-  const rows = await page.locator('[role="treeitem"]').count();
-  for (let i = 0; i < rows + 2; i += 1) {
-    if ((await page.locator('[role="treeitem"]').count()) === 0) break;
-    await page.locator('[role="treeitem"]').first().click();
-    await page.waitForTimeout(180);
-    await page.keyboard.press("1");
-    await page.waitForTimeout(420);
-  }
-  const end = await read();
-  check(
-    "track.completion-is-reachable",
-    "working the queue reaches the completion state",
-    end?.complete === "true" && end.width === "100%",
-    end ? `${end.progress} · ${end.width} · complete=${end.complete}` : "no track"
-  );
-  check(
-    "track.completion-does-not-congratulate",
-    "and it states the coverage achieved rather than praising anybody",
-    !!end &&
-      !/(nice|great|well done|good job|congrat|!|🎉)/i.test(end.text) &&
-      /shift/.test(end.text),
-    end?.text ?? "no completion line"
+    "track.absent",
+    "no shift track renders on the flag queue",
+    trackCount === 0,
+    `${trackCount} track(s)`
   );
   await context.close();
 }

@@ -158,21 +158,38 @@ async function openCareReview(page) {
      read twice.
      SO THE ROW IS ASKED. The assertions below still test the PANE; only the
      way a case is identified moved, which is the half that had to. */
-  const cases = { change: null, renewal: null };
-  for (let i = 0; i < 14 && (!cases.change || !cases.renewal); i += 1) {
+  /* ═══ CHANGE vs NOT-A-CHANGE (rework §6.4) ═══
+     This split three ways — change / renewal / assign — and read the kind off
+     the ROW, where §4.4 had put it in words. §6.4 collapses the row to TWO
+     labels: "Presentation Change" for a change, "Presentation Review" for both
+     a first assignment and a renewal. So `cases.notChange` came back null and
+     three checks failed.
+     THE TWO-WAY SPLIT IS THE RIGHT ONE FOR THESE CLAIMS, and collapsing to it
+     makes them STRONGER rather than weaker. What the checks actually assert is
+     that the pane renders the code on record as a subordinate `Current ·` line
+     WHEN AND ONLY WHEN the code is moving. MEASURED: a change has that line, a
+     renewal does not — and neither does a first assignment, which the old
+     three-way split never tested at all because it only ever looked for
+     `change` and `renewal`.
+     So the discriminator is the row's own label, which is reliable, and the
+     assertion covers every non-change case. */
+  const cases = { change: null, notChange: null };
+  for (let i = 0; i < 14 && (!cases.change || !cases.notChange); i += 1) {
     const row = page.getByRole("treeitem").nth(i);
     const rowText = (await row.innerText()).replace(/\s+/g, " ");
+    if (!/Presentation (Change|Review)/.test(rowText)) continue;
     await row.click();
     await page.waitForTimeout(280);
     const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
-    const kind = /Change proposed/.test(rowText)
-      ? "change"
-      : /Renewal proposed/.test(rowText)
-        ? "renewal"
-        : null;
-    if (kind && !cases[kind]) cases[kind] = pt;
+    const kind = /Presentation Change/.test(rowText) ? "change" : "notChange";
+    if (!cases[kind]) cases[kind] = pt;
   }
-  check("tasks.cases-found", "a change and a renewal were both reachable", !!cases.change && !!cases.renewal);
+  check(
+    "tasks.cases-found",
+    "a change and a non-change were both reachable",
+    !!cases.change && !!cases.notChange,
+    `change: ${!!cases.change} · non-change: ${!!cases.notChange}`
+  );
   check(
     "tasks.current-line",
     "a CHANGE renders the code on record as a subordinate line",
@@ -181,9 +198,9 @@ async function openCareReview(page) {
   );
   check(
     "tasks.no-line-on-renewal",
-    "and a RENEWAL renders none — the code would be stated twice",
-    cases.renewal && !/Current ·/.test(cases.renewal),
-    (cases.renewal ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
+    "and a NON-CHANGE renders none — the code would be stated twice",
+    cases.notChange && !/Current ·/.test(cases.notChange),
+    (cases.notChange ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
   /* ═══ INVERTED — THE ACCORDION IS REMOVED (Figma alignment §3) ═══
@@ -198,15 +215,62 @@ async function openCareReview(page) {
      what went and where it went to.
      IT FAILS THE DAY IT COMES BACK, which is the right way round: if the
      figure is wanted again, this is the line that says the old collapsed-state
-     assertions above should come back with it. */
+     assertions above should come back with it.
+
+     ═══ RETARGETED BY THE REWORK'S §7 — IT CAME BACK, AND THIS IS THE LINE ═══
+     §7 asked for the mentor and the mentorship length on this pane, which is
+     the second look the note above asked for before the removal shipped. So
+     `tasks.no-record-context` is RETIRED BY SUPERSESSION rather than relaxed,
+     and it did its job: it named the decision, it named who could reverse it,
+     and it failed on the reversal.
+     THE COLLAPSED-STATE ASSERTIONS COME BACK WITH IT, exactly as instructed,
+     and one more that §7 adds: the block names the MENTOR now, which it did
+     not before. `tasks.no-mentor` below is retargeted for the same reason —
+     see its own note. */
   const accordion = page.locator('[data-slot="record-context"]');
   check(
-    "tasks.no-record-context",
-    "the mentorship accordion is gone from the pane — the figure lives on the record",
-    (await accordion.count()) === 0,
-    `${await accordion.count()} accordion(s); reachable via "View care journey"`
+    "tasks.record-context",
+    "the mentorship figures are back in a collapsed accordion (§7)",
+    (await accordion.count()) === 1,
+    `${await accordion.count()} accordion(s)`
   );
-  check("tasks.no-mentor", "and the pane no longer names the mentor", !/to [A-Z][a-z]+ [A-Z]/.test(t));
+  if (await accordion.count()) {
+    const ax = (await accordion.innerText()).replace(/\s+/g, " ");
+    check(
+      "tasks.accordion-collapsed",
+      "which starts collapsed and says what it holds",
+      (await accordion.getAttribute("aria-expanded")) === "false" &&
+        /days in mentorship/.test(ax),
+      ax
+    );
+    /* ═══ §7's OWN ADDITION, AND IT IS THE HALF THAT COULD REGRESS QUIETLY ═══
+       "Mentor on record" is a LABEL and would still render with no name beside
+       it, so the label is not what this asserts — it asserts a name, as two
+       capitalised words, in the accordion's collapsed text. */
+    check(
+      "tasks.record-context-names-mentor",
+      "and it names the mentor, which §7 asked for and the ROW still must not",
+      /[A-Z][a-z]+ [A-Z][a-z]+/.test(ax.replace("Mentor on record", "")),
+      ax
+    );
+  }
+  /* ═══ RETARGETED BY §7 ═══
+     This asserted that the PANE does not name the mentor, and §7 reverses that
+     for the pane alone. The claim worth keeping is the one `row-semantics`
+     owns — `e.no-mentor`, that no Tasks ROW names a mentor in text or in its
+     accessible name, because the row's unit is the review and the mentor is
+     not its subject. That check is unchanged and still passing.
+     WHAT SURVIVES HERE is the narrower thing this regex was really testing:
+     the pane does not name the mentor in the REVIEW PROSE, in the "to Firstname
+     Lastname" shape the old context strip used. A name inside the accordion is
+     not that, so it is excluded before the test. */
+  check(
+    "tasks.no-mentor-in-prose",
+    "and the review prose still does not address a mentor by name",
+    !/to [A-Z][a-z]+ [A-Z]/.test(
+      (await accordion.count()) ? t.replace(await accordion.innerText(), "") : t
+    )
+  );
   await page.locator('[data-slot="task-pane"]').screenshot({ path: `${OUT}/tasks-pane.png` });
   await context.close();
 }

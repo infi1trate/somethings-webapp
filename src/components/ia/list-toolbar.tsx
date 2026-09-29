@@ -43,6 +43,12 @@ import {
 } from "@/lib/ui/filters";
 import { type ViewPreset } from "@/lib/ui/view-options";
 import { cn } from "@/lib/utils";
+import {
+  CARE_TABS,
+  CARE_TAB_LABEL,
+  CARE_TAB_NAME,
+  type CareTab,
+} from "@/lib/ui/care-tab";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -103,6 +109,19 @@ export function ListToolbar<T extends Filterable>({
   onPreset,
   searchHint,
   showView = true,
+  /** ═══ §4 — FILTERS ARE PER-SURFACE NOW ═══
+   *  Care Reviews removes them; Risk Flags keeps them. Confirmed scope: "just
+   *  care reviews for now". A GATE RATHER THAN A DELETION, because the control
+   *  is shared and Risk Flags has no table and no sorting — removing it there
+   *  would leave search and comparator order as the only way through 123
+   *  items, which is the reasoning §4 asked to check before touching it.
+   *  DEFAULTS TRUE, so the surface that keeps them is unchanged by this prop
+   *  existing. */
+  showFilters = true,
+  /** ═══ §5.1 — THE OPEN / SUBMITTED SEGMENTED CONTROL ═══
+   *  Rendered beside search, before the filter controls. Omitted, nothing
+   *  renders — the other list surface has no such axis. */
+  tabs,
 }: {
   /** The UNFILTERED set, so every dimension's options describe what exists
    *  rather than what the other filters have already left. */
@@ -124,9 +143,24 @@ export function ListToolbar<T extends Filterable>({
    *  the report rather than smoothed over: a stored preference with no control
    *  is an odd state, and it is the state §4.2 asks for. */
   showView?: boolean;
+  showFilters?: boolean;
+  tabs?: {
+    value: CareTab;
+    onChange: (next: CareTab) => void;
+    /** Per-tab counts, so a segment says how much is behind it. */
+    count: Record<CareTab, number>;
+  };
 }) {
-  const primary = dimensions.find((d) => d.primary);
-  const behind = dimensions.filter((d) => !d.primary);
+  /* ═══ §4 — BOTH THE PRIMARY SELECT AND THE `Filters` POPOVER ARE GATED ═══
+     "Remove the `Filters` control and its dimension config. Keep search." The
+     primary dimension goes with it: it is a filter that happens to be always
+     visible, and leaving Billing code on the toolbar while removing the
+     popover would keep one filter and call it something else.
+     THE COUNT BADGE, THE ACTIVE CHIPS AND THE FILTERED-EMPTY STATE all fall
+     out of this — they render only when something is filtering, and nothing on
+     this surface can filter now. */
+  const primary = showFilters ? dimensions.find((d) => d.primary) : undefined;
+  const behind = showFilters ? dimensions.filter((d) => !d.primary) : [];
   const n = activeCount(filters);
   const searchId = useId();
   const set = (patch: Partial<FilterState>) =>
@@ -188,6 +222,73 @@ export function ListToolbar<T extends Filterable>({
             )}
           />
         </span>
+
+        {/* ═══ §5.1 — TWO STATES, AND THE COUNT IS IN EACH SEGMENT ═══
+            A `radiogroup` rather than `role="tablist"`: these select which set
+            the list shows, and they are not tabs over separate panels — the
+            panel is the same list. Arrow keys come free from the radio
+            semantics, which is what a segmented control should have.
+            THE COUNT SITS IN THE SEGMENT because §5.1 requires the header's
+            figures to follow the active state — so without it, switching to
+            Submitted would hide the open count with nothing saying what it
+            was, and a supervisor would have to switch back to find out.
+            44px MINIMUM on each segment (2.5.8), which is why the row is
+            `min-h-11` and not the 32px a segmented control often gets. */}
+        {tabs && (
+          <div
+            role="radiogroup"
+            /* NEEDS-COPY-NICOLE */
+            aria-label="Which reviews to show"
+            data-anno-ref="care-tabs"
+            /* ═══ THE CONTROL IS 44 TALL AND SO IS EACH SEGMENT ═══
+               It was `p-1` with `min-h-9` segments, which measured 36px per
+               target inside a 44px control. 36 clears SC 2.5.8's 24×24 floor,
+               but this codebase holds the 44px HIG bar everywhere else on this
+               toolbar — the search field and every button are `min-h-11` — and
+               a segmented control whose segments are the odd one out is the
+               kind of inconsistency nobody can see and everybody feels.
+               NO WRAPPER PADDING, so the control and its targets are the same
+               44 rather than 44 + 8. */
+            className="flex shrink-0 items-center overflow-hidden rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+          >
+            {CARE_TABS.map((t) => {
+              const active = tabs.value === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  aria-label={`${CARE_TAB_NAME[t]}, ${tabs.count[t]}`}
+                  data-anno-ref={`care-tab:${t}`}
+                  onClick={() => tabs.onChange(t)}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-1.5 px-3.5 text-[13px] leading-[18px] transition-colors",
+                    /* ═══ NOT COLOUR ALONE (SC 1.4.1) ═══
+                       The selected segment carries a FILL, and `aria-checked`
+                       carries it to assistive tech — but a sighted reader in
+                       forced colours would lose the fill, so the selected
+                       segment is also the only one in primary ink at full
+                       weight. Two visual channels plus the state attribute. */
+                    active
+                      ? "bg-[var(--text-primary)] font-semibold text-[var(--text-inverse)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                    RING
+                  )}
+                >
+                  {CARE_TAB_LABEL[t]}
+                  <span
+                    aria-hidden
+                    className="tabular-nums opacity-70"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    {tabs.count[t]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {primary && (
           <Select

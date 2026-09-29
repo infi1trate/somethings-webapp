@@ -3,21 +3,27 @@
   "rows": [
     {
       "id": "tasks.one-emphasis",
-      "label": "exactly one emphasised element per row",
+      "label": "at most one emphasised element per row",
+      "ok": true,
+      "detail": "0,1,1,1,1,1,1,1"
+    },
+    {
+      "id": "tasks.unviewed-emphasis",
+      "label": "and an unviewed row has exactly one, so the channel is not silently dropped",
       "ok": true,
       "detail": "1,1,1,1,1,1,1,1"
     },
     {
       "id": "tasks.teen-leads",
-      "label": "and it is the teen, which is what varies row to row",
+      "label": "and where there is one it is the teen, which is what varies row to row",
       "ok": true,
-      "detail": "Theo L. · 16px/400 avantt"
+      "detail": "Imani C. 16px avantt · Simone B. 16px avantt"
     },
     {
       "id": "tasks.no-job-chip",
       "label": "the task type is not repeated on every row",
       "ok": true,
-      "detail": "T | Theo L. | Renewal proposed | F33.1 | 3d"
+      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
     },
     {
       "id": "tasks.age-column",
@@ -29,7 +35,7 @@
       "id": "tasks.no-deadline",
       "label": "and no row states a deadline, because the destination has none",
       "ok": true,
-      "detail": "T | Theo L. | Renewal proposed | F33.1 | 3d"
+      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
     },
     {
       "id": "tasks.one-temporal",
@@ -44,16 +50,22 @@
       "detail": "12 spans"
     },
     {
-      "id": "tasks.caption-codes",
-      "label": "the caption carries the billing code as a lozenge, in the mono face",
+      "id": "tasks.no-codes-on-list",
+      "label": "no billing code renders on a list row — they live in the detail now",
       "ok": true,
-      "detail": "F33.1[proposed]"
+      "detail": "0 of 8 rows carried a code"
+    },
+    {
+      "id": "tasks.cycle-cell",
+      "label": "and the column that held them carries the review cadence instead",
+      "ok": true,
+      "detail": "90-day · 30-day · 30-day · 90-day · 90-day · 30-day · 90-day · 30-day"
     },
     {
       "id": "tasks.caption-not-the-name",
       "label": "and not the name a second time",
       "ok": true,
-      "detail": "T | Theo L. | Renewal proposed | F33.1 | 3d"
+      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
     },
     {
       "id": "tasks.height",
@@ -95,13 +107,13 @@
       "id": "sr.tasks.no-group-prefix",
       "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 6:17 A"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d"
     },
     {
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 6:17 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 2:0"
     },
     {
       "id": "sr.tasks.same-temporal",
@@ -131,13 +143,13 @@
       "id": "e.code-caption",
       "label": "line 2 says what KIND of proposal this is, and not the name a second time",
       "ok": true,
-      "detail": "Renewal proposed"
+      "detail": "Presentation Review"
     },
     {
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 6:17 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 2:03 AM"
     },
     {
       "id": "e.identity-disc",

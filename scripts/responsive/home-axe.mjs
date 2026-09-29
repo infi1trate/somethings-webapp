@@ -38,11 +38,16 @@ for (const label of TIERS) {
              swept along with everything else. */
           extra: { tasksScenarioId: "typical-shift", shiftLastSeenAt: 0 },
         },
+        /* ═══ THE THEME COMES FROM THE SEED, NOT `emulateMedia` ═══
+           This app reads localStorage["somethings.theme"] and applies a .dark
+           class; it never consults prefers-color-scheme. So the dark run here
+           was measuring the LIGHT theme — verified before the fix, where the
+           light and dark rows reported identical values. */
+        theme,
       },
       vp,
       version
     );
-    await page.emulateMedia({ colorScheme: theme });
     await page.waitForTimeout(300);
     await prepare();
 

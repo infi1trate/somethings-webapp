@@ -54,23 +54,44 @@ async function tasks(scenario, width, height) {
   return p;
 }
 
-/** The list card is the scroller now — find it by role. */
+/** ═══ THE SCROLLER AND THE TREE ARE TWO ELEMENTS NOW — RETARGETED ═══
+ *
+ *  This found the scroller with `[role="tree"]`, which was the same element
+ *  until the a11y fix split them: `role="tree"` accepts `treeitem` and `group`
+ *  and nothing else, and the scroller owned two roleless divs besides its
+ *  groups — the column header and the completed-today band — which axe
+ *  reported as `aria-required-children`, nine times, once per viewport.
+ *  SO THE ROLE MOVED INWARD AND THE SCROLL DID NOT. Five checks here went red
+ *  on the split and NONE of them was about the app: they read `overflowY`,
+ *  `overscrollBehaviorY`, `scrollHeight` and `scrollTop` off the tree, which is
+ *  now a plain block inside the scroller — so "the list card is its own
+ *  scroller" measured `visible` on an element that was never asked to scroll.
+ *  RETARGETED, NOT RELAXED. Every claim below is unchanged and still asserted;
+ *  each is now asked of the element that owns it. The scroller has carried
+ *  `data-anno-ref="tasks-worklist-scroller"` since Part 3 for exactly this, and
+ *  a `data-` hook is the right handle for a layout fact — reading it off an
+ *  ARIA role was the coupling that broke.
+ *  `ok` NOW REQUIRES BOTH. If either goes missing the probe fails loudly rather
+ *  than measuring half a list. */
 const PROBE = `(() => {
+  const scroller = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
   const tree = document.querySelector('[role="tree"]');
-  if (!tree) return { ok: false };
+  if (!scroller || !tree) return { ok: false };
   const rows = [...tree.querySelectorAll('[role="treeitem"]')];
   const groups = [...tree.querySelectorAll('[role="group"]')];
   const headers = groups
     .map((g) => g.firstElementChild)
     .filter((el) => el && getComputedStyle(el).position === "sticky");
-  const treeRect = tree.getBoundingClientRect();
+  /* THE SCROLLER'S BOX, because the deltas below measure a sticky header
+     against the edge it sticks to — which is the scrollport, not the tree. */
+  const treeRect = scroller.getBoundingClientRect();
   return {
     ok: true,
-    scrollTop: tree.scrollTop,
-    scrollHeight: tree.scrollHeight,
-    clientHeight: tree.clientHeight,
-    overflowY: getComputedStyle(tree).overflowY,
-    overscroll: getComputedStyle(tree).overscrollBehaviorY,
+    scrollTop: scroller.scrollTop,
+    scrollHeight: scroller.scrollHeight,
+    clientHeight: scroller.clientHeight,
+    overflowY: getComputedStyle(scroller).overflowY,
+    overscroll: getComputedStyle(scroller).overscrollBehaviorY,
     mounted: rows.length,
     heights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
     bandCount: groups.length,
@@ -143,7 +164,10 @@ async function scenario(name, width, height, expect) {
   );
 
   // ── Scroll: the header stays, the rows move ────────────────────────────
-  await p.evaluate(`document.querySelector('[role="tree"]').scrollTop = 900`);
+  /* RETARGETED WITH THE PROBE ABOVE — the tree does not scroll; the card does. */
+  await p.evaluate(
+    `document.querySelector('[data-anno-ref="tasks-worklist-scroller"]').scrollTop = 900`
+  );
   await p.waitForTimeout(400);
   const mid = await p.evaluate(PROBE);
   check(mid.scrollTop > 800, "the list scrolled", `${mid.scrollTop}`);
@@ -185,15 +209,27 @@ console.log("\\n── keyboard across the boundary @ heavy-caseload 1440x900");
   await p.waitForTimeout(500);
 
   const after = await p.evaluate(`(() => {
+    /* RETARGETED: the scrollport is the card, the treeitems are the tree's.
+       See the PROBE note - the role moved inward for the aria-required-children
+       fix and the scroll stayed where it was. NO BACKTICKS IN HERE: this whole
+       block is a template literal, and a backtick in a comment closes it early
+       - which is exactly how this edit failed the first time. */
+    const scroller = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
     const tree = document.querySelector('[role="tree"]');
+    /* BOTH OR NOTHING - see the PROBE note. Losing either is a real failure and
+       it has to arrive as a VERDICT: dereferencing a null here threw a
+       TypeError that killed the run, and a run that produces no verdict is not
+       a run that passed. Measured while mutation-testing the retarget. */
+    if (!scroller || !tree) return { ok: false };
     const active = document.activeElement;
     const rect = active?.getBoundingClientRect();
-    const t = tree.getBoundingClientRect();
+    const t = scroller.getBoundingClientRect();
     return {
+      ok: true,
       role: active?.getAttribute("role"),
       selected: active?.getAttribute("aria-selected"),
       label: active?.getAttribute("aria-label"),
-      scrollTop: tree.scrollTop,
+      scrollTop: scroller.scrollTop,
       /* IN VIEW, not merely focused: a focused row scrolled past the bottom edge
          is the exact failure this check exists for. */
       inView: rect ? rect.top >= t.top - 1 && rect.bottom <= t.bottom + 1 : false,
@@ -201,6 +237,7 @@ console.log("\\n── keyboard across the boundary @ heavy-caseload 1440x900");
     };
   })()`);
 
+  check(after.ok, "the scroller and the tree are both present");
   check(after.scrollTop > start.clientHeight, "30 × j scrolled past the first window", `${after.scrollTop}px`);
   check(after.role === "treeitem", "focus is on a row, not lost to the body", String(after.role));
   check(after.selected === "true", "and that row is the selected one");
@@ -211,12 +248,14 @@ console.log("\\n── keyboard across the boundary @ heavy-caseload 1440x900");
   for (let i = 0; i < 30; i++) await p.keyboard.press("k");
   await p.waitForTimeout(400);
   const back = await p.evaluate(`(() => {
-    const tree = document.querySelector('[role="tree"]');
+    const scroller = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
+    if (!scroller) return { ok: false, top: -1, role: null, inView: false };
     const a = document.activeElement;
-    const r = a?.getBoundingClientRect(); const t = tree.getBoundingClientRect();
-    return { top: tree.scrollTop, role: a?.getAttribute("role"),
+    const r = a?.getBoundingClientRect(); const t = scroller.getBoundingClientRect();
+    return { ok: true, top: scroller.scrollTop, role: a?.getAttribute("role"),
              inView: r ? r.top >= t.top - 1 && r.bottom <= t.bottom + 1 : false };
   })()`);
+  check(back.ok, "the scroller is still present");
   check(back.top < 40, "30 × k came back to the top", `${back.top}px`);
   check(back.role === "treeitem" && back.inView, "with focus on a visible row");
 
@@ -294,7 +333,7 @@ console.log("\\n── 100 rows @ heavy-caseload 1440x900");
       await p.waitForTimeout(40);
     }
     const atEnd = await p.evaluate(`(() => {
-      const t = document.querySelector('[role="tree"]');
+      const t = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
       const was = t.scrollTop;
       t.scrollTop = was + t.clientHeight * 0.8;
       return t.scrollTop <= was + 1;
@@ -305,13 +344,17 @@ console.log("\\n── 100 rows @ heavy-caseload 1440x900");
   await p.waitForTimeout(400);
 
   const deep = await p.evaluate(`(() => {
+    const scroller = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
     const tree = document.querySelector('[role="tree"]');
+    if (!scroller || !tree) return { ok: false, rows: -1, mounted: -1, height: -1 };
     return {
-      rows: Math.round((tree.scrollHeight - 68) / 56),
+      ok: true,
+      rows: Math.round((scroller.scrollHeight - 68) / 56),
       mounted: tree.querySelectorAll('[role="treeitem"]').length,
-      height: tree.scrollHeight,
+      height: scroller.scrollHeight,
     };
   })()`);
+  check(deep.ok, "the scroller and the tree are both present");
   check(deep.rows >= 90, "the expanded list is ~100 rows", `${deep.rows} rows / ${deep.height}px`);
   check(deep.mounted <= 30, "and still only a window is mounted", `${deep.mounted}`);
 
@@ -323,7 +366,7 @@ console.log("\\n── 100 rows @ heavy-caseload 1440x900");
      the real regression — rendering all hundred rows every frame, which lands
      in the hundreds of milliseconds, not the tens. */
   const perf = await p.evaluate(`(async () => {
-    const tree = document.querySelector('[role="tree"]');
+    const tree = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
     tree.scrollTop = 0;
     const frames = [];
     let last = performance.now();
@@ -359,6 +402,15 @@ console.log("\\n── band retirement @ active-escalation 1440x900");
   await p.waitForTimeout(500);
 
   const start = await p.evaluate(PROBE);
+  /* THE SAME GUARD `scenario` ALREADY HAS, and this block did not. With the
+     worklist absent `PROBE` returns `{ ok: false }`, and `start.bandLabels.join`
+     then threw and took the run down mid-section — measured while
+     mutation-testing the tree retarget. A crash is loud and produces NO
+     VERDICT, which is the one thing a probe may not do. */
+  if (!start.ok) {
+    check(false, "the worklist rendered");
+    await p.context().close();
+  } else {
   check(start.bandCount === 2, "two bands, one row each", start.bandLabels.join(" | "));
 
   // Resolve the first band's only row.
@@ -394,6 +446,7 @@ console.log("\\n── band retirement @ active-escalation 1440x900");
   );
 
   await p.context().close();
+  }
 }
 
 await b.close();

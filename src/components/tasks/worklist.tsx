@@ -38,9 +38,29 @@
 // Expansion is driven by Right/Left arrows and by a click zone on the chevron; the
 // chevron itself is aria-hidden because the state lives on the treeitem. Logged as
 // design-system-gaps.md row 215.
+//
+// ═══ AND THE TREE'S CONTENT MODEL IS THE OTHER HALF OF THAT CHOICE ═══
+//
+// A tree's strength is what it accepts and that is also its cost: `treeitem` and
+// `group`, NOTHING ELSE. This file already records two things the rule forbade —
+// an `<h3>` band heading and a nested `<button>` — and it shipped a third: the
+// role sat on the SCROLLER, so the column header and the completed-today band
+// were children of the tree. MEASURED by axe, `aria-required-children`, nine
+// times, once per viewport on D10.
+// SO THE ROLE IS ON THE QUEUE AND THE SCROLL IS ON THE CARD. Two elements, one
+// job each, and the test for anything new in this list is now easy to apply: if
+// it is not a `treeitem` or a `group`, it goes in the scroller BESIDE the tree,
+// not inside it. Both of the things that broke the rule are controls or lists
+// ABOUT the queue rather than rows in it, which is why that test is the right
+// one rather than a workaround — relabelling a sort header `role="group"` would
+// have satisfied axe and lied about the structure.
+// MONITORING'S LIST NEVER HAD THIS. `event-list.tsx` puts `role="tree"` on an
+// element whose only children are treeitems — checked, and its own axe probe
+// reports zero violations — because it has no column header and no completed
+// band. The defect was this surface's alone.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, Phone, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronRight, PencilLine, Phone, RotateCcw } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
@@ -76,12 +96,22 @@ import {
 import { cn } from "@/lib/utils";
 import {
   COL_AGE,
+  COL_MENTEE_MIN,
   COL_PRESENTATION,
+  COL_REVIEW,
+  ReviewCycleCell,
   ReviewDisc,
-  ReviewPresentationCell,
   ReviewRowHeader,
   proposalCaption,
 } from "@/components/tasks/review-row";
+import type { CareSort, CareSortColumn } from "@/lib/ui/care-sort";
+
+/** §5.2's leading marker slot. ONE NUMBER, TWO READERS: the row reserves it so
+ *  a dot appearing cannot shift the row, and the header reserves the same width
+ *  so its first column starts at the row's first column. It was inline in the
+ *  row and the header did not have it at all, which measured as a 16px offset
+ *  between "Mentee" and the names under it. */
+const MARKER_SLOT = 8;
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
  *
@@ -315,7 +345,19 @@ function Row({
   preset,
   hasGroups,
   hairline,
+  unviewed = false,
+  drafted = false,
 }: {
+  /** ═══ §8 — WHETHER THIS REVIEW HAS A SAVED DRAFT ═══
+   *  Resolved by the list from `sessionStorage` through the version counter, and
+   *  handed down as a boolean for the same reason `unviewed` is: a row must not
+   *  read storage or subscribe individually. */
+  drafted?: boolean;
+  /** ═══ §5.2 — WHETHER THIS REVIEW HAS BEEN OPENED IN THE PANE ═══
+   *  Passed in rather than read from the store here: a row must not subscribe
+   *  to a 500-entry array individually, or every row re-renders on every view.
+   *  The list resolves membership once and hands each row a boolean. */
+  unviewed?: boolean;
   /** §5's row scale. See the geometry note on why this is not a class. */
   preset: ViewPreset;
   /** Whether ANY row in this list is a group — see the list's own prop. */
@@ -495,6 +537,15 @@ function Row({
       ? [item.teenDisplayName, TASK_KIND_LABEL[item.taskType], disposition]
       : [item.teenDisplayName, `to ${item.mentorName}`]),
     isGroup ? coalesceLabel(entry.members.length) : null,
+    /* ═══ §5.2 — THE MARKER IN WORDS ═══
+       The dot is `aria-hidden` and the face is not announceable at all, so
+       without this a screen-reader user has no access to the state. NEEDS-COPY-
+       NICOLE. */
+    unviewed ? "unviewed" : null,
+    /* §8's accessible label. NEEDS-COPY-NICOLE. After "unviewed" because a row
+       can be both, and the order matches the row's own reading order — the
+       leading-edge marker before the content one. */
+    drafted ? "draft saved" : null,
     overdue ? "overdue" : null,
     item.payload.kind === "escalation"
       ? item.payload.is911
@@ -689,6 +740,34 @@ function Row({
           the text column could carry a full-height border, and a fixed-height
           child of a stretch container aligns to its START. The wrapper is what
           re-centres it, and it is the same wrapper Risk Flags already had. */}
+      {/* ═══ §5.2 — THE UNVIEWED MARKER, AT THE LEADING EDGE ═══
+          Inbox convention: a mark before the identity, in a fixed position, on
+          rows that have not been opened.
+          THE SLOT IS ALWAYS THERE AND THE DOT IS NOT. Reserving the width means
+          a viewed row and an unviewed row start their disc at the same x — a
+          marker that shifts the whole row as it appears would make the list
+          twitch as a supervisor works down it.
+          `--text-primary`, NOT AN ECRU DOT. §5.2 says an ecru dot alone fails
+          1.4.1, and the reason is contrast rather than hue: ecru on cream is
+          around 1.2:1, so its PRESENCE is not reliably perceivable and
+          presence is the whole signal. At primary ink it is 15.14:1 light and
+          15.43:1 dark — a shape a reader can see, which is what makes
+          presence/absence a non-colour channel.
+          `aria-hidden` BECAUSE THE NAME SAYS IT — see `ariaLabel`, which
+          carries "unviewed" in words. */}
+      <span
+        aria-hidden
+        className="flex shrink-0 items-center justify-center"
+        style={{ width: MARKER_SLOT }}
+      >
+        {unviewed && (
+          <span
+            data-anno-ref="unviewed-dot"
+            className="size-2 rounded-full bg-[var(--text-primary)]"
+          />
+        )}
+      </span>
+
       <span className="flex shrink-0 items-center">
         {/* SHARED WITH TODAY'S PREVIEW (K.1) — one disc implementation. */}
         <ReviewDisc
@@ -713,9 +792,33 @@ function Row({
           the old full-bleed treatment read as a table. */}
       <span
         className={cn(
-          "flex min-w-0 flex-1 flex-col justify-center",
+          "flex min-w-0 flex-col justify-center",
           hairline && "border-t border-[color:var(--border-subtle)]"
         )}
+        /* ═══ THE MENTEE COLUMN'S SHARE (§6.5, CORRECTED IN §3) ═══
+           MEASURED at 1280 before the cadence column replaced the codes
+           column: this cell was **11px** wide and the NAME truncated — "Theo
+           L." at 50px of content in an 11px box. §6.5 describes the second
+           line truncating "while the cell has room"; the cell had no room at
+           all, because three fixed columns plus the detail pane had taken
+           everything. Swapping 144 for 72 got it to 83px and that was still
+           short — the caption "Presentation Review" is 110px.
+           IT WAS `flex-1` PLUS `minWidth`, AND THE FLOOR IS WHAT CLIPPED THE
+           ROW. A `min-width` a flex line cannot honour does not make the line
+           yield, it makes the line OVERFLOW: measured at 1280 with the pane
+           open, the list card is 367px, this row wanted 428, and the 61px
+           remainder ran out of an `overflow-hidden` card — taking the REVIEW
+           AGE column with it, down to 1 visible pixel, on the column §3 had
+           just given a sort control.
+           SO THE NUMBER IS A BASIS AND THE PRIORITY IS A SHRINK RATIO. This
+           cell is what the row's spare width goes to and what it starts from;
+           the cadence cell gives 6× as readily, so it is still what yields
+           first; and when it has given everything, this caption truncates
+           rather than a whole column leaving the card.
+           STILL STATED IN TWO PLACES — `ReviewIdentityCell` carries the same
+           flex for Today's table, because this row renders its own identity
+           spans (the one fork K.1 named) until that fork closes. */
+        style={{ flex: `1 1 ${COL_MENTEE_MIN}px` }}
       >
         {/* ═══ LINE 1 — THE JOB, OR THE PERSON ═══
             DEADLINE-FORWARD: the task name, at the row's strongest available
@@ -760,7 +863,25 @@ function Row({
                  element was overriding it with the ink for the ground it is NOT
                  on. Inheriting instead of restating is the fix. */
               isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-primary)]",
-              (taskLed || emphasis === "person") && "font-display"
+              /* ═══ §5.2's SECOND CHANNEL IS THE FACE, BECAUSE WEIGHT IS INERT ═══
+                 §5.2 asks for "a weight difference on the mentee name (unviewed
+                 slightly heavier), which is the convention the inbox reference
+                 is actually built on". THAT CHANNEL DOES NOT EXIST IN THIS
+                 BUILD: only `TWKLausanne-400` and `Avantt-Bold` ship, and this
+                 codebase records the measurement in four places — Lausanne
+                 renders identically at 400, 500, 600 and 700, so
+                 `font-semibold` here would be a declaration with no rendering
+                 behind it. Faking it is what K.3 forbids.
+                 THE FACE IS THE SUBSTITUTE AND IT IS THIS CODEBASE'S OWN: "the
+                 two emphasis channels that actually work are Avantt and the
+                 mono stack at 700" (arch-F). Avantt over Lausanne is a measured
+                 +19% ink, which is a real weight step in every sense except the
+                 CSS property's.
+                 SO AN UNVIEWED NAME IS AVANTT AND A VIEWED ONE IS THE TEXT
+                 FACE. That is the direction §5.2 asks for — unviewed heavier —
+                 and it is the same treatment arch-F gave the row's focal point,
+                 now earned per row rather than granted to all of them. */
+              (taskLed || emphasis === "person") && unviewed && "font-display"
             )}
           >
             {item.teenDisplayName}
@@ -804,6 +925,36 @@ function Row({
             isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-secondary)]"
           )}
         >
+          {/* ═══ §8 — THE DRAFT MARKER, AND IT IS NOT A DOT ═══
+              §8's whole instruction is that this must not read as the same
+              signal as §5.2's unviewed dot: "two subtle markers in one row —
+              unviewed and draft-started — will read as the same signal if both
+              are dots. Make them different affordance classes."
+              SO THEY DIFFER ON EVERY AXIS AVAILABLE:
+                unviewed  · a DOT   · at the LEADING EDGE · outside the content
+                drafted   · an ICON · in the CONTENT AREA · on line 2
+              LINE 2 RATHER THAN LINE 1. Line 1 is the row's focal point and
+              carries the emphasis; an icon beside the name would put a second
+              thing in that zone, which is what arch-D and arch-F both forbid.
+              Line 2 is about the review's NATURE — "Presentation Review" /
+              "Presentation Change" — and a started draft is a fact of the same
+              kind.
+              `PencilLine` IS ALREADY THIS CODEBASE'S DRAFT GLYPH — see
+              `step-status-badge`, where it is keyed to `draft` with the label
+              "Draft". Same glyph, same meaning, one vocabulary.
+              THE SHAPE IS THE NON-COLOUR CARRIER. It inherits the caption's
+              ink, so nothing here is distinguished by hue at all.
+              `aria-hidden` BECAUSE THE ROW'S NAME IS STATED, not computed from
+              content — an `aria-label` on this icon would never be announced.
+              The words go in `ariaLabel`, which is where §8's "accessible
+              label" actually lands on this row. */}
+          {drafted && (
+            <PencilLine
+              aria-hidden
+              data-anno-ref="draft-icon"
+              className="mr-1 inline size-3 shrink-0 align-[-1px]"
+            />
+          )}
           {taskLed ? (
             /* ═══ THE DISPOSITION ALONE (arch-F) ═══
                arch-E put the teen name here with the disposition beside it. The
@@ -860,10 +1011,10 @@ function Row({
           and the header would line up with none of them. */}
       {item.payload.kind === "billing" && (
         /* SHARED WITH TODAY'S PREVIEW (K.1) — one presentation cell. */
-        <ReviewPresentationCell
-          currentCode={item.payload.current?.code ?? null}
-          recommendedCode={item.payload.recommended.code}
-        />
+        /* ═══ THE REVIEW CYCLE, NOT THE CODES (§6.1, §6.3) ═══
+           Codes leave the list entirely and live only in the detail pane. This
+           column carries the cadence position instead. */
+        <ReviewCycleCell taskType={item.taskType} />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
@@ -1100,6 +1251,21 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 export function Worklist({
   entries,
   items,
+  /** ═══ §5.2 — THE VIEWED SET ═══
+   *  Ids the supervisor has opened in the pane. A `Set` so membership is O(1)
+   *  per row on a list that can be 123 long, resolved once by the page rather
+   *  than subscribed to per row.
+   *  DEFAULTS EMPTY, so the surface that does not track viewing — Risk Flags —
+   *  is unchanged by the prop existing, and every row there renders the
+   *  unviewed treatment it already had. */
+  viewed,
+  /** ═══ §8 — IDS WITH A SAVED DRAFT ═══
+   *  A `Set`, resolved once by the page from `sessionStorage` through the draft
+   *  version counter. Empty default, so a surface that does not track drafts is
+   *  unchanged by the prop existing. */
+  drafted,
+  /** §3. Passed only by Care Reviews; omitted, the header is a legend. */
+  sort,
   domain,
   subject,
   emptyLine,
@@ -1126,6 +1292,15 @@ export function Worklist({
   preset,
   hasGroups,
 }: {
+  /** §5.2. See the destructured prop above for why it is a Set. */
+  viewed?: ReadonlySet<string>;
+  /** §8. Same shape and the same reason. */
+  drafted?: ReadonlySet<string>;
+  /** §3. */
+  sort?: {
+    value: CareSort | null;
+    onToggle: (column: CareSortColumn) => void;
+  };
   /** §5's row scale. Required rather than defaulted — see the geometry note:
    *  a surface that forgot to pass it would render rows the virtualizer is not
    *  measuring, which is the one failure in this file that is invisible. */
@@ -1140,7 +1315,14 @@ export function Worklist({
    *  the reason the two lists still did not align after §1.3 gave both the
    *  same disc. */
   hasGroups: boolean;
-  entries: ListEntry[];
+  /** ═══ `readonly` SINCE §3 ═══
+   *  The page hands this the SORTED array, and the sort must be the last thing
+   *  that decides order. `readonly` is what says so at the boundary: an
+   *  in-place `entries.sort(...)` anywhere below would be a second ordering
+   *  applied after the first, and it would not be visible at the call site.
+   *  The band builders widened to match rather than the array being copied —
+   *  neither mutates, and copying would have made the unsorted path allocate. */
+  entries: readonly ListEntry[];
   /** THE WHOLE DOMAIN'S ITEMS, open and resolved. Needed only by band
    *  retirement, which reports how many of a cleared tier closed today — a fact
    *  that by definition is not in `entries`, since `entries` is the open set. */
@@ -1262,7 +1444,7 @@ export function Worklist({
   const bands = useMemo(
     () =>
       grouping === "none"
-        ? [{ id: "all", label: "", entries, taskCount: entries.length }]
+        ? [{ id: "all", label: "", entries: [...entries], taskCount: entries.length }]
         : grouping === "deadline"
           ? deadlineBandsFor(entries, now)
           : bandsFor(entries),
@@ -1647,11 +1829,28 @@ export function Worklist({
       )}
     <div
       ref={scrollerRef}
-      role="tree"
-      /* TODO-COPY */
-      aria-label={`${subjectLabel} worklist`}
       onKeyDown={onKeyDown}
-      /* ═══ THE LIST IS ITS OWN SCROLLER (Part 3) ═══
+      /* ═══ THE SCROLLER IS NOT THE TREE ANY MORE ═══
+         It carried `role="tree"` and `aria-label` as well as the scroll, and
+         that made every other thing in the scroller a child of the tree.
+         MEASURED by axe, 9 of them — one per viewport on D10 — all
+         `aria-required-children` on this one element: `tree` accepts `treeitem`
+         and `group` and NOTHING else, and this element owned two roleless divs
+         besides its groups. The column header, and the completed-today band.
+         THE ROLE MOVED ONE LEVEL IN RATHER THAN THE CHILDREN BEING RELABELLED,
+         because relabelling would have been the dodge: a `role="group"` on the
+         sort header would satisfy axe while claiming a row of controls ABOUT
+         the list is content IN it, and `toolbar` — the role it actually wants
+         — is not a legal tree child either. The completed band is a plainer
+         case: it is a separate `ul role="list"` holding a separate selection,
+         which its own note calls "the other selection". Neither is queue
+         content, so neither belongs inside the tree.
+         WHAT STAYS HERE: the scroll, the ref the virtualizer measures, and
+         `onKeyDown`. The handler is deliberately still on the element that
+         contains BOTH the header and the rows, which is where it already was
+         — so `j`/`k` reach the list from the header's sort buttons exactly as
+         before, and this is a change to the a11y tree and nothing else.
+         ═══ THE LIST IS ITS OWN SCROLLER (Part 3) ═══
          It used to sit inside a scrolling column, which was fine at eight rows and
          wrong at fifty: a sticky band header inside a non-scrolling element sticks
          to nothing, so "Imminent — 23" would scroll away and the reader forty rows
@@ -1677,9 +1876,37 @@ export function Worklist({
           "Presentation" over rows that carry none would be a legend for
           columns that are not there. */}
       {entries.some((e) => paneItemFor(e).payload.kind === "billing") && (
-        <ReviewRowHeader disc={ROW_GEOMETRY[preset].disc} sticky />
+        <ReviewRowHeader
+          sort={sort}
+          disc={ROW_GEOMETRY[preset].disc}
+          /* THE ROW'S LEADING SLOT, so "Mentee" sits over the names rather
+             than 16px to their left — see the header's own note. */
+          markerWidth={MARKER_SLOT}
+          /* §6.1: the codes column became the cadence column, and it is half
+             its width — which is what gives the mentee column back the room
+             §6.5's collapse took. */
+          presentationWidth={COL_REVIEW}
+          sticky
+        />
       )}
 
+      {/* ═══ THE TREE IS THE QUEUE, AND ONLY THE QUEUE ═══
+          Its children are the band groups and the retiring bands, which are
+          `role="group"` already — so the content model is legal by
+          construction rather than by exception. `aria-label` comes with the
+          role: it names the widget a reader is navigating, and it named the
+          scroller before.
+          NO BOX OF ITS OWN BEYOND THE DEFAULT BLOCK. It adds a level to the
+          DOM, and the one thing that could have noticed is a `position: sticky`
+          child, whose containing block is now this wrapper rather than the
+          scroller. The only sticky section is the pinned escalation band, and
+          it cannot occur here: `pinned` is `band.id === "needsResponse"`, which
+          only the `deadline` grouping produces, and Care Reviews — the one
+          surface that mounts `Worklist` — groups by nothing since addendum
+          §2.9. Measured: one band, id `all`, on every fixture. Stated rather
+          than assumed, because it is the thing a reader should check first if
+          a grouping ever comes back. */}
+      <div role="tree" /* TODO-COPY */ aria-label={`${subjectLabel} worklist`}>
       {sections.map((section) => {
         const n = section.rows.length;
         /** ═══ THE PINNED BUCKET IS NEVER WINDOWED (arch-G, G2) ═══
@@ -1737,6 +1964,11 @@ export function Worklist({
                 key={v.id}
                 preset={preset}
                 hasGroups={hasGroups}
+                /* §5.2. Absent `viewed` means the surface does not track it, so
+                   nothing is marked — which is Risk Flags' behaviour. */
+                unviewed={viewed ? !viewed.has(v.id) : false}
+                /* §8. Absent means the surface does not track drafts. */
+                drafted={drafted?.has(v.id) ?? false}
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
                    Under a band header, every row keeps one: the header is a
                    filled strip and the line beneath it separates two different
@@ -1794,6 +2026,9 @@ export function Worklist({
         );
       })}
 
+      {/* INSIDE THE TREE, because a retiring band IS queue content — a cleared
+          tier reporting its clearance, `role="group"` already, in the position
+          the reader last saw its rows. */}
       {retiring.map((r) => (
         <RetiringBand
           key={r.id}
@@ -1802,12 +2037,17 @@ export function Worklist({
           height={r.height}
         />
       ))}
+      </div>
 
       {/* AFTER EVERY BUCKET AND AFTER THE RETIRING BANDS — the last thing in the
           scroller, which is where "behind you" belongs. Outside the virtualizer
           on purpose: it is collapsed by default and holds a shift's worth of
           rows, not a hundred, so the spacer arithmetic has nothing to gain here
-          and everything to lose. */}
+          and everything to lose.
+          AND OUTSIDE THE TREE, which is new and is the point: its root is a
+          roleless div wrapping a toggle and a `ul role="list"`, so as a child
+          of `role="tree"` it broke the tree's content model. It is a separate
+          list with a separate selection and it was never queue content. */}
       {onSelectCompleted && (
         <CompletedGroup
           entries={completed}

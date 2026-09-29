@@ -87,19 +87,23 @@ export function PageHeader({
            the span survives and the fill does not: one hairline, which is the
            "no added chrome" §5.2 was protecting, to within a pixel.
 
-           ═══ AND IT IS GATED ON `progress`, WHICH IS NOT ARBITRARY ═══
-           This component is mounted by seven destinations and §5's scope is
-           the two LIST surfaces. Ungated, the rule would appear under Today,
-           Mentees, Roster and the team directory — an unreviewed change to
-           surfaces that shipped without one, made by a component edit rather
-           than by a decision about them.
-           `progress` is the honest gate because it selects exactly the
-           surfaces that ALREADY HAD this rule: the track drew it, so a
-           destination with a track had one and a destination without had none.
-           Gating reproduces that set precisely and changes nothing elsewhere.
-           It is also §5.1's own rationale — the rule binds a left cluster to a
-           right one, and the track is what puts a cluster on the right. */
-        progress && "border-b border-[var(--border-subtle)] pb-4",
+           ═══ UNGATED (Care Reviews rework §5.4) ═══
+           It was `progress && …`, which reproduced exactly the set of surfaces
+           that had a rule when the TRACK drew one — so Today, Mentees, Roster
+           and the team directory were left untouched by a component edit that
+           was not a decision about them.
+           §5.4 REMOVED THE TRACK FROM BOTH LIST SURFACES, and the gate then did
+           something nobody chose: it took the rule away with it, leaving the
+           two headers with nothing terminating the band. That was a side
+           effect of the gate rather than a decision, and Brandon's answer was
+           to ungate.
+           SO EVERY DESTINATION'S BAND CLOSES NOW, which is what §2.10 claims
+           the shared header is for — one header, one treatment. The
+           propagation is real and is the point rather than a cost: Mentees,
+           Roster and the team directory gain a hairline they did not have, and
+           they gain it because they are the same component. Measured and
+           reported. */
+        "border-b border-[var(--border-subtle)] pb-4",
         className
       )}
     >

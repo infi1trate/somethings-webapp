@@ -201,14 +201,34 @@ function RiskFlagBody({
  *
  *  A REAL <button> WITH `aria-expanded`, the whole row as the target, the caret
  *  `aria-hidden` — the same arrangement the score strip settled on. */
-/* ═══ UNMOUNTED, NOT DELETED (strangler rule) ═══
-   §3 removes this accordion from the pane; the component stays because its
-   removal is the thing under review, not a settled deletion. The day the
-   mentorship figure is wanted back — or wanted somewhere else — this is it,
-   with its own reasoning intact above. `eslint-disable` rather than a `void`
-   reference, so nothing pretends to use it. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function RecordContext({ payload }: { payload: BillingPayload }) {
+/* ═══ REMOUNTED (rework §7), AND THE NOTE BELOW PREDICTED IT ═══
+   The Figma alignment pass removed this accordion and said so in the words
+   §7 came back for: "this is the one change in the set that removes CLINICAL
+   CONTEXT rather than chrome, so it is the one worth a second look before it
+   ships". §7 is that second look, and the strangler rule is what made it a
+   one-line remount instead of a rebuild — which is the whole argument for the
+   rule, so it is worth recording that it paid off once.
+   IT NAMES THE MENTOR NOW, which it did not before. The ROW deliberately never
+   does — `e.no-mentor` in `row-semantics` asserts that no Tasks row names a
+   mentor in text or in its accessible name, because the row's unit is the
+   review and the mentor is not its subject. The pane is where the question
+   "who is working with this teen" is legitimately asked, and §7 asks it.
+   ENGAGED DAYS IS NOT HERE. §7 asked for it and nothing publishes it: there is
+   no per-day engagement log in this model, and `care-summary.tsx` says the same
+   thing where the Care page would have wanted it. A figure derived from
+   `messagesLast30` would look authoritative and be invented, which is the
+   failure arch-mon spent a phase removing from the flag tiers. Blocked and
+   reported rather than approximated. */
+function RecordContext({
+  payload,
+  mentorName,
+}: {
+  payload: BillingPayload;
+  /** The mentor on the record. From the item, not the payload — `TaskItem`
+   *  already carries it for every domain, so a second copy inside the billing
+   *  payload would be a field that can disagree with the row it came from. */
+  mentorName: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="overflow-hidden rounded-[var(--radius-inset)] border border-[color:var(--border-contour)]">
@@ -223,9 +243,30 @@ function RecordContext({ payload }: { payload: BillingPayload }) {
           RING
         )}
       >
-        <span className="text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
-          {/* NEEDS-COPY-NICOLE */}
-          Record context
+        <span className="min-w-0 text-[13px] leading-[18px] text-[var(--text-primary)]">
+          {/* NEEDS-COPY-NICOLE. ═══ THE MENTOR IS THE HEADING NOW (§7) ═══
+              "Record context" named the CONTAINER and said nothing, which is
+              the disclosure-with-a-silent-closed-state the note below warns
+              about — it only escaped that by borrowing the duration on the
+              right. The mentor's name is what this block is about, so it is
+              what the closed state says; the label follows it, quietly, so the
+              phrase still explains what kind of thing the name is. */}
+          {/* ═══ `font-display`, AND IT WAS `font-semibold` ═══
+              The wrapper carried `font-semibold` when the heading was the words
+              "Record context", and MEASURED that does nothing: Lausanne ships
+              the 400 face only and renders identically at 400/500/600/700 —
+              recorded in four files, and the reason `row-emphasis.ts` exists.
+              An inert weight on a label nobody reads is harmless; on the
+              block's focal point it is a declaration with no rendering behind
+              it. Avantt is one of the two channels that measure (+19% ink), and
+              it is the same one the ROW spends on the teen's name — so the
+              person a block is about is emphasised the same way wherever this
+              product does it. ONE PER ZONE: the label and the duration beside
+              it stay quiet. */}
+          <span className="block truncate font-display font-bold">{mentorName}</span>
+          <span className="block text-[12px] font-normal leading-[16px] text-[var(--text-secondary)]">
+            Mentor on record
+          </span>
         </span>
         <span className="flex shrink-0 items-center gap-2 text-[12px] text-[var(--text-secondary)]">
           {/* THE HEADLINE FIGURE STAYS VISIBLE COLLAPSED. A disclosure whose
@@ -336,17 +377,22 @@ function BillingBody({
       recommended={recommended}
       onCommit={onCommit}
       handleRef={handleRef}
-      /* ═══ THE RECORD CONTEXT ACCORDION IS REMOVED (Figma alignment §3) ═══
-         WHAT IT COST, STATED, because arch-F's own note argued the other way:
-         "the mentorship length is the one figure that changes how the rest
-         reads". That figure is gone from this pane. It remains on the mentee's
-         record, one click away through `View care journey` above.
-         THE FIGMA REMOVES IT and the fork was authorised; this is the one
-         change in the set that removes CLINICAL CONTEXT rather than chrome, so
-         it is the one worth a second look before it ships.
-         `RecordContext` is not deleted — the strangler rule — and the prop is
-         optional, so nothing else that renders `BillingReview` is affected. */
-      recordContext={null}
+      /* ═══ AND IT IS BACK (rework §7) ═══
+         WHAT THE REMOVAL COST WAS STATED HERE AND §7 IS THE SECOND LOOK IT
+         ASKED FOR. The Figma alignment pass removed this accordion and the note
+         that replaced it said: "this is the one change in the set that removes
+         CLINICAL CONTEXT rather than chrome, so it is the one worth a second
+         look before it ships." It shipped, §7 asked for the mentor and the
+         mentorship length on this pane, and the answer to both is the block
+         that was already written for it.
+         "It remains on the mentee's record, one click away" was the mitigation,
+         and one click away is the thing §7 is declining: a supervisor deciding a
+         code should not have to leave the decision to find out how long this
+         mentorship has run.
+         STILL A DISCLOSURE, not an expanded panel. The two counts stay behind
+         the caret; what the closed state carries is the mentor and the
+         duration, which are the two facts §7 named. */
+      recordContext={<RecordContext payload={payload} mentorName={item.mentorName} />}
       onGapsChange={onGapsChange}
       onBlocked={onBlocked}
     >

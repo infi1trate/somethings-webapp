@@ -42,11 +42,21 @@ import {
 import { TaskPane, type PaneActions } from "@/components/tasks/task-pane";
 import { TabComplete } from "@/components/tasks/completion";
 import { PageHeader } from "@/components/ia/page-header";
+/* RETIRED BY §5.4 — unmounted on both list surfaces, kept for the reason
+   every retired piece here is. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ShiftTrack } from "@/components/ia/shift-progress";
 import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { ShortcutSheet, useTaskShortcuts } from "@/components/tasks/shortcuts";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { ListToolbar } from "@/components/ia/list-toolbar";
+import { CareSortNotice } from "@/components/tasks/review-row";
+import {
+  applyCareSort,
+  nextSort,
+  type CareSort,
+  type CareSortColumn,
+} from "@/lib/ui/care-sort";
 import { shiftDateLabel } from "@/lib/home/shift-date";
 import {
   VIEW_OPTIONS_DEFAULT,
@@ -68,7 +78,7 @@ import {
   subscribeReviewDrafts,
 } from "@/lib/record/review-draft";
 import { proposalKindFor, PROPOSAL_LABEL } from "@/lib/record/proposal-kind";
-import { listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { submittedEntries, listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
   preselectedFor,
@@ -84,6 +94,8 @@ import {
 } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { oldestAgeLabel } from "@/lib/ia/age";
+import { overdueCount } from "@/lib/tasks/care-overdue";
+import { CARE_TAB_EMPTY, type CareTab } from "@/lib/ui/care-tab";
 
 /** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
  *  The two domains whose work CLEARS: billing reviews and the two escalation
@@ -381,10 +393,44 @@ export function TasksPage({
   const activeDomain: TaskDomain = "billing";
 
   /** THE TAB'S ENTRIES — the sorted domain list with flags coalesced (§4). */
-  const entries = useMemo(
+  /** ═══ §5.1 — OPEN OR SUBMITTED ═══
+   *  SESSION-SCOPED, NOT PERSISTED. §3 gives the reasoning for sort and it
+   *  applies identically here: a supervisor returning to a list showing
+   *  something they switched to days ago, without remembering, misreads it —
+   *  and on this tab the misreading is the dangerous direction, because an
+   *  empty Submitted tab and an empty Open tab mean opposite things. The
+   *  default is always Open, which is where the work is. */
+  const [careTab, setCareTab] = useState<CareTab>("open");
+
+  /** ═══ §3 — THE USER'S SORT, OR NONE ═══
+   *  `null` IS THE DEFAULT AND IS NOT A SORT KEY. It means the list renders in
+   *  `compareTasks`' order, which is what the surface chose; see the module
+   *  note in `care-sort.ts` on why the default is the absence of a key rather
+   *  than a key named "default".
+   *  SESSION-SCOPED, LIKE `careTab` ABOVE, and for the same reason it gives:
+   *  a supervisor returning to a queue ordered by something they set days ago,
+   *  without remembering, misreads it — and here the dangerous direction is a
+   *  list that looks like it is in urgency order and is in alphabetical order. */
+  const [careSort, setCareSort] = useState<CareSort | null>(null);
+
+  const submittedRecords = useOnboardingStore((st) => st.submittedCareReviews);
+  const markCareReviewViewed = useOnboardingStore((st) => st.markCareReviewViewed);
+  const markCareReviewSubmitted = useOnboardingStore((st) => st.markCareReviewSubmitted);
+
+  const openEntries = useMemo(
     () => listEntriesForDomains(items, domains, now),
     [items, domains, now]
   );
+  const submitted = useMemo(
+    () => submittedEntries(items, submittedRecords, domains),
+    [items, submittedRecords, domains]
+  );
+  /* ONE `entries`, SO EVERYTHING DOWNSTREAM IS TAB-AGNOSTIC. The search
+     adapter, the virtualizer, the selection model and the pane all read this —
+     switching the source here rather than branching at each of them is what
+     keeps the Submitted tab from becoming a second list component, which is
+     the defect K.1 spent a whole pass removing one surface along. */
+  const entries = careTab === "submitted" ? submitted : openEntries;
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
    *  retirement needs to report how many of a cleared tier closed today, which is
@@ -547,6 +593,65 @@ export function TasksPage({
    *  and the same figure Risk Flags carries. Null when the list is empty, which
    *  the header renders as an em dash rather than "0d": there is no oldest
    *  review, which is different from one that is zero days old. */
+  /* ═══ §5.2, §5.3 — THE VIEWED TRACE AND THE TWO FIGURES IT FEEDS ═══
+     `viewedCareReviews` is a private per-supervisor reading trace (store v52).
+     A Set because membership is tested once per row in a list that can be 123
+     long. */
+  const viewedIds = useOnboardingStore((st) => st.viewedCareReviews);
+  const viewed = useMemo(() => new Set(viewedIds), [viewedIds]);
+  /* OVER THE SHOWN SET, so the figures describe the list a reader is looking
+     at — the same rule `open` already follows. With §4's filters gone `shown`
+     is the open set, but that is a fact about today's toolbar rather than a
+     reason to count something else. */
+  const unviewedCount = useMemo(
+    () => shown.filter((e) => !viewed.has(e.id)).length,
+    [shown, viewed]
+  );
+  /** ═══ §8 — WHICH ROWS HAVE A SAVED DRAFT ═══
+   *  Resolved ONCE for the shown list rather than per row: `readReviewDraft`
+   *  touches `sessionStorage`, and 123 rows each reading it on every render is
+   *  a synchronous storage call per row per paint.
+   *  `draftVersion` IS READ INSIDE, not only in the dep array — a value the
+   *  body ignores is a dependency the next reader deletes, which is the note
+   *  the retired filter dimension left behind. It is what makes this recompute
+   *  when the pane saves or clears a draft.
+   *  KEYED BY ENTRY ID so the row can test membership directly; for a group the
+   *  head's draft is the group's, which matches what selecting the group opens. */
+  const drafted = useMemo(() => {
+    void draftVersion;
+    const out = new Set<string>();
+    for (const e of shown) {
+      const h = paneItemFor(e);
+      if (readReviewDraft(h.teenId, h.id)) out.add(e.id);
+    }
+    return out;
+  }, [shown, draftVersion]);
+
+  const overdue = useMemo(
+    () => overdueCount(shown.map((e) => paneItemFor(e)), now),
+    [shown, now]
+  );
+
+  /** ═══ §3 — THE ORDER THE LIST RENDERS IN ═══
+   *  THE ONE ORDER-DEPENDENT SET. `shown` feeds four counts above and none of
+   *  them care about sequence, so the sort is applied once, here, rather than
+   *  threaded through the derivations — `unviewedCount`, `drafted`, `overdue`
+   *  and the metrics would all be identical either way and reading them off a
+   *  re-sorted array would invite someone to believe otherwise.
+   *  IDENTICAL REFERENCE WHEN NO SORT IS SET, so the default path allocates
+   *  nothing and cannot reorder — `applyCareSort` returns its input. */
+  const ordered = useMemo(
+    () => applyCareSort(shown, careSort, paneItemFor),
+    [shown, careSort]
+  );
+
+/* ═══ RETIRED BY §5.3 ═══
+     `3d oldest` left the metric line: age is on every row in its own column,
+     where a reader compares it against the rows around it rather than against
+     one aggregate. The expression stays because it is the only place "the
+     oldest thing in the shown set" is computed, and §3 sorting by review age
+     is the next thing that would want it. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const oldestReviewAge = useMemo(() => {
     /* ═══ THE SHARED EXPRESSION (Phase K.2) ═══
        It was `elapsedLabel(Math.min(...))` inline here while Today derived its
@@ -660,8 +765,36 @@ export function TasksPage({
   const focusedEntry: ListEntry | null =
     focusReview != null ? (entries.find((e) => e.id === focusReview) ?? null) : null;
 
+  /* ═══ THE FALLBACK IS THE FIRST VISIBLE ROW, NOT THE FIRST ENTRY (§3) ═══
+     It read `entries[0]`, which was the same object while nothing reordered
+     the list. A sort makes them different, and `entries[0]` would select a row
+     somewhere down the list while the pane claimed to be showing the top of
+     it — and §5.2 marks the pane's active entry VIEWED, so the mismatch would
+     also put a read marker on the wrong row.
+     THE LOOKUP STAYS ON `entries`: a selected id has to resolve whatever the
+     order is, and `ordered` is a permutation of `shown`, which is a
+     subsequence of `entries` — the wider set is the correct one to resolve
+     against. */
   const activeEntry: ListEntry | null =
-    entries.find((e) => e.id === selectedEntryId) ?? focusedEntry ?? entries[0] ?? null;
+    entries.find((e) => e.id === selectedEntryId) ?? focusedEntry ?? ordered[0] ?? null;
+
+  /** ═══ §5.2 — "VIEWED" MEANS THE RECORD OPENED IN THE PANE ═══
+   *  THE THRESHOLD, STATED: an item counts as viewed when it is the pane's
+   *  active entry — which is what happens on a click, on a keyboard move, and
+   *  on the default selection of the first row.
+   *  THE DEFAULT SELECTION IS DELIBERATELY INCLUDED. `activeEntry` falls back
+   *  to `entries[0]`, so landing on the list marks its first row viewed without
+   *  a click. That is correct rather than convenient: the pane renders that
+   *  record in full beside the list, so the supervisor HAS seen it — and a
+   *  marker claiming otherwise on a row whose content is on screen would be
+   *  the list contradicting the pane.
+   *  AN EFFECT AND NOT A RENDER-TIME WRITE. The React Compiler rejects state
+   *  writes during render, and a store write in a `useMemo` would fire twice
+   *  under StrictMode. */
+  useEffect(() => {
+    if (!mounted || careTab !== "open" || !activeEntry) return;
+    markCareReviewViewed(activeEntry.id);
+  }, [mounted, careTab, activeEntry, markCareReviewViewed]);
   /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
    *  It carries `status: "resolved"`, so the buckets have filtered it out — and
    *  `entries.find(...)` returns undefined for it, which is exactly the shape of
@@ -762,7 +895,30 @@ export function TasksPage({
    *  state, from before the dev bar owned this axis. `plan.list` is the default. */
   const listState: ListState = listStates[activeDomain] ?? plan.list;
 
-  const nothingOpen = mounted && counts.open === 0;
+  /** ═══ THE WHOLE-PAGE EMPTY, AND WHY CARE REVIEWS IS OUT OF IT (§9) ═══
+   *
+   *  FOUND BY §9's `care-open-empty` FIXTURE, which is what the fixture was for.
+   *  With no open review, `WholePageEmpty` replaced the entire panel — and it
+   *  takes the TOOLBAR with it, so §5.1's Open/Submitted control disappeared
+   *  along with both of its empty states. Three consequences, measured on that
+   *  fixture:
+   *
+   *   · `CARE_TAB_EMPTY` WAS DEAD CODE on this path. §5.1's whole argument is
+   *     that "no open reviews is an achievement; no submitted reviews is a blank
+   *     history" must read differently, and neither line could render.
+   *   · SUBMITTED BECAME UNREACHABLE exactly when it is most wanted — a
+   *     supervisor who just cleared the queue by working it cannot get to the
+   *     list of what they submitted.
+   *   · AND THE COPY OVERCLAIMS. "Every queue is clear" is a statement about
+   *     every queue from a page that only counts its own: the fixture has three
+   *     open risk flags while this rendered. Reported rather than rewritten —
+   *     the strings are Nicole's, and "No open tasks" additionally uses the
+   *     noun the addendum retired.
+   *
+   *  SO IT IS RISK FLAGS' BRANCH ONLY. Risk Flags has no submitted set and no
+   *  tab axis, so nothing is hidden behind its whole-page empty; Care Reviews
+   *  keeps its toolbar and answers with the one of two lines that fits. */
+  const nothingOpen = mounted && counts.open === 0 && scope !== "care-reviews";
 
   /* THE FOCUS PAUSE AND THE BOUNDARY FLUSH MOVED TO `useResolveUndo` (arch-B).
      Sixty-five lines of sonner-presence translation and a `pagehide` listener,
@@ -915,6 +1071,13 @@ export function TasksPage({
         return next;
       });
       setResolvedIds((prev) => new Set(prev).add(item.id));
+      /* ═══ §5.1 — THE SUBMISSION PERSISTS ═══
+         `resolvedIds` and `completed` are page state and die with the mount,
+         which is why the Submitted tab would have been empty on every fresh
+         visit. This is the persisted record — an id and an instant, nothing
+         else, so it never becomes a second copy of clinical data that can drift
+         from the fixture it points at. */
+      markCareReviewSubmitted(item.id, Date.now());
       /* THE OUTCOME COMES FROM THE COMMIT DETAIL, not from the payload: the
          supervisor may have picked a different code than the model proposed, and
          the record is what they submitted. */
@@ -1020,29 +1183,81 @@ export function TasksPage({
              fact either surface can state.
              FILTER-AWARE, AND IT SAYS SO (§6.4) — see Monitoring's own note on
              why the qualification lives in the label rather than the figure. */
-          [
+          careTab === "submitted"
+            ? /* ═══ §5.1 — THE FIGURES FOLLOW THE ACTIVE STATE ═══
+                 "Viewing Submitted must not show the open count." So the line
+                 is the submitted count alone: `unviewed` is a fact about work
+                 still waiting to be read, and `overdue` is a fact about work
+                 still open — neither means anything about a decision already
+                 made, and rendering either here would be a number that looks
+                 authoritative and describes the other tab.
+                 THE NAV BADGE IS UNAFFECTED and stays the open count whichever
+                 tab is active — it belongs to the destination, not to this
+                 control. `openCounts` is its source and nothing here touches
+                 it. */
+              [
+                {
+                  value: String(shown.length),
+                  /* NEEDS-COPY-NICOLE */
+                  label: "submitted",
+                },
+              ]
+            : [
             {
               value: String(shown.length),
-              label: filtering ? "open · filtered" : "open",
+              label: "open",
             },
-            { value: oldestReviewAge ?? "—", label: "oldest" },
+            /* ═══ §5.3 — UNVIEWED REPLACES `oldest` ═══
+               The line was `16 open · 3d oldest`. §5.3 makes it
+               `16 open · 4 unviewed · 2 overdue` and removes `oldest`
+               explicitly — age is still on every row, in its own column, where
+               a reader compares it against the rows around it rather than
+               against a single aggregate.
+               `filtering` IS GONE FROM THE LABEL because §4 removed filters
+               from this surface: there is no filtered state to qualify, and a
+               label reading "open · filtered" that can never be filtered is
+               the dead chrome the extensibility threshold forbids. */
+            {
+              value: String(unviewedCount),
+              /* NEEDS-COPY-NICOLE */
+              label: "unviewed",
+            },
+            /* ═══ §5.3 — THE OVERDUE SLOT, AND IT IS NO LONGER A SLOT ═══
+               §5.3 said to build the line with open and unviewed only and
+               "leave a typed slot for overdue" because §2 was unanswered. It
+               is answered — 48 hours since reception, unreviewed — so the
+               figure is real. `care-overdue.ts` holds the rule and the note on
+               why it is not a deadline.
+               IT RENDERS ONLY WHEN NON-ZERO. `2 overdue` is a condition; `0
+               overdue` is the resting state of the work, and a permanent zero
+               teaches a reader to stop reading the line. */
+            ...(overdue > 0
+              ? [
+                  {
+                    value: String(overdue),
+                    /* NEEDS-COPY-NICOLE */
+                    label: "overdue",
+                  },
+                ]
+              : []),
           ]
         }
-        progress={
-          <ShiftTrack
-              /* §5.3: `band` read as a browser loading bar in situ, so this is
-                 the fallback §5.3 named. `PageHeader` places it in the band's
-                 right cluster; the hairline there carries the bottom rule that
-                 `band` used to be. Measurement in that file. */
-              layout="contained"
-            progress={{
-              done: completed.length,
-              total: counts.open + completed.length,
-            }}
-            unit="reviews completed this shift"
-            completeLine="Every review that arrived this shift is done"
-          />
-        }
+        /* ═══ §5.4 — THE SHIFT TRACK COMES OFF CARE REVIEWS ═══
+           `0 of 16 reviews completed this shift` and its rail are gone.
+           CONFIRMED SCOPE: Risk Flags loses it too ("no" to "does Risk Flags
+           keep its track"), so the element is unmounted on both surfaces and
+           `ShiftTrack` itself is retired rather than deleted — see
+           `shift-progress.tsx`.
+           THIS ALSO SUPERSEDES THE §5.2 PROPOSAL from the previous pack — the
+           progress fill as the header band's bottom rule. That shipped, was
+           judged to read as a browser loading bar, and fell back to a
+           contained track; now the track is gone entirely and the band's
+           hairline is what terminates it. The hairline stays: it is gated on
+           `progress` in `PageHeader`, so with no track there is no rule —
+           which is why the gate moves to a literal below.
+           THE HEADER'S RIGHT SIDE IS NOW EMPTY and §5.4 says that is
+           acceptable because the metric line carries more. Reported with a
+           measurement rather than asserted. */
       />
 
       {/* ═══ THE RESPOND STRIP AND THE TAB-CARD ROW ARE BOTH GONE (arch-A) ═══
@@ -1086,7 +1301,7 @@ export function TasksPage({
         ) : (
           <div
             className={cn(
-              // 40 / 60 at >=1280px. Below 1100px only ONE of the two mounts —
+              // 50 / 50 at >=1280px. Below 1100px only ONE of the two mounts —
               // switching rather than shrinking, so neither pane is ever squeezed
               // into a width it cannot use.
               // ═══ AN EXPLICIT ROW, OR THE GRID GROWS PAST ITS OWN HEIGHT ═══
@@ -1101,23 +1316,66 @@ export function TasksPage({
               // rather than the page. Same fix, same reason, as the dialog's
               // body row.
               "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
-              /* ═══ THE PANE PINS AT 790px FROM 1645px UP (§0) ═══
-                 The full derivation is on Monitoring's grid. What matters here
-                 is §0's hard constraint: 1645 is the width at which the 60%
-                 track ALREADY measured 790, so the Care Reviews pane's rendered
-                 width is unchanged at every viewport — below the breakpoint it
-                 is the same fraction it was, above it it holds the figure it had
-                 reached. Every pixel this pass adds goes to the list. */
+              /* ═══ 50 / 50, AND IT WAS 40 / 60 — ANSWERED ═══
+                 THE DEFECT IT FIXES, MEASURED. Four columns do not fit the list
+                 card the 40% track left: at 1280 the card was 367px, the row
+                 needed 428, and §3's shrink ladder paid the 61px out of the
+                 mentee caption — 66 of the 130px "Presentation Change" needs.
+                 The four widths on the table were measured before this changed
+                 (list-card width → outcome): 40/60 → 367, caption truncated;
+                 45/55 → 413, the cadence column at 0px; 48/52 → 440, "9…";
+                 50/50 → 459, and the cadence label 38 of the 43px it wants.
+                 MEASURED AFTER, at 1280: 459px of card, nothing clipped and
+                 nothing truncated on the row. The deficit is gone rather than
+                 moved — §3's ratios are still what would pay it, and there is
+                 nothing left for them to pay.
+
+                 ═══ AND THE PIN MOVES WITH IT, FROM 1645 TO 1943 (§0) ═══
+                 §0's hard constraint is that the pane's rendered width is
+                 unchanged at every viewport: the breakpoint has to be the width
+                 at which the FRACTION already measures 790, or the pane jumps
+                 across it. 1645 was that width for a 60% track. For a 50% track
+                 it is not — MEASURED at 1645: the grid is 1302, so half of it
+                 less the 20px gap is 641, and pinning 790 there would have
+                 GROWN the pane by 149px on crossing, which is precisely the §0
+                 violation the variant-ordering note below exists to prevent.
+                 1943 IS THE CROSSOVER, AND IT WAS MEASURED RATHER THAN DERIVED:
+                 at 1943 the grid is exactly 1600, so the two halves are 790 and
+                 790 — the old pinned rule and the new fraction agree there to
+                 the pixel. So the pane holds 790 from 1943 up, it is continuous
+                 across the breakpoint, and every pixel above it still goes to
+                 the list.
+                 THE COST, STATED: between 1645 and 1943 the pane is narrower
+                 than it used to be — at 1645, 641 rather than 790. That is the
+                 trade the answer chose, and it is the same trade at every width
+                 in the range: the list gets what the pane gives up. MEASURED at
+                 the pane's new narrowest (459px, at 1280): no horizontal
+                 overflow and nothing truncated inside it, and axe on this
+                 destination came back one `target-size` BETTER than before,
+                 because the wider card gave a control room.
+
+                 ═══ AND MONITORING KEEPS 40/60 — A DIVERGENCE, STATED ═══
+                 The cross-reference above sends a reader to Monitoring's grid
+                 for the derivation, and that grid is now a different split with
+                 its own pin at 1645. The reason the two can differ is the reason
+                 they were the same: this split is a consequence of THIS
+                 surface's list holding a four-column table, which Monitoring's
+                 does not — its rows are conversations. So the two grids share
+                 §0's rule (the pane never renders wider than it has, every new
+                 pixel goes to the list) and no longer share its instance. If
+                 Monitoring's list ever grows columns, this is the precedent and
+                 1645 is the number to re-derive. */
               /* BOTH VARIANTS ARE ARBITRARY, AND THAT IS NOT A STYLE CHOICE.
                    MEASURED: written as `xl:` + `min-[1645px]:`, Tailwind emitted
                    the named breakpoint AFTER the arbitrary one, so at 2560 the
                    40/60 rule won and the columns came out 686/1030 — the pane
                    1030px WIDER than it had ever rendered, which is the §0
-                   violation this rule exists to prevent. Two arbitrary `min-[]`
+                   violation this rule exists to prevent. Still true of 1280 and
+                   1943: two arbitrary variants sort by value, and 1280 < 1943. Two arbitrary `min-[]`
                    variants sort against each other by value, so the order is
                    the arithmetic rather than the emitter's category ranking.
                    1280 is `xl` spelled out; nothing below this line changed. */
-                "min-[1280px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)] min-[1645px]:grid-cols-[minmax(0,1fr)_790px]"
+                "min-[1280px]:grid-cols-[minmax(0,50fr)_minmax(0,50fr)] min-[1943px]:grid-cols-[minmax(0,1fr)_790px]"
             )}
           >
             {/* ── THE LIST SCROLLS ON ITS OWN, INSIDE ITSELF ──
@@ -1146,46 +1404,76 @@ export function TasksPage({
                 onPreset={(p) => setViewOptions("care-reviews", { preset: p })}
                 /* §4.2, confirmed: two controls on this surface. */
                 showView={false}
+                /* ═══ §4 — FILTERS COME OFF CARE REVIEWS ═══
+                   Confirmed scope: "just care reviews for now". Risk Flags
+                   keeps them, which is why this is a prop and not a deletion —
+                   Risk Flags has no table and no sorting, so removing them
+                   there would leave search and comparator order as the only
+                   way through 123 items.
+                   CARE REVIEWS LOSES NOTHING because §3 gives it column
+                   sorting as its organising mechanism. */
+                showFilters={false}
+                /* ═══ §5.1 — ONLY ON CARE REVIEWS ═══
+                   The axis is this destination's; Risk Flags has no submitted
+                   set and no such distinction. */
+                tabs={
+                  scope === "care-reviews"
+                    ? {
+                        value: careTab,
+                        onChange: setCareTab,
+                        count: { open: openEntries.length, submitted: submitted.length },
+                      }
+                    : undefined
+                }
                 /* NEEDS-COPY-NICOLE. §6.1: one field for both names — and see
                    the adapter's note on the mentor not being drawn. */
                 searchHint="Search teen or mentor"
               />
+              {/* ═══ §3 — THE OVERRIDE SAYS IT IS ON, AND OFFERS THE WAY BACK ═══
+                  ABOVE THE LIST RATHER THAN IN THE HEADER ROW. The three
+                  columns are fixed-width and full at 1280 (§6.5 measured the
+                  mentee cell down to 11px before `COL_MENTEE_MIN`), so there is
+                  no room in the header for a fourth thing — and a reset inside
+                  the row of sort controls would be a fourth control a reader
+                  has to distinguish from the three that sort.
+                  RENDERED EVEN WITH NO SORT, and it draws nothing: it is the
+                  live region, and a region that appears with its own first
+                  message announces nothing. See the component. */}
+              {scope === "care-reviews" && (
+                <CareSortNotice value={careSort} onReset={() => setCareSort(null)} />
+              )}
               {shown.length === 0 && filtering ? (
-                /* ═══ FILTERED TO NOTHING IS NOT NOTHING TO REVIEW (§6.4) ═══
-                   "A supervisor must never be able to mistake 'filtered to
-                   nothing' for 'nothing to review.'" `Worklist`'s own empty
-                   state is written for a cleared queue and would assert one
-                   here while rows sit behind a dropdown. This states the hidden
-                   count — the fact that distinguishes the two — and carries the
-                   way out. Deliberately NOT `WholePageEmpty`, which is the
-                   surface resting and is a different claim entirely. */
+                /* ═══ RETIRED WITH FILTERS (§4) ═══
+                   This branch was the filtered-empty state, and its rule —
+                   "a supervisor must never be able to mistake 'filtered to
+                   nothing' for 'nothing to review'" — is the reasoning §5.1's
+                   two empty states inherit. §4 removed filters from this
+                   surface, so `filtering` is permanently false and this is
+                   unreachable. Kept because the rule applies again the day
+                   filters return, which §4 asked to have recorded. */
+                null
+              ) : shown.length === 0 && scope === "care-reviews" ? (
+                /* ═══ §5.1 — THE TWO EMPTIES READ DIFFERENTLY ═══
+                   "No open reviews is an achievement; no submitted reviews is
+                   a blank history." One shared "Nothing here" would flatten
+                   those into the same sentence and teach a supervisor that an
+                   empty safety queue is unremarkable.
+                   `role="status"` so a switch to a tab that turns out to be
+                   empty is announced rather than leaving a reader looking at a
+                   blank column wondering whether it loaded. */
                 <div
                   role="status"
-                  data-anno-ref="filtered-empty"
+                  data-anno-ref={`care-empty:${careTab}`}
                   className="rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)] px-6 py-6"
                 >
                   <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
-                    {/* NEEDS-COPY-NICOLE */}
-                    No reviews match these filters.
+                    {CARE_TAB_EMPTY[careTab].line}
                   </p>
-                  <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-                    {/* NEEDS-COPY-NICOLE */}
-                    {entries.length === 1
-                      ? "1 review is hidden."
-                      : `${entries.length} reviews are hidden.`}
-                  </p>
-                  <button
-                    type="button"
-                    data-anno-ref="clear-filters-empty"
-                    onClick={() => setFilters(EMPTY_FILTERS)}
-                    className={cn(
-                      "mt-3 inline-flex min-h-11 items-center rounded-full border border-[color:var(--border-contour)] px-3 text-[13px] font-semibold",
-                      RING
-                    )}
-                  >
-                    {/* NEEDS-COPY-NICOLE */}
-                    Clear filters
-                  </button>
+                  {CARE_TAB_EMPTY[careTab].detail && (
+                    <p className="mt-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                      {CARE_TAB_EMPTY[careTab].detail}
+                    </p>
+                  )}
                 </div>
               ) : (
               <Worklist
@@ -1194,7 +1482,41 @@ export function TasksPage({
                 /* THE FILTERED SET. `applyFilters` is a `filter`, so this is a
                    subsequence of `entries` and the comparator's order is intact
                    — §6.4's "filters subset; they never reorder". */
-                entries={shown}
+                /* §3's ORDER. `shown` for every count, `ordered` for the
+                   list — see the memo. */
+                entries={ordered}
+                /* ═══ §3 — THE COLUMN HEADERS BECOME CONTROLS ═══
+                   Care Reviews only. Risk Flags' rows are conversations with
+                   no cycle and no mentee column, and its five-step comparator
+                   is the ordering a supervisor is meant to read — handing it a
+                   sort would let a reader silently turn that off. */
+                sort={
+                  scope === "care-reviews"
+                    ? {
+                        value: careSort,
+                        onToggle: (c: CareSortColumn) =>
+                          setCareSort((cur) => nextSort(cur, c)),
+                      }
+                    : undefined
+                }
+                /* ═══ §5.2 — ONLY WHERE THE STATE EXISTS ═══
+                   Care Reviews tracks viewing; Risk Flags does not, and passing
+                   the set there would mark 123 rows unviewed against a trace
+                   nothing writes to. Undefined on the Submitted tab too: a
+                   submitted review has been read by definition, and a marker
+                   saying otherwise on a decision already made would be the list
+                   contradicting itself. */
+                viewed={
+                  scope === "care-reviews" && careTab === "open" ? viewed : undefined
+                }
+                /* ═══ §8 — OPEN TAB ONLY ═══
+                   A submitted review's draft was consumed by the submission;
+                   `clearReviewDraft` runs on commit, so the set would be empty
+                   there anyway — passing it would be asserting a state that
+                   cannot exist rather than one that happens to be absent. */
+                drafted={
+                  scope === "care-reviews" && careTab === "open" ? drafted : undefined
+                }
                 items={domainItems}
                 domain={activeDomain}
                 now={now}

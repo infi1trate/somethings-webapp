@@ -135,11 +135,44 @@ const rowReport = `(row) => {
   );
 
   const emph = data.map((r) => r.parts.filter((p) => p.emphasised));
+  /* ═══ AT MOST ONE, NOT EXACTLY ONE (rework §5.2) ═══
+     This asserted `=== 1` on every row and now reads 0,1,1,1,1,1,1,1 — the
+     first row is VIEWED, and §5.2 takes the emphasis off a viewed row on
+     purpose. That is the mechanism, not a regression: the weight difference
+     §5.2 asks for is unavailable (only Lausanne 400 ships), so the FACE is the
+     channel, and a viewed name drops from Avantt to the text face.
+     WHAT arch-D AND arch-F ACTUALLY FORBADE IS TWO, and both say so in the
+     same words — "what both versions forbid is two focal points competing
+     inside one zone". Zero is not what the rule guarded against; a row with no
+     focal point is quieter, which is exactly what "already read" should look
+     like.
+     SO THE CEILING IS ASSERTED, AND THE FLOOR IS ASSERTED WHERE IT BELONGS:
+     an UNVIEWED row must still have exactly one, which is checked below. */
   check(
     "tasks.one-emphasis",
-    "exactly one emphasised element per row",
-    emph.every((e) => e.length === 1),
+    "at most one emphasised element per row",
+    emph.every((e) => e.length <= 1),
     emph.map((e) => e.length).join(",")
+  );
+  /* ═══ AND AN UNVIEWED ROW HAS ONE ═══
+     Without this, dropping the emphasis from EVERY row would satisfy the
+     ceiling above and silently delete the channel. The unviewed rows are the
+     ones carrying the marker, identified by the dot rather than by position. */
+  const unviewedEmph = await page.evaluate(
+    `[...document.querySelectorAll('[role="treeitem"]')]
+       .filter((r) => r.querySelector('[data-anno-ref="unviewed-dot"]'))
+       .slice(0, 8)
+       .map((r) => [...r.querySelectorAll("span")].filter((s) => {
+         if (s.children.length) return false;
+         const cs = getComputedStyle(s);
+         return /avantt/i.test(cs.fontFamily) || (/mono/i.test(cs.fontFamily) && Number(cs.fontWeight) >= 700);
+       }).length)`
+  );
+  check(
+    "tasks.unviewed-emphasis",
+    "and an unviewed row has exactly one, so the channel is not silently dropped",
+    unviewedEmph.length > 0 && unviewedEmph.every((n) => n === 1),
+    unviewedEmph.join(",") || "no unviewed rows"
   );
   /* ═══ SUPERSEDED TWICE: CLOCK → JOB (arch-E) → TEEN (arch-F) ═══
      arch-E moved the emphasis off the countdown and onto the job. arch-F moved
@@ -158,9 +191,26 @@ const rowReport = `(row) => {
      weight channel from the thing that names the row. */
   check(
     "tasks.teen-leads",
-    "and it is the teen, which is what varies row to row",
-    emph.length > 0 && emph.every((e) => /^[A-Z][a-z]+ [A-Z][.]$/.test(e[0]?.text ?? "") && /avantt/.test(e[0].fam)),
-    emph[0]?.[0] && `${emph[0][0].text} · ${emph[0][0].px}px/${emph[0][0].weight} ${emph[0][0].fam}`
+    "and where there is one it is the teen, which is what varies row to row",
+    /* ═══ ONLY THE ROWS THAT HAVE ONE (§5.2) ═══
+       It required EVERY row to have an emphasised part and for that part to be
+       the teen in Avantt. A viewed row has none by design, so the `every`
+       failed on the first row rather than on anything about the teen.
+       THE CLAIM IS UNCHANGED for the rows it applies to, and it is still the
+       one that matters: when the row emphasises something, that something is
+       the NAME — not the job, which arch-E emphasised and arch-F found
+       identical on every row, and not the clock, which arch-D emphasised. The
+       filter is what makes it apply to the rows that have an emphasis rather
+       than asserting every row must. */
+    emph.filter((e) => e.length > 0).length > 0 &&
+      emph
+        .filter((e) => e.length > 0)
+        .every((e) => /^[A-Z][a-z]+ [A-Z][.]$/.test(e[0]?.text ?? "") && /avantt/.test(e[0].fam)),
+    emph
+      .filter((e) => e.length > 0)
+      .map((e) => `${e[0].text} ${e[0].px}px ${e[0].fam}`)
+      .slice(0, 2)
+      .join(" · ")
   );
   /* ═══ THE JOB CHIP IS GONE, AND THE CHECK INVERTS (addendum §2.9) ═══
      arch-F kept "Billing code review" as a subordinate chip so that "the
@@ -260,30 +310,52 @@ const rowReport = `(row) => {
      arch-E put the teen name here beside its disposition. The name moved to line
      1 with the emphasis, so repeating it in the caption would spend the line on
      a string six pixels above it. */
-  /* ═══ THE CAPTION IS LOZENGES NOW (addendum §2.9) ═══
-     It carried `proposalPreview`'s sentence — "Change proposed → F41.1". A
-     billing code is an identifier a reviewer matches against a record, not
-     prose, so it renders as one lozenge per code in the mono face. The claim
-     that survives is the one arch-F made: whatever the caption holds, it is
-     NOT the teen's name a second time and it does not take the emphasis. */
+  /* ═══ CODES LEFT THE LIST ENTIRELY (rework §6.3) ═══
+     This asserted the caption carried the billing code as a lozenge in the
+     mono face — §2.9's decision, which moved the codes OUT of prose and into
+     lozenges, and which §4.3 then moved into a column of their own so they
+     lined up under a header.
+     §6.3 REVERSES ALL OF IT: "codes leave the list entirely. They are only
+     shown in the detail now." So the claim has no subject, and the column that
+     held them carries the review cadence instead (§6.1).
+     THE LOZENGE WORK IS NOT WASTED AND IS NOT WRONG — `ProposalCodes` still
+     renders exactly that treatment in the detail pane, which is where triage
+     against a record happens. What changed is which surface shows them.
+     WHAT REPLACES IT IS THE ABSENCE PLUS THE REPLACEMENT, both asserted: no
+     code may render on a list row, and the cadence cell must be there instead.
+     An absence alone would pass on a row that lost its whole trailing block. */
   const codes = await page.evaluate(
-    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => [...row.querySelectorAll("[data-billing-code]")].map((e) => ({ code: e.getAttribute("data-billing-code"), tone: e.getAttribute("data-code-tone"), fam: getComputedStyle(e).fontFamily })))`
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => [...row.querySelectorAll("[data-billing-code]")].length)`
   );
   check(
-    "tasks.caption-codes",
-    "the caption carries the billing code as a lozenge, in the mono face",
-    codes.every((cs) => cs.length >= 1 && cs.every((c) => /mono/i.test(c.fam))),
-    codes[0]?.map((c) => `${c.code}[${c.tone}]`).join(" ") || "no code lozenges"
+    "tasks.no-codes-on-list",
+    "no billing code renders on a list row — they live in the detail now",
+    codes.length > 0 && codes.every((n) => n === 0),
+    `${codes.filter((n) => n > 0).length} of ${codes.length} rows carried a code`
   );
-  /* READ OFF THE LEAVES, not off every span: a wrapper span reports the text of
-     everything inside it, so an ancestor of the name also "is" the name and the
-     first version of this check failed on its own instrumentation. */
+  const cycles = await page.evaluate(
+    `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 8).map((row) => { const m = (row.innerText || "").match(/\\b(30|90)-day\\b/); return m ? m[0] : null; })`
+  );
+  check(
+    "tasks.cycle-cell",
+    "and the column that held them carries the review cadence instead",
+    cycles.length > 0 && cycles.every((c) => c === "30-day" || c === "90-day"),
+    cycles.join(" · ") || "none"
+  );
   check(
     "tasks.caption-not-the-name",
     "and not the name a second time",
+    /* ═══ A ROW WITH NO EMPHASIS IS NOT A ROW REPEATING ITS NAME (§5.2) ═══
+       This required `lead !== ""`, so a VIEWED row — which has no emphasised
+       part by design — failed a check about DUPLICATION. The claim is that
+       whatever leads is not printed twice; a row with nothing leading has
+       nothing to duplicate.
+       SO THE NAME IS THE SUBJECT NOW, not the emphasis. It is the same string
+       either way on an unviewed row, and on a viewed row it is the only one
+       there is. */
     data.every((r) => {
-      const lead = r.parts.find((p) => p.emphasised)?.text ?? "";
-      return lead !== "" && r.parts.filter((p) => p.text === lead).length === 1;
+      const name = r.parts.find((p) => /^[A-Z][a-z]+ [A-Z][.]$/.test(p.text))?.text ?? "";
+      return name !== "" && r.parts.filter((p) => p.text === name).length === 1;
     }),
     data[0]?.parts.map((p) => p.text).join(" | ") ?? "no parts"
   );

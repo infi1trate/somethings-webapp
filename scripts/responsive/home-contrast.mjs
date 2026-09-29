@@ -102,11 +102,16 @@ for (const theme of ["light", "dark"]) {
         persona: "supervisor",
         extra: { tasksScenarioId: "typical-shift", shiftLastSeenAt: 0 },
       },
+        /* ═══ THE THEME COMES FROM THE SEED, NOT `emulateMedia` ═══
+           This app reads localStorage["somethings.theme"] and applies a .dark
+           class; it never consults prefers-color-scheme. So the dark run here
+           was measuring the LIGHT theme — verified before the fix, where the
+           light and dark rows reported identical values. */
+        theme,
     },
     { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1000 },
     version
   );
-  await page.emulateMedia({ colorScheme: theme });
   await page.waitForTimeout(400);
   /** Walk up for the first non-transparent background — what the ink actually
    *  sits on, which is rarely the element's own. */

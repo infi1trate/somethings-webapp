@@ -37,6 +37,7 @@ import { useResolveUndo } from "@/components/tasks/resolve-undo";
 import { EscalationRegion } from "@/components/monitoring/escalation-region";
 import { EventList, ageLabel } from "@/components/monitoring/event-list";
 import { PageHeader } from "@/components/ia/page-header";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ShiftTrack } from "@/components/ia/shift-progress";
 import { EventPane, type PaneHandle } from "@/components/monitoring/event-pane";
 import { NowBand } from "@/components/monitoring/now-band";
@@ -532,6 +533,11 @@ export function MonitoringPage({
    *  the search box — progress is a fact about the shift, not about the
    *  current view of it. So this reads `openFlagCount`, the unfiltered open
    *  count, while the header's figures read the filtered set. */
+  /* RETIRED BY §5.4 with the track it fed. Kept because it is the one
+     expression for "how much of this shift's flag set has been through a
+     supervisor's hands", which is the question `shift-progress.tsx` exists to
+     answer if it returns. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const flagProgress = useMemo(
     () => ({ done: allFlagCount - openFlagCount, total: allFlagCount }),
     [allFlagCount, openFlagCount]
@@ -1058,24 +1064,17 @@ export function MonitoringPage({
                 ]
             : []
         }
-        progress={
-          mounted && scope === "risk-flags" ? (
-            /* NEEDS-COPY-NICOLE. THE UNIT IS FLAGS, not conversations: §2.11
-               measures what a supervisor has been through, and the row is a
-               conversation while the work is a flag. */
-            <ShiftTrack
-              /* §5.3: `band` read as a browser loading bar in situ. Same
-                 fallback as Care Reviews, for the same measurement, because
-                 §4.1's rule is that the two list surfaces keep one grammar —
-                 a header that differed only here would be the drift that rule
-                 exists to prevent. */
-              layout="contained"
-              progress={flagProgress}
-              unit="flags reviewed this shift"
-              completeLine="Every flag that arrived this shift has been reviewed"
-            />
-          ) : null
-        }
+        /* ═══ §5.4 — THE SHIFT TRACK COMES OFF RISK FLAGS TOO ═══
+           Confirmed scope: "no" to "does Risk Flags keep its track". So the
+           element is unmounted on both list surfaces and `ShiftTrack` is
+           retired rather than deleted.
+           WHAT IT WAS FOR IS WORTH RECORDING, because it was the one thing on
+           either surface that answered "have I been through my shift's work":
+           coverage as progress against the set that arrived, deliberately
+           never expressed as a remainder and deliberately never green. If that
+           question returns, `shift-progress.tsx` still holds the answer and
+           its two clinical rules — measure coverage not speed, invest in the
+           ending not the filling. */
       >
         {/* ═══ THE PIPELINE'S HEALTH IS NOT A METRIC ═══
             NEEDS-COPY-NICOLE. Zero flags is ambiguous between a quiet shift and

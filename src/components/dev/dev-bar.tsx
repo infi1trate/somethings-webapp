@@ -631,7 +631,16 @@ export function DevBar() {
                 </option>
               ))}
             </optgroup>
-            <optgroup label="Tasks">
+            {/* ═══ "Care Reviews", AND IT SAID "Tasks" (rework §9) ═══
+                The group navigates to `TASKS_ROUTES[0]`, which is
+                `/app/care-reviews`; `/app/tasks` is the retired hop kept in the
+                array so a reader already on it counts as on-axis. The label was
+                the last thing on this control still naming the destination by
+                the name the addendum retired. The PREFIX stays `tasks:` — it is
+                a persisted key in the store (`tasksScenarioId`) and renaming it
+                would invalidate every saved selection to fix a string nobody
+                reads. */}
+            <optgroup label="Care Reviews">
               {TASK_SCENARIOS.map((s) => (
                 <option key={s.id} value={`${TASKS_PREFIX}${s.id}`}>
                   {s.label}

@@ -51,6 +51,7 @@ import { activeEscalations, openCareReviews } from "@/lib/ia/open-counts";
 import { ackStateFor } from "@/lib/monitoring/escalation";
 import { proposalCaption } from "@/components/tasks/review-row";
 import type { TodayInput } from "@/lib/home/today";
+import type { TaskType } from "@/lib/tasks/types";
 
 /** HARD, NOT CONFIGURABLE (I.2.2). Exported so the test and the UI read one
  *  number, never so a caller can raise it. */
@@ -60,6 +61,11 @@ export interface StartHereItem {
   id: string;
   /** For the identity disc — the same derivation the queue row uses. */
   teenId: string;
+  /** ═══ THE TASK TYPE, FOR THE CYCLE COLUMN (rework §6.1) ═══
+   *  `ReviewCycleCell` derives the cadence position from it rather than from a
+   *  stored field — see `review-cycle.ts`. Carried on the item because the
+   *  preview row renders the destination's own cell and that cell takes a type. */
+  taskType: TaskType;
   /** Already initialised upstream — `teenDisplayName` and `teenName` are
    *  "Theo L." shaped before they reach here, so this module never truncates a
    *  surname and never has to know how. */
@@ -139,6 +145,9 @@ export function startHereCandidates(
       .map((r) => ({
         id: r.id,
         teenId: r.teenId,
+        /* Escalations have no cadence; `cycleFor` returns null and the cell
+           renders nothing rather than claiming one. */
+        taskType: "activeEscalation" as TaskType,
         name: r.teenName,
         at: r.triggeredAt,
         /* NEEDS-COPY-NICOLE: Response overdue / Awaiting response.
@@ -157,6 +166,7 @@ export function startHereCandidates(
       .map((e) => ({
         id: e.id,
         teenId: e.teenId,
+        taskType: "riskFlagReview" as TaskType,
         name: e.teenName,
         at: e.at,
         /* NULL BY DECISION, NOT BY OMISSION — see the module note. */
@@ -171,6 +181,7 @@ export function startHereCandidates(
     .map((i) => ({
       id: i.id,
       teenId: i.teenId,
+      taskType: i.taskType,
       name: i.teenDisplayName,
       at: i.openedAt,
       /* The destination's own status word, and the same string its row shows —

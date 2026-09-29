@@ -171,7 +171,7 @@ export function deadlineBucketsFor(
  *  the same rule `bandsFor` uses for tiers and the only one that cannot hide a
  *  deadline inside a group. */
 export function deadlineBandsFor(
-  entries: ListEntry[],
+  entries: readonly ListEntry[],
   now: number
 ): TierBand[] {
   const byId = new Map<DeadlineBucketId, TierBand>();
