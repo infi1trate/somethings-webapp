@@ -38,6 +38,26 @@
 // Expansion is driven by Right/Left arrows and by a click zone on the chevron; the
 // chevron itself is aria-hidden because the state lives on the treeitem. Logged as
 // design-system-gaps.md row 215.
+//
+// ═══ AND THE TREE'S CONTENT MODEL IS THE OTHER HALF OF THAT CHOICE ═══
+//
+// A tree's strength is what it accepts and that is also its cost: `treeitem` and
+// `group`, NOTHING ELSE. This file already records two things the rule forbade —
+// an `<h3>` band heading and a nested `<button>` — and it shipped a third: the
+// role sat on the SCROLLER, so the column header and the completed-today band
+// were children of the tree. MEASURED by axe, `aria-required-children`, nine
+// times, once per viewport on D10.
+// SO THE ROLE IS ON THE QUEUE AND THE SCROLL IS ON THE CARD. Two elements, one
+// job each, and the test for anything new in this list is now easy to apply: if
+// it is not a `treeitem` or a `group`, it goes in the scroller BESIDE the tree,
+// not inside it. Both of the things that broke the rule are controls or lists
+// ABOUT the queue rather than rows in it, which is why that test is the right
+// one rather than a workaround — relabelling a sort header `role="group"` would
+// have satisfied axe and lied about the structure.
+// MONITORING'S LIST NEVER HAD THIS. `event-list.tsx` puts `role="tree"` on an
+// element whose only children are treeitems — checked, and its own axe probe
+// reports zero violations — because it has no column header and no completed
+// band. The defect was this surface's alone.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, PencilLine, Phone, RotateCcw } from "lucide-react";
@@ -1809,11 +1829,28 @@ export function Worklist({
       )}
     <div
       ref={scrollerRef}
-      role="tree"
-      /* TODO-COPY */
-      aria-label={`${subjectLabel} worklist`}
       onKeyDown={onKeyDown}
-      /* ═══ THE LIST IS ITS OWN SCROLLER (Part 3) ═══
+      /* ═══ THE SCROLLER IS NOT THE TREE ANY MORE ═══
+         It carried `role="tree"` and `aria-label` as well as the scroll, and
+         that made every other thing in the scroller a child of the tree.
+         MEASURED by axe, 9 of them — one per viewport on D10 — all
+         `aria-required-children` on this one element: `tree` accepts `treeitem`
+         and `group` and NOTHING else, and this element owned two roleless divs
+         besides its groups. The column header, and the completed-today band.
+         THE ROLE MOVED ONE LEVEL IN RATHER THAN THE CHILDREN BEING RELABELLED,
+         because relabelling would have been the dodge: a `role="group"` on the
+         sort header would satisfy axe while claiming a row of controls ABOUT
+         the list is content IN it, and `toolbar` — the role it actually wants
+         — is not a legal tree child either. The completed band is a plainer
+         case: it is a separate `ul role="list"` holding a separate selection,
+         which its own note calls "the other selection". Neither is queue
+         content, so neither belongs inside the tree.
+         WHAT STAYS HERE: the scroll, the ref the virtualizer measures, and
+         `onKeyDown`. The handler is deliberately still on the element that
+         contains BOTH the header and the rows, which is where it already was
+         — so `j`/`k` reach the list from the header's sort buttons exactly as
+         before, and this is a change to the a11y tree and nothing else.
+         ═══ THE LIST IS ITS OWN SCROLLER (Part 3) ═══
          It used to sit inside a scrolling column, which was fine at eight rows and
          wrong at fifty: a sticky band header inside a non-scrolling element sticks
          to nothing, so "Imminent — 23" would scroll away and the reader forty rows
@@ -1853,6 +1890,23 @@ export function Worklist({
         />
       )}
 
+      {/* ═══ THE TREE IS THE QUEUE, AND ONLY THE QUEUE ═══
+          Its children are the band groups and the retiring bands, which are
+          `role="group"` already — so the content model is legal by
+          construction rather than by exception. `aria-label` comes with the
+          role: it names the widget a reader is navigating, and it named the
+          scroller before.
+          NO BOX OF ITS OWN BEYOND THE DEFAULT BLOCK. It adds a level to the
+          DOM, and the one thing that could have noticed is a `position: sticky`
+          child, whose containing block is now this wrapper rather than the
+          scroller. The only sticky section is the pinned escalation band, and
+          it cannot occur here: `pinned` is `band.id === "needsResponse"`, which
+          only the `deadline` grouping produces, and Care Reviews — the one
+          surface that mounts `Worklist` — groups by nothing since addendum
+          §2.9. Measured: one band, id `all`, on every fixture. Stated rather
+          than assumed, because it is the thing a reader should check first if
+          a grouping ever comes back. */}
+      <div role="tree" /* TODO-COPY */ aria-label={`${subjectLabel} worklist`}>
       {sections.map((section) => {
         const n = section.rows.length;
         /** ═══ THE PINNED BUCKET IS NEVER WINDOWED (arch-G, G2) ═══
@@ -1972,6 +2026,9 @@ export function Worklist({
         );
       })}
 
+      {/* INSIDE THE TREE, because a retiring band IS queue content — a cleared
+          tier reporting its clearance, `role="group"` already, in the position
+          the reader last saw its rows. */}
       {retiring.map((r) => (
         <RetiringBand
           key={r.id}
@@ -1980,12 +2037,17 @@ export function Worklist({
           height={r.height}
         />
       ))}
+      </div>
 
       {/* AFTER EVERY BUCKET AND AFTER THE RETIRING BANDS — the last thing in the
           scroller, which is where "behind you" belongs. Outside the virtualizer
           on purpose: it is collapsed by default and holds a shift's worth of
           rows, not a hundred, so the spacer arithmetic has nothing to gain here
-          and everything to lose. */}
+          and everything to lose.
+          AND OUTSIDE THE TREE, which is new and is the point: its root is a
+          roleless div wrapping a toggle and a `ul role="list"`, so as a child
+          of `role="tree"` it broke the tree's content model. It is a separate
+          list with a separate selection and it was never queue content. */}
       {onSelectCompleted && (
         <CompletedGroup
           entries={completed}
