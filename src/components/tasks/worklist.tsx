@@ -317,7 +317,13 @@ function Row({
   preset,
   hasGroups,
   hairline,
+  unviewed = false,
 }: {
+  /** ═══ §5.2 — WHETHER THIS REVIEW HAS BEEN OPENED IN THE PANE ═══
+   *  Passed in rather than read from the store here: a row must not subscribe
+   *  to a 500-entry array individually, or every row re-renders on every view.
+   *  The list resolves membership once and hands each row a boolean. */
+  unviewed?: boolean;
   /** §5's row scale. See the geometry note on why this is not a class. */
   preset: ViewPreset;
   /** Whether ANY row in this list is a group — see the list's own prop. */
@@ -497,6 +503,11 @@ function Row({
       ? [item.teenDisplayName, TASK_KIND_LABEL[item.taskType], disposition]
       : [item.teenDisplayName, `to ${item.mentorName}`]),
     isGroup ? coalesceLabel(entry.members.length) : null,
+    /* ═══ §5.2 — THE MARKER IN WORDS ═══
+       The dot is `aria-hidden` and the face is not announceable at all, so
+       without this a screen-reader user has no access to the state. NEEDS-COPY-
+       NICOLE. */
+    unviewed ? "unviewed" : null,
     overdue ? "overdue" : null,
     item.payload.kind === "escalation"
       ? item.payload.is911
@@ -691,6 +702,30 @@ function Row({
           the text column could carry a full-height border, and a fixed-height
           child of a stretch container aligns to its START. The wrapper is what
           re-centres it, and it is the same wrapper Risk Flags already had. */}
+      {/* ═══ §5.2 — THE UNVIEWED MARKER, AT THE LEADING EDGE ═══
+          Inbox convention: a mark before the identity, in a fixed position, on
+          rows that have not been opened.
+          THE SLOT IS ALWAYS THERE AND THE DOT IS NOT. Reserving the width means
+          a viewed row and an unviewed row start their disc at the same x — a
+          marker that shifts the whole row as it appears would make the list
+          twitch as a supervisor works down it.
+          `--text-primary`, NOT AN ECRU DOT. §5.2 says an ecru dot alone fails
+          1.4.1, and the reason is contrast rather than hue: ecru on cream is
+          around 1.2:1, so its PRESENCE is not reliably perceivable and
+          presence is the whole signal. At primary ink it is 15.14:1 light and
+          15.43:1 dark — a shape a reader can see, which is what makes
+          presence/absence a non-colour channel.
+          `aria-hidden` BECAUSE THE NAME SAYS IT — see `ariaLabel`, which
+          carries "unviewed" in words. */}
+      <span aria-hidden className="flex shrink-0 items-center justify-center" style={{ width: 8 }}>
+        {unviewed && (
+          <span
+            data-anno-ref="unviewed-dot"
+            className="size-2 rounded-full bg-[var(--text-primary)]"
+          />
+        )}
+      </span>
+
       <span className="flex shrink-0 items-center">
         {/* SHARED WITH TODAY'S PREVIEW (K.1) — one disc implementation. */}
         <ReviewDisc
@@ -776,7 +811,25 @@ function Row({
                  element was overriding it with the ink for the ground it is NOT
                  on. Inheriting instead of restating is the fix. */
               isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-primary)]",
-              (taskLed || emphasis === "person") && "font-display"
+              /* ═══ §5.2's SECOND CHANNEL IS THE FACE, BECAUSE WEIGHT IS INERT ═══
+                 §5.2 asks for "a weight difference on the mentee name (unviewed
+                 slightly heavier), which is the convention the inbox reference
+                 is actually built on". THAT CHANNEL DOES NOT EXIST IN THIS
+                 BUILD: only `TWKLausanne-400` and `Avantt-Bold` ship, and this
+                 codebase records the measurement in four places — Lausanne
+                 renders identically at 400, 500, 600 and 700, so
+                 `font-semibold` here would be a declaration with no rendering
+                 behind it. Faking it is what K.3 forbids.
+                 THE FACE IS THE SUBSTITUTE AND IT IS THIS CODEBASE'S OWN: "the
+                 two emphasis channels that actually work are Avantt and the
+                 mono stack at 700" (arch-F). Avantt over Lausanne is a measured
+                 +19% ink, which is a real weight step in every sense except the
+                 CSS property's.
+                 SO AN UNVIEWED NAME IS AVANTT AND A VIEWED ONE IS THE TEXT
+                 FACE. That is the direction §5.2 asks for — unviewed heavier —
+                 and it is the same treatment arch-F gave the row's focal point,
+                 now earned per row rather than granted to all of them. */
+              (taskLed || emphasis === "person") && unviewed && "font-display"
             )}
           >
             {item.teenDisplayName}
@@ -1116,6 +1169,14 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 export function Worklist({
   entries,
   items,
+  /** ═══ §5.2 — THE VIEWED SET ═══
+   *  Ids the supervisor has opened in the pane. A `Set` so membership is O(1)
+   *  per row on a list that can be 123 long, resolved once by the page rather
+   *  than subscribed to per row.
+   *  DEFAULTS EMPTY, so the surface that does not track viewing — Risk Flags —
+   *  is unchanged by the prop existing, and every row there renders the
+   *  unviewed treatment it already had. */
+  viewed,
   domain,
   subject,
   emptyLine,
@@ -1142,6 +1203,8 @@ export function Worklist({
   preset,
   hasGroups,
 }: {
+  /** §5.2. See the destructured prop above for why it is a Set. */
+  viewed?: ReadonlySet<string>;
   /** §5's row scale. Required rather than defaulted — see the geometry note:
    *  a surface that forgot to pass it would render rows the virtualizer is not
    *  measuring, which is the one failure in this file that is invisible. */
@@ -1760,6 +1823,9 @@ export function Worklist({
                 key={v.id}
                 preset={preset}
                 hasGroups={hasGroups}
+                /* §5.2. Absent `viewed` means the surface does not track it, so
+                   nothing is marked — which is Risk Flags' behaviour. */
+                unviewed={viewed ? !viewed.has(v.id) : false}
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
                    Under a band header, every row keeps one: the header is a
                    filled strip and the line beneath it separates two different

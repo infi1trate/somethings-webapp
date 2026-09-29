@@ -1343,6 +1343,16 @@ export function TasksPage({
                    subsequence of `entries` and the comparator's order is intact
                    — §6.4's "filters subset; they never reorder". */
                 entries={shown}
+                /* ═══ §5.2 — ONLY WHERE THE STATE EXISTS ═══
+                   Care Reviews tracks viewing; Risk Flags does not, and passing
+                   the set there would mark 123 rows unviewed against a trace
+                   nothing writes to. Undefined on the Submitted tab too: a
+                   submitted review has been read by definition, and a marker
+                   saying otherwise on a decision already made would be the list
+                   contradicting itself. */
+                viewed={
+                  scope === "care-reviews" && careTab === "open" ? viewed : undefined
+                }
                 items={domainItems}
                 domain={activeDomain}
                 now={now}

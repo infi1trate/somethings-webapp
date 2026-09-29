@@ -1,11 +1,11 @@
 {
-  "at": 1790631699238,
+  "at": 1790693575161,
   "rows": [
     {
       "id": "tier.no-tier-anywhere",
       "label": "no tier name appears anywhere on the surface",
       "ok": true,
-      "detail": "Risk Flags Monday September 28, 2026 69 open · 5d oldest Search teen or mentor C"
+      "detail": "Risk Flags Tuesday September 29, 2026 69 open · 5d oldest Search teen or mentor "
     },
     {
       "id": "input.rows",
@@ -369,13 +369,13 @@
       "id": "hdr.own.risk-flags.input",
       "label": "the header rendered a title, a purpose and its metrics",
       "ok": true,
-      "detail": "Risk Flags Monday September 28, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Tuesday September 29, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.states-its-own",
       "label": "it states what this destination owns",
       "ok": true,
-      "detail": "Risk Flags Monday September 28, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
+      "detail": "Risk Flags Tuesday September 29, 2026 0 open · — oldest Flag pipeline is down — no flags are arriving"
     },
     {
       "id": "hdr.own.risk-flags.borrows-none",
@@ -555,7 +555,7 @@
       "id": "header.second-line-everywhere",
       "label": "every destination carries a second line under its title",
       "ok": true,
-      "detail": "/app/escalations: 83 · /app/risk-flags: 25 · /app/care-reviews: 25 · /app/team: 47 · /app/mentees: 65"
+      "detail": "/app/escalations: 83 · /app/risk-flags: 26 · /app/care-reviews: 26 · /app/team: 47 · /app/mentees: 65"
     },
     {
       "id": "header.purpose-everywhere",
@@ -567,7 +567,7 @@
       "id": "header.list-surfaces-date",
       "label": "the list surfaces carry the shift date instead, and both carry the same one",
       "ok": true,
-      "detail": "2 list surfaces · Monday September 28, 2026"
+      "detail": "2 list surfaces · Tuesday September 29, 2026"
     },
     {
       "id": "header.metric-count",
