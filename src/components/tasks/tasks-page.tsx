@@ -589,6 +589,26 @@ export function TasksPage({
     () => shown.filter((e) => !viewed.has(e.id)).length,
     [shown, viewed]
   );
+  /** ═══ §8 — WHICH ROWS HAVE A SAVED DRAFT ═══
+   *  Resolved ONCE for the shown list rather than per row: `readReviewDraft`
+   *  touches `sessionStorage`, and 123 rows each reading it on every render is
+   *  a synchronous storage call per row per paint.
+   *  `draftVersion` IS READ INSIDE, not only in the dep array — a value the
+   *  body ignores is a dependency the next reader deletes, which is the note
+   *  the retired filter dimension left behind. It is what makes this recompute
+   *  when the pane saves or clears a draft.
+   *  KEYED BY ENTRY ID so the row can test membership directly; for a group the
+   *  head's draft is the group's, which matches what selecting the group opens. */
+  const drafted = useMemo(() => {
+    void draftVersion;
+    const out = new Set<string>();
+    for (const e of shown) {
+      const h = paneItemFor(e);
+      if (readReviewDraft(h.teenId, h.id)) out.add(e.id);
+    }
+    return out;
+  }, [shown, draftVersion]);
+
   const overdue = useMemo(
     () => overdueCount(shown.map((e) => paneItemFor(e)), now),
     [shown, now]
@@ -1352,6 +1372,14 @@ export function TasksPage({
                    contradicting itself. */
                 viewed={
                   scope === "care-reviews" && careTab === "open" ? viewed : undefined
+                }
+                /* ═══ §8 — OPEN TAB ONLY ═══
+                   A submitted review's draft was consumed by the submission;
+                   `clearReviewDraft` runs on commit, so the set would be empty
+                   there anyway — passing it would be asserting a state that
+                   cannot exist rather than one that happens to be absent. */
+                drafted={
+                  scope === "care-reviews" && careTab === "open" ? drafted : undefined
                 }
                 items={domainItems}
                 domain={activeDomain}

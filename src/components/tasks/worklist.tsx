@@ -40,7 +40,7 @@
 // design-system-gaps.md row 215.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, Phone, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronRight, PencilLine, Phone, RotateCcw } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
@@ -318,7 +318,13 @@ function Row({
   hasGroups,
   hairline,
   unviewed = false,
+  drafted = false,
 }: {
+  /** ═══ §8 — WHETHER THIS REVIEW HAS A SAVED DRAFT ═══
+   *  Resolved by the list from `sessionStorage` through the version counter, and
+   *  handed down as a boolean for the same reason `unviewed` is: a row must not
+   *  read storage or subscribe individually. */
+  drafted?: boolean;
   /** ═══ §5.2 — WHETHER THIS REVIEW HAS BEEN OPENED IN THE PANE ═══
    *  Passed in rather than read from the store here: a row must not subscribe
    *  to a 500-entry array individually, or every row re-renders on every view.
@@ -508,6 +514,10 @@ function Row({
        without this a screen-reader user has no access to the state. NEEDS-COPY-
        NICOLE. */
     unviewed ? "unviewed" : null,
+    /* §8's accessible label. NEEDS-COPY-NICOLE. After "unviewed" because a row
+       can be both, and the order matches the row's own reading order — the
+       leading-edge marker before the content one. */
+    drafted ? "draft saved" : null,
     overdue ? "overdue" : null,
     item.payload.kind === "escalation"
       ? item.payload.is911
@@ -873,6 +883,36 @@ function Row({
             isResponse ? "text-[var(--task-respond-fg)]" : "text-[var(--text-secondary)]"
           )}
         >
+          {/* ═══ §8 — THE DRAFT MARKER, AND IT IS NOT A DOT ═══
+              §8's whole instruction is that this must not read as the same
+              signal as §5.2's unviewed dot: "two subtle markers in one row —
+              unviewed and draft-started — will read as the same signal if both
+              are dots. Make them different affordance classes."
+              SO THEY DIFFER ON EVERY AXIS AVAILABLE:
+                unviewed  · a DOT   · at the LEADING EDGE · outside the content
+                drafted   · an ICON · in the CONTENT AREA · on line 2
+              LINE 2 RATHER THAN LINE 1. Line 1 is the row's focal point and
+              carries the emphasis; an icon beside the name would put a second
+              thing in that zone, which is what arch-D and arch-F both forbid.
+              Line 2 is about the review's NATURE — "Presentation Review" /
+              "Presentation Change" — and a started draft is a fact of the same
+              kind.
+              `PencilLine` IS ALREADY THIS CODEBASE'S DRAFT GLYPH — see
+              `step-status-badge`, where it is keyed to `draft` with the label
+              "Draft". Same glyph, same meaning, one vocabulary.
+              THE SHAPE IS THE NON-COLOUR CARRIER. It inherits the caption's
+              ink, so nothing here is distinguished by hue at all.
+              `aria-hidden` BECAUSE THE ROW'S NAME IS STATED, not computed from
+              content — an `aria-label` on this icon would never be announced.
+              The words go in `ariaLabel`, which is where §8's "accessible
+              label" actually lands on this row. */}
+          {drafted && (
+            <PencilLine
+              aria-hidden
+              data-anno-ref="draft-icon"
+              className="mr-1 inline size-3 shrink-0 align-[-1px]"
+            />
+          )}
           {taskLed ? (
             /* ═══ THE DISPOSITION ALONE (arch-F) ═══
                arch-E put the teen name here with the disposition beside it. The
@@ -1177,6 +1217,11 @@ export function Worklist({
    *  is unchanged by the prop existing, and every row there renders the
    *  unviewed treatment it already had. */
   viewed,
+  /** ═══ §8 — IDS WITH A SAVED DRAFT ═══
+   *  A `Set`, resolved once by the page from `sessionStorage` through the draft
+   *  version counter. Empty default, so a surface that does not track drafts is
+   *  unchanged by the prop existing. */
+  drafted,
   domain,
   subject,
   emptyLine,
@@ -1205,6 +1250,8 @@ export function Worklist({
 }: {
   /** §5.2. See the destructured prop above for why it is a Set. */
   viewed?: ReadonlySet<string>;
+  /** §8. Same shape and the same reason. */
+  drafted?: ReadonlySet<string>;
   /** §5's row scale. Required rather than defaulted — see the geometry note:
    *  a surface that forgot to pass it would render rows the virtualizer is not
    *  measuring, which is the one failure in this file that is invisible. */
@@ -1826,6 +1873,8 @@ export function Worklist({
                 /* §5.2. Absent `viewed` means the surface does not track it, so
                    nothing is marked — which is Risk Flags' behaviour. */
                 unviewed={viewed ? !viewed.has(v.id) : false}
+                /* §8. Absent means the surface does not track drafts. */
+                drafted={drafted?.has(v.id) ?? false}
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
                    Under a band header, every row keeps one: the header is a
                    filled strip and the line beneath it separates two different
