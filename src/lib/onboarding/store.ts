@@ -1146,7 +1146,27 @@ export const useOnboardingStore = create<OnboardingState>()(
         // meaningful (rule 11 is about a viewer clearing a ROW) — this is the
         // prototype simulator swapping one fixture ledger for another.
         set({ activityScenarioId: id, activityRead: {} }),
-      setTasksScenarioId: (id) => set({ tasksScenarioId: id }),
+      /* ═══ AND IT DROPS THE CARE TRACES (rework §9) ═══
+         Exactly the reasoning `setChatScenarioId` below already runs on:
+         "switching scenario drops everything keyed to the old fixtures".
+         `viewedCareReviews` and `submittedCareReviews` hold ENTRY IDS —
+         `task-3`, a coalesce group's id — and every task scenario rebuilds
+         those ids from index 1. So without this, switching from a 19-row
+         fixture to a 3-row one left a reading trace whose ids now name
+         DIFFERENT reviews: rows marked read that nobody had opened, and a
+         Submitted tab listing submissions against records that no longer
+         exist. Found while §9 looked for a fixture that would make the
+         Submitted empty state reachable; the answer was that the switch should
+         have been clearing it all along.
+         IT IS ALSO WHAT MAKES §9's `care-submitted-empty` AND
+         `care-all-unviewed` REACHABLE without a fixture — see the note under
+         `TASK_SCENARIOS`. */
+      setTasksScenarioId: (id) =>
+        set({
+          tasksScenarioId: id,
+          viewedCareReviews: [],
+          submittedCareReviews: [],
+        }),
       setMonitoringScenarioId: (id) => set({ monitoringScenarioId: id }),
       /* Switching scenario drops everything keyed to the old fixtures — the same
          reasoning as `setActivityScenarioId` clearing its read overlay. An

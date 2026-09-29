@@ -1264,6 +1264,188 @@ function previewUnderCap(now: number): TaskItem[] {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// THE CARE REVIEWS FIXTURES (rework §9)
+//
+// §9 asked for six. THREE ARE FIXTURES and they are below; the other three are
+// not states a `build(now) => TaskItem[]` can express, and each says why at the
+// place it would have gone — see the note under the registry. Recording the
+// distinction is the point: a fixture that cannot produce the state it is named
+// for is worse than no fixture, because it looks like coverage.
+
+/** ═══ NO OPEN REVIEW (§9, serving §5.1's `open` EMPTY STATE) ═══
+ *  Every care review RESOLVED, so the Open tab has nothing and the Submitted
+ *  tab has nothing either until somebody submits one — which is the pair §5.1
+ *  says must read differently.
+ *  RESOLVED RATHER THAN ABSENT, deliberately: an empty queue whose items were
+ *  never created is a cold start, and §5.1's line is about the resting state of
+ *  finished work. `domainItems` sees the resolved set, so the surface can tell
+ *  the difference even though the list cannot.
+ *  A FEW OPEN FLAGS STAY, so this is one destination at rest rather than a
+ *  console with nothing in it — the state a supervisor actually reaches. */
+function careOpenEmpty(now: number): TaskItem[] {
+  return build(
+    [
+      ...closedFill(
+        "monthlyReReview",
+        4,
+        () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 14),
+        11
+      ),
+      ...closedFill(
+        "intakeBillingReview",
+        3,
+        () => billingPayload(false, now, null, CODES.gad, 10),
+        19
+      ),
+      ...fill({
+        taskType: "riskFlagReview",
+        count: 3,
+        conversations: 3,
+        minAgo: 2 * HOUR,
+        maxAgo: 9 * HOUR,
+        payload: () => LOW_MOOD(),
+        seed: 5,
+      }),
+    ],
+    now
+  );
+}
+
+/** ═══ OVERDUE PRESENT, AND NOT EVERYTHING (§9, serving §2 and §5.3) ═══
+ *  Overdue is "an indicator that an event hasn't been reviewed since reception
+ *  in over 48 hours" — `CARE_REVIEW_RESPONSE_MS`. So this fixture straddles
+ *  that threshold on purpose:
+ *
+ *    · 5 open reviews between 3 and 6 days old → overdue
+ *    · 6 open reviews between 2 and 30 hours old → not
+ *
+ *  A MIXED SET IS THE ONLY USEFUL ONE. A fixture where everything is overdue
+ *  cannot distinguish a correct count from a count that returns the list
+ *  length, which is the commonest way this kind of metric ships broken.
+ *  RESOLVED ITEMS OLDER THAN THE THRESHOLD ARE HERE TOO, because §2's second
+ *  rule is that a submitted review that took three days is not overdue, it is
+ *  done — `closedFill` opens its items 10–30h ago, so the pinned case is the
+ *  four-day one added explicitly below. */
+function careOverduePresent(now: number): TaskItem[] {
+  return build(
+    [
+      ...fill({
+        taskType: "monthlyReReview",
+        count: 3,
+        conversations: 3,
+        minAgo: 3 * DAY,
+        maxAgo: 6 * DAY,
+        payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15),
+        /* ═══ 1 / 3 / 2, AND THEY WERE 2 / 9 / 16 ═══
+           THE FIRST SET WAS PICKED BY EYE AND `seed.test.ts` CAUGHT IT: seeds
+           9 and 16 put `tk-blake` and `tk-nia` on an intake AND a re-review at
+           once — the incoherence `fill`'s own note records, arriving again
+           because "stride by 7" is a property of the DIFFERENCE between seeds
+           and 7×(16−9) ≡ 1 (mod 24), an offset of one.
+           SO THESE WERE SEARCHED FOR, NOT CHOSEN: the triple is the first one
+           whose three teen sets are pairwise disjoint over the 24-teen roster,
+           found by running `fill`'s own arithmetic rather than by reasoning
+           about it. */
+        seed: 1,
+      }),
+      ...fill({
+        taskType: "intakeBillingReview",
+        count: 2,
+        conversations: 2,
+        minAgo: 3 * DAY,
+        maxAgo: 5 * DAY,
+        payload: () => billingPayload(false, now, null, CODES.gad, 11),
+        seed: 3,
+      }),
+      ...fill({
+        taskType: "monthlyReReview",
+        count: 6,
+        conversations: 6,
+        minAgo: 2 * HOUR,
+        maxAgo: 30 * HOUR,
+        payload: () => billingPayload(true, now, CODES.gad, CODES.mddModerate, 13),
+        seed: 2,
+      }),
+      /* ═══ ONE TEEN IN TWO DOMAINS (§2.4) ═══
+         Seed 1 lands these flags on the same two teens the first re-review
+         fill opened, which is what §2.4 requires of every scenario and what
+         `seed.test.ts` checks — it failed on this fixture before these two
+         rows existed. An open flag beside an open review is also the commoner
+         real case. */
+      ...fill({
+        taskType: "riskFlagReview",
+        count: 2,
+        conversations: 2,
+        minAgo: 40 * MINUTE,
+        maxAgo: 5 * HOUR,
+        payload: () => LOW_MOOD(),
+        seed: 1,
+      }),
+      /* THE ONE THAT MUST NOT COUNT. Four days old and resolved — past the
+         threshold on age and not overdue, because it has been reviewed. */
+      {
+        taskType: "monthlyReReview" as const,
+        teen: TEENS.simone,
+        mentor: MENTORS.omar,
+        objectId: "survey-simone-overdue-done",
+        openedAgo: 4 * DAY,
+        payload: billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 16),
+        status: "resolved" as const,
+        resolvedFracOfDay: 0.3,
+      },
+    ],
+    now
+  );
+}
+
+/** ═══ BOTH CYCLES, IN EQUAL MEASURE (§9, serving §3 and §6.1) ═══
+ *  §3's `Cycle` sort has nothing to demonstrate on a list whose rows all carry
+ *  one cadence, and `cycleSortKey`'s rank is untestable by eye on one value.
+ *  SIX AND SIX, INTERLEAVED BY AGE so that neither cadence is already grouped
+ *  in the default order — a fixture that arrives sorted by the key under test
+ *  would pass against an implementation that does nothing, which is the same
+ *  trap `care-sort.test.ts` avoids in its own row order.
+ *  ═══ DISJOINT SEEDS — 23 AND 1, AND THEY WERE 23 AND 30 ═══
+ *  The first version of this comment claimed 23 and 30 were disjoint "because
+ *  they stride the roster by 7". MEASURED, FIVE OF THE SIX TEENS COLLIDED:
+ *  7×(30−23) = 49 ≡ 1 (mod 24), so the two fills are offset by ONE — exactly
+ *  the overlap `fill`'s note describes, reached by asserting the property
+ *  instead of running the arithmetic. `seed.test.ts` caught it.
+ *  23 and 1 are disjoint, searched for rather than reasoned about. */
+function careMixedCycles(now: number): TaskItem[] {
+  return build(
+    [
+      ...fill({
+        taskType: "monthlyReReview",
+        count: 6,
+        conversations: 6,
+        minAgo: 4 * HOUR,
+        maxAgo: 2 * DAY,
+        payload: () => billingPayload(true, now, CODES.mddMild, CODES.mddModerate, 15),
+        seed: 23,
+      }),
+      ...fill({
+        taskType: "intakeBillingReview",
+        count: 6,
+        conversations: 6,
+        minAgo: 6 * HOUR,
+        maxAgo: 2 * DAY + 6 * HOUR,
+        payload: () => billingPayload(false, now, null, CODES.gad, 10),
+        seed: 1,
+      }),
+      /* ═══ RESOLVED FLAGS, WHICH BUY TWO THINGS (§2.4) ═══
+         A scenario with a cleared-today counter needs resolved items, and every
+         scenario needs one teen in two domains. Seed 17 puts these two on
+         `tk-santiago` and `tk-yusuf`, both of whom hold an open re-review
+         above — so one `closedFill` answers both invariants, and
+         `seed.test.ts` fails without it. */
+      ...closedFill("riskFlagReview", 2, () => LOW_MOOD(), 17),
+    ],
+    now
+  );
+}
+
 /** A SIXTH SCENARIO IS ONE ENTRY. Same extensibility contract as the Activity
  *  simulator's registry. */
 export const TASK_SCENARIOS: TaskScenario[] = [
@@ -1282,7 +1464,48 @@ export const TASK_SCENARIOS: TaskScenario[] = [
   { id: "all-clear", label: "All clear", description: "Nothing open on any destination; a cleared footer.", build: allClear },
   { id: "care-review-backlog", label: "Care review backlog", description: "16 care reviews open, oldest 3d; other destinations clear.", build: careReviewBacklog },
   { id: "preview-under-cap", label: "Preview under cap", description: "Exactly 2 care reviews open, so the preview shows everything.", build: previewUnderCap },
+  /* ═══ THE CARE REVIEWS FIXTURES (rework §9) ═══
+     TODO-COPY on all three labels, like every other entry here — dev chrome,
+     not product. Named for the STATE each produces. */
+  { id: "care-open-empty", label: "Care · no open review", description: "Every care review resolved, so the Open tab is empty and Submitted is too.", build: careOpenEmpty },
+  { id: "care-overdue-present", label: "Care · overdue present", description: "5 of 11 open reviews past 48h since reception; one resolved four-day review that must not count.", build: careOverduePresent },
+  { id: "care-mixed-cycles", label: "Care · both cycles", description: "Six 30-day and six 90-day reviews, interleaved by age.", build: careMixedCycles },
 ];
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE OTHER THREE §9 ASKED FOR, AND WHY THEY ARE NOT ENTRIES HERE
+   ════════════════════════════════════════════════════════════════════════
+
+   A `TaskScenario` is `build(now) => TaskItem[]`. All three of these are states
+   of a TRACE that lives beside the items — the store's `viewedCareReviews` and
+   `submittedCareReviews` (v52), and `sessionStorage` drafts — so no item
+   fixture can produce them, and one that claimed to would be false coverage.
+
+    · `care-submitted-empty` — SATISFIED BY THE SWITCH ITSELF, not by a
+      fixture. `setTasksScenarioId` now clears both care traces for the reason
+      `setChatScenarioId` clears the chat writes: the traces hold ENTRY IDS
+      keyed to the fixture that has just been replaced. So selecting any task
+      scenario leaves Submitted empty, and a registry entry that produced
+      exactly what its eleven neighbours produce would be dead chrome by the
+      same standard that keeps the one-value filter row off this surface.
+
+    · `care-all-unviewed` — NOT REACHABLE, BY §5.2's OWN DECISION. The trace
+      clearing above gets every row to unviewed, and then the page marks the
+      first one viewed before a supervisor touches anything: `activeEntry`
+      falls back to the first entry and §5.2 deliberately counts the default
+      selection, because the pane renders that record in full beside the list.
+      So "all unviewed" and "the pane shows a record" cannot both be true.
+      `care-mixed-cycles` plus a fresh switch gives all-but-one, which is the
+      honest version of the state.
+
+    · `care-drafts-in-progress` — NEEDS A WRITE, NOT A FIXTURE. A draft is a
+      `sessionStorage` entry keyed by `(teenId, reviewId)` and written by the
+      pane; `review-draft.ts` is the only writer and it runs in the browser.
+      Seeding it would mean a dev-bar action that builds the items and calls
+      `writeReviewDraft` for the first few — a real and small mechanism, and a
+      new kind of thing for this registry to do, so it is reported rather than
+      added under §9's heading. §8's marker is verifiable today by saving a
+      draft and going back to the list, which is the path a supervisor takes. */
 
 export const DEFAULT_TASK_SCENARIO_ID = "typical-shift";
 

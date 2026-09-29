@@ -895,7 +895,30 @@ export function TasksPage({
    *  state, from before the dev bar owned this axis. `plan.list` is the default. */
   const listState: ListState = listStates[activeDomain] ?? plan.list;
 
-  const nothingOpen = mounted && counts.open === 0;
+  /** ═══ THE WHOLE-PAGE EMPTY, AND WHY CARE REVIEWS IS OUT OF IT (§9) ═══
+   *
+   *  FOUND BY §9's `care-open-empty` FIXTURE, which is what the fixture was for.
+   *  With no open review, `WholePageEmpty` replaced the entire panel — and it
+   *  takes the TOOLBAR with it, so §5.1's Open/Submitted control disappeared
+   *  along with both of its empty states. Three consequences, measured on that
+   *  fixture:
+   *
+   *   · `CARE_TAB_EMPTY` WAS DEAD CODE on this path. §5.1's whole argument is
+   *     that "no open reviews is an achievement; no submitted reviews is a blank
+   *     history" must read differently, and neither line could render.
+   *   · SUBMITTED BECAME UNREACHABLE exactly when it is most wanted — a
+   *     supervisor who just cleared the queue by working it cannot get to the
+   *     list of what they submitted.
+   *   · AND THE COPY OVERCLAIMS. "Every queue is clear" is a statement about
+   *     every queue from a page that only counts its own: the fixture has three
+   *     open risk flags while this rendered. Reported rather than rewritten —
+   *     the strings are Nicole's, and "No open tasks" additionally uses the
+   *     noun the addendum retired.
+   *
+   *  SO IT IS RISK FLAGS' BRANCH ONLY. Risk Flags has no submitted set and no
+   *  tab axis, so nothing is hidden behind its whole-page empty; Care Reviews
+   *  keeps its toolbar and answers with the one of two lines that fits. */
+  const nothingOpen = mounted && counts.open === 0 && scope !== "care-reviews";
 
   /* THE FOCUS PAUSE AND THE BOUNDARY FLUSH MOVED TO `useResolveUndo` (arch-B).
      Sixty-five lines of sonner-presence translation and a `pagehide` listener,
