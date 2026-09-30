@@ -342,6 +342,10 @@ export function ReviewBody({
         <ProposalCodes
           currentCode={currentCode}
           recommendedCode={review.recommended.code}
+          /* THE HEADING BELOW STATES THE RECOMMENDED CODE — measured, it was
+             rendering twice on all four record fixtures. See the prop's note
+             and the lozenge's. */
+          codeStatedAbove
           className="min-w-0 shrink"
         />
       )

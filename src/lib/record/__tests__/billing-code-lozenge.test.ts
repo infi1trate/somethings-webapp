@@ -160,3 +160,45 @@ describe("the module renders every code through it", () => {
     expect(src).toMatch(/code=\{shown\.code\}\s+tone="identity"/);
   });
 });
+
+describe("and no surface states one code twice for nothing", () => {
+  const src = code(read("src/components/record/review-body.tsx"));
+  const owner = code(read(OWNER));
+
+  /* ═══ MEASURED ON ALL FOUR RECORD FIXTURES ═══
+     The recommended code rendered TWICE on the Care page, every time — the
+     heading's `identity` lozenge and `ProposalCodes`' own:
+       t19 change   F33.1/identity · F33.0/onRecord · F33.1/changed
+       t17 renewal  F33.1/identity · F33.1/proposed
+       t12 assign   F43.22/identity · F43.22/proposed
+       t9  intake   F43.22/identity · F43.22/proposed
+     Unifying the lozenge did not cause it — both renderings pre-date that —
+     but two different shapes had been hiding it. */
+
+  it("the Care page tells the proposal row that the heading states the code", () => {
+    expect(
+      src,
+      [
+        "`review-body` renders `ProposalCodes` without `codeStatedAbove`.",
+        "",
+        "The heading above it is `Recommended presentation` + code + statement,",
+        "so without that flag the recommended code renders twice, six pixels",
+        "apart — measured on all four record fixtures.",
+      ].join("\n")
+    ).toMatch(/codeStatedAbove/);
+  });
+
+  it("and the component honours it for everything except a change", () => {
+    /* A CHANGE IS EXEMPT ON PURPOSE. Dropping the target from `F33.0 -> F33.1`
+       leaves an arrow pointing at nothing, and the pair IS the information —
+       that repeat carries the delta rather than restating identity. Asserted
+       as a shape so the exemption cannot quietly widen to every kind. */
+    expect(owner).toMatch(/kind === "change" \|\| !codeStatedAbove/);
+  });
+
+  it("and the flag defaults to false, so no other caller changed behaviour", () => {
+    /* The retired `ReviewPresentationCell` is the other caller. A default of
+       true would have silently dropped its lozenge. */
+    expect(owner).toMatch(/codeStatedAbove = false/);
+  });
+});

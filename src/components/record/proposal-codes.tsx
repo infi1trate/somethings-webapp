@@ -177,11 +177,20 @@ export function ProposalCodes({
    *  The card keeps all three, where "proposed" is doing work beside a Submit
    *  button. */
   compact = false,
+  codeStatedAbove = false,
   className,
 }: {
   currentCode: string | null | undefined;
   recommendedCode: string;
   compact?: boolean;
+  /** ═══ THE CALLER SAYS WHETHER THE CODE IS ALREADY ON SCREEN ═══
+   *  `false` BY DEFAULT, so no existing caller changes behaviour by being left
+   *  alone — and so the suppression is a fact the caller knows rather than an
+   *  assumption this component makes. A future host that renders the proposal
+   *  WITHOUT a heading above it gets the lozenge back for free.
+   *  See the note at the lozenge for what it suppresses and why a change is
+   *  exempt. */
+  codeStatedAbove?: boolean;
   className?: string;
 }) {
   const kind = proposalKindFor(currentCode, recommendedCode);
@@ -198,10 +207,39 @@ export function ProposalCodes({
           </span>
         </>
       )}
-      <Code
-        code={recommendedCode}
-        tone={kind === "change" ? "changed" : "proposed"}
-      />
+      {/* ═══ THE RECOMMENDED LOZENGE IS SUPPRESSED WHEN A HEADING STATES IT ═══
+          MEASURED on all four record fixtures: the recommended code rendered
+          TWICE on the Care page, every time — the heading's `identity` lozenge
+          and this one.
+            t19 change   F33.1/identity · F33.0/onRecord · F33.1/changed
+            t17 renewal  F33.1/identity · F33.1/proposed
+            t12 assign   F43.22/identity · F43.22/proposed
+            t9  intake   F43.22/identity · F43.22/proposed
+          Unifying the lozenge did not cause this — both renderings pre-date it
+          — but it is what made it visible: they used to be two different
+          shapes, so the repeat read as two different objects.
+
+          WHY THIS SIDE GIVES. The heading is `Recommended presentation` + code
+          + statement; the code there is IDENTITY and cannot be dropped without
+          leaving a statement with no code beside it. This row's job is the KIND
+          and, for a change, the DELTA. For a renewal or a first assignment
+          there is no delta, so its lozenge was saying exactly what the heading
+          had already said, six pixels away.
+
+          A CHANGE KEEPS ITS PAIR, AND THAT IS A DELIBERATE EXCEPTION. Dropping
+          the target from `F33.0 → F33.1` leaves an arrow pointing at nothing,
+          and the pair IS the information — the repeat there carries the delta
+          rather than restating identity. So `F33.1` still appears twice on a
+          change, and it is the one case where that is load-bearing. The
+          remaining-items pack's §3 reworks these three states and the
+          directional glyph with them; this is the right shape to hand it,
+          rather than a row with a dangling arrow. */}
+      {(kind === "change" || !codeStatedAbove) && (
+        <Code
+          code={recommendedCode}
+          tone={kind === "change" ? "changed" : "proposed"}
+        />
+      )}
       {!compact && (
         <span className="min-w-0 truncate text-[12px] leading-[16px] text-[var(--text-secondary)]">
           {PROPOSAL_LABEL[kind]}
