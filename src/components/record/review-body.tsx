@@ -62,7 +62,7 @@ import {
 } from "@/lib/record/care-demo";
 import { Provenance } from "@/components/record/provenance";
 import { proposalKindFor } from "@/lib/record/proposal-kind";
-import { ProposalCodes } from "@/components/record/proposal-codes";
+import { BillingCodeLozenge, ProposalCodes } from "@/components/record/proposal-codes";
 import { cn } from "@/lib/utils";
 
 /* VERBATIM FROM THE CARD, and it was wrong for one run: this was written with a
@@ -404,12 +404,26 @@ export function ReviewBody({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="flex min-w-48 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
             {/* `items-center` NOT `items-baseline` on this row now: the chip is a
-                22px box, and a box has no baseline of its own to share with the
-                20px statement beside it — aligning them by baseline hung the box
-                low. Centres agree; baselines only agree for text. */}
-            <span className="inline-flex h-[22px] shrink-0 items-center rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
-              {shown.code}
-            </span>
+                box, and a box has no baseline of its own to share with the 20px
+                statement beside it — aligning them by baseline hung the box
+                low. Centres agree; baselines only agree for text.
+                STILL TRUE OF THE SHARED LOZENGE, which is also a box — it is
+                `py-px` on a 16px line rather than a fixed `h-[22px]`, so it is
+                18px now instead of 22. The alignment argument is about box
+                versus baseline and does not depend on the height. */}
+            {/* ═══ THE SHARED LOZENGE, NOT A SECOND CHIP (§3 continuity) ═══
+                This was `h-[22px] rounded-[4px] border-subtle bg-s1 px-1 mono
+                12px` written inline — a second billing-code lozenge, differing
+                from `BillingCodeLozenge` in shape, height and fill, carrying no
+                `data-billing-code` handle and offering no state tone. §3 asks
+                for "one lozenge component for billing codes across every state
+                and every surface", and this was the surface that had its own.
+                `identity` PRESERVES THIS SITE'S TREATMENT exactly — s1 fill,
+                subtle hairline, secondary ink — so what changes here is the
+                shape (a pill) and the height (18 from 22), not the weight the
+                chip carries. The tone is deliberately NOT `changed`: see the
+                prop's note on why a heading may not restate the decision. */}
+            <BillingCodeLozenge code={shown.code} tone="identity" />
             <p className="text-[20px] font-semibold leading-[24px] tracking-[-0.2px] text-[var(--text-primary)]">
               {shown.statement}
             </p>
@@ -462,7 +476,25 @@ export function ReviewBody({
             {/* NEEDS-COPY-NICOLE */}
             <span>Current</span>
             <span aria-hidden className="opacity-40">·</span>
-            <span className="font-mono tabular-nums">{currentCode}</span>
+            {/* ═══ THE PRIOR CODE IS A LOZENGE TOO (§3 continuity) ═══
+                It was `<span className="font-mono tabular-nums">` — plain text
+                at the paragraph's inherited 12.5px, with no handle and no
+                lozenge. The elevation pack names this exact element: "Shipping
+                two of three leaves the third to fall back on whatever the code
+                happens to do, which is how the plain-text `Current · F33.0 …`
+                line survived this long."
+                SO THIS PANE RENDERED TWO BILLING CODES AND ONLY ONE WAS A
+                LOZENGE — found by probing for code-SHAPED text outside the
+                component rather than by reading, which is why the shape regex
+                is what the guard test uses.
+                `onRecord` IS THE TONE THAT ALREADY MEANT THIS: "the code being
+                changed FROM", outlined with no fill. The line's own job is
+                unchanged — quiet, subordinate, beneath the recommendation it
+                qualifies — and the outlined lozenge is quieter than a filled
+                one while still being the same object as the heading's.
+                IT ALSO LEAVES AN OFF-RAMP SIZE BEHIND: 12.5px inherited from
+                this paragraph is not a Bloom step; the lozenge is 12/16. */}
+            <BillingCodeLozenge code={currentCode} tone="onRecord" />
             {currentStatement && <span className="min-w-0">{currentStatement}</span>}
           </p>
         )}

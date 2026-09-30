@@ -43,8 +43,16 @@ import {
 } from "@/lib/record/proposal-kind";
 import { cn } from "@/lib/utils";
 
+/** ═══ 12/16, AND IT WAS 11.5/16 ═══
+ *  11.5px is not a step on Bloom's ramp (32/40 · 24/32 · 16/24 · 14/20 ·
+ *  12/16) — it is an invented size, the class `view-presets.test.ts` says was
+ *  "retired from these rows" and which keeps reappearing wherever no test
+ *  looks. 12/16 is the ramp's bottom pair and the size the heading chip this
+ *  component now absorbs was already using, so unifying UP to a ramp value
+ *  costs nothing and fixes both call sites at once.
+ *  MEASURED: `F33.1` goes 32.9px -> 34.4px in the mono stack, +1.5px. */
 const LOZENGE =
-  "inline-flex shrink-0 items-center rounded-full px-1.5 py-px text-[11.5px] leading-[16px] tabular-nums";
+  "inline-flex shrink-0 items-center rounded-full px-1.5 py-px text-[12px] leading-[16px] tabular-nums";
 
 /** ═══ A CHANGE IS THE ONE THAT WANTS A SECOND LOOK ═══
  *  The card's chips carried this as a tint — amber for a change, neutral for a
@@ -53,12 +61,54 @@ const LOZENGE =
  *  ON THE PROPOSED CODE ONLY, so the tint marks the decision rather than the
  *  pair. `--band-amber-*` is an existing token pair (7.24:1 light, 5.73:1
  *  dark) — zero new tokens is the rule. */
-function Code({
+/** ═══ THE ONE BILLING-CODE LOZENGE (elevation pack §3 continuity) ═══
+ *
+ *  "One lozenge component for billing codes across every state and every
+ *  surface." IT WAS TWO. This was module-private and rendered only through
+ *  `ProposalCodes`, whose single live call site is the Care page — and the
+ *  Care Reviews pane showed its code through a SECOND, inline chip in
+ *  `review-body.tsx`: `h-[22px] rounded-[4px]` with a `--surface-s1` fill and
+ *  a `--border-subtle` hairline at 12px. Two shapes, two type sizes, two fills,
+ *  one object, and only one of them carried `data-billing-code` — so a probe
+ *  asking "what codes are on screen" could not see the pane's at all.
+ *
+ *  EXPORTED AND ABSORBING BOTH. The pill wins the shape: it is what the pack
+ *  calls a lozenge, it is what carries the state tones §4 will need, and it is
+ *  the instance a probe can already find. The heading chip's SIZE wins the type
+ *  (12/16, a ramp pair — see `LOZENGE`), and its neutral treatment survives as
+ *  the `identity` tone below.
+ *
+ *  ═══ A CHANGE IS THE ONE THAT WANTS A SECOND LOOK ═══
+ *  The card's chips carried this as a tint — amber for a change, neutral for a
+ *  renewal or a first assignment — and that judgment survives the move to
+ *  lozenges: a renewal is a twenty-second confirm and a change needs thought.
+ *  ON THE PROPOSED CODE ONLY, so the tint marks the decision rather than the
+ *  pair. `--band-amber-*` is an existing token pair (7.24:1 light, 5.73:1
+ *  dark) — zero new tokens is the rule.
+ */
+export function BillingCodeLozenge({
   code,
   tone,
+  className,
 }: {
   code: string;
-  tone: "onRecord" | "proposed" | "changed";
+  /** ═══ FOUR TONES, AND `identity` IS THE NEW ONE ═══
+   *  · `onRecord` — the code being changed FROM. Outlined, no fill.
+   *  · `proposed` — a first assignment or a renewal. Filled, primary ink.
+   *  · `changed`  — the code being changed TO. Amber; wants a second look.
+   *  · `identity` — THE CODE NAMED IN A HEADING, beside its own statement.
+   *
+   *  `identity` EXISTS BECAUSE THE HEADING MUST NOT RESTATE THE DECISION. On
+   *  the Care page the proposal row above already carries the amber, so an
+   *  amber heading chip would state "this is a change" twice, six pixels
+   *  apart. And the heading's code is `shown.code` — whatever the supervisor
+   *  has currently picked — so a chip that claimed a state there would be
+   *  claiming it about a selection in progress.
+   *  IT IS THE ABSORBED CHIP'S OWN TREATMENT, unchanged: `--surface-s1` fill,
+   *  `--border-subtle` hairline, secondary ink. Not `onRecord`, which is a
+   *  different statement (a code being superseded) wearing a similar quiet. */
+  tone: "onRecord" | "proposed" | "changed" | "identity";
+  className?: string;
 }) {
   return (
     <span
@@ -72,7 +122,10 @@ function Code({
             ? /* THE PROPOSED CODE CARRIES THE INK. It is the thing being
                  decided; the code on record is context for it. */
               "bg-[var(--surface-s2)] font-semibold text-[var(--text-primary)]"
-            : "border border-[color:var(--border-contour)] text-[var(--text-secondary)]"
+            : tone === "identity"
+              ? "border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] text-[var(--text-secondary)]"
+              : "border border-[color:var(--border-contour)] text-[var(--text-secondary)]",
+        className
       )}
       style={{ fontFamily: "var(--font-mono)" }}
     >
@@ -80,6 +133,11 @@ function Code({
     </span>
   );
 }
+
+/** The internal name this file used before the component was exported. Kept as
+ *  an alias so the call sites below read as they did rather than churning in a
+ *  commit about continuity. */
+const Code = BillingCodeLozenge;
 
 export function ProposalCodes({
   currentCode,

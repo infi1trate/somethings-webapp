@@ -216,6 +216,61 @@ async function openCareReview(page) {
     (cases.notChange ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
+
+  /* ═══ ONE BILLING-CODE LOZENGE, ON SCREEN (elevation pack §3) ═══
+     "One lozenge component for billing codes across every state and every
+     surface." The source half of this is `billing-code-lozenge.test.ts`, which
+     asserts the component is DEFINED once. This is the half that catches a new
+     inline chip: it walks the rendered pane for code-SHAPED text sitting
+     outside the component.
+
+     THE SHAPE, NOT A FIXTURE VALUE. `F33.0` / `F43.22` / `G14.2` are all
+     letter + two digits + optional dot-decimal, so the regex matches the class
+     of thing rather than the three codes today's fixtures happen to hold — a
+     renamed fixture cannot hide an orphan from it.
+     THIS IS HOW THE TWO EXTRA RENDERINGS WERE FOUND. Reading the file found
+     the inline chip; only walking the DOM found the `Current · F33.0` line,
+     which was not a chip at all but plain mono text at an inherited 12.5px. */
+  const codes = await page.evaluate(`(() => {
+    const owned = [...document.querySelectorAll("[data-billing-code]")].map((e) => ({
+      code: e.getAttribute("data-billing-code"),
+      tone: e.getAttribute("data-code-tone"),
+      size: getComputedStyle(e).fontSize + "/" + getComputedStyle(e).lineHeight,
+      radius: getComputedStyle(e).borderTopLeftRadius,
+    }));
+    const orphans = [];
+    for (const e of document.querySelectorAll("span, div, p, dd, td")) {
+      if (e.children.length) continue;
+      const txt = (e.textContent || "").trim();
+      if (!/^[A-Z]\\d\\d(\\.\\d+)?$/.test(txt)) continue;
+      if (e.closest("[data-billing-code]")) continue;
+      orphans.push(txt + " :: " + (e.className || "").toString().slice(0, 48));
+    }
+    return { owned, orphans };
+  })()`);
+
+  check(
+    "tasks.codes-found",
+    "the pane renders at least one billing code, so the next two mean something",
+    codes.owned.length + codes.orphans.length > 0,
+    `${codes.owned.length} owned · ${codes.orphans.length} orphan(s)`
+  );
+  check(
+    "tasks.one-lozenge",
+    "and every one of them is the shared lozenge",
+    codes.orphans.length === 0,
+    codes.orphans.length ? codes.orphans.join(" | ") : "0 orphans"
+  );
+  /* ONE SHAPE AND ONE TYPE SIZE ACROSS EVERY TONE. Two call sites of one
+     component can still diverge if a caller overrides the geometry, so the
+     rendered result is compared rather than the import. */
+  const shapes = [...new Set(codes.owned.map((c) => `${c.size}|${c.radius}`))];
+  check(
+    "tasks.one-lozenge-shape",
+    "and they share one shape and one type size",
+    shapes.length <= 1,
+    `${codes.owned.map((c) => c.code + "/" + c.tone).join(", ")} — ${shapes.join(" vs ")}`
+  );
   /* ═══ INVERTED — THE ACCORDION IS REMOVED (Figma alignment §3) ═══
      This asserted the mentorship figures lived in a collapsed accordion on the
      pane, with a second check that it started collapsed and said what it held.

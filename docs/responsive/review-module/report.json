@@ -66,6 +66,24 @@
       "ok": true
     },
     {
+      "id": "tasks.codes-found",
+      "label": "the pane renders at least one billing code, so the next two mean something",
+      "ok": true,
+      "detail": "2 owned · 0 orphan(s)"
+    },
+    {
+      "id": "tasks.one-lozenge",
+      "label": "and every one of them is the shared lozenge",
+      "ok": true,
+      "detail": "0 orphans"
+    },
+    {
+      "id": "tasks.one-lozenge-shape",
+      "label": "and they share one shape and one type size",
+      "ok": true,
+      "detail": "F33.1/identity, F33.0/onRecord — 12px/16px|3.35544e+07px"
+    },
+    {
       "id": "tasks.no-record-strip",
       "label": "the bordered mentorship strip is gone (§3.3 — deleted, not moved)",
       "ok": true,
