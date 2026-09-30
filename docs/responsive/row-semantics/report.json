@@ -23,7 +23,7 @@
       "id": "tasks.no-job-chip",
       "label": "the task type is not repeated on every row",
       "ok": true,
-      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
     },
     {
       "id": "tasks.age-column",
@@ -35,7 +35,7 @@
       "id": "tasks.no-deadline",
       "label": "and no row states a deadline, because the destination has none",
       "ok": true,
-      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
     },
     {
       "id": "tasks.one-temporal",
@@ -65,7 +65,7 @@
       "id": "tasks.caption-not-the-name",
       "label": "and not the name a second time",
       "ok": true,
-      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
     },
     {
       "id": "tasks.height",
@@ -113,7 +113,7 @@
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 2:0"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 7:0"
     },
     {
       "id": "sr.tasks.same-temporal",
@@ -143,13 +143,13 @@
       "id": "e.code-caption",
       "label": "line 2 says what KIND of proposal this is, and not the name a second time",
       "ok": true,
-      "detail": "Presentation Review"
+      "detail": "Presentation review"
     },
     {
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 2:03 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 7:07 AM"
     },
     {
       "id": "e.identity-disc",

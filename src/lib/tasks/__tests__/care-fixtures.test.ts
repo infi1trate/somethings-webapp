@@ -132,7 +132,16 @@ describe("setTasksScenarioId drops the care traces", () => {
   const src = readFileSync(join(process.cwd(), "src/lib/onboarding/store.ts"), "utf8");
   /* The setter's body, from its name to the closing of its `set({...})`. Read
      narrowly so a clear somewhere ELSE in the store cannot satisfy this. */
-  const body = src.match(/setTasksScenarioId:\s*\(id\)\s*=>[\s\S]{0,400}?\}\),/)?.[0] ?? "";
+  /* ═══ THE WINDOW WAS 400 CHARS AND THAT WAS TOO TIGHT ═══
+     bar-02 added a comment inside this setter explaining that `scenarioRecents`
+     must NOT be cleared here — it briefly was, which made the recents row never
+     populate. The comment pushed the block past 400 and these two assertions
+     went red on the WINDOW, not on the behaviour: the setter still clears both
+     traces, checked by hand before touching this.
+     WIDENED RATHER THAN LOOSENED. The regex still ends at the first `}),` so it
+     cannot run past the setter into a neighbour and pass on somebody else's
+     code — which is the failure a `[\s\S]*` would have introduced. */
+  const body = src.match(/setTasksScenarioId:\s*\(id\)\s*=>[\s\S]{0,2000}?\}\),/)?.[0] ?? "";
   it("the setter exists and was found", () => {
     expect(body).toContain("tasksScenarioId: id");
   });
