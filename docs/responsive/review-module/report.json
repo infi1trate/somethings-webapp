@@ -105,7 +105,7 @@
       "id": "tasks.engagement-window",
       "label": "and the windowed figure names its window rather than standing bare",
       "ok": true,
-      "detail": "dd = \"62\" · dt = \"Messages 30d Messages, last 30 days\""
+      "detail": "dd = \"62\" · dt = \"Messages 30dMessages, last 30 days\""
     },
     {
       "id": "tasks.header-has-no-disclosure",

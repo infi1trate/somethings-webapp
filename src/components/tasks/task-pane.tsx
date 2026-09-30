@@ -281,6 +281,28 @@ function EngagementLine({
     short: string;
     full: string;
     value: string;
+    /** ═══ §6.6 · THE PAIR THAT YIELDS RATHER THAN WRAPPING THE BAND ═══
+     *  §6.6: "Everything fits the band without wrapping at the pane's narrowest
+     *  supported width. If it does not, report before adding a line — dropping
+     *  a metric beats a two-line band."
+     *  MEASURED, IT DOES NOT FIT AT 1280. Against the widest identity block in
+     *  any fixture the band needs 455px (left 186 + gap 16 + right 253) and has
+     *  416 — over by 39. It fits at 1366 (459), 1440 (496) and 1600 (576), so
+     *  1280 is the only width that fails and the band went 110px -> 167px there.
+     *  WHAT CONSUMED THE ROOM IS §6.2. The name went 20/28 -> 24/32 and the
+     *  padding 16/20 -> 20/24, both asked for by this pack, and together they
+     *  are worth more than the 39px. So the trade is stated rather than
+     *  resolved silently: at 1280 this band can carry the 24px name OR two
+     *  metric pairs, not both.
+     *  THIS IS THE FALLBACK §6.6 NAMES, taken because the alternative it rules
+     *  out is the two-line band that is already measured above. It is a HIDE
+     *  and not a removal, so the fact is present at every width that has room —
+     *  and unlike `Video 30d`, `messages` is in §4's target set, so deleting it
+     *  would be deciding §4.
+     *  CHEAPER OPTIONS WERE MEASURED AND DO NOT CLOSE IT: padding back to 20px
+     *  buys 8px, the inter-block gap 16->12 buys 4, and "Messages 30d" ->
+     *  "Messages" buys ~28 while dropping the window §4.2 is still scoping.
+     *  39px needs all three and would spend a copy decision to get there. */
     optional?: boolean;
   }[] = [
     /* `id` IS A PROBE HANDLE AND IT EXISTS BECAUSE TWO OF MY OWN ASSERTIONS
@@ -290,76 +312,86 @@ function EngagementLine({
        label, which is the exact hazard `today-mirror` warns about in its own
        note. A per-pair attribute makes the assertion name the pair it means. */
     { id: "mentorship", short: "Mentorship", full: "Days in mentorship", value: `${stats.daysInMentorship}d` },
-    { id: "messages", short: "Messages 30d", full: "Messages, last 30 days", value: `${stats.messagesLast30}` },
     {
-      id: "video",
-      short: "Video 30d",
-      full: "Video calls, last 30 days",
-      value: `${stats.videoLast30}`,
-      /* ═══ THE ONE PAIR THAT YIELDS — AND §3.3 SAID TO REPORT THIS ═══
-         "Everything must fit one band without wrapping at the pane's width. If
-         it does not, report before adding a second line — dropping video calls
-         is preferable to a two-line header."
-         MEASURED, IT DOES NOT FIT AT EVERY WIDTH. Against the widest identity
-         block in any fixture (185px — "Theo L." over "Brandy Forrestor"), the
-         three pairs need 488px of band; the band has 584 at 1600 and 504 at
-         1440, but 467 at 1366 and 424 at 1280. So at the bottom two widths the
-         right block wrapped under the left and the band went 93px -> 155px.
-         WHICH IS WHY THIS IS A HIDE AND NOT A DELETION. §3.3 offers dropping
-         video calls, and the reason to prefer hiding it only where it does not
-         fit is Gap 432: `person-row` renders a video-call chip for RECORD teens
-         (`t*` ids) and this figure comes from the task fixtures (`tk-*`), which
-         share not one id. So "it is one click away on the care journey" — the
-         justification the CTA beneath it would otherwise supply — is false for
-         these items, and an unconditional drop would remove the only place this
-         number is ever shown. Hidden at 1280, present at 1440.
-         THE COST IS STATED: a figure that appears on resize is a figure a
-         reader can miss. The alternative loses it always. */
+      id: "messages",
+      short: "Messages 30d",
+      full: "Messages, last 30 days",
+      value: `${stats.messagesLast30}`,
+      /* Yields below the width where both pairs fit — see the prop's note. */
       optional: true,
     },
+    /* ═══ §4 · `Video 30d` IS REMOVED — "Not a tracked metric" ═══
+       It arrived as the concrete replacement for `engaged days`, and §4
+       withdraws that: "My earlier pack treated it as the concrete replacement
+       for `engaged days`; that was wrong."
+       THE CONTAINER QUERY GOES WITH IT. The previous pass hid this pair below
+       500px of band because three pairs did not fit — measured, 493px needed
+       against 467 at 1366 and 424 at 1280. Two pairs fit at every width the
+       pane renders at, so the `optional` flag, the `@min-[500px]` gate and the
+       `@container` that served them are all gone. A responsive rule protecting
+       a metric that no longer exists is chrome.
+       AND `engaged days` DOES NOT TAKE ITS PLACE, ON §4.2's OWN RULE — "if
+       the data does not support a definition, report that rather than deriving
+       something adjacent". `mentorStats` is ONE hard-coded literal shared by
+       every billing task; there is no per-day message log behind it to count
+       days from. Reported rather than built. */
   ];
   return (
-    /* A REAL `<dl>`: three label/value pairs ARE a description list, and the
+    /* A REAL `<dl>`: each label/value pair IS a description list entry, and the
        markup is what lets a screen reader pair them without the labels being
-       read as a sentence. `gap-x-3` between pairs against `gap-1` inside one is
-       the proximity that says which label owns which figure — a 3x ratio, and
-       12px is on the 4px grid that is this product's only real spacing scale.
-       IT WAS `gap-x-4`, AND THE 8px IT SAVES IS LOAD-BEARING: it is most of the
-       margin the narrow case has left once the video pair is out. */
-    <dl data-slot="engagement" className="flex flex-wrap items-baseline justify-end gap-x-3 gap-y-1">
-      {pairs.map((m) => (
+       read as a sentence.
+       ═══ §6.1 · TWO FACTS, NOT ONE RUN OF TEXT ═══
+       "labels and values sit at nearly the same size with no separation
+       between the pairs, so it reads as a single string of text."
+       THREE CHANGES, EACH DOING A DIFFERENT JOB:
+       · SEPARATION — `gap-x-5` (20px) between pairs against `gap-1.5` (6px)
+         inside one. A 3.3x ratio is what makes proximity say which label owns
+         which figure; it was 12 against 4, and 12px of gap beside a 12px label
+         is not a boundary.
+       · A DIVIDER, because spacing alone is what had already failed. §6.1
+         offers "spacing, or a low-contrast divider" — this takes both, since
+         the row is two pairs wide now and two facts with no mark between them
+         still read as one phrase. It is `--border-contour` at 1px, on a
+         `first:hidden` so it falls BETWEEN pairs and never before the first.
+       · A WEIGHT STEP on the value, which is §6.1's "value stronger, label
+         quiet". THE ONLY WEIGHT CHANNEL THAT RENDERS HERE IS THE MONO STACK:
+         this codebase measured Lausanne as identical at 400/500/600/700 (one
+         face ships) and the mono stack as +41% ink at 700. The values are
+         already mono, so 700 is a real step; a `font-semibold` on the labels
+         would have been a declaration with nothing behind it. */
+    <dl data-slot="engagement" className="flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
+      {pairs.map((m, i) => (
         <div
           key={m.id}
           data-metric={m.id}
           className={cn(
-            "items-baseline gap-1 whitespace-nowrap",
-            /* ═══ A CONTAINER QUERY, NOT A VIEWPORT BREAKPOINT ═══
-               `data-view.tsx` already argues this one: "`@container` +
-               `@min-[45rem]` asks the only question that matters: is THIS BOX
-               wide enough". The pane's width is a function of the viewport
-               today, so a `min-[1420px]:` would work — and would encode that
-               relationship in a class, so the day the list/pane split changes
-               the header would hide a metric at the wrong width with nothing
-               pointing here.
-               THE THRESHOLD IS THE MEASURED WORST CASE PLUS MARGIN: 488px is
-               what the widest identity block (185px) plus three pairs (287px)
-               plus the 16px gap needs, so 500 leaves 12px.
-               IT WAS 520 FOR ONE MEASUREMENT AND THAT WAS TOO CAUTIOUS: the
-               band is 504px at 1440, so a 520 threshold hid the video pair at a
-               width where all three demonstrably fit. 500 shows three at 1440
-               and two at 1366 (467px), which is the actual boundary.
-               A NAME LONGER THAN THE FIXTURES' WIDEST EATS THAT 12px, and what
-               happens then is a shrink rather than a wrap: the identity block is
-               `min-w-0` and the metrics are `shrink-0`, so the left yields to
-               its min-content first. The band only wraps once even that does
-               not fit, which is the behaviour this query exists to keep away
-               from the widths anybody uses.
-               WRITTEN AS A LITERAL, NEVER INTERPOLATED — `data-view.tsx`'s own
-               note records that `@min-[${w}]:hidden` generates no CSS at all,
-               because Tailwind reads classes statically. */
-            m.optional ? "hidden @min-[500px]:flex" : "flex"
+            "items-baseline gap-1.5 whitespace-nowrap",
+            /* A CONTAINER QUERY ON THE WRAPPING ROW, not a viewport breakpoint
+               — `data-view.tsx` argues it: "is THIS BOX wide enough". The
+               threshold is the measured need (455px) plus a margin for a name
+               longer than any fixture's. WRITTEN AS A LITERAL: an interpolated
+               `@min-[${w}]` generates no CSS, which that file also records. */
+            m.optional ? "hidden @min-[470px]:flex" : "flex"
           )}
         >
+          {/* THE RULE BETWEEN PAIRS — `i > 0` AND NOT `first:hidden`.
+              My first version put `first:hidden` on this span, which is always
+              its parent's first child, so it would have rendered never. A
+              Tailwind position variant reads the element's OWN position among
+              its siblings and cannot see the PAIR's position, so the index is
+              the only honest source for "between". Caught before it shipped,
+              by reading the class back rather than by looking at the screen —
+              an always-hidden divider looks exactly like the defect §6.1 came
+              back for.
+              `aria-hidden`: it is a counting aid for the eye, and a screen
+              reader already has the `<dl>`'s own pairing. */}
+          {i > 0 && (
+            <span
+              aria-hidden
+              data-metric-rule
+              className="mr-3.5 h-3 w-px shrink-0 self-center bg-[var(--border-contour)]"
+            />
+          )}
           {/* ═══ NOT `--text-muted` ON THIS GROUND (elevation amendment §2) ═══
               `LABEL` is `PANE_LABEL`, which pairs the field-label type token
               with `--text-muted`. That pairing was measured against the pane's
@@ -378,7 +410,12 @@ function EngagementLine({
             <span className="sr-only">{m.full}</span>
           </dt>
           <dd
-            className="text-[14px] leading-[20px] tabular-nums text-[var(--text-primary)]"
+            /* §6.1's WEIGHT STEP. `font-bold` on the mono stack is a MEASURED
+               +41% ink (79,171 vs 56,058 rendered to a canvas and summed),
+               because a system monospace ships a bold. The same declaration on
+               the Lausanne label would render nothing — one face ships — which
+               is why the step is on the value and the label stays quiet. */
+            className="text-[14px] font-bold leading-[20px] tabular-nums text-[var(--text-primary)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             {m.value}
@@ -950,7 +987,21 @@ export function TaskPane({
           `min-h-14 px-[var(--surface-pad-x)] py-2` against this band's
           `px-5 py-4`; changing them is a spec I cannot check, so the TONE is
           applied and the geometry is not. Reported rather than guessed. */}
-      <div className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-5 py-4">
+      <div /* ═══ §6.4 · PADDING, BECAUSE A TONAL FILL NEEDS ROOM ═══
+             "With a tonal fill, padding has to be generous or the band reads as
+             a stripe rather than a header."
+             py-4 -> py-5, px-5 -> px-6. MEASURED AGAINST THE ONLY SCALE THIS
+             PRODUCT HAS: Bloom ships no spacing scale (four component pads and
+             nothing else), so Tailwind's 4px step is it — 16px -> 20px vertical
+             and 20px -> 24px horizontal are one step each.
+             AND BOTH NUMBERS ARE BLOOM PADS. `--surface-pad-y` is 20px and
+             `--surface-pad-x` is 24px, which is what the reference band uses
+             and what `TaskCard` uses for its own body. So this is not a nudge
+             to taste — it is the band adopting the component pads it should
+             have had once it became a container. Written as `py-5 px-6` rather
+             than the tokens because the tokens are only wired for the record
+             card's own padding utilities; the VALUES are theirs. */
+            className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-6 py-5">
         <div
           /* ═══ THE CONTAINER FOR §3.3's QUERY IS THIS ROW ═══
              It is the element that WRAPS when the two blocks do not fit, so its
@@ -959,7 +1010,15 @@ export function TaskPane({
              measured the metrics' own width — which is a function of how many
              metrics are shown, so the query would have been asking about its own
              answer. */
-          className="@container flex flex-wrap items-start justify-between gap-x-4 gap-y-2"
+          /* ═══ §6.5 · ONE BASELINE GRID ═══
+             `items-start` aligned the two blocks by their BOX TOPS, and the
+             boxes are different heights — a 24/32 name against a 16px metric
+             row — so nothing in the left block lined up with anything in the
+             right. `items-baseline` aligns the name's first baseline with the
+             metric row's, which is the line the eye actually reads along.
+             THE SECOND HALF OF §6.5 IS THE RIGHT EDGE, and that is on the CTA
+             — see its `-mr-2`. */
+          className="@container flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2"
         >
           <div className="min-w-0">
             {/* ═══ THE EYEBROW IS GONE (addendum §2.9) ═══
@@ -974,7 +1033,18 @@ export function TaskPane({
                  and reading it off the heading is reading what a supervisor
                  reads. */
               data-pane-teen
-              className="mt-0.5 font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]"
+              /* ═══ §6.2 · UP ONE RAMP STEP, 20/28 -> 24/32 ═══
+                 "`Noah B.` is roughly the size it was on white. The band now
+                 frames it, so it can carry more."
+                 ONE STEP, NOT TWO. Bloom's ramp above 24/32 is 32/40, and 32px
+                 is the PAGE title's step — `routeLabel`'s own heading is 32/40
+                 three inches up, so a 32px name in the pane would tie the
+                 record to the destination. §6.1's own rule says it: "a record
+                 header must not compete with the page it sits inside".
+                 `mt-0.5` GOES WITH IT. It was 2px of optical nudge against a
+                 20px name's cap height; at 24/32 with `items-baseline` on the
+                 row above, a margin would push the shared baseline off. */
+              className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]"
             >
               {item.teenDisplayName}
             </h2>
@@ -1006,8 +1076,34 @@ export function TaskPane({
                 `row-semantics` asserts it, and nothing here touches that: the
                 row's unit is the review, the pane's subject is the teen, and
                 only one of those has a mentor as context. */}
-            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
+            {/* ═══ §6.3 · THREE DATA, THREE TREATMENTS ═══
+                "Review age, role label, and mentor name need three
+                distinguishable treatments — the role label quietest and
+                smallest, the mentor name mid, review age distinct from both."
+                  age     mono, tabular, 14/20   — distinct by FACE
+                  MENTOR  11px uppercase, tracked — smallest and quietest
+                  name    sans, 14/20            — mid
+                SO THE AGE AND THE NAME SHARE A SIZE AND ARE STILL DISTINCT,
+                because the channel between them is the face rather than the
+                step. That is this codebase's own finding — Lausanne has no
+                working weight axis, so face and size are the two channels that
+                measure, and spending size on a third level here would have
+                pushed the age to 16px and made it compete with the name above.
+                THE 13px IS GONE WITH IT: the paragraph typed the age at an
+                inherited 13/18, which is not a Bloom step. The paragraph now
+                carries no size of its own — each child states its own, which is
+                what having three treatments means.
+                MENTOR AND THE NAME ARE `RolePair`'s, UNCHANGED. It is shared
+                with Risk Flags, and §6.3 is about this band; the two treatments
+                it already renders are the two this section asks for. */}
+            <p className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[var(--text-secondary)]">
+              <span
+                /* §6.3's "distinct from both" — mono and tabular at 14/20, the
+                   same treatment the row's own age column carries, so the pane
+                   and the row state the same fact the same way. */
+                className="text-[14px] leading-[20px] tabular-nums"
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
                 {/* ═══ THE AGE, BARE (Figma alignment §3) ═══
                     The list's own column is headed "Review age" and its cells
                     read `3d`; the pane header repeating " open" made the same
@@ -1103,7 +1199,20 @@ export function TaskPane({
             <Link
               href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
               className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
+                /* ═══ §6.5 · THE SHARED RIGHT EDGE ═══
+                   "The metric row and `View care journey` do not share a right
+                   edge." The BOXES did — measured `rightEdgeAligned: true` last
+                   pass — but the box is not what a reader sees: this control's
+                   own `px-2` holds its TEXT 8px inside the last metric value's.
+                   `-mr-2` CANCELS IT, which is the trick the sort header
+                   already uses on its own buttons ("`-ml-1` CANCELS THE
+                   BUTTON'S OWN PADDING"). The 36px hit box is unchanged — the
+                   negative margin moves the box, it does not shrink it.
+                   ═══ AND 12.5px WAS NOT A RAMP SIZE ═══
+                   12/16 is. 12.5/18.75 was an invented pair rendering at the
+                   1.5 default, which is the same class of defect as the 13px
+                   age and the 11.5px lozenge. */
+                "-mr-2 inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12px] font-semibold leading-[16px]",
                 "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                 RING
               )}
