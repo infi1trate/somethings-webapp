@@ -56,6 +56,13 @@ import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EyeOff, RotateCcw } from "lucide-react";
 import { useOnboardingStore } from "@/lib/onboarding/store";
+/* bar-01: scope comes from ONE declaration now — see `axes.ts` on why it can no
+   longer live in the controls' label text. */
+import {
+  axis,
+  type AxisApplicability,
+  type AxisId,
+} from "@/lib/dev/axes";
 import { toast } from "sonner";
 import { useMounted } from "@/lib/use-mounted";
 import type { Persona } from "@/lib/types";
@@ -74,7 +81,6 @@ import { EdgeFades, useEdgeOverflow } from "@/components/ui/scroll-affordance";
 import {
   LOAD_STATES,
   LOAD_STATE_LABEL,
-  LOAD_STATE_SCREENS,
   type LoadState,
 } from "@/lib/dev/load-state";
 
@@ -187,11 +193,129 @@ export function devBarSlotWidthsAgree(className: string): boolean {
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
+/** ═══ ONE AXIS SHELL, AND THE SCOPE COMES FROM `axes.ts` (bar-01) ═══
+ *
+ *  WHAT IT REPLACES: each axis rendered its own `<label>` with its scope spelled
+ *  into the text — `Load (Activity, Tasks, Monitoring, Home)`. bar-01 deletes
+ *  those parentheticals, because scope is now declared once and ENFORCED, and a
+ *  label that cannot be enforced is a label that drifts. Two of Load's four
+ *  names were already wrong when bar-00 measured them.
+ *
+ *  THE THREE STATES RENDER DIFFERENTLY, and `recorded` is the one worth reading
+ *  the header of `axes.ts` about:
+ *    · `live`     — plain control, no annotation.
+ *    · `recorded` — OPERABLE, dimmed label, reason on hover/focus. It changes
+ *                    nothing on screen here but is captured onto any comment
+ *                    placed here, so disabling it would break annotation
+ *                    context capture on the routes where reviewers annotate.
+ *    · `n/a`      — `disabled`, with the reason on the wrapper so it is
+ *                    reachable by hover AND by focus on the label text.
+ *
+ *  `title` CARRIES IT FOR THE POINTER and `aria-describedby` for the reader. A
+ *  `title` alone is invisible to the keyboard, which is the failure mode of most
+ *  "explain on hover" affordances. */
+/** ═══ THE SELECTED SCENARIO'S FULL LABEL (M4) ═══
+ *
+ *  The collapsed control clips its value. `title` makes it readable on hover —
+ *  and the string has to come from the SAME registries the options render from,
+ *  or the tooltip becomes a sixth place a scenario name can drift.
+ *
+ *  ONE PASS OVER THE FIVE FAMILIES plus the record scenarios, matched on the
+ *  prefixed value the select actually holds. Returns undefined for `— none —`,
+ *  which correctly renders no tooltip rather than an empty one. */
+function scenarioLabelFor(value: string): string | undefined {
+  if (!value) return undefined;
+  const flat: { value: string; label: string }[] = [
+    ...ACTIVITY_SCENARIOS.map((x) => ({ value: `${ACTIVITY_PREFIX}${x.id}`, label: x.label })),
+    ...TASK_SCENARIOS.map((x) => ({ value: `${TASKS_PREFIX}${x.id}`, label: x.label })),
+    ...TODAY_SCENARIOS.map((x) => ({ value: `${TODAY_PREFIX}${x.id}`, label: x.label })),
+    ...CHAT_SCENARIOS.map((x) => ({ value: `${CHAT_PREFIX}${x.id}`, label: x.label })),
+    ...MONITORING_SCENARIO_GROUPS.flatMap((g) =>
+      g.scenarios.map((x) => ({ value: `${MONITORING_PREFIX}${x.id}`, label: `${g.label} · ${x.label}` }))
+    ),
+    ...TEEN_SCENARIOS.map((x) => ({ value: x.id, label: x.label })),
+    ...STAFF_SCENARIOS.map((x) => ({ value: x.id, label: x.label })),
+  ];
+  return flat.find((x) => x.value === value)?.label;
+}
+
+function Axis({
+  id,
+  pathname,
+  children,
+}: {
+  id: AxisId;
+  pathname: string;
+  children: (state: {
+    applicability: AxisApplicability;
+    disabled: boolean;
+    describedBy: string | undefined;
+  }) => React.ReactNode;
+}) {
+  const decl = axis(id);
+  const applicability = decl.appliesTo(pathname);
+  /* ═══ A `live` AXIS HAS NO REASON, STRUCTURALLY ═══
+     MEASURED on the first build of this: the scenario axis rendered
+     `applicability: "live"` on Care Reviews — correct — and STILL carried the
+     tooltip "No scenarios for Care Reviews", because `AxisDecl.reason` returns
+     its string without consulting `appliesTo`. A control that works, explaining
+     that it does not, is precisely the lie bar-01 exists to remove, and I had
+     introduced a new one.
+     GATED HERE RATHER THAN IN EACH DECL so it cannot be forgotten by the next
+     axis added: a reason is a property of NOT being live. */
+  const reason = applicability === "live" ? null : decl.reason(pathname);
+  const rid = `dev-axis-reason-${id}`;
+  return (
+    <label
+      className="flex shrink-0 items-center gap-1.5"
+      data-anno-ref={`dev-axis:${id}`}
+      data-applicability={applicability}
+      title={reason ?? undefined}
+    >
+      {/* TODO-COPY · the label, now WITHOUT a scope parenthetical. */}
+      <span
+        /* ═══ THE NON-LIVE LABEL IS ITALIC, NOT LIGHTER ═══
+           The first version reached for `--text-subtle`, WHICH DOES NOT EXIST in
+           this build — it fell back to `--text-muted`, so it rendered correctly
+           while naming a token that is not there, which is the "approximating a
+           missing token" the standing constraints forbid.
+           AND A LIGHTER STEP WOULD HAVE BEEN THE WRONG CHANNEL ANYWAY: Bloom's
+           next step down is `--text-tertiary` at 2.57:1 on this ground, which
+           fails AA — the same finding H.3.a records product-wide. So the state
+           is carried by SLANT on an unchanged ink, which costs no contrast, plus
+           the control's own `disabled` and the reason string. Three carriers,
+           none of them hue. */
+        className={cn(
+          "hidden text-[var(--text-muted)] lg:inline",
+          applicability !== "live" && "italic"
+        )}
+      >
+        {decl.label}
+      </span>
+      {children({
+        applicability,
+        disabled: applicability === "n/a",
+        describedBy: reason ? rid : undefined,
+      })}
+      {/* THE REASON, ONCE, FOR ASSISTIVE TECH. `sr-only` rather than a second
+          visible string: the bar has no width to spend and the pointer already
+          has the `title`. */}
+      {reason && (
+        <span id={rid} className="sr-only">
+          {reason}
+        </span>
+      )}
+    </label>
+  );
+}
+
 /** Where each persona lands when there is no record to hold. Unchanged from the
  *  pill this replaces. */
-/** Which screens honour the pinned clock. Named in the control's own label so
- *  a reader is never wondering why a pin changed nothing on a fifth screen. */
-const CLOCK_SCREENS = ["Today", "Monitoring"];
+/* `CLOCK_SCREENS` IS GONE (bar-01) — same reason as `LOAD_STATE_SCREENS`, which
+   `lib/dev/load-state.ts` records. Its two names happened to be CORRECT, which
+   is exactly why it is not worth keeping: a hand-maintained list that is right
+   today and unenforceable tomorrow. `CLOCK_LIVE_ROUTES` in `axes.ts` is derived
+   from the routes themselves. */
 
 const PERSONAS: { key: Persona; label: string; dest: string }[] = [
   { key: "mentor", label: "Mentor", dest: "__mentor__" },
@@ -317,6 +441,26 @@ export function DevBar() {
   const todayScenarioId = useOnboardingStore((s) => s.todayScenarioId);
   const setTodayScenario = useOnboardingStore((s) => s.setTodayScenarioId);
   const setDevClockKey = useOnboardingStore((s) => s.setDevClockKey);
+  /** ═══ THE SELECT'S VALUE, LIFTED TO A CONST (bar-01) ═══
+   *  It was inline on the `value` prop. M4's `title` needs the same string, and
+   *  computing that ternary twice is how the tooltip and the control come to
+   *  disagree about which scenario is selected. One expression, two readers. */
+  const scenarioValue = !mounted
+    ? ""
+    : onAxis(pathname, TODAY_ROUTES)
+      ? `${TODAY_PREFIX}${todayScenarioId ?? ""}`
+      : pathname.startsWith("/app/activity")
+        ? `${ACTIVITY_PREFIX}${activityScenarioId}`
+        : onChat
+          ? `${CHAT_PREFIX}${chatScenarioId}`
+          : onAxis(pathname, TASKS_ROUTES)
+            ? `${TASKS_PREFIX}${tasksScenarioId}`
+            : onAxis(pathname, MONITORING_ROUTES)
+              ? monitoringScenarioId
+                ? `${MONITORING_PREFIX}${monitoringScenarioId}`
+                : ""
+              : scenarioId;
+
 
   const pickRole = (p: (typeof PERSONAS)[number]) => {
     setPersona(p.key);
@@ -458,10 +602,9 @@ export function DevBar() {
             A native select: twenty entries in a 40px strip, grouped, keyboard
             and screen-reader native for free, and it collapses to its label
             instead of eating the bar. */}
-        <label className="flex shrink-0 items-center gap-1.5">
-          {/* TODO-COPY */}
-          {/* LABEL GOES, CONTROL STAYS — see the group note. */}
-          <span className="hidden text-[var(--text-muted)] lg:inline">Scenario</span>
+        <Axis id="scenario" pathname={pathname}>
+        {({ disabled, describedBy }) => (
+          <>
           {/* ═══ THE NAME HAS TO SURVIVE THE LABEL BEING HIDDEN ═══
               The `<label>` wrapper names this control only while the span inside
               it renders, and the span is `hidden … lg:inline` — so below the
@@ -471,6 +614,19 @@ export function DevBar() {
               polluting arch-B's sweep and the fix is one attribute. */}
           <select
             aria-label="Prototype scenario"
+            aria-describedby={describedBy}
+            disabled={disabled}
+            /* ═══ M4 — THE TRUNCATED VALUE IS READABLE NOW (bar-01) ═══
+               The collapsed control clips its value with no way to read the
+               full string — bar-00's M4. `title` is the fix, and it is the right
+               one rather than expand-on-click for two reasons: a native select
+               ALREADY shows the full string the moment it opens, so a click
+               affordance would duplicate the control's own behaviour; and the
+               keyboard path is already covered, because the option list is the
+               accessible name source and a screen reader reads it in full.
+               What was missing was only the POINTER's hover, which is exactly
+               what `title` serves. */
+            title={scenarioLabelFor(scenarioValue)}
             /* ═══ THE VALUE FOLLOWS THE SCREEN, NOT THE LAST CLICK ═══
                One select, two independent axes: the record scenario is derived
                from the URL, the activity scenario is a store field. Showing
@@ -489,23 +645,7 @@ export function DevBar() {
                default just as surely as a `?scenario=` param does. That one has
                not bitten yet only because those defaults happen to equal their
                initial values. Gating the whole expression closes both. */
-            value={
-              !mounted
-                ? ""
-                : onAxis(pathname, TODAY_ROUTES)
-                  ? `${TODAY_PREFIX}${todayScenarioId ?? ""}`
-                  : pathname.startsWith("/app/activity")
-                  ? `${ACTIVITY_PREFIX}${activityScenarioId}`
-                  : onChat
-                    ? `${CHAT_PREFIX}${chatScenarioId}`
-                    : onAxis(pathname, TASKS_ROUTES)
-                      ? `${TASKS_PREFIX}${tasksScenarioId}`
-                      : onAxis(pathname, MONITORING_ROUTES)
-                        ? monitoringScenarioId
-                          ? `${MONITORING_PREFIX}${monitoringScenarioId}`
-                          : ""
-                        : scenarioId
-            }
+            value={scenarioValue}
             onChange={(e) => {
               const value = e.target.value;
               setScenarioId(value);
@@ -674,7 +814,9 @@ export function DevBar() {
               ))}
             </optgroup>
           </select>
-        </label>
+          </>
+        )}
+        </Axis>
 
         {/* ── AXIS 3 · LOAD STATE ───────────────────────────────────────────
             Lifted out of the Activity page's panel, where it was `useState` and
@@ -686,16 +828,12 @@ export function DevBar() {
             page. The alternative — an unqualified "Load" that silently does
             nothing on four screens out of five — is the version that wastes
             somebody's afternoon. design-system-gaps row 317. */}
-        <label className="flex shrink-0 items-center gap-1.5">
-          {/* TODO-COPY */}
-          <span className="hidden text-[var(--text-muted)] lg:inline">
-            Load
-            <span className="text-[var(--text-muted)]">
-              {` (${LOAD_STATE_SCREENS.join(", ")})`}
-            </span>
-          </span>
+        <Axis id="load" pathname={pathname}>
+        {({ disabled, describedBy }) => (
           <select
-            aria-label={`Load state (${LOAD_STATE_SCREENS.join(", ")})`}
+            aria-label="Load state"
+            aria-describedby={describedBy}
+            disabled={disabled}
             value={loadState}
             onChange={(e) => setDevLoadState(e.target.value as LoadState)}
             className={cn(
@@ -710,7 +848,8 @@ export function DevBar() {
               </option>
             ))}
           </select>
-        </label>
+        )}
+        </Axis>
 
         {/* ── AXIS 4 · CLOCK ────────────────────────────────────────────────
             Today Phase J.1. A PINNED SIMULATED MOMENT, independent of the
@@ -730,14 +869,12 @@ export function DevBar() {
             THE LABEL NAMES ITS SCOPE, for the same reason `Load` does: Today
             and the Monitoring surfaces read this and nothing else does, so an
             unqualified "Clock" would be the version that wastes an afternoon. */}
-        <label className="flex shrink-0 items-center gap-1.5">
-          {/* TODO-COPY */}
-          <span className="hidden text-[var(--text-muted)] lg:inline">
-            Clock
-            <span className="text-[var(--text-muted)]">{` (${CLOCK_SCREENS.join(", ")})`}</span>
-          </span>
+        <Axis id="clock" pathname={pathname}>
+        {({ disabled, describedBy }) => (
           <select
-            aria-label={`Pinned clock (${CLOCK_SCREENS.join(", ")})`}
+            aria-label="Pinned clock"
+            aria-describedby={describedBy}
+            disabled={disabled}
             value={mounted ? (devClockKey ?? "") : ""}
             onChange={(e) => setDevClockKey(e.target.value || null)}
             className={cn(
@@ -756,7 +893,8 @@ export function DevBar() {
               </option>
             ))}
           </select>
-        </label>
+        )}
+        </Axis>
 
         {/* ══ THE ACTIVE SCENARIO, NAMED ══════════════════════════════════
             A screenshot of this bar says which scenario produced it.
