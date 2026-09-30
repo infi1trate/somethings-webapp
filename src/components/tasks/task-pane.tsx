@@ -360,7 +360,20 @@ function EngagementLine({
             m.optional ? "hidden @min-[500px]:flex" : "flex"
           )}
         >
-          <dt className={LABEL}>
+          {/* ═══ NOT `--text-muted` ON THIS GROUND (elevation amendment §2) ═══
+              `LABEL` is `PANE_LABEL`, which pairs the field-label type token
+              with `--text-muted`. That pairing was measured against the pane's
+              WHITE body; this band is `--surface-s2` now, and this codebase
+              already recorded what muted does there — "Muted measures 4.01:1 on
+              `--surface-s2` — under the 4.5 floor for 12px text, where
+              secondary is 5.78:1", in `ReviewIdentityCell`'s own note.
+              SO THE INK MOVES WITH THE GROUND. The type token stays — it is the
+              field-label stop and nothing about it changed — and only the colour
+              is overridden, which is the same substitution K.5 made system-wide
+              on this surface. Applying the tier without this would have put two
+              12px labels under the AA floor on the pane a supervisor reads
+              every time. */}
+          <dt className={cn(LABEL, "text-[var(--text-secondary)]")}>
             <span aria-hidden>{m.short}</span>
             <span className="sr-only">{m.full}</span>
           </dt>
@@ -887,7 +900,57 @@ export function TaskPane({
             "due 6:24 PM" sees the same words in the pane rather than a second
             spelling of the same instant.
           · THE TWO WAYS OUT live here. See the note on the CTAs. */}
-      <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
+      {/* ═══ TIER 1 · THE HEADER BAND'S TONE (elevation amendment §2) ═══
+          "Tones do not need to be unique. They need to be RANKED, and the
+          header must outrank anything beneath it." Three tiers:
+            Tier 1  this band          `--surface-s2`
+            Tier 0  the pane body      `--surface-card`
+            Tier 2  the nested block   `--surface-s1`  (already, untouched)
+
+          ═══ `--surface-s2` AND NOT `--band-sand-bg`, AND THE NUMBERS DECIDED ═══
+          The amendment describes Tier 1 as "deepest, warmest", and the
+          reference is a `TaskCard` whose band is `--band-sand-bg`. MEASURED as
+          relative luminance x100, sand does not rank:
+            light  Tier1 sand 86.40 < Tier2 s1 90.53 < Tier0 card 100.00
+                   — but sand:s1 is 1.045:1, which is not a rank, it is a
+                     rounding difference
+            dark   Tier2 s1 1.80 < Tier0 card 2.89 < Tier1 sand 6.38
+                   — THE ORDER INVERTS. The "deepest" tier becomes the
+                     brightest thing on the pane.
+          `--surface-s2` holds the ranking in BOTH themes:
+            light  Tier1 74.62 < Tier2 90.53 < Tier0 100.00
+            dark   Tier1  0.41 < Tier2  1.80 < Tier0   2.89
+          with separations of 1.319 / 1.200 light and 1.460 / 1.258 dark.
+          IT IS ALSO STILL WARM — #e5e0d2 is hue 44deg at chroma 19, the same
+          hue family as sand and the same chroma, just deeper. So it satisfies
+          "deepest, warmest" better than the warm-triad token does.
+          AND IT IS THE EXISTING NEUTRAL VARIANT OF THIS PATTERN, not a new
+          choice: `record-authority-note` already uses `--surface-s2` as a flush
+          filled header band over a white body, and its note says why — "the app
+          ground, one step darker than this card's white". The warm triad is
+          SEVERITY-coded (sand/amber/clay via `taskBandFill`), and this band
+          carries identity, not severity; importing a severity tone would import
+          a semantic this pane does not have.
+
+          THE HAIRLINE STAYS `--border-subtle`. `TaskBand` mixes its hairline
+          from the band's own ink at 22% because "a neutral #dfddd8 hairline
+          against a warm tint reads as a seam of a different colour" — that rule
+          is about the warm `--band-*` tints. `record-authority-note`'s
+          `--surface-s2` band keeps the neutral hairline, and this follows it.
+
+          NO `rounded-t-*` AND NO `-mx-*`: the pane container is already
+          `overflow-hidden rounded-[var(--radius-elevated)]`, so the fill
+          terminates on the radius by clipping. `today-page.tsx` records the
+          three-piece `rounded-t` + `border-x border-b` version as the bug.
+
+          PROPORTIONS LEFT ALONE, AND WHY. §3 says to take "the band's
+          proportions" from the reference, and those are specified in §6.3 of a
+          pack this session was never given — the amendment supersedes §6.2 of
+          it and I have only the amendment. `TaskBand`'s own proportions are
+          `min-h-14 px-[var(--surface-pad-x)] py-2` against this band's
+          `px-5 py-4`; changing them is a spec I cannot check, so the TONE is
+          applied and the geometry is not. Reported rather than guessed. */}
+      <div className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-5 py-4">
         <div
           /* ═══ THE CONTAINER FOR §3.3's QUERY IS THIS ROW ═══
              It is the element that WRAPS when the two blocks do not fit, so its
