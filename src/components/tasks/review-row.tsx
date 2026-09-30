@@ -43,7 +43,7 @@ import { proposalKindFor } from "@/lib/record/proposal-kind";
 import { cycleLabelFor } from "@/lib/tasks/review-cycle";
 import type { TaskType } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, Repeat2 } from "lucide-react";
 import {
   SORT_LABEL,
   SORT_MEANING,
@@ -666,12 +666,15 @@ export function ReviewAgeCell({
 export function ReviewIdentityCell({
   name,
   caption,
+  captionIcon = false,
   captionClassName,
   nameClassName,
   width,
 }: {
   name: string;
   caption: string;
+  /** §5's renew glyph, on `Change requested` only — see `proposalCaptionIcon`. */
+  captionIcon?: boolean;
   captionClassName?: string;
   nameClassName?: string;
   /** L.4's equal-thirds geometry. Omitted, the cell takes the remainder, which
@@ -711,11 +714,12 @@ export function ReviewIdentityCell({
       <span
         className={cn(
           CAPTION_CLASS,
-          "mt-0.5 text-[var(--text-secondary)]",
+          "mt-0.5 flex items-center gap-1 text-[var(--text-secondary)]",
           captionClassName
         )}
       >
-        {caption}
+        {captionIcon && <Repeat2 aria-hidden className="size-4 shrink-0" />}
+        <span className="min-w-0 truncate">{caption}</span>
       </span>
     </span>
   );
@@ -742,8 +746,34 @@ export function proposalCaption(
   currentCode: string | null,
   recommendedCode: string
 ): string {
-  /* NEEDS-COPY-NICOLE, both. */
+  /* ═══ THE TWO STRINGS, CORRECTED (parity pack §5) ═══
+     NEEDS-COPY-NICOLE, both.
+     WAS "Presentation Change" → `Change requested`. §5: "not a spec'd value".
+     It was this pack's own collapse of `PROPOSAL_LABEL.change` and it invented
+     a noun phrase; `Change requested` is the spec'd one, and it also reads as
+     something a person DID rather than a category the row belongs to.
+     WAS "Presentation Review" → `Presentation review`. Sentence case, which is
+     what the rest of this UI uses — the title-cased pair were the only two
+     captions in the product shouting. */
   return proposalKindFor(currentCode, recommendedCode) === "change"
-    ? "Presentation Change"
-    : "Presentation Review";
+    ? "Change requested"
+    : "Presentation review";
+}
+
+/** ═══ THE RENEW GLYPH RIDES WITH `Change requested` (§5) ═══
+ *  §5 asks for the caption "with the renew icon", and the reference table
+ *  carries exactly that: a 16×16 `repeat-2` beside the change caption in
+ *  `4345:6188`. Lucide's `Repeat2` is that glyph.
+ *  IT IS NOT THE CARRIER OF ANYTHING. The caption states the kind in words, so
+ *  the glyph is `aria-hidden` and a reader who cannot resolve it loses nothing
+ *  — which is the same split every other glyph on this row uses.
+ *  RETURNS NULL RATHER THAN A BLANK SLOT: a reserved 16px on every row would
+ *  indent the two captions differently for no reason, and unlike §5.2's
+ *  unviewed dot nothing here appears or disappears as a reader works, so there
+ *  is no twitch to prevent. */
+export function proposalCaptionIcon(
+  currentCode: string | null,
+  recommendedCode: string
+): boolean {
+  return proposalKindFor(currentCode, recommendedCode) === "change";
 }

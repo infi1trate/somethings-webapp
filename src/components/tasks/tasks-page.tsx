@@ -430,7 +430,7 @@ export function TasksPage({
      switching the source here rather than branching at each of them is what
      keeps the Submitted tab from becoming a second list component, which is
      the defect K.1 spent a whole pass removing one surface along. */
-  const entries = careTab === "submitted" ? submitted : openEntries;
+  const entries = careTab === "closed" ? submitted : openEntries;
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
    *  retirement needs to report how many of a cleared tier closed today, which is
@@ -603,6 +603,15 @@ export function TasksPage({
      at — the same rule `open` already follows. With §4's filters gone `shown`
      is the open set, but that is a fact about today's toolbar rather than a
      reason to count something else. */
+  /* ═══ UNMOUNTED BY §4.4 (strangler rule) ═══
+     "Dropped with the metric line, by Brandon's decision — the per-row dots
+     carry it. No unviewed count in the header." The EXPRESSION stays because it
+     is the only place "how many of the shown set has this supervisor not
+     opened" is computed, and §5.2's threshold note depends on it being one
+     expression rather than two. The rule it served is also worth keeping
+     attached to code: a header count of things you have not looked at is an
+     inbox framing, which is what §4.4 removed. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const unviewedCount = useMemo(
     () => shown.filter((e) => !viewed.has(e.id)).length,
     [shown, viewed]
@@ -1162,86 +1171,26 @@ export function TasksPage({
              §4.1's own rule, so the two list surfaces keep one grammar. */
           shiftDateLabel(now)
         }
-        metrics={
-          /* ═══ TWO, AND "overdue" IS NOT ONE OF THEM (addendum §2.9) ═══
-             The third segment counted breaches against a deadline this
-             destination no longer has. What is left is the pair §2.10 names.
-             NEEDS-COPY-NICOLE. Neither frames the work as an inbox: "open" is
-             a state, and "completed today" is a fact about the shift rather
-             than a score — it is the same figure the completed group below
-             already shows, stated once at the top. */
-          /* ═══ TWO FACTS, NOT THREE (Refinement §3.1) ═══
-             It showed `19 open`, `0 completed today` AND a track reading "0 of
-             19 reviews completed this shift" — the second and third nearly the
-             same number stated twice. `completed today` is removed: the shift
-             is the meaningful unit for a supervisor, the track already states
-             it against a denominator, and two overlapping completion counts is
-             noise.
-             SO BOTH DESTINATIONS NOW CARRY THE SAME PAIR — open plus oldest —
-             which is honest given neither has a deadline: `CARE_REVIEW_SLA` is
-             retired and `FLAG_REVIEW_SLA` is null, so age is the only temporal
-             fact either surface can state.
-             FILTER-AWARE, AND IT SAYS SO (§6.4) — see Monitoring's own note on
-             why the qualification lives in the label rather than the figure. */
-          careTab === "submitted"
-            ? /* ═══ §5.1 — THE FIGURES FOLLOW THE ACTIVE STATE ═══
-                 "Viewing Submitted must not show the open count." So the line
-                 is the submitted count alone: `unviewed` is a fact about work
-                 still waiting to be read, and `overdue` is a fact about work
-                 still open — neither means anything about a decision already
-                 made, and rendering either here would be a number that looks
-                 authoritative and describes the other tab.
-                 THE NAV BADGE IS UNAFFECTED and stays the open count whichever
-                 tab is active — it belongs to the destination, not to this
-                 control. `openCounts` is its source and nothing here touches
-                 it. */
-              [
-                {
-                  value: String(shown.length),
-                  /* NEEDS-COPY-NICOLE */
-                  label: "submitted",
-                },
-              ]
-            : [
-            {
-              value: String(shown.length),
-              label: "open",
-            },
-            /* ═══ §5.3 — UNVIEWED REPLACES `oldest` ═══
-               The line was `16 open · 3d oldest`. §5.3 makes it
-               `16 open · 4 unviewed · 2 overdue` and removes `oldest`
-               explicitly — age is still on every row, in its own column, where
-               a reader compares it against the rows around it rather than
-               against a single aggregate.
-               `filtering` IS GONE FROM THE LABEL because §4 removed filters
-               from this surface: there is no filtered state to qualify, and a
-               label reading "open · filtered" that can never be filtered is
-               the dead chrome the extensibility threshold forbids. */
-            {
-              value: String(unviewedCount),
-              /* NEEDS-COPY-NICOLE */
-              label: "unviewed",
-            },
-            /* ═══ §5.3 — THE OVERDUE SLOT, AND IT IS NO LONGER A SLOT ═══
-               §5.3 said to build the line with open and unviewed only and
-               "leave a typed slot for overdue" because §2 was unanswered. It
-               is answered — 48 hours since reception, unreviewed — so the
-               figure is real. `care-overdue.ts` holds the rule and the note on
-               why it is not a deadline.
-               IT RENDERS ONLY WHEN NON-ZERO. `2 overdue` is a condition; `0
-               overdue` is the resting state of the work, and a permanent zero
-               teaches a reader to stop reading the line. */
-            ...(overdue > 0
-              ? [
-                  {
-                    value: String(overdue),
-                    /* NEEDS-COPY-NICOLE */
-                    label: "overdue",
-                  },
-                ]
-              : []),
-          ]
-        }
+        /* ═══ §4.2 — THE METRIC LINE IS GONE, AND ITS JOB MOVED ═══
+           A PLAIN BLOCK COMMENT, not `{/* … *\/}`: this position is a prop
+           list, which takes attributes — a JSX comment is only valid in
+           children position and putting one here is a parse error. The same
+           trap `review-body.tsx` records at its own evidence block.
+            IT WAS `16 open · 4 unviewed · 2 overdue`, and every one of the three
+            is now somewhere better:
+              · the two COUNTS are in the tabs, where the thing they count is
+                the thing you click — §4.2's resolution of the duplication
+                Brandon flagged, since the tabs already had them in small type;
+              · OVERDUE is a chip beside the tabs (§4.3), because overdue items
+                are a SUBSET of open ones and a peer metric read as a sibling;
+              · UNVIEWED is dropped, by §4.4 — the per-row dots carry it, and a
+                header count of things you have not looked at is an inbox
+                framing this surface is specifically not.
+            SO THE HEADER CARRIES NO FIGURES AT ALL. `PageHeader`'s `metrics`
+            prop is untouched and still used by other destinations; this one
+            just stops passing it. §5.4 already noted the band would be
+            left-weighted with the track gone — it is more so now, and measured
+            in the report rather than filled with something invented. */
         /* ═══ §5.4 — THE SHIFT TRACK COMES OFF CARE REVIEWS ═══
            `0 of 16 reviews completed this shift` and its rail are gone.
            CONFIRMED SCOPE: Risk Flags loses it too ("no" to "does Risk Flags
@@ -1423,7 +1372,21 @@ export function TasksPage({
                     ? {
                         value: careTab,
                         onChange: setCareTab,
-                        count: { open: openEntries.length, submitted: submitted.length },
+                        count: { open: openEntries.length, closed: submitted.length },
+                        /* ═══ §4.3 — THE OVERDUE CHIP SUBSETS THE ACTIVE TAB ═══
+                           `overdue` is computed over `shown`, which IS the
+                           active tab's set — so the chip subsets whichever tab
+                           is showing by construction rather than by a second
+                           expression that could disagree.
+                           AND IT IS ZERO ON `Closed` BY THE SAME CONSTRUCTION:
+                           `isOverdue` returns false for any non-open item, so
+                           a closed review is never overdue however late it was
+                           submitted. That is the working-state answer; whether
+                           a late submission stays HISTORICALLY overdue is a
+                           compliance question §4.3 puts to Brandon, and until
+                           it is answered the chip simply does not appear there
+                           — which is §4.3's own default. */
+                        overdue,
                       }
                     : undefined
                 }

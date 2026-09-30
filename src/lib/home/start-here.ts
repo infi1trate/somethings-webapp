@@ -49,7 +49,7 @@
 import { DESTINATION_ORDER, type DestinationId } from "@/lib/ia/destinations";
 import { activeEscalations, openCareReviews } from "@/lib/ia/open-counts";
 import { ackStateFor } from "@/lib/monitoring/escalation";
-import { proposalCaption } from "@/components/tasks/review-row";
+import { proposalCaption, proposalCaptionIcon } from "@/components/tasks/review-row";
 import type { TodayInput } from "@/lib/home/today";
 import type { TaskType } from "@/lib/tasks/types";
 
@@ -76,6 +76,13 @@ export interface StartHereItem {
   at: number;
   /** NEEDS-COPY-NICOLE, where non-null. */
   status: string | null;
+  /** ═══ §5's RENEW GLYPH, AS A FLAG RATHER THAN A NODE ═══
+   *  `Change requested` carries a renew glyph and `Presentation review` does
+   *  not. This module is data, not markup, so it reports WHETHER the glyph
+   *  applies and the row decides what to draw — which is also what keeps the
+   *  two surfaces unable to disagree, since both read this one boolean from the
+   *  same expression the caption came from. */
+  captionIcon: boolean;
   /** ═══ THE PRESENTATION CODES (I.4, REVERSED BY K.1) ═══
    *  An earlier revision of this pack PROHIBITED codes in the preview, on the
    *  grounds that an orienting surface open all shift is the wrong place for
@@ -155,6 +162,9 @@ export function startHereCandidates(
            acknowledged inside its own published SLA. */
         status:
           ackStateFor(r, now) === "breached" ? "Response overdue" : "Awaiting response",
+        /* NOT A BILLING REVIEW, so there is no proposal to renew — see the
+           field's own note. An escalation's status is a workflow state. */
+        captionIcon: false,
         codes: null,
         href: itemHref(destination, r.id),
       }))
@@ -171,6 +181,8 @@ export function startHereCandidates(
         at: e.at,
         /* NULL BY DECISION, NOT BY OMISSION — see the module note. */
         status: null,
+        /* A flag has no proposal either. */
+        captionIcon: false,
         codes: null,
         href: itemHref(destination, e.id),
       }))
@@ -196,6 +208,12 @@ export function startHereCandidates(
               i.payload.recommended.code
             )
           : null,
+      captionIcon:
+        i.payload.kind === "billing" &&
+        proposalCaptionIcon(
+          i.payload.current?.code ?? null,
+          i.payload.recommended.code
+        ),
       codes:
         i.payload.kind === "billing"
           ? {

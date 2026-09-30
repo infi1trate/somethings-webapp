@@ -5,7 +5,7 @@
 //
 // ═══ THE TWO EMPTIES READ DIFFERENTLY, AND §5.1 SAYS WHY ═══
 //
-// "No open reviews is an achievement; no submitted reviews is a blank
+// "No open reviews is an achievement; no closed reviews is a blank
 // history." One list being empty is the resting state of finished work; the
 // other is a reader who has not done anything yet, or has switched scenario.
 // A single shared "Nothing here" would flatten those into the same sentence
@@ -16,14 +16,14 @@
 // for 'nothing to review'." Different causes of emptiness must say different
 // things.
 
-export type CareTab = "open" | "submitted";
+export type CareTab = "open" | "closed";
 
-export const CARE_TABS: readonly CareTab[] = ["open", "submitted"];
+export const CARE_TABS: readonly CareTab[] = ["open", "closed"];
 
 /** NEEDS-COPY-NICOLE, both. The control's own labels. */
 export const CARE_TAB_LABEL: Record<CareTab, string> = {
   open: "Open",
-  submitted: "Submitted",
+  closed: "Closed",
 };
 
 /** The accessible name for each segment, which states what it selects rather
@@ -31,7 +31,7 @@ export const CARE_TAB_LABEL: Record<CareTab, string> = {
 export const CARE_TAB_NAME: Record<CareTab, string> = {
   /* NEEDS-COPY-NICOLE, both. */
   open: "Show open reviews",
-  submitted: "Show submitted reviews",
+  closed: "Show closed reviews",
 };
 
 export interface CareTabEmpty {
@@ -57,10 +57,13 @@ export interface CareTabEmpty {
 export const CARE_TAB_EMPTY: Record<CareTab, CareTabEmpty> = {
   open: {
     line: "No reviews are waiting",
-    detail: "Submitted reviews stay in the Submitted tab.",
+    detail: "Reviews you have closed stay in the Closed tab.",
   },
-  submitted: {
-    line: "Nothing submitted yet",
+  closed: {
+    /* NEEDS-COPY-NICOLE, both. STILL "submit" AS THE VERB, because that is the
+       act the supervisor performs — see the axis note at the top on why the
+       state renamed and the verb did not. */
+    line: "Nothing closed yet",
     detail: "Reviews you submit appear here.",
   },
 };

@@ -691,7 +691,13 @@ function TasksSection({
                   style={{ width: COL_EQUAL }}
                 >
                   <ReviewDisc teenId={it.teenId} name={it.name} size={PREVIEW_DISC} />
-                  <ReviewIdentityCell name={it.name} caption={it.status ?? ""} />
+                  {/* §5's renew glyph, from the flag `start-here.ts` derives
+                      with the same expression the caption came from. */}
+                  <ReviewIdentityCell
+                    name={it.name}
+                    caption={it.status ?? ""}
+                    captionIcon={it.captionIcon}
+                  />
                 </span>
                 {/* ═══ THE CYCLE, NOT THE CODES (rework §6.1, §6.3) ═══
                     K.1 put codes here and the Care Reviews rework takes them

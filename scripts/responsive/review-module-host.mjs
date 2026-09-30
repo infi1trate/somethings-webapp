@@ -161,9 +161,10 @@ async function openCareReview(page) {
   /* ═══ CHANGE vs NOT-A-CHANGE (rework §6.4) ═══
      This split three ways — change / renewal / assign — and read the kind off
      the ROW, where §4.4 had put it in words. §6.4 collapses the row to TWO
-     labels: "Presentation Change" for a change, "Presentation Review" for both
-     a first assignment and a renewal. So `cases.notChange` came back null and
-     three checks failed.
+     labels, and the parity pack §5 then renamed both of them: `Change
+     requested` for a change, `Presentation review` for both a first assignment
+     and a renewal. Each rename broke this matcher in turn; see the note at the
+     matcher itself.
      THE TWO-WAY SPLIT IS THE RIGHT ONE FOR THESE CLAIMS, and collapsing to it
      makes them STRONGER rather than weaker. What the checks actually assert is
      that the pane renders the code on record as a subordinate `Current ·` line
@@ -177,11 +178,23 @@ async function openCareReview(page) {
   for (let i = 0; i < 14 && (!cases.change || !cases.notChange); i += 1) {
     const row = page.getByRole("treeitem").nth(i);
     const rowText = (await row.innerText()).replace(/\s+/g, " ");
-    if (!/Presentation (Change|Review)/.test(rowText)) continue;
+    /* ═══ RETARGETED BY THE PARITY PACK §5 — THE CAPTIONS WERE RENAMED ═══
+       They were "Presentation Change" / "Presentation Review". §5 corrects them
+       to `Change requested` (not a spec'd value before) and `Presentation
+       review` (sentence case), so this matcher stopped finding either case and
+       all three checks below went red with `change: false · non-change: false`.
+       A PROBE ARTIFACT, NOT AN APP DEFECT: the pane's behaviour is unchanged,
+       and the claims below are unchanged. Only the string the case is
+       IDENTIFIED by moved — the same retarget this file already carries one
+       layer up, where §6.4 collapsed three labels to two.
+       MATCHING BOTH SPELLINGS WOULD BE THE WRONG FIX: the old strings are gone
+       and a matcher that accepts them would pass against a regression that
+       brought them back. */
+    if (!/(Change requested|Presentation review)/.test(rowText)) continue;
     await row.click();
     await page.waitForTimeout(280);
     const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
-    const kind = /Presentation Change/.test(rowText) ? "change" : "notChange";
+    const kind = /Change requested/.test(rowText) ? "change" : "notChange";
     if (!cases[kind]) cases[kind] = pt;
   }
   check(

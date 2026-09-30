@@ -60,7 +60,7 @@
 // band. The defect was this surface's alone.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, PencilLine, Phone, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
@@ -103,6 +103,7 @@ import {
   ReviewDisc,
   ReviewRowHeader,
   proposalCaption,
+  proposalCaptionIcon,
 } from "@/components/tasks/review-row";
 import type { CareSort, CareSortColumn } from "@/lib/ui/care-sort";
 
@@ -112,6 +113,13 @@ import type { CareSort, CareSortColumn } from "@/lib/ui/care-sort";
  *  row and the header did not have it at all, which measured as a 16px offset
  *  between "Mentee" and the names under it. */
 const MARKER_SLOT = 8;
+/* ═══ AND IT STAYS 8 THOUGH THE DOT IS NOW 6 (parity pack §3) ═══
+   The slot is the RESERVATION, not the mark: the dot is centred in it, so a
+   6px dot in an 8px slot leaves every disc, name and column exactly where it
+   was. Shrinking the slot to 6 would shift the whole row — and the HEADER with
+   it, since `ReviewRowHeader` takes `markerWidth={MARKER_SLOT}` precisely so
+   the two flex chains start at the same x. That alignment was measured to the
+   pixel one pack ago; it is not worth 2px. */
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
  *
@@ -245,19 +253,47 @@ function childTimeLabel(openedAt: number): string {
 // ── Chips ───────────────────────────────────────────────────────────────────
 
 /** THE ONE BREACH CHIP PATTERN (§3.3), compact form for a row. Icon + text —
- *  never colour alone. */
-function OverdueChip() {
+ *  never colour alone.
+ *  ═══ EXPORTED FOR THE TOOLBAR (parity pack §4.3) ═══
+ *  §4.3 asks the overdue chip beside the tabs to use "the system-wide breach
+ *  pattern", and this is it — so the toolbar consumes this component rather
+ *  than restating clay-on-clay plus a triangle in a second place. A pattern
+ *  described twice is a pattern that diverges once.
+ *  `count` AND `size` ARE THE ONLY PARAMETERS. The row form says just
+ *  "Overdue" because the row IS the overdue thing; the toolbar form counts a
+ *  subset, so it needs the figure. Nothing else about it varies. */
+export function OverdueChip({
+  count,
+  size = "row",
+}: {
+  /** Omitted on a row — see above. */
+  count?: number;
+  size?: "row" | "toolbar";
+} = {}) {
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-[14px]"
+      data-anno-ref="overdue-chip"
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full font-semibold",
+        size === "row"
+          ? "px-1.5 py-0.5 text-[11px] leading-[14px]"
+          : /* 44px to match every other target in the toolbar — §7's hit-target
+               item, and the same bar the segmented control holds. */
+            "min-h-11 px-3 text-[13px] leading-[18px]"
+      )}
       style={{
         backgroundColor: "var(--band-clay-bg)",
         color: "var(--band-clay-fg)",
       }}
     >
-      <AlertTriangle className="size-2.5 shrink-0" aria-hidden />
-      {/* TODO-COPY */}
-      Overdue
+      <AlertTriangle
+        aria-hidden
+        className={cn("shrink-0", size === "row" ? "size-2.5" : "size-4")}
+      />
+      {/* TODO-COPY · NEEDS-COPY-NICOLE on the counted form. THE FIGURE LEADS,
+          because the word is the same on every chip and the number is what
+          varies — the same reasoning §4.2 uses for the tab counts. */}
+      {count == null ? "Overdue" : `${count} overdue`}
     </span>
   );
 }
@@ -763,7 +799,23 @@ function Row({
         {unviewed && (
           <span
             data-anno-ref="unviewed-dot"
-            className="size-2 rounded-full bg-[var(--text-primary)]"
+            /* ═══ 6px, AND IT WAS 8 (parity pack §3) ═══
+               "Live dots are larger than the Figma. Reduce to match, snapped to
+               a Bloom step."
+               MEASURED BEFORE: `size-2` — 8px. AFTER: `size-1.5` — 6px.
+               ON THE 4px GRID'S HALF-STEP, which is the only scale available:
+               Bloom ships no spacing scale (four component pads and nothing
+               else), so Tailwind's 4px step with its 2px half is what this
+               product actually has — recorded when the type ramp was audited.
+               6 IS THE STEP DOWN, NOT 4. `size-1` would be 4px, and §3's own
+               sentence rules it out by naming "anyone who cannot resolve a 4px
+               mark" as the reason the weight pairing exists. Going TO 4 would
+               make the mark the thing the sentence says not to rely on.
+               THE PAIRING IS WHY THIS IS SAFE AT ALL. The dot is shape-and-hue;
+               the mentee name's FACE carries the same state independently (§5.2
+               swapped Lausanne's inert weight for Avantt), so shrinking the
+               mark does not shrink the signal. */
+            className="size-1.5 rounded-full bg-[var(--text-primary)]"
           />
         )}
       </span>
@@ -982,11 +1034,24 @@ function Row({
                    says what kind of review it is. A pair still appears when
                    there are two codes to show, because two codes is data — but
                    it is no longer what a reader has to infer the kind from. */
-                /* SHARED WITH TODAY'S PREVIEW (K.1) — one caption expression. */
-                proposalCaption(
-                  item.payload.current?.code ?? null,
-                  item.payload.recommended.code
-                )
+                /* SHARED WITH TODAY'S PREVIEW (K.1) — one caption expression,
+                   and since §5 one glyph decision from the same two arguments. */
+                <>
+                  {proposalCaptionIcon(
+                    item.payload.current?.code ?? null,
+                    item.payload.recommended.code
+                  ) && (
+                    <Repeat2
+                      aria-hidden
+                      data-anno-ref="renew-icon"
+                      className="mr-1 inline size-3 shrink-0 align-[-1px]"
+                    />
+                  )}
+                  {proposalCaption(
+                    item.payload.current?.code ?? null,
+                    item.payload.recommended.code
+                  )}
+                </>
               ) : (
                 (disposition ?? TASK_KIND_LABEL[item.taskType])
               )}

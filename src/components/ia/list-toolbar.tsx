@@ -35,6 +35,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ViewOptionsButton } from "@/components/ia/view-options";
+/* §4.3's chip is the ROW chip, parameterised — see its note in `worklist.tsx`
+   on why the toolbar consumes it instead of restating the treatment. */
+import { OverdueChip } from "@/components/tasks/worklist";
 import {
   activeCount,
   type FilterDimension,
@@ -149,6 +152,13 @@ export function ListToolbar<T extends Filterable>({
     onChange: (next: CareTab) => void;
     /** Per-tab counts, so a segment says how much is behind it. */
     count: Record<CareTab, number>;
+    /** ═══ §4.3 — THE OVERDUE SUBSET OF THE ACTIVE TAB ═══
+     *  A chip, not a fourth segment: overdue items ARE open items, so as a peer
+     *  tab the counts would stop partitioning — `16 open · 1 overdue` with the
+     *  1 inside the 16 — and tabs read as mutually exclusive by convention.
+     *  The caller computes it over the ACTIVE tab's set, so this subsets
+     *  whichever tab is showing. Zero hides it. */
+    overdue?: number;
   };
 }) {
   /* ═══ §4 — BOTH THE PRIMARY SELECT AND THE `Filters` POPOVER ARE GATED ═══
@@ -277,9 +287,21 @@ export function ListToolbar<T extends Filterable>({
                   )}
                 >
                   {CARE_TAB_LABEL[t]}
+                  {/* ═══ §4.2 — THE COUNT DOES THE METRIC LINE'S JOB NOW ═══
+                      IT WAS 13px AT `opacity-70` — a parenthetical, which is
+                      what §4.2 rules out now that the header carries no figures
+                      at all. So it is 16px, tabular, and at full opacity.
+                      THE ACTIVE TAB'S IS STRONGEST, which §4.2 asks for and
+                      which the segment's own ink already delivers: the selected
+                      segment is `--text-inverse` on a filled ground and the
+                      others are `--text-secondary`, so the figures inherit that
+                      contrast rather than needing a second rule.
+                      `Closed 0` STILL RENDERS — knowing a tab is empty before
+                      clicking it is useful, which is the one place on this
+                      surface a zero earns its space. */}
                   <span
                     aria-hidden
-                    className="tabular-nums opacity-70"
+                    className="text-[16px] leading-[20px] tabular-nums"
                     style={{ fontFamily: "var(--font-mono)" }}
                   >
                     {tabs.count[t]}
@@ -290,6 +312,22 @@ export function ListToolbar<T extends Filterable>({
           </div>
         )}
 
+        {/* ═══ §4.3 — THE CHIP SITS BESIDE THE TABS, NOT AMONG THEM ═══
+            Outside the `radiogroup` deliberately: inside it, a non-radio child
+            breaks the group's content model and a screen reader would count it
+            among the options — the same class of error as a roleless div inside
+            a `tree`. Beside it, it reads as what it is: a qualifier on whatever
+            the group has selected.
+            IT RENDERS ONLY ABOVE ZERO (§4.3), so a clear queue shows nothing
+            rather than a permanent `0 overdue` that teaches a reader to skip
+            the spot.
+            NOT A CONTROL. It filters nothing and navigates nowhere — there is
+            no overdue view to go to, and inventing one here would be a
+            disposition path on a list. So it is a `span`, with no tab stop and
+            nothing to press. */}
+        {tabs && (tabs.overdue ?? 0) > 0 && (
+          <OverdueChip count={tabs.overdue} size="toolbar" />
+        )}
         {primary && (
           <Select
             dim={primary}
