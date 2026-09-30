@@ -37,7 +37,7 @@
 // axis. Esc, click-outside and the toggle close it; changing a value does not.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { useFocusTrap } from "@/lib/anno/use-focus-trap";
 import { AXES, axis, type AxisId } from "@/lib/dev/axes";
 import {
@@ -139,13 +139,33 @@ export function DevPanel({
 
   /* Focus the row the chip named. Deferred a frame for the same reason the
      focus trap defers its own first focus: on the commit that opens the panel
-     the children may not have laid out. */
+     the children may not have laid out.
+     ═══ AND IT NOW HANDLES `null` TOO, BECAUSE THE CLOSE BUTTON CHANGED WHAT
+         "THE FIRST CONTROL" MEANS ═══
+     The prop's contract is "`null` focuses the first control", and it used to
+     get that for free: the focus trap takes the first focusable descendant, and
+     that was the Role radiogroup. ADDING THE CLOSE BUTTON PUT A BUTTON ABOVE IT
+     IN THE DOM — measured, `first focus on open: dev-panel-close` — so a
+     reviewer pressing the shortcut landed on the way OUT of the panel rather
+     than on the first thing they opened it to change.
+     SO THE FALLBACK IS EXPLICIT NOW rather than a consequence of DOM order. The
+     close button is still one Shift+Tab away, which is the conventional place
+     for it, and this is the arrangement that survives someone adding a second
+     control to that strip. */
   useEffect(() => {
-    if (!focus) return;
     const raf = requestAnimationFrame(() => {
-      panelRef.current
-        ?.querySelector<HTMLElement>(`[data-panel-axis="${focus}"] select, [data-panel-axis="${focus}"] input, [data-panel-axis="${focus}"] button`)
-        ?.focus();
+      const root = panelRef.current;
+      if (!root) return;
+      const target = focus
+        ? root.querySelector<HTMLElement>(
+            `[data-panel-axis="${focus}"] select, [data-panel-axis="${focus}"] input, [data-panel-axis="${focus}"] button`
+          )
+        : /* The first control of the first AXIS, skipping the close strip —
+             which is what the contract meant by "the first control". */
+          root.querySelector<HTMLElement>(
+            "[data-panel-axis] select, [data-panel-axis] input, [data-panel-axis] button"
+          );
+      target?.focus();
     });
     return () => cancelAnimationFrame(raf);
   }, [focus]);
@@ -199,7 +219,55 @@ export function DevPanel({
         "shadow-[var(--shadow-panel)]"
       )}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+      {/* ═══ THE CLOSE BUTTON — A FOURTH WAY OUT, AND THE ONLY VISIBLE ONE ═══
+          The panel already closed on Esc, on click-outside, and on the `DEV`
+          toggle that opened it. NONE OF THE THREE IS DISCOVERABLE: Esc is
+          unlabelled, click-outside is unlabelled and undiscoverable by
+          definition, and the toggle is behind the panel's own bottom edge in the
+          bar — so a reviewer looking at an open 50vh panel has nothing on screen
+          telling them how to put it away. Nielsen #6, recognition over recall.
+          The toggle keeps `aria-expanded`, so this is an addition rather than a
+          second source of truth: both call `closeDevPanel`.
+
+          ═══ IN FLOW, NOT ABSOLUTE ═══
+          A floated `×` in the panel's top-right corner would sit over the first
+          row's content — the scroller's inner column is `max-w-[880px]` and
+          centred, so there is clearance at 1600 and none at 900. This strip is a
+          flex child ABOVE the scroller, so it cannot overlap anything and cannot
+          scroll away from a reviewer who has paged down 82 scenarios.
+          NO TITLE BESIDE IT. The dialog's name is on `aria-label`, and a visible
+          heading is chrome this panel has done without; the strip holds the one
+          control it was added for. */}
+      <div className="flex shrink-0 justify-end px-3 pt-2">
+        <button
+          type="button"
+          data-anno-ref="dev-panel-close"
+          /* TODO-COPY. Names the action and its object, matching the bar
+             toggle's own label rather than the bare "Close" a lone glyph would
+             otherwise announce. */
+          aria-label="Close prototype state"
+          title="Close (Esc)"
+          onClick={onClose}
+          className={cn(
+            /* 28x28. SC 2.5.8 wants 24 and bar-02 measured zero targets under
+               it on this surface — including fixing the annotation drawer's
+               26x22 — so a new control may not be the one that reintroduces
+               that. 28 also matches the `DEV` toggle's `min-h-7`. */
+            "flex size-7 items-center justify-center rounded-md transition-colors",
+            "text-[var(--text-muted)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+            RING
+          )}
+        >
+          {/* `aria-hidden`: the accessible name is on the button. A labelled
+              glyph would be announced twice. */}
+          <X aria-hidden className="size-4" />
+        </button>
+      </div>
+
+      {/* `pt-1` RATHER THAN `py-3`: the strip above already spends the top
+          padding, and 12px more would put the first axis row 20px from the
+          panel's edge while every other gap in here is 12. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-1">
         <div className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
           {/* ── ROLE ─────────────────────────────────────────────────────── */}
           <Row id="role" pathname={pathname}>
