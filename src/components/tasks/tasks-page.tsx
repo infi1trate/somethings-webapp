@@ -1297,7 +1297,9 @@ export function TasksPage({
         className="mt-10 min-h-0 flex-1"
       >
         {nothingOpen ? (
-          <WholePageEmpty />
+          /* THE DESTINATION'S OWN NAME WHEN THERE IS ONE, and nothing when
+             there is not — never `SCOPE_TITLE`'s "Tasks" fallback. */
+          <WholePageEmpty label={scope ? SCOPE_TITLE[scope] : undefined} />
         ) : (
           <div
             className={cn(
@@ -1710,16 +1712,52 @@ export function TasksPage({
 
 /** WHOLE-PAGE EMPTY (§4). Meg's pattern kept: the line, the reassurance, and a
  *  redirect to ongoing chats — the useful next thing when there is no work. */
-function WholePageEmpty() {
+/* ═══ UNREACHABLE TODAY, AND THE COPY IS FIXED ANYWAY ═══
+   `nothingOpen` gained `&& scope !== "care-reviews"` when §9 gave Care Reviews
+   its own two empty states — and `TasksScope` has exactly ONE member, so that
+   guard is never satisfied and this never renders.
+   I DESCRIBED THIS AS "Risk Flags' branch only" IN THE §11 REPORT AND THAT WAS
+   WRONG: Risk Flags is `MonitoringPage` under `scope="risk-flags"` and does not
+   mount `TasksPage` at all. Its own zero states live in `monitoring-page.tsx`,
+   are already `NEEDS-COPY-NICOLE`, and say "conversations".
+   SO WHY FIX THE WORDS OF DEAD CODE. Because all three defects below are
+   RULE violations rather than taste, and an unmounted component holding them is
+   a landmine: the day a second scope exists this ships as-is. The strangler rule
+   keeps the component; it does not license keeping banned vocabulary in it. */
+function WholePageEmpty({ label }: { label?: string }) {
   return (
     <div className="flex min-h-[45vh] flex-col items-center justify-center gap-3 text-center">
       <h2 className="font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]">
-        {/* TODO-COPY */}
-        No open tasks
+        {/* NEEDS-COPY-NICOLE: Nothing is waiting in {label}
+            IT WAS "No open tasks". "Tasks" is the destination name the addendum
+            RETIRED — `/app/tasks` is a dead hop and the surface is Care Reviews —
+            so the heading named a place that no longer exists.
+            IT NAMES THE DESTINATION IT IS ON, which is what the `label` prop is
+            for: a whole-page empty that cannot say which page it is on is the
+            same imprecision, one level up.
+            AND THE PROP IS OPTIONAL FOR A MEASURED REASON. `nothingOpen` can
+            only be true when `scope` is ABSENT — see the note on the function —
+            and the unscoped branch of `SCOPE_TITLE` falls back to the string
+            "Tasks", the very noun this heading had to stop using. Taking the
+            label unconditionally would have piped the retired name straight
+            back in. With no scope there is no destination to name, so it says
+            neither. */}
+        {label ? `Nothing is waiting in ${label}` : "Nothing is waiting"}
       </h2>
       <p className="max-w-sm text-[14px] leading-[20px] text-[var(--text-secondary)]">
-        {/* TODO-COPY. Calm, not congratulatory. */}
-        Every queue is clear.
+        {/* NEEDS-COPY-NICOLE. Calm, not congratulatory — that part of the old
+            note was right and is kept: an empty queue is the resting state of
+            this work rather than an achievement, which is the same rule
+            `CARE_TAB_EMPTY` and Today's all-clear subtitle both follow.
+            ═══ IT WAS "Every queue is clear." AND THAT WAS FALSE ═══
+            MEASURED on §9's `care-open-empty` fixture: it rendered while three
+            risk flags were open. The gate is `counts.open === 0` over THIS
+            surface's domains only, so the sentence asserted something about
+            every queue from a page that counts one of them. A reader who
+            believed it would have stopped looking.
+            SO IT SPEAKS ONLY FOR THE LIST IT IS IN, which is all this component
+            can honestly know. */}
+        This list is empty right now. New items appear here as they arrive.
       </p>
       <Link
         href="/app/chat"
@@ -1729,8 +1767,20 @@ function WholePageEmpty() {
           RING
         )}
       >
-        {/* TODO-COPY */}
-        Go to ongoing chats
+        {/* NEEDS-COPY-NICOLE: Open Chat
+            ═══ IT WAS "Go to ongoing chats" — PROHIBITED VOCABULARY ═══
+            A third defect in this component, and one I had not flagged. The
+            banned list covers "all messaging/conversation synonyms including
+            'chat'/'chats'", and "ongoing chats" is exactly that: a plural noun
+            standing in for conversations.
+            THE DESTINATION'S NAME IS NOT THE BAN. §2.2 renamed Coverage to
+            Chat, so `Chat` as a proper noun naming where the link goes is
+            correct — the same construction the schedule rail uses
+            (`Open {LABEL[destination]}`). What the rule forbids is using it
+            for the THINGS, which the old string did.
+            THE NAV SAYS "Chats" (plural) against the approved singular, which
+            is already an open item for Nicole and is not resolved here. */}
+        Open Chat
       </Link>
     </div>
   );
