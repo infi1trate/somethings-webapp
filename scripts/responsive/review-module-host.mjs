@@ -240,33 +240,122 @@ async function openCareReview(page) {
      and one more that §7 adds: the block names the MENTOR now, which it did
      not before. `tasks.no-mentor` below is retargeted for the same reason —
      see its own note. */
-  const accordion = page.locator('[data-slot="record-context"]');
+  /* ═══ RETARGETED AGAIN BY THE ROW-LAYOUT PASS's §3 — AND NOT RELAXED ═══
+     §7 put the figures in a collapsed accordion and these three checks
+     asserted that. §3.3 removes it: "Remove the disclosure entirely. Nothing
+     hides." So the accordion assertions are RETIRED BY SUPERSESSION for the
+     second time in this block's life, and the supersession is named because
+     that is the only thing distinguishing a retarget from a relaxation.
+
+     WHAT §7 WAS PROTECTING IS UNCHANGED AND IS WHAT THIS ASSERTS NOW. §7's
+     claim was never "there is an accordion" — it was "the mentorship figures
+     and the mentor's name are on this pane", and arch-F's note is why it
+     mattered: "the mentorship length is the one figure that changes how the
+     rest reads". §3 moves that content into the header band, so the check
+     moves with it.
+
+     IT IS STRICTLY STRONGER THAN WHAT IT REPLACES, which is the test a
+     retarget has to pass. The old version was satisfied by an accordion whose
+     contents a reader never opened; this one requires the figures to be
+     VISIBLE, requires the mentor's name beside an explicit role label, and
+     requires that nothing in the band hides them — the last of which the old
+     version could not have expressed, because hiding them was the design. */
+  const strip = page.locator('[data-slot="record-context"]');
   check(
-    "tasks.record-context",
-    "the mentorship figures are back in a collapsed accordion (§7)",
-    (await accordion.count()) === 1,
-    `${await accordion.count()} accordion(s)`
+    "tasks.no-record-strip",
+    "the bordered mentorship strip is gone (§3.3 — deleted, not moved)",
+    (await strip.count()) === 0,
+    `${await strip.count()} strip(s)`
   );
-  if (await accordion.count()) {
-    const ax = (await accordion.innerText()).replace(/\s+/g, " ");
+
+  const band = page
+    .locator("[data-pane-teen]")
+    .locator("xpath=ancestor::div[contains(@class,'shrink-0')][1]");
+  const metrics = band.locator("dl");
+  check(
+    "tasks.engagement-visible",
+    "and the engagement figures are on screen in the header, not behind anything",
+    (await metrics.count()) === 1 && (await metrics.first().isVisible()),
+    `${await metrics.count()} dl(s)`
+  );
+  if (await metrics.count()) {
+    /* ═══ PER-PAIR, AND THE FIRST VERSION OF THIS WAS WRONG ═══
+       It read the whole list's text and tested `/Mentorship/i && /\d+d/`.
+       MUTATION-TESTED, THAT PASSED WITH THE DURATION DELETED: "Messages 30d"
+       supplies a `\d+d` match, so the assertion was satisfied by the label of
+       a DIFFERENT metric. Reading each pair's own `<dd>` through its
+       `data-metric` handle is what makes the check name what it means — the
+       same fix `today-mirror`'s open-count check needed for the same reason. */
+    const dd = async (id) => {
+      const n = metrics.first().locator(`[data-metric="${id}"] dd`);
+      return (await n.count()) ? (await n.first().innerText()).trim() : null;
+    };
+    const dur = await dd("mentorship");
+    /* ═══ THE FIGURE arch-F CALLED LOAD-BEARING, BY NAME ═══
+       The mentorship duration is the one §7 kept visible in the collapsed
+       state, so it is the one asserted here — and as a NUMBER WITH ITS UNIT,
+       because a label with no figure beside it is how this block regressed
+       before, and a figure with no unit is what "Mentorship 140" would be. */
     check(
-      "tasks.accordion-collapsed",
-      "which starts collapsed and says what it holds",
-      (await accordion.getAttribute("aria-expanded")) === "false" &&
-        /days in mentorship/.test(ax),
-      ax
+      "tasks.engagement-duration",
+      "including the mentorship duration, the figure that frames the rest",
+      dur !== null && /^\d+d$/.test(dur),
+      `dd = ${dur === null ? "MISSING" : JSON.stringify(dur)}`
     );
-    /* ═══ §7's OWN ADDITION, AND IT IS THE HALF THAT COULD REGRESS QUIETLY ═══
-       "Mentor on record" is a LABEL and would still render with no name beside
-       it, so the label is not what this asserts — it asserts a name, as two
-       capitalised words, in the accordion's collapsed text. */
+    const msgs = await dd("messages");
+    /* THE WINDOWED FIGURE STATES ITS WINDOW. "62 messages" without "last 30
+       days" cannot be sized — the retired strip's own note said so. The label
+       carries it, so the label is read from its own `<dt>`. */
+    const dt = metrics.first().locator('[data-metric="messages"] dt');
+    const lbl = (await dt.count()) ? (await dt.first().innerText()).replace(/\s+/g, " ") : null;
     check(
-      "tasks.record-context-names-mentor",
-      "and it names the mentor, which §7 asked for and the ROW still must not",
-      /[A-Z][a-z]+ [A-Z][a-z]+/.test(ax.replace("Mentor on record", "")),
-      ax
+      "tasks.engagement-window",
+      "and the windowed figure names its window rather than standing bare",
+      msgs !== null && /^\d+$/.test(msgs) && lbl !== null && /30d|last 30 days/i.test(lbl),
+      `dd = ${JSON.stringify(msgs)} · dt = ${JSON.stringify(lbl)}`
     );
   }
+
+  /* ═══ NOTHING IN THE BAND HIDES THE FIGURES ═══
+     §3.1's objection was that "two metrics behind a chevron costs a click and
+     hides the thing that would have oriented the supervisor before they read
+     anything else". This is that objection as an assertion, scoped to the
+     header band so the pane's OTHER legitimate disclosures — the assessment
+     score strip — do not fail it. */
+  const inBand = await band.locator("[aria-expanded]").count();
+  check(
+    "tasks.header-has-no-disclosure",
+    "and the header band holds no disclosure at all",
+    inBand === 0,
+    `${inBand} disclosure(s) in the band`
+  );
+
+  const ctx2 = (await band.innerText()).replace(/\s+/g, " ");
+  /* ═══ §3.2's ROLE LABEL, WHICH IS THE POINT OF NAMING THE MENTOR AT ALL ═══
+     "Without it, two names near each other are ambiguous about who is who,
+     which is the same defect the escalation cards had." So the name alone is
+     not enough — the label has to be beside it.
+
+     ═══ AND THIS CHECK'S FIRST VERSION DID NOT DISCRIMINATE EITHER ═══
+     It tested `/MENTOR/i` against the whole band's text. MUTATION-TESTED, that
+     PASSED with `RolePair` replaced by a bare `<span>{mentorName}</span>`,
+     because the metrics list contains the word "Mentorship" — six letters of
+     a different label satisfying a check about this one. Both of this block's
+     regex checks had the same defect, found the same way.
+     SO IT READS THE CONTEXT LINE ONLY, and matches the label EXACTLY rather
+     than as a substring: an element whose whole text is "Mentor". */
+  const contextLine = band.locator("p").first();
+  const roleLabels = await contextLine
+    .locator("span")
+    .filter({ hasText: /^Mentor$/ })
+    .count();
+  const lineText = (await contextLine.innerText()).replace(/\s+/g, " ");
+  check(
+    "tasks.header-names-mentor-with-role",
+    "the header names the mentor behind an explicit role label (§3.2)",
+    roleLabels === 1 && /[A-Z][a-z]+ [A-Z][a-z]+/.test(lineText.replace(/Mentor/g, "")),
+    `${roleLabels} exact "Mentor" label(s) · line = ${JSON.stringify(lineText)}`
+  );
   /* ═══ RETARGETED BY §7 ═══
      This asserted that the PANE does not name the mentor, and §7 reverses that
      for the pane alone. The claim worth keeping is the one `row-semantics`
@@ -280,9 +369,10 @@ async function openCareReview(page) {
   check(
     "tasks.no-mentor-in-prose",
     "and the review prose still does not address a mentor by name",
-    !/to [A-Z][a-z]+ [A-Z]/.test(
-      (await accordion.count()) ? t.replace(await accordion.innerText(), "") : t
-    )
+    /* THE EXCLUSION MOVED WITH THE CONTENT. It used to subtract the accordion's
+       text before testing; the mentor's name is in the header band now, so that
+       is what comes out. Same claim, same shape, new location. */
+    !/to [A-Z][a-z]+ [A-Z]/.test(t.replace(ctx2, ""))
   );
   await page.locator('[data-slot="task-pane"]').screenshot({ path: `${OUT}/tasks-pane.png` });
   await context.close();

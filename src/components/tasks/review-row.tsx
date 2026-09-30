@@ -83,16 +83,25 @@ export const COL_REVIEW = 72;
  *  label and value both gone, and the §3 sort control still in the tab order as
  *  a 0×44 target. That is an SC 2.5.8 failure and a control a reader cannot
  *  see, which is worse than the truncation the floor costs.
- *  48, MEASURED: "90-day" is 43px in the mono stack at 12px and "Cycle" is
- *  32px, so 48 renders either whole and lands on the 4px step that is this
- *  product's only real spacing scale.
+ *  48 WAS MEASURED AGAINST 12px TYPE, AND §1 MOVED THE TYPE. At the time:
+ *  "90-day" was 43.3px in the mono stack at 12px and "Cycle" 32px, so 48
+ *  rendered either whole on the 4px step that is this product's only real
+ *  spacing scale.
+ *  AT 14px "90-day" MEASURES 50.6px, so the old floor is 2.6px narrower than
+ *  the label it exists to protect — the cadence cell would have hit its floor
+ *  and truncated its own value, which is the failure this constant prevents
+ *  rather than one it may cause. 56 is the next 4px step and leaves 5.4px,
+ *  matching the 4.7px of headroom 48 gave at 12px.
+ *  RE-DERIVED, NOT NUDGED: the whole point of the note above is that the number
+ *  is a consequence of the type, so a type change has to come back here. It is
+ *  the second constant in this file that had to — see `COL_MENTEE_MIN`.
  *  THE COST IS STATED: at 1280 with the pane open the deficit that used to land
  *  here now lands on the mentee caption, which truncates at 107px against the
  *  110px "Presentation Review" needs. §6.5 objected to that truncation — its
  *  objection was to a caption truncating "while the cell has room", and at this
  *  width the row has none: four columns do not fit a 367px card. The list/pane
  *  split is the only thing that fixes it and that is not this section's call. */
-export const COL_REVIEW_MIN = 48;
+export const COL_REVIEW_MIN = 56;
 export const COL_AGE = 72;
 
 /** The age cell's own box includes its left separation, so the header and the
@@ -119,8 +128,25 @@ export const COL_AGE_BOX = COL_AGE + 24;
  *  gets whenever the row has the room, and the yielding order is now carried by
  *  shrink factors (see `ReviewIdentityCell` and `ReviewCycleCell`). The stated
  *  priority is the same one — a row without a name identifies nobody — and it
- *  is arithmetic instead of an assertion. */
-export const COL_MENTEE_MIN = 168;
+ *  is arithmetic instead of an assertion.
+ *
+ *  ═══ 168 -> 144 (row layout §1), AND THE BASIS IS THE SMALLER HALF OF IT ═══
+ *
+ *  "Mentee column too wide, pushing Cycle and Review age right."
+ *  MEASURED AT 1600: this basis of 168 rendered a **316px** cell, because it
+ *  was the row's only growing child and took the whole remainder. So the
+ *  complaint is about GROWTH, not about the basis, and moving the basis alone
+ *  would have been a change nobody could see at any width where the row has
+ *  spare room. `ReviewCycleCell` now takes an equal share of the remainder and
+ *  that is what does the work; this number does the rest.
+ *  144 IS STILL ABOVE THE CAPTION IT HAS TO HOLD — "Presentation review"
+ *  measures 106.5px at 12px in the text face, leaving 37.5px, so the cell
+ *  renders its widest caption whole before any of the growth arrives.
+ *  AND IT IS THE CADENCE COLUMN'S OWN BASIS DOUBLED, which is not a
+ *  coincidence worth relying on but is worth noticing: 144 / 72 / 96 as bases,
+ *  against 168 / 72 / 96, is a more even starting relationship before a single
+ *  pixel of spare width is handed out. */
+export const COL_MENTEE_MIN = 144;
 
 /** ═══ THE TASKS TABLE'S EQUAL COLUMNS (Phase L.4) ═══
  *  L.4 measures Today's table as three EQUAL 285px cells against the
@@ -287,12 +313,22 @@ export function ReviewRowHeader({
         <SortButton column="mentee" sort={sort} className="-ml-1 min-w-0" />
       </span>
       <span
-        /* THE SAME `0 6 basis` THE ROW'S CADENCE CELL CARRIES, for the same
+        /* THE SAME `grow 6 basis` THE ROW'S CADENCE CELL CARRIES, for the same
            reason the mentee cell above mirrors the row's: a header that does
            not yield on the click its column does is a header that slides off
-           its column at narrow widths. */
+           its column at narrow widths.
+           ═══ AND THE GROW HALF MIRRORS TOO (row layout §1) ═══
+           The row's cadence cell takes a share of the spare width now, so a
+           header pinned at grow 0 would stop at its 72px basis while its column
+           grew past it — the same mismatch this cell's own note records from
+           1280, just at the other end of the range. `equalWidth == null` IS the
+           list layout, which is exactly where the row passes `grow={1}`; Today's
+           equal thirds keep 0 on both sides. */
         className="flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
-        style={{ flex: `0 6 ${presentationWidth}px`, minWidth: COL_REVIEW_MIN }}
+        style={{
+          flex: `${equalWidth == null ? 1 : 0} 6 ${presentationWidth}px`,
+          minWidth: COL_REVIEW_MIN,
+        }}
       >
         {/* ═══ `Cycle`, AND `Review` WAS THE FIRST TRY (§6.2) ═══
             §6.2 offered "`Review` or `Cycle`" and was confirmed without
@@ -549,9 +585,16 @@ export function ReviewDisc({
 export function ReviewCycleCell({
   taskType,
   width = COL_REVIEW,
+  grow = 0,
 }: {
   taskType: TaskType;
   width?: number;
+  /** ═══ WHETHER THIS COLUMN TAKES A SHARE OF THE ROW'S SPARE WIDTH ═══
+   *  0 BY DEFAULT, WHICH KEEPS TODAY'S TABLE EXACTLY AS IT WAS: that table is
+   *  three exact thirds (`COL_EQUAL`), and a column that grew would absorb any
+   *  remainder and stop the thirds being equal.
+   *  THE LIST PASSES 1 — see the note at the `flex` below. */
+  grow?: number;
 }) {
   const label = cycleLabelFor(taskType);
   return (
@@ -574,11 +617,35 @@ export function ReviewCycleCell({
          given everything it has before the caption loses its first pixel —
          which is the order §6.5 asked for, now as an arithmetic rather than an
          assertion. */
-      style={{ flex: `0 6 ${width}px`, minWidth: COL_REVIEW_MIN }}
+      /* ═══ AND NOW IT TAKES A SHARE OF THE SPARE WIDTH TOO (row layout §1) ═══
+         "Mentee column too wide, pushing Cycle and Review age right — narrower,
+         so the three columns sit in a more even relationship."
+         MEASURED, NARROWING THE MENTEE BASIS ALONE DOES NOTHING AT WIDTH. That
+         cell was the only `flex-grow: 1` child in the row, so it absorbed the
+         ENTIRE remainder: at 1600 a 168px basis rendered **316px** while this
+         column sat at its 72px basis and the age at its fixed 96. Reducing 168
+         to 144 would have moved the grown width from 316 to 340 and changed
+         nothing a reader can see.
+         SO THE EVENNESS IS A GROW SHARE, NOT A BASIS. With 1 here the remainder
+         splits equally between the two flexible columns, which is what "a more
+         even relationship" means arithmetically.
+         THE SHRINK LADDER IS UNTOUCHED: 6 against the mentee cell's 1, so
+         6×basis still means this column gives everything before the caption
+         loses a pixel. Growth and shrink are separate axes and only one moved. */
+      style={{ flex: `${grow} 6 ${width}px`, minWidth: COL_REVIEW_MIN }}
     >
       {label && (
         <span
-          className="truncate text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]"
+          /* ═══ 14/20, UP ONE RAMP STEP (row layout §1) ═══
+             "They are column data, not metadata, and currently read as
+             subordinate to the mentee name when they are peers." 12/16 is the
+             BOTTOM of Bloom's ramp — the step reserved for captions — and this
+             is a sorted column's value.
+             THE AGE COLUMN MOVED WITH IT, to 14/20 from an off-ramp 13px. Both
+             had to move together or the two figure columns would read at two
+             sizes, which is the thing this cell's own note calls "two columns"
+             where there is one row of figures. */
+          className="truncate text-[14px] leading-[20px] tabular-nums text-[var(--text-secondary)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           {label}
@@ -647,7 +714,19 @@ export function ReviewAgeCell({
       style={{ width }}
     >
       <span
-        className="text-[13px] leading-[18px] tabular-nums text-[var(--text-secondary)]"
+        /* ═══ 14/20, WITH THE CYCLE CELL (row layout §1) ═══
+           §1 moves "Cycle and Review age" together, and this is Today's age
+           cell — the list builds its own, in `worklist.tsx`.
+           IT HAD TO MOVE OR TODAY WOULD READ AT TWO SIZES. `ReviewCycleCell` is
+           shared by both surfaces, so raising it to 14/20 raised Today's cadence
+           column too; leaving this at 13/18 would have put two figure columns of
+           one row at two sizes, which is the "reads as two columns" failure the
+           cycle cell's own note exists to prevent. Found by inventorying the
+           inline sizes on these three files rather than by looking at the
+           screen — 13px is invisible next to 14px and would have shipped.
+           13/18 WAS NEVER A RAMP PAIR EITHER. Bloom's ramp is 32/40 · 24/32 ·
+           16/24 · 14/20 · 12/16. */
+        className="text-[14px] leading-[20px] tabular-nums text-[var(--text-secondary)]"
         style={{ fontFamily: "var(--font-mono)" }}
       >
         {elapsedLabel(at, now)}

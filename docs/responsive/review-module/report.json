@@ -66,14 +66,44 @@
       "ok": true
     },
     {
-      "id": "tasks.no-record-context",
-      "label": "the mentorship accordion is gone from the pane — the figure lives on the record",
+      "id": "tasks.no-record-strip",
+      "label": "the bordered mentorship strip is gone (§3.3 — deleted, not moved)",
       "ok": true,
-      "detail": "0 accordion(s); reachable via \"View care journey\""
+      "detail": "0 strip(s)"
     },
     {
-      "id": "tasks.no-mentor",
-      "label": "and the pane no longer names the mentor",
+      "id": "tasks.engagement-visible",
+      "label": "and the engagement figures are on screen in the header, not behind anything",
+      "ok": true,
+      "detail": "1 dl(s)"
+    },
+    {
+      "id": "tasks.engagement-duration",
+      "label": "including the mentorship duration, the figure that frames the rest",
+      "ok": true,
+      "detail": "dd = \"140d\""
+    },
+    {
+      "id": "tasks.engagement-window",
+      "label": "and the windowed figure names its window rather than standing bare",
+      "ok": true,
+      "detail": "dd = \"62\" · dt = \"Messages 30d Messages, last 30 days\""
+    },
+    {
+      "id": "tasks.header-has-no-disclosure",
+      "label": "and the header band holds no disclosure at all",
+      "ok": true,
+      "detail": "0 disclosure(s) in the band"
+    },
+    {
+      "id": "tasks.header-names-mentor-with-role",
+      "label": "the header names the mentor behind an explicit role label (§3.2)",
+      "ok": true,
+      "detail": "1 exact \"Mentor\" label(s) · line = \"2d MENTOR Maria Lopez\""
+    },
+    {
+      "id": "tasks.no-mentor-in-prose",
+      "label": "and the review prose still does not address a mentor by name",
       "ok": true
     },
     {

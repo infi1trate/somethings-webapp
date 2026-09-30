@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-30T20:06:51.308Z",
+  "generated": "2026-09-30T21:01:27.337Z",
   "rows": [
     {
       "id": "store.present",
@@ -130,8 +130,8 @@
     {
       "id": "agree.care-reviews",
       "label": "Care Reviews' open count equals the card's",
-      "ok": false,
-      "detail": "destination 17 · today 16"
+      "ok": true,
+      "detail": "destination 16 · today 16"
     },
     {
       "id": "agree.escalations.active",

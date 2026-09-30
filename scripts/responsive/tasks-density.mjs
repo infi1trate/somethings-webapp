@@ -449,6 +449,92 @@ console.log("\\n── band retirement @ active-escalation 1440x900");
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ONE ROW, ONE DIVIDER — THE DEFECT THAT WAS REPORTED THREE TIMES
+   ══════════════════════════════════════════════════════════════════════════
+
+   Two elements inside each row drew `border-t border-[--border-subtle]`: the
+   content wrapper (Refinement §1.2's full-width divider) and the mentee column
+   (the inset separator §1.2 superseded and nobody deleted). Measured at 1600
+   they sat at y=521 w=576 and y=522 w=316 — 1px apart, because the wrapper's
+   own border pushes its `items-stretch` children down by 1.
+
+   WHY THIS COUNTS ELEMENTS RATHER THAN LOOKING AT PIXELS. The two strokes are
+   ADJACENT, so a pixel probe reading "how many separate lines are there" sees
+   one contiguous run and passes on the defect — measured, that is exactly what
+   my first version of this check did. What moves is the run's THICKNESS (1 -> 2
+   device rows at 100%, 2 -> 3 at 125% and 150%) and its ink (35 -> 61.8 at
+   100%). Both are real signals and both are fragile: they depend on the
+   antialiasing of a 1px line at a fractional device scale.
+   THE ELEMENT COUNT IS NEITHER FRAGILE NOR INDIRECT. One row may contain at
+   most one border-drawing element, whatever the preset, and that is the
+   invariant the fix actually established.
+
+   IT RUNS OVER EVERY PRESET because the two borders were gated differently:
+   the wrapper's on `hairline && !geo.detached`, the mentee column's on
+   `hairline` alone. So under `Cards` the count was 2 with the panel's own
+   contour as the second — a divider inside a bordered panel, which no report
+   mentioned and which only a per-preset sweep finds. */
+for (const preset of ["comfortable", "compact", "cards"]) {
+  const ctx = await b.newContext({ viewport: { width: 1600, height: 1000 } });
+  await ctx.addInitScript(
+    ([k, v]) => localStorage.setItem(k, JSON.stringify(v)),
+    [
+      KEY,
+      {
+        state: {
+          persona: "supervisor",
+          tasksScenarioId: "heavy-caseload",
+          viewOptions: { "care-reviews": { preset } },
+        },
+        version: VERSION,
+      },
+    ]
+  );
+  const p = await ctx.newPage();
+  await p.goto(`${BASE}/app/care-reviews`, { waitUntil: "networkidle" });
+  await p.waitForTimeout(1800);
+
+  const d = await p.evaluate(`(() => {
+    const sc = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
+    if (!sc) return { ok: false, why: "no scroller" };
+    const rows = [...sc.querySelectorAll('[role="treeitem"]')];
+    if (rows.length < 4) return { ok: false, why: "rows=" + rows.length };
+    const per = rows.map((r) => {
+      const hits = [];
+      for (const el of r.querySelectorAll("*")) {
+        const cs = getComputedStyle(el);
+        if (parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0) {
+          hits.push((el.className || "").toString().slice(0, 34));
+        }
+      }
+      return hits;
+    });
+    const worst = per.reduce((a, h) => (h.length > a.length ? h : a), []);
+    return { ok: true, rows: rows.length, max: worst.length, worst,
+             counts: per.map((h) => h.length) };
+  })()`);
+
+  /* LOUD ON A MISSING INPUT: a preset that rendered no rows must fail here
+     rather than report a comfortable zero. */
+  check(d.ok, `[${preset}] the worklist rendered`, d.ok ? `${d.rows} rows` : d.why);
+  if (d.ok) {
+    check(
+      d.max <= 1,
+      `[${preset}] no row draws more than one divider`,
+      `max ${d.max} per row — ${d.worst.join(" + ") || "none"}`
+    );
+    /* AND AT LEAST ONE ROW HAS ONE, or the check above is satisfied by a list
+       with no dividers at all — the zero-vs-zero pass this repo keeps finding. */
+    check(
+      d.counts.some((n) => n === 1),
+      `[${preset}] and at least one row draws its divider`,
+      `counts ${d.counts.slice(0, 8).join(",")}`
+    );
+  }
+  await ctx.close();
+}
+
 await b.close();
 console.log(`\\n${fails === 0 ? "ALL CHECKS PASS" : `${fails} FAILED`}`);
 process.exit(fails === 0 ? 0 : 1);

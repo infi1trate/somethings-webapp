@@ -50,6 +50,11 @@ import {
   firstNameOf,
 } from "@/lib/tasks/conversation";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
+/* §3.2 asks for "the same MENTOR label treatment as Risk Flags", and this is
+   that treatment — the component, not a copy of its declarations. Already
+   shared with `escalation-region`, so this is its third caller and still one
+   implementation. */
+import { RolePair } from "@/components/monitoring/event-pane";
 import {
   type BillingPayload,
   type RiskFlagPayload,
@@ -219,6 +224,175 @@ function RiskFlagBody({
    `messagesLast30` would look authoritative and be invented, which is the
    failure arch-mon spent a phase removing from the flag tiers. Blocked and
    reported rather than approximated. */
+/** ═══ THE ENGAGEMENT LINE (§3.2) — THREE PAIRS, ONE ROW, NO DISCLOSURE ═══
+ *
+ *  WHAT IT REPLACES: two of these three figures sat behind a chevron in a
+ *  bordered strip, with the third borrowed into the closed state so the
+ *  disclosure would say something. §3.1's objection is the right one —
+ *  "progressive disclosure earns its place when there is a lot to hide. Two
+ *  metrics behind a chevron costs a click and hides the thing that would have
+ *  oriented the supervisor before they read anything else."
+ *
+ *  ═══ SMALL, AND THE RULE SAYS WHY ═══
+ *
+ *  §3.3: "Large numerals are the page-header treatment; a record header must
+ *  not compete with the page it sits inside." So the value is 14px — one ramp
+ *  step above the label, the same step the row's figures now use — and the
+ *  label is `PANE_LABEL`, which is the token five other files already use for a
+ *  field label. NOT `font-semibold` anywhere: only TWKLausanne-400 ships, so a
+ *  weight here would be a browser-synthesised faux bold, which is the mistake
+ *  `PANE_LABEL`'s own note records.
+ *
+ *  ═══ TABULAR, AND MONO WITH IT ═══
+ *
+ *  §3.3 asks for tabular figures. Mono comes with them for the reason the row's
+ *  two figure columns share a face: these are three numbers read across, and a
+ *  proportional 4 beside a proportional 140 reads as prose.
+ *
+ *  ═══ THE WINDOW STAYS IN THE LABEL ═══
+ *
+ *  `30d` rather than "last 30 days", and the abbreviation is a cost worth
+ *  stating: the strip's own note said "the window is named, because '62
+ *  messages' without 'last 30 days' cannot be sized", and that requirement is
+ *  unchanged — a figure over an unstated window is meaningless. What changed is
+ *  the budget. MEASURED at 12px in the text face, the three long labels run
+ *  "Days in mentorship" 108px + "Messages, last 30 days" 132px + "Video calls,
+ *  last 30 days" 139px = 379px of label alone, before figures or gaps, against
+ *  a pane that has ~300px to spare beside the identity block. So the window is
+ *  abbreviated rather than dropped, because §3.3's fallback — "dropping video
+ *  calls is preferable to a two-line header" — drops a FACT, and `30d` drops
+ *  only characters. The `<dt>` carries the full phrase for a screen reader.
+ */
+function EngagementLine({
+  stats,
+}: {
+  stats: { daysInMentorship: number; messagesLast30: number; videoLast30: number };
+}) {
+  /* NEEDS-COPY-NICOLE on all three visible labels. `full` is what assistive
+     tech reads, so the abbreviation above is a VISUAL economy and not a loss of
+     the window — a screen-reader user hears the unabbreviated phrase.
+     `140d` CARRIES ITS UNIT IN THE VALUE while the other two carry their window
+     in the LABEL, and the unevenness is deliberate: "Mentorship 140" states no
+     unit at all, and measured, the label that would have stated it ("Days in
+     mentorship", 108px) is the single widest string in this block. Putting the
+     `d` on the figure costs 9px and buys the fact. */
+  const pairs: {
+    id: string;
+    short: string;
+    full: string;
+    value: string;
+    optional?: boolean;
+  }[] = [
+    /* `id` IS A PROBE HANDLE AND IT EXISTS BECAUSE TWO OF MY OWN ASSERTIONS
+       FAILED TO DISCRIMINATE WITHOUT IT. Mutation-tested, a check for the
+       duration (`/\d+d/` over the whole list) passed with the duration DELETED,
+       because "Messages 30d" contains "30d" — a regex matching a neighbour's
+       label, which is the exact hazard `today-mirror` warns about in its own
+       note. A per-pair attribute makes the assertion name the pair it means. */
+    { id: "mentorship", short: "Mentorship", full: "Days in mentorship", value: `${stats.daysInMentorship}d` },
+    { id: "messages", short: "Messages 30d", full: "Messages, last 30 days", value: `${stats.messagesLast30}` },
+    {
+      id: "video",
+      short: "Video 30d",
+      full: "Video calls, last 30 days",
+      value: `${stats.videoLast30}`,
+      /* ═══ THE ONE PAIR THAT YIELDS — AND §3.3 SAID TO REPORT THIS ═══
+         "Everything must fit one band without wrapping at the pane's width. If
+         it does not, report before adding a second line — dropping video calls
+         is preferable to a two-line header."
+         MEASURED, IT DOES NOT FIT AT EVERY WIDTH. Against the widest identity
+         block in any fixture (185px — "Theo L." over "Brandy Forrestor"), the
+         three pairs need 488px of band; the band has 584 at 1600 and 504 at
+         1440, but 467 at 1366 and 424 at 1280. So at the bottom two widths the
+         right block wrapped under the left and the band went 93px -> 155px.
+         WHICH IS WHY THIS IS A HIDE AND NOT A DELETION. §3.3 offers dropping
+         video calls, and the reason to prefer hiding it only where it does not
+         fit is Gap 432: `person-row` renders a video-call chip for RECORD teens
+         (`t*` ids) and this figure comes from the task fixtures (`tk-*`), which
+         share not one id. So "it is one click away on the care journey" — the
+         justification the CTA beneath it would otherwise supply — is false for
+         these items, and an unconditional drop would remove the only place this
+         number is ever shown. Hidden at 1280, present at 1440.
+         THE COST IS STATED: a figure that appears on resize is a figure a
+         reader can miss. The alternative loses it always. */
+      optional: true,
+    },
+  ];
+  return (
+    /* A REAL `<dl>`: three label/value pairs ARE a description list, and the
+       markup is what lets a screen reader pair them without the labels being
+       read as a sentence. `gap-x-3` between pairs against `gap-1` inside one is
+       the proximity that says which label owns which figure — a 3x ratio, and
+       12px is on the 4px grid that is this product's only real spacing scale.
+       IT WAS `gap-x-4`, AND THE 8px IT SAVES IS LOAD-BEARING: it is most of the
+       margin the narrow case has left once the video pair is out. */
+    <dl data-slot="engagement" className="flex flex-wrap items-baseline justify-end gap-x-3 gap-y-1">
+      {pairs.map((m) => (
+        <div
+          key={m.id}
+          data-metric={m.id}
+          className={cn(
+            "items-baseline gap-1 whitespace-nowrap",
+            /* ═══ A CONTAINER QUERY, NOT A VIEWPORT BREAKPOINT ═══
+               `data-view.tsx` already argues this one: "`@container` +
+               `@min-[45rem]` asks the only question that matters: is THIS BOX
+               wide enough". The pane's width is a function of the viewport
+               today, so a `min-[1420px]:` would work — and would encode that
+               relationship in a class, so the day the list/pane split changes
+               the header would hide a metric at the wrong width with nothing
+               pointing here.
+               THE THRESHOLD IS THE MEASURED WORST CASE PLUS MARGIN: 488px is
+               what the widest identity block (185px) plus three pairs (287px)
+               plus the 16px gap needs, so 500 leaves 12px.
+               IT WAS 520 FOR ONE MEASUREMENT AND THAT WAS TOO CAUTIOUS: the
+               band is 504px at 1440, so a 520 threshold hid the video pair at a
+               width where all three demonstrably fit. 500 shows three at 1440
+               and two at 1366 (467px), which is the actual boundary.
+               A NAME LONGER THAN THE FIXTURES' WIDEST EATS THAT 12px, and what
+               happens then is a shrink rather than a wrap: the identity block is
+               `min-w-0` and the metrics are `shrink-0`, so the left yields to
+               its min-content first. The band only wraps once even that does
+               not fit, which is the behaviour this query exists to keep away
+               from the widths anybody uses.
+               WRITTEN AS A LITERAL, NEVER INTERPOLATED — `data-view.tsx`'s own
+               note records that `@min-[${w}]:hidden` generates no CSS at all,
+               because Tailwind reads classes statically. */
+            m.optional ? "hidden @min-[500px]:flex" : "flex"
+          )}
+        >
+          <dt className={LABEL}>
+            <span aria-hidden>{m.short}</span>
+            <span className="sr-only">{m.full}</span>
+          </dt>
+          <dd
+            className="text-[14px] leading-[20px] tabular-nums text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            {m.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** ═══ RETIRED BY §3 — THE BORDERED STRIP IS DELETED, NOT MOVED ═══
+ *
+ *  §3.1 names three defects and all three were positional: mentor identity sat
+ *  below the Assessments block as though it belonged to it; two metrics hid
+ *  behind a chevron; and `View care journey` floated top-right with nothing near
+ *  it to explain it. §3.2 puts identity in the header's left and the figures in
+ *  its right, so there is nothing left for this container to hold.
+ *
+ *  UNMOUNTED RATHER THAN DELETED, per the strangler rule — and this component in
+ *  particular has already been removed and remounted once: the Figma alignment
+ *  pass took it out, §7 put it back, and the note inside it records that the
+ *  one-line remount is the argument FOR keeping retired code. Deleting it now
+ *  would throw away the thing that made §7 cheap, the second time round.
+ *  WHAT IS NOT RETIRED IS THE CONTENT. Every figure it held is on screen now,
+ *  and unconditionally — so this is a container retiring, not a fact.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function RecordContext({
   payload,
   mentorName,
@@ -392,7 +566,6 @@ function BillingBody({
          STILL A DISCLOSURE, not an expanded panel. The two counts stay behind
          the caret; what the closed state carries is the mentor and the
          duration, which are the two facts §7 named. */
-      recordContext={<RecordContext payload={payload} mentorName={item.mentorName} />}
       onGapsChange={onGapsChange}
       onBlocked={onBlocked}
     >
@@ -715,7 +888,16 @@ export function TaskPane({
             spelling of the same instant.
           · THE TWO WAYS OUT live here. See the note on the CTAs. */}
       <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div
+          /* ═══ THE CONTAINER FOR §3.3's QUERY IS THIS ROW ═══
+             It is the element that WRAPS when the two blocks do not fit, so its
+             width is the quantity the video pair's `@min-[520px]` has to ask
+             about. Putting `@container` on the `<dl>` instead would have
+             measured the metrics' own width — which is a function of how many
+             metrics are shown, so the query would have been asking about its own
+             answer. */
+          className="@container flex flex-wrap items-start justify-between gap-x-4 gap-y-2"
+        >
           <div className="min-w-0">
             {/* ═══ THE EYEBROW IS GONE (addendum §2.9) ═══
                 It read "Billing code review" above every record on a
@@ -742,7 +924,26 @@ export function TaskPane({
                 `/app/escalations` is the surviving representation, and Phase 6
                 moved the facts row and the link-outs onto it rather than letting
                 them die with the duplicate. */}
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            {/* ═══ §3.2 — THE CONTEXT LINE CARRIES THE MENTOR AGAIN ═══
+                "Left — identity. Teen name, then a compact context line
+                beneath it: review age, and the mentor with an explicit role
+                label."
+                THIS REVERSES arch-F's HEADER REMOVAL, and the argument it
+                reverses is directly above: "the mentor does not perform a
+                billing review, is not accountable for it, and cannot change its
+                outcome". THAT IS STILL TRUE AND IS NOT WHAT THIS ANSWERS. The
+                mentor is not here as a party to the review; they are here
+                because a supervisor reading a teen's record needs to know who
+                is working with that teen, which is the question §7 already
+                conceded belongs in the pane when it remounted the figures.
+                §3 only moves WHERE the pane answers it — out of a bordered
+                strip four blocks down and into the identity block, where
+                record context belongs.
+                THE ROW STILL NEVER NAMES A MENTOR. `e.no-mentor` in
+                `row-semantics` asserts it, and nothing here touches that: the
+                row's unit is the review, the pane's subject is the teen, and
+                only one of those has a mentor as context. */}
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
                 {/* ═══ THE AGE, BARE (Figma alignment §3) ═══
                     The list's own column is headed "Review age" and its cells
@@ -764,6 +965,23 @@ export function TaskPane({
                   "overdue by 9h". The meta line reads `3d open · overdue by 9h`
                   and the due fact carries the breach ink, which is the same rule
                   the rows now follow. */}
+              {/* ═══ THE ROLE LABEL IS RISK FLAGS' OWN COMPONENT, NOT ITS CSS ═══
+                  §3.2: "Use the same MENTOR label treatment as Risk Flags —
+                  without it, two names near each other are ambiguous about who
+                  is who, which is the same defect the escalation cards had."
+                  SO IT USES `RolePair` ITSELF. The instruction names a
+                  treatment, and the two ways to match one are to copy its
+                  declarations or to call it — and `RolePair` is already
+                  exported and already shared by `escalation-region`, so calling
+                  it is the option that cannot drift. Copying `text-[11px]
+                  uppercase tracking-wide` into a third file is how one
+                  treatment becomes three.
+                  `teenName={null}` RENDERS THE MENTOR PAIR ALONE, which the
+                  component already supports because Risk Flags has the same
+                  case. The teen is the `h2` directly above; labelling it here
+                  would put the name on screen twice to disambiguate it from
+                  itself. */}
+              <RolePair teenName={null} mentorName={item.mentorName} />
             </p>
           </div>
 
@@ -776,7 +994,27 @@ export function TaskPane({
               TERTIARY, DELIBERATELY: text buttons with icons, no fill, no border.
               They must not compete with the recommendation title below them or
               with the footer's Submit, which is the one primary on the pane. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
+          {/* ═══ §3.2 — ENGAGEMENT, THEN THE CTA UNDER IT ═══
+              "Right — engagement, then the CTA. The metrics as small inline
+              label/value pairs on one line... `View care journey` sits directly
+              beneath them. That adjacency is the point: the metrics are a
+              summary of the care journey, so the link to the full journey reads
+              as 'see the rest of this' rather than as a floating button."
+              WHICH IS ALSO WHAT WAS WRONG WITH THE LINK BEFORE. It sat top-right
+              with no semantic neighbour, and the figures it summarises were
+              three blocks below it behind a chevron. Neither element was
+              explicable from where it stood; together they explain each other.
+              `items-end` RIGHT-ALIGNS BOTH so the link's right edge lines up
+              with the last metric's, which is what makes the two read as one
+              stack rather than as two right-floated things. */}
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            {/* GATED ON THE KIND, because `mentorStats` is the BILLING payload's
+                field. This pane has held billing alone since Phase 2, so the
+                gate is never false today — it is here because an ungated
+                `p.mentorStats` would not compile against the union, and writing
+                the narrow is cheaper than asserting the invariant. */}
+            {p.kind === "billing" && <EngagementLine stats={p.mentorStats} />}
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-1 gap-y-1">
             {/* ═══ ONE SOURCE FOR THE SET, PER TASK KIND (arch-G, G4) ═══
                 MEASURED: two "View care profile" links, identical href, side by
                 side. `EscalationCtas` carries the escalation set — care profile,
@@ -813,6 +1051,7 @@ export function TaskPane({
             </Link>
             {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
                 component, so the two escalation task types carry the same set. */}
+          </div>
           </div>
         </div>
         {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══

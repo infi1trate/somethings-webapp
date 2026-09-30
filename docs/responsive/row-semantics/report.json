@@ -29,7 +29,7 @@
       "id": "tasks.age-column",
       "label": "the temporal column is mono and tabular, and it is an age",
       "ok": true,
-      "detail": "3d · 13px/400 ui-monospace"
+      "detail": "3d · 14px/400 ui-monospace"
     },
     {
       "id": "tasks.no-deadline",
@@ -113,7 +113,7 @@
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 7:0"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 8:0"
     },
     {
       "id": "sr.tasks.same-temporal",
@@ -149,7 +149,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 7:07 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 8:00 AM"
     },
     {
       "id": "e.identity-disc",

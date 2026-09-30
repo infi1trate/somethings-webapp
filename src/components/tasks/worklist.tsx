@@ -829,24 +829,45 @@ function Row({
         />
       </span>
 
-      {/* ═══ THE SEPARATOR LIVES ON THIS COLUMN (§3) ═══
-          "Separators inset — start after the avatar, stop before the trailing
-          metadata." A border on the row root cannot be inset horizontally, and
-          a border on a vertically-centred child renders at that child's top
-          rather than at the row boundary. A STRETCHED flex child solves both:
-          it spans exactly from after the disc to before the trailing block, so
-          §3's two ends are derived from the layout instead of from hardcoded
-          insets that would drift the day the disc changes size — which it now
-          does, per preset.
-          IT NEVER CROSSES A PILL. The line sits at y=0 of the row box and the
-          pill starts at y=4, so a hairline falls in the gutter between two
-          pills rather than cutting across a fill. That crossing is what made
-          the old full-bleed treatment read as a table. */}
+      {/* ═══ THE SEPARATOR IS NOT HERE ANY MORE — IT WAS THE SECOND STROKE ═══
+          THE SECTION THIS REPLACES asked for an inset separator: "start after
+          the avatar, stop before the trailing metadata", and a stretched flex
+          child was the right way to get it — the two ends derive from the
+          layout rather than from insets that drift when the disc resizes.
+          REFINEMENT §1.2 THEN REVERSED THE INSET and gave the divider to the
+          content wrapper above, measured: inset, the line stopped 272px short
+          of the row's right edge on Risk Flags, so the age hung past a ragged
+          edge and read as a rendering fault. THE OLD BORDER WAS NEVER REMOVED,
+          so both drew, and this is the double stroke reported three times.
+
+          MEASURED AT 1600, one row, the two borderers inside it:
+            div.flex.h-full.items-stretch  y=521  x=305  w=576  border-top 1px
+            span.flex.min-w-0.flex-col     y=522  x=373  w=316  border-top 1px
+
+          EXACTLY 1px APART, AND THE MECHANISM IS THE FIRST BORDER ITSELF: the
+          wrapper is `items-stretch`, so this child's box begins at the
+          wrapper's CONTENT edge — which its own 1px top border has already
+          pushed down by 1. So the segmentation and the "slightly different
+          vertical position" are one defect, not two: a 576px line at y=521
+          with a 316px line at y=522 sitting 68px into it, which is why it read
+          as a thick stroke under the mentee cell and a thin one after it.
+
+          ONE OWNER NOW, AND IT IS THE ROW. The wrapper's border is the one
+          Refinement §1.2 measured and argued; this one is the superseded
+          treatment, so it is the one that goes.
+          IT ALSO FIXES `Cards`, WHICH NOBODY REPORTED. The wrapper's border is
+          gated `!geo.detached` because a detached panel carries its own
+          contour; this one was gated on `hairline` alone, so under the Cards
+          preset it drew a divider inside a bordered panel — the exact
+          two-separators-for-one-boundary the wrapper's note rules out.
+          MEASURED, border-drawing elements per row under `Cards`: Care Reviews
+          2 -> 1. RISK FLAGS WAS ALREADY 1 IN BOTH STATES, because `event-list`
+          builds its own row and never carried this border — so the Cards defect
+          was this surface's alone, and the shared geometry is not what spread
+          it. Stated because "also fixes Cards" would otherwise read as a claim
+          about both surfaces. */}
       <span
-        className={cn(
-          "flex min-w-0 flex-col justify-center",
-          hairline && "border-t border-[color:var(--border-subtle)]"
-        )}
+        className="flex min-w-0 flex-col justify-center"
         /* ═══ THE MENTEE COLUMN'S SHARE (§6.5, CORRECTED IN §3) ═══
            MEASURED at 1280 before the cadence column replaced the codes
            column: this cell was **11px** wide and the NAME truncated — "Theo
@@ -1079,7 +1100,11 @@ function Row({
         /* ═══ THE REVIEW CYCLE, NOT THE CODES (§6.1, §6.3) ═══
            Codes leave the list entirely and live only in the detail pane. This
            column carries the cadence position instead. */
-        <ReviewCycleCell taskType={item.taskType} />
+        /* `grow={1}` IS THE ROW LAYOUT PASS's EVENNESS — the list's spare width
+           is shared with the mentee column instead of all landing on it. Today's
+           table leaves it at 0, because three exact thirds cannot have a
+           growing member. See the prop's own note. */
+        <ReviewCycleCell taskType={item.taskType} grow={1} />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
@@ -1132,6 +1157,27 @@ function Row({
             header cannot. Primary ink at 14px made it the loudest thing in the
             row's right half and put it in competition with the breach chip
             beside it. */}
+        {/* ═══ 14/20, AND THE OLD 13px WAS OFF THE RAMP (row layout §1) ═══
+            "Cycle and Review age type size — up a step. They are column data,
+            not metadata, and currently read as subordinate to the mentee name
+            when they are peers."
+            THE STEP IS ALSO A CORRECTION. Bloom's ramp is 32/40 · 24/32 ·
+            16/24 · 14/20 · 12/16, and all three `taskLed` branches here were
+            `text-[13px]` — an invented size, and the exact defect
+            `view-presets.test.ts` says "the last pass retired from these rows
+            (11, 13 and 13.5px)". IT DID NOT REACH THIS ONE: that test reads the
+            GEOMETRY TABLE, and this size is an inline class the table does not
+            own. So the ramp guard passed while a 13px value sat on every row.
+            MEASURED BEFORE: 13px / 19.5px computed. The `leading-[18px]` that
+            once sat beside it is gone from this branch, so the line-height was
+            the 1.5 default rather than any declared pair — a second way the
+            value was off the ramp. 14/20 is declared, so it cannot fall back.
+            IT DOES NOT BECOME THE ROW'S FOCAL POINT. arch-F's rule is one
+            emphasised element per ZONE, and the right zone's emphasis is still
+            carried by nothing — this is secondary ink at regular weight. The
+            name stays strongest: 16px Avantt in primary ink, a face worth a
+            measured +19% ink over the text face. Size went up one step; the
+            weight and ink channels did not move. */}
         <span
           className={cn(
             "shrink-0 tabular-nums",
@@ -1141,15 +1187,15 @@ function Row({
                      it takes that pair's ink rather than the clay breach ink —
                      and goes semibold once the five minutes are gone. */
                   cn(
-                    "text-[13px] text-[var(--task-respond-fg)]",
+                    "text-[14px] leading-[20px] text-[var(--task-respond-fg)]",
                     overdue && "font-semibold"
                   )
                 : overdue
                   ? /* THE ONLY BREACH STATEMENT ON THE ROW NOW — so it carries
                        the ink. Not colour alone: the word "overdue" is in the
                        string and in the accessible name. */
-                    "text-[13px] font-semibold text-[var(--band-clay-fg)]"
-                  : "text-[13px] text-[var(--text-secondary)]"
+                    "text-[14px] leading-[20px] font-semibold text-[var(--band-clay-fg)]"
+                  : "text-[14px] leading-[20px] text-[var(--text-secondary)]"
               : emphasis === "deadline" && !indent
                 ? "text-[14px] font-bold text-[var(--text-primary)]"
                 : "text-[12px] text-[var(--text-secondary)]"

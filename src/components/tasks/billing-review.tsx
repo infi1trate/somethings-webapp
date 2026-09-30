@@ -160,7 +160,6 @@ export function BillingReview({
   recommended,
   onCommit,
   handleRef,
-  recordContext,
   /** ═══ THE GATE'S STATE GOES UP TO THE FOOTER (arch-F, F3) ═══
    *  The footer is the host's and the gate is this component's, so the count
    *  travels rather than the state. Called with the number of fields still
@@ -186,7 +185,6 @@ export function BillingReview({
    *  now carries. Below the review, because it is context a supervisor consults
    *  rather than reads: above it, it was the first thing on the pane and the
    *  recommendation was the second. */
-  recordContext: React.ReactNode;
   onGapsChange?: (gaps: number) => void;
   onBlocked?: () => void;
   /** THE SHARED REVIEW MODULE. Passed in rather than rendered here so this
@@ -381,10 +379,19 @@ export function BillingReview({
           moved up into the context strip where the rest of the context is. */}
       {children}
 
-      {/* CONTEXT AFTER THE CLAIM, BEFORE THE DOCUMENTATION. A supervisor reads
-          the recommendation, consults the mentorship figures if they want them,
-          then writes. */}
-      {recordContext}
+      {/* ═══ THE `recordContext` SLOT IS GONE (§3) ═══
+          It read: "CONTEXT AFTER THE CLAIM, BEFORE THE DOCUMENTATION. A
+          supervisor reads the recommendation, consults the mentorship figures
+          if they want them, then writes."
+          THAT ORDERING ARGUMENT LOST ITS SUBJECT. §3.1's objection to the strip
+          is that mentor identity is RECORD context rather than care-update
+          content, so it never belonged in the reading order between the claim
+          and the form — it belonged in the header, which is where §3.2 puts it.
+          THE SLOT GOES WITH IT RATHER THAN STAYING EMPTY. It had exactly one
+          filler and that filler is retired; a `ReactNode` slot nothing passes is
+          the dead chrome this codebase removed a one-tab row and a one-value
+          filter for. The day something else wants this position, the position is
+          one prop away and the argument above is still here to be re-read. */}
 
       {/* ═══ ALWAYS VISIBLE, NEVER BEHIND A DISCLOSURE (A5) ═══
           A form the supervisor has to open is a form that reads as optional, and
