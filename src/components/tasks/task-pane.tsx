@@ -331,11 +331,25 @@ function EngagementLine({
        pane renders at, so the `optional` flag, the `@min-[500px]` gate and the
        `@container` that served them are all gone. A responsive rule protecting
        a metric that no longer exists is chrome.
-       AND `engaged days` DOES NOT TAKE ITS PLACE, ON §4.2's OWN RULE — "if
-       the data does not support a definition, report that rather than deriving
-       something adjacent". `mentorStats` is ONE hard-coded literal shared by
-       every billing task; there is no per-day message log behind it to count
-       days from. Reported rather than built. */
+       AND `engaged days` STILL DOES NOT TAKE ITS PLACE — BUT THE REASON HAS
+       CHANGED, AND SO HAS WHAT WOULD UNBLOCK IT.
+       THE DEFINITION IS ANSWERED: "engaged days is the days a teen sent a
+       message" — §4.1's option (a). It is implemented and tested in
+       `lib/tasks/engaged-days.ts`, so the question that was asked four times
+       is now written down in code rather than in a pack.
+       WHAT I REPORTED BEFORE WAS HALF WRONG. I said there was no per-day
+       message log; there is. `ConversationMessage` carries `sender` and `at`,
+       and `buildConversation` produces one for every billing item — the
+       fields are exactly what (a) needs.
+       WHAT IS MISSING IS THE WINDOW. Measured over six billing items, every
+       conversation spans 1.63-1.87h and every one reports `truncatedStart`, so
+       the honest count is 1 on every row for every teen, permanently — a
+       constant rendered as a measurement, which is the failure §4.1 named.
+       SO `engagedDays` RETURNS `null` HERE and null is not renderable, the same
+       shape `FLAG_REVIEW_SLA` uses for a figure blocked on data. The blocker is
+       a test result, not a comment: `engaged-days.test.ts` asserts the fixtures
+       are too short, and when that test FAILS it means a longer log landed and
+       this line can render it. */
   ];
   return (
     /* A REAL `<dl>`: each label/value pair IS a description list entry, and the
