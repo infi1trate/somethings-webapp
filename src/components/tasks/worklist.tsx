@@ -60,7 +60,7 @@
 // band. The defect was this surface's alone.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw, X } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
@@ -265,27 +265,44 @@ function childTimeLabel(openedAt: number): string {
 export function OverdueChip({
   count,
   size = "row",
+  active,
+  onToggle,
+  tone = "open",
+  label,
 }: {
   /** Omitted on a row — see above. */
   count?: number;
   size?: "row" | "toolbar";
+  /** ═══ §5 · IT IS A CONTROL NOW, WHEN A CALLER GIVES IT ONE ═══
+   *  The note at the toolbar's call site used to read "NOT A CONTROL. It
+   *  filters nothing and navigates nowhere." §5 gives it something to do:
+   *  "clicking filters the list to overdue items only."
+   *  `onToggle` IS WHAT PROMOTES IT. Without it this renders exactly as
+   *  before — a `span`, no tab stop, nothing to press — because the ROW still
+   *  uses it as a label and a row full of 19 pressable chips is the Hick's-Law
+   *  problem the pane header exists to avoid. One component, two jobs, and the
+   *  caller says which. */
+  active?: boolean;
+  onToggle?: () => void;
+  /** ═══ §5 · QUIETER ON `Closed`, AND THE ANSWER IS WHY ═══
+   *  Answered: a review submitted late stays marked overdue on `Closed`. §5's
+   *  own lean came with "a quieter treatment than the open queue uses", and the
+   *  reason is that the two states are different obligations: on `Open` it is
+   *  still owed and the clay fill is an alarm; on `Closed` nothing is owed and
+   *  the mark is a compliance FACT. An alarm about a closed item is an alarm a
+   *  supervisor cannot act on.
+   *  SO `past` KEEPS THE INK AND DROPS THE FILL — same clay foreground, same
+   *  icon, same word, on a tinted outline instead of a saturated ground. The
+   *  non-colour carriers §5 requires are untouched: the icon and the word
+   *  "overdue" both stay, so nothing is distinguished by hue alone in either
+   *  tone. */
+  tone?: "open" | "past";
+  /** TODO-COPY. `Closed` says "late" rather than "overdue" — see the call site. */
+  label?: string;
 } = {}) {
-  return (
-    <span
-      data-anno-ref="overdue-chip"
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full font-semibold",
-        size === "row"
-          ? "px-1.5 py-0.5 text-[11px] leading-[14px]"
-          : /* 44px to match every other target in the toolbar — §7's hit-target
-               item, and the same bar the segmented control holds. */
-            "min-h-11 px-3 text-[13px] leading-[18px]"
-      )}
-      style={{
-        backgroundColor: "var(--band-clay-bg)",
-        color: "var(--band-clay-fg)",
-      }}
-    >
+  const word = label ?? "overdue";
+  const body = (
+    <>
       <AlertTriangle
         aria-hidden
         className={cn("shrink-0", size === "row" ? "size-2.5" : "size-4")}
@@ -293,8 +310,97 @@ export function OverdueChip({
       {/* TODO-COPY · NEEDS-COPY-NICOLE on the counted form. THE FIGURE LEADS,
           because the word is the same on every chip and the number is what
           varies — the same reasoning §4.2 uses for the tab counts. */}
-      {count == null ? "Overdue" : `${count} overdue`}
-    </span>
+      {count == null
+        ? word.charAt(0).toUpperCase() + word.slice(1)
+        : `${count} ${word}`}
+    </>
+  );
+
+  /* THE SAME FOCUS RING THE TOOLBAR'S OWN CONTROLS USE. Restated rather than
+     imported because `list-toolbar` is the CONSUMER of this component, and
+     importing its constant back would make the two modules circular. The
+     literal is three declarations and it is the one this chip renders beside. */
+  const RING =
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+  const shape = cn(
+    "inline-flex shrink-0 items-center gap-1 rounded-full font-semibold",
+    size === "row"
+      ? "px-1.5 py-0.5 text-[11px] leading-[14px]"
+      : /* 44px to match every other target in the toolbar — §7's hit-target
+           item, and the same bar the segmented control holds. */
+        "min-h-11 px-3 text-[13px] leading-[18px]"
+  );
+
+  /* THE TONES. `past` is the outline; `open` is the fill it always was. */
+  const paint: React.CSSProperties =
+    tone === "past"
+      ? {
+          color: "var(--band-clay-fg)",
+          borderColor: "color-mix(in oklab, var(--band-clay-fg) 32%, transparent)",
+        }
+      : { backgroundColor: "var(--band-clay-bg)", color: "var(--band-clay-fg)" };
+
+  if (!onToggle) {
+    return (
+      <span
+        data-anno-ref="overdue-chip"
+        className={cn(shape, tone === "past" && "border")}
+        style={paint}
+      >
+        {body}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      data-anno-ref="overdue-chip"
+      data-overdue-filter={active ? "on" : "off"}
+      aria-pressed={active}
+      /* TODO-COPY. `aria-pressed` carries the state to assistive tech; the
+         label says what pressing it DOES, which a bare count would not. */
+      aria-label={
+        active
+          ? `Showing only ${word} reviews. Press to show all.`
+          : `Show only the ${count} ${word} review${count === 1 ? "" : "s"}.`
+      }
+      onClick={onToggle}
+      className={cn(
+        shape,
+        "transition-colors",
+        RING,
+        /* ═══ §5's "CLEAR ACTIVE STATE AND AN OBVIOUS WAY BACK" ═══
+           ACTIVE inverts to the clay FOREGROUND as the ground — the strongest
+           step available inside one hue pair, and it reads as pressed rather
+           than as merely hovered. NOT A NEW TOKEN: it is the same `--band-clay`
+           pair swapped, which is this codebase's rule.
+           AND IT MUST READ AS A CONTROL AT REST, which §5 also asks. At rest it
+           carries a hairline the `span` never had, so the pressable version is
+           distinguishable from the label version without being pressed — plus a
+           hover tint and the focus ring. */
+        active ? "border border-transparent" : "border"
+      )}
+      style={
+        active
+          ? {
+              backgroundColor: "var(--band-clay-fg)",
+              color: "var(--band-clay-bg)",
+            }
+          : {
+              ...paint,
+              borderColor:
+                "color-mix(in oklab, var(--band-clay-fg) 32%, transparent)",
+            }
+      }
+    >
+      {body}
+      {/* THE WAY BACK, MADE VISIBLE. §5: "an obvious way back." A pressed chip
+          with no affordance for un-pressing is a state a reader has to guess
+          out of; the glyph says the next press clears it. `aria-hidden` — the
+          button's own label already says "Press to show all". */}
+      {active && <X aria-hidden className="-mr-0.5 size-3 shrink-0" />}
+    </button>
   );
 }
 
@@ -796,7 +902,42 @@ function Row({
         className="flex shrink-0 items-center justify-center"
         style={{ width: MARKER_SLOT }}
       >
-        {unviewed && (
+        {/* ═══ §1 · ONE SLOT, RESOLVED IN ONE PLACE ═══
+            "Currently both render. Rows show an unviewed dot at the leading
+            edge AND a draft pencil before the event type — plus the change
+            glyph, giving three glyphs in one row."
+              draft started      → the draft icon
+              unviewed, no draft → the dot
+              viewed, no draft   → nothing
+            DRAFT SUPERSEDES THE DOT BECAUSE A DRAFT IMPLIES THE RECORD WAS
+            OPENED — so `unviewed && drafted` is unreachable in practice, and
+            the `!drafted` guard on the dot is what makes it unreachable in the
+            MARKUP too. The two can no longer co-render whatever the data says,
+            which is the property §7.1 asks to be confirmed rather than the
+            property the data happens to have today.
+            ═══ WHAT §8's ARGUMENT GOT RIGHT, AND WHAT IT COST ═══
+            §8 separated these two on every axis — "unviewed a DOT at the
+            leading edge, drafted an ICON in the content area" — to stop them
+            reading as the same signal. That reasoning is sound and it is why
+            they are still different AFFORDANCE CLASSES here: a dot and an icon,
+            in one slot, never both. What it cost was a third glyph in a row
+            that already had the change glyph, and §1 is the correction.
+            THE CHANGE GLYPH STAYS WITH THE EVENT TYPE, untouched — "it
+            describes the review, not its read state."
+            AND THE NAME-WEIGHT PAIRING STAYS on unviewed, which §1 asks for
+            explicitly: a 6px dot is too small a mark to carry the state alone,
+            so the mentee name's FACE still carries it independently. */}
+        {drafted ? (
+          <PencilLine
+            aria-hidden
+            data-anno-ref="draft-icon"
+            /* 12px, the size it was in the caption — it fits the 8px slot by
+               overflowing it symmetrically, which is what the slot's
+               `justify-center` and the row's own `-ml` spacer already allow for
+               the disclosure chevron. The slot reserves SPACE, not a clip. */
+            className="size-3 shrink-0 text-[var(--text-secondary)]"
+          />
+        ) : unviewed ? (
           <span
             data-anno-ref="unviewed-dot"
             /* ═══ 6px, AND IT WAS 8 (parity pack §3) ═══
@@ -817,7 +958,7 @@ function Row({
                mark does not shrink the signal. */
             className="size-1.5 rounded-full bg-[var(--text-primary)]"
           />
-        )}
+        ) : null}
       </span>
 
       <span className="flex shrink-0 items-center">
@@ -1021,13 +1162,17 @@ function Row({
               content — an `aria-label` on this icon would never be announced.
               The words go in `ariaLabel`, which is where §8's "accessible
               label" actually lands on this row. */}
-          {drafted && (
-            <PencilLine
-              aria-hidden
-              data-anno-ref="draft-icon"
-              className="mr-1 inline size-3 shrink-0 align-[-1px]"
-            />
-          )}
+          {/* ═══ THE DRAFT ICON MOVED TO THE LEADING-EDGE SLOT (§1) ═══
+              §1: "The draft icon moves to the leading-edge slot. Remove it from
+              its current position before the event type." Done — the marker is
+              resolved once, up where the dot lives, and the reasoning for the
+              consolidation is recorded there.
+              THE ARGUMENT FOR LINE 2 IS WORTH KEEPING because it was not wrong:
+              line 1 is the row's focal point and an icon beside the name would
+              put a second thing in that zone, which arch-D and arch-F both
+              forbid. The leading-edge slot is OUTSIDE both zones — it sits
+              before the identity disc, which is why it was the dot's home — so
+              moving there does not spend line 1's emphasis either. */}
           {taskLed ? (
             /* ═══ THE DISPOSITION ALONE (arch-F) ═══
                arch-E put the teen name here with the disposition beside it. The

@@ -104,6 +104,7 @@ import {
 import {
   clearReviewDraft,
   readReviewDraft,
+  markReviewDraftSaved,
   writeReviewDraft,
 } from "@/lib/record/review-draft";
 import type { BillingPayload, TaskItem } from "@/lib/tasks/types";
@@ -244,9 +245,20 @@ export function BillingReview({
     setAnnounce("");
   }, [item.id, item.teenId]);
 
-  /* WRITTEN ON EVERY KEYSTROKE, like the Care page's. There is no "save" that
-     does anything else — `Save draft` closes the review, and the draft is
-     already on disk by then. */
+  /* ═══ STILL WRITTEN ON EVERY KEYSTROKE — AND IT IS NO LONGER A DRAFT ═══
+     This note used to end "there is no `save` that does anything else". §1.1
+     gives it something to do: a draft exists only once the supervisor says
+     `Save draft`, so this buffer stops being what the LIST sees.
+     THE BUFFER STAYS BECAUSE LOSING IT WAS NEVER THE ASK. §1.1 is a question
+     about when a row shows a marker; answering it by deleting the autosave
+     would mean typing a paragraph and clicking another row loses the
+     paragraph. The flag is what moved, not the persistence — see `saved` on
+     `ReviewDraft`.
+     NO `saved` HERE, DELIBERATELY: an autosave that set it would make every
+     keystroke an explicit save again, which is the behaviour being replaced.
+     It is also why this writes the whole object rather than merging — a merge
+     would carry a previous `saved: true` forward over edits made after it, and
+     the marker would then describe work the supervisor never saved. */
   useEffect(() => {
     writeReviewDraft(draftKey.teenId, draftKey.reviewId, {
       /* NO DECISION IN THE DRAFT. On the Care page this holds a pending code
@@ -351,9 +363,20 @@ export function BillingReview({
     handleRef.current = {
       submit: attemptCommit,
       saveAndClose: () => {
-        /* NOTHING TO PERSIST: the draft is written on every keystroke. This
-           exists so the label can be honest about what it does — and on this
-           surface "close" means hand the keyboard back to the list. */
+        /* ═══ IT PERSISTS SOMETHING NOW (§1.1) ═══
+           This read "NOTHING TO PERSIST: the draft is written on every
+           keystroke", and §1.1 gave the button a job: a draft exists only once
+           the supervisor says so, so this is the moment the autosave buffer
+           becomes a draft the list will mark.
+           IT PROMOTES RATHER THAN RE-SERIALISES. `markReviewDraftSaved` flips
+           one flag on what is already stored, so the saved draft cannot
+           disagree with the text on screen — there is no second write of the
+           body to get out of step with the first.
+           AND IT IS A NO-OP ON AN UNTOUCHED FORM, by that function's own
+           design: pressing `Save draft` without typing has nothing to promote,
+           and a marker meaning "somebody pressed a button" is not the marker
+           §1 is consolidating the row's slot for. */
+        markReviewDraftSaved(draftKey.teenId, draftKey.reviewId);
         setAnnounce("");
       },
     };

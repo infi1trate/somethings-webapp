@@ -25,7 +25,7 @@
 // produce zero console errors, so the gate is the only thing between a persisted
 // scenario id and a hydration mismatch.
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
@@ -72,7 +72,7 @@ import {
   type FilterState,
 } from "@/lib/ui/filters";
 import {
-  readReviewDraft,
+  hasSavedReviewDraft,
   reviewDraftsVersion,
   reviewDraftsVersionServer,
   subscribeReviewDrafts,
@@ -94,7 +94,7 @@ import {
 } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { oldestAgeLabel } from "@/lib/ia/age";
-import { overdueCount } from "@/lib/tasks/care-overdue";
+import { lateCount, overdueCount, wasLate, isOverdue } from "@/lib/tasks/care-overdue";
 import { CARE_TAB_EMPTY, type CareTab } from "@/lib/ui/care-tab";
 
 /** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
@@ -561,7 +561,11 @@ export function TasksPage({
             let none = false;
             for (const e of items) {
               const h = headOf(e);
-              if (readReviewDraft(h.teenId, h.id)) some = true;
+              /* THE SAME TEST AS THE ROW MARKER (§1.1). This dimension's own
+                 label is "Draft saved", so it has to mean what the marker
+                 means — a filter reading the keystroke buffer under that label
+                 would be the same defect wearing a different name. */
+              if (hasSavedReviewDraft(h.teenId, h.id)) some = true;
               else none = true;
               if (some && none) break;
             }
@@ -573,7 +577,7 @@ export function TasksPage({
           },
           match: (e, v) => {
             const h = headOf(e);
-            const has = readReviewDraft(h.teenId, h.id) != null;
+            const has = hasSavedReviewDraft(h.teenId, h.id);
             return v === "saved" ? has : !has;
           },
         },
@@ -631,15 +635,95 @@ export function TasksPage({
     const out = new Set<string>();
     for (const e of shown) {
       const h = paneItemFor(e);
-      if (readReviewDraft(h.teenId, h.id)) out.add(e.id);
+      /* ═══ `hasSavedReviewDraft`, NOT `readReviewDraft` (§1.1) ═══
+         §1.1 answered: a draft exists only on an explicit `Save draft`. This
+         tested for ANY stored draft, and the store is written on every
+         keystroke — so a supervisor who typed one character and clicked away
+         marked the row. Those are the two visibly different lists §1.1 named,
+         and this is the line that chose between them. */
+      if (hasSavedReviewDraft(h.teenId, h.id)) out.add(e.id);
     }
     return out;
   }, [shown, draftVersion]);
 
-  const overdue = useMemo(
-    () => overdueCount(shown.map((e) => paneItemFor(e)), now),
-    [shown, now]
-  );
+  /** The submission instant per id. `submittedEntries` drops it when mapping to
+   *  entries, so the lateness test reads it from the store directly — one map,
+   *  built once, rather than a lookup per row. */
+  const submittedAtById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of submittedRecords) m.set(r.id, r.at);
+    return m;
+  }, [submittedRecords]);
+
+  /** ═══ §5 · THE COUNT IS PER TAB, BECAUSE THE QUESTION IS ═══
+   *  On `Open` it is `isOverdue` — still owed, measured against the clock.
+   *  On `Closed` it is `wasLate` — frozen at the submission instant.
+   *  ONE FIGURE EITHER WAY, so the chip reads one number and does not have to
+   *  know which tab it is on. What differs is its TREATMENT, which does. */
+  const overdue = useMemo(() => {
+    const items = shown.map((e) => paneItemFor(e));
+    return careTab === "closed"
+      ? lateCount(items, (id) => submittedAtById.get(id))
+      : overdueCount(items, now);
+  }, [shown, now, careTab, submittedAtById]);
+
+  /** ═══ §5 · THE FILTER, DERIVED RATHER THAN STORED-AND-RESET ═══
+   *
+   *  §5 asks for three behaviours: session-scoped, resets on tab switch, and
+   *  clears itself if the count reaches zero.
+   *
+   *  THE OBVIOUS SHAPE IS A BOOLEAN PLUS TWO EFFECTS, AND THIS REPO FORBIDS IT.
+   *  `react-hooks/set-state-in-effect` is an ERROR here — the React Compiler
+   *  rejects calling setState synchronously in an effect — so a `useState(false)`
+   *  reset by `useEffect(..., [careTab])` does not build. Measured: two errors,
+   *  both on the reset effects.
+   *
+   *  SO THE STATE IS *WHICH TAB THE FILTER WAS ARMED ON*, and "is it on" is a
+   *  comparison. Switching tabs makes it false by arithmetic rather than by a
+   *  reset that has to fire — which is also stricter: there is no window in
+   *  which the old tab's filter is still applied to the new tab's rows, and no
+   *  third code path (keyboard, deep link) that can miss the reset.
+   *
+   *  `useState` AND NOT THE STORE, which is §5's "session-scoped": every other
+   *  list preference here persists, and this one deliberately does not. A
+   *  reload clears it, which is the strictest reading of "a supervisor
+   *  returning to a list filtered by a state they set earlier, and not
+   *  remembering, misreads the queue".
+   *
+   *  AND `overdue > 0` IS THE ZERO-CLEAR, in the same expression. The chip only
+   *  renders above zero, so without it a supervisor who resolves the last
+   *  overdue item is left looking at an empty list whose only way out has just
+   *  disappeared.
+   *  ═══ AND DERIVING THE TAB RESET WAS NOT ENOUGH — MEASURED ═══
+   *  Comparing the armed tab to the active one SUSPENDS the filter on the other
+   *  tab; it does not reset it. MEASURED on Open -> Closed -> Open: the chip
+   *  came back `aria-pressed="true"` and the list came back at 5 rows of 15,
+   *  which is precisely the state §5 describes — "a supervisor returning to a
+   *  list filtered by a state they set earlier, and not remembering". So the
+   *  comparison stays (it is what makes the other tab's rows unfilterable by
+   *  this tab's state) and a REAL clear happens on the tab change, in the event
+   *  handler where a setState is allowed.
+   *  ONE DOOR, SO THE CLEAR CANNOT BE MISSED: `changeCareTab` is the only
+   *  caller of `setCareTab`, and the toolbar is routed through it. The earlier
+   *  worry about a keyboard or deep-link path turning out to bypass the reset is
+   *  answered by there being no second path — checked, `setCareTab` has exactly
+   *  one call site.
+   *
+   *  THE LIMIT THAT REMAINS: `overdue > 0` un-applies the filter at zero but
+   *  does not clear the armed tab, so a count returning above zero on the SAME
+   *  tab re-arms it without a press — reachable on `Open`, where an item can
+   *  cross 48h on the clock after the last one was resolved. Clearing on that
+   *  zero-crossing is the effect the compiler rejects, and unlike the tab
+   *  change there is no event to hang it on. Reported rather than papered
+   *  over. */
+  const [overdueArmedOn, setOverdueArmedOn] = useState<CareTab | null>(null);
+  const overdueOnly = overdueArmedOn === careTab && overdue > 0;
+
+  /** The only way the tab changes. §5's "resets on tab switch", as one door. */
+  const changeCareTab = useCallback((next: CareTab) => {
+    setCareTab(next);
+    setOverdueArmedOn(null);
+  }, []);
 
   /** ═══ §3 — THE ORDER THE LIST RENDERS IN ═══
    *  THE ONE ORDER-DEPENDENT SET. `shown` feeds four counts above and none of
@@ -649,9 +733,29 @@ export function TasksPage({
    *  re-sorted array would invite someone to believe otherwise.
    *  IDENTICAL REFERENCE WHEN NO SORT IS SET, so the default path allocates
    *  nothing and cannot reorder — `applyCareSort` returns its input. */
+  /** ═══ §5 · THE FILTER SUBSETS THE ACTIVE TAB ═══
+   *  "Subsets the active tab. It does not replace tab selection." `shown` is
+   *  already the active tab's set, so filtering it is that sentence as
+   *  arithmetic — there is no second expression that could disagree about
+   *  which tab is showing.
+   *  BEFORE THE SORT, NOT AFTER. The comparator is stable and order-independent
+   *  of membership, so either works; filtering first means the sort runs over
+   *  the rows actually rendered rather than over rows it will discard.
+   *  IDENTICAL REFERENCE WHEN THE FILTER IS OFF, so the default path allocates
+   *  nothing — the same property `applyCareSort` preserves for no sort. */
+  const visible = useMemo(() => {
+    if (!overdueOnly) return shown;
+    return shown.filter((e) => {
+      const it = paneItemFor(e);
+      return careTab === "closed"
+        ? wasLate(it, submittedAtById.get(it.id))
+        : isOverdue(it, now);
+    });
+  }, [shown, overdueOnly, careTab, submittedAtById, now]);
+
   const ordered = useMemo(
-    () => applyCareSort(shown, careSort, paneItemFor),
-    [shown, careSort]
+    () => applyCareSort(visible, careSort, paneItemFor),
+    [visible, careSort]
   );
 
 /* ═══ RETIRED BY §5.3 ═══
@@ -1371,9 +1475,28 @@ export function TasksPage({
                   scope === "care-reviews"
                     ? {
                         value: careTab,
-                        onChange: setCareTab,
+                        onChange: changeCareTab,
                         count: { open: openEntries.length, closed: submitted.length },
+                        /* §5 · the chip's control half. Session-scoped state,
+                           resets on tab switch, clears itself at zero — see
+                           the three effects beside `overdueOnly`. */
+                        overdueOnly,
+                        onOverdueOnly: () =>
+                          setOverdueArmedOn(overdueOnly ? null : careTab),
                         /* ═══ §4.3 — THE OVERDUE CHIP SUBSETS THE ACTIVE TAB ═══
+                           ═══ AND LATENESS PERSISTS ON `Closed` (§5, ANSWERED) ═══
+                           The note below said "a closed review is never overdue
+                           however late it was submitted — that is the
+                           working-state answer; whether a late submission stays
+                           HISTORICALLY overdue is a" question for Brandon. It is
+                           answered: yes, it stays. `overdue` is `wasLate` over
+                           the submitted set on this tab now, measured from the
+                           stored submission instant rather than from the clock,
+                           and the chip wears the quieter `past` tone there.
+                           WHAT THE OLD NOTE GOT RIGHT is kept in
+                           `care-overdue.ts`: the working state and the record
+                           are different facts, which is why they are now two
+                           functions instead of one with a status check.
                            `overdue` is computed over `shown`, which IS the
                            active tab's set — so the chip subsets whichever tab
                            is showing by construction rather than by a second

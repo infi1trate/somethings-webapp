@@ -152,6 +152,10 @@ export function ListToolbar<T extends Filterable>({
     onChange: (next: CareTab) => void;
     /** Per-tab counts, so a segment says how much is behind it. */
     count: Record<CareTab, number>;
+    /** §5 · whether the overdue subset is showing, and how to toggle it.
+     *  Optional so a host with no filter still renders the chip as a label. */
+    overdueOnly?: boolean;
+    onOverdueOnly?: () => void;
     /** ═══ §4.3 — THE OVERDUE SUBSET OF THE ACTIVE TAB ═══
      *  A chip, not a fourth segment: overdue items ARE open items, so as a peer
      *  tab the counts would stop partitioning — `16 open · 1 overdue` with the
@@ -321,12 +325,28 @@ export function ListToolbar<T extends Filterable>({
             IT RENDERS ONLY ABOVE ZERO (§4.3), so a clear queue shows nothing
             rather than a permanent `0 overdue` that teaches a reader to skip
             the spot.
-            NOT A CONTROL. It filters nothing and navigates nowhere — there is
-            no overdue view to go to, and inventing one here would be a
-            disposition path on a list. So it is a `span`, with no tab stop and
-            nothing to press. */}
+            ═══ IT IS A CONTROL NOW (§5) ═══
+            This read "NOT A CONTROL. It filters nothing and navigates nowhere
+            — there is no overdue view to go to, and inventing one here would be
+            a disposition path on a list." §5 reverses the premise rather than
+            the reasoning: there is no overdue VIEW, and there does not need to
+            be, because the chip subsets the list in place. No navigation, no
+            disposition, no second surface — which is what the old objection was
+            actually about.
+            THE PRESSABLE FORM IS OPT-IN. `onToggle` is what promotes it, so the
+            ROW's nineteen chips stay plain `span`s — see the component. */}
         {tabs && (tabs.overdue ?? 0) > 0 && (
-          <OverdueChip count={tabs.overdue} size="toolbar" />
+          <OverdueChip
+            count={tabs.overdue}
+            size="toolbar"
+            active={tabs.overdueOnly}
+            onToggle={tabs.onOverdueOnly}
+            /* `Closed` is a compliance fact, not an alarm — see the `tone`
+               prop. The word changes with it: nothing is OVERDUE once it is
+               submitted, it was LATE. */
+            tone={tabs.value === "closed" ? "past" : "open"}
+            label={tabs.value === "closed" ? "late" : undefined}
+          />
         )}
         {primary && (
           <Select
