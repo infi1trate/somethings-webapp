@@ -99,13 +99,13 @@
       "id": "tasks.engagement-duration",
       "label": "including the mentorship duration, the figure that frames the rest",
       "ok": true,
-      "detail": "dd = \"140\" · dt = \"Days in mentorship\""
+      "detail": "dd = \"140\" · dt = \", 140 days in mentorship\""
     },
     {
       "id": "tasks.engagement-window",
       "label": "and the windowed figure names its window rather than standing bare",
       "ok": true,
-      "detail": "dd = \"62\" · dt = \"Messages, last 30 days\""
+      "detail": "dd = \"62\" · dt = \", 62 messages in the last 30 days\""
     },
     {
       "id": "tasks.header-has-no-disclosure",
@@ -121,9 +121,9 @@
     },
     {
       "id": "tasks.header-names-mentor-with-role",
-      "label": "and it states the role beside the name (§3.2)",
+      "label": "and the role is stated in the language before the chip (§2.2)",
       "ok": true,
-      "detail": "\"M Mentor Maria Lopez\""
+      "detail": "line = \"Mentored by M Maria Lopez , 140 days in mentorship , 62 messages in th\" · chip = \"M Maria Lopez\""
     },
     {
       "id": "tasks.mentor-chip-not-interactive",

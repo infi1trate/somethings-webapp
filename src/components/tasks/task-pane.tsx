@@ -49,7 +49,9 @@ import {
   firstNameOf,
 } from "@/lib/tasks/conversation";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
-import { useScrollActivity } from "@/lib/ui/use-scroll-activity";
+import { OverlayScrollbar } from "@/components/ui/overlay-scrollbar";
+import { OverdueChip } from "@/components/tasks/worklist";
+import { isOverdue } from "@/lib/tasks/care-overdue";
 import {
   type BillingPayload,
   type RiskFlagPayload,
@@ -219,215 +221,171 @@ function RiskFlagBody({
    `messagesLast30` would look authoritative and be invented, which is the
    failure arch-mon spent a phase removing from the flag tiers. Blocked and
    reported rather than approximated. */
-/** ═══ §3 · THE MENTOR CHIP ═══
+/** ═══ THE MENTOR CHIP — INLINE, LINE-HEIGHT TALL (header pass 3, §2.2) ═══
  *
- *  It was `2d  MENTOR  Nour Barakat` — three data at three type styles on one
- *  line, two of which (a mono age and 11px small caps) are styles §2 removes
- *  from the band entirely. §3 asks for "a contained chip... the chip makes the
- *  mentor read as an entity rather than as a run of text".
+ *  Last pass this was a block-level pill carrying a `Mentor` label, an initial
+ *  and the name at two type steps. §2.2 puts it INSIDE a sentence — "Mentored by
+ *  [● Nour Barakat] · 140 days in mentorship · …" — so three things change:
  *
- *  ═══ THE ROLE IS STATED, NOT INFERRED, AND NOT IN SMALL CAPS ═══
+ *  · THE ROLE WORD LEAVES THE CHIP. "Mentored by" carries the role in the
+ *    language, so a `Mentor` label inside the pill would say it twice — and it
+ *    was the chip's second type style.
+ *  · IT IS EXACTLY THE LINE'S HEIGHT. 20px, the body step's line-height, so the
+ *    chip sits in the line like a word rather than bumping it taller. MEASURED in
+ *    the commit: the sentence's line box is the same height with and without it.
+ *  · ONE TYPE STYLE INSIDE IT. The initial and the name are both the body step;
+ *    the circle is what distinguishes the initial, not a smaller size.
  *
- *  §3: "a quiet `Mentor` word preceding or inside the chip, in the band's label
- *  step. Not small caps, not a separate style." So the word is the label step —
- *  12/16, `--text-secondary` — the same treatment the metric labels wear, which
- *  is what makes it a step rather than a style.
+ *  ═══ STILL NOT INTERACTIVE, FOR THE SAME REASON ═══
  *
- *  ═══ THE INITIAL IS A MARK, NOT AN AVATAR ═══
+ *  There is no mentor record to link to: `/admin/person/{id}` is keyed by teen id
+ *  and the mentor exists here as a name on the task with no id. So it must not
+ *  look interactive — a `span`, no tab stop, no hover, no pointer cursor. A chip
+ *  is a pattern people expect to click, which is why this is asserted rather
+ *  than left to styling.
  *
- *  §3 allows "a small avatar or initial". `ReviewDisc` is this product's avatar
- *  and it is keyed by TEEN id — there is no mentor disc, and inventing one would
- *  mean a second identity-colour derivation for a second population. A single
- *  initial in a neutral circle is the honest smaller option: it reads as an
- *  entity marker without claiming to be a portrait the system does not have.
- *
- *  ═══ NOT CLICKABLE, AND §3 ASKED FOR THE DECISION TO BE REPORTED ═══
- *
- *  "A chip is a pattern people expect to click, so pick deliberately."
- *  IT IS NOT A LINK, for a reason that is about this product rather than about
- *  chips: there is no mentor record to link to. `/admin/person/{id}` is keyed by
- *  TEEN id and the route renders a teen; the mentor exists here as a NAME on the
- *  task (`item.mentorName`), with no id and no destination — the same Gap 432
- *  namespace split that blocks the AI notes on this surface.
- *  SO IT MUST NOT LOOK INTERACTIVE, which §3 also requires: no hover state, no
- *  focus ring, no pointer cursor, and it is a `span` rather than a `button` so
- *  it takes no tab stop. The day a mentor record exists this is the call site,
- *  and it needs a hit target and states before it becomes one.
- *
- *  ═══ THE GROUND IS `--surface-s1`, WHICH IS TIER 2 ═══
- *
- *  The band is Tier 1 (`--surface-s2`) and the chip sits on it, so it takes the
- *  tier that reads as contained-within: s1 is LIGHTER than the band in light
- *  theme and lighter in dark too, which is the same ranking the Assessments
- *  block uses one level down. Measured separation and text contrast are in the
- *  commit. A contour would be a second treatment competing with the fill, which
- *  is the rule `flag-task-card` states for tonal insets.
+ *  `--surface-s1` ON THE `--surface-s2` BAND — Tier 2 inside Tier 1, the same
+ *  ranking the Assessments block uses. No contour: a fill and a contour together
+ *  are two treatments, which `flag-task-card` rules out for tonal insets.
  */
 function MentorChip({ name }: { name: string }) {
   return (
     <span
       data-anno-ref="mentor-chip"
-      className={cn(
-        "inline-flex min-w-0 shrink items-center gap-1.5 rounded-full px-2 py-1",
-        "bg-[var(--surface-s1)]"
-      )}
+      /* `align-top`, AND IT WAS `align-[-5px]`. MEASURED: the offset pushed the
+         chip 5px below its line box, so a two-line sentence measured 45px instead
+         of 40 — the chip WAS bumping the row, which my first check missed because
+         it compared the chip's height to the line-height rather than measuring
+         the line. A 20px inline box aligned to the TOP of a 20px line cannot
+         extend it, and because the name inside is the same 14/20 as the words
+         around it, the baselines still meet. */
+      className="inline-flex h-5 max-w-full items-center gap-1 rounded-full bg-[var(--surface-s1)] pr-2 align-top"
     >
-      {/* THE MARK. `aria-hidden` — it is the first letter of the name beside it,
-          so announcing it would read the name's initial twice. */}
+      {/* THE MARK, at the line's own height. `aria-hidden` — it is the first
+          letter of the name beside it. */}
       <span
         aria-hidden
-        /* THE LABEL STEP, NOT AN 11px STYLE OF ITS OWN. At 11px this was a FIFTH
-           type style in a band budgeted for three — measured, and 11px is also
-           below Bloom's smallest ramp stop. 12/16 is the label step the word
-           "Mentor" beside it already uses, so the mark costs no new style. */
-        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        /* 14/20, NOT 14 with `leading-none` — `leading-none` made the initial a
+           14/14 style of its own, measured as a separate entry in the band's
+           type count. In a 20px circle a 20px line centres the same glyph. */
+        /* `--surface-card`, AND IT WAS `--surface-s2` — WHICH IS THE BAND'S OWN
+           FILL. The disc sits flush against the pill's left edge, so in the band's
+           colour it vanished into the band and the initial read as a letter on the
+           header rather than as the chip's avatar. Card is distinct from both the
+           band (s2) and the pill (s1) in both themes. */
+        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-card)] text-[14px] leading-[20px] text-[var(--text-secondary)]"
       >
         {name.charAt(0)}
       </span>
-      {/* TYPE STEP 3 OF 3 · LABEL. NEEDS-COPY-NICOLE. */}
-      <span className="shrink-0 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-        Mentor
-      </span>
-      {/* TYPE STEP 2 OF 3 · VALUE. The mentor is the entity this chip is about,
-          so the name takes the value step — the same one the metric figures
-          take, which is what "three steps" means in practice. */}
-      <span className="min-w-0 truncate text-[16px] leading-[24px] text-[var(--text-primary)]">
+      <span className="min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
         {name}
       </span>
     </span>
   );
 }
 
-/** ═══ §5 · THE METRICS — STACKED PAIRS, ONE UNIT PATTERN ═══
+/** ═══ THE HEADER SENTENCE (header pass 3, §2.2) ═══
  *
- *  ═══ 5.1 · THE UNIT PATTERN WAS TWO PATTERNS ═══
+ *  Mentored by [● Nour Barakat] · 140 days in mentorship · 62 messages in the
+ *  last 30 days
  *
- *  `Mentorship 140d` put the unit in the VALUE; `Messages 30d 62` put the window
- *  in the LABEL, where `30d` read as a number and competed with the actual
- *  figure. §5.1 settles it: "pure number as the value, units and windows in the
- *  label." So every value is a bare integer and every label carries its own
- *  unit and window.
+ *  ═══ WHY A SENTENCE AND NOT THE STAT STRIP ═══
  *
- *  ═══ 5.2 · STACKED, AND THE WEIGHT STEP DOES NOT EXIST ═══
+ *  §2.1's diagnosis, accepted in full: four stacked pairs with hairlines are a
+ *  dashboard idiom; their column widths came from the LABELS ("Messages, last 30
+ *  days" is 142px over a 2-digit value); the row mixed a one-line pill with
+ *  two-line pairs; and the band was 175px because four pairs did not fit beside
+ *  the chip at any width under 1920 — measured last pass. A sentence wraps where
+ *  a column grid breaks, and a supervisor reads one record here, so the header
+ *  has to orient rather than be scanned as columns. That last reading was the
+ *  pack's and is the reason the trade is worth it.
  *
- *  §5.2 asks for the value "one step up from the label, semibold, tabular
- *  lining figures in the body family".
- *  THREE OF THOSE FOUR ARE BUILT. The value is one ramp step up (16/24 against
- *  12/16), tabular, and in the body family — mono has left the band, which §2
- *  requires.
- *  `semibold` IS NOT AVAILABLE AND THIS REPO HAS MEASURED IT FOUR TIMES: only
- *  `TWKLausanne-400` ships, so `font-semibold` on the body family is a
- *  declaration with no rendering behind it. §2's own instruction is that
- *  "distinction should come from weight and color within one family" — weight is
- *  the one channel this family does not have, so the distinction is SIZE and
- *  COLOUR: 16/24 primary against 12/16 secondary. Reported rather than
- *  declared-and-not-rendered.
+ *  ═══ ONE TYPE STYLE — AND THE WEIGHT IS NOT WHERE THE PACK ASKED ═══
  *
- *  NO PIPES, which §5.2 names: the separator is a 1px `--border-contour` rule,
- *  not a typed `|`.
+ *  §2.2: "Numerals carry semibold weight inline; the surrounding words stay
+ *  regular. Emphasis by weight, not by size or column."
+ *  `font-semibold` ON THE BODY FAMILY RENDERS NOTHING. Only `TWKLausanne-400`
+ *  ships, and this repo has measured it identical at 400/500/600/700 in four
+ *  places — so semibold numerals in Lausanne would be the instruction declared
+ *  and not delivered.
+ *  THE NUMERALS TAKE THE DISPLAY FACE INSTEAD. Avantt is the band's title face
+ *  already and ships Bold only — a MEASURED +19% ink over Lausanne 400, which is
+ *  the weight step the pack wants, delivered by the only bold this product has.
+ *  It adds no family to the band (the title is Avantt) and no size (it is the
+ *  body step, 14/20). Ink is measured in the commit.
+ *  WORDS ARE SECONDARY INK, NUMERALS PRIMARY, so the figures lead on two
+ *  channels and the sentence still reads as one quiet line.
  *
- *  ═══ 5.3 · THE FOURTH SLOT IS RESERVED, AND ENGAGED DAYS IS NOW DEFINED ═══
+ *  ═══ WHAT LEFT ═══
  *
- *  §5.3 says engaged days is "still blocked... not built until defined. Lean
- *  (b)". THAT IS STALE: it was answered between the packs — "engaged days is the
- *  days a teen sent a message", which is option (a), not (b) — and it is
- *  implemented in `lib/tasks/engaged-days.ts`.
- *  IT IS STILL NOT RENDERED, for a reason that is no longer the definition: the
- *  conversation fixture saturates at 53 messages over 4.5 hours, so a day-count
- *  over it is a constant 1 forever. `engagedDays` returns `null` and null is not
- *  renderable. The slot is reserved per §5.2 so the figure lands without
- *  reflow — see `RESERVED_SLOTS`.
+ *  · `Days open`, per §2.4 — a fact about the REVIEW, not the mentorship, and the
+ *    list row already shows it. The overdue marker beside the name replaces it,
+ *    because urgency is what the header needs to say.
+ *  · The engaged-days slot and its em-dash, per §2.4: "No dash, no placeholder,
+ *    no reserved slot." It appends here when it can — and note that §2.4 calls
+ *    it undefined; it IS defined ("the days a teen sent a message", option a,
+ *    implemented in `lib/tasks/engaged-days.ts`). It is unrendered because the
+ *    fixture's whole conversation spans 4.5h, so the count would be a constant 1.
+ *    Same outcome; different reason.
  */
-const RESERVED_SLOTS = 4;
-
-function EngagementLine({
+function HeaderSentence({
+  mentorName,
   stats,
-  openedAt,
-  now,
 }: {
-  stats: { daysInMentorship: number; messagesLast30: number; videoLast30: number };
-  /** §3/§5.1 · review age moves here as `Days open`. */
-  openedAt: number;
-  now: number;
+  mentorName: string;
+  /** The billing payload's figures. `null` on a non-billing item, where the
+   *  sentence states the mentorship and nothing about it. */
+  stats: { daysInMentorship: number; messagesLast30: number } | null;
 }) {
-  /* NEEDS-COPY-NICOLE on all four labels. `value: null` is the reserved slot:
-     it occupies layout and renders an em-dash, so four pairs are measured and
-     the fourth cannot reflow the band when it gains a number. */
-  const pairs: { id: string; value: number | null; label: string }[] = [
-    /* ═══ §3 · REVIEW AGE MOVES OFF THE IDENTITY LINE ═══
-       §3: "Review age (`2d`) leaves this line and moves into the metrics group.
-       Left side becomes purely identity." The stated tradeoff is real — age is a
-       fact about the REVIEW and the other three are about the MENTORSHIP, so the
-       group is mildly mixed — and `Days open` is the label that makes the mix
-       legible rather than hiding it.
-       WHOLE DAYS, FLOORED, because the value is now a pure integer: `elapsedLabel`
-       renders `22h` for a sub-day age and this column cannot, so a review opened
-       nine hours ago reads `0` against `Days open`. That is honest and it is a
-       change in what the figure says — the row still carries `elapsedLabel`, so
-       the precise age is one glance away. */
-    { id: "open", value: Math.floor((now - openedAt) / 86_400_000), label: "Days open" },
-    { id: "mentorship", value: stats.daysInMentorship, label: "Days in mentorship" },
-    { id: "messages", value: stats.messagesLast30, label: "Messages, last 30 days" },
-    /* THE RESERVED SLOT. Defined (option a) and blocked on fixture length. */
-    { id: "engaged", value: null, label: "Engaged days" },
-  ];
+  /* NEEDS-COPY-NICOLE on all three clauses — exact wording is Nicole's. */
+  const clauses: { id: string; value: number; tail: string }[] = stats
+    ? [
+        { id: "mentorship", value: stats.daysInMentorship, tail: "days in mentorship" },
+        { id: "messages", value: stats.messagesLast30, tail: "messages in the last 30 days" },
+      ]
+    : [];
   return (
-    <dl
-      data-slot="engagement"
-      data-reserved-slots={RESERVED_SLOTS}
-      /* ═══ `ml-auto` SO THE RIGHT EDGE SURVIVES A WRAP (§2, §6.4) ═══
-         §2 requires "both right-side elements share one right edge". With
-         `justify-between` on the row that holds true only while the chip and
-         the metrics are on ONE line — measured, when the metrics wrap to their
-         own line `justify-between` leaves them at flex-start and the right
-         edges came out 1412.9 against the button's 1527.
-         `ml-auto` pushes them right whether they share the chip's line or not,
-         so the edge is a property of the element rather than of the row's
-         occupancy. Measured after: both at 1527 (1600) and both at 1207
-         (1280). */
-      className="ml-auto flex min-w-0 shrink items-end justify-end gap-x-4"
-    >
-      {pairs.map((m, i) => (
-        <div key={m.id} data-metric={m.id} className="flex min-w-0 items-end gap-x-4">
-          {/* THE RULE BETWEEN PAIRS — `i > 0`, not `first:hidden`. A Tailwind
-              position variant reads this span's own position among its siblings
-              and cannot see the PAIR's, which is the mistake the previous pass
-              caught before it shipped. `aria-hidden`: the `<dl>` already pairs
-              them for a screen reader. */}
-          {i > 0 && (
+    /* `.sep-clip` CLIPS AT THE BAND'S TRUE LEFT EDGE so a wrapped line's
+       leading dot is hidden — see `.sep-list` in `globals.css`, and the
+       measured defect it fixes ("· 140 days in mentorship" at 1280). */
+    <div className="sep-clip">
+      <p
+        data-slot="engagement"
+        /* TYPE STEP: BODY, 14/20. Secondary ink for the words; the numerals and
+           the chip's name carry primary. `gap-y-0`: each flex line IS a text
+           line, 20px, so two lines are 40 with nothing between them. */
+        className="sep-list text-[14px] leading-[20px] text-[var(--text-secondary)]"
+      >
+        {/* ═══ CLAUSES WRAP AS UNITS, NOT WORD BY WORD ═══
+            MEASURED at 1600: the line once broke inside the last clause and left
+            "days" alone on line two. Each clause is `whitespace-nowrap` and a
+            flex item, so a break can only fall BETWEEN clauses — and the
+            separator logic above hides the dot that would then lead the line.
+            The widest clause is ~210px against a 457px band at 1280. */}
+        {/* NEEDS-COPY-NICOLE */}
+        <span className="sep-item whitespace-nowrap">
+          Mentored by <MentorChip name={mentorName} />
+        </span>
+        {clauses.map((c) => (
+          <span key={c.id} data-metric={c.id} className="sep-item whitespace-nowrap">
+            {/* The spoken separator; the visible dot is CSS with empty alt
+                text, so it is not announced as "middle dot". */}
+            <span className="sr-only">, </span>
             <span
-              aria-hidden
-              data-metric-rule
-              className="h-7 w-px shrink-0 bg-[var(--border-contour)]"
-            />
-          )}
-          <div className="flex min-w-0 flex-col items-start">
-            {/* VALUE above LABEL (§5.2). `tabular-nums` so a column of figures
-                does not jitter; `lining-nums` because the body face's default
-                figures are already lining and stating it keeps that true if the
-                face ever ships old-style. */}
-            <dd className="text-[16px] leading-[24px] tabular-nums lining-nums text-[var(--text-primary)]">
-              {m.value === null ? (
-                /* AN EM-DASH, NOT A `0` OR A BLANK. A zero would be a
-                   measurement (`engaged-days.ts` keeps 0 and null distinct) and
-                   a blank would read as a rendering fault. */
-                <span aria-hidden>—</span>
-              ) : (
-                m.value
-              )}
-            </dd>
-            <dt className="whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]">
-              {m.label}
-              {m.value === null && (
-                /* The slot is visible and visibly unanswered, so a supervisor
-                   is not left wondering whether the dash is a bug. */
-                <span className="sr-only"> — not yet available</span>
-              )}
-            </dt>
-          </div>
-        </div>
-      ))}
-    </dl>
+              data-metric-value
+              /* THE EMPHASIS: Avantt Bold at the body step — see the note on this
+                 component for why not `font-semibold`. `leading-none` stops the
+                 second face growing the line box (measured: 41px -> 40 for two
+                 lines) while keeping the figure on the words' baseline. */
+              className="font-display font-bold leading-none tabular-nums text-[var(--text-primary)]"
+            >
+              {c.value}
+            </span>{" "}
+            {c.tail}
+          </span>
+        ))}
+      </p>
+    </div>
   );
 }
 
@@ -853,9 +811,8 @@ export function TaskPane({
      hooks cannot live after one — and it has to handle the no-item case itself
      rather than being skipped, or the page would keep pressing the last item's
      buttons after the list emptied. */
-  /* §2 · the pane body's scroller, for `data-scrolling`. */
+  /* The pane body's scroller — the custom thumb reads and drives it. */
   const paneScrollRef = useRef<HTMLDivElement | null>(null);
-  useScrollActivity(paneScrollRef);
   const payload = item?.payload;
   const confirmCode =
     payload?.kind === "billing" ? (activeOverride ?? payload.recommended) : null;
@@ -1011,52 +968,54 @@ export function TaskPane({
              card's own padding utilities; the VALUES are theirs. */
             className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-6 py-5">
       <div
-          /* ═══ §2 · TWO ROWS, RE-PAIRED ═══
-             Row 1  teen name            |  View care journey
-             Row 2  mentor chip          |  metrics
-             THE BUTTON TAKES THE TITLE ROW because that is where a header's
-             action lives by convention (Jakob) — it read as a footnote to the
-             metrics when it sat under them.
-             AND THE METRICS PAIR WITH THE MENTOR, which reverses the adjacency
-             the previous pass argued for. The metrics describe the mentorship
-             and the chip IS the mentorship; "these numbers summarise the care
-             journey, so the link to it belongs beside them" was the weaker
-             claim, and it is withdrawn here rather than quietly dropped. */
-          className="flex flex-col gap-2.5"
+          /* ═══ TWO ROWS: THE TEEN, THEN ONE LINE ABOUT THE MENTORSHIP ═══
+             Row 1  teen name · overdue marker (when overdue)  |  View care journey
+             Row 2  Mentored by [chip] · N days in mentorship · N messages …
+             SUPERSEDES LAST PASS's "chip | metrics" pairing, whose argument —
+             the metrics describe the mentorship and the chip IS the mentorship —
+             survives in the sentence itself: they are the same line now, which
+             is the strongest adjacency available. What did not survive was the
+             stat strip, for the reasons on `HeaderSentence`. */
+          className="flex flex-col gap-2"
         >
-          {/* ── ROW 1 · identity and the action ─────────────────────────── */}
-          {/* `items-center`: §4 asks the button to be "vertically centered on
-              the teen name", and the name's 32px line box against a 44px button
-              is exactly the case where baseline alignment would hang the button
-              low. Row 2 uses baselines, because there both sides are text. */}
+          {/* ── ROW 1 · the teen, their urgency, and the action ─────────── */}
+          {/* `items-center`: the button is "vertically centered on the name",
+              and a 40px name line against a 44px button is exactly where
+              baseline alignment would hang the button low. */}
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <h2
-              /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance rule
-                 is a statement about which record is on screen after a resolve,
-                 and reading it off the heading is reading what a supervisor
-                 reads. */
-              data-pane-teen
-              /* ═══ TYPE STEP 1 OF 3 · TITLE ═══
-                 24/32 in the display face, unchanged from the last pass. */
-              className="min-w-0 truncate font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]"
-            >
-              {item.teenDisplayName}
-            </h2>
+            <div className="flex min-w-0 items-center gap-3">
+              <h2
+                /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance
+                   rule is a statement about which record is on screen after a
+                   resolve, and reading it off the heading is reading what a
+                   supervisor reads. */
+                data-pane-teen
+                /* ═══ TITLE STEP, ONE UP: 24/32 -> 32/40 (§2.2) ═══
+                   "Nothing owns the band." Two passes ago this stopped at 24/32
+                   because 32/40 is also the PAGE title's step and a record header
+                   "must not compete with the page it sits inside". §2.2 asks for
+                   the step anyway, and the band is now one sentence shorter, so
+                   the name is the one thing in it at that size — it owns the band
+                   rather than competing with it. The page title and this name
+                   now share a size; that is the cost, stated. */
+                className="min-w-0 truncate font-display text-[32px] font-bold leading-[40px] text-[var(--text-primary)]"
+              >
+                {item.teenDisplayName}
+              </h2>
+              {/* ═══ §2.4 · URGENCY, ONLY WHEN THERE IS SOME ═══
+                  `Days open` left the band; this replaces it. "Overdue state
+                  next to the name, only when the review is overdue, using the
+                  system breach pattern and icon."
+                  `OverdueChip` IS that pattern — the same component the list
+                  rows and the toolbar use, clay pair plus the triangle icon plus
+                  the word, so it is never colour alone (SC 1.4.1). Without
+                  `onToggle` it renders as a plain `span`, which is right here: it
+                  states a fact and filters nothing.
+                  `isOverdue`, THE SAME PREDICATE THE LIST USES, so the pane and
+                  the row cannot disagree about the same item. */}
+              {isOverdue(item, now) && <OverdueChip />}
+            </div>
 
-            {/* ═══ §4 · A CONTAINED SECONDARY BUTTON, NOT A TEXT LINK ═══
-                It was a bare `Link` at 12.5px with an external-link glyph.
-                §4: "Contained secondary button, reusing the same component as
-                `Change presentation` below it... and no new button style."
-                THERE IS NO COMPONENT BEHIND `Change presentation` — it is
-                inline classes in `review-body.tsx` at `min-h-9 … text-[13px]`,
-                so "the same component" does not exist to reuse. `RecordButton`
-                IS the pane's shared button (`Save draft` is one) and its
-                `outline` tone is the light contained treatment §4 describes, so
-                that is what this uses. Reported rather than resolved by
-                extracting a component inside the frozen shared module.
-                NOT BLACK: `Submit` is the pane's one primary, and `RecordButton`
-                has no filled-dark tone to reach for by accident.
-                THE ICON STAYS, because it does navigate away — see the guard. */}
             <Link
               href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
               /* ═══ §4 · 1.4.11 FORCED THIS BOUNDARY, AND §4 PREDICTED IT ═══
@@ -1082,18 +1041,14 @@ export function TaskPane({
             </Link>
           </div>
 
-          {/* ── ROW 2 · the mentorship, and the figures about it ─────────── */}
-          {/* `items-end`: the chip is a 28px pill and the metrics are stacked
-              pairs whose LABEL is the bottom line, so aligning bottoms is what
-              puts the chip on the labels' line rather than floating it against
-              the values. §2's "shared baselines" for this row, as the thing a
-              reader actually reads along. */}
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-            <MentorChip name={item.mentorName} />
-            {p.kind === "billing" && (
-              <EngagementLine stats={p.mentorStats} openedAt={item.openedAt} now={now} />
-            )}
-          </div>
+          {/* ── ROW 2 · one line about the mentorship ─────────────────────── */}
+          {/* §2.5: row 1 and row 2 share a LEFT edge; the right end of row 2
+              need not meet the button's, because row 2 is a line now rather
+              than a block. */}
+          <HeaderSentence
+            mentorName={item.mentorName}
+            stats={p.kind === "billing" ? p.mentorStats : null}
+          />
         </div>
         {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══
             It rendered `tierLabel(p.tier)` under a flag's header — the per-flag
@@ -1124,6 +1079,12 @@ export function TaskPane({
         /* §2's "appears on scroll" needs a node to write the attribute onto;
            hover and focus-within are CSS and need nothing. */
         ref={paneScrollRef}
+        /* FOCUSABLE AND NAMED — same reasoning as the list's. It held form
+           fields, so Chrome never made it a tab stop on its own; keyboard
+           scrolling ran through a focused field. TODO-COPY on the name. */
+        tabIndex={0}
+        role="region"
+        aria-label="Review details"
         className={cn(
           /* ═══ §1 · SAME CORRECTION HERE — NO RESERVED GUTTER ═══
              This carried `pr-7` (the existing `px-5` plus 8px) to hold the bar
@@ -1131,7 +1092,12 @@ export function TaskPane({
              overlay scrollbar", and the pane's alley was 8px wider than the
              list's. Back to the symmetric `px-5` the pane had before the
              scrollbar work; the bar overlays transiently and fades at rest. */
-          "scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          /* `.scroll-overlay`, NOT `.scroll-slim` — the old utility reserved a
+             24px gutter here too (measured, `offsetWidth - clientWidth` = 24 with
+             real scrollbars). The native bar is hidden and `OverlayScrollbar`
+             draws one over the prose. */
+          "scroll-overlay min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
           /* ═══ SCROLL PADDING FOR THE STICKY BAR (arch-F, F3) ═══
              The action bar is the last child of this scroller and sticks to its
              bottom edge, so a focus move to a field near the end would land the
@@ -1144,6 +1110,7 @@ export function TaskPane({
             : "opacity-100 transition-opacity duration-[120ms] ease-out motion-reduce:transition-none"
         )}
       >
+        <OverlayScrollbar scrollerRef={paneScrollRef} />
         {p.kind === "riskFlag" && (
           <RiskFlagBody
             payload={p}

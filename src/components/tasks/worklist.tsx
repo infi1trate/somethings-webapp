@@ -62,7 +62,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw, X } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
-import { useScrollActivity } from "@/lib/ui/use-scroll-activity";
+import { OverlayScrollbar } from "@/components/ui/overlay-scrollbar";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   bandHeaderLabel,
@@ -1673,9 +1673,6 @@ export function Worklist({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const refs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  /* §2's "appears on scroll" — a DOM attribute, not React state, so a 123-row
-     virtualiser does not re-render twice per gesture. See the hook. */
-  useScrollActivity(scrollerRef);
 
   /* ═══ THE VIRTUALIZER'S ONLY STATE ═══
      Where the scroller is and how tall it is. Everything else — which rows mount,
@@ -2128,23 +2125,38 @@ export function Worklist({
          100% of a column that now also holds a toolbar, so the page started
          scrolling. */
       style={{ minHeight: rowH * LIST_MIN_ROWS }}
-      /* ═══ §1 · THE GUTTER IS GONE — THE BAR OVERLAYS WHILE ACTIVE ═══
-         The previous pass added `pr-3` to hold the bar off the rows, on the
-         instruction that it should sit "beside" content. §1 corrects that: "a
-         reserved gutter defeats the point of an overlay scrollbar", and it is
-         what produced the empty alley down the right of the list.
-         MEASURED, the alley cost 12px of every row — see the figures in the
-         commit; the wrap and the selection pill both recover it.
-         SO THE BAR OVERLAYS, AND ONLY WHILE ACTIVE. That is why no gutter is
-         needed: `.scroll-slim` paints the thumb transparent at rest and tints it
-         on region hover, on `:focus-within`, and for 900ms after a scroll — so
-         the overlap is TRANSIENT, which §1 names as the convention, rather than
-         persistent, which it rules out.
-         THE GRAB ZONE IS UNCHANGED at 24px around a 6px painted mark. Removing
-         the gutter removes PADDING, not the hit region — those are different
-         boxes, and conflating them is what made the alley look necessary. */
-      className={cn(frame, "scroll-slim min-h-0 overflow-y-auto overscroll-contain")}
+      /* ═══ THE GUTTER — THIRD ATTEMPT, AND THE FIRST ONE THAT FOUND THE CAUSE ═══
+         The previous pass removed `pr-3` and declared the gutter gone. It was
+         not: `.scroll-slim` set `::-webkit-scrollbar { width: 24px }`, which
+         opts Chromium into a custom classic bar that reserves layout width on
+         every platform, macOS overlay included. Measured with real scrollbars:
+         a 24px gutter, the header 25px short, the trailing age 49px from the
+         edge against the marker's 25. Every earlier probe ran under
+         Playwright's `--hide-scrollbars` and read 0.
+         `.scroll-overlay` HIDES THE NATIVE BAR instead of styling it, and
+         `OverlayScrollbar` draws one. See both for the full account. */
+      className={cn(
+        frame,
+        "scroll-overlay min-h-0 overflow-y-auto overscroll-contain",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+      )}
+      /* ═══ FOCUSABLE AND NAMED (scrollbar pass §1.3) ═══
+         "Scroll container stays keyboard-focusable with an accessible name."
+         MEASURED BEFORE: it was NOT focusable — Chrome only makes a scroller a
+         tab stop when it has no focusable descendants, and this one holds the
+         tree's rows. Keyboard scrolling worked anyway, through a focused row,
+         and still does. This adds the region as its own stop so a reader can
+         land on the list and page through it without selecting anything.
+         THE COST, STATED: one more Tab press before the first row. */
+      tabIndex={0}
+      role="region"
+      /* TODO-COPY */
+      aria-label="Care reviews list"
     >
+      {/* THE CUSTOM THUMB — first child, so its sticky rail pins to the top of
+          the scroller's viewport. See `OverlayScrollbar` for why the native
+          bar is hidden rather than styled. */}
+      <OverlayScrollbar scrollerRef={scrollerRef} />
       {/* ═══ THE TABLE HEADER, ON THE BILLING SURFACE ONLY (§4.3) ═══
           `Worklist` is Care Reviews' list and nothing else's today, but the
           guard is on the DATA rather than on that fact: a header naming

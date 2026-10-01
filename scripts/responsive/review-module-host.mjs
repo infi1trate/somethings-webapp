@@ -346,7 +346,14 @@ async function openCareReview(page) {
   const band = page
     .locator("[data-pane-teen]")
     .locator("xpath=ancestor::div[contains(@class,'shrink-0')][1]");
-  const metrics = band.locator("dl");
+  /* ═══ RETARGETED BY HEADER PASS 3 §2.2 — THE STRIP BECAME A SENTENCE ═══
+     This read `band.locator("dl")`: the figures were a description list of
+     stacked pairs. §2.2 replaces the stat strip with one line — "Mentored by
+     [chip] · 140 days in mentorship · 62 messages in the last 30 days" — so
+     there is no `<dl>`, and the figures are `[data-metric-value]` spans inside
+     `[data-metric]` clauses of a `[data-slot="engagement"]` paragraph. Same
+     claims below, read off the new shape. */
+  const metrics = band.locator('[data-slot="engagement"]');
   check(
     "tasks.engagement-visible",
     "and the engagement figures are on screen in the header, not behind anything",
@@ -361,16 +368,20 @@ async function openCareReview(page) {
        a DIFFERENT metric. Reading each pair's own `<dd>` through its
        `data-metric` handle is what makes the check name what it means — the
        same fix `today-mirror`'s open-count check needed for the same reason. */
+    /* The figure in a clause, by its handle — not a regex over the line, which
+       is how two of this block's earlier checks matched a NEIGHBOUR's text. */
     const dd = async (id) => {
-      const n = metrics.first().locator(`[data-metric="${id}"] dd`);
+      const n = metrics.first().locator(`[data-metric="${id}"] [data-metric-value]`);
       return (await n.count()) ? (await n.first().innerText()).trim() : null;
     };
     const dur = await dd("mentorship");
-    const durLabelEl = metrics.first().locator('[data-metric="mentorship"] dt');
-    const durLabel =
-      (await durLabelEl.count()) > 0
-        ? (await durLabelEl.first().innerText()).replace(/\s+/g, " ")
-        : null;
+    /* The clause's words, i.e. the clause text minus its figure — where the unit
+       lives in sentence form ("140 days in mentorship"). */
+    const clauseText = async (id) => {
+      const n = metrics.first().locator(`[data-metric="${id}"]`);
+      return (await n.count()) ? (await n.first().innerText()).replace(/\s+/g, " ").trim() : null;
+    };
+    const durLabel = await clauseText("mentorship");
     /* ═══ THE FIGURE arch-F CALLED LOAD-BEARING, BY NAME ═══
        The mentorship duration is the one §7 kept visible in the collapsed
        state, so it is the one asserted here.
@@ -399,12 +410,7 @@ async function openCareReview(page) {
     /* THE WINDOWED FIGURE STATES ITS WINDOW. "62 messages" without "last 30
        days" cannot be sized — the retired strip's own note said so. The label
        carries it, so the label is read from its own `<dt>`. */
-    const dt = metrics.first().locator('[data-metric="messages"] dt');
-    const lbl = (await dt.count()) ? (await dt.first().innerText()).replace(/\s+/g, " ") : null;
-    /* §5.1 moved the window into the label for this pair too, which is where
-       this check was already looking — so it needed no retarget, and that is
-       worth noting: the pair that already followed the rule is the one that
-       did not break. */
+    const lbl = await clauseText("messages");
     check(
       "tasks.engagement-window",
       "and the windowed figure names its window rather than standing bare",
@@ -454,12 +460,21 @@ async function openCareReview(page) {
   );
   const chipText =
     chipCount > 0 ? (await chip.first().innerText()).replace(/\s+/g, " ").trim() : "";
+  /* ═══ RETARGETED BY HEADER PASS 3 §2.2 — THE ROLE IS IN THE LANGUAGE ═══
+     Last pass this required a `Mentor` word INSIDE the chip. §2.2 moves the role
+     into the sentence — "Mentored by [chip]" — and removes the label from the
+     chip, because the label was saying the role twice and was the chip's second
+     type style. THE CLAIM IS UNCHANGED: the mentor is named with the role stated
+     rather than inferred. It now reads the role from the words immediately
+     before the chip, and the name from the chip — so a sentence that dropped
+     "Mentored by" still fails, and so does a chip with no name. */
+  const sentenceText = (await metrics.first().innerText().catch(() => "")).replace(/\s+/g, " ");
   check(
     "tasks.header-names-mentor-with-role",
-    "and it states the role beside the name (§3.2)",
-    /\bMentor\b/.test(chipText) &&
-      /[A-Z][a-z]+ [A-Z][a-z]+/.test(chipText.replace(/Mentor/g, "")),
-    JSON.stringify(chipText)
+    "and the role is stated in the language before the chip (§2.2)",
+    /^Mentored by\b/.test(sentenceText) &&
+      /[A-Z][a-z]+ [A-Z][a-z]+/.test(chipText),
+    `line = ${JSON.stringify(sentenceText.slice(0, 70))} · chip = ${JSON.stringify(chipText)}`
   );
   /* §3's CLICKABILITY DECISION, ASSERTED. It is not a link — there is no mentor
      record to link to — so §3's "it must not look interactive" is the half that

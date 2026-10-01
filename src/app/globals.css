@@ -474,76 +474,148 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   §2 · THE LIST AND PANE SCROLLBARS — OVERLAY, INSET, QUIET AT REST
+   THE LIST AND PANE SCROLLBARS — NATIVE BAR HIDDEN, CUSTOM THUMB OVERLAID
    ═══════════════════════════════════════════════════════════════════════════
 
-   THE DEFECT: "the list scrollbar currently sits over row content rather than
-   beside it." MEASURED, this Chromium runs OVERLAY scrollbars — the two inner
-   scrollers report `offsetWidth - clientWidth` of 0 and 2px, so the bar is not
-   reserving a gutter and is painting on top of the rows.
+   THIS REPLACES `.scroll-slim`, AND `.scroll-slim` WAS THE CAUSE. It styled
+   `::-webkit-scrollbar { width: 24px }` to get a 24px grab zone, and styling
+   that pseudo-element opts Chromium and WebKit into a custom CLASSIC bar that
+   always takes layout width — measured on this machine's Chrome 152, 15px
+   unstyled and 24px with the utility. On macOS's overlay default it created a
+   gutter where there had been none. It looked fixed in every probe because
+   Playwright launches Chromium with `--hide-scrollbars`.
 
-   SO THE FIX IS TWO HALVES AND ONLY ONE OF THEM IS THE BAR. The bar is styled
-   here; the INSET is padding on the scroller, at its own call site, because
-   only the call site knows how much padding its content already has. A
-   `scrollbar-gutter: stable` would reserve space instead and shift every row
-   left by the bar's width, which is a different design than "overlay, inset".
+   SO THE NATIVE BAR IS NOT STYLED, IT IS REMOVED. `scrollbar-width: none` for
+   Firefox and the standards path; `::-webkit-scrollbar { display: none }` for
+   Chromium and Safari. Scrolling itself is untouched — only the paint goes —
+   and `OverlayScrollbar` draws a thumb over the rows.
 
-   ═══ 24px OF GRAB INSIDE A 6px MARK ═══
-
-   §2: "Interactive hit area stays at least 24x24 CSS px even though the visual
-   track is thinner — use a transparent wider hit region. An auto-hiding
-   scrollbar that is also hard to grab fails 2.5.8."
-   `border: 9px solid transparent` + `background-clip: content-box` is that: the
-   thumb's BOX is the full 24px and takes the pointer, while the painted area is
-   the 6px content box inside it. 6px is the same mark the unviewed dot uses and
-   the same 2px half-step of the 4px grid, which is the only spacing scale this
-   product has.
-
-   ═══ QUIET AT REST, AND THREE WAYS TO WAKE IT ═══
-
-   Transparent at rest. It tints on `:hover` of the whole scrolling region (not
-   of the bar — §2 asks for the region), on `:focus-within` so a keyboard reader
-   scrolling with the arrow keys sees it, and on `[data-scrolling]`, which
-   `use-scroll-activity` sets for 900ms after a scroll event. macOS convention,
-   so familiar rather than novel.
-   `--border-contour` AT REST-VISIBLE and `--text-muted` under the pointer: both
-   existing tokens, no new ones, and the low-contrast step §2 asks for.
-
-   ═══ WHAT THIS CANNOT DO, STATED ═══
-
-   `::-webkit-scrollbar` is Chromium/WebKit. Firefox honours only
-   `scrollbar-width`/`scrollbar-color`, which cannot express a transparent hit
-   region — so on Firefox this degrades to a thin native bar with no 24px grab
-   zone. Reported rather than papered over; the app targets Chromium today. */
+   THE GUTTER IS 0 ON EVERY PLATFORM BY CONSTRUCTION. There is no native bar
+   left that could reserve one, which is the only way to make the result hold on
+   Windows and on macOS "always show scroll bars", where a native bar takes
+   space however it is styled. */
 @layer utilities {
-  .scroll-slim::-webkit-scrollbar {
+  .scroll-overlay {
+    scrollbar-width: none;
+  }
+  .scroll-overlay::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* THE RAIL: zero-height and sticky, so it holds still while content scrolls
+     beneath it. `pointer-events: none` on the rail so it never eats a click
+     meant for a row; the thumb turns them back on for itself. */
+  .ovl-rail {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    height: 0;
+    pointer-events: none;
+  }
+
+  /* THE HIT AREA — 24px wide, at least 32px tall (see `THUMB_MIN_PX`). It is
+     transparent; the mark inside is what is painted. */
+  .ovl-thumb {
+    position: absolute;
+    top: 0;
+    right: 0;
     width: 24px;
-    height: 24px;
+    pointer-events: auto;
+    cursor: default;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 160ms ease;
   }
-  .scroll-slim::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .scroll-slim::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    background-clip: content-box;
-    border: 9px solid transparent;
+  .ovl-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 6px;
+    width: 6px;
     border-radius: var(--radius-pill);
+    /* `--text-muted`, AND IT WAS `--border-contour`. MEASURED: contour is
+       1.36-1.79:1 over every ground the thumb crosses (card rows, the s1 header,
+       the s2 selected row) in both themes. A NATIVE bar is a user-agent control
+       and exempt from SC 1.4.11; a custom, draggable thumb is author UI, and
+       when it is shown it has to be identifiable at 3:1. Muted clears it over
+       all six grounds, lowest 4.02:1. "Low contrast at rest" is satisfied by
+       the thumb being INVISIBLE at rest, not by being faint while in use. */
+    background-color: var(--text-muted);
     transition: background-color 160ms ease;
   }
-  .scroll-slim:hover::-webkit-scrollbar-thumb,
-  .scroll-slim:focus-within::-webkit-scrollbar-thumb,
-  .scroll-slim[data-scrolling="true"]::-webkit-scrollbar-thumb {
-    background-color: var(--border-contour);
+
+  /* SHOWN ON SCROLL, ON HOVER OF THE REGION, ON KEYBOARD FOCUS INSIDE IT, AND
+     WHILE DRAGGING — and only then. The overlap with the rows is TRANSIENT,
+     which is the convention; at rest the rows have the full width. */
+  .scroll-overlay[data-scrolling="true"] > .ovl-rail .ovl-thumb,
+  .scroll-overlay[data-dragging="true"] > .ovl-rail .ovl-thumb,
+  .scroll-overlay:hover > .ovl-rail .ovl-thumb,
+  .scroll-overlay:focus-visible > .ovl-rail .ovl-thumb {
+    opacity: 1;
   }
-  .scroll-slim::-webkit-scrollbar-thumb:hover {
-    background-color: var(--text-muted);
+  /* Under the pointer and while dragging it steps up once more, so the reader
+     can see they have hold of it. */
+  .ovl-thumb:hover .ovl-mark,
+  .scroll-overlay[data-dragging="true"] > .ovl-rail .ovl-mark {
+    background-color: var(--text-secondary);
   }
-  /* NO TRANSITION FOR A READER WHO ASKED FOR NONE. The bar still appears and
-     still tints; it just does not fade, which is the same split the chat
-     reference flash uses above. */
+
+  /* The bar still appears and still tints; it just does not fade. */
   @media (prefers-reduced-motion: reduce) {
-    .scroll-slim::-webkit-scrollbar-thumb {
+    .ovl-thumb,
+    .ovl-mark {
       transition: none;
     }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEPARATED INLINE LISTS — A DOT BETWEEN ITEMS, NEVER AT A LINE START
+   ═══════════════════════════════════════════════════════════════════════════
+
+   THE DEFECT, MEASURED: the Care Reviews header sentence wraps at 1600 and
+   below, and when each clause carried its own leading `·` the wrapped clause
+   brought its dot to the start of line two — "· 140 days in mentorship". A
+   separator separates two things; at a line start it separates nothing.
+
+   CSS CANNOT ASK "AM I FIRST ON MY LINE", SO THE DOT IS PUT WHERE A CLIP CAN
+   ANSWER IT. Every item carries its dot in its own left padding; the list is
+   pulled left by exactly that padding; and the WRAPPER clips at the true left
+   edge. So the item that starts any line has its dot in the clipped strip, and
+   every other item's dot sits in the gap after its neighbour. No JavaScript, no
+   measuring, and it re-resolves on every reflow for free.
+
+   `content: "·" / ""` GIVES THE DOT EMPTY ALT TEXT. Generated content is in the
+   accessibility tree in Chromium and Safari, so a bare `content: "·"` would be
+   announced as "middle dot" between clauses. The callers supply their own
+   screen-reader separator. */
+@layer utilities {
+  .sep-clip {
+    overflow: hidden;
+  }
+  .sep-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin-left: -20px;
+  }
+  .sep-item {
+    position: relative;
+    padding-left: 20px;
+  }
+  /* 8px each side of a ~4px dot inside a 20px gap: the same 8px the inline
+     `mx-2` separator used, so the spacing a reader saw before is unchanged. */
+  .sep-item::before {
+    content: "·" / "";
+    position: absolute;
+    left: 8px;
+  }
+  /* The first item never takes one — explicit rather than relying on the clip,
+     so a list that does not wrap still reads "A · B · C" and not "· A · B · C"
+     if a wrapper ever loses its `overflow`. */
+  .sep-item:first-child::before {
+    content: none;
   }
 }
