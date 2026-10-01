@@ -2128,24 +2128,22 @@ export function Worklist({
          100% of a column that now also holds a toolbar, so the page started
          scrolling. */
       style={{ minHeight: rowH * LIST_MIN_ROWS }}
-      /* ═══ §2 · THE SCROLLBAR IS INSET, NOT OVERLAID ON THE ROWS ═══
-         `scroll-slim` paints the bar (see `globals.css`); the INSET is here,
-         because only this element knows what padding its rows already carry.
-         MEASURED: this Chromium runs overlay scrollbars — `offsetWidth -
-         clientWidth` is 2px here and 0 on the pane — so the bar was painting
-         over the right end of every row, which is §2's defect.
-         `pr-3` IS THE INSET: 12px of gutter against a 6px painted thumb
-         centred in a 24px grab zone, so the mark sits clear of content with
-         3px either side and the grab zone still reaches the card edge. The rows
-         themselves are `px-6`, so this adds to a track they already had rather
-         than moving them.
-         IT IS NOT `scrollbar-gutter: stable`, deliberately: that reserves the
-         full bar width and shifts every row left by it, which is a different
-         design from "overlay, inset" — and on a 626px card, 24px is a column. */
-      className={cn(
-        frame,
-        "scroll-slim min-h-0 overflow-y-auto overscroll-contain pr-3"
-      )}
+      /* ═══ §1 · THE GUTTER IS GONE — THE BAR OVERLAYS WHILE ACTIVE ═══
+         The previous pass added `pr-3` to hold the bar off the rows, on the
+         instruction that it should sit "beside" content. §1 corrects that: "a
+         reserved gutter defeats the point of an overlay scrollbar", and it is
+         what produced the empty alley down the right of the list.
+         MEASURED, the alley cost 12px of every row — see the figures in the
+         commit; the wrap and the selection pill both recover it.
+         SO THE BAR OVERLAYS, AND ONLY WHILE ACTIVE. That is why no gutter is
+         needed: `.scroll-slim` paints the thumb transparent at rest and tints it
+         on region hover, on `:focus-within`, and for 900ms after a scroll — so
+         the overlap is TRANSIENT, which §1 names as the convention, rather than
+         persistent, which it rules out.
+         THE GRAB ZONE IS UNCHANGED at 24px around a 6px painted mark. Removing
+         the gutter removes PADDING, not the hit region — those are different
+         boxes, and conflating them is what made the alley look necessary. */
+      className={cn(frame, "scroll-slim min-h-0 overflow-y-auto overscroll-contain")}
     >
       {/* ═══ THE TABLE HEADER, ON THE BILLING SURFACE ONLY (§4.3) ═══
           `Worklist` is Care Reviews' list and nothing else's today, but the

@@ -99,13 +99,13 @@
       "id": "tasks.engagement-duration",
       "label": "including the mentorship duration, the figure that frames the rest",
       "ok": true,
-      "detail": "dd = \"140d\""
+      "detail": "dd = \"140\" · dt = \"Days in mentorship\""
     },
     {
       "id": "tasks.engagement-window",
       "label": "and the windowed figure names its window rather than standing bare",
       "ok": true,
-      "detail": "dd = \"62\" · dt = \"Messages 30dMessages, last 30 days\""
+      "detail": "dd = \"62\" · dt = \"Messages, last 30 days\""
     },
     {
       "id": "tasks.header-has-no-disclosure",
@@ -114,10 +114,22 @@
       "detail": "0 disclosure(s) in the band"
     },
     {
-      "id": "tasks.header-names-mentor-with-role",
-      "label": "the header names the mentor behind an explicit role label (§3.2)",
+      "id": "tasks.header-has-mentor-chip",
+      "label": "the mentor is a contained chip, not a run of text (§3)",
       "ok": true,
-      "detail": "1 exact \"Mentor\" label(s) · line = \"2d MENTOR Maria Lopez\""
+      "detail": "1 chip(s)"
+    },
+    {
+      "id": "tasks.header-names-mentor-with-role",
+      "label": "and it states the role beside the name (§3.2)",
+      "ok": true,
+      "detail": "\"M Mentor Maria Lopez\""
+    },
+    {
+      "id": "tasks.mentor-chip-not-interactive",
+      "label": "and does not present as interactive (§3, decided: no mentor record exists)",
+      "ok": true,
+      "detail": "<span> tabbable=false"
     },
     {
       "id": "tasks.no-mentor-in-prose",

@@ -366,16 +366,34 @@ async function openCareReview(page) {
       return (await n.count()) ? (await n.first().innerText()).trim() : null;
     };
     const dur = await dd("mentorship");
+    const durLabelEl = metrics.first().locator('[data-metric="mentorship"] dt');
+    const durLabel =
+      (await durLabelEl.count()) > 0
+        ? (await durLabelEl.first().innerText()).replace(/\s+/g, " ")
+        : null;
     /* ═══ THE FIGURE arch-F CALLED LOAD-BEARING, BY NAME ═══
        The mentorship duration is the one §7 kept visible in the collapsed
-       state, so it is the one asserted here — and as a NUMBER WITH ITS UNIT,
-       because a label with no figure beside it is how this block regressed
-       before, and a figure with no unit is what "Mentorship 140" would be. */
+       state, so it is the one asserted here.
+
+       ═══ RETARGETED BY §5.1 — THE UNIT MOVED OUT OF THE VALUE ═══
+       This required `/^\d+d$/`, i.e. "140d", on the reasoning that "a figure
+       with no unit is what `Mentorship 140` would be". §5.1 settles the unit
+       question the other way and gives the reason this check could not see: two
+       patterns were running side by side, `Mentorship 140d` putting the unit in
+       the value and `Messages 30d 62` putting the window in the label. One
+       pattern now — "pure number as the value, units and windows in the label".
+       THE CLAIM IS UNCHANGED AND IS STILL BOTH HALVES: a figure, and its unit
+       stated somewhere a reader can see. It just reads the PAIR now instead of
+       the value, which is what makes it a retarget rather than a relaxation —
+       a bare `140` with no "Days" anywhere still fails. */
     check(
       "tasks.engagement-duration",
       "including the mentorship duration, the figure that frames the rest",
-      dur !== null && /^\d+d$/.test(dur),
-      `dd = ${dur === null ? "MISSING" : JSON.stringify(dur)}`
+      dur !== null &&
+        /^\d+$/.test(dur) &&
+        durLabel !== null &&
+        /day/i.test(durLabel),
+      `dd = ${dur === null ? "MISSING" : JSON.stringify(dur)} · dt = ${JSON.stringify(durLabel)}`
     );
     const msgs = await dd("messages");
     /* THE WINDOWED FIGURE STATES ITS WINDOW. "62 messages" without "last 30
@@ -383,6 +401,10 @@ async function openCareReview(page) {
        carries it, so the label is read from its own `<dt>`. */
     const dt = metrics.first().locator('[data-metric="messages"] dt');
     const lbl = (await dt.count()) ? (await dt.first().innerText()).replace(/\s+/g, " ") : null;
+    /* §5.1 moved the window into the label for this pair too, which is where
+       this check was already looking — so it needed no retarget, and that is
+       worth noting: the pair that already followed the rule is the one that
+       did not break. */
     check(
       "tasks.engagement-window",
       "and the windowed figure names its window rather than standing bare",
@@ -411,36 +433,48 @@ async function openCareReview(page) {
      which is the same defect the escalation cards had." So the name alone is
      not enough — the label has to be beside it.
 
-     ═══ AND THIS CHECK'S FIRST VERSION DID NOT DISCRIMINATE EITHER ═══
-     It tested `/MENTOR/i` against the whole band's text. MUTATION-TESTED, that
-     PASSED with `RolePair` replaced by a bare `<span>{mentorName}</span>`,
-     because the metrics list contains the word "Mentorship" — six letters of
-     a different label satisfying a check about this one. Both of this block's
-     regex checks had the same defect, found the same way.
-     SO IT READS THE CONTEXT LINE ONLY, and matches the label EXACTLY rather
-     than as a substring: an element whose whole text is "Mentor". */
-  const contextLine = band.locator("p").first();
-  const roleLabels = await contextLine
-    .locator("span")
-    .filter({ hasText: /^Mentor$/ })
-    .count();
-  const lineText = (await contextLine.innerText()).replace(/\s+/g, " ");
+     ═══ RETARGETED TWICE, AND THE SECOND TIME IT TIMED OUT ═══
+     Version 1 tested `/MENTOR/i` over the whole band and PASSED with the role
+     label deleted, because the metrics contain the word "Mentorship".
+     Version 2 read the context line's `<p>` and matched an exact `^Mentor$`
+     span. §3 replaced that line with a CHIP — a `<span>`, no paragraph — so the
+     locator waited 30s for a `<p>` that no longer exists and the probe crashed
+     rather than failing a check. A locator that cannot find its subject is not
+     a verdict, which is why this now reads the chip by its own handle.
+     THE CLAIM IS UNCHANGED: a role word, and a name, inside one contained
+     element. Asserting them on the CHIP is stricter than asserting them on the
+     band, because the band also contains the metrics. */
+  const chip = band.locator('[data-anno-ref="mentor-chip"]');
+  const chipCount = await chip.count();
+  check(
+    "tasks.header-has-mentor-chip",
+    "the mentor is a contained chip, not a run of text (§3)",
+    chipCount === 1,
+    `${chipCount} chip(s)`
+  );
+  const chipText =
+    chipCount > 0 ? (await chip.first().innerText()).replace(/\s+/g, " ").trim() : "";
   check(
     "tasks.header-names-mentor-with-role",
-    "the header names the mentor behind an explicit role label (§3.2)",
-    roleLabels === 1 && /[A-Z][a-z]+ [A-Z][a-z]+/.test(lineText.replace(/Mentor/g, "")),
-    `${roleLabels} exact "Mentor" label(s) · line = ${JSON.stringify(lineText)}`
+    "and it states the role beside the name (§3.2)",
+    /\bMentor\b/.test(chipText) &&
+      /[A-Z][a-z]+ [A-Z][a-z]+/.test(chipText.replace(/Mentor/g, "")),
+    JSON.stringify(chipText)
   );
-  /* ═══ RETARGETED BY §7 ═══
-     This asserted that the PANE does not name the mentor, and §7 reverses that
-     for the pane alone. The claim worth keeping is the one `row-semantics`
-     owns — `e.no-mentor`, that no Tasks ROW names a mentor in text or in its
-     accessible name, because the row's unit is the review and the mentor is
-     not its subject. That check is unchanged and still passing.
-     WHAT SURVIVES HERE is the narrower thing this regex was really testing:
-     the pane does not name the mentor in the REVIEW PROSE, in the "to Firstname
-     Lastname" shape the old context strip used. A name inside the accordion is
-     not that, so it is excluded before the test. */
+  /* §3's CLICKABILITY DECISION, ASSERTED. It is not a link — there is no mentor
+     record to link to — so §3's "it must not look interactive" is the half that
+     has to hold: no tab stop, and a `span` rather than a button or an anchor. */
+  if (chipCount > 0) {
+    const tag = await chip.first().evaluate((e) => e.tagName);
+    const tabbable = await chip.first().evaluate((e) => e.tabIndex >= 0);
+    check(
+      "tasks.mentor-chip-not-interactive",
+      "and does not present as interactive (§3, decided: no mentor record exists)",
+      tag === "SPAN" && !tabbable,
+      `<${tag.toLowerCase()}> tabbable=${tabbable}`
+    );
+  }
+
   check(
     "tasks.no-mentor-in-prose",
     "and the review prose still does not address a mentor by name",

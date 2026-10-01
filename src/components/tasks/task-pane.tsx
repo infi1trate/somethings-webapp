@@ -25,7 +25,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import Link from "next/link";
 import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
-import { RecordButton } from "@/components/record/record-button";
+import { RecordButton, recordButtonClass } from "@/components/record/record-button";
 import { ReviewBody } from "@/components/record/review-body";
 import { billingReviewFor } from "@/lib/tasks/billing-presentation";
 import type { ReviewDecision } from "@/lib/record/review-draft";
@@ -34,7 +34,6 @@ import {
   type BillingCommitDetail,
   type BillingSubmitHandle,
 } from "@/components/tasks/billing-review";
-import { elapsedLabel } from "@/components/tasks/strips";
 /* `chatThreadHref` AND `MessageSquare` LEFT WITH THE SECOND LINK (§3).
    The conversation link is gone — one way out, not two — and the import
    goes with it rather than sitting unused above a pane that no longer
@@ -51,11 +50,6 @@ import {
 } from "@/lib/tasks/conversation";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
 import { useScrollActivity } from "@/lib/ui/use-scroll-activity";
-/* §3.2 asks for "the same MENTOR label treatment as Risk Flags", and this is
-   that treatment — the component, not a copy of its declarations. Already
-   shared with `escalation-region`, so this is its third caller and still one
-   implementation. */
-import { RolePair } from "@/components/monitoring/event-pane";
 import {
   type BillingPayload,
   type RiskFlagPayload,
@@ -225,216 +219,212 @@ function RiskFlagBody({
    `messagesLast30` would look authoritative and be invented, which is the
    failure arch-mon spent a phase removing from the flag tiers. Blocked and
    reported rather than approximated. */
-/** ═══ THE ENGAGEMENT LINE (§3.2) — THREE PAIRS, ONE ROW, NO DISCLOSURE ═══
+/** ═══ §3 · THE MENTOR CHIP ═══
  *
- *  WHAT IT REPLACES: two of these three figures sat behind a chevron in a
- *  bordered strip, with the third borrowed into the closed state so the
- *  disclosure would say something. §3.1's objection is the right one —
- *  "progressive disclosure earns its place when there is a lot to hide. Two
- *  metrics behind a chevron costs a click and hides the thing that would have
- *  oriented the supervisor before they read anything else."
+ *  It was `2d  MENTOR  Nour Barakat` — three data at three type styles on one
+ *  line, two of which (a mono age and 11px small caps) are styles §2 removes
+ *  from the band entirely. §3 asks for "a contained chip... the chip makes the
+ *  mentor read as an entity rather than as a run of text".
  *
- *  ═══ SMALL, AND THE RULE SAYS WHY ═══
+ *  ═══ THE ROLE IS STATED, NOT INFERRED, AND NOT IN SMALL CAPS ═══
  *
- *  §3.3: "Large numerals are the page-header treatment; a record header must
- *  not compete with the page it sits inside." So the value is 14px — one ramp
- *  step above the label, the same step the row's figures now use — and the
- *  label is `PANE_LABEL`, which is the token five other files already use for a
- *  field label. NOT `font-semibold` anywhere: only TWKLausanne-400 ships, so a
- *  weight here would be a browser-synthesised faux bold, which is the mistake
- *  `PANE_LABEL`'s own note records.
+ *  §3: "a quiet `Mentor` word preceding or inside the chip, in the band's label
+ *  step. Not small caps, not a separate style." So the word is the label step —
+ *  12/16, `--text-secondary` — the same treatment the metric labels wear, which
+ *  is what makes it a step rather than a style.
  *
- *  ═══ TABULAR, AND MONO WITH IT ═══
+ *  ═══ THE INITIAL IS A MARK, NOT AN AVATAR ═══
  *
- *  §3.3 asks for tabular figures. Mono comes with them for the reason the row's
- *  two figure columns share a face: these are three numbers read across, and a
- *  proportional 4 beside a proportional 140 reads as prose.
+ *  §3 allows "a small avatar or initial". `ReviewDisc` is this product's avatar
+ *  and it is keyed by TEEN id — there is no mentor disc, and inventing one would
+ *  mean a second identity-colour derivation for a second population. A single
+ *  initial in a neutral circle is the honest smaller option: it reads as an
+ *  entity marker without claiming to be a portrait the system does not have.
  *
- *  ═══ THE WINDOW STAYS IN THE LABEL ═══
+ *  ═══ NOT CLICKABLE, AND §3 ASKED FOR THE DECISION TO BE REPORTED ═══
  *
- *  `30d` rather than "last 30 days", and the abbreviation is a cost worth
- *  stating: the strip's own note said "the window is named, because '62
- *  messages' without 'last 30 days' cannot be sized", and that requirement is
- *  unchanged — a figure over an unstated window is meaningless. What changed is
- *  the budget. MEASURED at 12px in the text face, the three long labels run
- *  "Days in mentorship" 108px + "Messages, last 30 days" 132px + "Video calls,
- *  last 30 days" 139px = 379px of label alone, before figures or gaps, against
- *  a pane that has ~300px to spare beside the identity block. So the window is
- *  abbreviated rather than dropped, because §3.3's fallback — "dropping video
- *  calls is preferable to a two-line header" — drops a FACT, and `30d` drops
- *  only characters. The `<dt>` carries the full phrase for a screen reader.
+ *  "A chip is a pattern people expect to click, so pick deliberately."
+ *  IT IS NOT A LINK, for a reason that is about this product rather than about
+ *  chips: there is no mentor record to link to. `/admin/person/{id}` is keyed by
+ *  TEEN id and the route renders a teen; the mentor exists here as a NAME on the
+ *  task (`item.mentorName`), with no id and no destination — the same Gap 432
+ *  namespace split that blocks the AI notes on this surface.
+ *  SO IT MUST NOT LOOK INTERACTIVE, which §3 also requires: no hover state, no
+ *  focus ring, no pointer cursor, and it is a `span` rather than a `button` so
+ *  it takes no tab stop. The day a mentor record exists this is the call site,
+ *  and it needs a hit target and states before it becomes one.
+ *
+ *  ═══ THE GROUND IS `--surface-s1`, WHICH IS TIER 2 ═══
+ *
+ *  The band is Tier 1 (`--surface-s2`) and the chip sits on it, so it takes the
+ *  tier that reads as contained-within: s1 is LIGHTER than the band in light
+ *  theme and lighter in dark too, which is the same ranking the Assessments
+ *  block uses one level down. Measured separation and text contrast are in the
+ *  commit. A contour would be a second treatment competing with the fill, which
+ *  is the rule `flag-task-card` states for tonal insets.
  */
+function MentorChip({ name }: { name: string }) {
+  return (
+    <span
+      data-anno-ref="mentor-chip"
+      className={cn(
+        "inline-flex min-w-0 shrink items-center gap-1.5 rounded-full px-2 py-1",
+        "bg-[var(--surface-s1)]"
+      )}
+    >
+      {/* THE MARK. `aria-hidden` — it is the first letter of the name beside it,
+          so announcing it would read the name's initial twice. */}
+      <span
+        aria-hidden
+        /* THE LABEL STEP, NOT AN 11px STYLE OF ITS OWN. At 11px this was a FIFTH
+           type style in a band budgeted for three — measured, and 11px is also
+           below Bloom's smallest ramp stop. 12/16 is the label step the word
+           "Mentor" beside it already uses, so the mark costs no new style. */
+        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-s2)] text-[12px] leading-[16px] text-[var(--text-secondary)]"
+      >
+        {name.charAt(0)}
+      </span>
+      {/* TYPE STEP 3 OF 3 · LABEL. NEEDS-COPY-NICOLE. */}
+      <span className="shrink-0 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+        Mentor
+      </span>
+      {/* TYPE STEP 2 OF 3 · VALUE. The mentor is the entity this chip is about,
+          so the name takes the value step — the same one the metric figures
+          take, which is what "three steps" means in practice. */}
+      <span className="min-w-0 truncate text-[16px] leading-[24px] text-[var(--text-primary)]">
+        {name}
+      </span>
+    </span>
+  );
+}
+
+/** ═══ §5 · THE METRICS — STACKED PAIRS, ONE UNIT PATTERN ═══
+ *
+ *  ═══ 5.1 · THE UNIT PATTERN WAS TWO PATTERNS ═══
+ *
+ *  `Mentorship 140d` put the unit in the VALUE; `Messages 30d 62` put the window
+ *  in the LABEL, where `30d` read as a number and competed with the actual
+ *  figure. §5.1 settles it: "pure number as the value, units and windows in the
+ *  label." So every value is a bare integer and every label carries its own
+ *  unit and window.
+ *
+ *  ═══ 5.2 · STACKED, AND THE WEIGHT STEP DOES NOT EXIST ═══
+ *
+ *  §5.2 asks for the value "one step up from the label, semibold, tabular
+ *  lining figures in the body family".
+ *  THREE OF THOSE FOUR ARE BUILT. The value is one ramp step up (16/24 against
+ *  12/16), tabular, and in the body family — mono has left the band, which §2
+ *  requires.
+ *  `semibold` IS NOT AVAILABLE AND THIS REPO HAS MEASURED IT FOUR TIMES: only
+ *  `TWKLausanne-400` ships, so `font-semibold` on the body family is a
+ *  declaration with no rendering behind it. §2's own instruction is that
+ *  "distinction should come from weight and color within one family" — weight is
+ *  the one channel this family does not have, so the distinction is SIZE and
+ *  COLOUR: 16/24 primary against 12/16 secondary. Reported rather than
+ *  declared-and-not-rendered.
+ *
+ *  NO PIPES, which §5.2 names: the separator is a 1px `--border-contour` rule,
+ *  not a typed `|`.
+ *
+ *  ═══ 5.3 · THE FOURTH SLOT IS RESERVED, AND ENGAGED DAYS IS NOW DEFINED ═══
+ *
+ *  §5.3 says engaged days is "still blocked... not built until defined. Lean
+ *  (b)". THAT IS STALE: it was answered between the packs — "engaged days is the
+ *  days a teen sent a message", which is option (a), not (b) — and it is
+ *  implemented in `lib/tasks/engaged-days.ts`.
+ *  IT IS STILL NOT RENDERED, for a reason that is no longer the definition: the
+ *  conversation fixture saturates at 53 messages over 4.5 hours, so a day-count
+ *  over it is a constant 1 forever. `engagedDays` returns `null` and null is not
+ *  renderable. The slot is reserved per §5.2 so the figure lands without
+ *  reflow — see `RESERVED_SLOTS`.
+ */
+const RESERVED_SLOTS = 4;
+
 function EngagementLine({
   stats,
+  openedAt,
+  now,
 }: {
   stats: { daysInMentorship: number; messagesLast30: number; videoLast30: number };
+  /** §3/§5.1 · review age moves here as `Days open`. */
+  openedAt: number;
+  now: number;
 }) {
-  /* NEEDS-COPY-NICOLE on all three visible labels. `full` is what assistive
-     tech reads, so the abbreviation above is a VISUAL economy and not a loss of
-     the window — a screen-reader user hears the unabbreviated phrase.
-     `140d` CARRIES ITS UNIT IN THE VALUE while the other two carry their window
-     in the LABEL, and the unevenness is deliberate: "Mentorship 140" states no
-     unit at all, and measured, the label that would have stated it ("Days in
-     mentorship", 108px) is the single widest string in this block. Putting the
-     `d` on the figure costs 9px and buys the fact. */
-  const pairs: {
-    id: string;
-    short: string;
-    full: string;
-    value: string;
-    /** ═══ §6.6 · THE PAIR THAT YIELDS RATHER THAN WRAPPING THE BAND ═══
-     *  §6.6: "Everything fits the band without wrapping at the pane's narrowest
-     *  supported width. If it does not, report before adding a line — dropping
-     *  a metric beats a two-line band."
-     *  MEASURED, IT DOES NOT FIT AT 1280. Against the widest identity block in
-     *  any fixture the band needs 455px (left 186 + gap 16 + right 253) and has
-     *  416 — over by 39. It fits at 1366 (459), 1440 (496) and 1600 (576), so
-     *  1280 is the only width that fails and the band went 110px -> 167px there.
-     *  WHAT CONSUMED THE ROOM IS §6.2. The name went 20/28 -> 24/32 and the
-     *  padding 16/20 -> 20/24, both asked for by this pack, and together they
-     *  are worth more than the 39px. So the trade is stated rather than
-     *  resolved silently: at 1280 this band can carry the 24px name OR two
-     *  metric pairs, not both.
-     *  THIS IS THE FALLBACK §6.6 NAMES, taken because the alternative it rules
-     *  out is the two-line band that is already measured above. It is a HIDE
-     *  and not a removal, so the fact is present at every width that has room —
-     *  and unlike `Video 30d`, `messages` is in §4's target set, so deleting it
-     *  would be deciding §4.
-     *  CHEAPER OPTIONS WERE MEASURED AND DO NOT CLOSE IT: padding back to 20px
-     *  buys 8px, the inter-block gap 16->12 buys 4, and "Messages 30d" ->
-     *  "Messages" buys ~28 while dropping the window §4.2 is still scoping.
-     *  39px needs all three and would spend a copy decision to get there. */
-    optional?: boolean;
-  }[] = [
-    /* `id` IS A PROBE HANDLE AND IT EXISTS BECAUSE TWO OF MY OWN ASSERTIONS
-       FAILED TO DISCRIMINATE WITHOUT IT. Mutation-tested, a check for the
-       duration (`/\d+d/` over the whole list) passed with the duration DELETED,
-       because "Messages 30d" contains "30d" — a regex matching a neighbour's
-       label, which is the exact hazard `today-mirror` warns about in its own
-       note. A per-pair attribute makes the assertion name the pair it means. */
-    { id: "mentorship", short: "Mentorship", full: "Days in mentorship", value: `${stats.daysInMentorship}d` },
-    {
-      id: "messages",
-      short: "Messages 30d",
-      full: "Messages, last 30 days",
-      value: `${stats.messagesLast30}`,
-      /* Yields below the width where both pairs fit — see the prop's note. */
-      optional: true,
-    },
-    /* ═══ §4 · `Video 30d` IS REMOVED — "Not a tracked metric" ═══
-       It arrived as the concrete replacement for `engaged days`, and §4
-       withdraws that: "My earlier pack treated it as the concrete replacement
-       for `engaged days`; that was wrong."
-       THE CONTAINER QUERY GOES WITH IT. The previous pass hid this pair below
-       500px of band because three pairs did not fit — measured, 493px needed
-       against 467 at 1366 and 424 at 1280. Two pairs fit at every width the
-       pane renders at, so the `optional` flag, the `@min-[500px]` gate and the
-       `@container` that served them are all gone. A responsive rule protecting
-       a metric that no longer exists is chrome.
-       AND `engaged days` STILL DOES NOT TAKE ITS PLACE — BUT THE REASON HAS
-       CHANGED, AND SO HAS WHAT WOULD UNBLOCK IT.
-       THE DEFINITION IS ANSWERED: "engaged days is the days a teen sent a
-       message" — §4.1's option (a). It is implemented and tested in
-       `lib/tasks/engaged-days.ts`, so the question that was asked four times
-       is now written down in code rather than in a pack.
-       WHAT I REPORTED BEFORE WAS HALF WRONG. I said there was no per-day
-       message log; there is. `ConversationMessage` carries `sender` and `at`,
-       and `buildConversation` produces one for every billing item — the
-       fields are exactly what (a) needs.
-       WHAT IS MISSING IS THE WINDOW. Measured over six billing items, every
-       conversation spans 1.63-1.87h and every one reports `truncatedStart`, so
-       the honest count is 1 on every row for every teen, permanently — a
-       constant rendered as a measurement, which is the failure §4.1 named.
-       SO `engagedDays` RETURNS `null` HERE and null is not renderable, the same
-       shape `FLAG_REVIEW_SLA` uses for a figure blocked on data. The blocker is
-       a test result, not a comment: `engaged-days.test.ts` asserts the fixtures
-       are too short, and when that test FAILS it means a longer log landed and
-       this line can render it. */
+  /* NEEDS-COPY-NICOLE on all four labels. `value: null` is the reserved slot:
+     it occupies layout and renders an em-dash, so four pairs are measured and
+     the fourth cannot reflow the band when it gains a number. */
+  const pairs: { id: string; value: number | null; label: string }[] = [
+    /* ═══ §3 · REVIEW AGE MOVES OFF THE IDENTITY LINE ═══
+       §3: "Review age (`2d`) leaves this line and moves into the metrics group.
+       Left side becomes purely identity." The stated tradeoff is real — age is a
+       fact about the REVIEW and the other three are about the MENTORSHIP, so the
+       group is mildly mixed — and `Days open` is the label that makes the mix
+       legible rather than hiding it.
+       WHOLE DAYS, FLOORED, because the value is now a pure integer: `elapsedLabel`
+       renders `22h` for a sub-day age and this column cannot, so a review opened
+       nine hours ago reads `0` against `Days open`. That is honest and it is a
+       change in what the figure says — the row still carries `elapsedLabel`, so
+       the precise age is one glance away. */
+    { id: "open", value: Math.floor((now - openedAt) / 86_400_000), label: "Days open" },
+    { id: "mentorship", value: stats.daysInMentorship, label: "Days in mentorship" },
+    { id: "messages", value: stats.messagesLast30, label: "Messages, last 30 days" },
+    /* THE RESERVED SLOT. Defined (option a) and blocked on fixture length. */
+    { id: "engaged", value: null, label: "Engaged days" },
   ];
   return (
-    /* A REAL `<dl>`: each label/value pair IS a description list entry, and the
-       markup is what lets a screen reader pair them without the labels being
-       read as a sentence.
-       ═══ §6.1 · TWO FACTS, NOT ONE RUN OF TEXT ═══
-       "labels and values sit at nearly the same size with no separation
-       between the pairs, so it reads as a single string of text."
-       THREE CHANGES, EACH DOING A DIFFERENT JOB:
-       · SEPARATION — `gap-x-5` (20px) between pairs against `gap-1.5` (6px)
-         inside one. A 3.3x ratio is what makes proximity say which label owns
-         which figure; it was 12 against 4, and 12px of gap beside a 12px label
-         is not a boundary.
-       · A DIVIDER, because spacing alone is what had already failed. §6.1
-         offers "spacing, or a low-contrast divider" — this takes both, since
-         the row is two pairs wide now and two facts with no mark between them
-         still read as one phrase. It is `--border-contour` at 1px, on a
-         `first:hidden` so it falls BETWEEN pairs and never before the first.
-       · A WEIGHT STEP on the value, which is §6.1's "value stronger, label
-         quiet". THE ONLY WEIGHT CHANNEL THAT RENDERS HERE IS THE MONO STACK:
-         this codebase measured Lausanne as identical at 400/500/600/700 (one
-         face ships) and the mono stack as +41% ink at 700. The values are
-         already mono, so 700 is a real step; a `font-semibold` on the labels
-         would have been a declaration with nothing behind it. */
-    <dl data-slot="engagement" className="flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
+    <dl
+      data-slot="engagement"
+      data-reserved-slots={RESERVED_SLOTS}
+      /* ═══ `ml-auto` SO THE RIGHT EDGE SURVIVES A WRAP (§2, §6.4) ═══
+         §2 requires "both right-side elements share one right edge". With
+         `justify-between` on the row that holds true only while the chip and
+         the metrics are on ONE line — measured, when the metrics wrap to their
+         own line `justify-between` leaves them at flex-start and the right
+         edges came out 1412.9 against the button's 1527.
+         `ml-auto` pushes them right whether they share the chip's line or not,
+         so the edge is a property of the element rather than of the row's
+         occupancy. Measured after: both at 1527 (1600) and both at 1207
+         (1280). */
+      className="ml-auto flex min-w-0 shrink items-end justify-end gap-x-4"
+    >
       {pairs.map((m, i) => (
-        <div
-          key={m.id}
-          data-metric={m.id}
-          className={cn(
-            "items-baseline gap-1.5 whitespace-nowrap",
-            /* A CONTAINER QUERY ON THE WRAPPING ROW, not a viewport breakpoint
-               — `data-view.tsx` argues it: "is THIS BOX wide enough". The
-               threshold is the measured need (455px) plus a margin for a name
-               longer than any fixture's. WRITTEN AS A LITERAL: an interpolated
-               `@min-[${w}]` generates no CSS, which that file also records. */
-            m.optional ? "hidden @min-[470px]:flex" : "flex"
-          )}
-        >
-          {/* THE RULE BETWEEN PAIRS — `i > 0` AND NOT `first:hidden`.
-              My first version put `first:hidden` on this span, which is always
-              its parent's first child, so it would have rendered never. A
-              Tailwind position variant reads the element's OWN position among
-              its siblings and cannot see the PAIR's position, so the index is
-              the only honest source for "between". Caught before it shipped,
-              by reading the class back rather than by looking at the screen —
-              an always-hidden divider looks exactly like the defect §6.1 came
-              back for.
-              `aria-hidden`: it is a counting aid for the eye, and a screen
-              reader already has the `<dl>`'s own pairing. */}
+        <div key={m.id} data-metric={m.id} className="flex min-w-0 items-end gap-x-4">
+          {/* THE RULE BETWEEN PAIRS — `i > 0`, not `first:hidden`. A Tailwind
+              position variant reads this span's own position among its siblings
+              and cannot see the PAIR's, which is the mistake the previous pass
+              caught before it shipped. `aria-hidden`: the `<dl>` already pairs
+              them for a screen reader. */}
           {i > 0 && (
             <span
               aria-hidden
               data-metric-rule
-              className="mr-3.5 h-3 w-px shrink-0 self-center bg-[var(--border-contour)]"
+              className="h-7 w-px shrink-0 bg-[var(--border-contour)]"
             />
           )}
-          {/* ═══ NOT `--text-muted` ON THIS GROUND (elevation amendment §2) ═══
-              `LABEL` is `PANE_LABEL`, which pairs the field-label type token
-              with `--text-muted`. That pairing was measured against the pane's
-              WHITE body; this band is `--surface-s2` now, and this codebase
-              already recorded what muted does there — "Muted measures 4.01:1 on
-              `--surface-s2` — under the 4.5 floor for 12px text, where
-              secondary is 5.78:1", in `ReviewIdentityCell`'s own note.
-              SO THE INK MOVES WITH THE GROUND. The type token stays — it is the
-              field-label stop and nothing about it changed — and only the colour
-              is overridden, which is the same substitution K.5 made system-wide
-              on this surface. Applying the tier without this would have put two
-              12px labels under the AA floor on the pane a supervisor reads
-              every time. */}
-          <dt className={cn(LABEL, "text-[var(--text-secondary)]")}>
-            <span aria-hidden>{m.short}</span>
-            <span className="sr-only">{m.full}</span>
-          </dt>
-          <dd
-            /* §6.1's WEIGHT STEP. `font-bold` on the mono stack is a MEASURED
-               +41% ink (79,171 vs 56,058 rendered to a canvas and summed),
-               because a system monospace ships a bold. The same declaration on
-               the Lausanne label would render nothing — one face ships — which
-               is why the step is on the value and the label stays quiet. */
-            className="text-[14px] font-bold leading-[20px] tabular-nums text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            {m.value}
-          </dd>
+          <div className="flex min-w-0 flex-col items-start">
+            {/* VALUE above LABEL (§5.2). `tabular-nums` so a column of figures
+                does not jitter; `lining-nums` because the body face's default
+                figures are already lining and stating it keeps that true if the
+                face ever ships old-style. */}
+            <dd className="text-[16px] leading-[24px] tabular-nums lining-nums text-[var(--text-primary)]">
+              {m.value === null ? (
+                /* AN EM-DASH, NOT A `0` OR A BLANK. A zero would be a
+                   measurement (`engaged-days.ts` keeps 0 and null distinct) and
+                   a blank would read as a rendering fault. */
+                <span aria-hidden>—</span>
+              ) : (
+                m.value
+              )}
+            </dd>
+            <dt className="whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]">
+              {m.label}
+              {m.value === null && (
+                /* The slot is visible and visibly unanswered, so a supervisor
+                   is not left wondering whether the dash is a bug. */
+                <span className="sr-only"> — not yet available</span>
+              )}
+            </dt>
+          </div>
         </div>
       ))}
     </dl>
@@ -1020,228 +1010,89 @@ export function TaskPane({
              than the tokens because the tokens are only wired for the record
              card's own padding utilities; the VALUES are theirs. */
             className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-6 py-5">
-        <div
-          /* ═══ THE CONTAINER FOR §3.3's QUERY IS THIS ROW ═══
-             It is the element that WRAPS when the two blocks do not fit, so its
-             width is the quantity the video pair's `@min-[520px]` has to ask
-             about. Putting `@container` on the `<dl>` instead would have
-             measured the metrics' own width — which is a function of how many
-             metrics are shown, so the query would have been asking about its own
-             answer. */
-          /* ═══ §6.5 · ONE BASELINE GRID ═══
-             `items-start` aligned the two blocks by their BOX TOPS, and the
-             boxes are different heights — a 24/32 name against a 16px metric
-             row — so nothing in the left block lined up with anything in the
-             right. `items-baseline` aligns the name's first baseline with the
-             metric row's, which is the line the eye actually reads along.
-             THE SECOND HALF OF §6.5 IS THE RIGHT EDGE, and that is on the CTA
-             — see its `-mr-2`. */
-          className="@container flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2"
+      <div
+          /* ═══ §2 · TWO ROWS, RE-PAIRED ═══
+             Row 1  teen name            |  View care journey
+             Row 2  mentor chip          |  metrics
+             THE BUTTON TAKES THE TITLE ROW because that is where a header's
+             action lives by convention (Jakob) — it read as a footnote to the
+             metrics when it sat under them.
+             AND THE METRICS PAIR WITH THE MENTOR, which reverses the adjacency
+             the previous pass argued for. The metrics describe the mentorship
+             and the chip IS the mentorship; "these numbers summarise the care
+             journey, so the link to it belongs beside them" was the weaker
+             claim, and it is withdrawn here rather than quietly dropped. */
+          className="flex flex-col gap-2.5"
         >
-          <div className="min-w-0">
-            {/* ═══ THE EYEBROW IS GONE (addendum §2.9) ═══
-                It read "Billing code review" above every record on a
-                destination where every record is one — the same string the row
-                chip carried, removed for the same reason. The page title three
-                inches up says what surface this is; the pane's job is to say
-                WHICH one, which is the heading below. */}
+          {/* ── ROW 1 · identity and the action ─────────────────────────── */}
+          {/* `items-center`: §4 asks the button to be "vertically centered on
+              the teen name", and the name's 32px line box against a 44px button
+              is exactly the case where baseline alignment would hang the button
+              low. Row 2 uses baselines, because there both sides are text. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <h2
               /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance rule
                  is a statement about which record is on screen after a resolve,
                  and reading it off the heading is reading what a supervisor
                  reads. */
               data-pane-teen
-              /* ═══ §6.2 · UP ONE RAMP STEP, 20/28 -> 24/32 ═══
-                 "`Noah B.` is roughly the size it was on white. The band now
-                 frames it, so it can carry more."
-                 ONE STEP, NOT TWO. Bloom's ramp above 24/32 is 32/40, and 32px
-                 is the PAGE title's step — `routeLabel`'s own heading is 32/40
-                 three inches up, so a 32px name in the pane would tie the
-                 record to the destination. §6.1's own rule says it: "a record
-                 header must not compete with the page it sits inside".
-                 `mt-0.5` GOES WITH IT. It was 2px of optical nudge against a
-                 20px name's cap height; at 24/32 with `items-baseline` on the
-                 row above, a margin would push the shared baseline off. */
-              className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]"
+              /* ═══ TYPE STEP 1 OF 3 · TITLE ═══
+                 24/32 in the display face, unchanged from the last pass. */
+              className="min-w-0 truncate font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]"
             >
               {item.teenDisplayName}
             </h2>
-            {/* ═══ EVERY ESCALATION BRANCH IS GONE (Phase 6) ═══
-                This pane is Care Reviews', and Care Reviews has held billing
-                alone since Phase 2 — so `isEscalationTask(item)` was false on
-                every item that can reach here and each branch was unreachable
-                code. `EscalationMeta`, `EscalationCtas` and `EscalationTaskPane`
-                retire with them; the escalation record's own pane on
-                `/app/escalations` is the surviving representation, and Phase 6
-                moved the facts row and the link-outs onto it rather than letting
-                them die with the duplicate. */}
-            {/* ═══ §3.2 — THE CONTEXT LINE CARRIES THE MENTOR AGAIN ═══
-                "Left — identity. Teen name, then a compact context line
-                beneath it: review age, and the mentor with an explicit role
-                label."
-                THIS REVERSES arch-F's HEADER REMOVAL, and the argument it
-                reverses is directly above: "the mentor does not perform a
-                billing review, is not accountable for it, and cannot change its
-                outcome". THAT IS STILL TRUE AND IS NOT WHAT THIS ANSWERS. The
-                mentor is not here as a party to the review; they are here
-                because a supervisor reading a teen's record needs to know who
-                is working with that teen, which is the question §7 already
-                conceded belongs in the pane when it remounted the figures.
-                §3 only moves WHERE the pane answers it — out of a bordered
-                strip four blocks down and into the identity block, where
-                record context belongs.
-                THE ROW STILL NEVER NAMES A MENTOR. `e.no-mentor` in
-                `row-semantics` asserts it, and nothing here touches that: the
-                row's unit is the review, the pane's subject is the teen, and
-                only one of those has a mentor as context. */}
-            {/* ═══ §6.3 · THREE DATA, THREE TREATMENTS ═══
-                "Review age, role label, and mentor name need three
-                distinguishable treatments — the role label quietest and
-                smallest, the mentor name mid, review age distinct from both."
-                  age     mono, tabular, 14/20   — distinct by FACE
-                  MENTOR  11px uppercase, tracked — smallest and quietest
-                  name    sans, 14/20            — mid
-                SO THE AGE AND THE NAME SHARE A SIZE AND ARE STILL DISTINCT,
-                because the channel between them is the face rather than the
-                step. That is this codebase's own finding — Lausanne has no
-                working weight axis, so face and size are the two channels that
-                measure, and spending size on a third level here would have
-                pushed the age to 16px and made it compete with the name above.
-                THE 13px IS GONE WITH IT: the paragraph typed the age at an
-                inherited 13/18, which is not a Bloom step. The paragraph now
-                carries no size of its own — each child states its own, which is
-                what having three treatments means.
-                MENTOR AND THE NAME ARE `RolePair`'s, UNCHANGED. It is shared
-                with Risk Flags, and §6.3 is about this band; the two treatments
-                it already renders are the two this section asks for. */}
-            <p className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[var(--text-secondary)]">
-              <span
-                /* §6.3's "distinct from both" — mono and tabular at 14/20, the
-                   same treatment the row's own age column carries, so the pane
-                   and the row state the same fact the same way. */
-                className="text-[14px] leading-[20px] tabular-nums"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                {/* ═══ THE AGE, BARE (Figma alignment §3) ═══
-                    The list's own column is headed "Review age" and its cells
-                    read `3d`; the pane header repeating " open" made the same
-                    fact wear two shapes two inches apart. */}
-                {elapsedLabel(item.openedAt, now)}
-              </span>
-              {/* ═══ AND SO IS THE DUE FACT (addendum §2.9) ═══
-                  The meta line read "2d open · due 6:24 PM", and with
-                  `TASK_SLA_MS` null for both billing types the second half
-                  became the literal "no review deadline" — a clause announcing
-                  the absence of a concept the destination no longer has.
-                  THE AGE STAYS, and it is now the whole line: it is what the
-                  list is ordered by, so the pane and the row agree on the one
-                  figure that explains the queue. */}
-              {/* ═══ THE CHIP IS GONE FROM HERE TOO (arch-G, G1) ═══
-                  arch-F replaced its misleading label (`Past 3d`, the SLA's
-                  LENGTH) with "Overdue" — still a second statement beside
-                  "overdue by 9h". The meta line reads `3d open · overdue by 9h`
-                  and the due fact carries the breach ink, which is the same rule
-                  the rows now follow. */}
-              {/* ═══ THE ROLE LABEL IS RISK FLAGS' OWN COMPONENT, NOT ITS CSS ═══
-                  §3.2: "Use the same MENTOR label treatment as Risk Flags —
-                  without it, two names near each other are ambiguous about who
-                  is who, which is the same defect the escalation cards had."
-                  SO IT USES `RolePair` ITSELF. The instruction names a
-                  treatment, and the two ways to match one are to copy its
-                  declarations or to call it — and `RolePair` is already
-                  exported and already shared by `escalation-region`, so calling
-                  it is the option that cannot drift. Copying `text-[11px]
-                  uppercase tracking-wide` into a third file is how one
-                  treatment becomes three.
-                  `teenName={null}` RENDERS THE MENTOR PAIR ALONE, which the
-                  component already supports because Risk Flags has the same
-                  case. The teen is the `h2` directly above; labelling it here
-                  would put the name on screen twice to disambiguate it from
-                  itself. */}
-              <RolePair teenName={null} mentorName={item.mentorName} />
-            </p>
-          </div>
 
-          {/* ═══ THE TWO WAYS OUT, AND WHY THEY ARE HERE AND NOT ON THE ROWS ═══
-              At 19–100 rows, two or three controls per row puts 40–300 targets in
-              a column whose only job is scanning — Hick's Law, and every one of
-              them a chance to leave the queue by accident. Navigation away from
-              triage is a deliberate, occasional act; selecting a row fills this
-              pane instantly, so the pane header IS the row's control surface.
-              TERTIARY, DELIBERATELY: text buttons with icons, no fill, no border.
-              They must not compete with the recommendation title below them or
-              with the footer's Submit, which is the one primary on the pane. */}
-          {/* ═══ §3.2 — ENGAGEMENT, THEN THE CTA UNDER IT ═══
-              "Right — engagement, then the CTA. The metrics as small inline
-              label/value pairs on one line... `View care journey` sits directly
-              beneath them. That adjacency is the point: the metrics are a
-              summary of the care journey, so the link to the full journey reads
-              as 'see the rest of this' rather than as a floating button."
-              WHICH IS ALSO WHAT WAS WRONG WITH THE LINK BEFORE. It sat top-right
-              with no semantic neighbour, and the figures it summarises were
-              three blocks below it behind a chevron. Neither element was
-              explicable from where it stood; together they explain each other.
-              `items-end` RIGHT-ALIGNS BOTH so the link's right edge lines up
-              with the last metric's, which is what makes the two read as one
-              stack rather than as two right-floated things. */}
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            {/* GATED ON THE KIND, because `mentorStats` is the BILLING payload's
-                field. This pane has held billing alone since Phase 2, so the
-                gate is never false today — it is here because an ungated
-                `p.mentorStats` would not compile against the union, and writing
-                the narrow is cheaper than asserting the invariant. */}
-            {p.kind === "billing" && <EngagementLine stats={p.mentorStats} />}
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-1 gap-y-1">
-            {/* ═══ ONE SOURCE FOR THE SET, PER TASK KIND (arch-G, G4) ═══
-                MEASURED: two "View care profile" links, identical href, side by
-                side. `EscalationCtas` carries the escalation set — care profile,
-                conversation, escalation record — and this link rendered
-                unconditionally alongside it. A duplicated way out is not
-                harmless in a cluster whose whole design note above is about not
-                competing for the eye: it doubles one destination's weight
-                against the two beside it. */}
-            {/* ═══ ONE WAY OUT, NOT TWO (Figma alignment §3) ═══
-                It was `View care profile` + `View conversation`. The Figma
-                collapses them to a single `View care journey`, and that is the
-                better shape for the reason the cluster's own note above
-                already argues: two tertiary links side by side split the eye,
-                and this pane's job is the decision below them rather than the
-                navigation beside them.
-                IT GOES TO THE CARE TAB, which is where the journey is — the
-                conversation link's own note records that `?msg=` anchoring does
-                not work and that a billing review has no message to anchor to
-                anyway, so the dropped link was the weaker of the two.
-                NOT A FORK: these links are this pane's chrome. `ReviewBody` —
-                the module frozen against the Care page — renders none of them,
-                so the Care page is untouched by this change. */}
+            {/* ═══ §4 · A CONTAINED SECONDARY BUTTON, NOT A TEXT LINK ═══
+                It was a bare `Link` at 12.5px with an external-link glyph.
+                §4: "Contained secondary button, reusing the same component as
+                `Change presentation` below it... and no new button style."
+                THERE IS NO COMPONENT BEHIND `Change presentation` — it is
+                inline classes in `review-body.tsx` at `min-h-9 … text-[13px]`,
+                so "the same component" does not exist to reuse. `RecordButton`
+                IS the pane's shared button (`Save draft` is one) and its
+                `outline` tone is the light contained treatment §4 describes, so
+                that is what this uses. Reported rather than resolved by
+                extracting a component inside the frozen shared module.
+                NOT BLACK: `Submit` is the pane's one primary, and `RecordButton`
+                has no filled-dark tone to reach for by accident.
+                THE ICON STAYS, because it does navigate away — see the guard. */}
             <Link
               href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
-              className={cn(
-                /* ═══ §6.5 · THE SHARED RIGHT EDGE ═══
-                   "The metric row and `View care journey` do not share a right
-                   edge." The BOXES did — measured `rightEdgeAligned: true` last
-                   pass — but the box is not what a reader sees: this control's
-                   own `px-2` holds its TEXT 8px inside the last metric value's.
-                   `-mr-2` CANCELS IT, which is the trick the sort header
-                   already uses on its own buttons ("`-ml-1` CANCELS THE
-                   BUTTON'S OWN PADDING"). The 36px hit box is unchanged — the
-                   negative margin moves the box, it does not shrink it.
-                   ═══ AND 12.5px WAS NOT A RAMP SIZE ═══
-                   12/16 is. 12.5/18.75 was an invented pair rendering at the
-                   1.5 default, which is the same class of defect as the 13px
-                   age and the 11.5px lozenge. */
-                "-mr-2 inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12px] font-semibold leading-[16px]",
-                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
+              /* ═══ §4 · 1.4.11 FORCED THIS BOUNDARY, AND §4 PREDICTED IT ═══
+                 "Measure its boundary against the band — 3:1 — since a tonal
+                 button on a tonal band is where that fails." It does:
+                   --surface-card fill vs the band   1.32:1 light · 1.46 dark
+                   --border-contour over the fill    1.05:1 light · 2.60 dark
+                   --border-subtle                   1.03:1 light · 1.75 dark
+                   --text-muted                      4.02:1 light · 6.88 dark
+                 So neither the fill nor the component's own contour carries the
+                 boundary on this ground, and `--text-muted` is the LIGHTEST
+                 token that clears 3:1 — chosen over `--text-secondary` (5.78)
+                 because a secondary button does not want the heavier edge.
+                 AN OVERRIDE, NOT A NEW TONE. The component's shape, type, hit
+                 area and states are untouched; only the border colour moves,
+                 and it moves because the GROUND moved. A fourth tone would put
+                 this band's problem into a component four surfaces share. */
+              className={recordButtonClass("outline", "border-[color:var(--text-muted)]")}
             >
               <ExternalLink className="size-3.5 shrink-0" aria-hidden />
               {/* NEEDS-COPY-NICOLE */}
               View care journey
             </Link>
-            {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
-                component, so the two escalation task types carry the same set. */}
           </div>
+
+          {/* ── ROW 2 · the mentorship, and the figures about it ─────────── */}
+          {/* `items-end`: the chip is a 28px pill and the metrics are stacked
+              pairs whose LABEL is the bottom line, so aligning bottoms is what
+              puts the chip on the labels' line rather than floating it against
+              the values. §2's "shared baselines" for this row, as the thing a
+              reader actually reads along. */}
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <MentorChip name={item.mentorName} />
+            {p.kind === "billing" && (
+              <EngagementLine stats={p.mentorStats} openedAt={item.openedAt} now={now} />
+            )}
           </div>
         </div>
         {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══
@@ -1274,12 +1125,13 @@ export function TaskPane({
            hover and focus-within are CSS and need nothing. */
         ref={paneScrollRef}
         className={cn(
-          /* ═══ §2 · THE PANE'S OWN SCROLLBAR, SAME TREATMENT ═══
-             `scroll-slim` for the bar; the inset is the `pr-2` added to the
-             existing `px-5`, giving 28px of right padding against a 6px thumb.
-             The pane's content is prose and form fields at full width, so an
-             overlay bar sat over the right edge of every line of the rationale. */
-          "scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pr-7",
+          /* ═══ §1 · SAME CORRECTION HERE — NO RESERVED GUTTER ═══
+             This carried `pr-7` (the existing `px-5` plus 8px) to hold the bar
+             off the prose. §1: "a reserved gutter defeats the point of an
+             overlay scrollbar", and the pane's alley was 8px wider than the
+             list's. Back to the symmetric `px-5` the pane had before the
+             scrollbar work; the bar overlays transiently and fades at rest. */
+          "scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
           /* ═══ SCROLL PADDING FOR THE STICKY BAR (arch-F, F3) ═══
              The action bar is the last child of this scroller and sticks to its
              bottom edge, so a focus move to a field near the end would land the
