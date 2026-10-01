@@ -183,9 +183,26 @@ export function BillingCodeLozenge({
  *  already has a meaning. Sage reads as new rather than as alarming, which is
  *  the right register for a first assignment.
  *  THE COST IS STATED: it is GREEN where the reference is BLUE, and sage is
- *  also the Care page's "on track" hue elsewhere in the system. If the accent
- *  has to be blue, that is a token decision rather than a component one, and
- *  this is the call site to change.
+ *  also the Care page's "on track" hue elsewhere in the system.
+ *
+ *  ═══ CONFIRMED, AND CONFIRMED AS "FOR NOW" ═══
+ *
+ *  Brandon, asked with the cost above on the table: "use sage for now". So this
+ *  is a HELD decision rather than a settled one, and the distinction is the
+ *  point of recording it — the next person to find a green pill where a blue
+ *  one was drawn should know it was read, priced and chosen, and also that
+ *  nobody claimed it was the end state.
+ *
+ *  WHAT WOULD CHANGE IT: a `--band-sky-*` pair in `settings-tokens.css`. That
+ *  is two new tokens, which is why a component could not make the call — and
+ *  why this file is the wrong place to fix it. Swap the two declarations below
+ *  and delete this section; nothing else reads the hue.
+ *
+ *  WHAT MUST SURVIVE EITHER WAY is the invariant, not the colour: the pill
+ *  paints from an EXISTING `--band-*` pair, so its ink and ground are a
+ *  measured, contrast-checked couple rather than two values picked separately.
+ *  `band-token-pairs.test.ts` asserts that and deliberately does not assert
+ *  which pair.
  *
  *  A TEXT PILL, NOT A CODE LOZENGE, so it is deliberately NOT
  *  `BillingCodeLozenge`: it holds a phrase, takes the pill radius the node
