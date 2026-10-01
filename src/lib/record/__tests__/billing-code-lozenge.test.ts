@@ -151,13 +151,38 @@ describe("the module renders every code through it", () => {
     ).toBeNull();
   });
 
-  it("and the heading's tone is not a state claim", () => {
-    /* `identity` rather than `changed`: the heading's code is `shown.code` —
-       whatever is currently picked — and on the Care page the proposal row
-       above already carries the amber. Asserted because swapping this to
-       `changed` would look like an improvement and would state the decision
-       twice. */
-    expect(src).toMatch(/code=\{shown\.code\}\s+tone="identity"/);
+  it("and the heading's tone is per-state, not hard-coded", () => {
+    /* ═══ RETARGETED BY §3 — AND THE OLD ASSERTION WAS RIGHT WHEN WRITTEN ═══
+       It pinned `tone="identity"` as a literal, with this reasoning: the
+       heading's code is `shown.code`, whatever is currently picked, so a state
+       tone there would be claiming something about a selection in progress.
+       §3 OVERRULES THAT FOR ONE STATE. Node 4324:1111 paints the recommended
+       code on a CHANGE in its "attention" tone, and §3 names live's lack of a
+       "differentiated treatment" as the defect. On a change the amber is not
+       saying "this is final" — it says the code MOVES, which is true the moment
+       the proposal differs from the record and reverts with it.
+       WHAT THE OLD ASSERTION PROTECTED IS STILL PROTECTED: every OTHER state
+       stays neutral, which is the half that would have been a claim about a
+       selection. So this pins the CONDITIONAL rather than either literal — a
+       hard-coded `changed` fails it just as a hard-coded `identity` does. */
+    expect(src).toMatch(
+      /code=\{shown\.code\}[\s\S]{0,1400}?tone=\{proposalKind === "change" \? "changed" : "identity"\}/
+    );
+  });
+
+  it("and the three states are each distinguishable (§3)", () => {
+    /* §3: "Shipping two of three leaves the third to fall back on whatever the
+       code happens to do." So the set is asserted as a set:
+         assign  -> the New-presentation pill
+         change  -> the amber code AND the directional line
+         renewal -> neither, which is the one that used to be the fallback */
+    expect(src, "the New-presentation pill is not gated on `assign`").toMatch(
+      /proposalKind === "assign" && <NewPresentationPill \/>/
+    );
+    expect(src, "the subordinate line is not gated on `change`").toMatch(
+      /proposalKind === "change" &&/
+    );
+    expect(src, "the directional glyph is missing").toMatch(/<CornerLeftUp/);
   });
 });
 

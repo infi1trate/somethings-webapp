@@ -174,7 +174,7 @@ async function openCareReview(page) {
      `change` and `renewal`.
      So the discriminator is the row's own label, which is reliable, and the
      assertion covers every non-change case. */
-  const cases = { change: null, notChange: null };
+  const cases = { change: null, notChange: null, changeOnRecord: null, notChangeOnRecord: null };
   for (let i = 0; i < 14 && (!cases.change || !cases.notChange); i += 1) {
     const row = page.getByRole("treeitem").nth(i);
     const rowText = (await row.innerText()).replace(/\s+/g, " ");
@@ -195,7 +195,16 @@ async function openCareReview(page) {
     await page.waitForTimeout(280);
     const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
     const kind = /Change requested/.test(rowText) ? "change" : "notChange";
-    if (!cases[kind]) cases[kind] = pt;
+    if (!cases[kind]) {
+      cases[kind] = pt;
+      /* §3 · THE PRIOR CODE IS A LOZENGE, SO READ THE LOZENGE. The word
+         "Current" is gone, replaced by a directional glyph, so the subordinate
+         line can no longer be identified from prose. The `onRecord` tone is
+         rendered by exactly one element and only when a code is superseded. */
+      const onRec = page.locator('[data-code-tone="onRecord"]').first();
+      cases[`${kind}OnRecord`] =
+        (await onRec.count()) > 0 ? await onRec.getAttribute("data-billing-code") : null;
+    }
   }
   check(
     "tasks.cases-found",
@@ -203,17 +212,28 @@ async function openCareReview(page) {
     !!cases.change && !!cases.notChange,
     `change: ${!!cases.change} · non-change: ${!!cases.notChange}`
   );
+  /* ═══ RETARGETED BY §3 — THE WORD "Current" IS GONE ═══
+     This tested `/Current/` plus a code. §3 replaces the word with the
+     directional glyph node 4324:1111 puts there: "live currently renders
+     `Current F33.0 …` — the code is now in a lozenge, but there is no
+     differentiated treatment and no directional glyph."
+     THE CLAIM IS UNCHANGED and is what this still asserts: a CHANGE renders the
+     code on record as a subordinate line. What moved is how the line says
+     "this is what is being superseded" — a glyph rather than a noun — so the
+     check reads the lozenge's own tone attribute instead of prose. Stronger
+     than the string it replaces: `onRecord` can only appear on a code the
+     module rendered through the shared component. */
   check(
     "tasks.current-line",
     "a CHANGE renders the code on record as a subordinate line",
-    cases.change && /Current/.test(cases.change) && /F\d\d\.\d/.test(cases.change),
-    (cases.change ?? "").match(/Current · [A-Z0-9.]+ [^·]{0,32}/)?.[0] ?? "none"
+    !!cases.change && !!cases.changeOnRecord,
+    cases.changeOnRecord ? `onRecord lozenge: ${cases.changeOnRecord}` : "none"
   );
   check(
     "tasks.no-line-on-renewal",
     "and a NON-CHANGE renders none — the code would be stated twice",
-    cases.notChange && !/Current ·/.test(cases.notChange),
-    (cases.notChange ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
+    cases.notChange && !(cases.notChangeOnRecord),
+    cases.notChangeOnRecord ? `onRecord present: ${cases.notChangeOnRecord}` : "none, as expected"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
 
@@ -497,7 +517,14 @@ for (const [label, url, prep, onRecordRe] of [
   /* THE HOST'S WORDING CHANGED WITH THE BLOCK (arch-F): "On record F33.1"
      became "Current · F33.1" beneath the recommendation title. The picker's own
      marker still reads "On record" — that string is the module's. */
-  ["tasks", "/app/care-reviews", null, /Current[^A-Z]*([A-Z]\d+\.\d+)/],
+  /* ═══ RETARGETED BY §3 — SAME SUPERSESSION AS `tasks.current-line` ═══
+     It read the code out of "Current · F33.1" and §3 removed the word, so the
+     regex matched nothing and the picker checks downstream reported "no code to
+     search for" — a probe with no input, not a product defect.
+     THE LOZENGE IS THE SOURCE NOW: the prior code is the only `onRecord`-toned
+     element on the pane, so this asks the DOM for it instead of parsing prose.
+     `null` here means "not a regex over body text" — see the branch below. */
+  ["tasks", "/app/care-reviews", null, null],
   ["care", "/admin/person/t19?tab=care", openCareReview, /Primary presentation[\s\S]{0,40}?([A-Z]\d+\.\d+)/],
 ]) {
   const { context, page } = await open(`picker-${label}`, url);
@@ -510,12 +537,15 @@ for (const [label, url, prep, onRecordRe] of [
      walk timed out clicking a row under the open picker. */
   if (label === "tasks") {
     for (let i = 0; i < 14; i += 1) {
-      /* NORMALISED: `innerText` puts a newline between the "Current" span and
-         the "·" span, so a literal "Current ·" never matches the raw string —
-         the first version of this walk clicked fourteen rows and broke on none
-         of them. */
-      const body = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-      if (/Current ·/.test(body)) break;
+      /* ═══ THE WALK'S STOP CONDITION MOVED WITH THE LINE (§3) ═══
+         It stopped on the string "Current ·", with a note about normalising
+         `innerText` because a newline fell between the two spans. §3 removed the
+         word, so the walk ran all fourteen rows, stopped on none, and the two
+         checks below reported "no code to search for" — a probe with no input.
+         THE DOM IS THE CONDITION NOW: the `onRecord` lozenge exists exactly when
+         a code is being superseded, which is the state this walk is looking
+         for. No normalisation needed, because it is not reading prose. */
+      if (await page.locator('[data-code-tone="onRecord"]').count()) break;
       await page.getByRole("treeitem").nth(i).click();
       await page.waitForTimeout(260);
     }
@@ -538,7 +568,18 @@ for (const [label, url, prep, onRecordRe] of [
        recurrent, moderate · F33.1 · On record". The claim is that the module
        marks the code the HOST states, so the probe now asks the host what that
        code is and looks for it where it can be seen. */
-    const onRecordCode = (await page.locator("body").innerText()).match(onRecordRe)?.[1];
+    /* THE HOST STATES THE CODE EITHER AS A LOZENGE OR IN PROSE, depending on
+       which host it is. Tasks renders the prior code through
+       `BillingCodeLozenge` with `tone="onRecord"`; the Care page still states a
+       "Primary presentation" line. One branch each, rather than one regex that
+       has to cover both. */
+    const onRecordCode = onRecordRe
+      ? (await page.locator("body").innerText()).match(onRecordRe)?.[1]
+      : await page
+          .locator('[data-code-tone="onRecord"]')
+          .first()
+          .getAttribute("data-billing-code")
+          .catch(() => null);
     check(`picker.${label}.host-states-code`, "the host states a code to look for", !!onRecordCode, onRecordCode ?? "none");
     const search = page.getByRole("dialog").locator('input[aria-label^="Search presentations"]').first();
     if (onRecordCode) {

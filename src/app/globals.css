@@ -472,3 +472,78 @@
     background-color: var(--band-amber-bg);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §2 · THE LIST AND PANE SCROLLBARS — OVERLAY, INSET, QUIET AT REST
+   ═══════════════════════════════════════════════════════════════════════════
+
+   THE DEFECT: "the list scrollbar currently sits over row content rather than
+   beside it." MEASURED, this Chromium runs OVERLAY scrollbars — the two inner
+   scrollers report `offsetWidth - clientWidth` of 0 and 2px, so the bar is not
+   reserving a gutter and is painting on top of the rows.
+
+   SO THE FIX IS TWO HALVES AND ONLY ONE OF THEM IS THE BAR. The bar is styled
+   here; the INSET is padding on the scroller, at its own call site, because
+   only the call site knows how much padding its content already has. A
+   `scrollbar-gutter: stable` would reserve space instead and shift every row
+   left by the bar's width, which is a different design than "overlay, inset".
+
+   ═══ 24px OF GRAB INSIDE A 6px MARK ═══
+
+   §2: "Interactive hit area stays at least 24x24 CSS px even though the visual
+   track is thinner — use a transparent wider hit region. An auto-hiding
+   scrollbar that is also hard to grab fails 2.5.8."
+   `border: 9px solid transparent` + `background-clip: content-box` is that: the
+   thumb's BOX is the full 24px and takes the pointer, while the painted area is
+   the 6px content box inside it. 6px is the same mark the unviewed dot uses and
+   the same 2px half-step of the 4px grid, which is the only spacing scale this
+   product has.
+
+   ═══ QUIET AT REST, AND THREE WAYS TO WAKE IT ═══
+
+   Transparent at rest. It tints on `:hover` of the whole scrolling region (not
+   of the bar — §2 asks for the region), on `:focus-within` so a keyboard reader
+   scrolling with the arrow keys sees it, and on `[data-scrolling]`, which
+   `use-scroll-activity` sets for 900ms after a scroll event. macOS convention,
+   so familiar rather than novel.
+   `--border-contour` AT REST-VISIBLE and `--text-muted` under the pointer: both
+   existing tokens, no new ones, and the low-contrast step §2 asks for.
+
+   ═══ WHAT THIS CANNOT DO, STATED ═══
+
+   `::-webkit-scrollbar` is Chromium/WebKit. Firefox honours only
+   `scrollbar-width`/`scrollbar-color`, which cannot express a transparent hit
+   region — so on Firefox this degrades to a thin native bar with no 24px grab
+   zone. Reported rather than papered over; the app targets Chromium today. */
+@layer utilities {
+  .scroll-slim::-webkit-scrollbar {
+    width: 24px;
+    height: 24px;
+  }
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    background-clip: content-box;
+    border: 9px solid transparent;
+    border-radius: var(--radius-pill);
+    transition: background-color 160ms ease;
+  }
+  .scroll-slim:hover::-webkit-scrollbar-thumb,
+  .scroll-slim:focus-within::-webkit-scrollbar-thumb,
+  .scroll-slim[data-scrolling="true"]::-webkit-scrollbar-thumb {
+    background-color: var(--border-contour);
+  }
+  .scroll-slim::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
+  }
+  /* NO TRANSITION FOR A READER WHO ASKED FOR NONE. The bar still appears and
+     still tints; it just does not fade, which is the same split the chat
+     reference flash uses above. */
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-slim::-webkit-scrollbar-thumb {
+      transition: none;
+    }
+  }
+}

@@ -52,13 +52,13 @@
       "id": "tasks.current-line",
       "label": "a CHANGE renders the code on record as a subordinate line",
       "ok": true,
-      "detail": "Current · F33.0 Major depressive disorder, recur"
+      "detail": "onRecord lozenge: F33.0"
     },
     {
       "id": "tasks.no-line-on-renewal",
       "label": "and a NON-CHANGE renders none — the code would be stated twice",
       "ok": true,
-      "detail": "none"
+      "detail": "none, as expected"
     },
     {
       "id": "tasks.no-on-record-strip",
@@ -81,7 +81,7 @@
       "id": "tasks.one-lozenge-shape",
       "label": "and they share one shape and one type size",
       "ok": true,
-      "detail": "F33.1/identity, F33.0/onRecord — 12px/16px|3.35544e+07px"
+      "detail": "F33.1/changed, F33.0/onRecord — 12px/16px|3.35544e+07px"
     },
     {
       "id": "tasks.no-record-strip",

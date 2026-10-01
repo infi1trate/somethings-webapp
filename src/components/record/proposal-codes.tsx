@@ -117,19 +117,93 @@ export function BillingCodeLozenge({
       className={cn(
         LOZENGE,
         tone === "changed"
-          ? "bg-[var(--band-amber-bg)] font-semibold text-[var(--band-amber-fg)]"
+          ? /* ═══ THE FIGMA'S "attention" TONE, MAPPED (§3) ═══
+               Node 4324:1111 paints the recommended code on a change with
+               `surface/s4` #c3b798, a `surface/s7` #82734f hairline and
+               `text/onPrimary` white. NEITHER TOKEN EXISTS IN THIS APP — the
+               surface scale here is s0/s1/s2 and stops — and MEASURED, white on
+               #c3b798 is **1.99:1**, against 4.5 for 12px text. So the literal
+               values are both unavailable and a WCAG failure, and mapping them
+               by eye would be shipping a measured failure.
+               `--band-amber-*` IS THE BLOOM EQUIVALENT AND IT WAS ALREADY HERE:
+               7.24:1 light, 5.73:1 dark, and its recorded meaning is the one the
+               attention slot wants — "a change is the one that wants a second
+               look". Zero new tokens, which is this repo's rule. */
+            "bg-[var(--band-amber-bg)] font-semibold text-[var(--band-amber-fg)]"
           : tone === "proposed"
             ? /* THE PROPOSED CODE CARRIES THE INK. It is the thing being
                  decided; the code on record is context for it. */
               "bg-[var(--surface-s2)] font-semibold text-[var(--text-primary)]"
-            : tone === "identity"
-              ? "border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] text-[var(--text-secondary)]"
-              : "border border-[color:var(--border-contour)] text-[var(--text-secondary)]",
+            : /* ═══ ONE NEUTRAL PAINT FOR `identity` AND `onRecord` (§3) ═══
+                 The node has exactly TWO code-lozenge treatments — "attention"
+                 and "Default" — and its Default (`surface/s1` fill,
+                 `border/border-subtle` hairline, `text/secondary` ink) is
+                 token-for-token what `identity` already shipped: #f6f4ef,
+                 #dfddd8, #58534b against this app's own s1, border-subtle and
+                 text-secondary. Exact match, no mapping needed.
+                 SO `onRecord` ADOPTS IT rather than keeping its own outline.
+                 It used to be border-only on no fill, which read as a THIRD
+                 treatment the reference does not have — and beside the amber
+                 `changed` lozenge in a from->to pair, an unfilled chip read as
+                 absent rather than as superseded.
+                 THE TWO NAMES SURVIVE because they are different STATEMENTS at
+                 different sites — `onRecord` is a code being superseded,
+                 `identity` is a code being named — and the reference painting
+                 both the same way is an argument for one paint, not for one
+                 name. The day either needs its own, the branch is here. */
+              "border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] text-[var(--text-secondary)]",
         className
       )}
       style={{ fontFamily: "var(--font-mono)" }}
     >
       {code}
+    </span>
+  );
+}
+
+/** ═══ §3 · THE THIRD STATE'S PILL — `New presentation` ═══
+ *
+ *  Node 4324:1111 carries a HIDDEN `Lozenge` at x=489 on line 1 — 118x24, pill
+ *  radius, `sky/100` #b8f1ff ground with `sky/800` #005b76 text, Lausanne 500
+ *  at 12/16, reading "New presentation". Hidden in that variant because the
+ *  variant is a CHANGE; it is the first-assignment state's mark, and finding it
+ *  hidden is what told us the set has three members rather than two.
+ *
+ *  ═══ THE ONE MAPPING WITH NO BLOOM ANSWER, STATED ═══
+ *
+ *  `sky` DOES NOT EXIST HERE. The band palette is sand / amber / clay / sage /
+ *  rose and there is no blue; `--surface-s*` stops at s2. The Figma pair
+ *  measures 6.19:1, so it is not a contrast problem — it is a token problem,
+ *  and "zero new tokens" is this repo's rule. A `--band-sky-*` pair would be
+ *  two new tokens introduced by a component.
+ *
+ *  `--band-sage-*` IS THE NEAREST AVAILABLE PAIR: the only cool one, 5.41:1
+ *  light and 7.45:1 dark, and the distinct accent §3 asks for — it is used
+ *  nowhere else on this surface, so it cannot be confused with a state that
+ *  already has a meaning. Sage reads as new rather than as alarming, which is
+ *  the right register for a first assignment.
+ *  THE COST IS STATED: it is GREEN where the reference is BLUE, and sage is
+ *  also the Care page's "on track" hue elsewhere in the system. If the accent
+ *  has to be blue, that is a token decision rather than a component one, and
+ *  this is the call site to change.
+ *
+ *  A TEXT PILL, NOT A CODE LOZENGE, so it is deliberately NOT
+ *  `BillingCodeLozenge`: it holds a phrase, takes the pill radius the node
+ *  gives it, and carries no `data-billing-code` — the guard test's "one
+ *  emitter" invariant stays true because this emits nothing.
+ */
+export function NewPresentationPill() {
+  return (
+    <span
+      data-anno-ref="new-presentation-pill"
+      className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[12px] leading-[16px]"
+      style={{
+        backgroundColor: "var(--band-sage-bg)",
+        color: "var(--band-sage-fg)",
+      }}
+    >
+      {/* NEEDS-COPY-NICOLE. The node's own string. */}
+      New presentation
     </span>
   );
 }

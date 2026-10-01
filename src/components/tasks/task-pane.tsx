@@ -50,6 +50,7 @@ import {
   firstNameOf,
 } from "@/lib/tasks/conversation";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
+import { useScrollActivity } from "@/lib/ui/use-scroll-activity";
 /* §3.2 asks for "the same MENTOR label treatment as Risk Flags", and this is
    that treatment — the component, not a copy of its declarations. Already
    shared with `escalation-region`, so this is its third caller and still one
@@ -848,6 +849,9 @@ export function TaskPane({
      hooks cannot live after one — and it has to handle the no-item case itself
      rather than being skipped, or the page would keep pressing the last item's
      buttons after the list emptied. */
+  /* §2 · the pane body's scroller, for `data-scrolling`. */
+  const paneScrollRef = useRef<HTMLDivElement | null>(null);
+  useScrollActivity(paneScrollRef);
   const payload = item?.payload;
   const confirmCode =
     payload?.kind === "billing" ? (activeOverride ?? payload.recommended) : null;
@@ -1252,8 +1256,16 @@ export function TaskPane({
            transition is a measurement that cannot tell "no fade" from "a fade
            that has not started". */
         data-fade-phase={phase}
+        /* §2's "appears on scroll" needs a node to write the attribute onto;
+           hover and focus-within are CSS and need nothing. */
+        ref={paneScrollRef}
         className={cn(
-          "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          /* ═══ §2 · THE PANE'S OWN SCROLLBAR, SAME TREATMENT ═══
+             `scroll-slim` for the bar; the inset is the `pr-2` added to the
+             existing `px-5`, giving 28px of right padding against a 6px thumb.
+             The pane's content is prose and form fields at full width, so an
+             overlay bar sat over the right edge of every line of the rationale. */
+          "scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pr-7",
           /* ═══ SCROLL PADDING FOR THE STICKY BAR (arch-F, F3) ═══
              The action bar is the last child of this scroller and sticks to its
              bottom edge, so a focus move to a field near the end would land the

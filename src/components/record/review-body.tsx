@@ -40,7 +40,7 @@
 // a prop called `expanded` would be a lie there.
 
 import { useState, useRef } from "react";
-import { ChevronRight, Pencil } from "lucide-react";
+import { ChevronRight, CornerLeftUp, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -62,7 +62,11 @@ import {
 } from "@/lib/record/care-demo";
 import { Provenance } from "@/components/record/provenance";
 import { proposalKindFor } from "@/lib/record/proposal-kind";
-import { BillingCodeLozenge, ProposalCodes } from "@/components/record/proposal-codes";
+import {
+  BillingCodeLozenge,
+  NewPresentationPill,
+  ProposalCodes,
+} from "@/components/record/proposal-codes";
 import { cn } from "@/lib/utils";
 
 /* VERBATIM FROM THE CARD, and it was wrong for one run: this was written with a
@@ -427,7 +431,40 @@ export function ReviewBody({
                 shape (a pill) and the height (18 from 22), not the weight the
                 chip carries. The tone is deliberately NOT `changed`: see the
                 prop's note on why a heading may not restate the decision. */}
-            <BillingCodeLozenge code={shown.code} tone="identity" />
+            <BillingCodeLozenge
+              code={shown.code}
+              /* ═══ §3 · THE STATE IS IN THE TONE NOW ═══
+                 The node paints the recommended code on a CHANGE in its
+                 "attention" tone and leaves every other state on Default. That
+                 is the differentiated treatment §3 says live is missing.
+                 `changed` IS THAT TONE, MAPPED — see its branch for why the
+                 node's own `surface/s4` + white cannot be used (no such token
+                 here, and 1.99:1 measured).
+                 AND IT IS STILL NOT A CLAIM ABOUT A SELECTION IN PROGRESS. The
+                 earlier note argued `identity` because `shown.code` is whatever
+                 the supervisor has picked; that holds for the OTHER states and
+                 is why they stay neutral. On a change the amber is not saying
+                 "this is final", it is saying "the code moves" — which is true
+                 of the proposal the moment it differs from the record, and
+                 reverts with it if the supervisor reverts. */
+              tone={proposalKind === "change" ? "changed" : "identity"}
+            />
+            {/* ═══ §3 · STATE 1 OF 3 — `New presentation` ═══
+                Gated on `assign`, which is `proposalKindFor`'s "no prior code
+                on record" — §3's state 1 exactly. The node puts this pill on
+                line 1 beside the code and statement, and hides it on a change.
+                RENEWAL GETS NEITHER THIS NOR LINE 2, which is what makes the
+                set complete rather than two-of-three: `assign` has the pill,
+                `change` has the amber code and the directional line, and
+                `renewal` has the neutral code alone — three states, three
+                readings, and no state falling back on "whatever the code
+                happens to do".
+                WHY A RENEWAL SAYS NOTHING EXTRA: the prior code stands, so
+                there is no delta to draw and no newness to mark. The kind is
+                still spoken — `proposalSpoken` carries "Renewal proposed" into
+                the accessible name — so the state is never silent, only quiet
+                on screen. */}
+            {proposalKind === "assign" && <NewPresentationPill />}
             <p className="text-[20px] font-semibold leading-[24px] tracking-[-0.2px] text-[var(--text-primary)]">
               {shown.statement}
             </p>
@@ -476,30 +513,50 @@ export function ReviewBody({
             was gated on the code being PRESENT rather than on the proposal being
             a change, so it rendered for renewals too. */}
         {showCurrentLine && currentCode && proposalKind === "change" && (
-          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
-            {/* NEEDS-COPY-NICOLE */}
-            <span>Current</span>
-            <span aria-hidden className="opacity-40">·</span>
-            {/* ═══ THE PRIOR CODE IS A LOZENGE TOO (§3 continuity) ═══
-                It was `<span className="font-mono tabular-nums">` — plain text
-                at the paragraph's inherited 12.5px, with no handle and no
-                lozenge. The elevation pack names this exact element: "Shipping
-                two of three leaves the third to fall back on whatever the code
-                happens to do, which is how the plain-text `Current · F33.0 …`
-                line survived this long."
-                SO THIS PANE RENDERED TWO BILLING CODES AND ONLY ONE WAS A
-                LOZENGE — found by probing for code-SHAPED text outside the
-                component rather than by reading, which is why the shape regex
-                is what the guard test uses.
-                `onRecord` IS THE TONE THAT ALREADY MEANT THIS: "the code being
-                changed FROM", outlined with no fill. The line's own job is
-                unchanged — quiet, subordinate, beneath the recommendation it
-                qualifies — and the outlined lozenge is quieter than a filled
-                one while still being the same object as the heading's.
-                IT ALSO LEAVES AN OFF-RAMP SIZE BEHIND: 12.5px inherited from
-                this paragraph is not a Bloom step; the lozenge is 12/16. */}
-            <BillingCodeLozenge code={currentCode} tone="onRecord" />
-            {currentStatement && <span className="min-w-0">{currentStatement}</span>}
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+            {/* ═══ §3 · THE DIRECTIONAL GLYPH, FROM NODE 4324:1111 ═══
+                The node's line 2 is `[icon 16x16] [prior code] prior statement`
+                with a 4px gap between the glyph and the code, and the icon is
+                named `16px/circle` / `corner-left-up` — an elbow pointing back
+                and up at the recommendation above it.
+                IT REPLACES THE WORD "Current". The line read `Current · F33.0
+                …`, and §3's complaint is that live has "no differentiated
+                treatment and no directional glyph". The glyph says the same
+                thing the word did and says it as DIRECTION, which is the fact —
+                this code is what the one above supersedes. Dropping the word
+                also drops the `·` separator it needed.
+                `CornerLeftUp` IS LUCIDE'S NAME FOR THE SAME MARK, and lucide is
+                already this product's icon set, so the asset is not imported
+                from Figma — the shape is.
+                `aria-hidden`, AND THE DIRECTION IS STILL SPOKEN. An elbow
+                announced between two codes is a reader guessing; the sentence
+                below carries it in words, the same split `ProposalCodes` uses
+                for its own arrow. */}
+            <span className="inline-flex items-center gap-1">
+              <CornerLeftUp aria-hidden className="size-4 shrink-0" />
+              {/* ═══ THE PRIOR CODE, IN THE NODE'S `Default` TONE (§3) ═══
+                  It was plain mono text at an inherited 12.5px with no handle —
+                  the rendering the elevation pack named as the one that
+                  "survived this long". `onRecord` is the tone that means a code
+                  being superseded, and it now paints as the node's Default
+                  lozenge: s1 fill, subtle hairline, secondary ink, which maps
+                  token-for-token onto the node's #f6f4ef / #dfddd8 / #58534b. */}
+              <BillingCodeLozenge code={currentCode} tone="onRecord" />
+            </span>
+            {currentStatement && (
+              /* THE NODE TYPES THIS AT `Body/Medium/Web` — Lausanne 400 14/20,
+                 `text/secondary`. The paragraph was 12.5/17, which is not a
+                 Bloom pair at all; 14/20 is, and it is the node's. */
+              <span className="min-w-0 text-[14px] leading-[20px]">
+                {currentStatement}
+              </span>
+            )}
+            {/* THE SPOKEN FORM OF THE DIRECTION, for the glyph above. */}
+            <span className="sr-only">
+              {/* NEEDS-COPY-NICOLE */}
+              changing from {currentCode}
+              {currentStatement ? `, ${currentStatement}` : ""}
+            </span>
           </p>
         )}
       </div>
