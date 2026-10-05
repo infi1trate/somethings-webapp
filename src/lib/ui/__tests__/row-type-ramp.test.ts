@@ -100,16 +100,11 @@ const pairKey = (h: Hit) => `${h.file} ${h.size}/${h.leading}`;
 /** ═══ REGISTER 1 · SIZES THAT ARE NOT RAMP STEPS ═══ */
 const REGISTERED_SIZES: Record<string, string> = {
   "worklist.tsx 11":
-    "the overdue chip, at both row and toolbar size. 11px is BELOW Bloom's " +
+    "the overdue chip (row and pane header — its toolbar form was removed with the overdue filter). 11px is BELOW Bloom's " +
     "smallest step (12) and the chip has to fit a row's trailing column beside " +
     "a 14px figure. Owed a decision rather than a silent bump: at 12px it " +
     "competes with the age it sits next to, which is the emphasis rule arch-F " +
     "set for that zone.",
-  "worklist.tsx 13":
-    "the overdue chip at TOOLBAR size, where it is a standalone control rather " +
-    "than row furniture. 14px is the obvious target and it changes the " +
-    "control's hit box, so it belongs to whoever owns the toolbar rather than " +
-    "to a row pass.",
   "review-row.tsx 13":
     "the whole-page empty state's body copy and the retiring band's button. " +
     "Neither is a row — they are the list's own states — and both are 44px-tall " +
@@ -120,7 +115,6 @@ const REGISTERED_SIZES: Record<string, string> = {
 /** ═══ REGISTER 2 · DECLARED PAIRS THE RAMP DOES NOT GIVE ═══ */
 const REGISTERED_PAIRS: Record<string, string> = {
   "worklist.tsx 11/14": "see the 11px entry above — the pair follows the size.",
-  "worklist.tsx 13/18": "see the 13px entry above — the pair follows the size.",
   "review-row.tsx 13/18": "see the 13px entry above — the pair follows the size.",
   "review-row.tsx 16/20":
     "`NAME_CLASS`, the shared identity cell's name — Today's table only, since " +

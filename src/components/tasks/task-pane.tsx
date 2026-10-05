@@ -23,9 +23,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
+import { AlertTriangle, ChevronDown } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
-import { RecordButton, recordButtonClass } from "@/components/record/record-button";
+import { RecordButton } from "@/components/record/record-button";
 import { ReviewBody } from "@/components/record/review-body";
 import { billingReviewFor } from "@/lib/tasks/billing-presentation";
 import type { ReviewDecision } from "@/lib/record/review-draft";
@@ -969,7 +969,7 @@ export function TaskPane({
             className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-6 py-5">
       <div
           /* ═══ TWO ROWS: THE TEEN, THEN ONE LINE ABOUT THE MENTORSHIP ═══
-             Row 1  teen name · overdue marker (when overdue)  |  View care journey
+             Row 1  teen name · View care history  |  overdue marker (when overdue)
              Row 2  Mentored by [chip] · N days in mentorship · N messages …
              SUPERSEDES LAST PASS's "chip | metrics" pairing, whose argument —
              the metrics describe the mentorship and the chip IS the mentorship —
@@ -978,12 +978,18 @@ export function TaskPane({
              stat strip, for the reasons on `HeaderSentence`. */
           className="flex flex-col gap-2"
         >
-          {/* ── ROW 1 · the teen, their urgency, and the action ─────────── */}
-          {/* `items-center`: the button is "vertically centered on the name",
-              and a 40px name line against a 44px button is exactly where
-              baseline alignment would hang the button low. */}
+          {/* ── ROW 1 · the teen and their history | urgency ────────────── */}
+          {/* ═══ THE ACTION MOVED NEXT TO THE NAME, THE URGENCY TOOK ITS SLOT ═══
+              It read `name · [Overdue]  |  [View care journey]` — a bordered
+              button owning the right edge. Product moved it: the history is now
+              a quiet text link beside the name it belongs to, and the right
+              edge goes to the overdue marker, which is the one fact in the band
+              that changes from item to item and so earns the far corner.
+              `items-center` on the row: the marker is a box and centres on the
+              40px name line; the name and its link share a BASELINE inside the
+              left group, because both are text. */}
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 items-baseline gap-2">
               <h2
                 /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance
                    rule is a statement about which record is on screen after a
@@ -1002,49 +1008,39 @@ export function TaskPane({
               >
                 {item.teenDisplayName}
               </h2>
-              {/* ═══ §2.4 · URGENCY, ONLY WHEN THERE IS SOME ═══
-                  `Days open` left the band; this replaces it. "Overdue state
-                  next to the name, only when the review is overdue, using the
-                  system breach pattern and icon."
-                  `OverdueChip` IS that pattern — the same component the list
-                  rows and the toolbar use, clay pair plus the triangle icon plus
-                  the word, so it is never colour alone (SC 1.4.1). Without
-                  `onToggle` it renders as a plain `span`, which is right here: it
-                  states a fact and filters nothing.
-                  `isOverdue`, THE SAME PREDICATE THE LIST USES, so the pane and
-                  the row cannot disagree about the same item. */}
-              {isOverdue(item, now) && <OverdueChip />}
+              <Link
+                href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
+                data-care-history-link
+                /* ═══ A TEXT LINK, AND ITS HIT AREA IS STILL 24 TALL ═══
+                   12/16 underlined in `--text-secondary` — 5.78:1 light on the
+                   band (measured last pass for the same token on the same
+                   ground). A 16px line is under SC 2.5.8's 24px, so a
+                   transparent `::after` extends the target 4px above and below
+                   without moving the baseline the name and link share. */
+                className={cn(
+                  "relative shrink-0 whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)] underline underline-offset-2",
+                  "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
+                  "rounded-sm hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                {/* NEEDS-COPY-NICOLE */}
+                View care history
+              </Link>
             </div>
 
-            <Link
-              href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
-              /* ═══ §4 · 1.4.11 FORCED THIS BOUNDARY, AND §4 PREDICTED IT ═══
-                 "Measure its boundary against the band — 3:1 — since a tonal
-                 button on a tonal band is where that fails." It does:
-                   --surface-card fill vs the band   1.32:1 light · 1.46 dark
-                   --border-contour over the fill    1.05:1 light · 2.60 dark
-                   --border-subtle                   1.03:1 light · 1.75 dark
-                   --text-muted                      4.02:1 light · 6.88 dark
-                 So neither the fill nor the component's own contour carries the
-                 boundary on this ground, and `--text-muted` is the LIGHTEST
-                 token that clears 3:1 — chosen over `--text-secondary` (5.78)
-                 because a secondary button does not want the heavier edge.
-                 AN OVERRIDE, NOT A NEW TONE. The component's shape, type, hit
-                 area and states are untouched; only the border colour moves,
-                 and it moves because the GROUND moved. A fourth tone would put
-                 this band's problem into a component four surfaces share. */
-              className={recordButtonClass("outline", "border-[color:var(--text-muted)]")}
-            >
-              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-              {/* NEEDS-COPY-NICOLE */}
-              View care journey
-            </Link>
+            {/* ═══ §2.4 · URGENCY, ONLY WHEN THERE IS SOME ═══
+                `OverdueChip` is the system breach pattern — the same component
+                the list rows use, clay pair plus the triangle icon plus the
+                word, so it is never colour alone (SC 1.4.1). Without `onToggle`
+                it renders as a plain `span`: it states a fact and filters
+                nothing. `isOverdue`, THE SAME PREDICATE THE LIST USES, so the
+                pane and the row cannot disagree about the same item. */}
+            {isOverdue(item, now) && <OverdueChip />}
           </div>
 
           {/* ── ROW 2 · one line about the mentorship ─────────────────────── */}
-          {/* §2.5: row 1 and row 2 share a LEFT edge; the right end of row 2
-              need not meet the button's, because row 2 is a line now rather
-              than a block. */}
+          {/* §2.5: row 1 and row 2 share a LEFT edge. */}
           <HeaderSentence
             mentorName={item.mentorName}
             stats={p.kind === "billing" ? p.mentorStats : null}

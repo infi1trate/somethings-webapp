@@ -60,7 +60,7 @@
 // band. The defect was this surface's alone.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
 import { OverlayScrollbar } from "@/components/ui/overlay-scrollbar";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
@@ -253,155 +253,28 @@ function childTimeLabel(openedAt: number): string {
 
 // ── Chips ───────────────────────────────────────────────────────────────────
 
-/** THE ONE BREACH CHIP PATTERN (§3.3), compact form for a row. Icon + text —
- *  never colour alone.
- *  ═══ EXPORTED FOR THE TOOLBAR (parity pack §4.3) ═══
- *  §4.3 asks the overdue chip beside the tabs to use "the system-wide breach
- *  pattern", and this is it — so the toolbar consumes this component rather
- *  than restating clay-on-clay plus a triangle in a second place. A pattern
- *  described twice is a pattern that diverges once.
- *  `count` AND `size` ARE THE ONLY PARAMETERS. The row form says just
- *  "Overdue" because the row IS the overdue thing; the toolbar form counts a
- *  subset, so it needs the figure. Nothing else about it varies. */
-export function OverdueChip({
-  count,
-  size = "row",
-  active,
-  onToggle,
-  tone = "open",
-  label,
-}: {
-  /** Omitted on a row — see above. */
-  count?: number;
-  size?: "row" | "toolbar";
-  /** ═══ §5 · IT IS A CONTROL NOW, WHEN A CALLER GIVES IT ONE ═══
-   *  The note at the toolbar's call site used to read "NOT A CONTROL. It
-   *  filters nothing and navigates nowhere." §5 gives it something to do:
-   *  "clicking filters the list to overdue items only."
-   *  `onToggle` IS WHAT PROMOTES IT. Without it this renders exactly as
-   *  before — a `span`, no tab stop, nothing to press — because the ROW still
-   *  uses it as a label and a row full of 19 pressable chips is the Hick's-Law
-   *  problem the pane header exists to avoid. One component, two jobs, and the
-   *  caller says which. */
-  active?: boolean;
-  onToggle?: () => void;
-  /** ═══ §5 · QUIETER ON `Closed`, AND THE ANSWER IS WHY ═══
-   *  Answered: a review submitted late stays marked overdue on `Closed`. §5's
-   *  own lean came with "a quieter treatment than the open queue uses", and the
-   *  reason is that the two states are different obligations: on `Open` it is
-   *  still owed and the clay fill is an alarm; on `Closed` nothing is owed and
-   *  the mark is a compliance FACT. An alarm about a closed item is an alarm a
-   *  supervisor cannot act on.
-   *  SO `past` KEEPS THE INK AND DROPS THE FILL — same clay foreground, same
-   *  icon, same word, on a tinted outline instead of a saturated ground. The
-   *  non-colour carriers §5 requires are untouched: the icon and the word
-   *  "overdue" both stay, so nothing is distinguished by hue alone in either
-   *  tone. */
-  tone?: "open" | "past";
-  /** TODO-COPY. `Closed` says "late" rather than "overdue" — see the call site. */
-  label?: string;
-} = {}) {
-  const word = label ?? "overdue";
-  const body = (
-    <>
-      <AlertTriangle
-        aria-hidden
-        className={cn("shrink-0", size === "row" ? "size-2.5" : "size-4")}
-      />
-      {/* TODO-COPY · NEEDS-COPY-NICOLE on the counted form. THE FIGURE LEADS,
-          because the word is the same on every chip and the number is what
-          varies — the same reasoning §4.2 uses for the tab counts. */}
-      {count == null
-        ? word.charAt(0).toUpperCase() + word.slice(1)
-        : `${count} ${word}`}
-    </>
-  );
-
-  /* THE SAME FOCUS RING THE TOOLBAR'S OWN CONTROLS USE. Restated rather than
-     imported because `list-toolbar` is the CONSUMER of this component, and
-     importing its constant back would make the two modules circular. The
-     literal is three declarations and it is the one this chip renders beside. */
-  const RING =
-    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
-  const shape = cn(
-    "inline-flex shrink-0 items-center gap-1 rounded-full font-semibold",
-    size === "row"
-      ? "px-1.5 py-0.5 text-[11px] leading-[14px]"
-      : /* 44px to match every other target in the toolbar — §7's hit-target
-           item, and the same bar the segmented control holds. */
-        "min-h-11 px-3 text-[13px] leading-[18px]"
-  );
-
-  /* THE TONES. `past` is the outline; `open` is the fill it always was. */
-  const paint: React.CSSProperties =
-    tone === "past"
-      ? {
-          color: "var(--band-clay-fg)",
-          borderColor: "color-mix(in oklab, var(--band-clay-fg) 32%, transparent)",
-        }
-      : { backgroundColor: "var(--band-clay-bg)", color: "var(--band-clay-fg)" };
-
-  if (!onToggle) {
-    return (
-      <span
-        data-anno-ref="overdue-chip"
-        className={cn(shape, tone === "past" && "border")}
-        style={paint}
-      >
-        {body}
-      </span>
-    );
-  }
-
+/** THE ONE BREACH CHIP PATTERN (§3.3). Icon + text — never colour alone.
+ *  ═══ EXPORTED FOR THE PANE HEADER ═══
+ *  The detail header states the same fact for the same item, so it renders
+ *  this component rather than restating clay-on-clay plus a triangle in a
+ *  second place. A pattern described twice is a pattern that diverges once.
+ *  ═══ THE TOOLBAR FORM IS GONE ═══
+ *  This took `count`, `size`, `tone`, `label` and an `onToggle` that promoted
+ *  it to §5's overdue FILTER beside the Open/Closed tabs. Product removed the
+ *  filter — the default order already puts overdue rows first — and with it
+ *  the only caller of every parameter, so the component is the row label
+ *  again: a `span`, no tab stop, nothing to press. */
+export function OverdueChip() {
   return (
-    <button
-      type="button"
+    <span
       data-anno-ref="overdue-chip"
-      data-overdue-filter={active ? "on" : "off"}
-      aria-pressed={active}
-      /* TODO-COPY. `aria-pressed` carries the state to assistive tech; the
-         label says what pressing it DOES, which a bare count would not. */
-      aria-label={
-        active
-          ? `Showing only ${word} reviews. Press to show all.`
-          : `Show only the ${count} ${word} review${count === 1 ? "" : "s"}.`
-      }
-      onClick={onToggle}
-      className={cn(
-        shape,
-        "transition-colors",
-        RING,
-        /* ═══ §5's "CLEAR ACTIVE STATE AND AN OBVIOUS WAY BACK" ═══
-           ACTIVE inverts to the clay FOREGROUND as the ground — the strongest
-           step available inside one hue pair, and it reads as pressed rather
-           than as merely hovered. NOT A NEW TOKEN: it is the same `--band-clay`
-           pair swapped, which is this codebase's rule.
-           AND IT MUST READ AS A CONTROL AT REST, which §5 also asks. At rest it
-           carries a hairline the `span` never had, so the pressable version is
-           distinguishable from the label version without being pressed — plus a
-           hover tint and the focus ring. */
-        active ? "border border-transparent" : "border"
-      )}
-      style={
-        active
-          ? {
-              backgroundColor: "var(--band-clay-fg)",
-              color: "var(--band-clay-bg)",
-            }
-          : {
-              ...paint,
-              borderColor:
-                "color-mix(in oklab, var(--band-clay-fg) 32%, transparent)",
-            }
-      }
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] leading-[14px] font-semibold"
+      style={{ backgroundColor: "var(--band-clay-bg)", color: "var(--band-clay-fg)" }}
     >
-      {body}
-      {/* THE WAY BACK, MADE VISIBLE. §5: "an obvious way back." A pressed chip
-          with no affordance for un-pressing is a state a reader has to guess
-          out of; the glyph says the next press clears it. `aria-hidden` — the
-          button's own label already says "Press to show all". */}
-      {active && <X aria-hidden className="-mr-0.5 size-3 shrink-0" />}
-    </button>
+      <AlertTriangle aria-hidden className="size-2.5 shrink-0" />
+      {/* TODO-COPY */}
+      Overdue
+    </span>
   );
 }
 

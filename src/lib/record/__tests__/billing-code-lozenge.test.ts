@@ -174,7 +174,7 @@ describe("the module renders every code through it", () => {
     /* §3: "Shipping two of three leaves the third to fall back on whatever the
        code happens to do." So the set is asserted as a set:
          assign  -> the New-presentation pill
-         change  -> the amber code AND the directional line
+         change  -> the amber code AND the `Current` line
          renewal -> neither, which is the one that used to be the fallback */
     expect(src, "the New-presentation pill is not gated on `assign`").toMatch(
       /proposalKind === "assign" && <NewPresentationPill \/>/
@@ -182,7 +182,15 @@ describe("the module renders every code through it", () => {
     expect(src, "the subordinate line is not gated on `change`").toMatch(
       /proposalKind === "change" &&/
     );
-    expect(src, "the directional glyph is missing").toMatch(/<CornerLeftUp/);
+    /* THE GLYPH WAS REPLACED BY THE WORD (product, 2026-10-05). The line
+       leads with "Current" in the eyebrow style `Recommended presentation`
+       uses, so the pair is asserted rather than the elbow it superseded. */
+    expect(src, "the directional glyph is back — product replaced it with the word").not.toMatch(
+      /<CornerLeftUp/
+    );
+    expect(src, "the current line no longer leads with the word `Current` in the label style").toMatch(
+      /style=\{LABEL_STYLE\}>[\s{}]*Current\s*</
+    );
   });
 });
 

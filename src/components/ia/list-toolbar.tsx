@@ -37,7 +37,6 @@ import {
 import { ViewOptionsButton } from "@/components/ia/view-options";
 /* §4.3's chip is the ROW chip, parameterised — see its note in `worklist.tsx`
    on why the toolbar consumes it instead of restating the treatment. */
-import { OverdueChip } from "@/components/tasks/worklist";
 import {
   activeCount,
   type FilterDimension,
@@ -152,17 +151,6 @@ export function ListToolbar<T extends Filterable>({
     onChange: (next: CareTab) => void;
     /** Per-tab counts, so a segment says how much is behind it. */
     count: Record<CareTab, number>;
-    /** §5 · whether the overdue subset is showing, and how to toggle it.
-     *  Optional so a host with no filter still renders the chip as a label. */
-    overdueOnly?: boolean;
-    onOverdueOnly?: () => void;
-    /** ═══ §4.3 — THE OVERDUE SUBSET OF THE ACTIVE TAB ═══
-     *  A chip, not a fourth segment: overdue items ARE open items, so as a peer
-     *  tab the counts would stop partitioning — `16 open · 1 overdue` with the
-     *  1 inside the 16 — and tabs read as mutually exclusive by convention.
-     *  The caller computes it over the ACTIVE tab's set, so this subsets
-     *  whichever tab is showing. Zero hides it. */
-    overdue?: number;
   };
 }) {
   /* ═══ §4 — BOTH THE PRIMARY SELECT AND THE `Filters` POPOVER ARE GATED ═══
@@ -254,16 +242,19 @@ export function ListToolbar<T extends Filterable>({
             /* NEEDS-COPY-NICOLE */
             aria-label="Which reviews to show"
             data-anno-ref="care-tabs"
-            /* ═══ THE CONTROL IS 44 TALL AND SO IS EACH SEGMENT ═══
-               It was `p-1` with `min-h-9` segments, which measured 36px per
-               target inside a 44px control. 36 clears SC 2.5.8's 24×24 floor,
-               but this codebase holds the 44px HIG bar everywhere else on this
-               toolbar — the search field and every button are `min-h-11` — and
-               a segmented control whose segments are the odd one out is the
-               kind of inconsistency nobody can see and everybody feels.
-               NO WRAPPER PADDING, so the control and its targets are the same
-               44 rather than 44 + 8. */
-            className="flex shrink-0 items-center overflow-hidden rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+            /* ═══ A TRACK AND A RAISED THUMB — THE SIDEBAR TILE'S PATTERN ═══
+               It was a bordered card-white pill with the selected segment
+               filled in primary ink: an inverted chip, the loudest thing on the
+               toolbar for a control that changes rarely. Product's reference is
+               the sidebar's own active tile: a recessed track on
+               `--surface-s2`, and the selected segment raised on
+               `--surface-card` with `--shadow-tile` — the token that tile
+               already uses, so the two read as one family.
+               THE CONTROL IS STILL 44 TALL, MATCHING THE SEARCH FIELD. `p-1`
+               around `h-9` segments — and each segment's `::after` reaches
+               4px up and down into that padding, so the TARGET is 44 tall
+               while the visible thumb is 36 (see the segment). */
+            className="flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s2)] p-1"
           >
             {CARE_TABS.map((t) => {
               const active = tabs.value === t;
@@ -277,38 +268,29 @@ export function ListToolbar<T extends Filterable>({
                   data-anno-ref={`care-tab:${t}`}
                   onClick={() => tabs.onChange(t)}
                   className={cn(
-                    "inline-flex min-h-11 items-center gap-1.5 px-3.5 text-[13px] leading-[18px] transition-colors",
+                    "relative inline-flex h-9 min-w-24 items-center justify-center gap-1 rounded-full px-5 text-[14px] leading-[20px] transition-[color,background-color,box-shadow]",
+                    /* THE HIT AREA REACHES THE TRACK'S EDGE — 36 visible, 44
+                       pressable — vertically only, so neighbours never overlap. */
+                    "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
                     /* ═══ NOT COLOUR ALONE (SC 1.4.1) ═══
-                       The selected segment carries a FILL, and `aria-checked`
-                       carries it to assistive tech — but a sighted reader in
-                       forced colours would lose the fill, so the selected
-                       segment is also the only one in primary ink at full
-                       weight. Two visual channels plus the state attribute. */
+                       The selected segment carries a raised fill AND primary
+                       ink against the others' secondary — two visual channels,
+                       plus `aria-checked` for assistive tech. */
                     active
-                      ? "bg-[var(--text-primary)] font-semibold text-[var(--text-inverse)]"
+                      ? "bg-[var(--surface-card)] text-[var(--text-primary)] shadow-[var(--shadow-tile)]"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
                     RING
                   )}
                 >
-                  {CARE_TAB_LABEL[t]}
-                  {/* ═══ §4.2 — THE COUNT DOES THE METRIC LINE'S JOB NOW ═══
-                      IT WAS 13px AT `opacity-70` — a parenthetical, which is
-                      what §4.2 rules out now that the header carries no figures
-                      at all. So it is 16px, tabular, and at full opacity.
-                      THE ACTIVE TAB'S IS STRONGEST, which §4.2 asks for and
-                      which the segment's own ink already delivers: the selected
-                      segment is `--text-inverse` on a filled ground and the
-                      others are `--text-secondary`, so the figures inherit that
-                      contrast rather than needing a second rule.
-                      `Closed 0` STILL RENDERS — knowing a tab is empty before
-                      clicking it is useful, which is the one place on this
-                      surface a zero earns its space. */}
-                  <span
-                    aria-hidden
-                    className="text-[16px] leading-[20px] tabular-nums"
-                    style={{ fontFamily: "var(--font-mono)" }}
-                  >
-                    {tabs.count[t]}
+                  {/* ═══ `Open (16)` — THE COUNT IN THE LABEL'S OWN TYPE ═══
+                      It was a 16px mono figure beside a 13px word, so the
+                      number outweighed its own label. In parentheses at the
+                      label's size it reads as one phrase; `tabular-nums` keeps
+                      the segment from changing width as the count moves.
+                      `Closed (0)` STILL RENDERS — knowing a tab is empty before
+                      clicking it is useful. */}
+                  <span aria-hidden className="tabular-nums">
+                    {CARE_TAB_LABEL[t]} ({tabs.count[t]})
                   </span>
                 </button>
               );
@@ -316,38 +298,11 @@ export function ListToolbar<T extends Filterable>({
           </div>
         )}
 
-        {/* ═══ §4.3 — THE CHIP SITS BESIDE THE TABS, NOT AMONG THEM ═══
-            Outside the `radiogroup` deliberately: inside it, a non-radio child
-            breaks the group's content model and a screen reader would count it
-            among the options — the same class of error as a roleless div inside
-            a `tree`. Beside it, it reads as what it is: a qualifier on whatever
-            the group has selected.
-            IT RENDERS ONLY ABOVE ZERO (§4.3), so a clear queue shows nothing
-            rather than a permanent `0 overdue` that teaches a reader to skip
-            the spot.
-            ═══ IT IS A CONTROL NOW (§5) ═══
-            This read "NOT A CONTROL. It filters nothing and navigates nowhere
-            — there is no overdue view to go to, and inventing one here would be
-            a disposition path on a list." §5 reverses the premise rather than
-            the reasoning: there is no overdue VIEW, and there does not need to
-            be, because the chip subsets the list in place. No navigation, no
-            disposition, no second surface — which is what the old objection was
-            actually about.
-            THE PRESSABLE FORM IS OPT-IN. `onToggle` is what promotes it, so the
-            ROW's nineteen chips stay plain `span`s — see the component. */}
-        {tabs && (tabs.overdue ?? 0) > 0 && (
-          <OverdueChip
-            count={tabs.overdue}
-            size="toolbar"
-            active={tabs.overdueOnly}
-            onToggle={tabs.onOverdueOnly}
-            /* `Closed` is a compliance fact, not an alarm — see the `tone`
-               prop. The word changes with it: nothing is OVERDUE once it is
-               submitted, it was LATE. */
-            tone={tabs.value === "closed" ? "past" : "open"}
-            label={tabs.value === "closed" ? "late" : undefined}
-          />
-        )}
+        {/* ═══ THE OVERDUE CHIP NO LONGER SITS HERE ═══
+            It was §5's filter — a count beside the tabs that subset the list
+            when pressed. Removed: the default order already puts overdue rows
+            first, so the filter isolated what was already at the top. See the
+            note at `changeCareTab` in `tasks-page.tsx`. */}
         {primary && (
           <Select
             dim={primary}

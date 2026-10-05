@@ -574,7 +574,11 @@ console.log("\n§4 · the mirror agrees with the destination\n");
       /* The numeral, not the label: `aria-label` is "Open, 16" and the visible
          figure is the `aria-hidden` span. This asserts what a sighted reader
          compares, and the label carries the same number by construction. */
-      const n = (el.textContent ?? "").match(/(\d+)\s*$/);
+      /* RETARGETED (segmented restyle, 2026-10-05): the segment reads
+         `Open (16)` now, so the figure is the parenthesised one rather than a
+         trailing bare numeral — the old `(\d+)\s*$` returned null on the
+         closing bracket and reported the element as missing. */
+      const n = (el.textContent ?? "").match(/\((\d+)\)\s*$/);
       return n ? Number(n[1]) : null;
     });
     const onToday = Number(byId["care-reviews"]?.text.match(/(\d+) open/)?.[1] ?? NaN);

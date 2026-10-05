@@ -40,7 +40,7 @@
 // a prop called `expanded` would be a lie there.
 
 import { useState, useRef } from "react";
-import { ChevronRight, CornerLeftUp, Pencil } from "lucide-react";
+import { ChevronRight, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -514,33 +514,22 @@ export function ReviewBody({
             a change, so it rendered for renewals too. */}
         {showCurrentLine && currentCode && proposalKind === "change" && (
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[12px] leading-[16px] text-[var(--text-secondary)]">
-            {/* ═══ §3 · THE DIRECTIONAL GLYPH, FROM NODE 4324:1111 ═══
-                The node's line 2 is `[icon 16x16] [prior code] prior statement`
-                with a 4px gap between the glyph and the code, and the icon is
-                named `16px/circle` / `corner-left-up` — an elbow pointing back
-                and up at the recommendation above it.
-                IT REPLACES THE WORD "Current". The line read `Current · F33.0
-                …`, and §3's complaint is that live has "no differentiated
-                treatment and no directional glyph". The glyph says the same
-                thing the word did and says it as DIRECTION, which is the fact —
-                this code is what the one above supersedes. Dropping the word
-                also drops the `·` separator it needed.
-                `CornerLeftUp` IS LUCIDE'S NAME FOR THE SAME MARK, and lucide is
-                already this product's icon set, so the asset is not imported
-                from Figma — the shape is.
-                `aria-hidden`, AND THE DIRECTION IS STILL SPOKEN. An elbow
-                announced between two codes is a reader guessing; the sentence
-                below carries it in words, the same split `ProposalCodes` uses
-                for its own arrow. */}
-            <span className="inline-flex items-center gap-1">
-              <CornerLeftUp aria-hidden className="size-4 shrink-0" />
-              {/* ═══ THE PRIOR CODE, IN THE NODE'S `Default` TONE (§3) ═══
-                  It was plain mono text at an inherited 12.5px with no handle —
-                  the rendering the elevation pack named as the one that
-                  "survived this long". `onRecord` is the tone that means a code
-                  being superseded, and it now paints as the node's Default
-                  lozenge: s1 fill, subtle hairline, secondary ink, which maps
-                  token-for-token onto the node's #f6f4ef / #dfddd8 / #58534b. */}
+            {/* ═══ THE WORD "Current", BACK IN PLACE OF THE GLYPH ═══
+                §3 (node 4324:1111) replaced the word with a `CornerLeftUp`
+                elbow pointing at the recommendation above. Product reversed
+                that: the line reads `Current [code] statement`, and the label
+                wears the SAME style as `Recommended presentation` above it —
+                `LABEL_STYLE` in `--text-tertiary` — so the two slots read as a
+                pair of labelled values rather than a heading and a footnote.
+                A WORD NEEDS NO SPOKEN TWIN. The glyph was `aria-hidden` and had
+                an sr-only "changing from …" sentence standing in for it; the
+                visible word now says it to everybody, so that sentence is gone
+                rather than announcing the code twice. */}
+            <span className="inline-flex items-center gap-2">
+              <span className="text-[var(--text-tertiary)]" style={LABEL_STYLE}>
+                {/* TODO-COPY */}
+                Current
+              </span>
               <BillingCodeLozenge code={currentCode} tone="onRecord" />
             </span>
             {currentStatement && (
@@ -551,12 +540,6 @@ export function ReviewBody({
                 {currentStatement}
               </span>
             )}
-            {/* THE SPOKEN FORM OF THE DIRECTION, for the glyph above. */}
-            <span className="sr-only">
-              {/* NEEDS-COPY-NICOLE */}
-              changing from {currentCode}
-              {currentStatement ? `, ${currentStatement}` : ""}
-            </span>
           </p>
         )}
       </div>
