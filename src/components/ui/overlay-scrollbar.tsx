@@ -125,14 +125,28 @@ export function OverlayScrollbar({
     const cs = getComputedStyle(sc);
     rail.style.marginRight = `-${cs.paddingRight}`;
     rail.style.marginLeft = `-${cs.paddingLeft}`;
-    rail.style.marginTop = `-${cs.paddingTop}`;
+    /* ═══ VERTICALLY, THE RAIL STAYS PUT AND THE THUMB IS OFFSET ═══
+       This set `marginTop: -paddingTop` to lift the rail to the padding edge.
+       MEASURED, it did two wrong things and no right one:
+       1. It ATE THE TOP PADDING. The rail is a 0-height block in flow, so
+          pulling it up 16px pulled everything after it up too — the pane's
+          first label sat 0px from the scroller's edge instead of `py-4`'s 16.
+       2. It NEVER MOVED THE THUMB. A sticky box's `top: 0` is measured from
+          the scroller's CONTENT edge — inside its padding — so sticky pushed
+          the rail straight back to 16px, and the pane's thumb has sat 16px
+          low since it shipped: 20px from the top instead of 4, overshooting
+          the bottom by 12. The list never showed it because it has no top
+          padding.
+       So the rail takes no vertical margin and the thumb's own offset
+       subtracts the padding instead (below). */
+    const padTop = parseFloat(cs.paddingTop) || 0;
 
     const track = view - INSET_PX * 2;
     const h = Math.max(THUMB_MIN_PX, Math.round((view / total) * track));
     const range = track - h;
     const ratio = sc.scrollTop / (total - view);
     thumb.style.height = `${h}px`;
-    thumb.style.transform = `translateY(${INSET_PX + Math.round(ratio * range)}px)`;
+    thumb.style.transform = `translateY(${INSET_PX - padTop + Math.round(ratio * range)}px)`;
   }, [scrollerOf]);
 
   useLayoutEffect(() => {

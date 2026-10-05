@@ -1203,7 +1203,14 @@ export function TaskPane({
       <div
         data-slot="task-pane-footer"
         className={cn(
-          "sticky bottom-0 -mx-5 -mb-4 mt-4 border-t border-[color:var(--border-subtle)]",
+          /* ═══ `-bottom-4`, NOT `bottom-0` — THE PADDING IS WHY ═══
+             A sticky box's inset is measured from the scroller's CONTENT edge,
+             inside its `py-4`. So `bottom-0` pinned the bar 16px ABOVE the
+             pane's bottom edge, and the fields scrolled through that strip
+             underneath it — measured, a 16px gap below the bar on every
+             scrolled pane. `-bottom-4` cancels the padding exactly, pinning
+             the bar to the edge; `-mb-4` still does the short-content case. */
+          "sticky -bottom-4 -mx-5 -mb-4 mt-4 border-t border-[color:var(--border-subtle)]",
           "bg-[var(--surface-card)] px-5 py-3.5",
           /* ═══ AN EXISTING TOKEN, NOT A NEW VALUE ═══
              The first two attempts were arbitrary values — `shadow-[0_-1px_3px_
