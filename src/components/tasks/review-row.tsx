@@ -119,6 +119,40 @@ export const COL_AGE_BOX = COL_AGE + 24;
  *  gutter cut to 16. Without the time the column is 92px narrower, Cycle shows
  *  at every width again, and the gutter is the age column's 24. */
 export const COL_CLOSED = 104;
+
+/* ═══ `Assigned to` (admin only) ═══
+   A supervisor's name in the row's body face: basis 120 (the longest fixture
+   name, `Stephen Rowe`, is 92.2px), floor 88, yielding before the mentee column
+   does. The numbers live in `ASSIGNED_FLEX` below, as literal classes, because
+   the basis changes at a breakpoint. */
+
+/** ═══ BELOW 1440 THE NAME SHORTENS, AND THE COLUMN WITH IT (answered) ═══
+ *  MEASURED at 1280 on Closed with Cycle already hidden: the mentee line and
+ *  this column needed 213px (`Changed to F33.1` 120 + `Stephen Rowe` 92.2) and
+ *  had 196. Below 1440 the cell shows first name + initial (`Stephen R.`,
+ *  ~70px) and its basis and floor drop to 72, which hands the mentee line
+ *  the 16px it was short. The full name stays in the tooltip and in the row's
+ *  accessible name. Written as classes, not inline style, because the basis
+ *  has to change at a breakpoint and an inline style cannot.
+ *  BOTH TABS, so the column never changes format on a tab switch. */
+const ASSIGNED_FLEX =
+  "flex-[0_4_120px] min-w-[88px] max-[1439px]:flex-[0_4_72px] max-[1439px]:min-w-[72px]";
+
+/** `Stephen Rowe` → `Stephen R.` A single word is returned as is. */
+export function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/);
+  return parts.length < 2 ? full : `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+/** ═══ WITH `Assigned to` ON, CYCLE HIDES BELOW 1600 (answered 2026-10-06) ═══
+ *  MEASURED for an admin: a row needs ~104px of fixed furniture, the mentee
+ *  line ~130 (`Changed to F33.1` is 120), Cycle 56, Assigned to ~95. Shortfalls
+ *  with all four: 1440 Closed 17px, 1280 Open 65px, 1280 Closed 97px — 550 of
+ *  600 names and every outcome line clipped at 1280. Hiding Cycle frees 68px,
+ *  which covers 1440 and 1280 Open; at 1280 Closed `Assigned to` takes up the
+ *  rest by sitting at its 88px floor. Supervisors never see `Assigned to`,
+ *  so their Cycle is unaffected. Header and cell carry the same class. */
+export const CYCLE_HIDDEN_BELOW_1600 = "max-[1599px]:hidden";
 export const COL_CLOSED_BOX = COL_CLOSED + 24;
 
 /** ═══ THE MENTEE COLUMN'S SHARE OF THE ROW (§6.5, corrected in §3) ═══
@@ -222,6 +256,8 @@ export function ReviewRowHeader({
   ageWidth = COL_AGE_BOX,
   /** WHICH TRAILING COLUMN — `age` on Open, `closed` on Closed. */
   trailing = "age",
+  /** Render the admin-only `Assigned to` column. */
+  assigned = false,
   /** The row's leading marker slot, so the header's first column starts at the
    *  same x the row's does. 0 on a surface that draws no marker — Today's
    *  preview table — which is why it defaults to nothing rather than to 8. */
@@ -239,6 +275,7 @@ export function ReviewRowHeader({
   presentationWidth?: number;
   ageWidth?: number;
   trailing?: "age" | "closed";
+  assigned?: boolean;
   markerWidth?: number;
   equalWidth?: number;
   sort?: {
@@ -340,7 +377,10 @@ export function ReviewRowHeader({
            1280, just at the other end of the range. `equalWidth == null` IS the
            list layout, which is exactly where the row passes `grow={1}`; Today's
            equal thirds keep 0 on both sides. */
-        className="flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        className={cn(
+          "flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]",
+          assigned && CYCLE_HIDDEN_BELOW_1600
+        )}
         style={{
           flex: `${equalWidth == null ? 1 : 0} 6 ${presentationWidth}px`,
           minWidth: COL_REVIEW_MIN,
@@ -359,6 +399,18 @@ export function ReviewRowHeader({
             all heading for the word "type". */}
         <SortButton column="cycle" sort={sort} className="-ml-1" />
       </span>
+      {assigned && (
+        <span
+          /* MIRRORS `ReviewAssignedCell`'s flex item exactly — see the mentee
+             cell's note on two flex chains tracking only when their items do. */
+          className={cn(
+            "flex items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]",
+            ASSIGNED_FLEX
+          )}
+        >
+          <SortButton column="assigned" sort={sort} className="-ml-1 min-w-0" />
+        </span>
+      )}
       <span
         /* `whitespace-nowrap`: a column header that wraps makes the header row
            taller than its own type and stops looking like a header.
@@ -760,6 +812,39 @@ export function ReviewAgeCell({
  *  4.5 floor for 12px text — where secondary is 5.78:1 there and 7.62:1 on
  *  white. K.5 makes the same substitution system-wide on this surface.
  */
+/** ═══ THE ASSIGNED SUPERVISOR (admin only) ═══
+ *  Full name, body face, secondary ink — a fact about the review, not its
+ *  subject, so it does not compete with the teen's name. `Unassigned` in muted
+ *  ink when the mentor is in no supervisor's caseload: an absence stated, not a
+ *  blank cell a reader has to interpret. */
+export function ReviewAssignedCell({ name }: { name: string | null }) {
+  return (
+    <span
+      data-assigned-to={name ?? ""}
+      title={name ?? undefined}
+      className={cn("flex items-center", ASSIGNED_FLEX)}
+    >
+      <span
+        className={cn(
+          "truncate text-[14px] leading-[20px]",
+          name ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"
+        )}
+      >
+        {name ? (
+          <>
+            <span className="max-[1439px]:hidden">{name}</span>
+            {/* aria-hidden: the row's accessible name carries the full one. */}
+            <span aria-hidden className="min-[1440px]:hidden">{shortName(name)}</span>
+          </>
+        ) : (
+          /* TODO-COPY */
+          "Unassigned"
+        )}
+      </span>
+    </span>
+  );
+}
+
 export function ReviewIdentityCell({
   name,
   caption,

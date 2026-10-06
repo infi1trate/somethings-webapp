@@ -29,6 +29,7 @@ import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { proposalKindFor } from "@/lib/record/proposal-kind";
 import { CARE_REVIEW_RESPONSE_MS } from "@/lib/tasks/care-overdue";
 import type { BillingPayload, TaskItem } from "@/lib/tasks/types";
+import { assignedSupervisor, type Supervisor } from "@/lib/tasks/assignment";
 
 /** ═══ WHAT THE SUPERVISOR DECIDED — THREE STATES (product, 2026-10-06) ═══
  *  `reviewed` · `assigned` · `changed`. There were four: `kept` (a change
@@ -43,6 +44,12 @@ export interface ClosedCareReview {
   id: string;
   submittedAt: number;
   submittedBy: { name: string; role: string };
+  /** ═══ THE SUPERVISOR IT WAS ASSIGNED TO, AT TIME OF REVIEW ═══
+   *  Answered 2026-10-06: frozen at submission, like the header figures, so a
+   *  later reassignment does not rewrite the record. Distinct from
+   *  `submittedBy` — the assigned supervisor and the person who submitted
+   *  need not be the same. Null when the mentor was in no caseload. */
+  assignedTo: Supervisor | null;
   decision: {
     outcome: ClosedOutcome;
     /** The code the supervisor COMMITTED, which may not be the model's. */
@@ -103,6 +110,19 @@ export function normaliseOutcome(r: ClosedCareReview): ClosedCareReview {
   return { ...r, decision: { ...r.decision, outcome } };
 }
 
+/** ═══ EVERY PERSISTED RECORD, BROUGHT TO THE CURRENT SHAPE ═══
+ *  The outcome consolidation, and `assignedTo`, which records written before
+ *  the admin column do not carry. For those it is derived ONCE from the
+ *  record's own snapshot — the mentor it was reviewed under — which is the
+ *  closest the data can come to "at time of review" for a record that never
+ *  stored it. */
+export function normaliseClosedRecord(r: ClosedCareReview): ClosedCareReview {
+  const n = normaliseOutcome(r);
+  if ("assignedTo" in n && n.assignedTo !== undefined) return n;
+  const s = assignedSupervisor(n.snapshot.item);
+  return { ...n, assignedTo: s ? { ...s } : null };
+}
+
 /** One record from one commit. Pure, so the snapshot rule is testable. */
 export function buildClosedReview(input: {
   item: TaskItem;
@@ -125,6 +145,10 @@ export function buildClosedReview(input: {
     id: input.item.id,
     submittedAt: input.submittedAt,
     submittedBy: { ...input.submittedBy },
+    assignedTo: (() => {
+      const s = assignedSupervisor(input.item);
+      return s ? { ...s } : null;
+    })(),
     decision: {
       outcome: outcomeFor(priorCode, p.recommended.code, input.committedCode),
       code: input.committedCode,

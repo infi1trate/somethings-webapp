@@ -86,6 +86,7 @@ import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
 import { tasksClosedHistory, tasksScenario } from "@/lib/tasks/seed";
 import { buildClosedReview, withClosures, type ClosedCareReview } from "@/lib/tasks/closed-review";
 import { billingReviewFor } from "@/lib/tasks/billing-presentation";
+import { assignedSupervisor } from "@/lib/tasks/assignment";
 import { staffActorFor } from "@/lib/record/permission-map";
 import {
   asTaskType,  DOMAIN_LABEL,
@@ -699,9 +700,35 @@ export function TasksPage({
    *  re-sorted array would invite someone to believe otherwise.
    *  IDENTICAL REFERENCE WHEN NO SORT IS SET, so the default path allocates
    *  nothing and cannot reorder — `applyCareSort` returns its input. */
+  /** ═══ `Assigned to` — ADMINS ONLY (2026-10-06) ═══
+   *  The teen's mentor's supervisor, by the caseload chain in `assignment.ts`.
+   *  ON CLOSED IT IS THE RECORD'S, frozen at submission (answered: "at time of
+   *  review"), so a later reassignment cannot rewrite history. Undefined for
+   *  everyone else, which is what keeps the column — header and cells — off. */
+  const isAdmin = persona === "admin";
+  const assigneeFor = useMemo(
+    () =>
+      isAdmin
+        ? (item: TaskItem): string | null => {
+            const rec = careTab === "closed" ? closedById.get(item.id) : undefined;
+            if (rec) return rec.assignedTo?.name ?? null;
+            return assignedSupervisor(item)?.name ?? null;
+          }
+        : undefined,
+    [isAdmin, careTab, closedById]
+  );
+  /* A sort on a column this viewer cannot see sorts nothing. */
+  const effectiveSort =
+    careSort?.column === "assigned" && !isAdmin ? null : careSort;
   const ordered = useMemo(
-    () => applyCareSort(shown, careSort, paneItemFor),
-    [shown, careSort]
+    () =>
+      applyCareSort(
+        shown,
+        effectiveSort,
+        paneItemFor,
+        assigneeFor ? (e) => assigneeFor(paneItemFor(e)) : undefined
+      ),
+    [shown, effectiveSort, assigneeFor]
   );
 
 /* ═══ RETIRED BY §5.3 ═══
@@ -1454,7 +1481,7 @@ export function TasksPage({
                   live region, and a region that appears with its own first
                   message announces nothing. See the component. */}
               {scope === "care-reviews" && (
-                <CareSortNotice value={careSort} onReset={() => setCareSort(null)} />
+                <CareSortNotice value={effectiveSort} onReset={() => setCareSort(null)} />
               )}
               {shown.length === 0 && filtering ? (
                 /* ═══ RETIRED WITH FILTERS (§4) ═══
@@ -1507,7 +1534,7 @@ export function TasksPage({
                 sort={
                   scope === "care-reviews"
                     ? {
-                        value: careSort,
+                        value: effectiveSort,
                         onToggle: (c: CareSortColumn) =>
                           setCareSort((cur) => nextSort(cur, c)),
                       }
@@ -1575,6 +1602,7 @@ export function TasksPage({
                    Present only on Closed: the rows switch to the outcome line
                    and the Closed column, and the header with them. */
                 closed={careTab === "closed" ? { byId: closedById } : undefined}
+                assigneeFor={scope === "care-reviews" ? assigneeFor : undefined}
                 resolvingIds={resolvingIds}
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>

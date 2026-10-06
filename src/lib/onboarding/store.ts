@@ -95,7 +95,7 @@ import {
   cloneValue,
 } from "@/lib/onboarding/profile-update";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
-import { normaliseOutcome, type ClosedCareReview } from "@/lib/tasks/closed-review";
+import { normaliseClosedRecord, type ClosedCareReview } from "@/lib/tasks/closed-review";
 import { devClockByKey } from "@/lib/home/dev-clock";
 import { pinsFor, todayScenarioById } from "@/lib/home/scenarios";
 
@@ -2455,9 +2455,10 @@ export const useOnboardingStore = create<OnboardingState>()(
             seenClosed.add(o.id);
             return true;
           })
-            /* `kept` / `renewed` FROM BEFORE THE THREE-STATE CONSOLIDATION
-               read as `reviewed` — see `normaliseOutcome`. */
-            .map(normaliseOutcome);
+            /* OLDER RECORDS, BROUGHT TO THE CURRENT SHAPE: `kept` / `renewed`
+               read as `reviewed`, and `assignedTo` is filled from the record's
+               own snapshot — see `normaliseClosedRecord`. */
+            .map(normaliseClosedRecord);
         }
 
         const pm = (merged as { pinnedMentees?: unknown }).pinnedMentees;

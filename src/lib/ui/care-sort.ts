@@ -34,7 +34,7 @@ import type { TaskItem } from "@/lib/tasks/types";
  *  rule, which is why this is `cycle` and not `type` or `review`. */
 /** `closed` is the Closed tab's trailing column (Closed-tab pack §3). `age`
  *  and `closed` never appear together: a tab shows one or the other. */
-export type CareSortColumn = "mentee" | "cycle" | "age" | "closed";
+export type CareSortColumn = "mentee" | "cycle" | "age" | "closed" | "assigned";
 
 export type SortDirection = "asc" | "desc";
 
@@ -52,6 +52,8 @@ export const SORT_LABEL: Record<CareSortColumn, string> = {
   age: "Review age",
   /* TODO-COPY. It read `Closed`; renamed to the noun the value is. */
   closed: "Review date",
+  /* TODO-COPY. Admin only — see `assignment.ts`. */
+  assigned: "Assigned to",
 };
 
 /** ═══ WHAT EACH DIRECTION MEANS, IN WORDS ═══
@@ -72,6 +74,7 @@ export const SORT_MEANING: Record<CareSortColumn, Record<SortDirection, string>>
   /* ASCENDING IS MOST RECENT FIRST, matching `age`'s "newest first" — so the
      first press on either trailing column puts the most recent at the top. */
   closed: { asc: "most recent first", desc: "oldest first" },
+  assigned: { asc: "A to Z", desc: "Z to A" },
 };
 
 /** The entry shape this module needs. Structural rather than importing
@@ -96,11 +99,26 @@ export interface SortableEntry {
 export function applyCareSort<T extends SortableEntry>(
   entries: readonly T[],
   sort: CareSort | null,
-  itemFor: (entry: T) => TaskItem
+  itemFor: (entry: T) => TaskItem,
+  /** The `Assigned to` name per entry — supplied by the page, because a closed
+   *  review's is the one frozen in its record, not the one derived today. */
+  assigneeFor?: (entry: T) => string | null
 ): readonly T[] {
   if (!sort) return entries;
   const sign = sort.dir === "asc" ? 1 : -1;
   return [...entries].sort((a, b) => {
+    /* UNASSIGNED SORTS LAST IN BOTH DIRECTIONS — it is an absence, not a name
+       that happens to come before "A". */
+    if (sort.column === "assigned") {
+      const x = assigneeFor?.(a) ?? null;
+      const y = assigneeFor?.(b) ?? null;
+      if (x === null || y === null) {
+        if (x !== y) return x === null ? 1 : -1;
+        return a.id.localeCompare(b.id);
+      }
+      const d = x.localeCompare(y) * sign;
+      return d !== 0 ? d : a.id.localeCompare(b.id);
+    }
     const d = compare(sort.column, a, b, itemFor) * sign;
     /* ═══ A TOTAL ORDER, ALWAYS ═══
        Two entries that tie on the key must not swap between renders — a list

@@ -106,6 +106,8 @@ import { cn } from "@/lib/utils";
 import {
   COL_AGE,
   COL_CLOSED_BOX,
+  ReviewAssignedCell,
+  CYCLE_HIDDEN_BELOW_1600,
   COL_MENTEE_MIN,
   COL_PRESENTATION,
   COL_REVIEW,
@@ -373,7 +375,11 @@ function Row({
   unviewed = false,
   drafted = false,
   closed = null,
+  assignee,
 }: {
+  /** The assigned supervisor's name — present only when the viewer is an admin
+   *  (see `Worklist.assigneeFor`). `null`: on, and unassigned. */
+  assignee?: string | null;
   /** ═══ A CLOSED REVIEW'S RECORD (Closed-tab pack §3) ═══
    *  Present only on the Closed tab. The row then says what was DECIDED rather
    *  than what is being asked, and its trailing column is when it closed rather
@@ -602,6 +608,11 @@ function Row({
        footer shows — and whether it was late, which the row draws in words. */
     closedRec ? `closed ${absoluteStamp(closedRec.submittedAt)}` : temporal,
     late ? /* NEEDS-COPY-NICOLE */ "submitted late" : null,
+    assignee === undefined
+      ? null
+      : /* NEEDS-COPY-NICOLE */ assignee
+        ? `assigned to ${assignee}`
+        : "unassigned",
     /* ═══ TWO FLAGS ON ONE TEEN NEED TWO NAMES ═══
        MEASURED on Monitoring: the Imminent band never coalesces — deliberately,
        so a 24h deadline cannot hide inside a group row — and a teen carrying two
@@ -1162,7 +1173,18 @@ function Row({
            is shared with the mentee column instead of all landing on it. Today's
            table leaves it at 0, because three exact thirds cannot have a
            growing member. See the prop's own note. */
-        <ReviewCycleCell taskType={item.taskType} grow={1} />
+        <ReviewCycleCell
+          taskType={item.taskType}
+          grow={1}
+          /* Admins: Cycle yields to `Assigned to` below 1600 — see the constant. */
+          className={assignee !== undefined ? CYCLE_HIDDEN_BELOW_1600 : undefined}
+        />
+      )}
+      {/* ═══ `Assigned to` — ADMIN ONLY ═══
+          `undefined` means the column is off for this viewer; `null` means it
+          is on and the review has no assigned supervisor. */}
+      {item.payload.kind === "billing" && assignee !== undefined && (
+        <ReviewAssignedCell name={assignee} />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
@@ -1481,8 +1503,9 @@ export function Worklist({
    *  It was a second, forked list of closed reviews below the queue — its own
    *  row style, no avatar, the retired `Billing code review` label — listing
    *  the same reviews the Closed tab lists. Its outcome line moved into the
-   *  closed row and its count into the `Today` date header. */
+   *  closed row. */
   closed,
+  assigneeFor,
   /** Items whose undo window is still open. They stay in their bucket, visibly
    *  resolving — see the row's own note. */
   resolvingIds,
@@ -1597,6 +1620,11 @@ export function Worklist({
    *  switches the rows to the outcome line and the Closed column, and the
    *  header's trailing column with them. */
   closed?: { byId: ReadonlyMap<string, ClosedCareReview> };
+  /** ═══ `Assigned to` — PASSED ONLY FOR ADMINS ═══
+   *  The page decides who sees the column and supplies the lookup, because a
+   *  closed review's answer is the one frozen in its record. Omitted, the
+   *  column does not render — header and cells together. */
+  assigneeFor?: (item: TaskItem) => string | null;
   resolvingIds?: ReadonlySet<string>;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
@@ -2122,6 +2150,7 @@ export function Worklist({
           /* THE CLOSED TAB'S TRAILING COLUMN — `Closed`, not `Review age`, at
              its own width so the header sits over the times it heads. */
           trailing={closed ? "closed" : "age"}
+          assigned={!!assigneeFor}
           ageWidth={closed ? COL_CLOSED_BOX : undefined}
           sticky
         />
@@ -2206,6 +2235,7 @@ export function Worklist({
                 unviewed={viewed ? !viewed.has(v.id) : false}
                 /* §8. Absent means the surface does not track drafts. */
                 drafted={drafted?.has(v.id) ?? false}
+                assignee={assigneeFor ? assigneeFor(v.item) : undefined}
                 closed={
                   closed?.byId.get(v.item.id)
                     ? { record: closed.byId.get(v.item.id)! }
