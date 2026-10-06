@@ -33,7 +33,6 @@ import { useMounted } from "@/lib/use-mounted";
    `elapsedLabel` is domain-neutral and still formats the list's ages. */
 import { elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
-import type { CompletedEntry } from "@/components/tasks/completed-group";
 import {
   ALL_KINDS,
   KindFilter,
@@ -78,20 +77,25 @@ import {
   subscribeReviewDrafts,
 } from "@/lib/record/review-draft";
 import { proposalKindFor, PROPOSAL_LABEL } from "@/lib/record/proposal-kind";
-import { submittedEntries, listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { closedEntries, listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
   preselectedFor,
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
-import { tasksScenario } from "@/lib/tasks/seed";
+import { tasksClosedHistory, tasksScenario } from "@/lib/tasks/seed";
+import { buildClosedReview, withClosures, type ClosedCareReview } from "@/lib/tasks/closed-review";
+import { billingReviewFor } from "@/lib/tasks/billing-presentation";
+import { staffActorFor } from "@/lib/record/permission-map";
 import {
   asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
   isActiveEscalation,
+  type BillingPayload,
   type TaskDomain,
   type TaskItem,
 } from "@/lib/tasks/types";
+import type { BillingCommitDetail } from "@/components/tasks/billing-review";
 import { cn } from "@/lib/utils";
 import { oldestAgeLabel } from "@/lib/ia/age";
 import { CARE_TAB_EMPTY, type CareTab } from "@/lib/ui/care-tab";
@@ -285,13 +289,9 @@ export function TasksPage({
    *  labelled, until the window closes — at which point it becomes a completion
    *  entry and leaves. An undone item clears from here and never becomes one. */
   const [resolvingIds, setResolvingIds] = useState<ReadonlySet<string>>(new Set());
-  /** Closed reviews, this session, in the order they closed. Newest first so the
-   *  group reads like a log. */
-  const [completed, setCompleted] = useState<CompletedEntry[]>([]);
-  /** A completed row the reader has opened. Separate from `selectedEntryId`
-   *  because a completed item is no longer IN `entries` — the same lesson gap row
-   *  365 recorded about synthetic child rows. */
-  const [completedSelectedId, setCompletedSelectedId] = useState<string | null>(null);
+  /* `completed` AND `completedSelectedId` ARE GONE WITH `Completed today`
+     (Closed-tab pack §4). A closed review is a row on the Closed tab now, and
+     selecting it is an ordinary selection. */
 
   const setDetailById = (
     fn: (
@@ -308,9 +308,16 @@ export function TasksPage({
     });
 
 
+  /* ═══ THE CLOSED RECORDS (Closed-tab pack §0.1) ═══
+     Read before `allItems` because they decide what is still open: the page
+     knew only the reviews closed during THIS mount (`resolvedIds`), so across a
+     reload a submitted review came back onto Open. `withClosures` is the same
+     rule the rail badge and Today run. */
+  const closedRecords = useOnboardingStore((st) => st.closedCareReviews);
+  const recordClosedCareReview = useOnboardingStore((st) => st.recordClosedCareReview);
   const allItems = useMemo(() => {
     if (!mounted) return [];
-    return tasksScenario(scenarioId, now).map((i) => {
+    return withClosures(tasksScenario(scenarioId, now), closedRecords).map((i) => {
       const detail = detailById[i.id];
       const base = detail
         ? { ...i, payload: { ...i.payload, ...detail } as typeof i.payload }
@@ -319,7 +326,7 @@ export function TasksPage({
         ? { ...base, status: "resolved" as const, resolvedAt: now }
         : base;
     });
-  }, [mounted, scenarioId, now, resolvedIds, detailById]);
+  }, [mounted, scenarioId, now, resolvedIds, detailById, closedRecords]);
 
   /** ═══ ONE DOMAIN, FILTERED AT THE SOURCE (arch-A) ═══
    *
@@ -412,17 +419,35 @@ export function TasksPage({
    *  list that looks like it is in urgency order and is in alphabetical order. */
   const [careSort, setCareSort] = useState<CareSort | null>(null);
 
-  const submittedRecords = useOnboardingStore((st) => st.submittedCareReviews);
   const markCareReviewViewed = useOnboardingStore((st) => st.markCareReviewViewed);
-  const markCareReviewSubmitted = useOnboardingStore((st) => st.markCareReviewSubmitted);
+  const persona = useOnboardingStore((st) => st.persona);
+  const staffFirst = useOnboardingStore((st) => st.draft.firstName);
+  const staffLast = useOnboardingStore((st) => st.draft.lastName);
+
+  /** ═══ EVERY CLOSED REVIEW (Closed-tab pack §1) ═══
+   *  The fixture's history plus what this browser has submitted. The store's
+   *  records come FIRST so `closedEntries`' first-wins de-duplication favours
+   *  the review a person actually submitted. */
+  const closedHistory = useMemo(
+    () => (mounted ? tasksClosedHistory(scenarioId, now) : []),
+    [mounted, scenarioId, now]
+  );
+  const allClosed = useMemo(
+    () => [...closedRecords, ...closedHistory],
+    [closedRecords, closedHistory]
+  );
+  const closedById = useMemo(
+    () => new Map<string, ClosedCareReview>(allClosed.map((r) => [r.id, r] as const).reverse()),
+    [allClosed]
+  );
 
   const openEntries = useMemo(
     () => listEntriesForDomains(items, domains, now),
     [items, domains, now]
   );
   const submitted = useMemo(
-    () => submittedEntries(items, submittedRecords, domains),
-    [items, submittedRecords, domains]
+    () => closedEntries(allClosed, domains),
+    [allClosed, domains]
   );
   /* ONE `entries`, SO EVERYTHING DOWNSTREAM IS TAB-AGNOSTIC. The search
      adapter, the virtualizer, the selection model and the pane all read this —
@@ -660,6 +685,10 @@ export function TasksPage({
   /** The only way the tab changes. */
   const changeCareTab = useCallback((next: CareTab) => {
     setCareTab(next);
+    /* THE TRAILING COLUMN IS PER TAB — `Review age` on Open, `Closed` on
+       Closed — so a sort on it has nothing to sort on the other tab. Mentee
+       and Cycle exist on both and survive the switch. */
+    setCareSort((s) => (s && (s.column === "age" || s.column === "closed") ? null : s));
   }, []);
 
   /** ═══ §3 — THE ORDER THE LIST RENDERS IN ═══
@@ -825,19 +854,7 @@ export function TasksPage({
     if (!mounted || careTab !== "open" || !activeEntry) return;
     markCareReviewViewed(activeEntry.id);
   }, [mounted, careTab, activeEntry, markCareReviewViewed]);
-  /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
-   *  It carries `status: "resolved"`, so the buckets have filtered it out — and
-   *  `entries.find(...)` returns undefined for it, which is exactly the shape of
-   *  the defect gap row 365 recorded about synthetic child rows: the lookup falls
-   *  through to a DIFFERENT item and nothing errors. So the completed selection
-   *  is resolved from `items`, which still holds it, and it wins while it is
-   *  set. */
-  const completedItem: TaskItem | null = completedSelectedId
-    ? (items.find((i) => i.id === completedSelectedId) ?? null)
-    : null;
-
   const selected: TaskItem | null =
-    completedItem ??
     // An explicitly picked child wins; otherwise the entry's pane item, which for
     // a group is its head.
     (pickedId
@@ -1092,7 +1109,7 @@ export function TasksPage({
 
     /** ═══ THE WINDOW CLOSED — THE SAME INSTANT THE LEDGER IS WRITTEN ═══
      *  §6's rule, and the rule F4 asks this group to match exactly: an item
-     *  enters "Completed today" when its close becomes a record, not when the
+     *  enters the Closed tab when its close becomes a record, not when the
      *  button was pressed. */
     onCommitted: (item, detail) => {
       setResolvingIds((prev) => {
@@ -1101,29 +1118,54 @@ export function TasksPage({
         return next;
       });
       setResolvedIds((prev) => new Set(prev).add(item.id));
-      /* ═══ §5.1 — THE SUBMISSION PERSISTS ═══
-         `resolvedIds` and `completed` are page state and die with the mount,
-         which is why the Submitted tab would have been empty on every fresh
-         visit. This is the persisted record — an id and an instant, nothing
-         else, so it never becomes a second copy of clinical data that can drift
-         from the fixture it points at. */
-      markCareReviewSubmitted(item.id, Date.now());
-      /* THE OUTCOME COMES FROM THE COMMIT DETAIL, not from the payload: the
-         supervisor may have picked a different code than the model proposed, and
-         the record is what they submitted. */
-      const code = typeof detail.code === "string" ? detail.code : null;
-      const outcome = detail.outcome === "unchanged" ? "unchanged" : "confirmed";
-      setCompleted((prev) => [
-        {
-          id: item.id,
-          teenName: item.teenDisplayName,
-          taskType: item.taskType,
-          code: code ?? "—",
-          outcome,
-          at: Date.now(),
-        },
-        ...prev,
-      ]);
+      /* ═══ THE SUBMISSION PERSISTS — ALL OF IT (Closed-tab pack §0.1) ═══
+         This wrote `markCareReviewSubmitted(item.id, Date.now())` — "an id and
+         an instant, nothing else" — and the assessment, both prose fields and
+         their provenance, which arrive in `detail`, were dropped on the floor.
+         The draft holding the same text was cleared by the form on the same
+         commit, so nothing anywhere kept what the supervisor attested.
+         THE RECORD NOW CARRIES THE COMMIT AND A SNAPSHOT of what was on screen
+         when it was made — see `buildClosedReview`. Only billing reviews close
+         onto the Closed tab; anything else keeps the old behaviour. */
+      if (item.payload.kind === "billing" && detail.documentation) {
+        const d = detail as unknown as BillingCommitDetail;
+        /* THE PAYLOAD AS THE FIXTURE GAVE IT. `allItems` folds a commit's
+           detail INTO the payload for the undo window, so the item reaching
+           here may carry `documentation`/`provenance` keys; the snapshot takes
+           the payload's own fields and nothing else. */
+        const p = item.payload;
+        const payload: BillingPayload = {
+          kind: "billing",
+          isReReview: p.isReReview,
+          current: p.current,
+          survey: p.survey,
+          mentorStats: p.mentorStats,
+          aiSummary: p.aiSummary,
+          recommended: p.recommended,
+        };
+        const clean: TaskItem = { ...item, status: "open", payload };
+        recordClosedCareReview(
+          buildClosedReview({
+            item: clean,
+            review: billingReviewFor(clean, payload),
+            committedCode: d.code ?? payload.recommended.code,
+            committedStatement: d.statement ?? payload.recommended.statement,
+            body: d.documentation,
+            provenance: {
+              clinical: d.provenance.clinical.state,
+              diagnostic: d.provenance.diagnostic.state,
+            },
+            submittedAt: Date.now(),
+            /* THE SAME ATTRIBUTION THE CARE PAGE WRITES — the signed-in name,
+               falling back to the role — so one supervisor is one byline on
+               both hosts. */
+            submittedBy: {
+              name: [staffFirst, staffLast].filter(Boolean).join(" ") || staffActorFor(persona),
+              role: staffActorFor(persona),
+            },
+          })
+        );
+      }
     },
 
     onRestore: (item) => {
@@ -1495,8 +1537,6 @@ export function TasksPage({
                 selectedId={selectedEntryId ?? activeEntry?.id ?? null}
                 state={listState}
                 onSelect={(entry, item) => {
-                // THE OTHER SELECTION LETS GO — see `onSelectCompleted`.
-                setCompletedSelectedId(null);
                   setSelectedEntryId(entry.id);
                   setPickedId(item.id);
                   // AND HAND THE PANE THE SCREEN. Below `xl` the grid collapses
@@ -1521,32 +1561,24 @@ export function TasksPage({
                  by — so the list is flat, in the comparator's order, which
                  without an SLA is oldest-first. `AGENTS.md`'s "Tasks groups by
                  when" section is rewritten to say so. */
-                grouping="none"
+                /* ═══ CLOSED GROUPS BY DAY, BUT ONLY IN ITS DEFAULT ORDER (§1) ═══
+                   A date header over a list sorted by Mentee would label rows
+                   that are not in date order, so a column sort flattens the list
+                   and cycling back to the default regroups it. */
+                grouping={
+                  scope === "care-reviews" && careTab === "closed" && !careSort
+                    ? "closedDay"
+                    : "none"
+                }
                 /* THE LIST'S OWN NAME, for the unlabelled band's accessible
                    name — `DOMAIN_LABEL` would say "Billing", which is the word
                    this destination was renamed away from. */
                 subject={scope ? SCOPE_TITLE[scope] : undefined}
                 rowVariant="task"
-                completed={completed}
-                completedSelectedId={completedSelectedId}
-                onSelectCompleted={(e) => {
-                  /* THE PANE OPENS READ-ONLY. The list's own selection is
-                     cleared: two selected rows in one tree would be two
-                     `aria-selected` and a reader with no way to tell which one
-                     the footer acts on — the same rule Monitoring's two lists
-                     follow. */
-                  setCompletedSelectedId(e.id);
-                  setSelectedEntryId(null);
-                  setPickedId(e.id);
-                  setPaneTakeover(true);
-                }}
-                /* ═══ THE LEDGER LINK CANNOT CARRY THE DAY ═══
-                   Activity's filter axes are objectId, domain, scope and event —
-                   there is no date axis (gap row 371, still open), so this lands
-                   on billing + mine rather than on today. Stated in the group's
-                   own comment rather than implied by a label that promises
-                   today. */
-                activityHref="/app/activity?domain=billing&scope=mine"
+                /* ═══ THE CLOSED TAB'S RECORDS (Closed-tab pack §1/§3) ═══
+                   Present only on Closed: the rows switch to the outcome line
+                   and the Closed column, and the header with them. */
+                closed={careTab === "closed" ? { byId: closedById } : undefined}
                 resolvingIds={resolvingIds}
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
@@ -1642,13 +1674,15 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
-                      /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
-                         decision is on the record; there is nothing here to
-                         decide, and a live Submit over a closed review would
-                         offer to commit it twice. */
-                      completed={
-                        completedItem
-                          ? (completed.find((c) => c.id === completedItem.id) ?? null)
+                      /* ═══ READ-ONLY WHEN THE SELECTION IS A CLOSED REVIEW ═══
+                         (Closed-tab pack §0.2.) It was gated on `Completed
+                         today` alone, so a row picked on the Closed tab got the
+                         live form — `Save draft`, `Submit`, `3 fields needed` —
+                         over a review already on the record. The record is
+                         looked up by the selection's id on that tab only. */
+                      closed={
+                        careTab === "closed" && selected
+                          ? (closedById.get(selected.id) ?? null)
                           : null
                       }
                     />

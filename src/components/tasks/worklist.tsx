@@ -72,7 +72,15 @@ import {
   type TierBand,
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
-import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
+import {
+  OUTCOME_VERB,
+  absoluteStamp,
+  closedLabel,
+  closedDayBands,
+  closedLate,
+  type ClosedCareReview,
+} from "@/lib/tasks/closed-review";
+import { BillingCodeLozenge } from "@/components/record/proposal-codes";
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
 import { proposalSpoken } from "@/components/record/proposal-codes";
@@ -97,6 +105,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   COL_AGE,
+  COL_CLOSED_BOX,
   COL_MENTEE_MIN,
   COL_PRESENTATION,
   COL_REVIEW,
@@ -363,7 +372,14 @@ function Row({
   hairline,
   unviewed = false,
   drafted = false,
+  closed = null,
 }: {
+  /** ═══ A CLOSED REVIEW'S RECORD (Closed-tab pack §3) ═══
+   *  Present only on the Closed tab. The row then says what was DECIDED rather
+   *  than what is being asked, and its trailing column is when it closed rather
+   *  than how long it has waited — `Review age` stops meaning anything once a
+   *  review is closed. `grouped`: a date header above already says the day. */
+  closed?: { record: ClosedCareReview; grouped: boolean } | null;
   /** ═══ §8 — WHETHER THIS REVIEW HAS A SAVED DRAFT ═══
    *  Resolved by the list from `sessionStorage` through the version counter, and
    *  handed down as a boolean for the same reason `unviewed` is: a row must not
@@ -439,8 +455,13 @@ function Row({
    *  STATE, which is what tells a supervisor scanning the list whether this one
    *  is already in hand. One derivation each, both named elsewhere so the row
    *  does not hold a vocabulary. */
-  const disposition =
-    item.payload.kind === "billing"
+  const closedRec = closed?.record ?? null;
+  const late = closedRec ? closedLate(closedRec) : false;
+  const disposition = closedRec
+    ? /* NEEDS-COPY-NICOLE. The outcome, spoken — the row draws it as a verb
+         beside a lozenge, and the lozenge is a code without a relation. */
+      `${OUTCOME_VERB[closedRec.decision.outcome]} ${closedRec.decision.code}`
+    : item.payload.kind === "billing"
       ? /* ═══ THE SPOKEN FORM, FOR THE ACCESSIBLE NAME (addendum §2.9) ═══
            The row DRAWS lozenges now. This string is what a screen reader gets
            instead, and it states the direction in words because the arrow
@@ -575,7 +596,10 @@ function Row({
        two different facts about one item told to two readers. The probe caught
        it, and only because it checks the accessible name separately from the
        rendered spans. */
-    temporal,
+    /* A CLOSED ROW STATES WHEN IT CLOSED, ABSOLUTE — the same stamp the pane's
+       footer shows — and whether it was late, which the row draws in words. */
+    closedRec ? `closed ${absoluteStamp(closedRec.submittedAt)}` : temporal,
+    late ? /* NEEDS-COPY-NICOLE */ "submitted late" : null,
     /* ═══ TWO FLAGS ON ONE TEEN NEED TWO NAMES ═══
        MEASURED on Monitoring: the Imminent band never coalesces — deliberately,
        so a 24h deadline cannot hide inside a group row — and a teen carrying two
@@ -590,7 +614,7 @@ function Row({
        NAME-ONLY. Nothing visual moves: the column still shows the age, because
        age is what a reader scans and a clock time in that column would be a
        second format in one line of figures. */
-    !isGroup && !indent ? childTimeLabel(item.openedAt) : null,
+    !isGroup && !indent && !closedRec ? childTimeLabel(item.openedAt) : null,
     /* THE STATE IN THE NAME, not only in the opacity. */
     resolving ? /* NEEDS-COPY-NICOLE */ "closing" : null,
   ]
@@ -1056,7 +1080,30 @@ function Row({
                reason: they do not perform a billing review, are not accountable
                for it, and cannot change the decision. */
             <>
-              {resolving ? (
+              {closedRec ? (
+                /* ═══ THE OUTCOME, NOT THE REQUEST (§3.1) ═══
+                   On Open this line says what is being asked; on Closed what
+                   matters is what was decided. The code is the shared lozenge,
+                   `identity` tone — a statement of record, not a proposal. */
+                <span data-closed-outcome={closedRec.decision.outcome} className="inline-flex items-center gap-1.5">
+                  {OUTCOME_VERB[closedRec.decision.outcome]}
+                  <BillingCodeLozenge code={closedRec.decision.code} tone="identity" />
+                  {/* ═══ §3.3 · SUBMITTED LATE — QUIET, AND IN WORDS ═══
+                      Answered: lateness persists on the record. Not the breach
+                      pattern — no clay fill, no icon — because nothing is owed
+                      any more; it is a fact about how the review closed. On this
+                      line rather than under the time because the Closed column
+                      is 104px and the phrase is ~80px of a second line it would
+                      have to share. */}
+                  {late && (
+                    <span data-submitted-late className="text-[var(--text-muted)]">
+                      <span aria-hidden className="pr-1.5">·</span>
+                      {/* NEEDS-COPY-NICOLE */}
+                      Submitted late
+                    </span>
+                  )}
+                </span>
+              ) : resolving ? (
                 /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
                    is a state nobody can read (SC 1.4.1). */
                 "Closing…"
@@ -1131,7 +1178,13 @@ function Row({
           read as one run of text. */}
       <span
         className="flex shrink-0 items-center justify-end gap-1.5 pl-6"
-        style={item.payload.kind === "billing" ? { width: COL_AGE + 24 } : undefined}
+        style={
+          closedRec
+            ? { width: COL_CLOSED_BOX }
+            : item.payload.kind === "billing"
+              ? { width: COL_AGE + 24 }
+              : undefined
+        }
       >
         <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION SPAN IS GONE WITH THE TIERS (Phase 4) ═══
@@ -1229,7 +1282,11 @@ function Row({
               a row hears its fields in sequence with no column header above
               them, so `temporal` is still what `ariaLabel` is built from: the
               suffix is dropped from the CELL, not from the row. */}
-          {item.payload.kind === "billing" ? elapsedLabel(ageAt, now) : temporal}
+          {closedRec
+            ? closedLabel(closedRec.submittedAt, now, closed!.grouped)
+            : item.payload.kind === "billing"
+              ? elapsedLabel(ageAt, now)
+              : temporal}
         </span>
         </span>
         </div>
@@ -1403,14 +1460,12 @@ export function Worklist({
   grouping = "tier",
   rowVariant = "subject",
   headersState = "ready",
-  /** ═══ THE BUCKET BEHIND YOU (arch-F, F4) ═══
-   *  Closed reviews whose undo window has shut, and where a link to the ledger
-   *  goes. Empty by default and absent entirely on Monitoring, which has its own
-   *  list — a surface that never empties has no completion to rest. */
-  completed = [],
-  completedSelectedId = null,
-  onSelectCompleted,
-  activityHref = "",
+  /** ═══ `Completed today` IS GONE (Closed-tab pack §4) ═══
+   *  It was a second, forked list of closed reviews below the queue — its own
+   *  row style, no avatar, the retired `Billing code review` label — listing
+   *  the same reviews the Closed tab lists. Its outcome line moved into the
+   *  closed row and its count into the `Today` date header. */
+  closed,
   /** Items whose undo window is still open. They stay in their bucket, visibly
    *  resolving — see the row's own note. */
   resolvingIds,
@@ -1491,7 +1546,7 @@ export function Worklist({
    *  the sections, the offsets, the sticky headers, the keyboard order — is
    *  identical either way, and forking the list to change what a header says
    *  would have been two virtualizers to keep in step. */
-  grouping?: "tier" | "deadline" | "none";
+  grouping?: "tier" | "deadline" | "none" | "closedDay";
   /** ═══ THE ROW'S ANATOMY — TWO AXES, NOT ONE (arch-E) ═══
    *
    *  `"subject"` is arch-D's row: identity disc, name on line 1, `to {mentor}`
@@ -1520,10 +1575,11 @@ export function Worklist({
    *  label with the COUNT withheld rather than a placeholder count, which would
    *  be a number that is wrong for 240ms. */
   headersState?: SurfaceState;
-  completed?: CompletedEntry[];
-  completedSelectedId?: string | null;
-  onSelectCompleted?: (entry: CompletedEntry) => void;
-  activityHref?: string;
+  /** ═══ THE CLOSED TAB (Closed-tab pack §1/§3) ═══
+   *  The records behind the closed entries, by id. Present only on Closed; it
+   *  switches the rows to the outcome line and the Closed column, and the
+   *  header's trailing column with them. */
+  closed?: { byId: ReadonlyMap<string, ClosedCareReview> };
   resolvingIds?: ReadonlySet<string>;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
@@ -1575,10 +1631,12 @@ export function Worklist({
     () =>
       grouping === "none"
         ? [{ id: "all", label: "", entries: [...entries], taskCount: entries.length }]
-        : grouping === "deadline"
+        : grouping === "closedDay"
+          ? closedDayBands(entries, closed?.byId, now)
+          : grouping === "deadline"
           ? deadlineBandsFor(entries, now)
           : bandsFor(entries),
-    [entries, grouping, now]
+    [entries, grouping, now, closed?.byId]
   );
   /* ═══ A SINGLE UNLABELLED BAND DRAWS NO HEADER (addendum §2.9) ═══
      `bandsAreMeaningful` answers "is there anything to group"; this adds the
@@ -2046,6 +2104,10 @@ export function Worklist({
              its width — which is what gives the mentee column back the room
              §6.5's collapse took. */
           presentationWidth={COL_REVIEW}
+          /* THE CLOSED TAB'S TRAILING COLUMN — `Closed`, not `Review age`, at
+             its own width so the header sits over the times it heads. */
+          trailing={closed ? "closed" : "age"}
+          ageWidth={closed ? COL_CLOSED_BOX : undefined}
           sticky
         />
       )}
@@ -2129,6 +2191,11 @@ export function Worklist({
                 unviewed={viewed ? !viewed.has(v.id) : false}
                 /* §8. Absent means the surface does not track drafts. */
                 drafted={drafted?.has(v.id) ?? false}
+                closed={
+                  closed?.byId.get(v.item.id)
+                    ? { record: closed.byId.get(v.item.id)!, grouped: grouping === "closedDay" }
+                    : null
+                }
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
                    Under a band header, every row keeps one: the header is a
                    filled strip and the line beneath it separates two different
@@ -2199,23 +2266,6 @@ export function Worklist({
       ))}
       </div>
 
-      {/* AFTER EVERY BUCKET AND AFTER THE RETIRING BANDS — the last thing in the
-          scroller, which is where "behind you" belongs. Outside the virtualizer
-          on purpose: it is collapsed by default and holds a shift's worth of
-          rows, not a hundred, so the spacer arithmetic has nothing to gain here
-          and everything to lose.
-          AND OUTSIDE THE TREE, which is new and is the point: its root is a
-          roleless div wrapping a toggle and a `ul role="list"`, so as a child
-          of `role="tree"` it broke the tree's content model. It is a separate
-          list with a separate selection and it was never queue content. */}
-      {onSelectCompleted && (
-        <CompletedGroup
-          entries={completed}
-          selectedId={completedSelectedId}
-          onSelect={onSelectCompleted}
-          activityHref={activityHref}
-        />
-      )}
     </div>
     </>
   );

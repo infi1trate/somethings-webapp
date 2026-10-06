@@ -39,7 +39,11 @@ import {
    goes with it rather than sitting unused above a pane that no longer
    offers that destination. `chatThreadHref` is still exported and still
    used by the record header and the Risk Flags pane. */
-import type { CompletedEntry } from "@/components/tasks/completed-group";
+import { OUTCOME_VERB, type ClosedCareReview } from "@/lib/tasks/closed-review";
+import { BillingCodeLozenge } from "@/components/record/proposal-codes";
+
+import { CareUpdateBodyView, CareUpdateByline } from "@/components/record/care-update-view";
+import type { CareUpdateRecord } from "@/lib/record/care-demo";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
 // "Notes"; the link itself is unchanged.)
@@ -64,6 +68,13 @@ import {
   SystemBlock,
 } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
+
+/** The field-label face — the same tokens `review-body.tsx` and
+ *  `care-update-view.tsx` use for their own labels. */
+const LABEL_STYLE = {
+  font: "var(--type-field-label)",
+  letterSpacing: "var(--type-field-label-tracking)",
+} as const;
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -331,8 +342,14 @@ function MentorChip({ name }: { name: string }) {
 function HeaderSentence({
   mentorName,
   stats,
+  atTimeOfReview = false,
 }: {
   mentorName: string;
+  /** ═══ §2.3 · A CLOSED RECORD'S FIGURES ARE THE ONES THE SUPERVISOR SAW ═══
+   *  On a closed review `stats` come from the snapshot, and the sentence says
+   *  so — live figures on a historical record would misrepresent what the
+   *  decision was made against. TODO-COPY. */
+  atTimeOfReview?: boolean;
   /** The billing payload's figures. `null` on a non-billing item, where the
    *  sentence states the mentorship and nothing about it. */
   stats: { daysInMentorship: number; messagesLast30: number } | null;
@@ -384,6 +401,13 @@ function HeaderSentence({
             {c.tail}
           </span>
         ))}
+        {atTimeOfReview && stats && (
+          <span data-metric="as-of" className="sep-item whitespace-nowrap">
+            <span className="sr-only">, </span>
+            {/* TODO-COPY */}
+            at time of review
+          </span>
+        )}
       </p>
     </div>
   );
@@ -628,6 +652,22 @@ function BillingBody({
 
 // ── The frame ───────────────────────────────────────────────────────────────
 
+/** A closed review in the shape the shared read view takes. The view was written
+ *  for the Care page's `CareUpdateRecord`; adapting at the boundary keeps one
+ *  read view rather than a second one for the same three fields. */
+function closedAsUpdate(r: ClosedCareReview): CareUpdateRecord {
+  return {
+    id: `closed-${r.id}`,
+    teenId: r.snapshot.item.teenId,
+    createdAt: r.submittedAt,
+    author: r.submittedBy.name,
+    authorRole: r.submittedBy.role,
+    body: r.body,
+    clinicalProvenance: r.provenance.clinical,
+    diagnosticProvenance: r.provenance.diagnostic,
+  };
+}
+
 /** ═══ WHAT THE KEYBOARD CAN PRESS (Part 3) ═══
  *
  *  `y` / `n` / Enter act on the pane's controls, but the LISTENER lives on the
@@ -663,13 +703,16 @@ export function TaskPane({
      that distinction still matters — it matters on `event-pane.tsx`, which does
      the join now and takes the prop with the same reasoning. Here there is
      nothing left to join. */
-  /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (arch-F, F4) ═══
-   *  Set when the selection is a row from "Completed today". The review renders
-   *  with `canAct={false}` — the module's own tier gate, which already drops the
-   *  proposal chip and the picker — and the action bar is replaced by what was
-   *  submitted and when. A live Submit over a closed review would offer to commit
-   *  it a second time. */
-  completed = null,
+  /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (Closed-tab §2) ═══
+   *  Set when the selection is a review on the Closed tab. It replaces the
+   *  `completed` prop, which only `Completed today` rows ever set — so a row
+   *  picked on the Closed tab rendered the LIVE form (`Save draft`, `Submit`,
+   *  `3 fields needed`) over a review already on the record.
+   *  The review renders from the SNAPSHOT with `canAct={false}` — the module's
+   *  own tier gate, which drops the proposal chip, the picker and `Change
+   *  presentation` — the documentation renders as text, and the action bar is
+   *  the record's byline. Nothing on the pane can commit it a second time. */
+  closed = null,
 }: {
   item: TaskItem | null;
   now: number;
@@ -678,7 +721,7 @@ export function TaskPane({
   /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
   actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
-  completed?: CompletedEntry | null;
+  closed?: ClosedCareReview | null;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
    *  re-render — but a reader cannot tell that, and a Retry that did nothing
@@ -839,12 +882,14 @@ export function TaskPane({
          Bare Enter no longer routes here: `onEnter` returns false for billing so
          the key moves the keyboard into the pane instead. `⌘/Ctrl+Enter` is what
          reaches this. */
+      /* NOTHING TO CONFIRM ON A CLOSED RECORD — `⌘/Ctrl+Enter` must not reach a
+         submit that is not on screen (Closed-tab pack §0.2). */
       confirm:
-        payload.kind === "billing"
+        payload.kind === "billing" && !closed
           ? () => billingHandle.current?.submit()
           : undefined,
     };
-  }, [actionsRef, item, payload, confirmCode, onResolve]);
+  }, [actionsRef, item, payload, confirmCode, onResolve, closed]);
 
   if (!item) {
     return (
@@ -1036,14 +1081,18 @@ export function TaskPane({
                 it renders as a plain `span`: it states a fact and filters
                 nothing. `isOverdue`, THE SAME PREDICATE THE LIST USES, so the
                 pane and the row cannot disagree about the same item. */}
-            {isOverdue(item, now) && <OverdueChip />}
+            {!closed && isOverdue(item, now) && <OverdueChip />}
           </div>
 
           {/* ── ROW 2 · one line about the mentorship ─────────────────────── */}
           {/* §2.5: row 1 and row 2 share a LEFT edge. */}
           <HeaderSentence
             mentorName={item.mentorName}
+            /* A CLOSED REVIEW READS ITS SNAPSHOT — `item` IS the snapshot's
+               task on the Closed tab, payload included, so these figures are
+               the ones on screen when it was submitted. */
             stats={p.kind === "billing" ? p.mentorStats : null}
+            atTimeOfReview={!!closed}
           />
         </div>
         {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══
@@ -1117,25 +1166,59 @@ export function TaskPane({
             onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
           />
         )}
-        {p.kind === "billing" && recommended && completed && (
-          /* ═══ THE CLOSED REVIEW, AS A RECORD ═══
-             The module with `canAct={false}`: no proposal chip, no picker, no
-             documentation gate. What a supervisor gets is what they submitted. */
-          <ReviewBody
-            /* THE CLOSED REVIEW FORKS TOO — a supervisor reading back what they
-               submitted should see the pane they submitted it in, not the Care
-               page's rendering of it. */
-            surface="care-reviews"
-            review={billingReviewFor(item, p)}
-            currentCode={p.current?.code ?? null}
-            currentStatement={p.current?.statement ?? null}
-            showCurrentLine
-            decision={null}
-            canAct={false}
-            interactive
-          />
+        {p.kind === "billing" && closed && (
+          /* ═══ THE CLOSED REVIEW, AS A RECORD (Closed-tab pack §2.2) ═══
+             The shared module renders the SNAPSHOT — the review exactly as it
+             was rendered when this was submitted — with `canAct={false}`: no
+             proposal chip, no picker, no `Change presentation`.
+             THE DOCUMENTATION IS TEXT, NOT DISABLED INPUTS. Bloom has no
+             disabled state, and a greyed textarea reads as "you cannot do this
+             yet" rather than "this is finished". `CareUpdateBodyView` is the
+             read view the Care page already renders a committed update with
+             (`care-tab.tsx`), so this is the shared read-only state, on both
+             hosts, with its per-field AI provenance. */
+          <div data-slot="closed-record" className="space-y-4">
+            <ReviewBody
+              surface="care-reviews"
+              review={closed.snapshot.review}
+              currentCode={p.current?.code ?? null}
+              currentStatement={p.current?.statement ?? null}
+              showCurrentLine
+              /* THE RECOMMENDATION AS IT WAS RECOMMENDED. The decision is a
+                 separate fact and gets its own line below, rather than being
+                 folded into the module as a pending change it no longer is. */
+              decision={null}
+              canAct={false}
+              interactive={false}
+            />
+            {/* ═══ THE DECISION, STATED (§2.1) ═══
+                "The presentation decision (recommended code accepted, or changed
+                to what)." MEASURED before this line existed: a `Kept` record's
+                pane showed the recommendation (F33.1) and the code on record
+                (F33.0) and said nothing about which one the supervisor chose —
+                only the row did. Same verb and lozenge as the row's outcome. */}
+            <div data-slot="closed-decision">
+              <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                {/* TODO-COPY */}
+                Decision
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                {OUTCOME_VERB[closed.decision.outcome]}
+                <BillingCodeLozenge code={closed.decision.code} tone="identity" />
+                <span className="text-[var(--text-secondary)]">{closed.decision.statement}</span>
+              </p>
+            </div>
+            <p
+              data-anno-ref="care-update-heading"
+              className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]"
+            >
+              {/* NEEDS-COPY-NICOLE — the same heading the form carries. */}
+              Care Update
+            </p>
+            <CareUpdateBodyView update={closedAsUpdate(closed)} />
+          </div>
         )}
-        {p.kind === "billing" && recommended && !completed && (
+        {p.kind === "billing" && recommended && !closed && (
           <BillingBody
             payload={p}
             item={item}
@@ -1262,25 +1345,18 @@ export function TaskPane({
           </div>
         )}
 
-        {p.kind === "billing" && completed && (
-          /* NEEDS-COPY-NICOLE. WHAT WAS SUBMITTED AND WHEN — the bar's job on a
-             closed review is to state the outcome, not to offer one. */
-          <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
-            {completed.outcome === "unchanged"
-              ? `${completed.code} confirmed`
-              : `Changed to ${completed.code}`}
-            <span aria-hidden className="px-1.5 opacity-40">·</span>
-            <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-              {new Date(completed.at).toLocaleTimeString("en-US", {
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
-              })}
-            </span>
-          </p>
+        {p.kind === "billing" && closed && (
+          /* ═══ THE FOOTER IS THE RECORD'S METADATA (Closed-tab pack §2.2) ═══
+             Who submitted it and when — absolute, never relative, because this
+             is a record. `CareUpdateByline` is the Care page's own byline for a
+             committed update; `withTime` adds the minute, which that page does
+             not show and this one must. */
+          <div data-slot="closed-byline">
+            <CareUpdateByline update={closedAsUpdate(closed)} withTime verb="Submitted by" />
+          </div>
         )}
 
-        {p.kind === "billing" && recommended && !completed && (
+        {p.kind === "billing" && recommended && !closed && (
           /* ═══ TWO BUTTONS, AND NEITHER NAMES THE CODE ANY MORE ═══
              It was `Confirm unchanged` (tonal, re-reviews only) and
              `Confirm {code}` (primary), and the second named its object for a

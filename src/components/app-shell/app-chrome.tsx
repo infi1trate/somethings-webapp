@@ -61,6 +61,7 @@ import { useOnboardingStore } from "@/lib/onboarding/store";
    invitation to compute one again. */
 import { monitoringData } from "@/lib/monitoring/scenarios";
 import { tasksScenario } from "@/lib/tasks/seed";
+import { withClosures } from "@/lib/tasks/closed-review";
 import { useAppearance } from "@/lib/use-appearance";
 import { useMounted } from "@/lib/use-mounted";
 
@@ -117,9 +118,17 @@ export function AppChrome({
    *  always yields the same set and open-vs-resolved is a status, not a clock
    *  reading. */
   const [badgeNow] = useState(() => Date.now());
+  /* ═══ CLOSED REVIEWS ARE NOT OPEN (Closed-tab pack §0.3) ═══
+     The badge read 16 with 9 open: this was the fixture, unfiltered, so a
+     submitted review was still counted until the page that closed it set its
+     own status. `withClosures` is the one rule the page and Today also run. */
+  const closedCare = useOnboardingStore((s) => s.closedCareReviews);
   const scenarioItems = useMemo(
-    () => (mounted && staff ? tasksScenario(tasksScenarioId, badgeNow) : []),
-    [mounted, staff, tasksScenarioId, badgeNow]
+    () =>
+      mounted && staff
+        ? withClosures(tasksScenario(tasksScenarioId, badgeNow), closedCare)
+        : [],
+    [mounted, staff, tasksScenarioId, badgeNow, closedCare]
   );
 
   /** Staff-curated fields do not badge the mentor — see

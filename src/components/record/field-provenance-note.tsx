@@ -81,7 +81,7 @@ export function FieldProvenanceNote({
     <span
       className={cn(
         inline ? "ml-1.5 inline-flex" : "mt-1 flex",
-        "flex-wrap items-center gap-x-1 text-[11.5px] leading-[16px] text-[var(--text-muted)] italic",
+        "flex-wrap items-center gap-x-1 text-[12px] leading-[16px] text-[var(--text-muted)] italic",
         className
       )}
     >
@@ -102,7 +102,7 @@ export function FieldProvenanceNote({
         triggerClassName="-m-1 size-4 box-content justify-center rounded-full p-1 not-italic text-[var(--text-muted)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]"
         trigger={<span aria-hidden>ⓘ</span>}
       >
-        <span className="block text-[12px] leading-[17px] text-[var(--text-secondary)]">
+        <span className="block text-[12px] leading-[16px] text-[var(--text-secondary)]">
           {detail}
         </span>
       </HoverNote>

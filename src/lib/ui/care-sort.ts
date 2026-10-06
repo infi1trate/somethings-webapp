@@ -32,7 +32,9 @@ import type { TaskItem } from "@/lib/tasks/types";
 
 /** The three §3 names, and they match the column headers exactly — §6.2's
  *  rule, which is why this is `cycle` and not `type` or `review`. */
-export type CareSortColumn = "mentee" | "cycle" | "age";
+/** `closed` is the Closed tab's trailing column (Closed-tab pack §3). `age`
+ *  and `closed` never appear together: a tab shows one or the other. */
+export type CareSortColumn = "mentee" | "cycle" | "age" | "closed";
 
 export type SortDirection = "asc" | "desc";
 
@@ -48,6 +50,8 @@ export const SORT_LABEL: Record<CareSortColumn, string> = {
   mentee: "Mentee",
   cycle: "Cycle",
   age: "Review age",
+  /* TODO-COPY */
+  closed: "Closed",
 };
 
 /** ═══ WHAT EACH DIRECTION MEANS, IN WORDS ═══
@@ -65,6 +69,9 @@ export const SORT_MEANING: Record<CareSortColumn, Record<SortDirection, string>>
   mentee: { asc: "A to Z", desc: "Z to A" },
   cycle: { asc: "first review first", desc: "later reviews first" },
   age: { asc: "newest first", desc: "oldest first" },
+  /* ASCENDING IS MOST RECENT FIRST, matching `age`'s "newest first" — so the
+     first press on either trailing column puts the most recent at the top. */
+  closed: { asc: "most recent first", desc: "oldest first" },
 };
 
 /** The entry shape this module needs. Structural rather than importing
@@ -116,6 +123,12 @@ function compare<T extends SortableEntry>(
        younger item; comparing the instants ascending puts the newest first,
        which is what `SORT_MEANING.age.asc` says. */
     return b.at - a.at;
+  }
+  if (column === "closed") {
+    /* THE SUBMISSION INSTANT, from the snapshot (`resolvedAt` is set to it when
+       the record is built). Larger is more recent, so `b - a` ascending puts the
+       most recent first. */
+    return (itemFor(b).resolvedAt ?? 0) - (itemFor(a).resolvedAt ?? 0);
   }
   if (column === "cycle") {
     return cycleSortKey(itemFor(a).taskType) - cycleSortKey(itemFor(b).taskType);

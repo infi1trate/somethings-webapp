@@ -33,6 +33,7 @@ import {
 import { FieldProvenanceNote } from "@/components/record/field-provenance-note";
 import { clinicalDate } from "@/components/record/care-presentation";
 import { RecordAvatar } from "@/components/record/record-avatar";
+import { absoluteStamp } from "@/lib/tasks/closed-review";
 
 const LABEL_STYLE = {
   font: "var(--type-field-label)",
@@ -68,11 +69,11 @@ export function CareUpdateBodyView({
    *  on the page than one narrative was, and the extra line-height keeps a dense
    *  clinical paragraph readable at the smaller size. */
   const prose = compact
-    ? "mt-1 max-w-prose whitespace-pre-line text-[13px] leading-[19px] text-[var(--text-primary)]"
-    : "mt-1 max-w-prose whitespace-pre-line text-[14px] leading-[1.55] text-[var(--text-primary)]";
+    ? "mt-1 max-w-prose whitespace-pre-line text-[14px] leading-[20px] text-[var(--text-primary)]"
+    : "mt-1 max-w-prose whitespace-pre-line text-[14px] leading-[20px] text-[var(--text-primary)]";
 
   return (
-    <div className={compact ? "space-y-2.5" : "space-y-4"}>
+    <div data-care-update-view className={compact ? "space-y-2.5" : "space-y-4"}>
       {filled.map((s) => (
         <div key={s.id}>
           <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
@@ -113,7 +114,7 @@ export function AssessmentChip({
   value: NonNullable<CareUpdateRecord["body"]["assessment"]>;
 }) {
   return (
-    <span className="mt-1.5 inline-flex items-center rounded-full bg-[var(--status-neutral-bg)] px-2.5 py-0.5 text-[12.5px] font-medium leading-[18px] text-[var(--status-neutral-fg)]">
+    <span className="mt-1.5 inline-flex items-center rounded-full bg-[var(--status-neutral-bg)] px-2.5 py-0.5 text-[12px] font-medium leading-[16px] text-[var(--status-neutral-fg)]">
       {ASSESSMENT_LABEL[value]}
     </span>
   );
@@ -124,18 +125,35 @@ export function AssessmentChip({
 export function CareUpdateByline({
   update,
   amendsDate,
+  withTime = false,
+  verb,
 }: {
   update: CareUpdateRecord;
   amendsDate?: number;
+  /** ═══ THE MINUTE, FOR A RECORD THAT IS A SUBMISSION (Closed-tab pack §2.2) ═══
+   *  Off by default, so the Care page's byline is unchanged. Care Reviews'
+   *  closed record turns it on: "submitted by, date and time — absolute". */
+  withTime?: boolean;
+  /** An optional lead verb — `Submitted by` on a closed review. TODO-COPY. */
+  verb?: string;
 }) {
   return (
     // A 24px avatar on the signature line: a care update is AUTHORED clinical
     // documentation, and an author with a face reads as a person who wrote it
     // rather than a byline the system generated.
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[17px] text-[var(--text-muted)]">
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[16px] text-[var(--text-muted)]">
       <RecordAvatar name={update.author} size={24} />
       <span>
-        {`${update.author} · ${update.authorRole} · ${clinicalDate(update.createdAt)}`}
+        {/* THE ROLE IS SKIPPED WHEN IT IS THE NAME. With no name on the account
+            both hosts fall back to the role for the author, which read
+            "Supervisor · Supervisor" — measured on the Closed-tab probe. */}
+        {`${verb ? `${verb} ` : ""}${[
+          update.author,
+          update.authorRole !== update.author ? update.authorRole : null,
+          withTime ? absoluteStamp(update.createdAt) : clinicalDate(update.createdAt),
+        ]
+          .filter(Boolean)
+          .join(" · ")}`}
         {amendsDate !== undefined && (
           <>
             {" · "}

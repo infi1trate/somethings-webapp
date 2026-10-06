@@ -62,6 +62,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, ChevronRight, ListChecks, Phone, RotateCcw, X } from "lucide-react";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { tasksScenario } from "@/lib/tasks/seed";
+import { withClosures } from "@/lib/tasks/closed-review";
 import {
   compareEscalations,
   isActive,
@@ -797,9 +798,12 @@ export function TodayPage() {
     setShiftSeenAt(Date.now());
   }, [mounted, setShiftSeenAt]);
 
+  /* CLOSED REVIEWS ARE NOT OPEN — the same rule the rail badge and Care
+     Reviews run, so Today's card cannot say 16 beside a list of 9 (§0.3). */
+  const closedCare = useOnboardingStore((s) => s.closedCareReviews);
   const items = useMemo(
-    () => (mounted ? tasksScenario(tasksScenarioId, mountedAt) : []),
-    [mounted, tasksScenarioId, mountedAt]
+    () => (mounted ? withClosures(tasksScenario(tasksScenarioId, mountedAt), closedCare) : []),
+    [mounted, tasksScenarioId, mountedAt, closedCare]
   );
 
   /** ═══ THE DESTINATIONS' OWN DATA, READ THE DESTINATIONS' OWN WAY ═══

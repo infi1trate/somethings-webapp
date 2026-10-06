@@ -27,6 +27,8 @@
 
 import { riskCategory } from "@/lib/record/risk-taxonomy";
 import { deadlineFor } from "@/lib/tasks/sla";
+import { closedHistory } from "@/lib/tasks/closed-history";
+import type { ClosedCareReview } from "@/lib/tasks/closed-review";
 import {
   DOMAIN_OF_TYPE,
   TYPE_URGENCY_RANK,
@@ -1104,7 +1106,16 @@ export interface TaskScenario {
   label: string;
   description: string;
   build: (now: number) => TaskItem[];
+  /** ═══ CLOSED-REVIEW HISTORY (Closed-tab pack §1) ═══
+   *  Optional: a scenario with none shows only what the tester submits. The
+   *  records are self-contained snapshots and their ids (`closed-n`) never
+   *  collide with an open item's (`task-n`). */
+  buildClosed?: (now: number) => ClosedCareReview[];
 }
+
+/** The pools every closed-history fixture draws from — the wider roster, so
+ *  a 600-row history is not eight names repeated. */
+const closedPools = () => ({ teens: ROSTER, mentors: MENTOR_POOL });
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1450,8 +1461,8 @@ function careMixedCycles(now: number): TaskItem[] {
  *  simulator's registry. */
 export const TASK_SCENARIOS: TaskScenario[] = [
   { id: "quiet-day", label: "Quiet day", description: "Three open, nothing breached.", build: quietDay },
-  { id: "typical-shift", label: "Typical shift", description: "46 open flags, 13 billing, a few breached.", build: typicalShift },
-  { id: "heavy-caseload", label: "Heavy caseload", description: "97 open flags across two bands.", build: heavyCaseload },
+  { id: "typical-shift", label: "Typical shift", description: "46 open flags, 13 billing, a few breached.", build: typicalShift, buildClosed: (now) => closedHistory(now, 25, closedPools()) },
+  { id: "heavy-caseload", label: "Heavy caseload", description: "97 open flags across two bands.", build: heavyCaseload, buildClosed: (now) => closedHistory(now, 40, closedPools()) },
   /* THE DESCRIPTION NARROWED IN PHASE 4, and the narrowing is the finding: a
      flag has no published review deadline, so "everything" cannot include one.
      What this scenario stresses is every item that HAS a clock, past it. */
@@ -1462,14 +1473,18 @@ export const TASK_SCENARIOS: TaskScenario[] = [
      rather than for a persona, and checked against the prohibited vocabulary
      list — no "caseload", no "at risk", no conversation synonyms. */
   { id: "all-clear", label: "All clear", description: "Nothing open on any destination; a cleared footer.", build: allClear },
-  { id: "care-review-backlog", label: "Care review backlog", description: "16 care reviews open, oldest 3d; other destinations clear.", build: careReviewBacklog },
+  { id: "care-review-backlog", label: "Care review backlog", description: "16 care reviews open, oldest 3d; other destinations clear.", build: careReviewBacklog, buildClosed: (now) => closedHistory(now, 40, closedPools()) },
   { id: "preview-under-cap", label: "Preview under cap", description: "Exactly 2 care reviews open, so the preview shows everything.", build: previewUnderCap },
   /* ═══ THE CARE REVIEWS FIXTURES (rework §9) ═══
      TODO-COPY on all three labels, like every other entry here — dev chrome,
      not product. Named for the STATE each produces. */
   { id: "care-open-empty", label: "Care · no open review", description: "Every care review resolved, so the Open tab is empty and Submitted is too.", build: careOpenEmpty },
-  { id: "care-overdue-present", label: "Care · overdue present", description: "5 of 11 open reviews past 48h since reception; one resolved four-day review that must not count.", build: careOverduePresent },
-  { id: "care-mixed-cycles", label: "Care · both cycles", description: "Six 30-day and six 90-day reviews, interleaved by age.", build: careMixedCycles },
+  { id: "care-overdue-present", label: "Care · overdue present", description: "5 of 11 open reviews past 48h since reception; one resolved four-day review that must not count.", build: careOverduePresent, buildClosed: (now) => closedHistory(now, 12, closedPools()) },
+  { id: "care-mixed-cycles", label: "Care · both cycles", description: "Six 30-day and six 90-day reviews, interleaved by age.", build: careMixedCycles, buildClosed: (now) => closedHistory(now, 20, closedPools()) },
+  /* ═══ CLOSED AT SCALE (Closed-tab pack §1) ═══
+     "Verify at 500+ fixture items." The open side is `care-mixed-cycles`'s; the
+     point of this scenario is the 600-row Closed tab. */
+  { id: "care-closed-history", label: "Care · 600 closed", description: "Twelve open reviews and 600 closed ones across ~120 days.", build: careMixedCycles, buildClosed: (now) => closedHistory(now, 600, closedPools()) },
 ];
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -1511,6 +1526,15 @@ export const DEFAULT_TASK_SCENARIO_ID = "typical-shift";
 
 /** Build a scenario's items. `now` is the caller's clock — see the module note on
  *  why this is not a frozen instant. */
+/** The closed history for a scenario, or none. Same lookup and fallback as
+ *  `tasksScenario`, so the two halves of a scenario cannot come from two. */
+export function tasksClosedHistory(id: string, now: number): ClosedCareReview[] {
+  const scenario =
+    TASK_SCENARIOS.find((s) => s.id === id) ??
+    TASK_SCENARIOS.find((s) => s.id === DEFAULT_TASK_SCENARIO_ID)!;
+  return scenario.buildClosed?.(now) ?? [];
+}
+
 export function tasksScenario(id: string, now: number): TaskItem[] {
   const scenario =
     TASK_SCENARIOS.find((s) => s.id === id) ??

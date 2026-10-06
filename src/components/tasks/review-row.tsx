@@ -108,6 +108,14 @@ export const COL_AGE = 72;
  *  cell can share one number. */
 export const COL_AGE_BOX = COL_AGE + 24;
 
+/** ═══ THE CLOSED COLUMN IS WIDER THAN THE AGE COLUMN (Closed-tab pack §3) ═══
+ *  Its longest value is the ungrouped `Tue 11:22 AM` — twelve characters of
+ *  14px mono — where the age column's longest is four (`15 d`). One width for
+ *  the whole tab, grouped or not, so the header never moves when a sort toggles
+ *  the date groups on and off. */
+export const COL_CLOSED = 104;
+export const COL_CLOSED_BOX = COL_CLOSED + 24;
+
 /** ═══ THE MENTEE COLUMN'S SHARE OF THE ROW (§6.5, corrected in §3) ═══
  *  MEASURED at 1280 before §6.5: the flexible mentee cell was **11px** wide and
  *  the NAME truncated — "Theo L." at 50px of content in an 11px box. §6.5
@@ -207,6 +215,8 @@ export function ReviewRowHeader({
    *  destination's measured widths so existing callers are unchanged. */
   presentationWidth = COL_PRESENTATION,
   ageWidth = COL_AGE_BOX,
+  /** WHICH TRAILING COLUMN — `age` on Open, `closed` on Closed. */
+  trailing = "age",
   /** The row's leading marker slot, so the header's first column starts at the
    *  same x the row's does. 0 on a surface that draws no marker — Today's
    *  preview table — which is why it defaults to nothing rather than to 8. */
@@ -223,6 +233,7 @@ export function ReviewRowHeader({
   className?: string;
   presentationWidth?: number;
   ageWidth?: number;
+  trailing?: "age" | "closed";
   markerWidth?: number;
   equalWidth?: number;
   sort?: {
@@ -368,7 +379,7 @@ export function ReviewRowHeader({
             the chevron hangs into the 24px gutter the cell already carries.
             NOT A SECOND IDIOM: it is the same control with its parts in
             reading order for a column that reads right-to-left. */}
-        <SortButton column="age" sort={sort} className="-mr-1 ml-auto" indicatorFirst />
+        <SortButton column={trailing} sort={sort} className="-mr-1 ml-auto" indicatorFirst />
       </span>
     </div>
   );

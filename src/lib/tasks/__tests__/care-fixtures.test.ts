@@ -147,6 +147,9 @@ describe("setTasksScenarioId drops the care traces", () => {
   });
   it("and it resets both traces in the same write", () => {
     expect(body).toContain("viewedCareReviews: []");
-    expect(body).toContain("submittedCareReviews: []");
+    /* RETARGETED (Closed-tab pack, v54): the submitted trace became the
+       closed RECORDS, and they are per-fixture for the same reason — their
+       ids are the old fixture's task ids. */
+    expect(body).toContain("closedCareReviews: []");
   });
 });

@@ -138,6 +138,12 @@ const NO_ERRORS: Record<FieldId, boolean> = {
 export interface BillingCommitDetail extends Record<string, unknown> {
   outcome: "confirmed" | "unchanged";
   code: string | null;
+  /** ═══ THE STATEMENT GOES WITH THE CODE (Closed-tab pack §2.1) ═══
+   *  A code picked through `Change presentation` has a statement no lookup can
+   *  recover — it is neither the recommendation nor the code on record — so the
+   *  closed record would otherwise know WHICH code was attested but not what it
+   *  said. */
+  statement: string;
   changed: boolean;
   documentation: CareUpdateBody;
   /** Per-field, and the reason it is per-field rather than one flag: one claim
@@ -350,6 +356,7 @@ export function BillingReview({
          only way the button and the region above it cannot disagree. */
       outcome: changed ? "confirmed" : "unchanged",
       code: recommended.code,
+      statement: recommended.statement,
       changed,
       documentation: body,
       provenance: { clinical: prov.clinical, diagnostic: prov.diagnostic },
