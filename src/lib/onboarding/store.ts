@@ -95,7 +95,7 @@ import {
   cloneValue,
 } from "@/lib/onboarding/profile-update";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
-import type { ClosedCareReview } from "@/lib/tasks/closed-review";
+import { normaliseOutcome, type ClosedCareReview } from "@/lib/tasks/closed-review";
 import { devClockByKey } from "@/lib/home/dev-clock";
 import { pinsFor, todayScenarioById } from "@/lib/home/scenarios";
 
@@ -2442,7 +2442,8 @@ export const useOnboardingStore = create<OnboardingState>()(
              shape. The checks are the fields the Closed tab cannot render
              without; anything failing them is dropped rather than half-drawn. */
           const seenClosed = new Set<string>();
-          merged.closedCareReviews = ccr.filter((e): e is ClosedCareReview => {
+          merged.closedCareReviews = ccr
+            .filter((e): e is ClosedCareReview => {
             const o = e as Partial<ClosedCareReview> | null;
             if (!o || typeof o !== "object") return false;
             if (typeof o.id !== "string" || !o.id || seenClosed.has(o.id)) return false;
@@ -2453,7 +2454,10 @@ export const useOnboardingStore = create<OnboardingState>()(
             if (!o.snapshot.review) return false;
             seenClosed.add(o.id);
             return true;
-          });
+          })
+            /* `kept` / `renewed` FROM BEFORE THE THREE-STATE CONSOLIDATION
+               read as `reviewed` — see `normaliseOutcome`. */
+            .map(normaliseOutcome);
         }
 
         const pm = (merged as { pinnedMentees?: unknown }).pinnedMentees;

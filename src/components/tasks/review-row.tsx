@@ -109,32 +109,17 @@ export const COL_AGE = 72;
 export const COL_AGE_BOX = COL_AGE + 24;
 
 /** ═══ THE REVIEW DATE COLUMN IS SIZED TO ITS LONGEST VALUE ═══
- *  `Sep 29, 2025 · 12:46 PM` — the year-bearing format with a two-digit hour,
- *  23 characters of 14px mono. MEASURED in the cell's own font: 193.9px (every
- *  23-character variant measures the same, which is what a monospace with
- *  tabular figures is for). 196 is the next step on the 4px grid, so the
- *  widest possible value fits without wrapping or truncating, and the
- *  header does not move whichever rows are on screen. A year-less value is
- *  126–143px and sits right-aligned in the same box, times flush to the edge. */
-export const COL_CLOSED = 196;
-/** ITS GUTTER IS 16, NOT THE AGE COLUMN'S 24. MEASURED at 1280 with Cycle
- *  dropped: `Changed to F33.1` needed 120px of a 116px mentee line. The
- *  dates are right-aligned in a box sized to the widest one, so a typical row
- *  already sits 50–70px clear of the mentee text; only the widest value is
- *  ever 16px from it. The 8px goes back to the mentee column (116 → 124). */
-export const COL_CLOSED_GUTTER = 16;
-export const COL_CLOSED_BOX = COL_CLOSED + COL_CLOSED_GUTTER;
-
-/** ═══ CLOSED DROPS CYCLE BELOW THE 1440 TIER (answered 2026-10-06) ═══
- *  MEASURED at 1280: the list is 466px and the Review date column takes 220,
- *  which left the mentee column 48px — 11 of 14 names and every outcome line
- *  truncated, against 146px on Open at the same width. The full date cannot
- *  shrink (the pack forbids wrapping or truncating it), so the least
- *  informative column on a closed record goes instead: Cycle hides on Closed
- *  below 1440 and returns at 1440, where everything measured fits. Open keeps
- *  it at every width. Applied to the header and the cell together so the two
- *  flex chains never fall out of step. */
-export const CYCLE_HIDDEN_BELOW_1440 = "max-[1439px]:hidden";
+ *  The value is the DATE ONLY now — `Oct 6`, or `Sep 29, 2025` outside the
+ *  current year. The year-bearing form is the widest: 12 characters of 14px
+ *  mono, MEASURED at 101.2px in the cell's own font (every 12-character variant
+ *  the same, which is what tabular mono is for). 104 is the next 4px step.
+ *  ═══ AND THE TWO WORKAROUNDS THE WIDE COLUMN NEEDED ARE GONE ═══
+ *  With the time in the value the column was 196px, which at 1280 left the
+ *  mentee column 48px — so Cycle was hidden on Closed below 1440 and the
+ *  gutter cut to 16. Without the time the column is 92px narrower, Cycle shows
+ *  at every width again, and the gutter is the age column's 24. */
+export const COL_CLOSED = 104;
+export const COL_CLOSED_BOX = COL_CLOSED + 24;
 
 /** ═══ THE MENTEE COLUMN'S SHARE OF THE ROW (§6.5, corrected in §3) ═══
  *  MEASURED at 1280 before §6.5: the flexible mentee cell was **11px** wide and
@@ -237,9 +222,6 @@ export function ReviewRowHeader({
   ageWidth = COL_AGE_BOX,
   /** WHICH TRAILING COLUMN — `age` on Open, `closed` on Closed. */
   trailing = "age",
-  /** Hide the Cycle column below the 1440 tier (Closed tab only — see
-   *  `CYCLE_HIDDEN_BELOW_1440`). */
-  compactCycle = false,
   /** The row's leading marker slot, so the header's first column starts at the
    *  same x the row's does. 0 on a surface that draws no marker — Today's
    *  preview table — which is why it defaults to nothing rather than to 8. */
@@ -257,7 +239,6 @@ export function ReviewRowHeader({
   presentationWidth?: number;
   ageWidth?: number;
   trailing?: "age" | "closed";
-  compactCycle?: boolean;
   markerWidth?: number;
   equalWidth?: number;
   sort?: {
@@ -359,10 +340,7 @@ export function ReviewRowHeader({
            1280, just at the other end of the range. `equalWidth == null` IS the
            list layout, which is exactly where the row passes `grow={1}`; Today's
            equal thirds keep 0 on both sides. */
-        className={cn(
-          "flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]",
-          compactCycle && CYCLE_HIDDEN_BELOW_1440
-        )}
+        className="flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
         style={{
           flex: `${equalWidth == null ? 1 : 0} 6 ${presentationWidth}px`,
           minWidth: COL_REVIEW_MIN,

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-06T18:57:28.256Z",
+  "generated": "2026-10-06T19:06:34.842Z",
   "rows": [
     {
       "id": "store.present",
@@ -47,7 +47,7 @@
       "id": "links.present",
       "label": "Today offers links at all",
       "ok": true,
-      "detail": "9 link(s)"
+      "detail": "8 link(s)"
     },
     {
       "id": "links.leave",

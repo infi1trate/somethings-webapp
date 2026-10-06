@@ -30,8 +30,12 @@ import { proposalKindFor } from "@/lib/record/proposal-kind";
 import { CARE_REVIEW_RESPONSE_MS } from "@/lib/tasks/care-overdue";
 import type { BillingPayload, TaskItem } from "@/lib/tasks/types";
 
-/** What the supervisor decided, in four readings (§3.1, answered 2026-10-06). */
-export type ClosedOutcome = "changed" | "kept" | "renewed" | "assigned";
+/** ═══ WHAT THE SUPERVISOR DECIDED — THREE STATES (product, 2026-10-06) ═══
+ *  `reviewed` · `assigned` · `changed`. There were four: `kept` (a change
+ *  proposal declined) and `renewed` (a renewal confirmed) are one state to the
+ *  product — the code on record stands, and it was reviewed — so they are one
+ *  value here rather than two labels for the same fact. */
+export type ClosedOutcome = "reviewed" | "assigned" | "changed";
 
 export interface ClosedCareReview {
   /** The task id — the same id the Open list used, so a record and the item it
@@ -59,10 +63,10 @@ export interface ClosedCareReview {
 
 /** ═══ THE OUTCOME, FROM THREE CODES ═══
  *  `proposalKindFor` already says what was ASKED; this says what was DONE.
- *  A renewal is a proposal to keep the code on record, so keeping it is
- *  `renewed`; a change proposal that ends on the prior code is `kept`. Anything
- *  that ends on a code other than the one on record is `changed` — including a
- *  renewal the supervisor overrode with `Change presentation`. */
+ *  Nothing on record before → `assigned`. Ending on the code already on record
+ *  → `reviewed`, whether the proposal was a renewal or a change that was
+ *  declined. Ending anywhere else → `changed`, including a renewal the
+ *  supervisor overrode with `Change presentation`. */
 export function outcomeFor(
   priorCode: string | null,
   recommendedCode: string,
@@ -70,17 +74,34 @@ export function outcomeFor(
 ): ClosedOutcome {
   const kind = proposalKindFor(priorCode, recommendedCode);
   if (kind === "assign") return "assigned";
-  if (committedCode === priorCode) return kind === "renewal" ? "renewed" : "kept";
+  if (committedCode === priorCode) return "reviewed";
   return "changed";
 }
 
-/** TODO-COPY, all four. The verb leads; the code follows as a lozenge. */
+/** TODO-COPY, all three. */
 export const OUTCOME_VERB: Record<ClosedOutcome, string> = {
-  changed: "Changed to",
-  kept: "Kept",
-  renewed: "Renewed",
+  reviewed: "Reviewed",
   assigned: "Assigned",
+  changed: "Changed to",
 };
+
+/** ONLY `Changed to (x)` NAMES A CODE ON THE ROW — it is the one outcome whose
+ *  sentence is incomplete without one. `Reviewed` and `Assigned` stand alone. */
+export const outcomeNamesCode = (o: ClosedOutcome) => o === "changed";
+
+/** ═══ RECORDS WRITTEN BEFORE THE CONSOLIDATION ═══
+ *  A persisted record may still say `kept` or `renewed`. Both are `reviewed`
+ *  now; anything unrecognised is re-derived from the record's own three codes
+ *  rather than guessed. */
+export function normaliseOutcome(r: ClosedCareReview): ClosedCareReview {
+  const o = r.decision.outcome as string;
+  if (o === "reviewed" || o === "assigned" || o === "changed") return r;
+  const outcome =
+    o === "kept" || o === "renewed"
+      ? "reviewed"
+      : outcomeFor(r.decision.priorCode, r.decision.recommendedCode, r.decision.code);
+  return { ...r, decision: { ...r.decision, outcome } };
+}
 
 /** One record from one commit. Pure, so the snapshot rule is testable. */
 export function buildClosedReview(input: {
@@ -146,24 +167,20 @@ export function withClosures(
 
 // ── Dates ──────────────────────────────────────────────────────────────────
 
-/** ═══ THE REVIEW DATE (Closed-tab follow-up, 2026-10-06) ═══
- *  `Oct 6 · 1:53 PM`, with the year only when it is not the current one
- *  (`Sep 29, 2025 · 4:46 PM`). ABSOLUTE IN EVERY CASE — no `Today`, no
- *  `Yesterday`, no weekday: this is a record, and a relative word on a record
- *  is a fact that changes meaning overnight.
- *  IT REPLACES THE DATE GROUPS. They were an addition the pack itself
- *  withdrew; with no header above a row carrying the day, the row has to be
- *  complete on its own, so there is one format and no `grouped` switch. */
+/** ═══ THE REVIEW DATE — THE DATE ONLY (product, 2026-10-06) ═══
+ *  `Oct 6`, with the year only outside the current one (`Sep 29, 2025`).
+ *  It carried the time (`Oct 6 · 1:53 PM`); the column now says the day and
+ *  the footer's byline keeps the full stamp, minute included.
+ *  ABSOLUTE IN EVERY CASE — no `Today`, no `Yesterday`, no weekday: this is a
+ *  record, and a relative word on a record changes meaning overnight. */
 export function reviewDateLabel(at: number, now: number): string {
   const d = new Date(at);
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  const date = d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     ...(sameYear ? {} : { year: "numeric" }),
   });
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${date} · ${time}`;
 }
 
 /** The footer's stamp: `Oct 6, 2026, 11:22 AM`. Never relative — and always

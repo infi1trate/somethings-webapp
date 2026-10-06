@@ -12,6 +12,8 @@ import { closedHistory } from "@/lib/tasks/closed-history";
 import {
   buildClosedReview,
   closedLate,
+  normaliseOutcome,
+  outcomeNamesCode,
   reviewDateLabel,
   outcomeFor,
   withClosures,
@@ -50,11 +52,27 @@ const record = (over: Partial<Parameters<typeof buildClosedReview>[0]> = {}): Cl
 };
 
 describe("the outcome is derived from what was asked and what was committed", () => {
-  it("names all four", () => {
+  it("names three: reviewed, assigned, changed", () => {
     expect(outcomeFor("F33.0", "F33.1", "F33.1")).toBe("changed");
-    expect(outcomeFor("F33.0", "F33.1", "F33.0")).toBe("kept");
-    expect(outcomeFor("F41.1", "F41.1", "F41.1")).toBe("renewed");
     expect(outcomeFor(null, "F41.1", "F41.1")).toBe("assigned");
+  });
+  it("and a declined change and a confirmed renewal are the SAME state — reviewed", () => {
+    /* The consolidation: these were `kept` and `renewed`. */
+    expect(outcomeFor("F33.0", "F33.1", "F33.0")).toBe("reviewed");
+    expect(outcomeFor("F41.1", "F41.1", "F41.1")).toBe("reviewed");
+  });
+  it("and only `Changed to` names a code", () => {
+    expect(outcomeNamesCode("changed")).toBe(true);
+    expect(outcomeNamesCode("reviewed")).toBe(false);
+    expect(outcomeNamesCode("assigned")).toBe(false);
+  });
+  it("a record persisted as `kept` or `renewed` reads as `reviewed`", () => {
+    const base = record();
+    for (const old of ["kept", "renewed"]) {
+      const r = { ...base, decision: { ...base.decision, outcome: old as never } };
+      expect(normaliseOutcome(r).decision.outcome).toBe("reviewed");
+    }
+    expect(normaliseOutcome(base)).toBe(base);
   });
   it("and a renewal the supervisor overrode is a change, not a renewal", () => {
     expect(outcomeFor("F41.1", "F41.1", "F33.1")).toBe("changed");
@@ -123,23 +141,23 @@ describe("lateness is read off the record (§3.3)", () => {
   });
 });
 
-describe("the Review date is complete on every row (Closed-tab follow-up)", () => {
+describe("the Review date is the date only, absolute on every row", () => {
   const at = (daysAgo: number, h = 13, m = 53) => {
     const d = new Date(NOW);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysAgo, h, m).getTime();
   };
-  it("is `Oct 6 · 1:53 PM` — absolute, even today", () => {
-    expect(reviewDateLabel(at(0), NOW)).toBe("Oct 6 · 1:53 PM");
-    expect(reviewDateLabel(at(1, 9, 5), NOW)).toBe("Oct 5 · 9:05 AM");
+  it("is `Oct 6` — even today, and with no time", () => {
+    expect(reviewDateLabel(at(0), NOW)).toBe("Oct 6");
+    expect(reviewDateLabel(at(1, 9, 5), NOW)).toBe("Oct 5");
   });
-  it("never says Today, Yesterday or a weekday", () => {
+  it("never says Today, Yesterday, a weekday or a time", () => {
     for (const d of [0, 1, 2, 6, 7, 40]) {
-      expect(reviewDateLabel(at(d), NOW)).not.toMatch(/Today|Yesterday|day\b/);
+      expect(reviewDateLabel(at(d), NOW)).not.toMatch(/Today|Yesterday|day\b|AM|PM|:/);
     }
   });
   it("adds the year only outside the current one", () => {
-    expect(reviewDateLabel(new Date(2025, 8, 29, 16, 46).getTime(), NOW)).toBe("Sep 29, 2025 · 4:46 PM");
-    expect(reviewDateLabel(new Date(2026, 0, 1, 0, 1).getTime(), NOW)).toBe("Jan 1 · 12:01 AM");
+    expect(reviewDateLabel(new Date(2025, 8, 29, 16, 46).getTime(), NOW)).toBe("Sep 29, 2025");
+    expect(reviewDateLabel(new Date(2026, 0, 1, 0, 1).getTime(), NOW)).toBe("Jan 1");
   });
 });
 
@@ -189,7 +207,7 @@ describe("the closed-history fixture", () => {
     expect(h.every((r) => r.id.startsWith("closed-"))).toBe(true);
   });
   it("covers every outcome and every provenance state, and some are late", () => {
-    expect(new Set(h.map((r) => r.decision.outcome))).toEqual(new Set(["changed", "kept", "renewed", "assigned"]));
+    expect(new Set(h.map((r) => r.decision.outcome))).toEqual(new Set(["reviewed", "assigned", "changed"]));
     expect(new Set(h.map((r) => r.provenance.clinical))).toEqual(new Set(["authored", "ai_inserted", "ai_assisted"]));
     expect(h.some(closedLate)).toBe(true);
     expect(h.some((r) => !closedLate(r))).toBe(true);

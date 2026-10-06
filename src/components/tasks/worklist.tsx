@@ -74,6 +74,7 @@ import {
 import { elapsedLabel } from "@/components/tasks/strips";
 import {
   OUTCOME_VERB,
+  outcomeNamesCode,
   absoluteStamp,
   reviewDateLabel,
   closedLate,
@@ -105,7 +106,6 @@ import { cn } from "@/lib/utils";
 import {
   COL_AGE,
   COL_CLOSED_BOX,
-  CYCLE_HIDDEN_BELOW_1440,
   COL_MENTEE_MIN,
   COL_PRESENTATION,
   COL_REVIEW,
@@ -460,7 +460,9 @@ function Row({
   const disposition = closedRec
     ? /* NEEDS-COPY-NICOLE. The outcome, spoken — the row draws it as a verb
          beside a lozenge, and the lozenge is a code without a relation. */
-      `${OUTCOME_VERB[closedRec.decision.outcome]} ${closedRec.decision.code}`
+      outcomeNamesCode(closedRec.decision.outcome)
+      ? `${OUTCOME_VERB[closedRec.decision.outcome]} ${closedRec.decision.code}`
+      : OUTCOME_VERB[closedRec.decision.outcome]
     : item.payload.kind === "billing"
       ? /* ═══ THE SPOKEN FORM, FOR THE ACCESSIBLE NAME (addendum §2.9) ═══
            The row DRAWS lozenges now. This string is what a screen reader gets
@@ -1087,7 +1089,11 @@ function Row({
                    `identity` tone — a statement of record, not a proposal. */
                 <span data-closed-outcome={closedRec.decision.outcome} className="inline-flex items-center gap-1.5">
                   {OUTCOME_VERB[closedRec.decision.outcome]}
-                  <BillingCodeLozenge code={closedRec.decision.code} tone="identity" />
+                  {/* THREE STATES, AND ONLY ONE NAMES A CODE: `Changed to (x)`.
+                      `Reviewed` and `Assigned` are complete sentences. */}
+                  {outcomeNamesCode(closedRec.decision.outcome) && (
+                    <BillingCodeLozenge code={closedRec.decision.code} tone="identity" />
+                  )}
                 </span>
               ) : resolving ? (
                 /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
@@ -1156,11 +1162,7 @@ function Row({
            is shared with the mentee column instead of all landing on it. Today's
            table leaves it at 0, because three exact thirds cannot have a
            growing member. See the prop's own note. */
-        <ReviewCycleCell
-          taskType={item.taskType}
-          grow={1}
-          className={closedRec ? CYCLE_HIDDEN_BELOW_1440 : undefined}
-        />
+        <ReviewCycleCell taskType={item.taskType} grow={1} />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
@@ -1168,9 +1170,7 @@ function Row({
           read as one run of text. */}
       <span
         className={cn(
-          "flex shrink-0 justify-end",
-          /* The Review date's gutter is `COL_CLOSED_GUTTER` (16) — see it. */
-          closedRec ? "pl-4" : "pl-6",
+          "flex shrink-0 justify-end pl-6",
           /* A CLOSED ROW STACKS: the date, and under it `Submitted late` when it
              was — both right-aligned, so the dates still line up down the
              column whether or not a row carries the second line. */
@@ -1281,9 +1281,9 @@ function Row({
               them, so `temporal` is still what `ariaLabel` is built from: the
               suffix is dropped from the CELL, not from the row. */}
           {closedRec
-            ? /* ═══ THE REVIEW DATE, COMPLETE ON ITS OWN ═══
-                 `Oct 6 · 1:53 PM` — absolute on every row, today's included,
-                 because no group header above it carries the day any more. */
+            ? /* ═══ THE REVIEW DATE ═══
+                 `Oct 6`, or `Sep 29, 2025` outside this year — absolute on
+                 every row, today's included. The minute is the footer's. */
               reviewDateLabel(closedRec.submittedAt, now)
             : item.payload.kind === "billing"
               ? elapsedLabel(ageAt, now)
@@ -1293,12 +1293,9 @@ function Row({
             Answered: lateness persists on the record. Not the breach pattern —
             no clay fill, no icon — because nothing is owed any more; it is a
             fact about how the review closed.
-            UNDER THE DATE, NOT ON THE OUTCOME LINE. It sat beside the outcome
-            until the Review date column widened to 196px for its longest value;
-            MEASURED then, `Assigned R45.89 · Submitted late` needed 208px of a
-            168px mentee line and clipped on 2 of 15 rows. The date box has
-            ~26px to spare at its widest and ~70px on a year-less row, and the
-            phrase is a fact about the date anyway. */}
+            UNDER THE DATE, NOT ON THE OUTCOME LINE: it is a fact about the
+            date. The phrase is 78.8px and the date box 104, so it fits beneath
+            the widest date with room to spare. */}
         {late && (
           <span
             data-submitted-late
@@ -2125,7 +2122,6 @@ export function Worklist({
           /* THE CLOSED TAB'S TRAILING COLUMN — `Closed`, not `Review age`, at
              its own width so the header sits over the times it heads. */
           trailing={closed ? "closed" : "age"}
-          compactCycle={!!closed}
           ageWidth={closed ? COL_CLOSED_BOX : undefined}
           sticky
         />

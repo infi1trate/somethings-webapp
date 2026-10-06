@@ -198,7 +198,9 @@ const badge = (page) =>
 // THE SCALE FIXTURE CROSSES NEW YEAR (~400 days), so the year-bearing format —
 // the longest value the column must hold — renders on real rows and is
 // measured, not estimated.
-const DATE_RE = /^[A-Z][a-z]{2} \d{1,2}(, \d{4})? · \d{1,2}:\d{2} [AP]M$/;
+/* DATE ONLY (product, 2026-10-06): `Oct 6`, `Sep 29, 2025` — the time moved
+   to the footer's byline. SUPERSEDES the `Oct 6 · 1:53 PM` format. */
+const DATE_RE = /^[A-Z][a-z]{2} \d{1,2}(, \d{4})?$/;
 for (const width of [1600, 1440, 1280]) {
   console.log(`\n── 600 closed reviews at ${width}`);
   const c = await b.newContext({ viewport: { width, height: 1000 }, deviceScaleFactor: width === 1600 ? 2 : 1 });
@@ -258,7 +260,7 @@ for (const width of [1600, 1440, 1280]) {
       texts,
       labels,
       longest,
-      withYear: texts.filter((t) => /, \d{4} ·/.test(t)).length,
+      withYear: texts.filter((t) => /, \d{4}$/.test(t)).length,
       worstDate,
       dateMisaligned,
       namesClipped,
@@ -273,7 +275,7 @@ for (const width of [1600, 1440, 1280]) {
     check(r.groupHeaders === 0, "one flat list — no date-group headers anywhere in 600 rows", `${r.groupHeaders} headers`);
     check(r.count === 600, "every row was reached by scrolling to the end", `${r.count}`);
     check(/Review date$/.test(r.header), "the column is `Review date`", r.header);
-    check(r.texts.every((t) => DATE_RE.test(t)), "every row's date is `Mon D · H:MM AM`, year only outside this year — never relative",
+    check(r.texts.every((t) => DATE_RE.test(t)), "every row's date is `Mon D`, year only outside this year — no time, never relative",
       r.texts.find((t) => !DATE_RE.test(t)) ?? `${r.texts.length} matched`);
     /* MOST RECENT FIRST, read off each row's accessible name, which carries the
        full absolute stamp ("closed Oct 6, 2026, 1:53 PM"). */
@@ -287,7 +289,9 @@ for (const width of [1600, 1440, 1280]) {
   check(r.namesClipped === 0 && r.outcomesClipped === 0 && r.lateClipped === 0,
     "nothing else on the row is clipped to make room",
     `names ${r.namesClipped} · outcomes ${r.outcomesClipped} · late ${r.lateClipped}`);
-  check(r.cycleVisible === width >= 1440, `Cycle is ${width >= 1440 ? "shown" : "dropped"} on Closed at ${width}`, `visible: ${r.cycleVisible}`);
+  /* SUPERSEDES "Cycle is dropped on Closed below 1440": that answered a 196px
+     date column, and the date-only column is 104. */
+  check(r.cycleVisible, `Cycle is shown on Closed at ${width}`, `visible: ${r.cycleVisible}`);
   if (width === 1600) {
     await page.evaluate(() => (document.querySelector('[aria-label="Care reviews list"]').scrollTop = 0));
     await page.waitForTimeout(300);
