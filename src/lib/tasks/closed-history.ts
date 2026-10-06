@@ -64,8 +64,8 @@ const PROVENANCE: FieldProvenance[] = ["authored", "ai_inserted", "ai_assisted"]
  *  A power curve over ~120 days rather than an even spread: real history is
  *  dense near the present and thins out, and an even spread at n=40 would put
  *  one review every three days and leave Today and Yesterday empty. */
-function submittedAgo(i: number, n: number): number {
-  const days = Math.pow(i / Math.max(1, n), 1.6) * 120;
+function submittedAgo(i: number, n: number, spanDays: number): number {
+  const days = Math.pow(i / Math.max(1, n), 1.6) * spanDays;
   /* Jitter inside the day so rows in one group do not share a minute. */
   return days * DAY + 25 * MINUTE + (i % 7) * 37 * MINUTE;
 }
@@ -73,14 +73,18 @@ function submittedAgo(i: number, n: number): number {
 export function closedHistory(
   now: number,
   n: number,
-  pools: { teens: readonly Person[]; mentors: readonly Person[] }
+  pools: { teens: readonly Person[]; mentors: readonly Person[] },
+  /** How far back the oldest review closed. 120 by default; the 600-row scale
+   *  scenario passes more so its tail crosses New Year and the year-bearing
+   *  `Review date` format (`Sep 29, 2025 · 4:46 PM`) renders on real rows. */
+  spanDays = 120
 ): ClosedCareReview[] {
   const out: ClosedCareReview[] = [];
   for (let i = 0; i < n; i++) {
     const teen = pools.teens[(i * 7) % pools.teens.length];
     const mentor = pools.mentors[(i * 3) % pools.mentors.length];
     const intake = i % 4 === 3;
-    const submittedAt = now - submittedAgo(i, n);
+    const submittedAt = now - submittedAgo(i, n, spanDays);
     /* ONE IN SIX LATE — submitted 60–90h after reception, past the 48h line. */
     const responseMs = i % 6 === 5 ? (60 + (i % 31)) * HOUR : (4 + (i % 37)) * HOUR;
     const openedAt = submittedAt - responseMs;

@@ -75,8 +75,7 @@ import { elapsedLabel } from "@/components/tasks/strips";
 import {
   OUTCOME_VERB,
   absoluteStamp,
-  closedLabel,
-  closedDayBands,
+  reviewDateLabel,
   closedLate,
   type ClosedCareReview,
 } from "@/lib/tasks/closed-review";
@@ -106,6 +105,7 @@ import { cn } from "@/lib/utils";
 import {
   COL_AGE,
   COL_CLOSED_BOX,
+  CYCLE_HIDDEN_BELOW_1440,
   COL_MENTEE_MIN,
   COL_PRESENTATION,
   COL_REVIEW,
@@ -378,8 +378,8 @@ function Row({
    *  Present only on the Closed tab. The row then says what was DECIDED rather
    *  than what is being asked, and its trailing column is when it closed rather
    *  than how long it has waited — `Review age` stops meaning anything once a
-   *  review is closed. `grouped`: a date header above already says the day. */
-  closed?: { record: ClosedCareReview; grouped: boolean } | null;
+   *  review is closed. */
+  closed?: { record: ClosedCareReview } | null;
   /** ═══ §8 — WHETHER THIS REVIEW HAS A SAVED DRAFT ═══
    *  Resolved by the list from `sessionStorage` through the version counter, and
    *  handed down as a boolean for the same reason `unviewed` is: a row must not
@@ -1088,20 +1088,6 @@ function Row({
                 <span data-closed-outcome={closedRec.decision.outcome} className="inline-flex items-center gap-1.5">
                   {OUTCOME_VERB[closedRec.decision.outcome]}
                   <BillingCodeLozenge code={closedRec.decision.code} tone="identity" />
-                  {/* ═══ §3.3 · SUBMITTED LATE — QUIET, AND IN WORDS ═══
-                      Answered: lateness persists on the record. Not the breach
-                      pattern — no clay fill, no icon — because nothing is owed
-                      any more; it is a fact about how the review closed. On this
-                      line rather than under the time because the Closed column
-                      is 104px and the phrase is ~80px of a second line it would
-                      have to share. */}
-                  {late && (
-                    <span data-submitted-late className="text-[var(--text-muted)]">
-                      <span aria-hidden className="pr-1.5">·</span>
-                      {/* NEEDS-COPY-NICOLE */}
-                      Submitted late
-                    </span>
-                  )}
                 </span>
               ) : resolving ? (
                 /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
@@ -1170,14 +1156,26 @@ function Row({
            is shared with the mentee column instead of all landing on it. Today's
            table leaves it at 0, because three exact thirds cannot have a
            growing member. See the prop's own note. */
-        <ReviewCycleCell taskType={item.taskType} grow={1} />
+        <ReviewCycleCell
+          taskType={item.taskType}
+          grow={1}
+          className={closedRec ? CYCLE_HIDDEN_BELOW_1440 : undefined}
+        />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
           to sit 6px from a truncating caption, so on a narrow column the two
           read as one run of text. */}
       <span
-        className="flex shrink-0 items-center justify-end gap-1.5 pl-6"
+        className={cn(
+          "flex shrink-0 justify-end",
+          /* The Review date's gutter is `COL_CLOSED_GUTTER` (16) — see it. */
+          closedRec ? "pl-4" : "pl-6",
+          /* A CLOSED ROW STACKS: the date, and under it `Submitted late` when it
+             was — both right-aligned, so the dates still line up down the
+             column whether or not a row carries the second line. */
+          closedRec ? "flex-col items-end justify-center" : "items-center gap-1.5"
+        )}
         style={
           closedRec
             ? { width: COL_CLOSED_BOX }
@@ -1283,11 +1281,33 @@ function Row({
               them, so `temporal` is still what `ariaLabel` is built from: the
               suffix is dropped from the CELL, not from the row. */}
           {closedRec
-            ? closedLabel(closedRec.submittedAt, now, closed!.grouped)
+            ? /* ═══ THE REVIEW DATE, COMPLETE ON ITS OWN ═══
+                 `Oct 6 · 1:53 PM` — absolute on every row, today's included,
+                 because no group header above it carries the day any more. */
+              reviewDateLabel(closedRec.submittedAt, now)
             : item.payload.kind === "billing"
               ? elapsedLabel(ageAt, now)
               : temporal}
         </span>
+        {/* ═══ §3.3 · SUBMITTED LATE — QUIET, AND IN WORDS ═══
+            Answered: lateness persists on the record. Not the breach pattern —
+            no clay fill, no icon — because nothing is owed any more; it is a
+            fact about how the review closed.
+            UNDER THE DATE, NOT ON THE OUTCOME LINE. It sat beside the outcome
+            until the Review date column widened to 196px for its longest value;
+            MEASURED then, `Assigned R45.89 · Submitted late` needed 208px of a
+            168px mentee line and clipped on 2 of 15 rows. The date box has
+            ~26px to spare at its widest and ~70px on a year-less row, and the
+            phrase is a fact about the date anyway. */}
+        {late && (
+          <span
+            data-submitted-late
+            className="text-[12px] leading-[16px] whitespace-nowrap text-[var(--text-muted)]"
+          >
+            {/* NEEDS-COPY-NICOLE */}
+            Submitted late
+          </span>
+        )}
         </span>
         </div>
       </div>
@@ -1546,7 +1566,7 @@ export function Worklist({
    *  the sections, the offsets, the sticky headers, the keyboard order — is
    *  identical either way, and forking the list to change what a header says
    *  would have been two virtualizers to keep in step. */
-  grouping?: "tier" | "deadline" | "none" | "closedDay";
+  grouping?: "tier" | "deadline" | "none";
   /** ═══ THE ROW'S ANATOMY — TWO AXES, NOT ONE (arch-E) ═══
    *
    *  `"subject"` is arch-D's row: identity disc, name on line 1, `to {mentor}`
@@ -1631,12 +1651,10 @@ export function Worklist({
     () =>
       grouping === "none"
         ? [{ id: "all", label: "", entries: [...entries], taskCount: entries.length }]
-        : grouping === "closedDay"
-          ? closedDayBands(entries, closed?.byId, now)
-          : grouping === "deadline"
+        : grouping === "deadline"
           ? deadlineBandsFor(entries, now)
           : bandsFor(entries),
-    [entries, grouping, now, closed?.byId]
+    [entries, grouping, now]
   );
   /* ═══ A SINGLE UNLABELLED BAND DRAWS NO HEADER (addendum §2.9) ═══
      `bandsAreMeaningful` answers "is there anything to group"; this adds the
@@ -2107,6 +2125,7 @@ export function Worklist({
           /* THE CLOSED TAB'S TRAILING COLUMN — `Closed`, not `Review age`, at
              its own width so the header sits over the times it heads. */
           trailing={closed ? "closed" : "age"}
+          compactCycle={!!closed}
           ageWidth={closed ? COL_CLOSED_BOX : undefined}
           sticky
         />
@@ -2193,7 +2212,7 @@ export function Worklist({
                 drafted={drafted?.has(v.id) ?? false}
                 closed={
                   closed?.byId.get(v.item.id)
-                    ? { record: closed.byId.get(v.item.id)!, grouped: grouping === "closedDay" }
+                    ? { record: closed.byId.get(v.item.id)! }
                     : null
                 }
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══

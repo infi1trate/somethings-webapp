@@ -1561,15 +1561,11 @@ export function TasksPage({
                  by — so the list is flat, in the comparator's order, which
                  without an SLA is oldest-first. `AGENTS.md`'s "Tasks groups by
                  when" section is rewritten to say so. */
-                /* ═══ CLOSED GROUPS BY DAY, BUT ONLY IN ITS DEFAULT ORDER (§1) ═══
-                   A date header over a list sorted by Mentee would label rows
-                   that are not in date order, so a column sort flattens the list
-                   and cycling back to the default regroups it. */
-                grouping={
-                  scope === "care-reviews" && careTab === "closed" && !careSort
-                    ? "closedDay"
-                    : "none"
-                }
+                /* ═══ FLAT ON BOTH TABS ═══
+                   Closed briefly grouped by day (`Today — 2`, …); that was an
+                   addition the pack withdrew. It is one list, most recently
+                   closed first, and each row's `Review date` carries the day. */
+                grouping="none"
                 /* THE LIST'S OWN NAME, for the unlabelled band's accessible
                    name — `DOMAIN_LABEL` would say "Billing", which is the word
                    this destination was renamed away from. */

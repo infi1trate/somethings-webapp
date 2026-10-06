@@ -1484,7 +1484,7 @@ export const TASK_SCENARIOS: TaskScenario[] = [
   /* ═══ CLOSED AT SCALE (Closed-tab pack §1) ═══
      "Verify at 500+ fixture items." The open side is `care-mixed-cycles`'s; the
      point of this scenario is the 600-row Closed tab. */
-  { id: "care-closed-history", label: "Care · 600 closed", description: "Twelve open reviews and 600 closed ones across ~120 days.", build: careMixedCycles, buildClosed: (now) => closedHistory(now, 600, closedPools()) },
+  { id: "care-closed-history", label: "Care · 600 closed", description: "Twelve open reviews and 600 closed ones across ~400 days, crossing New Year.", build: careMixedCycles, buildClosed: (now) => closedHistory(now, 600, closedPools(), 400) },
 ];
 
 /* ════════════════════════════════════════════════════════════════════════

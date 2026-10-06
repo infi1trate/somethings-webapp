@@ -11,11 +11,8 @@ import { billingReviewFor } from "@/lib/tasks/billing-presentation";
 import { closedHistory } from "@/lib/tasks/closed-history";
 import {
   buildClosedReview,
-  calendarDaysAgo,
-  closedDayBands,
-  closedDayGroup,
-  closedLabel,
   closedLate,
+  reviewDateLabel,
   outcomeFor,
   withClosures,
   type ClosedCareReview,
@@ -126,40 +123,23 @@ describe("lateness is read off the record (§3.3)", () => {
   });
 });
 
-describe("date groups and the Closed column (§1, §3)", () => {
-  const at = (daysAgo: number, h = 10) => {
+describe("the Review date is complete on every row (Closed-tab follow-up)", () => {
+  const at = (daysAgo: number, h = 13, m = 53) => {
     const d = new Date(NOW);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysAgo, h, 5).getTime();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysAgo, h, m).getTime();
   };
-  it("Today, Yesterday, weekdays to six days, then a date", () => {
-    expect(closedDayGroup(at(0), NOW).label).toBe("Today");
-    expect(closedDayGroup(at(1), NOW).label).toBe("Yesterday");
-    expect(closedDayGroup(at(2), NOW).label).toBe("Sunday");
-    expect(closedDayGroup(at(6), NOW).label).toBe("Wednesday");
-    expect(closedDayGroup(at(7), NOW).label).toBe("Sep 29");
+  it("is `Oct 6 · 1:53 PM` — absolute, even today", () => {
+    expect(reviewDateLabel(at(0), NOW)).toBe("Oct 6 · 1:53 PM");
+    expect(reviewDateLabel(at(1, 9, 5), NOW)).toBe("Oct 5 · 9:05 AM");
   });
-  it("counts calendar days, so a minute past midnight is Today and a minute before is Yesterday", () => {
-    const midnight = new Date(2026, 9, 6, 0, 0).getTime();
-    expect(closedDayGroup(midnight + 60_000, NOW).label).toBe("Today");
-    expect(closedDayGroup(midnight - 60_000, NOW).label).toBe("Yesterday");
-    expect(calendarDaysAgo(midnight - 60_000, midnight + 60_000)).toBe(1);
+  it("never says Today, Yesterday or a weekday", () => {
+    for (const d of [0, 1, 2, 6, 7, 40]) {
+      expect(reviewDateLabel(at(d), NOW)).not.toMatch(/Today|Yesterday|day\b/);
+    }
   });
-  it("a different year carries the year", () => {
-    expect(closedDayGroup(new Date(2025, 11, 30).getTime(), NOW).label).toBe("Dec 30, 2025");
-  });
-  it("grouped rows say the time; ungrouped rows say as much as the day needs", () => {
-    expect(closedLabel(at(3, 11), NOW, true)).toBe("11:05 AM");
-    expect(closedLabel(at(0, 11), NOW, false)).toBe("11:05 AM");
-    expect(closedLabel(at(3, 11), NOW, false)).toBe("Sat 11:05 AM");
-    expect(closedLabel(at(9, 11), NOW, false)).toBe("Sep 27");
-  });
-  it("bands partition the list in order, and their counts sum to it", () => {
-    const history = closedHistory(NOW, 60, { teens: ROSTER, mentors: MENTOR_POOL });
-    const entries = closedEntries(history, ["billing"]);
-    const bands = closedDayBands(entries, new Map(history.map((r) => [r.id, r])), NOW);
-    expect(bands[0].label).toBe("Today");
-    expect(bands.reduce((n, b) => n + b.taskCount, 0)).toBe(60);
-    expect(bands.flatMap((b) => b.entries.map((e) => e.id))).toEqual(entries.map((e) => e.id));
+  it("adds the year only outside the current one", () => {
+    expect(reviewDateLabel(new Date(2025, 8, 29, 16, 46).getTime(), NOW)).toBe("Sep 29, 2025 · 4:46 PM");
+    expect(reviewDateLabel(new Date(2026, 0, 1, 0, 1).getTime(), NOW)).toBe("Jan 1 · 12:01 AM");
   });
 });
 
@@ -197,6 +177,12 @@ describe("closed entries are built from the records themselves", () => {
 
 describe("the closed-history fixture", () => {
   const h = closedHistory(NOW, 600, { teens: ROSTER, mentors: MENTOR_POOL });
+  it("the scale scenario crosses New Year, so the year-bearing format renders for real", () => {
+    const scale = tasksClosedHistory("care-closed-history", NOW);
+    const thisYear = new Date(NOW).getFullYear();
+    expect(scale.some((r) => new Date(r.submittedAt).getFullYear() < thisYear)).toBe(true);
+    expect(scale.some((r) => new Date(r.submittedAt).getFullYear() === thisYear)).toBe(true);
+  });
   it("is the size asked for, with unique ids that never collide with an open task's", () => {
     expect(h).toHaveLength(600);
     expect(new Set(h.map((r) => r.id)).size).toBe(600);

@@ -29,8 +29,6 @@ import type { FieldProvenance } from "@/lib/record/field-provenance";
 import { proposalKindFor } from "@/lib/record/proposal-kind";
 import { CARE_REVIEW_RESPONSE_MS } from "@/lib/tasks/care-overdue";
 import type { BillingPayload, TaskItem } from "@/lib/tasks/types";
-import type { TierBand } from "@/lib/tasks/bands";
-import type { ListEntry } from "@/lib/tasks/list";
 
 /** What the supervisor decided, in four readings (§3.1, answered 2026-10-06). */
 export type ClosedOutcome = "changed" | "kept" | "renewed" | "assigned";
@@ -148,69 +146,28 @@ export function withClosures(
 
 // ── Dates ──────────────────────────────────────────────────────────────────
 
-const startOfDay = (t: number) => {
-  const d = new Date(t);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-};
-
-/** Whole calendar days between two instants, by local date — not by
- *  `(now - at) / 24h`, which miscounts across midnight and across DST. */
-export function calendarDaysAgo(at: number, now: number): number {
-  const a = new Date(startOfDay(at));
-  const b = new Date(startOfDay(now));
-  return Math.round(
-    (Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) -
-      Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) /
-      86_400_000
-  );
-}
-
-/** ═══ THE DATE GROUPS (§1) ═══
- *  `Today` · `Yesterday` · a weekday for 2–6 days ago · then a date.
- *  "THIS WEEK" IS THE LAST SEVEN DAYS, not the calendar week: on a Tuesday the
- *  calendar week holds two days, and a weekday name older than six days would
- *  name two different dates. Within six days a weekday is never ambiguous. */
-export function closedDayGroup(at: number, now: number): { key: string; label: string } {
-  const days = calendarDaysAgo(at, now);
-  const key = String(startOfDay(at));
-  /* TODO-COPY, the two words. */
-  if (days <= 0) return { key, label: "Today" };
-  if (days === 1) return { key, label: "Yesterday" };
+/** ═══ THE REVIEW DATE (Closed-tab follow-up, 2026-10-06) ═══
+ *  `Oct 6 · 1:53 PM`, with the year only when it is not the current one
+ *  (`Sep 29, 2025 · 4:46 PM`). ABSOLUTE IN EVERY CASE — no `Today`, no
+ *  `Yesterday`, no weekday: this is a record, and a relative word on a record
+ *  is a fact that changes meaning overnight.
+ *  IT REPLACES THE DATE GROUPS. They were an addition the pack itself
+ *  withdrew; with no header above a row carrying the day, the row has to be
+ *  complete on its own, so there is one format and no `grouped` switch. */
+export function reviewDateLabel(at: number, now: number): string {
   const d = new Date(at);
-  if (days <= 6) return { key, label: d.toLocaleDateString("en-US", { weekday: "long" }) };
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  return {
-    key,
-    label: d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      ...(sameYear ? {} : { year: "numeric" }),
-    }),
-  };
-}
-
-const time = (at: number) =>
-  new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-
-/** ═══ THE CLOSED COLUMN (§3) ═══
- *  `grouped`: the date header already says the day, so the row says the time.
- *  Ungrouped (a column sort is active): today → time, the last six days →
- *  weekday and time, older → the date. Absolute throughout — this is a record. */
-export function closedLabel(at: number, now: number, grouped: boolean): string {
-  if (grouped) return time(at);
-  const days = calendarDaysAgo(at, now);
-  if (days <= 0) return time(at);
-  const d = new Date(at);
-  if (days <= 6) return `${d.toLocaleDateString("en-US", { weekday: "short" })} ${time(at)}`;
-  const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  return d.toLocaleDateString("en-US", {
+  const date = d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     ...(sameYear ? {} : { year: "numeric" }),
   });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${date} · ${time}`;
 }
 
-/** The footer's stamp: `Oct 6, 2026, 11:22 AM`. Never relative. */
+/** The footer's stamp: `Oct 6, 2026, 11:22 AM`. Never relative — and always
+ *  with the year, because the footer is the record's signature line. */
 export function absoluteStamp(at: number): string {
   return new Date(at).toLocaleString("en-US", {
     month: "short",
@@ -219,33 +176,4 @@ export function absoluteStamp(at: number): string {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-/** ═══ THE DATE BANDS (§1) ═══
- *  A partition of the already-ordered list, by the day each review closed —
- *  the same `TierBand` the virtualized list renders every other grouping
- *  through, so the headers, the sticky behaviour and the keyboard order come
- *  with it. Bands appear in first-appearance order, which on the default
- *  most-recent-first list is Today → Yesterday → … → oldest.
- *  An entry with no record (a wiring mistake, not a state) lands in a band of
- *  its own rather than being dropped — a closed review must never vanish. */
-export function closedDayBands(
-  entries: readonly ListEntry[],
-  byId: ReadonlyMap<string, ClosedCareReview> | undefined,
-  now: number
-): TierBand[] {
-  const bands = new Map<string, TierBand>();
-  for (const e of entries) {
-    if (e.kind !== "item") continue;
-    const r = byId?.get(e.item.id);
-    const g = r ? closedDayGroup(r.submittedAt, now) : { key: "unknown", label: "Closed" };
-    let band = bands.get(g.key);
-    if (!band) {
-      band = { id: `closed-${g.key}`, label: g.label, entries: [], taskCount: 0 };
-      bands.set(g.key, band);
-    }
-    band.entries.push(e);
-    band.taskCount++;
-  }
-  return [...bands.values()];
 }

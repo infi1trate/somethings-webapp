@@ -50,8 +50,8 @@ export const SORT_LABEL: Record<CareSortColumn, string> = {
   mentee: "Mentee",
   cycle: "Cycle",
   age: "Review age",
-  /* TODO-COPY */
-  closed: "Closed",
+  /* TODO-COPY. It read `Closed`; renamed to the noun the value is. */
+  closed: "Review date",
 };
 
 /** ═══ WHAT EACH DIRECTION MEANS, IN WORDS ═══

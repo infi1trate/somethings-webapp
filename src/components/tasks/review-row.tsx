@@ -108,13 +108,33 @@ export const COL_AGE = 72;
  *  cell can share one number. */
 export const COL_AGE_BOX = COL_AGE + 24;
 
-/** ═══ THE CLOSED COLUMN IS WIDER THAN THE AGE COLUMN (Closed-tab pack §3) ═══
- *  Its longest value is the ungrouped `Tue 11:22 AM` — twelve characters of
- *  14px mono — where the age column's longest is four (`15 d`). One width for
- *  the whole tab, grouped or not, so the header never moves when a sort toggles
- *  the date groups on and off. */
-export const COL_CLOSED = 104;
-export const COL_CLOSED_BOX = COL_CLOSED + 24;
+/** ═══ THE REVIEW DATE COLUMN IS SIZED TO ITS LONGEST VALUE ═══
+ *  `Sep 29, 2025 · 12:46 PM` — the year-bearing format with a two-digit hour,
+ *  23 characters of 14px mono. MEASURED in the cell's own font: 193.9px (every
+ *  23-character variant measures the same, which is what a monospace with
+ *  tabular figures is for). 196 is the next step on the 4px grid, so the
+ *  widest possible value fits without wrapping or truncating, and the
+ *  header does not move whichever rows are on screen. A year-less value is
+ *  126–143px and sits right-aligned in the same box, times flush to the edge. */
+export const COL_CLOSED = 196;
+/** ITS GUTTER IS 16, NOT THE AGE COLUMN'S 24. MEASURED at 1280 with Cycle
+ *  dropped: `Changed to F33.1` needed 120px of a 116px mentee line. The
+ *  dates are right-aligned in a box sized to the widest one, so a typical row
+ *  already sits 50–70px clear of the mentee text; only the widest value is
+ *  ever 16px from it. The 8px goes back to the mentee column (116 → 124). */
+export const COL_CLOSED_GUTTER = 16;
+export const COL_CLOSED_BOX = COL_CLOSED + COL_CLOSED_GUTTER;
+
+/** ═══ CLOSED DROPS CYCLE BELOW THE 1440 TIER (answered 2026-10-06) ═══
+ *  MEASURED at 1280: the list is 466px and the Review date column takes 220,
+ *  which left the mentee column 48px — 11 of 14 names and every outcome line
+ *  truncated, against 146px on Open at the same width. The full date cannot
+ *  shrink (the pack forbids wrapping or truncating it), so the least
+ *  informative column on a closed record goes instead: Cycle hides on Closed
+ *  below 1440 and returns at 1440, where everything measured fits. Open keeps
+ *  it at every width. Applied to the header and the cell together so the two
+ *  flex chains never fall out of step. */
+export const CYCLE_HIDDEN_BELOW_1440 = "max-[1439px]:hidden";
 
 /** ═══ THE MENTEE COLUMN'S SHARE OF THE ROW (§6.5, corrected in §3) ═══
  *  MEASURED at 1280 before §6.5: the flexible mentee cell was **11px** wide and
@@ -217,6 +237,9 @@ export function ReviewRowHeader({
   ageWidth = COL_AGE_BOX,
   /** WHICH TRAILING COLUMN — `age` on Open, `closed` on Closed. */
   trailing = "age",
+  /** Hide the Cycle column below the 1440 tier (Closed tab only — see
+   *  `CYCLE_HIDDEN_BELOW_1440`). */
+  compactCycle = false,
   /** The row's leading marker slot, so the header's first column starts at the
    *  same x the row's does. 0 on a surface that draws no marker — Today's
    *  preview table — which is why it defaults to nothing rather than to 8. */
@@ -234,6 +257,7 @@ export function ReviewRowHeader({
   presentationWidth?: number;
   ageWidth?: number;
   trailing?: "age" | "closed";
+  compactCycle?: boolean;
   markerWidth?: number;
   equalWidth?: number;
   sort?: {
@@ -335,7 +359,10 @@ export function ReviewRowHeader({
            1280, just at the other end of the range. `equalWidth == null` IS the
            list layout, which is exactly where the row passes `grow={1}`; Today's
            equal thirds keep 0 on both sides. */
-        className="flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        className={cn(
+          "flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]",
+          compactCycle && CYCLE_HIDDEN_BELOW_1440
+        )}
         style={{
           flex: `${equalWidth == null ? 1 : 0} 6 ${presentationWidth}px`,
           minWidth: COL_REVIEW_MIN,
@@ -597,8 +624,10 @@ export function ReviewCycleCell({
   taskType,
   width = COL_REVIEW,
   grow = 0,
+  className,
 }: {
   taskType: TaskType;
+  className?: string;
   width?: number;
   /** ═══ WHETHER THIS COLUMN TAKES A SHARE OF THE ROW'S SPARE WIDTH ═══
    *  0 BY DEFAULT, WHICH KEEPS TODAY'S TABLE EXACTLY AS IT WAS: that table is
@@ -622,7 +651,7 @@ export function ReviewCycleCell({
        deficit — which is why the mentee cell's hard floor became a basis in
        the same pass. Together they leave nothing clipped. */
     <span
-      className="flex min-w-0 items-center"
+      className={cn("flex min-w-0 items-center", className)}
       /* `shrink: 6` AGAINST THE MENTEE CELL'S 1. The deficit is shared out by
          shrink factor × basis, so 6×72 against 1×168 means this column has
          given everything it has before the caption loses its first pixel —
