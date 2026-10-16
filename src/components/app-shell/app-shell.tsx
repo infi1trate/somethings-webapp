@@ -45,6 +45,7 @@ import { GroupedRail } from "@/components/app-shell/grouped-rail";
 import type { NavGroup } from "@/components/settings/nav-items";
 import { BottomNav } from "@/components/app-shell/bottom-nav";
 import { TopBar } from "@/components/app-shell/top-bar";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -147,6 +148,16 @@ export function AppShell({
    *  could not be read from here at all, which is why the bar used to appear and
    *  vanish with no navigation to explain it. */
   const pathname = usePathname();
+  /* ═══ EACH ROUTE STARTS AT THE TOP OF THE CANVAS (SUP-1) ═══
+     The shell used to remount per route, which reset this scroller for free.
+     It persists now (`(console)/layout.tsx`), so without this the next page
+     would open at the previous page's scroll offset. A DOM write in an effect,
+     keyed on the pathname — a query-string change (a tab, a filter) keeps its
+     place, as it always did. */
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (canvasRef.current) canvasRef.current.scrollTop = 0;
+  }, [pathname]);
   const isDetailView = (pathname ?? "").split("/").filter(Boolean).length > 2;
 
   return (
@@ -237,6 +248,8 @@ export function AppShell({
           spent on nothing — and gains bottom room for the tab bar. */}
       <main data-anno-ref="app-main" className="min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
         <div
+          ref={canvasRef}
+          data-canvas-scroller
           // ═══ THE FOCUS-OBSTRUCTION GUARD (SC 2.4.11, RC-5) ═══
           //
           // Implemented ONCE, here, on the scroll container — not as padding on

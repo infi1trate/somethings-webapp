@@ -59,7 +59,7 @@ describe("the rail's number and the row's number are one number", () => {
     for (const sc of TASK_SCENARIOS) {
       for (const mon of MONITORING) {
         const input = inputsFor(sc.id, mon);
-        /* THE RAIL'S CALL, with exactly the arguments `app-chrome` passes. */
+        /* THE RAIL'S CALL, with exactly the arguments `console-shell` passes. */
         const rail = openCounts({
           items: input.items,
           events: input.events,
@@ -151,7 +151,9 @@ describe("there is only one expression, and that is checked at the source", () =
       .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
 
   it("leaves no destination count computed inside the rail", () => {
-    const src = read("src/components/app-shell/app-chrome.tsx");
+    /* RETARGETED (SUP-1): the rail's badge logic moved with the shell body
+       from `app-chrome.tsx` (now a reporter) into `console-shell.tsx`. */
+    const src = read("src/components/app-shell/console-shell.tsx");
     expect(src, "the rail derives an escalation count itself").not.toContain(
       "escalationObligations"
     );

@@ -188,7 +188,7 @@ const mainText = (page) => page.locator("main").innerText();
        that own that work now, and the old list rejected both.
        `/app/escalation/{id}` STAYS ALLOWED AND IS NOT A BROKEN LINK: it is a
        documented HOP that redirects to `/app/escalations?escalation={id}` —
-       `src/app/app/escalation/[escalationId]/page.tsx` says so at the top.
+       `src/app/(console)/app/escalation/[escalationId]/page.tsx` says so at the top.
        THE CLAIM IS UNCHANGED: every link leaves for a surface that owns the
        work, and none of them acts on it here. */
     links.length > 0 &&

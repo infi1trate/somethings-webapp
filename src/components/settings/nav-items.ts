@@ -26,7 +26,7 @@
 //   · `sidebar.tsx`      SIDEBAR_ITEMS  — the mentor base
 //   · `mentor-shell.tsx` LEAD_ITEMS     — the base, filtered (both shells
 //   · `admin-shell.tsx`  NAV            — its own literal array; both files
-//     are gone, folded into `app-shell/app-chrome.tsx` by addendum §2.3)
+//     are gone, folded into `app-shell/console-shell.tsx`, formerly `app-chrome.tsx`, by addendum §2.3)
 //
 // They had already drifted: the mentor base called the messaging destination
 // `chat` and the supervisor console called it `chats`, so the same place had two
