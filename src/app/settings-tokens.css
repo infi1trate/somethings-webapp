@@ -46,8 +46,11 @@
   --border-subtle: #dfddd8; /* card borders, inactive tab underline (decorative) */
   --text-primary: #1f1e1d; /* headings, active tab — 15.14:1 on s1 */
   --text-secondary: #58534b; /* body, descriptions — 6.94:1 on s1 */
-  --text-tertiary: #a0998d; /* ⚠ 2.57:1 on s1 — FAILS AA. Decorative /
-                               disabled-redundant contexts ONLY (spec §2 flag) */
+  /* bloom: text/tertiary. Was #a0998d, which measured 2.57:1 on s1 and was
+     fenced off as decorative-only. Bloom's value (Figma 3928:10081) is #716a60,
+     which clears 4.5:1 on canvas and raised, so it can carry placeholders and
+     labels (SUP-1). */
+  --text-tertiary: #716a60;
   --text-muted: #6e6b67; /* untokenized in Figma (minted here — gaps.md #3).
                             Darkened from the observed #797774 (4.06:1, failed
                             AA-normal) in the Phase 8 sweep — 4.63:1 on s1 ✓ */
@@ -72,6 +75,21 @@
      at 8% over the card tone (target band 6–10%), decorative and exempt
      from the 3:1 non-text rule — if it reads as a line, it's too strong. */
   --surface-card: #ffffff;
+
+  /* ═══ BLOOM CANONICAL NAMES, THE SUBSET THE TOP BAR AND SUPPORT PANEL USE ═══
+     (SUP-1.) Values from Figma's Bloom variables as bound on topBar 3928:10081
+     and the panel 3934:13443 — Figma is the authority where it and the CT
+     token pack disagree (answered 2026-10-16). Where an existing token already
+     holds the same value it is an ALIAS, so there is one source per colour.
+     The full canonical layer is CT-01's; these names are a subset of it and
+     carry the same names, so CT-01 extends rather than replaces them. */
+  --surface-canvas: var(--surface-s1); /* bloom: surface/canvas #f6f4ef */
+  --surface-raised: var(--surface-card); /* bloom: surface/raised #ffffff */
+  --surface-sunken: var(--surface-canvas); /* bloom: surface/sunken (Figma binds it to canvas) */
+  --surface-sunken-strong: #e8e4db; /* bloom: surface/sunken-strong (Figma; CT pack had #e5e0d2) */
+  --surface-overlay: #ffffff; /* bloom: surface/overlay */
+  --border-default: #cbc6be; /* bloom: border/default */
+  --radius-lrg: 12px; /* bloom: radius-lrg */
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
@@ -662,7 +680,9 @@
   --border-subtle: #3f3b36; /* hairline, one step ABOVE the card */
   --text-primary: #ffffff;
   --text-secondary: #b5b0a6; /* warmGrey/300 */
-  --text-tertiary: #8a8275; /* ⚠ decorative only, as in light */
+  /* bloom: text/tertiary (dark). Figma's dark mode was not readable through
+     the connector; this is the Bloom dark value from the CT token pack. */
+  --text-tertiary: #a0998d;
   --text-muted: #a0998d; /* warmGrey/400 — 4.71:1 on card ✓ */
   --state-inactive: #58534b; /* disabled fill — warmGrey/700 */
   --button-border-default: #b5b0a6;
@@ -676,6 +696,13 @@
   --icon-tertiary: #8a8275;
 
   --surface-card: #322f2c; /* warmGrey/900 + 5% white (stateLayers/primary) */
+  /* ═══ BLOOM CANONICAL NAMES, DARK (SUP-1) ═══
+     Figma's dark mode is not readable through the connector, so the dark
+     values are the CT pack's Bloom dark values; the aliases follow their
+     targets into dark automatically. */
+  --surface-sunken-strong: #1d1a17; /* bloom: surface/sunken-strong (dark) */
+  --surface-overlay: #3f3b36; /* bloom: surface/overlay (dark) */
+  --border-default: #58534b; /* bloom: border/default (dark) */
   --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
 
   /* The same three hues, inverted: fill dark, ink light. Lifted clear of the

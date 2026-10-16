@@ -84,6 +84,11 @@ import { withClosures } from "@/lib/tasks/closed-review";
 import { useAppearance } from "@/lib/use-appearance";
 import { useMounted } from "@/lib/use-mounted";
 import { bumpNavClock, useNavClock, useShellConfig } from "@/lib/app-shell/shell-config";
+import { ConsoleTopBar } from "@/components/app-shell/console-top-bar";
+import { chatScenario } from "@/lib/chat/seed";
+
+/** Who gets the desktop top bar and the support CTA (answered 2026-10-16). */
+const TOP_BAR_PERSONAS = new Set(["mentor", "lead-mentor", "supervisor", "admin"]);
 
 export function ConsoleShell({ children }: { children: React.ReactNode }) {
   const reported = useShellConfig();
@@ -292,6 +297,22 @@ function ConsoleShellBody({
     [scenarioItems, monitoring, badgeNow]
   );
 
+  /** ═══ SUPPORT'S UNREAD, FOR THE CTA's ACCESSIBLE NAME ═══
+   *  The same expression the chat list's `Support · N` uses (support threads
+   *  with an unread count), from the same fixture. SUP-5 consolidates the two
+   *  readers into one store; until then this is a second CALLER of one rule,
+   *  not a second rule. */
+  const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
+  const supportUnread = useMemo(
+    () =>
+      mounted
+        ? chatScenario(chatScenarioId, badgeNow).threads.filter(
+            (t) => t.kind === "support" && t.unreadCount > 0
+          ).length
+        : 0,
+    [mounted, chatScenarioId, badgeNow]
+  );
+
   const badges: Record<string, number> = {
     ...(unread > 0 ? { activity: unread } : {}),
     ...(reviewsWaiting > 0 ? { team: reviewsWaiting } : {}),
@@ -360,6 +381,15 @@ function ConsoleShellBody({
       activityHref={navHrefFor(persona, "activity")}
       activityUnread={unread}
       className={staff ? "text-foreground" : undefined}
+      /* ═══ THE DESKTOP TOP BAR — mentor, lead mentor, supervisor, admin ═══
+         (answered 2026-10-16). Not `new-mentor`, who is still onboarding and
+         has no supervisor relationship yet. Mount-gated like the rest of the
+         persona-driven chrome. */
+      topBar={
+        mounted && TOP_BAR_PERSONAS.has(persona) ? (
+          <ConsoleTopBar supportUnread={supportUnread} />
+        ) : undefined
+      }
     >
       {children}
     </AppShell>

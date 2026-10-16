@@ -65,9 +65,16 @@ export function AppShell({
   activityHref,
   activityUnread = 0,
   bottomInset = "panel",
+  topBar,
   className,
   children,
 }: {
+  /** ═══ THE DESKTOP TOP BAR (SUP-1) ═══
+   *  Rendered in the column beside the rail, above `<main>`, so it spans the
+   *  content area only and the rail keeps the app's top edge. When present,
+   *  `<main>` drops its top padding: Figma's content container starts directly
+   *  under the 64px bar. */
+  topBar?: React.ReactNode;
   activeId: string;
   /** ═══ TWO ITEM SETS SINCE PHASE 2A ═══
    *
@@ -246,7 +253,14 @@ export function AppShell({
       {/* THE CONTENT PANEL. Below `md` it loses the rail's left inset and the
           right gutter — a 16px gutter on a 390px viewport is 4% of the width
           spent on nothing — and gains bottom room for the tab bar. */}
-      <main data-anno-ref="app-main" className="min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
+      {topBar}
+      <main
+        data-anno-ref="app-main"
+        className={cn(
+          "min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4",
+          topBar && "md:pt-0"
+        )}
+      >
         <div
           ref={canvasRef}
           data-canvas-scroller

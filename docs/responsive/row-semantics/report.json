@@ -107,19 +107,19 @@
       "id": "sr.tasks.no-group-prefix",
       "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 7:00 A"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 7:14 A"
     },
     {
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 7:00 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 7:14 AM"
     },
     {
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "0 countdown, 15 elapsed, of 15"
+      "detail": "0 countdown, 14 elapsed, of 14"
     },
     {
       "id": "sr.monitoring.no-group-prefix",
@@ -149,13 +149,13 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 7:00 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 7:14 AM"
     },
     {
       "id": "e.identity-disc",
       "label": "every Tasks row carries the teen's identity disc, and no task-type icon well",
       "ok": true,
-      "detail": "15 discs and 0 icon wells across 15 rows"
+      "detail": "14 discs and 0 icon wells across 14 rows"
     },
     {
       "id": "e.height",
@@ -167,7 +167,7 @@
       "id": "e.one-sorted-sequence",
       "label": "the list is one sequence, oldest first, with nothing restarting inside it",
       "ok": true,
-      "detail": "15 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
+      "detail": "14 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
     },
     {
       "id": "e.monitoring-no-invented-bands",

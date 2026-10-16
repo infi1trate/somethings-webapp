@@ -178,7 +178,9 @@ const badge = (page) =>
     const chip = document.querySelector('[data-anno-ref="mentor-chip"]');
     return chip?.textContent?.replace(/^\S\s*/, "").trim() ?? null;
   });
-  await page.getByRole("searchbox").first().fill(mentor ?? "");
+  /* SCOPED TO THE PAGE'S CONTENT: since SUP-1 the first searchbox in the
+     document is the top bar's (disabled) search. */
+  await page.locator('[data-anno-ref="app-main"]').getByRole("searchbox").first().fill(mentor ?? "");
   await page.waitForTimeout(500);
   const found = await page.evaluate(() =>
     [...document.querySelectorAll('[aria-label="Care reviews list"] [data-anno-ref^="task-row:"]')].length
