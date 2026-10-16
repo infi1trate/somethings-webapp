@@ -56,7 +56,10 @@ const bar = (page) =>
     const field = h.querySelector('input[type="search"]')?.parentElement;
     const searchIcon = h.querySelector('[aria-label="Search (coming soon)"]');
     const ava = h.querySelector('[aria-label="Ask Ava (coming soon)"]');
-    const bell = h.querySelector('[aria-label="Notifications (coming soon)"]');
+    /* THE BELL IS LIVE since 2026-10-16 (it is Activity); SUPERSEDES the inert
+       "Notifications (coming soon)" lookup. */
+    const bell = h.querySelector("[data-activity-bell]");
+    const sparkle = h.querySelector('[aria-label="Ask Ava (coming soon)"] svg');
     const cta = h.querySelector("[data-support-cta]");
     const rail = document.querySelector("nav")?.closest("aside, div");
     const after = (e) => {
@@ -70,6 +73,7 @@ const bar = (page) =>
       back: back && { ...R(back), disabled: back.getAttribute("aria-disabled") === "true", tab: back.tabIndex, color: getComputedStyle(back).color, hit: after(back) },
       fwd: fwd && { ...R(fwd), disabled: fwd.getAttribute("aria-disabled") === "true", tab: fwd.tabIndex, color: getComputedStyle(fwd).color, hit: after(fwd) },
       field: R(field),
+      sparkleColor: sparkle ? getComputedStyle(sparkle).color : null,
       searchIcon: R(searchIcon),
       ava: R(ava),
       bell: R(bell),
@@ -104,8 +108,10 @@ const bar = (page) =>
   const centreMid = (m.field.x + m.ava.x + m.ava.w) / 2;
   const gapMid = (m.hist.x + m.hist.w + m.bell.x) / 2;
   check(Math.abs(centreMid - gapMid) <= 2, "the centre group is centred between the outer two (Figma)", `centre ${centreMid}, gap ${gapMid}`);
-  check(m.inert.length === 3 && m.inert.every((i) => i.tab === -1 && i.title === "Coming soon."),
-    "search, Ask Ava and the bell are out of the tab order and say Coming soon. (⌘K is part of search)", m.inert.map((i) => i.name).join(" · "));
+  /* SUPERSEDES "search, Ask Ava and the bell": the bell became Activity. */
+  check(m.inert.length === 2 && m.inert.every((i) => i.tab === -1 && i.title === "Coming soon."),
+    "search and Ask Ava are out of the tab order and say Coming soon. (⌘K is part of search)", m.inert.map((i) => i.name).join(" · "));
+  check(m.sparkleColor === "rgb(148, 122, 61)", "the sparkle is Figma's fill/ivory/border #947a3d", m.sparkleColor);
 
   /* TAB ORDER: from the top of the document, the bar's tab stops. */
   const stops = await page.evaluate(() => {
@@ -114,17 +120,17 @@ const bar = (page) =>
       .filter((e) => e.tabIndex >= 0 && !e.disabled && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().width > 0)
       .map((e) => e.getAttribute("aria-label"));
   });
-  check(JSON.stringify(stops) === JSON.stringify(["Support"]) || JSON.stringify(stops) === JSON.stringify(["Support, 1 unread"]),
-    "on a fresh load the only tab stop in the bar is Support (history disabled, four inert)", JSON.stringify(stops));
+  check(stops.length === 2 && /^Activity/.test(stops[0]) && /^Support/.test(stops[1]),
+    "on a fresh load the bar's tab stops are Activity then Support (history disabled, search and Ask Ava inert)", JSON.stringify(stops));
   check(m.back.disabled && m.fwd.disabled && m.back.tab === -1, "back and forward start disabled — no in-app history yet", `back ${m.back.color}`);
   await page.screenshot({ path: `${OUT}/01-1512-supervisor.png` });
 
   /* SUPPORT TOGGLE */
-  await page.locator("[data-support-cta]").click();
+  await page.locator('[data-anno-ref="console-topbar"] [data-support-cta]').click();
   await page.waitForTimeout(200);
   const opened = (await bar(page)).cta;
   check(opened.expanded === "true" && opened.bg === "rgb(255, 255, 255)", "support toggles aria-expanded and takes the raised fill", `${opened.expanded} · ${opened.bg}`);
-  await page.locator("[data-support-cta]").click();
+  await page.locator('[data-anno-ref="console-topbar"] [data-support-cta]').click();
   /* Move the pointer off it, or the reading is the hover tint (first run). */
   await page.mouse.move(400, 500);
   await page.waitForTimeout(250);

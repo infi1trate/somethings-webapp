@@ -90,8 +90,8 @@ const activeLabel = (page) =>
 
 // ── 2 · every console route renders the shell ──────────────────────────────
 const ROUTES = {
-  supervisor: ["/app", "/app/today", "/app/escalations", "/app/risk-flags", "/app/care-reviews", "/app/chat", "/app/activity", "/app/mentees", "/app/team", "/app/settings", "/app/profile", "/admin/person/t19"],
-  mentor: ["/app", "/app/chat", "/app/activity", "/app/mentees", "/app/settings", "/app/profile"],
+  supervisor: ["/app", "/app/today", "/app/escalations", "/app/risk-flags", "/app/care-reviews", "/app/chat", "/app/mentees", "/app/team", "/app/settings", "/app/profile", "/admin/person/t19"],
+  mentor: ["/app", "/app/chat", "/app/mentees", "/app/settings", "/app/profile"],
   "lead-mentor": ["/app", "/app/chat", "/app/team", "/app/mentees"],
   admin: ["/app", "/app/today", "/app/care-reviews", "/app/team", "/app/chat"],
 };

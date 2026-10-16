@@ -9,10 +9,11 @@
 // 64px, `padding: 8px 24px 8px 0`, with no fill and no border of its own (it
 // sits on the shell, exactly as Figma draws it).
 //
-// ═══ ONLY HISTORY AND SUPPORT ARE LIVE ═══
-// Search, ⌘K, Ask Ava and the bell are DISABLED, not enabled-but-dead
-// (standing rule 3): out of the tab order, `aria-disabled`, "Coming soon." in
-// a tooltip. Support toggles the panel's open state; the panel is SUP-2.
+// ═══ HISTORY, THE BELL AND SUPPORT ARE LIVE ═══
+// Search, ⌘K and Ask Ava are DISABLED, not enabled-but-dead (standing rule 3):
+// out of the tab order, `aria-disabled`, "Coming soon." in a tooltip. The bell
+// shipped inert too and is now Activity (2026-10-16). Support toggles the
+// panel's open state; the panel is SUP-2.
 //
 // ═══ GEOMETRY, FROM THE FILE ═══
 //   history pill   80×36: two 24px chevrons, 8px pad, a 24px inset divider
@@ -31,7 +32,8 @@
 // The support CTA never drops.
 
 import { useRouter } from "next/navigation";
-import { Bell, ChevronLeft, ChevronRight, MessagesSquare, Search, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessagesSquare, Search, Sparkles } from "lucide-react";
+import { ActivityBell } from "@/components/app-shell/activity-bell";
 import { useNavHistory } from "@/lib/app-shell/nav-history";
 import { toggleSupport, useSupportOpen } from "@/lib/support/panel";
 import { cn } from "@/lib/utils";
@@ -91,7 +93,13 @@ function HistoryButton({
   );
 }
 
-export function ConsoleTopBar({ supportUnread = 0 }: { supportUnread?: number }) {
+export function ConsoleTopBar({
+  supportUnread = 0,
+  activityUnread = 0,
+}: {
+  supportUnread?: number;
+  activityUnread?: number;
+}) {
   const router = useRouter();
   const { canGoBack, canGoForward } = useNavHistory();
   const supportOpen = useSupportOpen();
@@ -167,9 +175,8 @@ export function ConsoleTopBar({ supportUnread = 0 }: { supportUnread?: number })
             aria-label="Ask Ava (coming soon)"
             className="flex h-10 min-w-[120px] shrink-0 cursor-default items-center justify-center gap-2 rounded-full border border-[color:var(--border-default)] bg-[var(--surface-sunken)] px-4"
           >
-            {/* Figma tints this glyph `ivory/500`, a ramp step with no semantic
-                token; it takes the bar's icon ink instead (flagged). */}
-            <Sparkles aria-hidden className="size-4 text-[var(--icon-secondary)]" strokeWidth={1.75} />
+            {/* Figma binds this glyph to `fill/ivory/border` (#947a3d). */}
+            <Sparkles aria-hidden className="size-4 text-[var(--fill-ivory-border)]" strokeWidth={1.75} />
             {/* Label/Medium is Lausanne 700, and only Lausanne 400 ships, so the
                 weight would be a declaration with no rendering behind it. Avantt
                 Bold is this codebase's emphasis face (AGENTS.md). */}
@@ -181,14 +188,10 @@ export function ConsoleTopBar({ supportUnread = 0 }: { supportUnread?: number })
 
         {/* ── RIGHT · notifications (disabled) + support (functional) ─── */}
         <div className="flex shrink-0 items-center gap-3 pr-2">
-          <button
-            type="button"
-            {...inert}
-            aria-label="Notifications (coming soon)"
-            className="flex size-10 cursor-default items-center justify-center rounded-[var(--radius-lrg)] border border-[color:var(--border-default)]"
-          >
-            <Bell aria-hidden className="size-6 text-[var(--icon-secondary)]" strokeWidth={1.75} />
-          </button>
+          {/* ═══ THE BELL IS ACTIVITY (2026-10-16) ═══
+              It shipped inert ("Coming soon."); Activity moved into it and the
+              Activity tab went away. See `activity-bell.tsx`. */}
+          <ActivityBell unread={activityUnread} />
           {/* ═══ SUPPORT — THE ONE LIVE CONTROL ON THIS SIDE ═══
               Figma fills this button white and not the bell, with no state
               attached. Resolved per the pack: the white is the OPEN state.

@@ -90,6 +90,11 @@
   --surface-overlay: #ffffff; /* bloom: surface/overlay */
   --border-default: #cbc6be; /* bloom: border/default */
   --radius-lrg: 12px; /* bloom: radius-lrg */
+  /* bloom: fill/ivory/border. Bound on Ask Ava's sparkle glyph in Figma
+     (3928:10081, updated 2026-10-16). Figma's dark mode is not readable
+     through the connector, so there is no dark override yet; on the dark
+     sunken surface it measures as an icon would need to (see SUP-1 report). */
+  --fill-ivory-border: #947a3d;
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`

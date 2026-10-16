@@ -550,7 +550,19 @@ export function ActivityLedger({
   initialScope = null,
   /** `?event=<eventId>`. Restores the selected row. */
   initialEventId = null,
+  /** ═══ THE BELL (2026-10-16) ═══
+   *  Activity moved out of its tab into the top bar's bell. `"popover"` keeps
+   *  the Mine/Team rail, the toolbar and the feed, and drops the page frame,
+   *  the heading (the popover has its own) and the evidence pane: "activity
+   *  events no longer need a detail — the event list item is good enough." So
+   *  rows are LINKS to their object (`ActivityRow`'s link mode) and nothing is
+   *  selected or mirrored into the URL. */
+  variant = "page",
+  /** Called as a row's link is followed, so the bell can close. */
+  onRowNavigate,
 }: {
+  variant?: "page" | "popover";
+  onRowNavigate?: () => void;
   initialTeenId?: string | null;
   initialDomain?: string | null;
   initialScope?: string | null;
@@ -748,7 +760,7 @@ export function ActivityLedger({
    *  as a reader clicks around a populated list. `loading` keeps the pane too:
    *  the skeleton is a promise that rows are coming, and collapsing the layout
    *  under it would make every load reflow the page twice. */
-  const paneVisible = total > 0 || loadState === "loading";
+  const paneVisible = variant === "page" && (total > 0 || loadState === "loading");
 
   /** THE SELECTED ROW, RE-FOUND IN THE CURRENT RESULT SET each render — which is
    *  what makes the selection survive a density change and evaporate when the row
@@ -908,13 +920,23 @@ export function ActivityLedger({
     /* ANNO REGIONS — see the note in roster.tsx. Inert markers only. The feed
        ROWS are deliberately left untagged: a row is record-bound, and anchoring
        to one is refused by the accepted anno-02 trade. */
-    <div data-anno-ref="activity-ledger" className={PAGE_WRAPPER}>
-      <h1 className="font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]">
+    <div
+      data-anno-ref="activity-ledger"
+      data-variant={variant}
+      className={variant === "popover" ? "flex min-h-0 flex-col" : PAGE_WRAPPER}
+    >
+      <h1
+        className={cn(
+          "font-display text-[24px] font-bold leading-[32px] text-[var(--text-primary)]",
+          /* The bell's popover titles itself; the page heading would repeat it. */
+          variant === "popover" && "sr-only"
+        )}
+      >
         {/* TODO-COPY */}
         Activity
       </h1>
 
-      <div data-anno-ref="activity-view-rail" className="mt-5">
+      <div data-anno-ref="activity-view-rail" className={variant === "popover" ? "" : "mt-5"}>
         <ViewRail
           activeId={viewId}
           onSelect={(id) => {
@@ -1011,9 +1033,15 @@ export function ActivityLedger({
           // list 16px below the pane and broke §3's shared top edge — invisible
           // until both columns were real. The spacing belongs to the grid.
           "flex flex-col overflow-hidden",
-          "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
-          "min-h-[clamp(360px,calc(100dvh-17rem),820px)]",
-          "px-1.5 py-1.5"
+          variant === "popover"
+            ? /* IN THE BELL the popover is the container: no second card, no
+                 page-height floor — a three-row feed is a short popover. */
+              "px-0 py-1"
+            : [
+                "rounded-[var(--radius-elevated)] border border-[color:var(--border-contour)] bg-[var(--surface-card)]",
+                "min-h-[clamp(360px,calc(100dvh-17rem),820px)]",
+                "px-1.5 py-1.5",
+              ]
         )}
       >
         {loadState === "loading" ? (
@@ -1072,13 +1100,17 @@ export function ActivityLedger({
                     showGlyph={!singleDomain}
                     showDivider={rowIndex > 0}
                     density={density}
-                    selected={selectedRowId === row.id}
-                    onSelect={(r) =>
-                      // CLICKING THE SELECTED ROW AGAIN DESELECTS. The pane is a
-                      // reading aid, not a mode, and Escape should not be the only
-                      // way out of it.
-                      selectRow(selectedRowId === r.id ? null : r.id)
+                    selected={variant === "page" && selectedRowId === row.id}
+                    onSelect={
+                      variant === "page"
+                        ? (r) =>
+                            // CLICKING THE SELECTED ROW AGAIN DESELECTS. The pane is
+                            // a reading aid, not a mode, and Escape should not be
+                            // the only way out of it.
+                            selectRow(selectedRowId === r.id ? null : r.id)
+                        : undefined
                     }
+                    onNavigate={onRowNavigate}
                   />
                 ))}
               </ol>

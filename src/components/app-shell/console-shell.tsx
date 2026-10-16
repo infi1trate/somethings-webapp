@@ -314,7 +314,7 @@ function ConsoleShellBody({
   );
 
   const badges: Record<string, number> = {
-    ...(unread > 0 ? { activity: unread } : {}),
+    /* THE ACTIVITY BADGE MOVED TO THE BELL (2026-10-16), with the tab. */
     ...(reviewsWaiting > 0 ? { team: reviewsWaiting } : {}),
     ...(staff && owed.total > 0 ? { today: owed.total } : {}),
     ...(staff && openBy.escalations > 0
@@ -378,16 +378,16 @@ function ConsoleShellBody({
       avatarInitial={avatarInitial}
       avatarSrc={avatarSrc}
       hrefFor={(id) => navHrefFor(persona, id)}
-      activityHref={navHrefFor(persona, "activity")}
       activityUnread={unread}
       className={staff ? "text-foreground" : undefined}
       /* ═══ THE DESKTOP TOP BAR — mentor, lead mentor, supervisor, admin ═══
          (answered 2026-10-16). Not `new-mentor`, who is still onboarding and
          has no supervisor relationship yet. Mount-gated like the rest of the
          persona-driven chrome. */
+      mobileSupport={mounted && TOP_BAR_PERSONAS.has(persona) ? { unread: supportUnread } : undefined}
       topBar={
         mounted && TOP_BAR_PERSONAS.has(persona) ? (
-          <ConsoleTopBar supportUnread={supportUnread} />
+          <ConsoleTopBar supportUnread={supportUnread} activityUnread={unread} />
         ) : undefined
       }
     >

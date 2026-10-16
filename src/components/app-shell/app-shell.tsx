@@ -62,13 +62,15 @@ export function AppShell({
   onSelect,
   avatarInitial,
   avatarSrc,
-  activityHref,
   activityUnread = 0,
   bottomInset = "panel",
   topBar,
+  mobileSupport,
   className,
   children,
 }: {
+  /** The mobile bar's support CTA — passed for the personas that have it. */
+  mobileSupport?: { unread: number };
   /** ═══ THE DESKTOP TOP BAR (SUP-1) ═══
    *  Rendered in the column beside the rail, above `<main>`, so it spans the
    *  content area only and the rail keeps the app's top edge. When present,
@@ -113,9 +115,8 @@ export function AppShell({
   onSelect?: (id: string) => void;
   avatarInitial?: string;
   avatarSrc?: string | null;
-  /** Where the top-bar bell goes, and what it is carrying. Activity is no
-   *  longer a tab, so this badge is the only signal it has anything in it. */
-  activityHref: string;
+  /** What the bell is carrying. Activity is no longer a tab (2026-10-16), so
+   *  this badge is the only signal it has anything in it. */
   activityUnread?: number;
   /** ═══ WHO RESERVES THE ROOM ABOVE THE BAR ═══
    *
@@ -244,7 +245,7 @@ export function AppShell({
           half out of view. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TopBar
-        activityHref={activityHref}
+        support={mobileSupport}
         unread={activityUnread}
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}

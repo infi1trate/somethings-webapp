@@ -415,15 +415,11 @@ export function DevBar() {
     (value: string) => {
       setScenarioId(value);
       if (value) noteScenarioUsed(value);
-      // ── ACTIVITY: set the axis, and go to the screen it applies to.
+      // ── ACTIVITY: set the axis. It no longer navigates: Activity lives in
+      //    the top bar's bell on every console route (2026-10-16), so there is
+      //    no screen to go to — open the bell to see the scenario.
       if (value.startsWith(ACTIVITY_PREFIX)) {
         setActivityScenario(value.slice(ACTIVITY_PREFIX.length));
-        // NAVIGATE ONLY IF WE ARE NOT ALREADY THERE. Pushing `/app/activity`
-        // while on it would reset the page's own local state — view, filters,
-        // scroll — which a scenario switch has no business doing.
-        if (!pathname.startsWith("/app/activity")) {
-          router.push("/app/activity", { scroll: false });
-        }
         return;
       }
       // ── TODAY: same shape, and it writes THREE axes rather than one.

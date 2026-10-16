@@ -80,11 +80,7 @@ import { PinnedMentees } from "@/components/today/pinned-mentees";
 import { SuggestedSchedule } from "@/components/today/suggested-schedule";
 import { bandStateFor } from "@/lib/monitoring/live";
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
-import {
-  ACTIVITY_DOMAIN_OF,
-  DOMAIN_LABEL,
-  type TaskDomain,
-} from "@/lib/tasks/types";
+import { DOMAIN_LABEL, type TaskDomain } from "@/lib/tasks/types";
 import { HOME_LOAD_STAGES, homeLoadPlanFor } from "@/lib/tasks/load-plan";
 import { isNewShift, shiftFactsFor } from "@/lib/tasks/shift";
 import {
@@ -1335,27 +1331,17 @@ function ClosedToday({ facts }: { facts: ReturnType<typeof shiftFactsFor> }) {
       <ul className="flex flex-wrap gap-x-4 gap-y-1">
         {entries.map(([domain, n]) => (
           <li key={domain}>
-            <Link
-              /* THE LEDGER'S OWN VOCABULARY, mapped. Activity's domains are not
-                 Tasks' — passing a Tasks domain string would silently match
-                 nothing (gap row 208). `scope=mine` because this is the
-                 supervisor's own closures.
-                 NO DATE PARAM: the ledger has scope and domain axes and no
-                 "today", so the link lands on the domain's full history rather
-                 than on today's slice. Gap row 371. */
-              href={`/app/activity?scope=mine&domain=${ACTIVITY_DOMAIN_OF[domain]}`}
-              className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-control)] px-1 text-[13px] leading-[18px] text-[var(--text-secondary)]",
-                "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
+            {/* ═══ NOT A LINK ANY MORE (2026-10-16) ═══
+                Each count linked to the Activity ledger filtered to its domain.
+                Activity moved into the top bar's bell and its deep links were
+                removed (answered); the counts stay as the summary they are. */}
+            <span className="inline-flex min-h-11 items-center gap-1.5 px-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               <span aria-hidden className="tabular-nums">
                 {n}
               </span>
               {DOMAIN_LABEL[domain].toLowerCase()}
               <span className="sr-only">{` closed today`}</span>
-            </Link>
+            </span>
           </li>
         ))}
       </ul>
