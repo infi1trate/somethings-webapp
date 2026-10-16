@@ -152,7 +152,9 @@ const mainText = (page) => page.locator("main").innerText();
 {
   const { context, page } = await open("boundary");
   const controls = await page.evaluate(() =>
-    [...document.querySelectorAll("main button, main [role='button'], main input, main select, main textarea")].map(
+    /* The Support panel sits inside `<main>` since SUP-2; it is shell chrome,
+       measured in `support-panel.mjs`, not a control Home owns. */
+    [...document.querySelectorAll("main button, main [role='button'], main input, main select, main textarea")].filter((e) => !e.closest("[data-support-slot]")).map(
       (e) => (e.getAttribute("aria-label") || e.innerText || e.tagName).replace(/\s+/g, " ").trim().slice(0, 40)
     )
   );

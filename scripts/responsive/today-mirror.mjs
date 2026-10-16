@@ -229,6 +229,11 @@ console.log("\n§4 · nothing on Today changes a record\n");
      change something: it leaves. */
   const locals = await page.evaluate(() =>
     [...document.querySelectorAll("main button, main [role='button'], main input, main select, main textarea")]
+      /* SUP-2 put the Support panel inside `<main>` (it pushes the canvas, so
+         it is the canvas's flex sibling). It is shell chrome, like the top bar
+         outside `<main>`, not a control Today owns; it is measured in
+         `support-panel.mjs`. */
+      .filter((e) => !e.closest("[data-support-slot]"))
       .map((e, i) => {
         e.setAttribute("data-mirror-idx", String(i));
         return {

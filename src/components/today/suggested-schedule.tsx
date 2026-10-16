@@ -287,7 +287,7 @@ export function SuggestedSchedule({ now }: { now: number }) {
          content-sized with the padding the node specifies. Reported. */
       className={cn(
         "shrink-0 rounded-[var(--radius-rail)] border border-[color:var(--border-contour)]",
-        "bg-[var(--surface-rail)] px-4 py-4 min-[1470px]:px-8 min-[1470px]:py-6"
+        "bg-[var(--surface-rail)] px-4 py-4 min-[1470px]:@min-[1190px]/canvas:px-8 min-[1470px]:@min-[1190px]/canvas:py-6"
       )}
     >
       {/* ═══ THE HEADER ICON IS REQUIRED (L.7, reversed Superseded #5) ═══

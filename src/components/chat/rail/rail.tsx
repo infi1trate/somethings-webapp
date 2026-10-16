@@ -53,7 +53,7 @@ export type RailTab = "escalation" | "assist" | "profile" | "toolkit" | "timelin
 
 /** TODO-COPY. Short enough that four fit a 320px column at 11px without
  *  truncating — measured, not assumed. */
-const LABEL: Record<RailTab, string> = {
+export const RAIL_TAB_LABEL: Record<RailTab, string> = {
   /* TODO-COPY. "Now", not "Escalation". Three reasons: it is the shortest label in
      the set, which matters when a fifth tab has to fit 320px; it says what the tab
      is FOR rather than naming a feature; and a tab reading "Escalation" beside a
@@ -187,7 +187,7 @@ export function Rail({
         <SegmentedControl
           options={tabs.map((t) => ({
             value: t,
-            label: LABEL[t],
+            label: RAIL_TAB_LABEL[t],
             controls: `${panelId}-panel`,
           }))}
           value={active}

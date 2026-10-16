@@ -1416,7 +1416,14 @@ export function TasksPage({
                    variants sort against each other by value, so the order is
                    the arithmetic rather than the emitter's category ranking.
                    1280 is `xl` spelled out; nothing below this line changed. */
-                "min-[1280px]:grid-cols-[minmax(0,50fr)_minmax(0,50fr)] min-[1943px]:grid-cols-[minmax(0,1fr)_790px]"
+                /* ═══ AND THE CANVAS (SUP-2) ═══ Each split is its viewport
+                   breakpoint AND a canvas floor, because Support pushes: 1280
+                   and 1943 leave a staff canvas of 1016 and 1679 (measured,
+                   every staff persona is viewport − 264), and the floors sit
+                   16px under that so a classic scrollbar cannot tip a closed
+                   page into the takeover. Closed, nothing changes; open, the
+                   split waits for the canvas it was derived against. */
+                "min-[1280px]:@min-[1000px]/canvas:grid-cols-[minmax(0,50fr)_minmax(0,50fr)] min-[1943px]:@min-[1660px]/canvas:grid-cols-[minmax(0,1fr)_790px]"
             )}
           >
             {/* ── THE LIST SCROLLS ON ITS OWN, INSIDE ITSELF ──
@@ -1431,7 +1438,7 @@ export function TasksPage({
             <div
               className={cn(
                 "flex min-h-0 flex-col gap-3",
-                paneTakeover && "hidden xl:block"
+                paneTakeover && "hidden xl:@min-[1000px]/canvas:block"
               )}
             >
               {/* THE TOOLBAR SPANS THE LIST COLUMN (§5) — filters left, View
@@ -1628,8 +1635,8 @@ export function TasksPage({
                    button's height (measured 20px at 1024×800 — small enough to
                    read as rounding, and not), and `flex-1` everywhere overflowed
                    at DESKTOP by 234px. The cases genuinely differ. */
-                "flex min-h-0 flex-col xl:block",
-                !paneTakeover && "hidden xl:block"
+                "flex min-h-0 flex-col xl:@min-[1000px]/canvas:block",
+                !paneTakeover && "hidden xl:@min-[1000px]/canvas:block"
                 // `Full width`: no pane at all until a row is picked.
               )}
             >
@@ -1641,7 +1648,7 @@ export function TasksPage({
                     // `shrink-0 self-start`: a control, not a row — in a flex
                     // column a stretched button would span the width.
                     "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
-                    "xl:hidden",
+                    "xl:@min-[1000px]/canvas:hidden",
                     "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                     RING
                   )}
@@ -1681,7 +1688,7 @@ export function TasksPage({
                   // through.
                   // `flex-1` below `xl` (the height left beside the back button);
                   // `h-full` at `xl` (the whole column). See the column's note.
-                  className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full xl:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                  className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:@min-[1000px]/canvas:h-full xl:@min-[1000px]/canvas:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                 >
                   {/* PANE AND EXCERPT ARE SEPARATE AXES (Part 4). Under partial
                       failure the excerpt errors while the pane stays healthy, so

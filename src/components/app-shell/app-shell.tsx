@@ -65,10 +65,15 @@ export function AppShell({
   activityUnread = 0,
   bottomInset = "panel",
   topBar,
+  aside,
   mobileSupport,
   className,
   children,
 }: {
+  /** ═══ THE RIGHT-HAND PANEL SLOT (SUP-2) ═══
+   *  Rendered beside the canvas inside `<main>`, below the top bar, so it never
+   *  covers the bar and its width transition pushes the canvas. */
+  aside?: React.ReactNode;
   /** The mobile bar's support CTA — passed for the personas that have it. */
   mobileSupport?: { unread: number };
   /** ═══ THE DESKTOP TOP BAR (SUP-1) ═══
@@ -259,7 +264,9 @@ export function AppShell({
         data-anno-ref="app-main"
         className={cn(
           "min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4",
-          topBar && "md:pt-0"
+          topBar && "md:pt-0",
+          /* A ROW when a panel can sit beside the canvas (SUP-2). */
+          aside !== undefined && "flex"
         )}
       >
         <div
@@ -300,6 +307,12 @@ export function AppShell({
             // 953 exactly. One invisible screen-reader label was still dragging
             // the rail out of the viewport.
             "relative h-full overflow-y-auto bg-[var(--surface-s1)]",
+            /* ═══ THE CANVAS IS A CONTAINER (SUP-2) ═══
+               The support panel pushes, so the canvas can be 424px narrower than
+               the viewport implies. Surfaces read `@…/canvas` alongside their
+               viewport breakpoints so a pushed canvas takes the narrower layout.
+               `min-w-0 flex-1` so it is the side of the row that gives. */
+            "@container/canvas min-w-0 flex-1",
             // ═══ UNLESS THE SURFACE ASKED TO OWN IT (`bottomInset`) ═══
             // Both halves move together. Handing over the padding but keeping
             // the scroll-padding here would reserve space against a panel that
@@ -324,6 +337,7 @@ export function AppShell({
         >
           {children}
         </div>
+        {aside}
       </main>
       </div>
 

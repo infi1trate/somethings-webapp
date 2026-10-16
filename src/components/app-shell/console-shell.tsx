@@ -85,6 +85,7 @@ import { useAppearance } from "@/lib/use-appearance";
 import { useMounted } from "@/lib/use-mounted";
 import { bumpNavClock, useNavClock, useShellConfig } from "@/lib/app-shell/shell-config";
 import { ConsoleTopBar } from "@/components/app-shell/console-top-bar";
+import { SupportPanel } from "@/components/support/support-panel";
 import { chatScenario } from "@/lib/chat/seed";
 
 /** Who gets the desktop top bar and the support CTA (answered 2026-10-16). */
@@ -385,6 +386,9 @@ function ConsoleShellBody({
          has no supervisor relationship yet. Mount-gated like the rest of the
          persona-driven chrome. */
       mobileSupport={mounted && TOP_BAR_PERSONAS.has(persona) ? { unread: supportUnread } : undefined}
+      /* THE SUPPORT PANEL (SUP-2), for the same personas as its CTA. Mounted
+         by the persistent shell, so it survives route changes. */
+      aside={mounted && TOP_BAR_PERSONAS.has(persona) ? <SupportPanel /> : undefined}
       topBar={
         mounted && TOP_BAR_PERSONAS.has(persona) ? (
           <ConsoleTopBar supportUnread={supportUnread} activityUnread={unread} />

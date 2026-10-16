@@ -134,9 +134,11 @@ export const COL_CLOSED = 104;
  *  the 16px it was short. The full name stays in the tooltip and in the row's
  *  accessible name. Written as classes, not inline style, because the basis
  *  has to change at a breakpoint and an inline style cannot.
- *  BOTH TABS, so the column never changes format on a tab switch. */
+ *  BOTH TABS, so the column never changes format on a tab switch.
+ *  SUP-2: viewport OR a canvas under 1176 (1440 − 264, less 16), so the
+ *  same row reads the same whether the room went to the viewport or Support. */
 const ASSIGNED_FLEX =
-  "flex-[0_4_120px] min-w-[88px] max-[1439px]:flex-[0_4_72px] max-[1439px]:min-w-[72px]";
+  "flex-[0_4_120px] min-w-[88px] max-[1439px]:flex-[0_4_72px] max-[1439px]:min-w-[72px] @max-[1159px]/canvas:flex-[0_4_72px] @max-[1159px]/canvas:min-w-[72px]";
 
 /** `Stephen Rowe` → `Stephen R.` A single word is returned as is. */
 export function shortName(full: string): string {
@@ -152,7 +154,9 @@ export function shortName(full: string): string {
  *  which covers 1440 and 1280 Open; at 1280 Closed `Assigned to` takes up the
  *  rest by sitting at its 88px floor. Supervisors never see `Assigned to`,
  *  so their Cycle is unaffected. Header and cell carry the same class. */
-export const CYCLE_HIDDEN_BELOW_1600 = "max-[1599px]:hidden";
+/* SUP-2: OR a staff canvas under 1336 (1600 − 264, less 16), so Support's
+   push hides it where the viewport alone would not. */
+export const CYCLE_HIDDEN_BELOW_1600 = "max-[1599px]:hidden @max-[1319px]/canvas:hidden";
 export const COL_CLOSED_BOX = COL_CLOSED + 24;
 
 /** ═══ THE MENTEE COLUMN'S SHARE OF THE ROW (§6.5, corrected in §3) ═══
@@ -832,9 +836,9 @@ export function ReviewAssignedCell({ name }: { name: string | null }) {
       >
         {name ? (
           <>
-            <span className="max-[1439px]:hidden">{name}</span>
+            <span className="max-[1439px]:hidden @max-[1159px]/canvas:hidden">{name}</span>
             {/* aria-hidden: the row's accessible name carries the full one. */}
-            <span aria-hidden className="min-[1440px]:hidden">{shortName(name)}</span>
+            <span aria-hidden className="min-[1440px]:@min-[1160px]/canvas:hidden">{shortName(name)}</span>
           </>
         ) : (
           /* TODO-COPY */

@@ -114,7 +114,9 @@
    content panel has to keep this much clear at the TOP or its first row starts
    underneath the wordmark.
 
-   96px = the frame's 16px top padding + its 64px chrome + 16px bottom padding.
+   76px = the frame's 16px top padding + 44px chrome + 16px bottom padding.
+   The frame's chrome is 64; SUP-1 took the buttons to 44 so the support CTA
+   fits a 390 phone (`top-bar.tsx`), and this moved with them.
    The safe-area inset is ADDED, not substituted: a notched device needs the
    physical inset as well as the designed padding.
 
@@ -125,7 +127,7 @@
    fix is the same shape. */
 :root,
 .theme-light {
-  --topbar-reserve: calc(96px + env(safe-area-inset-top, 0px));
+  --topbar-reserve: calc(76px + env(safe-area-inset-top, 0px));
 }
 
 @media (min-width: 60rem) {

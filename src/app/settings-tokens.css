@@ -95,6 +95,12 @@
      through the connector, so there is no dark override yet; on the dark
      sunken surface it measures as an icon would need to (see SUP-1 report). */
   --fill-ivory-border: #947a3d;
+  /* bloom: Elevation/1 — the support panel, the only elevated surface in the
+     layout (SUP-2). Figma: drop shadow #00000021, offset 0 3, radius 6. */
+  --elevation-1: 0 3px 6px rgb(0 0 0 / 0.13);
+  /* bloom: Shadow/Small — the support composer (SUP-4). Figma: #00000014,
+     offset 0 0, radius 16. */
+  --shadow-small: 0 0 16px rgb(0 0 0 / 0.08);
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
@@ -708,6 +714,11 @@
   --surface-sunken-strong: #1d1a17; /* bloom: surface/sunken-strong (dark) */
   --surface-overlay: #3f3b36; /* bloom: surface/overlay (dark) */
   --border-default: #58534b; /* bloom: border/default (dark) */
+  /* Bloom's effects are single-mode pure black at 8-13%, nearly invisible on
+     a near-black ground (this file's header says the same of Elevation), so
+     dark deepens them the way `--shadow-panel` does. */
+  --elevation-1: 0 3px 6px rgb(0 0 0 / 0.45);
+  --shadow-small: 0 0 16px rgb(0 0 0 / 0.4);
   --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
 
   /* The same three hues, inverted: fill dark, ink light. Lifted clear of the

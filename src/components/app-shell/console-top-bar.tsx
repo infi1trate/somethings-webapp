@@ -195,12 +195,13 @@ export function ConsoleTopBar({
           {/* ═══ SUPPORT — THE ONE LIVE CONTROL ON THIS SIDE ═══
               Figma fills this button white and not the bell, with no state
               attached. Resolved per the pack: the white is the OPEN state.
-              `aria-controls` arrives with the panel in SUP-2 — pointing it at
-              an element that does not exist yet would be a broken reference. */}
+              `aria-controls` points at the panel, which is always mounted
+              (inert while closed) since SUP-2. */}
           <button
             type="button"
             data-support-cta
             aria-expanded={supportOpen}
+      aria-controls="support-panel"
             /* TODO-COPY */
             aria-label={supportUnread > 0 ? `Support, ${supportUnread} unread` : "Support"}
             onClick={toggleSupport}

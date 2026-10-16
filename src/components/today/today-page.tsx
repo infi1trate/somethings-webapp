@@ -1037,7 +1037,7 @@ export function TodayPage() {
     >
       <div
         data-anno-ref="today-column"
-        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-6 min-[1470px]:max-w-[1222px] lg:px-8"
+        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-6 min-[1470px]:@min-[1190px]/canvas:max-w-[1222px] lg:px-8"
       >
       {/* ═══ ONE HERO, NOT THREE TIERS (Phase L.2) ═══
           IT WAS a small "Hi there", a large "Today", and a subtitle. L.2's
@@ -1156,11 +1156,14 @@ export function TodayPage() {
           STACKED IS THE DEFAULT AND THE ROW IS THE OVERRIDE (H.1.4). Below the
           breakpoint the rail moves under the main column at full width, which
           is what a mobile-first default gives for free — and it means the
-          320px case is the base rendering rather than a special one. */}
-      <div className="flex shrink-0 flex-col gap-5 min-[1470px]:flex-row min-[1470px]:items-start min-[1470px]:gap-4">
+          320px case is the base rendering rather than a special one.
+          AND THE CANVAS (SUP-2): 1470 leaves a staff canvas of 1206, so every
+          `min-[1470px]` here also needs 1190 of canvas. Closed, nothing moves;
+          with Support open the rail stacks until the row fits. */}
+      <div className="flex shrink-0 flex-col gap-5 min-[1470px]:@min-[1190px]/canvas:flex-row min-[1470px]:@min-[1190px]/canvas:items-start min-[1470px]:@min-[1190px]/canvas:gap-4">
         <div
           data-anno-ref="today-main"
-          className="flex min-w-0 flex-col gap-5 min-[1470px]:w-[857px] min-[1470px]:shrink-0"
+          className="flex min-w-0 flex-col gap-5 min-[1470px]:@min-[1190px]/canvas:w-[857px] min-[1470px]:@min-[1190px]/canvas:shrink-0"
         >
       {/* ═══ THE CARDS COME FIRST (K.6) ═══
           The page opened with a tall module containing a list, and the three
@@ -1196,7 +1199,7 @@ export function TodayPage() {
               and the instruction is to revert to full-width stacked rows
               rather than invent a 4-up. `cards.length` is the thing to check
               the day Chat/Coverage resolves in. */}
-          <ul className="grid grid-cols-1 gap-4 min-[1470px]:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 min-[1470px]:@min-[1190px]/canvas:grid-cols-3">
             {cards.map((card) => (
               <DestinationCard
                 key={card.id}
@@ -1277,7 +1280,7 @@ export function TodayPage() {
             relationship "reference, not work" describes. */}
         <aside
           data-anno-ref="today-rail"
-          className="w-full min-[1470px]:w-[285px] min-[1470px]:shrink-0"
+          className="w-full min-[1470px]:@min-[1190px]/canvas:w-[285px] min-[1470px]:@min-[1190px]/canvas:shrink-0"
         >
           {mounted && <SuggestedSchedule now={now} />}
         </aside>

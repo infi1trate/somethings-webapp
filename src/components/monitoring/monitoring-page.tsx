@@ -1164,7 +1164,7 @@ export function MonitoringPage({
                blank, which reads as a failed render rather than a full-width
                record. */
             paneOnly
-              ? "xl:grid-cols-[minmax(0,1fr)]"
+              ? "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)]"
               : /* ═══ THE PANE STOPS GROWING AT 1645px (§0, §2) ═══
                    §0: "The pane is a fixed-width column in this pass. Every unit
                    of new horizontal space goes to the list." Below 1645 nothing
@@ -1185,11 +1185,14 @@ export function MonitoringPage({
                    variants sort against each other by value, so the order is
                    the arithmetic rather than the emitter's category ranking.
                    1280 is `xl` spelled out; nothing below this line changed. */
-                "min-[1280px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)] min-[1645px]:grid-cols-[minmax(0,1fr)_790px]"
+                /* AND THE CANVAS (SUP-2), as on Care Reviews: 1280 and 1645
+                   leave a staff canvas of 1016 and 1381; the floors sit 16px
+                   under, so closed is unchanged and open waits for the room. */
+                "min-[1280px]:@min-[1000px]/canvas:grid-cols-[minmax(0,40fr)_minmax(0,60fr)] min-[1645px]:@min-[1365px]/canvas:grid-cols-[minmax(0,1fr)_790px]"
           )}
         >
           {!paneOnly && (
-          <div className={cn("flex min-h-0 flex-col gap-3", paneTakeover && "hidden xl:flex")}>
+          <div className={cn("flex min-h-0 flex-col gap-3", paneTakeover && "hidden xl:@min-[1000px]/canvas:flex")}>
             {/* ═══ THE TOOLBAR SPANS THE LIST COLUMN (§5) ═══
                 Filters left, View right-aligned to this column's own edge. It
                 is inside the column rather than above the grid, so both are
@@ -1337,7 +1340,7 @@ export function MonitoringPage({
               list column beside it there is no detail to be empty about. It
               renders when there is something in it. */}
           {!(paneOnly && !selectedEscalation) && (
-          <div className={cn("flex min-h-0 flex-col xl:block", !paneTakeover && "hidden xl:flex")}>
+          <div className={cn("flex min-h-0 flex-col xl:@min-[1000px]/canvas:block", !paneTakeover && "hidden xl:@min-[1000px]/canvas:flex")}>
             {/* NO LIST, NO WAY BACK TO IT. Under `paneOnly` the region above IS
                 the list and it is still on screen. */}
             {paneTakeover && !paneOnly && (
@@ -1346,7 +1349,7 @@ export function MonitoringPage({
                 onClick={() => setPaneTakeover(false)}
                 className={cn(
                   "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
-                  "xl:hidden",
+                  "xl:@min-[1000px]/canvas:hidden",
                   "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
                 )}
@@ -1363,7 +1366,7 @@ export function MonitoringPage({
                  that arrived rather than the whole page. */
               aria-live="polite"
               className={cn(
-                "min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full",
+                "min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:@min-[1000px]/canvas:h-full",
                 RING
               )}
             >

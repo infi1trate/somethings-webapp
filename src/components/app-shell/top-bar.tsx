@@ -133,6 +133,7 @@ function MobileSupportButton({ unread }: { unread: number }) {
       type="button"
       data-support-cta
       aria-expanded={open}
+      aria-controls="support-panel"
       /* TODO-COPY */
       aria-label={unread > 0 ? `Support, ${unread} unread` : "Support"}
       onClick={toggleSupport}
