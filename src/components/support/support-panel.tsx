@@ -33,9 +33,14 @@
 // Slide + fade, 220ms, cubic-bezier(0.32, 0.72, 0, 1) — inside the 400ms
 // Doherty threshold. Reduced motion: instant, no transform.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ChevronDown, Search, SquarePen, X } from "lucide-react";
 import { setSupportOpen, useSupportOpen } from "@/lib/support/panel";
+import { SupportList } from "@/components/support/support-list";
+import { supportDirectory } from "@/lib/support/directory";
+import { useOnline } from "@/lib/support/online";
+import { useNavClock } from "@/lib/app-shell/shell-config";
+import { useOnboardingStore } from "@/lib/onboarding/store";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -68,6 +73,19 @@ export function SupportPanel() {
   const panelRef = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const wasOpen = useRef(open);
+  /* ═══ THE LIST'S INPUTS (SUP-3) ═══ The shell's nav clock, so the times
+     move on with navigation like every badge does (no `Date.now()` in
+     render). Only mounted after hydration (`ConsoleShell`), so the persona is
+     the real one. */
+  const persona = useOnboardingStore((s) => s.persona);
+  const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
+  const load = useOnboardingStore((s) => s.devLoadState);
+  const now = useNavClock();
+  const online = useOnline();
+  const sections = useMemo(
+    () => supportDirectory(persona, chatScenarioId, now),
+    [persona, chatScenarioId, now]
+  );
 
   /* ═══ FOCUS (SUP-2) ═══
      Open: focus moves to the panel header — not trapped, so Tab continues out
@@ -175,14 +193,9 @@ export function SupportPanel() {
           </button>
         </header>
 
-        {/* ── BODY — the list arrives in SUP-3 ───────────────────────────── */}
-        <div data-support-body className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">
-          <p className="text-[14px] leading-[20px] text-[var(--text-secondary)]">
-            {/* TODO-COPY. The panel's first-run line until SUP-3's sections
-                land; it says what Support is for rather than leaving a blank
-                white card. */}
-            Message your supervisors and the Somethings team here, without leaving what you&apos;re working on.
-          </p>
+        {/* ── BODY: the grouped list (SUP-3) ─────────────────────────────── */}
+        <div data-support-body className="min-h-0 flex-1 overflow-y-auto">
+          <SupportList sections={sections} persona={persona} now={now} load={load} online={online} />
         </div>
       </aside>
     </div>

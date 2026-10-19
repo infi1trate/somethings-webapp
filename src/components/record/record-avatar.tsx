@@ -58,6 +58,9 @@ const SIZE = {
   20: { box: "size-5", text: "text-[10px]" },
   24: { box: "size-6", text: "text-[11px]" },
   30: { box: "size-[30px]", text: "text-[13px]" },
+  /** 32 is the support list's `List-Item/Small-Density` avatar (SUP-3), the
+   *  pack's own size. Additive, as 16 was. */
+  32: { box: "size-8", text: "text-[14px]" },
 } as const;
 
 export function RecordAvatar({
