@@ -117,13 +117,15 @@ const BAND_CONTROLS = {
   "show-new": "reveals held live items on demand (WCAG 4.1.3)",
 };
 
+/* RETARGETED (proto/monitoring-merge): `/app/monitoring` is a destination
+   again and `/app/escalations` / `/app/risk-flags` are hops into it, so the
+   two sets traded those three paths. */
 const DESTINATIONS = new Set([
-  "/app/escalations",
-  "/app/risk-flags",
+  "/app/monitoring",
   "/app/care-reviews",
   "/app/activity",
 ]);
-const RETIRED = ["/app/home", "/app/tasks", "/app/monitoring"];
+const RETIRED = ["/app/home", "/app/tasks", "/app/escalations", "/app/risk-flags"];
 
 const version = await readStoreVersion();
 const browser = await launch();
@@ -131,6 +133,14 @@ await mkdir(OUT, { recursive: true });
 
 const rows = [];
 let failed = 0;
+/** ═══ A CLAIM WITH NO SUBJECT, SAID OUT LOUD ═══ Not a pass and not a skip:
+ *  `⊘`, counted separately, and the summary names the count. The same form
+ *  `monitoring-states.mjs` uses. */
+let blocked = 0;
+function retiredClaim(id, label, why) {
+  blocked += 1;
+  console.log(`  ⊘ ${id.padEnd(30)} ${label} — ${why}`);
+}
 function check(id, label, ok, detail) {
   rows.push({ id, label, ok: !!ok, detail });
   if (!ok) failed += 1;
@@ -525,35 +535,16 @@ console.log("\n§4 · the mirror agrees with the destination\n");
      figure that will exist on two surfaces, and it should be checked this way
      rather than by comparing digits. */
 
-  /* ── RISK FLAGS · the group header's count against the card's figure ────── */
-  {
-    const { context, page } = await open("mirror-flags", "/app/risk-flags");
-    /* ═══ THE FLAGS THE ROWS STAND FOR, NOT THE ROWS (addendum §2.1, §3.1) ═══
-       It read the group header's count ("Teen safety — 9"), which §2.1
-       removed. Counting the ROWS replaced it and was wrong within one phase:
-       §3.1 made a row a CONVERSATION, so the destination showed 60 rows while
-       the card said 123 flags — two true numbers in different units, and this
-       check failed on a disagreement that was not one.
-       THE UNIT HAS TO MATCH THE CARD'S, and the card counts open flags. Each
-       row carries its own set size, so the destination's flag count is
-       readable without a header to parse. */
-    const dest = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll('[role="treeitem"]')];
-      if (rows.length === 0) return null;
-      return rows.reduce(
-        (n, r) => n + Number(r.getAttribute("data-flag-count") ?? 1),
-        0
-      );
-    });
-    const onToday = Number(byId["risk-flags"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
-    check(
-      "agree.risk-flags",
-      "Risk Flags' open flag count equals the card's",
-      dest != null && dest === onToday,
-      `destination ${dest} · today ${onToday}`
-    );
-    await context.close();
-  }
+  /* ── RISK FLAGS · NO DESTINATION TO AGREE WITH (proto/monitoring-merge) ──
+     This counted the open flags the Risk Flags rows stood for and required the
+     card's "N open" to equal them. The dashboard folded into Monitoring, whose
+     flag figure ("Open risk flags · in last 48h") is computed from the tiered
+     roster (`lib/monitoring/tier-roster.ts`), not from the flag fixtures this
+     card reads — two sources, so equality would be a coincidence, not a
+     check. RESTORED WHEN Monitoring's figure and the card call one function,
+     which is the question the merge report asks. The old check is in git at
+     2978adb. */
+  retiredClaim("agree.risk-flags", "Risk Flags' open flag count equals the card's", "the dashboard folded into Monitoring, which counts from the tier roster");
 
   /* ── CARE REVIEWS · the header's open count ─────────────────────────────── */
   {
@@ -598,63 +589,15 @@ console.log("\n§4 · the mirror agrees with the destination\n");
     await context.close();
   }
 
-  /* ── ESCALATIONS · THE CHECK THAT FOUND THE DISAGREEMENT ────────────────
-     Written to compare two functions, because the card read `homeObligations`
-     (from task items) while the destination's header read Monitoring's own
-     inlined memo (from escalation records). It failed on its first run:
-     destination 2, card 1. Both sentences were true — "awaiting" is
-     pending-plus-breached, "past" is breached alone — which is exactly why it
-     was worth fixing rather than explaining to a reader.
-     Both now call `escalationObligations`, so this asserts equality between two
-     CALLERS of one function rather than between two functions. Kept, and kept
-     strict: it is what fails if either surface ever recomputes it locally. */
-  {
-    const { context, page } = await open("mirror-esc", "/app/escalations");
-    /* ═══ RETARGETED ONTO THE METRIC PAIR (addendum §2.10) ═══
-       The destination's header stated obligations as a sentence — "2
-       escalations awaiting acknowledgement · 3 close-out items overdue" — and
-       this parsed it. §2.10 replaced that with a purpose and two metrics, and
-       changed WHAT is counted: `active` records rather than unacknowledged
-       ones, and close-out items that are OPEN rather than only overdue (which
-       is the defect §2.10 sent us here to fix — "No escalation clocks
-       outstanding" above four running clocks).
-       THE CARD'S FIGURE WAS ALREADY `active`, so the two now agree on the same
-       word as well as the same number — which is what this check has always
-       been for. */
-    const dest = await page.evaluate(() => {
-      const metric = (label) => {
-        const el = [...document.querySelectorAll("[data-metric-value]")].find(
-          (e) => e.getAttribute("data-metric-value") === label
-        );
-        return el ? Number((el.textContent ?? "").trim()) : null;
-      };
-      return {
-        active: metric("active"),
-        closeOut: metric("close-out items open"),
-        rows: document.querySelectorAll('[data-anno-ref^="escalation-row:"]').length,
-      };
-    });
-    const onToday = {
-      /* THE DESTINATION'S OWN WORD. A regex for wording the card does not use
-         is how this check would silently start reading 0 off a card that says
-         2 — which is the failure mode it was written after. */
-      active: Number(byId.escalations?.text.match(/(\d+) active/)?.[1] ?? 0),
-    };
-    check(
-      "agree.escalations.active",
-      "the active count is the same on both, and in the same word",
-      dest.active === onToday.active && dest.active > 0,
-      `destination ${dest.active} · today ${onToday.active}` +
-        (dest.active === 0 ? " — ZERO ON BOTH: this scenario cannot exercise the check" : "")
-    );
-    check(
-      "agree.escalations.reachable",
-      "and the destination has at least as many records as the card claims are active",
-      dest.rows >= onToday.active,
-      `${dest.rows} record(s) · card claims ${onToday.active} active`
-    );
-    await context.close();
-  }
+  /* ── ESCALATIONS · NO DESTINATION TO AGREE WITH (proto/monitoring-merge) ──
+     The check that FOUND a disagreement once (destination 2, card 1) and was
+     kept strict because both sides came to call `escalationObligations`. The
+     escalations dashboard and its metric pair folded into Monitoring, where
+     escalations are the Tier 1 lane and a column, counted from the tier
+     roster. Same reasoning, same restoration condition, as the flags claim
+     above; the old check is in git at 2978adb. */
+  retiredClaim("agree.escalations.active", "the active count is the same on both, and in the same word", "the dashboard folded into Monitoring, which counts from the tier roster");
+  retiredClaim("agree.escalations.reachable", "and the destination has at least as many records as the card claims are active", "no escalation record list on Monitoring yet");
 
   /* ── MENTOR PRACTICE's AGREEMENT CHECK IS GONE (addendum §2.1) ───────────
      It compared the practice queue's group count against the card's "N open".
@@ -666,5 +609,6 @@ await writeFile(
   JSON.stringify({ generated: new Date().toISOString(), rows, cards }, null, 2)
 );
 await browser.close();
+console.log(`\n${blocked} claim(s) blocked (⊘), not counted as passes`);
 console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");
 process.exit(failed ? 1 : 0);

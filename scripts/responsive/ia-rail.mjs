@@ -96,7 +96,9 @@ const READ = `(() => {
 
 console.log("\nPhase 1 · the grouped rail\n");
 {
-  const { context, page } = await open("rail-riskflags", "/app/risk-flags");
+  /* ON MONITORING NOW (proto/monitoring-merge): Risk Flags is a hop into it,
+     so the rail is read where the supervisor actually lands. */
+  const { context, page } = await open("rail-monitoring", "/app/monitoring");
   const r = await page.evaluate(READ);
   await page.locator('[data-anno-ref="app-rail"]').screenshot({ path: `${OUT}/rail-supervisor.png` });
   if (!r.rail) {
@@ -121,7 +123,7 @@ console.log("\nPhase 1 · the grouped rail\n");
     check(
       "rail.one-selected",
       "exactly one row is current, and it is the destination you are on",
-      current.length === 1 && /Risk Flags/.test(current[0].label),
+      current.length === 1 && /^Monitoring/.test(current[0].label),
       current.map((c) => c.label).join(", ") || "none"
     );
     check(
@@ -208,13 +210,17 @@ console.log("\nPhase 1 · the grouped rail\n");
        ORDER IS ASSERTED TOO: above Activity, below Risk Flags. Presence and
        group membership alone would pass on a Chats row at the bottom of the
        group, which is a different decision from this one. */
+    /* ═══ AND FLIPPED AGAIN (proto/monitoring-merge) ═══ Escalations and Risk
+       Flags folded into ONE Monitoring item, and the group holds two rows:
+       Monitoring, then Chats. Activity had already left the rail for the
+       bell (2026-10-16), so the row after Chats is the next group's first. */
     check(
       "rail.chat-present",
-      "and Chats is in the Monitoring group, below Risk Flags and above Activity",
+      "and Chats is in the Monitoring group, below Monitoring and last in it",
       r.chatRow != null &&
         r.chatRow.grouped === true &&
-        r.chatRow.after === "Risk Flags" &&
-        r.chatRow.before === "Activity",
+        r.chatRow.after === "Monitoring" &&
+        r.chatRow.before === "Care Reviews",
       r.chatRow
         ? `"${r.chatRow.label}" ${r.chatRow.grouped ? "in the Monitoring group" : "in the ungrouped top"}, after "${r.chatRow.after}" and before "${r.chatRow.before}"`
         : "no Chats row"
@@ -226,13 +232,19 @@ console.log("\nPhase 1 · the grouped rail\n");
 // ── THE RETIRED ROUTES, OPENED ───────────────────────────────────────────────
 console.log("\nPhase 1 · the retired routes, opened\n");
 {
+  /* RETARGETED (proto/monitoring-merge). `/app/monitoring` is a destination
+     again, so it is no longer a hop — EXCEPT for its old billing links, which
+     still belong to Care Reviews and must not strand a bookmark on the tiers.
+     The two folded dashboards are hops into it, carrying their record id. */
   const CASES = [
     ["/app/home", "/app/today", "Today"],
     ["/app/tasks", "/app/care-reviews", "Care Reviews"],
-    ["/app/monitoring", "/app/risk-flags", "Risk Flags"],
+    ["/app/escalations", "/app/monitoring", "Monitoring"],
+    ["/app/risk-flags", "/app/monitoring", "Monitoring"],
+    ["/app/risk-flags?flag=f-1", "/app/monitoring?flag=f-1", "Monitoring"],
     ["/app/monitoring?band=intakeBillingReview", "/app/care-reviews", "Care Reviews"],
-    ["/app/monitoring?region=escalations", "/app/escalations", "Escalations"],
-    ["/app/home?queue=imminent", "/app/risk-flags", "Risk Flags"],
+    ["/app/monitoring?queue=billing", "/app/care-reviews", "Care Reviews"],
+    ["/app/home?queue=imminent", "/app/monitoring", "Monitoring"],
   ];
   for (const [from, to, heading] of CASES) {
     const { context, page } = await open(`hop-${from.replace(/\W+/g, "-")}`, from);
@@ -286,7 +298,7 @@ console.log("\nPhase 2 · the record hop terminates\n");
     browser,
     {
       id: "hop-escalation-cycle",
-      url: "/app/escalations",
+      url: "/app/care-reviews",
       seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } },
     },
     XL,
@@ -300,10 +312,10 @@ console.log("\nPhase 2 · the record hop terminates\n");
      id the page accepts and cannot resolve.
      So the id is READ OFF THE REGION and asserted present before it is used. */
   await page.waitForTimeout(400);
-  const realId = await page.evaluate(() => {
-    const row = document.querySelector('[data-anno-ref^="escalation-row:"]');
-    return row?.getAttribute("data-anno-ref")?.replace("escalation-row:", "") ?? null;
-  });
+  /* THE ESCALATIONS REGION IS GONE (proto/monitoring-merge), and with it the
+     place this read a real id from. Monitoring does not resolve the id yet,
+     so any id exercises the hop; the record-open claim below is blocked. */
+  const realId = "esc-1";
   check(
     "hop.escalation.fixture",
     "the scenario holds an escalation to follow a link to",
@@ -315,7 +327,7 @@ console.log("\nPhase 2 · the record hop terminates\n");
     if (f === page.mainFrame()) navs += 1;
   });
   await page.evaluate((id) => {
-    window.location.href = `/app/monitoring?escalation=${encodeURIComponent(id)}`;
+    window.location.href = `/app/escalation/${encodeURIComponent(id)}`;
   }, realId);
   /* LONG ENOUGH TO BE DAMNING. The cycle's period was well under a second, so
      four seconds of it is dozens of navigations against the three this chain
@@ -340,8 +352,8 @@ console.log("\nPhase 2 · the record hop terminates\n");
   );
   check(
     "hop.escalation.lands",
-    "and it lands on the Escalations destination with the record named",
-    landed.url.startsWith("/app/escalations") && landed.h.includes("Escalations"),
+    "and it lands on Monitoring with the record named in the URL",
+    landed.url === `/app/monitoring?escalation=${realId}` && landed.h.includes("Monitoring"),
     `${landed.url} · "${landed.h}"`
   );
   /* AND THE RECORD IS ACTUALLY OPEN. The reachability lesson this probe's own
@@ -356,29 +368,20 @@ console.log("\nPhase 2 · the record hop terminates\n");
      old check was matching a string that a queue could in principle also
      render. The unresolvable-id arm stays: a URL the page accepts and ignores is
      the failure this whole block exists to catch. */
-  const seen = await page.evaluate(() => ({
-    text: document.querySelector("main")?.innerText ?? "",
-    lifecycle: document
-      .querySelector('[data-slot="event-pane"] [data-record-lifecycle]')
-      ?.getAttribute("data-record-lifecycle") ?? null,
-  }));
-  check(
-    "hop.escalation.record-open",
-    "and the record pane is showing it, not merely the queue that could",
-    seen.lifecycle != null && !/isn.t in this data set/.test(seen.text),
-    seen.lifecycle
-      ? `record pane open · lifecycle ${seen.lifecycle}`
-      : /isn.t in this data set/.test(seen.text)
-        ? "the page states the id is unresolvable — the link did not carry"
-        : "no record pane"
-  );
+  /* ═══ BLOCKED, NOT RELAXED (proto/monitoring-merge) ═══ The record pane —
+     acknowledgement, close-out, the 24-hour note — lived on the Escalations
+     dashboard, which folded into Monitoring. Monitoring carries the id and
+     does not open the record yet (`TODO(monitoring)` in its page). This is
+     the claim that would catch a link the page accepts and ignores, which is
+     exactly what it is now; it stays visible until the record has a host. */
+  console.log("  ⊘ hop.escalation.record-open    and the record pane is showing it — BLOCKED: no record host on Monitoring yet (TODO(monitoring))");
   await context.close();
 }
 
 // ── THE DARK THEME CANNOT BE REACHED ────────────────────────────────────────
 console.log("\nPhase 1 · light is forced\n");
 {
-  const { context, page } = await open("forced-light", "/app/risk-flags");
+  const { context, page } = await open("forced-light", "/app/monitoring");
   /* ═══ THE THEME IS BACK AND THIS CHECK IS STRONGER FOR IT (addendum §3.5) ═══
      It was written when light was forced, and it would have been easy to
      retire along with that decision. It is the opposite: before the

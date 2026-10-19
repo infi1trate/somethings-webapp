@@ -5,7 +5,7 @@
 // before to diff against. One file per state, named for the state.
 
 import { mkdir } from "node:fs/promises";
-import { launch, openView, VIEWPORTS, readStoreVersion } from "./harness.mjs";
+import { launch, openView, VIEWPORTS, readStoreVersion, subjectMovedFrom, exitSubjectRetired } from "./harness.mjs";
 
 /* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
    `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
@@ -18,6 +18,12 @@ const OUT = process.env.SHOT_OUT ?? "docs/responsive/arch-g";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 900 };
 const version = await readStoreVersion();
 const browser = await launch();
+/* ═══ THE FOLDED DASHBOARD, ASKED FIRST (proto/monitoring-merge) ═══ This
+   file's subject is /app/escalations's dashboard. See `subjectMovedFrom` in the harness. */
+{
+  const landed = await subjectMovedFrom(browser, "/app/escalations", version);
+  if (landed) await exitSubjectRetired(browser, "arch-g-shots", "/app/escalations", landed, "monitoring-tiers.mjs");
+}
 await mkdir(OUT, { recursive: true });
 
 async function shot(id, url, prepare, extra = {}) {

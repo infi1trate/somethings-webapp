@@ -258,3 +258,36 @@ export async function landedOn(page) {
  *  changeRequests baseline snapshot is captured at the MOMENT OF ADMIN
  *  REJECTION, so it is driven, not seeded, and the driver is not built yet. */
 export const needsFlow = (v) => Boolean(v.flow);
+
+/** ═══ IS THIS PROBE'S SUBJECT STILL A PAGE? (proto/monitoring-merge) ═══
+ *
+ *  Escalations and Risk Flags folded into `/app/monitoring`, and their routes
+ *  are client-side hops now. A probe written for one of those dashboards that
+ *  navigates there anyway LANDS ON MONITORING and measures it under the old
+ *  name — every "not found" reads as a defect, and every vacuous `every()` as
+ *  a pass. Neither is evidence.
+ *
+ *  So a probe whose whole subject is a folded dashboard asks this first, by
+ *  OPENING the route rather than reading a constant: if the dashboard ever
+ *  comes back, the probe runs again on its own. Returns the path it landed on
+ *  when that is not `url`, else null. */
+export async function subjectMovedFrom(browser, url, version) {
+  const vp = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 900 };
+  const { context, page } = await openView(browser, { id: "subject-check", url, seed: { persona: "supervisor" } }, vp, version);
+  await page.waitForTimeout(800);
+  const landed = new URL(page.url()).pathname;
+  await context.close();
+  return landed === new URL(url, "http://x").pathname ? null : landed;
+}
+
+/** Print the ⊘ banner for a probe whose subject folded away, and end it.
+ *  Exit 0: a blocked claim is an absence of evidence, not a failure — the same
+ *  rule `monitoring-states.mjs` set for its per-check ⊘. */
+export async function exitSubjectRetired(browser, name, from, landed, replacement) {
+  console.log(`\n  ⊘ ${name}: BLOCKED — its subject, ${from}, now lands on ${landed}.`);
+  console.log(`    The dashboard folded into Monitoring (proto/monitoring-merge); this file's`);
+  console.log(`    claims are about a page no route reaches. The page that replaced it is`);
+  console.log(`    measured by ${replacement}. Nothing below was run, and nothing passed.\n`);
+  await browser.close();
+  process.exit(0);
+}

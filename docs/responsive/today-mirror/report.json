@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-16T21:16:27.258Z",
+  "generated": "2026-10-19T22:17:58.373Z",
   "rows": [
     {
       "id": "store.present",
@@ -122,28 +122,10 @@
       "detail": "3 card(s)"
     },
     {
-      "id": "agree.risk-flags",
-      "label": "Risk Flags' open flag count equals the card's",
-      "ok": true,
-      "detail": "destination 123 · today 123"
-    },
-    {
       "id": "agree.care-reviews",
       "label": "Care Reviews' open count equals the card's",
       "ok": true,
       "detail": "destination 16 · today 16"
-    },
-    {
-      "id": "agree.escalations.active",
-      "label": "the active count is the same on both, and in the same word",
-      "ok": true,
-      "detail": "destination 2 · today 2"
-    },
-    {
-      "id": "agree.escalations.reachable",
-      "label": "and the destination has at least as many records as the card claims are active",
-      "ok": true,
-      "detail": "4 record(s) · card claims 2 active"
     }
   ],
   "cards": [
@@ -151,14 +133,14 @@
       "id": "escalations",
       "tone": "breach",
       "directive": true,
-      "href": "/app/escalations",
+      "href": "/app/monitoring",
       "text": "2 Escalations 2 active · 3 close-out notes overdue Escalations. 2 active · 3 close-out notes overdue."
     },
     {
       "id": "risk-flags",
       "tone": "attention",
       "directive": false,
-      "href": "/app/risk-flags",
+      "href": "/app/monitoring",
       "text": "123 Risk Flags 123 open · oldest 7d ago Risk Flags. 123 open · oldest 7d ago."
     },
     {

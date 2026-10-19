@@ -308,12 +308,16 @@ const SURFACES = [
       return { cols: grid ? getComputedStyle(grid).gridTemplateColumns : "none" };
     },
   },
+  /* RISK FLAGS FOLDED INTO MONITORING (proto/monitoring-merge): its route is
+     a hop now, so measuring it would measure Monitoring under another name.
+     Monitoring's tiered page is the surface, and its canvas-read element is
+     the hero bar — five across, three, then two. */
   {
-    name: "risk-flags",
-    path: "/app/risk-flags",
+    name: "monitoring",
+    path: "/app/monitoring",
     measure: () => {
-      const grid = [...document.querySelectorAll(".grid")].find((e) => e.className.includes("grid-rows-[minmax(0,1fr)]") && e.className.includes("gap-5"));
-      return { cols: grid ? getComputedStyle(grid).gridTemplateColumns : "none" };
+      const hero = document.querySelector("[data-hero-metrics]");
+      return { cols: hero ? getComputedStyle(hero).gridTemplateColumns : "none" };
     },
   },
   {
@@ -328,14 +332,15 @@ const SURFACES = [
 const expectClosed = {
   chat: (vw) => (vw >= 1280 ? 3 : vw >= 960 ? 2 : 1),
   "care-reviews": (vw) => (vw >= 1280 ? 2 : 1),
-  "risk-flags": (vw) => (vw >= 1280 ? 2 : 1),
+  /* Read off the canvas, not the viewport (`@container/canvas`). */
+  monitoring: (vw, cw) => (cw >= 880 ? 5 : cw >= 520 ? 3 : 2),
   today: (vw) => (vw >= 1470 ? "row" : "column"),
 };
 /* Open: the tier its CANVAS earns, on top of the viewport's — the floors the
    surfaces declare (chat's own collapse is checked separately). */
 const expectOpen = {
   "care-reviews": (vw, cw) => (vw >= 1280 && cw >= 1000 ? 2 : 1),
-  "risk-flags": (vw, cw) => (vw >= 1280 && cw >= 1000 ? 2 : 1),
+  monitoring: (vw, cw) => (cw >= 880 ? 5 : cw >= 520 ? 3 : 2),
   today: (vw, cw) => (vw >= 1470 && cw >= 1190 ? "row" : "column"),
 };
 /* ═══ THE PHONE CANVAS, CLOSED — WHAT SUPPORT AT 1024 HANDS A SURFACE ═══
@@ -358,7 +363,8 @@ for (const width of [1024, 1280, 1512, 1728]) {
     const { ctx, page } = await open("supervisor", width, s.path);
     const c = await page.evaluate(s.measure);
     const closedTier = c.row ?? tracks(c.cols);
-    check(closedTier === expectClosed[s.name](width), `${s.name} closed: its viewport tier`, `${c.row ?? c.cols}`);
+    const g0 = await geo(page);
+    check(closedTier === expectClosed[s.name](width, g0.canvas), `${s.name} closed: its viewport tier`, `${c.row ?? c.cols}`);
     await toggle(page);
     const o = await page.evaluate(s.measure);
     const g = await geo(page);

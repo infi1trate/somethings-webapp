@@ -23,7 +23,7 @@
       "id": "tasks.no-job-chip",
       "label": "the task type is not repeated on every row",
       "ok": true,
-      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d | 90-day"
     },
     {
       "id": "tasks.age-column",
@@ -35,7 +35,7 @@
       "id": "tasks.no-deadline",
       "label": "and no row states a deadline, because the destination has none",
       "ok": true,
-      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d | 90-day"
     },
     {
       "id": "tasks.one-temporal",
@@ -47,7 +47,7 @@
       "id": "tasks.spans-read",
       "label": "the row's spans were readable at all",
       "ok": true,
-      "detail": "12 spans"
+      "detail": "14 spans"
     },
     {
       "id": "tasks.no-codes-on-list",
@@ -65,7 +65,7 @@
       "id": "tasks.caption-not-the-name",
       "label": "and not the name a second time",
       "ok": true,
-      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d | 90-day"
     },
     {
       "id": "tasks.height",
@@ -74,64 +74,22 @@
       "detail": "80px"
     },
     {
-      "id": "mon.rows-read",
-      "label": "rows were readable at all",
-      "ok": true,
-      "detail": "6 rows"
-    },
-    {
-      "id": "mon.one-emphasis",
-      "label": "exactly one emphasised element per row",
-      "ok": true,
-      "detail": "1,1,1,1,1,1"
-    },
-    {
-      "id": "mon.subject-leads",
-      "label": "and it is the subject of review, not a clock",
-      "ok": true,
-      "detail": "Naomi R. · 16px/400 avantt"
-    },
-    {
-      "id": "mon.age-quiet",
-      "label": "the age is present, mono, and not the emphasis",
-      "ok": true,
-      "detail": "9h ago · 12px/400 ui-monospace"
-    },
-    {
-      "id": "mon.no-tier-composition",
-      "label": "no row carries a tier composition line any more",
-      "ok": true,
-      "detail": "teen Naomi R., mentor Brandy Forrestor, Unsafe home environment, escal"
-    },
-    {
       "id": "sr.tasks.no-group-prefix",
       "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:15 A"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 9:20 A"
     },
     {
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:15 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 9:20 AM"
     },
     {
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
       "detail": "0 countdown, 14 elapsed, of 14"
-    },
-    {
-      "id": "sr.monitoring.no-group-prefix",
-      "label": "no row repeats its list's name, because the list is not grouped",
-      "ok": true,
-      "detail": "teen Jordan P., mentor Maria Lopez, Unsafe home environment, 1d ago"
-    },
-    {
-      "id": "sr.monitoring.same-temporal",
-      "label": "and states the same temporal fact the row draws — exactly one kind, never both",
-      "ok": true,
-      "detail": "0 countdown, 12 elapsed, of 12"
     },
     {
       "id": "e.teen-first",
@@ -149,7 +107,7 @@
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:15 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 9:20 AM"
     },
     {
       "id": "e.identity-disc",
@@ -168,23 +126,6 @@
       "label": "the list is one sequence, oldest first, with nothing restarting inside it",
       "ok": true,
       "detail": "14 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
-    },
-    {
-      "id": "e.monitoring-no-invented-bands",
-      "label": "Monitoring groups by nothing, and never by a tier or a deadline",
-      "ok": true,
-      "detail": "no group headers"
-    },
-    {
-      "id": "e.monitoring-mentor",
-      "label": "and still names the mentor — with its role, not after a preposition",
-      "ok": true,
-      "detail": "teen Naomi R., mentor Brandy Forrestor, Unsafe home environment,"
-    },
-    {
-      "id": "e.monitoring-avatar",
-      "label": "and still carries the identity disc",
-      "ok": true
     }
   ]
 }
