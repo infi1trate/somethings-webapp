@@ -36,3 +36,26 @@ export function useSupportOpen(): boolean {
     () => false
   );
 }
+
+/* ═══ WHICH THREAD IS OPEN (SUP-4) ═══
+   null is the list. Here rather than in the panel component so SUP-5's
+   "Supervisor notified" link can open a thread from outside the panel. */
+let thread: string | null = null;
+const threadListeners = new Set<() => void>();
+
+export function setSupportThread(id: string | null): void {
+  if (thread === id) return;
+  thread = id;
+  threadListeners.forEach((l) => l());
+}
+
+export function useSupportThread(): string | null {
+  return useSyncExternalStore(
+    (l) => {
+      threadListeners.add(l);
+      return () => threadListeners.delete(l);
+    },
+    () => thread,
+    () => null
+  );
+}

@@ -105,6 +105,15 @@
      frame. A presence dot; never the only carrier (the row's name says
      "online"). Non-text contrast on white is ~1.9:1, flagged in SUP-3. */
   --status-online: #1bda7a;
+  /* SUP-4: the support thread's outgoing bubble — Bloom periwinkle #485af8
+     (answered 2026-10-19: periwinkle, per Figma). A NEW SEMANTIC NAME, flagged:
+     Bloom has the swatch but no bubble role, and the chat page's bubbles stay
+     sand. White ink, 5.31:1. */
+  --bubble-outgoing: #485af8;
+  --bubble-outgoing-fg: #ffffff;
+  /* The composer's Shadow/Small, at the 8px blur the panel composer uses
+     (Appendix B); Shadow/Small itself is 16px. Flagged as a variant. */
+  --shadow-composer: 0 0 8px rgb(0 0 0 / 0.08);
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
@@ -726,6 +735,11 @@
   /* Same value: the Figma dark mode is not readable through the connector, and
      this green holds against a dark surface (flagged). */
   --status-online: #1bda7a;
+  /* Same fill and ink: white on #485af8 holds at 5.31:1 on either theme, and
+     Figma dark is unreadable through the connector (flagged). */
+  --bubble-outgoing: #485af8;
+  --bubble-outgoing-fg: #ffffff;
+  --shadow-composer: 0 0 8px rgb(0 0 0 / 0.4);
   --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
 
   /* The same three hues, inverted: fill dark, ink light. Lifted clear of the

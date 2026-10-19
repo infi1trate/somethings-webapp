@@ -11,10 +11,9 @@
 // rotating chevron, and the section's unread rolled up onto it while it is
 // closed, so closing a section never hides that something is waiting.
 //
-// ═══ ROWS ARE NOT CONTROLS YET ═══ A row opens its thread in SUP-4. Until
-// then it is content, not a button: a control that does nothing would be
-// enabled-but-dead (standing rule 3), and a disabled one per row would put a
-// column of greyed-out names in the panel. SUP-4 makes every row a button.
+// ═══ A ROW IS A BUTTON (SUP-4) ═══ It opens its thread in this panel. It was
+// content in SUP-3, when there was no thread to open; a control that did
+// nothing would have been enabled-but-dead (standing rule 3).
 //
 // ═══ THE STATES ═══ Loading is skeleton rows, never a spinner. Error says
 // what happened and offers a retry. `partial` is one section failing while the
@@ -51,13 +50,19 @@ function Count({ n }: { n: number }) {
   );
 }
 
-function Row({ row, now }: { row: SupportRow; now: number }) {
+function Row({ row, now, onOpen }: { row: SupportRow; now: number; onOpen: (id: string) => void }) {
   const online = row.presence === "online";
   return (
-    <li
-      data-support-row={row.id}
-      className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-2 last:border-b-0"
-    >
+    <li data-support-row={row.id} className="border-b border-[color:var(--border-subtle)] last:border-b-0">
+      <button
+        type="button"
+        data-support-row-open
+        onClick={() => onOpen(row.id)}
+        className={cn(
+          "flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-[var(--tint-hover)]",
+          RING
+        )}
+      >
       <span className="relative shrink-0">
         <RecordAvatar name={row.name} size={32} />
         {online && (
@@ -100,6 +105,7 @@ function Row({ row, now }: { row: SupportRow; now: number }) {
           )}
         </span>
       </span>
+      </button>
     </li>
   );
 }
@@ -141,18 +147,38 @@ function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
   );
 }
 
+/** ═══ OFFLINE ═══ A status banner at the top of the panel, in the list and
+ *  in a thread alike. */
+export function OfflineBanner() {
+  return (
+    <div
+      role="status"
+      data-support-offline
+      className="mx-4 mt-3 flex shrink-0 items-start gap-2 rounded-[var(--radius-lrg)] bg-[var(--status-attention-bg)] px-3 py-2 text-[var(--status-attention-fg)]"
+    >
+      <CloudOff aria-hidden className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
+      <p className="text-[14px] leading-[20px]">
+        {/* TODO-COPY. Names what still works and what does not. */}
+        You&apos;re offline. You can read what&apos;s here, and sending is off until you reconnect.
+      </p>
+    </div>
+  );
+}
+
 export function SupportList({
   sections,
   persona,
   now,
   load,
   online,
+  onOpen,
 }: {
   sections: SupportSection[];
   persona: string;
   now: number;
   load: LoadState;
   online: boolean;
+  onOpen: (id: string) => void;
 }) {
   const disclosure = useDisclosure(persona);
   /* ═══ RETRY IS PAGE-LOCAL ═══ It clears the dev axis's failure for THIS
@@ -172,21 +198,7 @@ export function SupportList({
 
   return (
     <div data-support-list data-state={state} className="flex flex-col">
-      {!online && (
-        <div
-          role="status"
-          data-support-offline
-          className="mx-4 mt-3 flex items-start gap-2 rounded-[var(--radius-lrg)] bg-[var(--status-attention-bg)] px-3 py-2 text-[var(--status-attention-fg)]"
-        >
-          <CloudOff aria-hidden className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
-          <p className="text-[14px] leading-[20px]">
-            {/* TODO-COPY. Names what still works and what does not; the
-                composer it speaks of arrives in SUP-4, disabled while this
-                shows. */}
-            You&apos;re offline. You can read what&apos;s here, and sending is off until you reconnect.
-          </p>
-        </div>
-      )}
+      {!online && <OfflineBanner />}
 
       {state === "error" ? (
         <ErrorLine
@@ -262,7 +274,7 @@ export function SupportList({
                 ) : (
                   <ul>
                     {s.rows.map((r) => (
-                      <Row key={r.id} row={r} now={now} />
+                      <Row key={r.id} row={r} now={now} onOpen={onOpen} />
                     ))}
                   </ul>
                 )}

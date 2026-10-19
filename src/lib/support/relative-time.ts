@@ -44,3 +44,25 @@ export function supportStamp(at: number, now: number): string {
 export function supportStampAbsolute(at: number): string {
   return ABSOLUTE.format(at);
 }
+
+// ═══ A MESSAGE'S TIME (SUP-4) ═══ Under the last bubble of a run. A clock
+// time, because a conversation is read as a sequence: today's messages say
+// only the time, yesterday's say so, older ones carry the date (and the year
+// once it is not this one).
+const CLOCK = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const DAY_CLOCK = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+const dayStart = (t: number) => {
+  const d = new Date(t);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+export function supportMessageTime(at: number, now: number): string {
+  const days = Math.round((dayStart(now) - dayStart(at)) / DAY);
+  if (days <= 0) return CLOCK.format(at);
+  /* TODO-COPY */
+  if (days === 1) return `Yesterday, ${CLOCK.format(at)}`;
+  if (new Date(at).getFullYear() === new Date(now).getFullYear()) return DAY_CLOCK.format(at);
+  return ABSOLUTE.format(at);
+}

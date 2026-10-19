@@ -38,3 +38,19 @@ describe("supportStamp", () => {
     expect(supportStampAbsolute(new Date(2026, 1, 15, 12, 0).getTime())).toBe("Feb 15, 2026, 12:00 PM");
   });
 });
+
+import { supportMessageTime } from "../relative-time";
+
+describe("supportMessageTime", () => {
+  const at = (m: number, d: number, h: number, min = 0, y = 2026) => new Date(y, m, d, h, min).getTime();
+  it("is a clock time today", () => {
+    expect(supportMessageTime(at(9, 16, 9, 5), NOW)).toBe("9:05 AM");
+  });
+  it("says yesterday, by calendar day not by 24 hours", () => {
+    expect(supportMessageTime(at(9, 15, 23, 59), NOW)).toBe("Yesterday, 11:59 PM");
+  });
+  it("carries the date this year, and the year before it", () => {
+    expect(supportMessageTime(at(9, 9, 13, 4), NOW)).toBe("Oct 9, 1:04 PM");
+    expect(supportMessageTime(at(11, 30, 8, 0, 2025), NOW)).toBe("Dec 30, 2025, 8:00 AM");
+  });
+});

@@ -87,6 +87,7 @@ import { bumpNavClock, useNavClock, useShellConfig } from "@/lib/app-shell/shell
 import { ConsoleTopBar } from "@/components/app-shell/console-top-bar";
 import { SupportPanel } from "@/components/support/support-panel";
 import { chatScenario } from "@/lib/chat/seed";
+import { useSupportRead } from "@/lib/support/outbox";
 
 /** Who gets the desktop top bar and the support CTA (answered 2026-10-16). */
 const TOP_BAR_PERSONAS = new Set(["mentor", "lead-mentor", "supervisor", "admin"]);
@@ -304,14 +305,17 @@ function ConsoleShellBody({
    *  readers into one store; until then this is a second CALLER of one rule,
    *  not a second rule. */
   const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
+  const supportRead = useSupportRead();
   const supportUnread = useMemo(
     () =>
       mounted
         ? chatScenario(chatScenarioId, badgeNow).threads.filter(
-            (t) => t.kind === "support" && t.unreadCount > 0
+            /* Less what the panel has read (SUP-4), so the badge and the
+               panel's own rows agree. SUP-5 makes this one store. */
+            (t) => t.kind === "support" && t.unreadCount > 0 && !supportRead.has(t.id)
           ).length
         : 0,
-    [mounted, chatScenarioId, badgeNow]
+    [mounted, chatScenarioId, badgeNow, supportRead]
   );
 
   const badges: Record<string, number> = {

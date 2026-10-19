@@ -33,10 +33,13 @@
 // Slide + fade, 220ms, cubic-bezier(0.32, 0.72, 0, 1) — inside the 400ms
 // Doherty threshold. Reduced motion: instant, no transform.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { ChevronDown, Search, SquarePen, X } from "lucide-react";
-import { setSupportOpen, useSupportOpen } from "@/lib/support/panel";
+import { setSupportOpen, setSupportThread, useSupportOpen, useSupportThread } from "@/lib/support/panel";
 import { SupportList } from "@/components/support/support-list";
+import { SupportThread, type ThreadMessage } from "@/components/support/support-thread";
+import { markSupportRead, useOutbox, useSupportRead } from "@/lib/support/outbox";
+import { supportThread } from "@/lib/support/threads";
 import { supportDirectory } from "@/lib/support/directory";
 import { useOnline } from "@/lib/support/online";
 import { useNavClock } from "@/lib/app-shell/shell-config";
@@ -82,10 +85,76 @@ export function SupportPanel() {
   const load = useOnboardingStore((s) => s.devLoadState);
   const now = useNavClock();
   const online = useOnline();
+  const outbox = useOutbox();
+  const read = useSupportRead();
+  /* ═══ THE LIST, WITH THIS SESSION ON TOP OF IT (SUP-4) ═══ A thread that
+     was opened is read, and one that was written in previews its newest
+     outgoing message: the row says what the thread now says. */
   const sections = useMemo(
-    () => supportDirectory(persona, chatScenarioId, now),
-    [persona, chatScenarioId, now]
+    () =>
+      supportDirectory(persona, chatScenarioId, now).map((s) => ({
+        ...s,
+        rows: s.rows.map((r) => {
+          const last = outbox.filter((m) => m.threadId === r.id).at(-1);
+          return {
+            ...r,
+            unread: read.has(r.id) ? 0 : r.unread,
+            ...(last ? { preview: last.text, previewFromViewer: true, at: last.at } : {}),
+          };
+        }),
+      })),
+    [persona, chatScenarioId, now, outbox, read]
   );
+
+  /* ═══ WHICH VIEW ═══ A thread id that this persona cannot see (the persona
+     switched) falls back to the list rather than an empty panel. */
+  const threadId = useSupportThread();
+  const thread = useMemo(() => {
+    const t = threadId ? supportThread(threadId, persona, chatScenarioId, now) : null;
+    if (!t) return null;
+    const row = sections.flatMap((s) => s.rows).find((r) => r.id === t.row.id) ?? t.row;
+    return { ...t, row };
+  }, [threadId, persona, chatScenarioId, now, sections]);
+  const messages = useMemo<ThreadMessage[]>(
+    () =>
+      thread
+        ? [
+            ...thread.messages,
+            ...outbox
+              .filter((m) => m.threadId === thread.row.id)
+              .map((m) => ({ id: m.id, at: m.at, mine: true, text: m.text, status: m.status })),
+          ]
+        : [],
+    [thread, outbox]
+  );
+
+  /* ═══ BACK KEEPS THE LIST WHERE IT WAS ═══ The list unmounts while a
+     thread is open, so its scroll offset is kept here and put back, and focus
+     returns to the row that opened the thread. Its open sections are already
+     persistent (`disclosure.ts`). */
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const listScroll = useRef(0);
+  const openedFrom = useRef<string | null>(null);
+  const openThread = (id: string) => {
+    listScroll.current = bodyRef.current?.scrollTop ?? 0;
+    openedFrom.current = id;
+    markSupportRead(id);
+    setSupportThread(id);
+  };
+  const showingThread = !!thread;
+  const wasThread = useRef(showingThread);
+  useLayoutEffect(() => {
+    if (wasThread.current && !showingThread) {
+      if (bodyRef.current) bodyRef.current.scrollTop = listScroll.current;
+      const from = openedFrom.current;
+      if (from) {
+        bodyRef.current
+          ?.querySelector<HTMLElement>(`[data-support-row="${CSS.escape(from)}"] [data-support-row-open]`)
+          ?.focus({ preventScroll: true });
+      }
+    }
+    wasThread.current = showingThread;
+  }, [showingThread]);
 
   /* ═══ FOCUS (SUP-2) ═══
      Open: focus moves to the panel header — not trapped, so Tab continues out
@@ -94,7 +163,12 @@ export function SupportPanel() {
      while working elsewhere must not be yanked. DOM focus in an effect. */
   useEffect(() => {
     if (open && !wasOpen.current) {
-      requestAnimationFrame(() => titleRef.current?.focus({ preventScroll: true }));
+      /* The header in view: the list's title, or an open thread's name. */
+      requestAnimationFrame(() =>
+        (titleRef.current ?? panelRef.current?.querySelector<HTMLElement>("#support-thread-title"))?.focus({
+          preventScroll: true,
+        })
+      );
     } else if (!open && wasOpen.current) {
       if (panelRef.current?.contains(document.activeElement)) visibleCta()?.focus();
     }
@@ -135,7 +209,8 @@ export function SupportPanel() {
       <aside
         ref={panelRef}
         id="support-panel"
-        aria-labelledby="support-panel-title"
+        /* A label, not `labelledby`: the thread view swaps the header. */
+        aria-label="Support"
         inert={!open}
         onKeyDown={(e) => {
           /* Esc closes while focus is inside — the panel's own dismissal, not a
@@ -153,6 +228,16 @@ export function SupportPanel() {
           open ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"
         )}
       >
+        {thread ? (
+          <SupportThread
+            data={thread}
+            messages={messages}
+            now={now}
+            online={online}
+            onBack={() => setSupportThread(null)}
+          />
+        ) : (
+        <>
         {/* ── HEADER, LIST STATE: 64px, raised, a bottom divider ──────────── */}
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[var(--surface-raised)] pr-3 pl-4">
           <h2
@@ -194,9 +279,11 @@ export function SupportPanel() {
         </header>
 
         {/* ── BODY: the grouped list (SUP-3) ─────────────────────────────── */}
-        <div data-support-body className="min-h-0 flex-1 overflow-y-auto">
-          <SupportList sections={sections} persona={persona} now={now} load={load} online={online} />
+        <div ref={bodyRef} data-support-body className="min-h-0 flex-1 overflow-y-auto">
+          <SupportList sections={sections} persona={persona} now={now} load={load} online={online} onOpen={openThread} />
         </div>
+        </>
+        )}
       </aside>
     </div>
   );
