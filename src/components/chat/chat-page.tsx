@@ -27,7 +27,7 @@
 // reason `useMounted` gates the seed rather than the render: the shell and the
 // three columns paint immediately; only the DATA waits a frame.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,7 +35,9 @@ import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
 import { Rail, tabsFor, type RailMode, type RailTab } from "@/components/chat/rail/rail";
 import { RailStrip } from "@/components/chat/rail/rail-strip";
-import { setSupportOpen, useSupportOpen } from "@/lib/support/panel";
+import { setSupportOpen, setSupportThread, useSupportOpen } from "@/lib/support/panel";
+import { markSupportRead } from "@/lib/support/outbox";
+import { supportThread } from "@/lib/support/threads";
 import { Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { CrisisView } from "@/components/chat/escalation/crisis-view";
@@ -65,6 +67,13 @@ import { cn } from "@/lib/utils";
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
+/** Open a support contact's thread in the panel, read (SUP-5). */
+function openInSupport(id: string): void {
+  markSupportRead(id);
+  setSupportThread(id);
+  setSupportOpen(true);
+}
+
 export function ChatPage({
   /** ═══ THE OPEN THREAD IS A ROUTE SEGMENT NOW, NOT A QUERY OR A STATE ═══
    *
@@ -84,6 +93,7 @@ export function ChatPage({
   const router = useRouter();
   const mounted = useMounted();
   const scenarioId = useOnboardingStore((s) => s.chatScenarioId);
+  const persona = useOnboardingStore((s) => s.persona);
 
   /** FIXED AT MOUNT, which is the house pattern (`tasks-page.tsx` carries the
    *  same line and the same reason): `Date.now()` in render scope is impure and
@@ -179,7 +189,27 @@ export function ChatPage({
      The scenario's focus thread is still the fallback at `md` and up, where the
      thread pane needs something to show before anyone has chosen. */
   const selectedId = personId ?? data?.focusThreadId ?? null;
-  const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
+  /* ═══ TEENS ONLY (SUP-5) ═══ Support conversations live in the Support
+     panel now; this page never selects one. */
+  const teenThreads = useMemo(() => (data?.threads ?? []).filter((t) => t.kind === "teen"), [data]);
+  const thread = teenThreads.find((t) => t.id === selectedId) ?? teenThreads[0];
+
+  /* ═══ OPEN A SUPPORT THREAD IN THE PANEL (SUP-5) ═══ The one door into
+     Support from outside it: a deep link to a support thread (anything that
+     still links `/app/chat/s-…`) and the escalation banner's "Supervisor
+     notified". Opening reads it, as a row does. Null when this persona cannot
+     reach that contact, so the caller renders plain text rather than a link
+     that opens the wrong place. */
+  const canOpenInSupport = (id: string) => !!supportThread(id, persona, scenarioId, now);
+  const supportLink = !!personId && threads.some((t) => t.id === personId && t.kind === "support");
+  /* An effect because the route is the input: the handoff happens once the
+     threads have loaded, then the URL goes back to the list, which is what
+     this page shows. Module stores, so no setState runs here. */
+  useEffect(() => {
+    if (!supportLink || !personId) return;
+    if (supportThread(personId, persona, scenarioId, now)) openInSupport(personId);
+    router.replace("/app/chat");
+  }, [supportLink, personId, persona, scenarioId, now, router]);
   /* MEMOISED for the same reason `events` and `artifacts` are: it feeds the Assist
      memo, and a fresh array every render makes that memo useless. */
   const messages = useMemo<ChatMessage[]>(
@@ -662,6 +692,13 @@ export function ChatPage({
           {thread ? (
             <div className="relative min-h-0 flex-1">
               <Thread
+                /* ═══ "SUPERVISOR NOTIFIED" OPENS THEIR THREAD (SUP-5) ═══ The
+                   moment a mentor most needs the person who was told. */
+                onOpenSupervisor={
+                  escalation && canOpenInSupport(escalation.supervisorId)
+                    ? () => openInSupport(escalation.supervisorId)
+                    : undefined
+                }
                 thread={thread}
                 messages={messages}
                 events={events}

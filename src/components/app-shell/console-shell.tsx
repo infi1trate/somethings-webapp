@@ -86,8 +86,7 @@ import { useMounted } from "@/lib/use-mounted";
 import { bumpNavClock, useNavClock, useShellConfig } from "@/lib/app-shell/shell-config";
 import { ConsoleTopBar } from "@/components/app-shell/console-top-bar";
 import { SupportPanel } from "@/components/support/support-panel";
-import { chatScenario } from "@/lib/chat/seed";
-import { useSupportRead } from "@/lib/support/outbox";
+import { useSupportUnread } from "@/lib/support/use-support";
 
 /** Who gets the desktop top bar and the support CTA (answered 2026-10-16). */
 const TOP_BAR_PERSONAS = new Set(["mentor", "lead-mentor", "supervisor", "admin"]);
@@ -299,24 +298,12 @@ function ConsoleShellBody({
     [scenarioItems, monitoring, badgeNow]
   );
 
-  /** ═══ SUPPORT'S UNREAD, FOR THE CTA's ACCESSIBLE NAME ═══
-   *  The same expression the chat list's `Support · N` uses (support threads
-   *  with an unread count), from the same fixture. SUP-5 consolidates the two
-   *  readers into one store; until then this is a second CALLER of one rule,
-   *  not a second rule. */
-  const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
-  const supportRead = useSupportRead();
-  const supportUnread = useMemo(
-    () =>
-      mounted
-        ? chatScenario(chatScenarioId, badgeNow).threads.filter(
-            /* Less what the panel has read (SUP-4), so the badge and the
-               panel's own rows agree. SUP-5 makes this one store. */
-            (t) => t.kind === "support" && t.unreadCount > 0 && !supportRead.has(t.id)
-          ).length
-        : 0,
-    [mounted, chatScenarioId, badgeNow, supportRead]
-  );
+  /** ═══ SUPPORT'S UNREAD, FOR THE CTA ═══
+   *  One source since SUP-5: the same rows the panel lists (`use-support.ts`),
+   *  so the badge and the panel cannot disagree. Zero until hydrated, when the
+   *  persona is the real one. */
+  const supportUnreadLive = useSupportUnread();
+  const supportUnread = mounted ? supportUnreadLive : 0;
 
   const badges: Record<string, number> = {
     /* THE ACTIVITY BADGE MOVED TO THE BELL (2026-10-16), with the tab. */

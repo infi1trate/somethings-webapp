@@ -106,17 +106,8 @@ console.log("\n── assist @ active-mentorship");
     `${firstTitle} → ${next.title ?? "(none left)"}`
   );
 
-  // A support thread has no ladder to run.
-  await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
-  await p.waitForTimeout(300);
-  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
-  await p.waitForTimeout(600);
-  const support = await p.evaluate(`(() => {
-    const rail = document.querySelector('[data-slot="chat-rail"]');
-    return { hasLadder: !!rail.querySelector('[data-slot="assist"]'), says: /colleague/i.test(rail.innerText) };
-  })()`);
-  check(!support.hasLadder, "a colleague's thread runs no ladder");
-  check(support.says, "and says why rather than looking broken");
+  /* SUPERSEDED (SUP-5): a support thread no longer opens on this page, so
+     there is no colleague's rail to run (or not run) a ladder in. */
   await p.context().close();
 }
 

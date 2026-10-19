@@ -38,9 +38,9 @@ import { ChevronDown, Search, SquarePen, X } from "lucide-react";
 import { setSupportOpen, setSupportThread, useSupportOpen, useSupportThread } from "@/lib/support/panel";
 import { SupportList } from "@/components/support/support-list";
 import { SupportThread, type ThreadMessage } from "@/components/support/support-thread";
-import { markSupportRead, useOutbox, useSupportRead } from "@/lib/support/outbox";
+import { markSupportRead, useOutbox } from "@/lib/support/outbox";
+import { useSupportSections } from "@/lib/support/use-support";
 import { supportThread } from "@/lib/support/threads";
-import { supportDirectory } from "@/lib/support/directory";
 import { useOnline } from "@/lib/support/online";
 import { useNavClock } from "@/lib/app-shell/shell-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -86,25 +86,10 @@ export function SupportPanel() {
   const now = useNavClock();
   const online = useOnline();
   const outbox = useOutbox();
-  const read = useSupportRead();
-  /* ═══ THE LIST, WITH THIS SESSION ON TOP OF IT (SUP-4) ═══ A thread that
-     was opened is read, and one that was written in previews its newest
-     outgoing message: the row says what the thread now says. */
-  const sections = useMemo(
-    () =>
-      supportDirectory(persona, chatScenarioId, now).map((s) => ({
-        ...s,
-        rows: s.rows.map((r) => {
-          const last = outbox.filter((m) => m.threadId === r.id).at(-1);
-          return {
-            ...r,
-            unread: read.has(r.id) ? 0 : r.unread,
-            ...(last ? { preview: last.text, previewFromViewer: true, at: last.at } : {}),
-          };
-        }),
-      })),
-    [persona, chatScenarioId, now, outbox, read]
-  );
+  /* ═══ THE LIST, WITH THIS SESSION ON TOP OF IT ═══ Read threads lose their
+     unread, written ones preview what was sent — from the one hook the CTA
+     badge reads too (SUP-5, `use-support.ts`). */
+  const { sections } = useSupportSections();
 
   /* ═══ WHICH VIEW ═══ A thread id that this persona cannot see (the persona
      switched) falls back to the list rather than an empty panel. */

@@ -88,7 +88,9 @@ export function StatusBanner({
   tone: BannerTone;
   glyph: LucideIcon;
   title: string;
-  meta?: string;
+  /** A string, or a node when part of the fact is a way to act on it — the
+   *  escalation's "Supervisor notified" opens that thread (SUP-5). */
+  meta?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (

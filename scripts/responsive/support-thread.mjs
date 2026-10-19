@@ -79,7 +79,12 @@ const tokenColor = (page, v) =>
   console.log("\n── mentor at 1512, Brandy's thread");
   const { ctx, page } = await open("mentor", 1512, "/app", { chatScenarioId: "escalation-active" }, { dpr: 2 });
   const cta0 = await cta(page).getAttribute("aria-label");
-  check(/1 unread/.test(cta0), "before: the CTA says 1 unread", cta0);
+  /* RETARGETED BY SUP-5: this read "the CTA says 1 unread" when the badge
+     counted supervisor threads only. One store now: it counts every
+     conversation the panel does, so what is checked is the read — opening
+     Brandy's thread takes exactly one off it. */
+  const n0 = Number(/(\d+) unread/.exec(cta0 ?? "")?.[1] ?? 0);
+  check(n0 >= 1, "before: the CTA counts Brandy's conversation among its unread", cta0);
   await row(page, "s-brandy").click();
   await page.waitForTimeout(400);
 
@@ -120,7 +125,8 @@ const tokenColor = (page, v) =>
   check(!!h.close && h.close.disabled === null, "and the panel's close (standing rule 5)");
   check(h.focus === "support-thread-title", "focus moved to the thread's name", h.focus);
   const cta1 = await cta(page).getAttribute("aria-label");
-  check(cta1 === "Support", "opening it read it: the CTA badge clears", cta1);
+  const n1 = Number(/(\d+) unread/.exec(cta1 ?? "")?.[1] ?? 0);
+  check(n1 === n0 - 1, "opening it read it: the CTA drops by one", `${cta0} → ${cta1}`);
 
   const m = await page.evaluate(() => {
     const log = document.querySelector("[data-support-log]");
