@@ -213,6 +213,32 @@
   --task-tint-routine-bg: #e8f5e3; /* forest/50 */
   --task-tint-routine-fg: #2e4325; /* forest/800 */
 
+  /* AVATAR TINTS — RecordAvatar's five identity tints, in `TINTS` order. The
+     order IS the assignment (`avatarTintFor` hashes a name to an index), so a
+     slot is renamed in place, never reordered, or everyone changes colour.
+
+     These were raw hex in the component with no dark side. Every value is now a
+     Bloom ramp step: the fill is the ramp's palest step that still carries hue
+     (apricot/50 and sky/50 are effectively white, so those two use 100), and the
+     ink is the passing step nearest in lightness to the old ink, so the disc
+     keeps its weight. Measured on the fill, old → new:
+       purple 6.31 → 5.40 · green 4.26 → 6.10 · brown 4.89 → 5.90
+       blue   5.90 → 6.19 · rose  5.32 → 5.93
+     Green was the sub-AA pair. Rose has only ONE passing step on blush/50 —
+     blush/950; 700–900 measure 3.16–4.40. Blue has no Bloom slate: sky is the
+     nearest hue, and coolGrey was refused because it reads as the redacted
+     neutral disc. */
+  --avatar-purple-bg: #ebdcff; /* purpleHeart/50 */
+  --avatar-purple-fg: #7707ea; /* purpleHeart/700 — 5.40:1 */
+  --avatar-green-bg: #e8f5e3; /* forest/50 */
+  --avatar-green-fg: #406333; /* forest/700 — 6.10:1 */
+  --avatar-brown-bg: #ffe8ca; /* apricot/100 */
+  --avatar-brown-fg: #844b04; /* apricot/800 — 5.90:1 */
+  --avatar-blue-bg: #b8f1ff; /* sky/100 */
+  --avatar-blue-fg: #005b76; /* sky/800 — 6.19:1 */
+  --avatar-rose-bg: #ffeaee; /* blush/50 */
+  --avatar-rose-fg: #b70b1f; /* blush/950 — 5.93:1, the only passing step */
+
   /* THE RESPOND STRIP'S FILL — the one filled saturated treatment on the Tasks
      page (§3.2 / §3.3 alarm budget).
 
@@ -779,6 +805,28 @@
   --task-tint-billing-fg: #a8aaff; /* periwinkle/200 */
   --task-tint-routine-bg: #25382a;
   --task-tint-routine-fg: #b0daa2; /* forest/200 */
+
+  /* AVATAR TINTS, DARK. Unlike the wells above these are NOT hand-derived: the
+     fill is the ramp's 900, which is Bloom's own dark mapping for a /50
+     highlight (`states/successHighlight` forest/50 → forest/900,
+     `states/offlineHighlight` purpleHeart/50 → /900), and the ink is the same
+     ramp's 100. Before this block the light pastels rendered unchanged on the
+     dark card (~11:1 of fill against card, a lit circle on a dark panel).
+     Measured initial on fill:
+       purple 6.85 · green 12.04 · brown 9.56 · blue 10.40 · rose 5.27
+     ROSE IS THE EXCEPTION, AND A FLAG: blush/900 #dd0b23 fails with every light
+     step (4.40 at best), so rose takes blush/950 — a saturated red disc, 1.95:1
+     against the card. It passes, and it is the loudest disc in the set. */
+  --avatar-purple-bg: #51089d; /* purpleHeart/900 */
+  --avatar-purple-fg: #dbbeff; /* purpleHeart/100 — 6.85:1 */
+  --avatar-green-bg: #1a2516; /* forest/900 */
+  --avatar-green-fg: #cce8c2; /* forest/100 — 12.04:1 */
+  --avatar-brown-bg: #573103; /* apricot/900 */
+  --avatar-brown-fg: #ffe8ca; /* apricot/100 — 9.56:1 */
+  --avatar-blue-bg: #003748; /* sky/900 */
+  --avatar-blue-fg: #b8f1ff; /* sky/100 — 10.40:1 */
+  --avatar-rose-bg: #b70b1f; /* blush/950 — blush/900 fails, see above */
+  --avatar-rose-fg: #ffd9df; /* blush/100 — 5.27:1 */
 
   --state-dirty: #fcd34d; /* unsaved indicator, lifted for dark */
   --state-error: #ff6f2f; /* tangelo/400 — also feeds --dot-critical */
