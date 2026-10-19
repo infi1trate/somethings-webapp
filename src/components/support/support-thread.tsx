@@ -101,7 +101,10 @@ export function SupportThread({
   onBack: () => void;
 }) {
   const { row } = data;
-  const first = row.name.split(" ")[0];
+  /* A PERSON BY FIRST NAME, A GROUP BY ITS WHOLE NAME (SUP-6). Measured:
+     "Message Fall" — the first word of "Fall 2026 cohort". Only a person has
+     presence, so presence is what says this is a person. */
+  const first = row.presence ? row.name.split(" ")[0] : row.name;
   const logRef = useRef<HTMLOListElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -158,6 +161,9 @@ export function SupportThread({
             ref={titleRef}
             tabIndex={-1}
             id="support-thread-title"
+            /* Composed: a hidden suffix inside the heading was read with a
+               stray space before its comma (SUP-6). TODO-COPY. */
+            aria-label={`${row.name}${row.presence === "online" ? ", online" : ""}`}
             /* `font-sans`: every h2 takes the display face globally, and the
                name is Body/Large-Regular, as on the row it was opened from. */
             className="truncate rounded-sm font-sans text-[16px] leading-[24px] text-[var(--text-primary)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
@@ -301,7 +307,11 @@ export function SupportThread({
       <div className="shrink-0 px-4 pt-2">
         <div
           data-support-composer
-          className="flex flex-col gap-4 rounded-[20px] border border-[color:var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-[var(--shadow-composer)]"
+          /* ═══ THE RING IS ON THE CARD (SUP-6) ═══ The textarea is borderless
+             inside it, so it had no focus indicator at all — measured
+             `outline: none`. The card takes the ring while its field has focus;
+             the toolbar's buttons keep their own. */
+          className="flex flex-col gap-4 rounded-[20px] border border-[color:var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-[var(--shadow-composer)] has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-[color:var(--focus-ring)]"
         >
           <textarea
             ref={inputRef}

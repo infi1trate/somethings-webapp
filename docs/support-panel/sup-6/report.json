@@ -1,0 +1,514 @@
+{
+  "contrast-light": {
+    "bar": {
+      "count": 1,
+      "lowest": {
+        "text": "⌘K",
+        "fg": "#1f1e1d",
+        "bg": "#e8e4db",
+        "ratio": 13.12,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [],
+      "inertSkipped": 2
+    },
+    "list": {
+      "count": 29,
+      "lowest": {
+        "text": "1d",
+        "fg": "#716a60",
+        "bg": "#ffffff",
+        "ratio": 5.34,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [
+        {
+          "text": "B",
+          "fg": "#3a7d44",
+          "bg": "#e6efe8",
+          "ratio": 4.26,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "1",
+          "fg": "#ffffff",
+          "bg": "#1f1e1d",
+          "ratio": 16.64,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "S",
+          "fg": "#8a5a2b",
+          "bg": "#f2e9df",
+          "ratio": 4.89,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "F",
+          "fg": "#5b41a8",
+          "bg": "#efe7f7",
+          "ratio": 6.31,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "2",
+          "fg": "#ffffff",
+          "bg": "#1f1e1d",
+          "ratio": 16.64,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "S",
+          "fg": "#3a7d44",
+          "bg": "#e6efe8",
+          "ratio": 4.26,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "N",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "1",
+          "fg": "#ffffff",
+          "bg": "#1f1e1d",
+          "ratio": 16.64,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "I",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "T",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "S",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        }
+      ],
+      "inertSkipped": 0
+    },
+    "presence": 1.85,
+    "listIcons": [
+      {
+        "host": "Support",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Close support",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Supervisors",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Cohorts",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Groups",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Other",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      }
+    ],
+    "thread": {
+      "count": 12,
+      "lowest": {
+        "text": "Thanks, this is really helpful.",
+        "fg": "#ffffff",
+        "bg": "#485af8",
+        "ratio": 5.13,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [
+        {
+          "text": "F",
+          "fg": "#5b41a8",
+          "bg": "#efe7f7",
+          "ratio": 6.31,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        }
+      ],
+      "inertSkipped": 0
+    },
+    "failed": {
+      "count": 16,
+      "lowest": {
+        "text": "You're offline. You can read what's here",
+        "fg": "#844b04",
+        "bg": "#ffd49c",
+        "ratio": 5.07,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [
+        {
+          "text": "F",
+          "fg": "#5b41a8",
+          "bg": "#efe7f7",
+          "ratio": 6.31,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        }
+      ],
+      "inertSkipped": 1
+    },
+    "threadIcons": [
+      {
+        "host": "Back to Support",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Close support",
+        "fg": "#58534b",
+        "bg": "#ffffff",
+        "ratio": 7.63
+      },
+      {
+        "host": "Not sent.Retry",
+        "fg": "#cc3300",
+        "bg": "#ffffff",
+        "ratio": 5.2
+      }
+    ]
+  },
+  "contrast-dark": {
+    "bar": {
+      "count": 1,
+      "lowest": {
+        "text": "⌘K",
+        "fg": "#ffffff",
+        "bg": "#1d1a17",
+        "ratio": 17.32,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [],
+      "inertSkipped": 2
+    },
+    "list": {
+      "count": 29,
+      "lowest": {
+        "text": "1d",
+        "fg": "#a0998d",
+        "bg": "#322f2c",
+        "ratio": 4.71,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [
+        {
+          "text": "B",
+          "fg": "#3a7d44",
+          "bg": "#e6efe8",
+          "ratio": 4.26,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "1",
+          "fg": "#0e0d0c",
+          "bg": "#ffffff",
+          "ratio": 19.42,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "S",
+          "fg": "#8a5a2b",
+          "bg": "#f2e9df",
+          "ratio": 4.89,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "F",
+          "fg": "#5b41a8",
+          "bg": "#efe7f7",
+          "ratio": 6.31,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "2",
+          "fg": "#0e0d0c",
+          "bg": "#ffffff",
+          "ratio": 19.42,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "S",
+          "fg": "#3a7d44",
+          "bg": "#e6efe8",
+          "ratio": 4.26,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "N",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "1",
+          "fg": "#0e0d0c",
+          "bg": "#ffffff",
+          "ratio": 19.42,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "I",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "T",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        },
+        {
+          "text": "S",
+          "fg": "#9a4257",
+          "bg": "#f5e7ea",
+          "ratio": 5.32,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        }
+      ],
+      "inertSkipped": 0
+    },
+    "presence": 7.19,
+    "listIcons": [
+      {
+        "host": "Support",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Close support",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Supervisors",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Cohorts",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Groups",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Other",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      }
+    ],
+    "thread": {
+      "count": 12,
+      "lowest": {
+        "text": "Cohort",
+        "fg": "#a0998d",
+        "bg": "#322f2c",
+        "ratio": 4.71,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [
+        {
+          "text": "F",
+          "fg": "#5b41a8",
+          "bg": "#efe7f7",
+          "ratio": 6.31,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        }
+      ],
+      "inertSkipped": 0
+    },
+    "failed": {
+      "count": 16,
+      "lowest": {
+        "text": "Cohort",
+        "fg": "#a0998d",
+        "bg": "#322f2c",
+        "ratio": 4.71,
+        "need": 4.5,
+        "inert": false,
+        "avatar": false
+      },
+      "failing": [],
+      "avatars": [
+        {
+          "text": "F",
+          "fg": "#5b41a8",
+          "bg": "#efe7f7",
+          "ratio": 6.31,
+          "need": 4.5,
+          "inert": false,
+          "avatar": true
+        }
+      ],
+      "inertSkipped": 1
+    },
+    "threadIcons": [
+      {
+        "host": "Back to Support",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Close support",
+        "fg": "#b5b0a6",
+        "bg": "#322f2c",
+        "ratio": 6.16
+      },
+      {
+        "host": "Not sent.Retry",
+        "fg": "#ff6f2f",
+        "bg": "#322f2c",
+        "ratio": 4.79
+      }
+    ]
+  },
+  "keyboard": {
+    "bar": [
+      "Activity",
+      "Support, 3 unread"
+    ],
+    "listPanel": [
+      "Close support",
+      "Supervisors",
+      "Brandy Forrestor, online. 1 unread. You:",
+      "Stephen Rowe. You: Understood. Thank you",
+      "Cohorts, 2 unread",
+      "Groups, 1 unread",
+      "Other"
+    ],
+    "thread": [
+      "Close support",
+      "Message Brandy Forrestor"
+    ]
+  },
+  "ariaSnapshot": "- complementary \"Support\":\n  - heading \"Support\" [level=2]\n  - button \"Search support (coming soon)\" [disabled]\n  - button \"New message (coming soon)\" [disabled]\n  - button \"Close support\"\n  - heading \"Supervisors\" [level=3]:\n    - button \"Supervisors\" [expanded]\n  - list:\n    - listitem:\n      - 'button \"Brandy Forrestor, online. You: Thanks for turning that around quickly. Oct 17, 2026, 2:56 PM\"':\n        - text: Brandy Forrestor , online\n        - time: 1d\n        - text: \"You: Thanks for turning that around quickly.\"\n    - listitem:\n      - 'button \"Stephen Rowe. You: Understood. Thank you. Sep 28, 2026, 4:11 PM\"':\n        - text: Stephen Rowe\n        - time: Sep 28\n        - text: \"You: Understood. Thank you.\"\n  - heading \"Cohorts, 2 unread\" [level=3]:\n    - button \"Cohorts, 2 unread\": Cohorts , 2 unread\n  - heading \"Groups, 1 unread\" [level=3]:\n    - button \"Groups, 1 unread\": Groups , 1 unread\n  - heading \"Other\" [level=3]:\n    - button \"Other\"",
+  "reducedMotion": {
+    "all": [
+      "button.flex.size-10 transition color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to",
+      "button.flex.h-12 transition color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to",
+      "button.flex.h-12 transition color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to",
+      "button.flex.h-12 transition color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to",
+      "button.flex.h-12 transition color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to"
+    ],
+    "motion": []
+  }
+}

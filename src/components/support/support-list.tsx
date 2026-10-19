@@ -58,6 +58,20 @@ function Row({ row, now, onOpen }: { row: SupportRow; now: number; onOpen: (id: 
         type="button"
         data-support-row-open
         onClick={() => onOpen(row.id)}
+        /* ═══ A COMPOSED NAME (SUP-6) ═══ Built from the parts, measured
+           wrong: "Brandy Forrestor , online 1d You: …" — a stray space from
+           the hidden suffix, and "1d" said as "one d". Now the order a reader
+           needs: who, presence, what is waiting, what was said, when.
+           TODO-COPY. */
+        aria-label={([
+          `${row.name}${online ? ", online" : ""}`,
+          row.unread > 0 ? `${row.unread} unread` : null,
+          row.preview ? `${row.previewFromViewer ? "You: " : ""}${row.preview}` : "No messages yet",
+          row.at !== null ? supportStampAbsolute(row.at) : null,
+        ].filter(Boolean) as string[])
+          /* A part that already ends a sentence ("quickly.") takes a space,
+             not a second full stop. */
+          .reduce((acc, part) => (acc ? `${acc}${/[.!?]$/.test(acc) ? "" : "."} ${part}` : part), "")}
         className={cn(
           "flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-[var(--tint-hover)]",
           RING
@@ -232,6 +246,8 @@ export function SupportList({
                   aria-controls={bodyId}
                   data-support-section-toggle
                   onClick={() => setSectionOpen(persona, s.id, !open)}
+                  /* Composed, for the same stray-space reason as a row. */
+                  aria-label={!open && unread > 0 && state !== "loading" ? `${s.label}, ${unread} unread` : s.label}
                   className={cn(
                     "flex h-12 w-full items-center gap-2 px-4 text-left transition-colors hover:bg-[var(--tint-hover)]",
                     RING

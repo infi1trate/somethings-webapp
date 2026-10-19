@@ -280,6 +280,8 @@ const tokenColor = (page, v) =>
   });
   check(m0.h < m0.sh && m0.label === "Show more" && m0.exp === "false", "clamped, with Show more", JSON.stringify(m0));
   check(/^Brandy(?!Brandy)/.test(m0.author ?? ""), "a group thread names the author over a run, once", m0.author);
+  const ph = await page.locator("[data-support-composer] textarea").getAttribute("placeholder");
+  check(ph === "Message Fall 2026 cohort", "a group is addressed by its whole name, not its first word", ph);
   await page.evaluate(() => document.querySelector("[data-support-log]").scrollTo(0, 0));
   await more.click();
   await page.waitForTimeout(200);
