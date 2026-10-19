@@ -92,9 +92,18 @@ describe("the billing-code lozenge is defined once", () => {
        it is what this looks for on a single className. A mono figure with no
        fill is a figure (the age columns are exactly that); a mono figure
        wearing a surface is a chip. */
+    /* ═══ THE ALLOW-LIST, EACH WITH ITS REASON ═══ A file here renders a mono
+       figure that is NOT a code and needs a fill for a measured reason. */
+    const ALLOWED: Record<string, string> = {
+      /* The Tier 1 response clock ("0:58 left"): a countdown, not a billing
+         code. Its fill is the wash that keeps 12px text on the strip at AA —
+         white on the bare red measured ~3.6:1 — and it flips with the theme
+         (proto/monitoring-merge). */
+      "src/components/monitoring/overview/tier1-alert-strip.tsx": "response clock",
+    };
     const offenders: string[] = [];
     for (const f of files) {
-      if (f === OWNER) continue;
+      if (f === OWNER || f in ALLOWED) continue;
       for (const m of code(read(f)).matchAll(/className=(?:"([^"]*)"|\{cn\(([\s\S]{0,400}?)\)\})/g)) {
         const cls = m[1] ?? m[2] ?? "";
         if (!/font-mono|--font-mono/.test(cls)) continue;
