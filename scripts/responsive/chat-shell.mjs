@@ -75,50 +75,21 @@ console.log("\n── the route and the deep link @ 1440x900");
      labelled buttons in it, an unscoped selector swept in five assessment steps
      alongside the two support threads. Every probe that means "a conversation row"
      now says so. */
-// ═══ 2 · The workspace switch is a visible control ════════════════════════
-console.log("\n── the workspace switch @ 1440x900");
+// ═══ 2 · SUPERSEDED (SUP-5): there is no workspace switch ════════════════
+/* This section measured the `Teens | Support` switch — two visible segments,
+   the count on the inactive side. SUP-5 retired it: Support lives in the
+   global panel, and the same conversations behind two routes with two unread
+   counts was the defect. The section now checks the retirement: no switch,
+   only teen rows, and the support threads reachable from the panel. */
+console.log("\n── the workspace switch is gone @ 1440x900");
 {
   const p = await chat("escalation-active", 1440, 900);
-  const ws = await p.evaluate(`(() => {
-    const list = document.querySelector('[role="tablist"][aria-label="Conversations"]');
-    if (!list) return null;
-    const tabs = [...list.querySelectorAll('[role="tab"]')];
-    return {
-      count: tabs.length,
-      labels: tabs.map((t) => t.textContent.trim()),
-      selected: tabs.filter((t) => t.getAttribute("aria-selected") === "true").length,
-      /* VISIBLE, not merely present. A dropdown's options are in the DOM too — the
-         distinction this phase is making is whether both destinations are on
-         screen without a press. */
-      allVisible: tabs.every((t) => t.getBoundingClientRect().width > 40),
-      noCombobox: !list.querySelector("select,[role=combobox]"),
-    };
-  })()`);
-  check(!!ws, "the switch rendered");
-  check(ws.count === 2, "two segments", String(ws.count));
-  check(ws.allVisible, "both are visible without opening anything");
-  check(ws.noCombobox, "and it is not a dropdown");
-  check(ws.selected === 1, "exactly one is selected");
-  check(
-    ws.labels.some((l) => l.startsWith("Teens")) && ws.labels.some((l) => l.startsWith("Support")),
-    "both destinations are named",
-    ws.labels.join(" | ")
-  );
-  /* THE COUNT BELONGS TO THE SIDE YOU ARE NOT ON. Support carries an unread in
-     this scenario, Teens is active — so exactly one segment shows a number. */
-  const withCount = ws.labels.filter((l) => /· [0-9]+$/.test(l));
-  check(withCount.length === 1, "only the inactive workspace shows its count", ws.labels.join(" | "));
-
-  // And it switches.
-  await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
-  await p.waitForTimeout(400);
-  const rows = await p.evaluate(`
-    [...document.querySelectorAll('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]')].map((b) => b.getAttribute("aria-label").split(",")[0])`);
-  check(
-    rows.length === 2 && rows.every((r) => /Brandy|Stephen/.test(r)),
-    "switching shows the support threads",
-    rows.join(" | ")
-  );
+  const ws = await p.evaluate(`(() => ({
+    tablist: !!document.querySelector('[data-slot="conversation-list"] [role="tablist"]'),
+    rows: [...document.querySelectorAll('[data-anno-ref="chat-list-scroller"] button[aria-label]')].map((b) => b.getAttribute("aria-label").split(",")[0]),
+  }))()`);
+  check(!ws.tablist, "no Teens | Support switch in the list");
+  check(ws.rows.length > 0 && !ws.rows.some((r) => /Brandy|Stephen/.test(r)), "the list holds teens only", `${ws.rows.length} rows`);
   await p.context().close();
 }
 
@@ -159,18 +130,9 @@ console.log("\n── the rail @ 1440x900");
     document.querySelector('[role="tablist"][aria-label="Conversation tools"] [role="tab"][aria-selected="true"]')?.textContent.trim()`);
   check(moved === "Profile", "ArrowRight moves to the next panel", String(moved));
 
-  // A SUPPORT thread gets two panels, not four — no profile, no activities.
-  await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
-  await p.waitForTimeout(300);
-  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
-  await p.waitForTimeout(400);
-  const supportTabs = await p.evaluate(`
-    [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')].map((t) => t.textContent.trim())`);
-  check(
-    supportTabs.length === 2 && supportTabs.join() === "Assist,Timeline",
-    "a support thread offers only the panels that apply",
-    supportTabs.join(" | ")
-  );
+  /* SUPERSEDED (SUP-5): a support thread no longer opens on this page — it
+     opens in the Support panel, which has no rail. The two-panel rule for a
+     colleague's rail had nothing left to apply to. */
   await p.context().close();
 }
 
@@ -305,7 +267,7 @@ for (const [w, h, expect_] of [
 
   // Below md, selecting a row hands over the screen.
   if (!expect_.thread) {
-    await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
+    await p.locator('[data-anno-ref="chat-list-scroller"] button[aria-label]').first().click();
     await p.waitForTimeout(400);
     const after = await p.evaluate(`(() => {
       const vis = (el) => !!el && el.getBoundingClientRect().width > 0;

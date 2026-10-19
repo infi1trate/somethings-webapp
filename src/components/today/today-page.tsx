@@ -62,6 +62,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, ChevronRight, ListChecks, Phone, RotateCcw, X } from "lucide-react";
 import { elapsedLabel, escalationHref } from "@/components/tasks/strips";
 import { tasksScenario } from "@/lib/tasks/seed";
+import { withClosures } from "@/lib/tasks/closed-review";
 import {
   compareEscalations,
   isActive,
@@ -79,11 +80,7 @@ import { PinnedMentees } from "@/components/today/pinned-mentees";
 import { SuggestedSchedule } from "@/components/today/suggested-schedule";
 import { bandStateFor } from "@/lib/monitoring/live";
 import { LIVE_LAYER_ENABLED } from "@/lib/monitoring/constants";
-import {
-  ACTIVITY_DOMAIN_OF,
-  DOMAIN_LABEL,
-  type TaskDomain,
-} from "@/lib/tasks/types";
+import { DOMAIN_LABEL, type TaskDomain } from "@/lib/tasks/types";
 import { HOME_LOAD_STAGES, homeLoadPlanFor } from "@/lib/tasks/load-plan";
 import { isNewShift, shiftFactsFor } from "@/lib/tasks/shift";
 import {
@@ -691,7 +688,13 @@ function TasksSection({
                   style={{ width: COL_EQUAL }}
                 >
                   <ReviewDisc teenId={it.teenId} name={it.name} size={PREVIEW_DISC} />
-                  <ReviewIdentityCell name={it.name} caption={it.status ?? ""} />
+                  {/* §5's renew glyph, from the flag `start-here.ts` derives
+                      with the same expression the caption came from. */}
+                  <ReviewIdentityCell
+                    name={it.name}
+                    caption={it.status ?? ""}
+                    captionIcon={it.captionIcon}
+                  />
                 </span>
                 {/* ═══ THE CYCLE, NOT THE CODES (rework §6.1, §6.3) ═══
                     K.1 put codes here and the Care Reviews rework takes them
@@ -791,9 +794,12 @@ export function TodayPage() {
     setShiftSeenAt(Date.now());
   }, [mounted, setShiftSeenAt]);
 
+  /* CLOSED REVIEWS ARE NOT OPEN — the same rule the rail badge and Care
+     Reviews run, so Today's card cannot say 16 beside a list of 9 (§0.3). */
+  const closedCare = useOnboardingStore((s) => s.closedCareReviews);
   const items = useMemo(
-    () => (mounted ? tasksScenario(tasksScenarioId, mountedAt) : []),
-    [mounted, tasksScenarioId, mountedAt]
+    () => (mounted ? withClosures(tasksScenario(tasksScenarioId, mountedAt), closedCare) : []),
+    [mounted, tasksScenarioId, mountedAt, closedCare]
   );
 
   /** ═══ THE DESTINATIONS' OWN DATA, READ THE DESTINATIONS' OWN WAY ═══
@@ -1031,7 +1037,7 @@ export function TodayPage() {
     >
       <div
         data-anno-ref="today-column"
-        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-6 min-[1470px]:max-w-[1222px] lg:px-8"
+        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-6 min-[1470px]:@min-[1190px]/canvas:max-w-[1222px] lg:px-8"
       >
       {/* ═══ ONE HERO, NOT THREE TIERS (Phase L.2) ═══
           IT WAS a small "Hi there", a large "Today", and a subtitle. L.2's
@@ -1150,11 +1156,14 @@ export function TodayPage() {
           STACKED IS THE DEFAULT AND THE ROW IS THE OVERRIDE (H.1.4). Below the
           breakpoint the rail moves under the main column at full width, which
           is what a mobile-first default gives for free — and it means the
-          320px case is the base rendering rather than a special one. */}
-      <div className="flex shrink-0 flex-col gap-5 min-[1470px]:flex-row min-[1470px]:items-start min-[1470px]:gap-4">
+          320px case is the base rendering rather than a special one.
+          AND THE CANVAS (SUP-2): 1470 leaves a staff canvas of 1206, so every
+          `min-[1470px]` here also needs 1190 of canvas. Closed, nothing moves;
+          with Support open the rail stacks until the row fits. */}
+      <div className="flex shrink-0 flex-col gap-5 min-[1470px]:@min-[1190px]/canvas:flex-row min-[1470px]:@min-[1190px]/canvas:items-start min-[1470px]:@min-[1190px]/canvas:gap-4">
         <div
           data-anno-ref="today-main"
-          className="flex min-w-0 flex-col gap-5 min-[1470px]:w-[857px] min-[1470px]:shrink-0"
+          className="flex min-w-0 flex-col gap-5 min-[1470px]:@min-[1190px]/canvas:w-[857px] min-[1470px]:@min-[1190px]/canvas:shrink-0"
         >
       {/* ═══ THE CARDS COME FIRST (K.6) ═══
           The page opened with a tall module containing a list, and the three
@@ -1190,7 +1199,7 @@ export function TodayPage() {
               and the instruction is to revert to full-width stacked rows
               rather than invent a 4-up. `cards.length` is the thing to check
               the day Chat/Coverage resolves in. */}
-          <ul className="grid grid-cols-1 gap-4 min-[1470px]:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 min-[1470px]:@min-[1190px]/canvas:grid-cols-3">
             {cards.map((card) => (
               <DestinationCard
                 key={card.id}
@@ -1271,7 +1280,7 @@ export function TodayPage() {
             relationship "reference, not work" describes. */}
         <aside
           data-anno-ref="today-rail"
-          className="w-full min-[1470px]:w-[285px] min-[1470px]:shrink-0"
+          className="w-full min-[1470px]:@min-[1190px]/canvas:w-[285px] min-[1470px]:@min-[1190px]/canvas:shrink-0"
         >
           {mounted && <SuggestedSchedule now={now} />}
         </aside>
@@ -1325,27 +1334,17 @@ function ClosedToday({ facts }: { facts: ReturnType<typeof shiftFactsFor> }) {
       <ul className="flex flex-wrap gap-x-4 gap-y-1">
         {entries.map(([domain, n]) => (
           <li key={domain}>
-            <Link
-              /* THE LEDGER'S OWN VOCABULARY, mapped. Activity's domains are not
-                 Tasks' — passing a Tasks domain string would silently match
-                 nothing (gap row 208). `scope=mine` because this is the
-                 supervisor's own closures.
-                 NO DATE PARAM: the ledger has scope and domain axes and no
-                 "today", so the link lands on the domain's full history rather
-                 than on today's slice. Gap row 371. */
-              href={`/app/activity?scope=mine&domain=${ACTIVITY_DOMAIN_OF[domain]}`}
-              className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-control)] px-1 text-[13px] leading-[18px] text-[var(--text-secondary)]",
-                "transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
+            {/* ═══ NOT A LINK ANY MORE (2026-10-16) ═══
+                Each count linked to the Activity ledger filtered to its domain.
+                Activity moved into the top bar's bell and its deep links were
+                removed (answered); the counts stay as the summary they are. */}
+            <span className="inline-flex min-h-11 items-center gap-1.5 px-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
               <span aria-hidden className="tabular-nums">
                 {n}
               </span>
               {DOMAIN_LABEL[domain].toLowerCase()}
               <span className="sr-only">{` closed today`}</span>
-            </Link>
+            </span>
           </li>
         ))}
       </ul>

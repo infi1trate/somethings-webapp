@@ -161,9 +161,10 @@ async function openCareReview(page) {
   /* ═══ CHANGE vs NOT-A-CHANGE (rework §6.4) ═══
      This split three ways — change / renewal / assign — and read the kind off
      the ROW, where §4.4 had put it in words. §6.4 collapses the row to TWO
-     labels: "Presentation Change" for a change, "Presentation Review" for both
-     a first assignment and a renewal. So `cases.notChange` came back null and
-     three checks failed.
+     labels, and the parity pack §5 then renamed both of them: `Change
+     requested` for a change, `Presentation review` for both a first assignment
+     and a renewal. Each rename broke this matcher in turn; see the note at the
+     matcher itself.
      THE TWO-WAY SPLIT IS THE RIGHT ONE FOR THESE CLAIMS, and collapsing to it
      makes them STRONGER rather than weaker. What the checks actually assert is
      that the pane renders the code on record as a subordinate `Current ·` line
@@ -173,16 +174,37 @@ async function openCareReview(page) {
      `change` and `renewal`.
      So the discriminator is the row's own label, which is reliable, and the
      assertion covers every non-change case. */
-  const cases = { change: null, notChange: null };
+  const cases = { change: null, notChange: null, changeOnRecord: null, notChangeOnRecord: null };
   for (let i = 0; i < 14 && (!cases.change || !cases.notChange); i += 1) {
     const row = page.getByRole("treeitem").nth(i);
     const rowText = (await row.innerText()).replace(/\s+/g, " ");
-    if (!/Presentation (Change|Review)/.test(rowText)) continue;
+    /* ═══ RETARGETED BY THE PARITY PACK §5 — THE CAPTIONS WERE RENAMED ═══
+       They were "Presentation Change" / "Presentation Review". §5 corrects them
+       to `Change requested` (not a spec'd value before) and `Presentation
+       review` (sentence case), so this matcher stopped finding either case and
+       all three checks below went red with `change: false · non-change: false`.
+       A PROBE ARTIFACT, NOT AN APP DEFECT: the pane's behaviour is unchanged,
+       and the claims below are unchanged. Only the string the case is
+       IDENTIFIED by moved — the same retarget this file already carries one
+       layer up, where §6.4 collapsed three labels to two.
+       MATCHING BOTH SPELLINGS WOULD BE THE WRONG FIX: the old strings are gone
+       and a matcher that accepts them would pass against a regression that
+       brought them back. */
+    if (!/(Change requested|Presentation review)/.test(rowText)) continue;
     await row.click();
     await page.waitForTimeout(280);
     const pt = (await page.locator('[data-slot="task-pane"]').innerText()).replace(/\s+/g, " ");
-    const kind = /Presentation Change/.test(rowText) ? "change" : "notChange";
-    if (!cases[kind]) cases[kind] = pt;
+    const kind = /Change requested/.test(rowText) ? "change" : "notChange";
+    if (!cases[kind]) {
+      cases[kind] = pt;
+      /* §3 · THE PRIOR CODE IS A LOZENGE, SO READ THE LOZENGE. The word
+         "Current" is gone, replaced by a directional glyph, so the subordinate
+         line can no longer be identified from prose. The `onRecord` tone is
+         rendered by exactly one element and only when a code is superseded. */
+      const onRec = page.locator('[data-code-tone="onRecord"]').first();
+      cases[`${kind}OnRecord`] =
+        (await onRec.count()) > 0 ? await onRec.getAttribute("data-billing-code") : null;
+    }
   }
   check(
     "tasks.cases-found",
@@ -190,19 +212,85 @@ async function openCareReview(page) {
     !!cases.change && !!cases.notChange,
     `change: ${!!cases.change} · non-change: ${!!cases.notChange}`
   );
+  /* ═══ RETARGETED BY §3 — THE WORD "Current" IS GONE ═══
+     This tested `/Current/` plus a code. §3 replaces the word with the
+     directional glyph node 4324:1111 puts there: "live currently renders
+     `Current F33.0 …` — the code is now in a lozenge, but there is no
+     differentiated treatment and no directional glyph."
+     THE CLAIM IS UNCHANGED and is what this still asserts: a CHANGE renders the
+     code on record as a subordinate line. What moved is how the line says
+     "this is what is being superseded" — a glyph rather than a noun — so the
+     check reads the lozenge's own tone attribute instead of prose. Stronger
+     than the string it replaces: `onRecord` can only appear on a code the
+     module rendered through the shared component. */
   check(
     "tasks.current-line",
     "a CHANGE renders the code on record as a subordinate line",
-    cases.change && /Current/.test(cases.change) && /F\d\d\.\d/.test(cases.change),
-    (cases.change ?? "").match(/Current · [A-Z0-9.]+ [^·]{0,32}/)?.[0] ?? "none"
+    !!cases.change && !!cases.changeOnRecord,
+    cases.changeOnRecord ? `onRecord lozenge: ${cases.changeOnRecord}` : "none"
   );
   check(
     "tasks.no-line-on-renewal",
     "and a NON-CHANGE renders none — the code would be stated twice",
-    cases.notChange && !/Current ·/.test(cases.notChange),
-    (cases.notChange ?? "").match(/Renewal proposed[^·]{0,40}/)?.[0] ?? "none"
+    cases.notChange && !(cases.notChangeOnRecord),
+    cases.notChangeOnRecord ? `onRecord present: ${cases.notChangeOnRecord}` : "none, as expected"
   );
   check("tasks.no-on-record-strip", "and the old context strip is gone", !/On record/.test(t));
+
+  /* ═══ ONE BILLING-CODE LOZENGE, ON SCREEN (elevation pack §3) ═══
+     "One lozenge component for billing codes across every state and every
+     surface." The source half of this is `billing-code-lozenge.test.ts`, which
+     asserts the component is DEFINED once. This is the half that catches a new
+     inline chip: it walks the rendered pane for code-SHAPED text sitting
+     outside the component.
+
+     THE SHAPE, NOT A FIXTURE VALUE. `F33.0` / `F43.22` / `G14.2` are all
+     letter + two digits + optional dot-decimal, so the regex matches the class
+     of thing rather than the three codes today's fixtures happen to hold — a
+     renamed fixture cannot hide an orphan from it.
+     THIS IS HOW THE TWO EXTRA RENDERINGS WERE FOUND. Reading the file found
+     the inline chip; only walking the DOM found the `Current · F33.0` line,
+     which was not a chip at all but plain mono text at an inherited 12.5px. */
+  const codes = await page.evaluate(`(() => {
+    const owned = [...document.querySelectorAll("[data-billing-code]")].map((e) => ({
+      code: e.getAttribute("data-billing-code"),
+      tone: e.getAttribute("data-code-tone"),
+      size: getComputedStyle(e).fontSize + "/" + getComputedStyle(e).lineHeight,
+      radius: getComputedStyle(e).borderTopLeftRadius,
+    }));
+    const orphans = [];
+    for (const e of document.querySelectorAll("span, div, p, dd, td")) {
+      if (e.children.length) continue;
+      const txt = (e.textContent || "").trim();
+      if (!/^[A-Z]\\d\\d(\\.\\d+)?$/.test(txt)) continue;
+      if (e.closest("[data-billing-code]")) continue;
+      orphans.push(txt + " :: " + (e.className || "").toString().slice(0, 48));
+    }
+    return { owned, orphans };
+  })()`);
+
+  check(
+    "tasks.codes-found",
+    "the pane renders at least one billing code, so the next two mean something",
+    codes.owned.length + codes.orphans.length > 0,
+    `${codes.owned.length} owned · ${codes.orphans.length} orphan(s)`
+  );
+  check(
+    "tasks.one-lozenge",
+    "and every one of them is the shared lozenge",
+    codes.orphans.length === 0,
+    codes.orphans.length ? codes.orphans.join(" | ") : "0 orphans"
+  );
+  /* ONE SHAPE AND ONE TYPE SIZE ACROSS EVERY TONE. Two call sites of one
+     component can still diverge if a caller overrides the geometry, so the
+     rendered result is compared rather than the import. */
+  const shapes = [...new Set(codes.owned.map((c) => `${c.size}|${c.radius}`))];
+  check(
+    "tasks.one-lozenge-shape",
+    "and they share one shape and one type size",
+    shapes.length <= 1,
+    `${codes.owned.map((c) => c.code + "/" + c.tone).join(", ")} — ${shapes.join(" vs ")}`
+  );
   /* ═══ INVERTED — THE ACCORDION IS REMOVED (Figma alignment §3) ═══
      This asserted the mentorship figures lived in a collapsed accordion on the
      pane, with a second check that it started collapsed and said what it held.
@@ -227,49 +315,188 @@ async function openCareReview(page) {
      and one more that §7 adds: the block names the MENTOR now, which it did
      not before. `tasks.no-mentor` below is retargeted for the same reason —
      see its own note. */
-  const accordion = page.locator('[data-slot="record-context"]');
+  /* ═══ RETARGETED AGAIN BY THE ROW-LAYOUT PASS's §3 — AND NOT RELAXED ═══
+     §7 put the figures in a collapsed accordion and these three checks
+     asserted that. §3.3 removes it: "Remove the disclosure entirely. Nothing
+     hides." So the accordion assertions are RETIRED BY SUPERSESSION for the
+     second time in this block's life, and the supersession is named because
+     that is the only thing distinguishing a retarget from a relaxation.
+
+     WHAT §7 WAS PROTECTING IS UNCHANGED AND IS WHAT THIS ASSERTS NOW. §7's
+     claim was never "there is an accordion" — it was "the mentorship figures
+     and the mentor's name are on this pane", and arch-F's note is why it
+     mattered: "the mentorship length is the one figure that changes how the
+     rest reads". §3 moves that content into the header band, so the check
+     moves with it.
+
+     IT IS STRICTLY STRONGER THAN WHAT IT REPLACES, which is the test a
+     retarget has to pass. The old version was satisfied by an accordion whose
+     contents a reader never opened; this one requires the figures to be
+     VISIBLE, requires the mentor's name beside an explicit role label, and
+     requires that nothing in the band hides them — the last of which the old
+     version could not have expressed, because hiding them was the design. */
+  const strip = page.locator('[data-slot="record-context"]');
   check(
-    "tasks.record-context",
-    "the mentorship figures are back in a collapsed accordion (§7)",
-    (await accordion.count()) === 1,
-    `${await accordion.count()} accordion(s)`
+    "tasks.no-record-strip",
+    "the bordered mentorship strip is gone (§3.3 — deleted, not moved)",
+    (await strip.count()) === 0,
+    `${await strip.count()} strip(s)`
   );
-  if (await accordion.count()) {
-    const ax = (await accordion.innerText()).replace(/\s+/g, " ");
+
+  const band = page
+    .locator("[data-pane-teen]")
+    .locator("xpath=ancestor::div[contains(@class,'shrink-0')][1]");
+  /* ═══ RETARGETED BY HEADER PASS 3 §2.2 — THE STRIP BECAME A SENTENCE ═══
+     This read `band.locator("dl")`: the figures were a description list of
+     stacked pairs. §2.2 replaces the stat strip with one line — "Mentored by
+     [chip] · 140 days in mentorship · 62 messages in the last 30 days" — so
+     there is no `<dl>`, and the figures are `[data-metric-value]` spans inside
+     `[data-metric]` clauses of a `[data-slot="engagement"]` paragraph. Same
+     claims below, read off the new shape. */
+  const metrics = band.locator('[data-slot="engagement"]');
+  check(
+    "tasks.engagement-visible",
+    "and the engagement figures are on screen in the header, not behind anything",
+    (await metrics.count()) === 1 && (await metrics.first().isVisible()),
+    `${await metrics.count()} dl(s)`
+  );
+  if (await metrics.count()) {
+    /* ═══ PER-PAIR, AND THE FIRST VERSION OF THIS WAS WRONG ═══
+       It read the whole list's text and tested `/Mentorship/i && /\d+d/`.
+       MUTATION-TESTED, THAT PASSED WITH THE DURATION DELETED: "Messages 30d"
+       supplies a `\d+d` match, so the assertion was satisfied by the label of
+       a DIFFERENT metric. Reading each pair's own `<dd>` through its
+       `data-metric` handle is what makes the check name what it means — the
+       same fix `today-mirror`'s open-count check needed for the same reason. */
+    /* The figure in a clause, by its handle — not a regex over the line, which
+       is how two of this block's earlier checks matched a NEIGHBOUR's text. */
+    const dd = async (id) => {
+      const n = metrics.first().locator(`[data-metric="${id}"] [data-metric-value]`);
+      return (await n.count()) ? (await n.first().innerText()).trim() : null;
+    };
+    const dur = await dd("mentorship");
+    /* The clause's words, i.e. the clause text minus its figure — where the unit
+       lives in sentence form ("140 days in mentorship"). */
+    const clauseText = async (id) => {
+      const n = metrics.first().locator(`[data-metric="${id}"]`);
+      return (await n.count()) ? (await n.first().innerText()).replace(/\s+/g, " ").trim() : null;
+    };
+    const durLabel = await clauseText("mentorship");
+    /* ═══ THE FIGURE arch-F CALLED LOAD-BEARING, BY NAME ═══
+       The mentorship duration is the one §7 kept visible in the collapsed
+       state, so it is the one asserted here.
+
+       ═══ RETARGETED BY §5.1 — THE UNIT MOVED OUT OF THE VALUE ═══
+       This required `/^\d+d$/`, i.e. "140d", on the reasoning that "a figure
+       with no unit is what `Mentorship 140` would be". §5.1 settles the unit
+       question the other way and gives the reason this check could not see: two
+       patterns were running side by side, `Mentorship 140d` putting the unit in
+       the value and `Messages 30d 62` putting the window in the label. One
+       pattern now — "pure number as the value, units and windows in the label".
+       THE CLAIM IS UNCHANGED AND IS STILL BOTH HALVES: a figure, and its unit
+       stated somewhere a reader can see. It just reads the PAIR now instead of
+       the value, which is what makes it a retarget rather than a relaxation —
+       a bare `140` with no "Days" anywhere still fails. */
     check(
-      "tasks.accordion-collapsed",
-      "which starts collapsed and says what it holds",
-      (await accordion.getAttribute("aria-expanded")) === "false" &&
-        /days in mentorship/.test(ax),
-      ax
+      "tasks.engagement-duration",
+      "including the mentorship duration, the figure that frames the rest",
+      dur !== null &&
+        /^\d+$/.test(dur) &&
+        durLabel !== null &&
+        /day/i.test(durLabel),
+      `dd = ${dur === null ? "MISSING" : JSON.stringify(dur)} · dt = ${JSON.stringify(durLabel)}`
     );
-    /* ═══ §7's OWN ADDITION, AND IT IS THE HALF THAT COULD REGRESS QUIETLY ═══
-       "Mentor on record" is a LABEL and would still render with no name beside
-       it, so the label is not what this asserts — it asserts a name, as two
-       capitalised words, in the accordion's collapsed text. */
+    const msgs = await dd("messages");
+    /* THE WINDOWED FIGURE STATES ITS WINDOW. "62 messages" without "last 30
+       days" cannot be sized — the retired strip's own note said so. The label
+       carries it, so the label is read from its own `<dt>`. */
+    const lbl = await clauseText("messages");
     check(
-      "tasks.record-context-names-mentor",
-      "and it names the mentor, which §7 asked for and the ROW still must not",
-      /[A-Z][a-z]+ [A-Z][a-z]+/.test(ax.replace("Mentor on record", "")),
-      ax
+      "tasks.engagement-window",
+      "and the windowed figure names its window rather than standing bare",
+      msgs !== null && /^\d+$/.test(msgs) && lbl !== null && /30d|last 30 days/i.test(lbl),
+      `dd = ${JSON.stringify(msgs)} · dt = ${JSON.stringify(lbl)}`
     );
   }
-  /* ═══ RETARGETED BY §7 ═══
-     This asserted that the PANE does not name the mentor, and §7 reverses that
-     for the pane alone. The claim worth keeping is the one `row-semantics`
-     owns — `e.no-mentor`, that no Tasks ROW names a mentor in text or in its
-     accessible name, because the row's unit is the review and the mentor is
-     not its subject. That check is unchanged and still passing.
-     WHAT SURVIVES HERE is the narrower thing this regex was really testing:
-     the pane does not name the mentor in the REVIEW PROSE, in the "to Firstname
-     Lastname" shape the old context strip used. A name inside the accordion is
-     not that, so it is excluded before the test. */
+
+  /* ═══ NOTHING IN THE BAND HIDES THE FIGURES ═══
+     §3.1's objection was that "two metrics behind a chevron costs a click and
+     hides the thing that would have oriented the supervisor before they read
+     anything else". This is that objection as an assertion, scoped to the
+     header band so the pane's OTHER legitimate disclosures — the assessment
+     score strip — do not fail it. */
+  const inBand = await band.locator("[aria-expanded]").count();
+  check(
+    "tasks.header-has-no-disclosure",
+    "and the header band holds no disclosure at all",
+    inBand === 0,
+    `${inBand} disclosure(s) in the band`
+  );
+
+  const ctx2 = (await band.innerText()).replace(/\s+/g, " ");
+  /* ═══ §3.2's ROLE LABEL, WHICH IS THE POINT OF NAMING THE MENTOR AT ALL ═══
+     "Without it, two names near each other are ambiguous about who is who,
+     which is the same defect the escalation cards had." So the name alone is
+     not enough — the label has to be beside it.
+
+     ═══ RETARGETED TWICE, AND THE SECOND TIME IT TIMED OUT ═══
+     Version 1 tested `/MENTOR/i` over the whole band and PASSED with the role
+     label deleted, because the metrics contain the word "Mentorship".
+     Version 2 read the context line's `<p>` and matched an exact `^Mentor$`
+     span. §3 replaced that line with a CHIP — a `<span>`, no paragraph — so the
+     locator waited 30s for a `<p>` that no longer exists and the probe crashed
+     rather than failing a check. A locator that cannot find its subject is not
+     a verdict, which is why this now reads the chip by its own handle.
+     THE CLAIM IS UNCHANGED: a role word, and a name, inside one contained
+     element. Asserting them on the CHIP is stricter than asserting them on the
+     band, because the band also contains the metrics. */
+  const chip = band.locator('[data-anno-ref="mentor-chip"]');
+  const chipCount = await chip.count();
+  check(
+    "tasks.header-has-mentor-chip",
+    "the mentor is a contained chip, not a run of text (§3)",
+    chipCount === 1,
+    `${chipCount} chip(s)`
+  );
+  const chipText =
+    chipCount > 0 ? (await chip.first().innerText()).replace(/\s+/g, " ").trim() : "";
+  /* ═══ RETARGETED BY HEADER PASS 3 §2.2 — THE ROLE IS IN THE LANGUAGE ═══
+     Last pass this required a `Mentor` word INSIDE the chip. §2.2 moves the role
+     into the sentence — "Mentored by [chip]" — and removes the label from the
+     chip, because the label was saying the role twice and was the chip's second
+     type style. THE CLAIM IS UNCHANGED: the mentor is named with the role stated
+     rather than inferred. It now reads the role from the words immediately
+     before the chip, and the name from the chip — so a sentence that dropped
+     "Mentored by" still fails, and so does a chip with no name. */
+  const sentenceText = (await metrics.first().innerText().catch(() => "")).replace(/\s+/g, " ");
+  check(
+    "tasks.header-names-mentor-with-role",
+    "and the role is stated in the language before the chip (§2.2)",
+    /^Mentored by\b/.test(sentenceText) &&
+      /[A-Z][a-z]+ [A-Z][a-z]+/.test(chipText),
+    `line = ${JSON.stringify(sentenceText.slice(0, 70))} · chip = ${JSON.stringify(chipText)}`
+  );
+  /* §3's CLICKABILITY DECISION, ASSERTED. It is not a link — there is no mentor
+     record to link to — so §3's "it must not look interactive" is the half that
+     has to hold: no tab stop, and a `span` rather than a button or an anchor. */
+  if (chipCount > 0) {
+    const tag = await chip.first().evaluate((e) => e.tagName);
+    const tabbable = await chip.first().evaluate((e) => e.tabIndex >= 0);
+    check(
+      "tasks.mentor-chip-not-interactive",
+      "and does not present as interactive (§3, decided: no mentor record exists)",
+      tag === "SPAN" && !tabbable,
+      `<${tag.toLowerCase()}> tabbable=${tabbable}`
+    );
+  }
+
   check(
     "tasks.no-mentor-in-prose",
     "and the review prose still does not address a mentor by name",
-    !/to [A-Z][a-z]+ [A-Z]/.test(
-      (await accordion.count()) ? t.replace(await accordion.innerText(), "") : t
-    )
+    /* THE EXCLUSION MOVED WITH THE CONTENT. It used to subtract the accordion's
+       text before testing; the mentor's name is in the header band now, so that
+       is what comes out. Same claim, same shape, new location. */
+    !/to [A-Z][a-z]+ [A-Z]/.test(t.replace(ctx2, ""))
   );
   await page.locator('[data-slot="task-pane"]').screenshot({ path: `${OUT}/tasks-pane.png` });
   await context.close();
@@ -339,7 +566,14 @@ for (const [label, url, prep, onRecordRe] of [
   /* THE HOST'S WORDING CHANGED WITH THE BLOCK (arch-F): "On record F33.1"
      became "Current · F33.1" beneath the recommendation title. The picker's own
      marker still reads "On record" — that string is the module's. */
-  ["tasks", "/app/care-reviews", null, /Current[^A-Z]*([A-Z]\d+\.\d+)/],
+  /* ═══ RETARGETED BY §3 — SAME SUPERSESSION AS `tasks.current-line` ═══
+     It read the code out of "Current · F33.1" and §3 removed the word, so the
+     regex matched nothing and the picker checks downstream reported "no code to
+     search for" — a probe with no input, not a product defect.
+     THE LOZENGE IS THE SOURCE NOW: the prior code is the only `onRecord`-toned
+     element on the pane, so this asks the DOM for it instead of parsing prose.
+     `null` here means "not a regex over body text" — see the branch below. */
+  ["tasks", "/app/care-reviews", null, null],
   ["care", "/admin/person/t19?tab=care", openCareReview, /Primary presentation[\s\S]{0,40}?([A-Z]\d+\.\d+)/],
 ]) {
   const { context, page } = await open(`picker-${label}`, url);
@@ -352,12 +586,15 @@ for (const [label, url, prep, onRecordRe] of [
      walk timed out clicking a row under the open picker. */
   if (label === "tasks") {
     for (let i = 0; i < 14; i += 1) {
-      /* NORMALISED: `innerText` puts a newline between the "Current" span and
-         the "·" span, so a literal "Current ·" never matches the raw string —
-         the first version of this walk clicked fourteen rows and broke on none
-         of them. */
-      const body = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-      if (/Current ·/.test(body)) break;
+      /* ═══ THE WALK'S STOP CONDITION MOVED WITH THE LINE (§3) ═══
+         It stopped on the string "Current ·", with a note about normalising
+         `innerText` because a newline fell between the two spans. §3 removed the
+         word, so the walk ran all fourteen rows, stopped on none, and the two
+         checks below reported "no code to search for" — a probe with no input.
+         THE DOM IS THE CONDITION NOW: the `onRecord` lozenge exists exactly when
+         a code is being superseded, which is the state this walk is looking
+         for. No normalisation needed, because it is not reading prose. */
+      if (await page.locator('[data-code-tone="onRecord"]').count()) break;
       await page.getByRole("treeitem").nth(i).click();
       await page.waitForTimeout(260);
     }
@@ -380,7 +617,18 @@ for (const [label, url, prep, onRecordRe] of [
        recurrent, moderate · F33.1 · On record". The claim is that the module
        marks the code the HOST states, so the probe now asks the host what that
        code is and looks for it where it can be seen. */
-    const onRecordCode = (await page.locator("body").innerText()).match(onRecordRe)?.[1];
+    /* THE HOST STATES THE CODE EITHER AS A LOZENGE OR IN PROSE, depending on
+       which host it is. Tasks renders the prior code through
+       `BillingCodeLozenge` with `tone="onRecord"`; the Care page still states a
+       "Primary presentation" line. One branch each, rather than one regex that
+       has to cover both. */
+    const onRecordCode = onRecordRe
+      ? (await page.locator("body").innerText()).match(onRecordRe)?.[1]
+      : await page
+          .locator('[data-code-tone="onRecord"]')
+          .first()
+          .getAttribute("data-billing-code")
+          .catch(() => null);
     check(`picker.${label}.host-states-code`, "the host states a code to look for", !!onRecordCode, onRecordCode ?? "none");
     const search = page.getByRole("dialog").locator('input[aria-label^="Search presentations"]').first();
     if (onRecordCode) {

@@ -23,19 +23,19 @@
       "id": "tasks.no-job-chip",
       "label": "the task type is not repeated on every row",
       "ok": true,
-      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
     },
     {
       "id": "tasks.age-column",
       "label": "the temporal column is mono and tabular, and it is an age",
       "ok": true,
-      "detail": "3d · 13px/400 ui-monospace"
+      "detail": "3d · 14px/400 ui-monospace"
     },
     {
       "id": "tasks.no-deadline",
       "label": "and no row states a deadline, because the destination has none",
       "ok": true,
-      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
     },
     {
       "id": "tasks.one-temporal",
@@ -65,7 +65,7 @@
       "id": "tasks.caption-not-the-name",
       "label": "and not the name a second time",
       "ok": true,
-      "detail": "T | Theo L. | Presentation Review | 90-day | 3d"
+      "detail": "T | Theo L. | Presentation review | 90-day | 3d"
     },
     {
       "id": "tasks.height",
@@ -107,19 +107,19 @@
       "id": "sr.tasks.no-group-prefix",
       "label": "no row repeats its list's name, because the list is not grouped",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:15 A"
     },
     {
       "id": "sr.tasks.row-names-its-kind",
       "label": "and a care review still says what kind of work it is, once",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 2:0"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:15 AM"
     },
     {
       "id": "sr.tasks.same-temporal",
       "label": "and states the same temporal fact the row draws — exactly one kind, never both",
       "ok": true,
-      "detail": "0 countdown, 15 elapsed, of 15"
+      "detail": "0 countdown, 14 elapsed, of 14"
     },
     {
       "id": "sr.monitoring.no-group-prefix",
@@ -143,19 +143,19 @@
       "id": "e.code-caption",
       "label": "line 2 says what KIND of proposal this is, and not the name a second time",
       "ok": true,
-      "detail": "Presentation Review"
+      "detail": "Presentation review"
     },
     {
       "id": "e.no-mentor",
       "label": "no Tasks row names a mentor, in text or in its accessible name",
       "ok": true,
-      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, draft saved, 3d open, 2:03 AM"
+      "detail": "Theo L., Billing code review, Renewal proposed, F33.1, 3d open, 8:15 AM"
     },
     {
       "id": "e.identity-disc",
       "label": "every Tasks row carries the teen's identity disc, and no task-type icon well",
       "ok": true,
-      "detail": "15 discs and 0 icon wells across 15 rows"
+      "detail": "14 discs and 0 icon wells across 14 rows"
     },
     {
       "id": "e.height",
@@ -167,7 +167,7 @@
       "id": "e.one-sorted-sequence",
       "label": "the list is one sequence, oldest first, with nothing restarting inside it",
       "ok": true,
-      "detail": "15 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
+      "detail": "14 rows: 4320 ≥ 4320 ≥ 2880 ≥ 2880 ≥ 2880 ≥ 2880 ≥ …"
     },
     {
       "id": "e.monitoring-no-invented-bands",

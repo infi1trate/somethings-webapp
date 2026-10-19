@@ -41,7 +41,7 @@ export interface ResolveUndoOptions {
   onResolved: (item: TaskItem, detail: Record<string, unknown>) => void;
   /** ═══ THE WINDOW CLOSED AND THE EVENT WAS WRITTEN (arch-F, F4) ═══
    *  The same instant the ledger write happens — §6's rule — which is when a
-   *  closed item may finally move to "Completed today". Not called on undo: an
+   *  closed item may finally become a closed record. Not called on undo: an
    *  undone item was never completed and must never appear there. */
   onCommitted?: (item: TaskItem, detail: Record<string, unknown>) => void;
 }

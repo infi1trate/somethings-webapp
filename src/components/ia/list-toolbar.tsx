@@ -35,6 +35,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ViewOptionsButton } from "@/components/ia/view-options";
+/* §4.3's chip is the ROW chip, parameterised — see its note in `worklist.tsx`
+   on why the toolbar consumes it instead of restating the treatment. */
 import {
   activeCount,
   type FilterDimension,
@@ -200,7 +202,16 @@ export function ListToolbar<T extends Filterable>({
         {/* ═══ SEARCH REPLACES TWO DROPDOWNS (§6.1) ═══
             `mentee` and `mentor` collapsed into one field: matching either name
             is more useful than two selects and covers both. */}
-        <span className="relative inline-flex min-w-0 flex-1 items-center">
+        {/* ═══ THE FIELD'S FLOOR IS ON THE FLEX ITEM, NOT ONLY THE INPUT ═══
+            It was `min-w-0` here over a `min-w-[10rem]` input. A wrapping line
+            breaks on each item's hypothetical size — basis clamped by min —
+            and `flex-1`'s basis is 0, so this item claimed 0 and the line
+            never wrapped: MEASURED on a 272px list column (a 320 phone) the
+            span got 33px, the 160px input spilled out of it, and the Open /
+            Closed control painted over the field. With the floor here the
+            field takes its own line below 160 + the control, and still
+            grows to fill one when there is room. */}
+        <span className="relative inline-flex min-w-[10rem] flex-1 items-center">
           <label htmlFor={searchId} className="sr-only">
             {searchHint}
           </label>
@@ -240,16 +251,19 @@ export function ListToolbar<T extends Filterable>({
             /* NEEDS-COPY-NICOLE */
             aria-label="Which reviews to show"
             data-anno-ref="care-tabs"
-            /* ═══ THE CONTROL IS 44 TALL AND SO IS EACH SEGMENT ═══
-               It was `p-1` with `min-h-9` segments, which measured 36px per
-               target inside a 44px control. 36 clears SC 2.5.8's 24×24 floor,
-               but this codebase holds the 44px HIG bar everywhere else on this
-               toolbar — the search field and every button are `min-h-11` — and
-               a segmented control whose segments are the odd one out is the
-               kind of inconsistency nobody can see and everybody feels.
-               NO WRAPPER PADDING, so the control and its targets are the same
-               44 rather than 44 + 8. */
-            className="flex shrink-0 items-center overflow-hidden rounded-full border border-[color:var(--border-contour)] bg-[var(--surface-card)]"
+            /* ═══ A TRACK AND A RAISED THUMB — THE SIDEBAR TILE'S PATTERN ═══
+               It was a bordered card-white pill with the selected segment
+               filled in primary ink: an inverted chip, the loudest thing on the
+               toolbar for a control that changes rarely. Product's reference is
+               the sidebar's own active tile: a recessed track on
+               `--surface-s2`, and the selected segment raised on
+               `--surface-card` with `--shadow-tile` — the token that tile
+               already uses, so the two read as one family.
+               THE CONTROL IS STILL 44 TALL, MATCHING THE SEARCH FIELD. `p-1`
+               around `h-9` segments — and each segment's `::after` reaches
+               4px up and down into that padding, so the TARGET is 44 tall
+               while the visible thumb is 36 (see the segment). */
+            className="flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s2)] p-1"
           >
             {CARE_TABS.map((t) => {
               const active = tabs.value === t;
@@ -263,26 +277,29 @@ export function ListToolbar<T extends Filterable>({
                   data-anno-ref={`care-tab:${t}`}
                   onClick={() => tabs.onChange(t)}
                   className={cn(
-                    "inline-flex min-h-11 items-center gap-1.5 px-3.5 text-[13px] leading-[18px] transition-colors",
+                    "relative inline-flex h-9 min-w-24 items-center justify-center gap-1 rounded-full px-5 text-[14px] leading-[20px] transition-[color,background-color,box-shadow]",
+                    /* THE HIT AREA REACHES THE TRACK'S EDGE — 36 visible, 44
+                       pressable — vertically only, so neighbours never overlap. */
+                    "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
                     /* ═══ NOT COLOUR ALONE (SC 1.4.1) ═══
-                       The selected segment carries a FILL, and `aria-checked`
-                       carries it to assistive tech — but a sighted reader in
-                       forced colours would lose the fill, so the selected
-                       segment is also the only one in primary ink at full
-                       weight. Two visual channels plus the state attribute. */
+                       The selected segment carries a raised fill AND primary
+                       ink against the others' secondary — two visual channels,
+                       plus `aria-checked` for assistive tech. */
                     active
-                      ? "bg-[var(--text-primary)] font-semibold text-[var(--text-inverse)]"
+                      ? "bg-[var(--surface-card)] text-[var(--text-primary)] shadow-[var(--shadow-tile)]"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
                     RING
                   )}
                 >
-                  {CARE_TAB_LABEL[t]}
-                  <span
-                    aria-hidden
-                    className="tabular-nums opacity-70"
-                    style={{ fontFamily: "var(--font-mono)" }}
-                  >
-                    {tabs.count[t]}
+                  {/* ═══ `Open (16)` — THE COUNT IN THE LABEL'S OWN TYPE ═══
+                      It was a 16px mono figure beside a 13px word, so the
+                      number outweighed its own label. In parentheses at the
+                      label's size it reads as one phrase; `tabular-nums` keeps
+                      the segment from changing width as the count moves.
+                      `Closed (0)` STILL RENDERS — knowing a tab is empty before
+                      clicking it is useful. */}
+                  <span aria-hidden className="tabular-nums">
+                    {CARE_TAB_LABEL[t]} ({tabs.count[t]})
                   </span>
                 </button>
               );
@@ -290,6 +307,11 @@ export function ListToolbar<T extends Filterable>({
           </div>
         )}
 
+        {/* ═══ THE OVERDUE CHIP NO LONGER SITS HERE ═══
+            It was §5's filter — a count beside the tabs that subset the list
+            when pressed. Removed: the default order already puts overdue rows
+            first, so the filter isolated what was already at the top. See the
+            note at `changeCareTab` in `tasks-page.tsx`. */}
         {primary && (
           <Select
             dim={primary}

@@ -278,40 +278,23 @@ console.log("\n── provenance @ active-mentorship");
   await p.context().close();
 }
 
-// ═══ 4 · A support thread has nothing to document ═════════════════════════
-console.log("\n── support thread @ active-mentorship");
+// ═══ 4 · SUPERSEDED (SUP-5): a support thread has nothing to document ═════
+/* It asserted no Write-a-note on a colleague's timeline and a reactions-only
+   message menu. A support thread no longer opens here: a link to one hands it
+   to the Support panel, which has no timeline and no notes. What is left to
+   check is that handoff. */
+console.log("\n── a support link opens the Support panel");
 {
   const p = await chat("active-mentorship");
-  await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
-  await p.waitForTimeout(300);
-  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
-  await p.waitForTimeout(600);
-  await p.locator('[role="tab"]', { hasText: "Timeline" }).first().click();
-  await p.waitForTimeout(400);
-
-  const support = await p.evaluate(`(() => {
-    const rail = document.querySelector('[data-slot="chat-rail"]');
-    return {
-      newNote: !!rail.querySelector('[data-slot="new-note"]'),
-      tagOnBubble: !!document.querySelector('button[aria-label="Write a note about this message"]'),
-    };
-  })()`);
-  /* ABSENT, NOT DISABLED. A colleague's conversation has no teen to document, and a
-     greyed control would teach a mentor that documenting a colleague is a thing
-     that exists. */
-  check(!support.newNote, "no Write-a-note on a colleague's timeline");
-
-  const bubbles = p.locator(`${LIST} > li[id^="msg-"]`);
-  await bubbles.first().hover();
-  await p.waitForTimeout(200);
-  await bubbles.first().locator('button[aria-label="React to this message"]').click();
-  await p.waitForTimeout(300);
-  const menu = await p.evaluate(`
-    document.querySelectorAll('[role="menu"][aria-label="Reactions"] [role="menuitem"]').length`);
-  /* SIX, not eight — neither the tag nor Escalate is offered on a colleague's
-     thread, because neither means anything there. */
-  check(menu === 6, "and the message menu holds reactions alone", `${menu}`);
-  void support;
+  await p.goto(BASE + "/app/chat/s-brandy", { waitUntil: "networkidle" });
+  await p.waitForTimeout(900);
+  const h = await p.evaluate(`({
+    path: location.pathname,
+    open: document.querySelector("[data-support-slot]")?.dataset.open,
+    thread: document.querySelector("[data-support-thread]")?.dataset.supportThread,
+    selected: document.querySelector('[data-slot="chat-rail"]') ? "rail" : "none",
+  })`);
+  check(h.path === "/app/chat" && h.open === "true" && h.thread === "s-brandy", "it opens that thread in the panel and the URL returns to the list", JSON.stringify(h));
   await p.context().close();
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { NavHistoryInstaller } from "@/components/app-shell/nav-history-installer";
 import { DevBar, DEV_BAR_H } from "@/components/dev/dev-bar";
 // The annotation layer. Renders NOTHING in Off mode (the default) — see R11.
 import { AnnoLayer } from "@/components/anno/anno-layer";
@@ -98,6 +99,10 @@ export default function RootLayout({
         className="flex min-h-full flex-col"
         style={{ paddingBottom: DEV_BAR_H }}
       >
+        {/* In-app back/forward availability for the console top bar (SUP-1).
+            Here, not in the console layout, so it sees every navigation from
+            the first page. Renders nothing. */}
+        <NavHistoryInstaller />
         {children}
         <Toaster />
         {/* Dev/demo scaffolding — intentionally rendered in ALL environments

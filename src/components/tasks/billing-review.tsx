@@ -104,6 +104,7 @@ import {
 import {
   clearReviewDraft,
   readReviewDraft,
+  markReviewDraftSaved,
   writeReviewDraft,
 } from "@/lib/record/review-draft";
 import type { BillingPayload, TaskItem } from "@/lib/tasks/types";
@@ -137,6 +138,12 @@ const NO_ERRORS: Record<FieldId, boolean> = {
 export interface BillingCommitDetail extends Record<string, unknown> {
   outcome: "confirmed" | "unchanged";
   code: string | null;
+  /** ═══ THE STATEMENT GOES WITH THE CODE (Closed-tab pack §2.1) ═══
+   *  A code picked through `Change presentation` has a statement no lookup can
+   *  recover — it is neither the recommendation nor the code on record — so the
+   *  closed record would otherwise know WHICH code was attested but not what it
+   *  said. */
+  statement: string;
   changed: boolean;
   documentation: CareUpdateBody;
   /** Per-field, and the reason it is per-field rather than one flag: one claim
@@ -160,7 +167,6 @@ export function BillingReview({
   recommended,
   onCommit,
   handleRef,
-  recordContext,
   /** ═══ THE GATE'S STATE GOES UP TO THE FOOTER (arch-F, F3) ═══
    *  The footer is the host's and the gate is this component's, so the count
    *  travels rather than the state. Called with the number of fields still
@@ -186,7 +192,6 @@ export function BillingReview({
    *  now carries. Below the review, because it is context a supervisor consults
    *  rather than reads: above it, it was the first thing on the pane and the
    *  recommendation was the second. */
-  recordContext: React.ReactNode;
   onGapsChange?: (gaps: number) => void;
   onBlocked?: () => void;
   /** THE SHARED REVIEW MODULE. Passed in rather than rendered here so this
@@ -246,9 +251,20 @@ export function BillingReview({
     setAnnounce("");
   }, [item.id, item.teenId]);
 
-  /* WRITTEN ON EVERY KEYSTROKE, like the Care page's. There is no "save" that
-     does anything else — `Save draft` closes the review, and the draft is
-     already on disk by then. */
+  /* ═══ STILL WRITTEN ON EVERY KEYSTROKE — AND IT IS NO LONGER A DRAFT ═══
+     This note used to end "there is no `save` that does anything else". §1.1
+     gives it something to do: a draft exists only once the supervisor says
+     `Save draft`, so this buffer stops being what the LIST sees.
+     THE BUFFER STAYS BECAUSE LOSING IT WAS NEVER THE ASK. §1.1 is a question
+     about when a row shows a marker; answering it by deleting the autosave
+     would mean typing a paragraph and clicking another row loses the
+     paragraph. The flag is what moved, not the persistence — see `saved` on
+     `ReviewDraft`.
+     NO `saved` HERE, DELIBERATELY: an autosave that set it would make every
+     keystroke an explicit save again, which is the behaviour being replaced.
+     It is also why this writes the whole object rather than merging — a merge
+     would carry a previous `saved: true` forward over edits made after it, and
+     the marker would then describe work the supervisor never saved. */
   useEffect(() => {
     writeReviewDraft(draftKey.teenId, draftKey.reviewId, {
       /* NO DECISION IN THE DRAFT. On the Care page this holds a pending code
@@ -340,6 +356,7 @@ export function BillingReview({
          only way the button and the region above it cannot disagree. */
       outcome: changed ? "confirmed" : "unchanged",
       code: recommended.code,
+      statement: recommended.statement,
       changed,
       documentation: body,
       provenance: { clinical: prov.clinical, diagnostic: prov.diagnostic },
@@ -353,9 +370,20 @@ export function BillingReview({
     handleRef.current = {
       submit: attemptCommit,
       saveAndClose: () => {
-        /* NOTHING TO PERSIST: the draft is written on every keystroke. This
-           exists so the label can be honest about what it does — and on this
-           surface "close" means hand the keyboard back to the list. */
+        /* ═══ IT PERSISTS SOMETHING NOW (§1.1) ═══
+           This read "NOTHING TO PERSIST: the draft is written on every
+           keystroke", and §1.1 gave the button a job: a draft exists only once
+           the supervisor says so, so this is the moment the autosave buffer
+           becomes a draft the list will mark.
+           IT PROMOTES RATHER THAN RE-SERIALISES. `markReviewDraftSaved` flips
+           one flag on what is already stored, so the saved draft cannot
+           disagree with the text on screen — there is no second write of the
+           body to get out of step with the first.
+           AND IT IS A NO-OP ON AN UNTOUCHED FORM, by that function's own
+           design: pressing `Save draft` without typing has nothing to promote,
+           and a marker meaning "somebody pressed a button" is not the marker
+           §1 is consolidating the row's slot for. */
+        markReviewDraftSaved(draftKey.teenId, draftKey.reviewId);
         setAnnounce("");
       },
     };
@@ -381,10 +409,19 @@ export function BillingReview({
           moved up into the context strip where the rest of the context is. */}
       {children}
 
-      {/* CONTEXT AFTER THE CLAIM, BEFORE THE DOCUMENTATION. A supervisor reads
-          the recommendation, consults the mentorship figures if they want them,
-          then writes. */}
-      {recordContext}
+      {/* ═══ THE `recordContext` SLOT IS GONE (§3) ═══
+          It read: "CONTEXT AFTER THE CLAIM, BEFORE THE DOCUMENTATION. A
+          supervisor reads the recommendation, consults the mentorship figures
+          if they want them, then writes."
+          THAT ORDERING ARGUMENT LOST ITS SUBJECT. §3.1's objection to the strip
+          is that mentor identity is RECORD context rather than care-update
+          content, so it never belonged in the reading order between the claim
+          and the form — it belonged in the header, which is where §3.2 puts it.
+          THE SLOT GOES WITH IT RATHER THAN STAYING EMPTY. It had exactly one
+          filler and that filler is retired; a `ReactNode` slot nothing passes is
+          the dead chrome this codebase removed a one-tab row and a one-value
+          filter for. The day something else wants this position, the position is
+          one prop away and the argument above is still here to be re-read. */}
 
       {/* ═══ ALWAYS VISIBLE, NEVER BEHIND A DISCLOSURE (A5) ═══
           A form the supervisor has to open is a form that reads as optional, and

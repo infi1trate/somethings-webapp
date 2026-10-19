@@ -82,10 +82,34 @@ export interface RowGeometry {
    *  ramp is 32/40 · 24/32 · 16/24 · 14/20 · 12/16 and these are three of them. */
   primary: { size: number; leading: number };
   secondary: { size: number; leading: number };
-  /** Space between the two lines. §3 of the prior pack asked the secondary line
-   *  to read as metadata rather than a second title, and asked for "more
-   *  line-height" to do it. This spends that space on the GAP instead, because
-   *  12/16 is the bottom of Bloom's ramp and 12/18 would be an invented pair. */
+  /** ═══ SPACE BETWEEN THE TWO LINES — AND THE ROW LAYOUT PASS REVERSED IT ═══
+   *
+   *  IT WAS 8, AND THE REASON IS WORTH KEEPING because it is what makes the
+   *  reversal a decision rather than a drift: §3 of an earlier pack asked the
+   *  secondary line to read as metadata rather than a second title, and asked
+   *  for "more line-height" to do it. 12/16 is the bottom of Bloom's ramp and
+   *  12/18 would be an invented pair, so the space was spent on the GAP
+   *  instead. That was the right way to spend it; there was just too much of it.
+   *
+   *  THE ROW LAYOUT PASS ASKS FOR THE OPPOSITE OUTCOME: "the two lines should
+   *  read as one lockup, not as two stacked items". Both cannot be true, and
+   *  the newer reading wins because the OPTICAL gap is bigger than the declared
+   *  one and the old number was set against the declared one.
+   *
+   *  MEASURED, the ink-to-ink distance is the margin PLUS both half-leadings:
+   *  the 16/24 name leaves (24−16)/2 = 4px under its glyphs and the 12/16
+   *  caption leaves (16−12)/2 = 2px over its own, so an 8px margin renders as
+   *  **14px** of apparent space — wider than the caption's whole line box, and
+   *  two line boxes that far apart are two items.
+   *
+   *  AT 2 IT IS 8px OPTICAL, which is under the caption's 16px box and reads as
+   *  one lockup. 2 IS ALSO ALREADY IN THIS TABLE — `compact` has shipped it
+   *  since the presets landed — so this is the two-line presets adopting a
+   *  value the third preset already proved, not a new number.
+   *
+   *  STILL A FIELD, THOUGH ALL THREE PRESETS NOW AGREE ON IT. Hoisting it to a
+   *  constant would save one line and cost the ability to tune one preset's
+   *  lockup, which is exactly what a density preset is for. */
   lineGap: number;
   /** The row's horizontal padding, inside the pill/card track. */
   padX: number;
@@ -94,7 +118,12 @@ export interface RowGeometry {
 const TWO_LINE = {
   primary: { size: 16, leading: 24 },
   secondary: { size: 12, leading: 16 },
-  lineGap: 8,
+  /* 8 -> 2. See `lineGap` on the interface for the arithmetic and for the
+     earlier decision this reverses. SHARED WITH RISK FLAGS, deliberately:
+     `event-list.tsx` reads the same geometry, its rows are the same
+     name-over-caption lockup, and a per-surface gap is how one product comes
+     to stack two lines two ways. */
+  lineGap: 2,
 } as const;
 
 export const ROW_GEOMETRY: Record<ViewPreset, RowGeometry> = {

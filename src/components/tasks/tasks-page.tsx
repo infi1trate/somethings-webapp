@@ -25,7 +25,7 @@
 // produce zero console errors, so the gate is the only thing between a persisted
 // scenario id and a hydration mismatch.
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useMounted } from "@/lib/use-mounted";
@@ -33,7 +33,6 @@ import { useMounted } from "@/lib/use-mounted";
    `elapsedLabel` is domain-neutral and still formats the list's ages. */
 import { elapsedLabel } from "@/components/tasks/strips";
 import { Worklist, type ListState } from "@/components/tasks/worklist";
-import type { CompletedEntry } from "@/components/tasks/completed-group";
 import {
   ALL_KINDS,
   KindFilter,
@@ -72,29 +71,34 @@ import {
   type FilterState,
 } from "@/lib/ui/filters";
 import {
-  readReviewDraft,
+  hasSavedReviewDraft,
   reviewDraftsVersion,
   reviewDraftsVersionServer,
   subscribeReviewDrafts,
 } from "@/lib/record/review-draft";
 import { proposalKindFor, PROPOSAL_LABEL } from "@/lib/record/proposal-kind";
-import { submittedEntries, listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
+import { closedEntries, listEntriesForDomains, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   headerCounts,
   preselectedFor,
 } from "@/lib/tasks/sort";
 import { LOAD_STAGES, loadPlanFor } from "@/lib/tasks/load-plan";
-import { tasksScenario } from "@/lib/tasks/seed";
+import { tasksClosedHistory, tasksScenario } from "@/lib/tasks/seed";
+import { buildClosedReview, withClosures, type ClosedCareReview } from "@/lib/tasks/closed-review";
+import { billingReviewFor } from "@/lib/tasks/billing-presentation";
+import { assignedSupervisor } from "@/lib/tasks/assignment";
+import { staffActorFor } from "@/lib/record/permission-map";
 import {
   asTaskType,  DOMAIN_LABEL,
   TASK_DOMAINS,
   isActiveEscalation,
+  type BillingPayload,
   type TaskDomain,
   type TaskItem,
 } from "@/lib/tasks/types";
+import type { BillingCommitDetail } from "@/components/tasks/billing-review";
 import { cn } from "@/lib/utils";
 import { oldestAgeLabel } from "@/lib/ia/age";
-import { overdueCount } from "@/lib/tasks/care-overdue";
 import { CARE_TAB_EMPTY, type CareTab } from "@/lib/ui/care-tab";
 
 /** ═══ WHAT TASKS HOSTS (arch-G, G2) ═══
@@ -286,13 +290,9 @@ export function TasksPage({
    *  labelled, until the window closes — at which point it becomes a completion
    *  entry and leaves. An undone item clears from here and never becomes one. */
   const [resolvingIds, setResolvingIds] = useState<ReadonlySet<string>>(new Set());
-  /** Closed reviews, this session, in the order they closed. Newest first so the
-   *  group reads like a log. */
-  const [completed, setCompleted] = useState<CompletedEntry[]>([]);
-  /** A completed row the reader has opened. Separate from `selectedEntryId`
-   *  because a completed item is no longer IN `entries` — the same lesson gap row
-   *  365 recorded about synthetic child rows. */
-  const [completedSelectedId, setCompletedSelectedId] = useState<string | null>(null);
+  /* `completed` AND `completedSelectedId` ARE GONE WITH `Completed today`
+     (Closed-tab pack §4). A closed review is a row on the Closed tab now, and
+     selecting it is an ordinary selection. */
 
   const setDetailById = (
     fn: (
@@ -309,9 +309,16 @@ export function TasksPage({
     });
 
 
+  /* ═══ THE CLOSED RECORDS (Closed-tab pack §0.1) ═══
+     Read before `allItems` because they decide what is still open: the page
+     knew only the reviews closed during THIS mount (`resolvedIds`), so across a
+     reload a submitted review came back onto Open. `withClosures` is the same
+     rule the rail badge and Today run. */
+  const closedRecords = useOnboardingStore((st) => st.closedCareReviews);
+  const recordClosedCareReview = useOnboardingStore((st) => st.recordClosedCareReview);
   const allItems = useMemo(() => {
     if (!mounted) return [];
-    return tasksScenario(scenarioId, now).map((i) => {
+    return withClosures(tasksScenario(scenarioId, now), closedRecords).map((i) => {
       const detail = detailById[i.id];
       const base = detail
         ? { ...i, payload: { ...i.payload, ...detail } as typeof i.payload }
@@ -320,7 +327,7 @@ export function TasksPage({
         ? { ...base, status: "resolved" as const, resolvedAt: now }
         : base;
     });
-  }, [mounted, scenarioId, now, resolvedIds, detailById]);
+  }, [mounted, scenarioId, now, resolvedIds, detailById, closedRecords]);
 
   /** ═══ ONE DOMAIN, FILTERED AT THE SOURCE (arch-A) ═══
    *
@@ -413,24 +420,42 @@ export function TasksPage({
    *  list that looks like it is in urgency order and is in alphabetical order. */
   const [careSort, setCareSort] = useState<CareSort | null>(null);
 
-  const submittedRecords = useOnboardingStore((st) => st.submittedCareReviews);
   const markCareReviewViewed = useOnboardingStore((st) => st.markCareReviewViewed);
-  const markCareReviewSubmitted = useOnboardingStore((st) => st.markCareReviewSubmitted);
+  const persona = useOnboardingStore((st) => st.persona);
+  const staffFirst = useOnboardingStore((st) => st.draft.firstName);
+  const staffLast = useOnboardingStore((st) => st.draft.lastName);
+
+  /** ═══ EVERY CLOSED REVIEW (Closed-tab pack §1) ═══
+   *  The fixture's history plus what this browser has submitted. The store's
+   *  records come FIRST so `closedEntries`' first-wins de-duplication favours
+   *  the review a person actually submitted. */
+  const closedHistory = useMemo(
+    () => (mounted ? tasksClosedHistory(scenarioId, now) : []),
+    [mounted, scenarioId, now]
+  );
+  const allClosed = useMemo(
+    () => [...closedRecords, ...closedHistory],
+    [closedRecords, closedHistory]
+  );
+  const closedById = useMemo(
+    () => new Map<string, ClosedCareReview>(allClosed.map((r) => [r.id, r] as const).reverse()),
+    [allClosed]
+  );
 
   const openEntries = useMemo(
     () => listEntriesForDomains(items, domains, now),
     [items, domains, now]
   );
   const submitted = useMemo(
-    () => submittedEntries(items, submittedRecords, domains),
-    [items, submittedRecords, domains]
+    () => closedEntries(allClosed, domains),
+    [allClosed, domains]
   );
   /* ONE `entries`, SO EVERYTHING DOWNSTREAM IS TAB-AGNOSTIC. The search
      adapter, the virtualizer, the selection model and the pane all read this —
      switching the source here rather than branching at each of them is what
      keeps the Submitted tab from becoming a second list component, which is
      the defect K.1 spent a whole pass removing one surface along. */
-  const entries = careTab === "submitted" ? submitted : openEntries;
+  const entries = careTab === "closed" ? submitted : openEntries;
 
   /** THE TAB'S ITEMS, OPEN AND RESOLVED. `entries` is the open set; band
    *  retirement needs to report how many of a cleared tier closed today, which is
@@ -561,7 +586,11 @@ export function TasksPage({
             let none = false;
             for (const e of items) {
               const h = headOf(e);
-              if (readReviewDraft(h.teenId, h.id)) some = true;
+              /* THE SAME TEST AS THE ROW MARKER (§1.1). This dimension's own
+                 label is "Draft saved", so it has to mean what the marker
+                 means — a filter reading the keystroke buffer under that label
+                 would be the same defect wearing a different name. */
+              if (hasSavedReviewDraft(h.teenId, h.id)) some = true;
               else none = true;
               if (some && none) break;
             }
@@ -573,7 +602,7 @@ export function TasksPage({
           },
           match: (e, v) => {
             const h = headOf(e);
-            const has = readReviewDraft(h.teenId, h.id) != null;
+            const has = hasSavedReviewDraft(h.teenId, h.id);
             return v === "saved" ? has : !has;
           },
         },
@@ -603,6 +632,15 @@ export function TasksPage({
      at — the same rule `open` already follows. With §4's filters gone `shown`
      is the open set, but that is a fact about today's toolbar rather than a
      reason to count something else. */
+  /* ═══ UNMOUNTED BY §4.4 (strangler rule) ═══
+     "Dropped with the metric line, by Brandon's decision — the per-row dots
+     carry it. No unviewed count in the header." The EXPRESSION stays because it
+     is the only place "how many of the shown set has this supervisor not
+     opened" is computed, and §5.2's threshold note depends on it being one
+     expression rather than two. The rule it served is also worth keeping
+     attached to code: a header count of things you have not looked at is an
+     inbox framing, which is what §4.4 removed. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const unviewedCount = useMemo(
     () => shown.filter((e) => !viewed.has(e.id)).length,
     [shown, viewed]
@@ -622,15 +660,37 @@ export function TasksPage({
     const out = new Set<string>();
     for (const e of shown) {
       const h = paneItemFor(e);
-      if (readReviewDraft(h.teenId, h.id)) out.add(e.id);
+      /* ═══ `hasSavedReviewDraft`, NOT `readReviewDraft` (§1.1) ═══
+         §1.1 answered: a draft exists only on an explicit `Save draft`. This
+         tested for ANY stored draft, and the store is written on every
+         keystroke — so a supervisor who typed one character and clicked away
+         marked the row. Those are the two visibly different lists §1.1 named,
+         and this is the line that chose between them. */
+      if (hasSavedReviewDraft(h.teenId, h.id)) out.add(e.id);
     }
     return out;
   }, [shown, draftVersion]);
 
-  const overdue = useMemo(
-    () => overdueCount(shown.map((e) => paneItemFor(e)), now),
-    [shown, now]
-  );
+  /** ═══ THE OVERDUE FILTER IS GONE (product, 2026-10-05) ═══
+   *  It was §5's toolbar chip: a count of overdue (Open) or late (Closed)
+   *  items that, pressed, subset the active tab. Removed because the list's
+   *  default order already puts them first — overdue is `openedAt` older than
+   *  48h, and the comparator falls through to `openedAt` ascending, so every
+   *  overdue row on `Open` precedes every row that is not, by construction.
+   *  A filter that isolates what is already at the top is a second control
+   *  for one fact.
+   *  WHAT IT TOOK WITH IT: the armed-tab state, the reset on tab change, and
+   *  the re-arm-on-zero-crossing limit it reported — none of which has a
+   *  subject now. The row's own `OverdueChip` stays. */
+
+  /** The only way the tab changes. */
+  const changeCareTab = useCallback((next: CareTab) => {
+    setCareTab(next);
+    /* THE TRAILING COLUMN IS PER TAB — `Review age` on Open, `Closed` on
+       Closed — so a sort on it has nothing to sort on the other tab. Mentee
+       and Cycle exist on both and survive the switch. */
+    setCareSort((s) => (s && (s.column === "age" || s.column === "closed") ? null : s));
+  }, []);
 
   /** ═══ §3 — THE ORDER THE LIST RENDERS IN ═══
    *  THE ONE ORDER-DEPENDENT SET. `shown` feeds four counts above and none of
@@ -640,9 +700,35 @@ export function TasksPage({
    *  re-sorted array would invite someone to believe otherwise.
    *  IDENTICAL REFERENCE WHEN NO SORT IS SET, so the default path allocates
    *  nothing and cannot reorder — `applyCareSort` returns its input. */
+  /** ═══ `Assigned to` — ADMINS ONLY (2026-10-06) ═══
+   *  The teen's mentor's supervisor, by the caseload chain in `assignment.ts`.
+   *  ON CLOSED IT IS THE RECORD'S, frozen at submission (answered: "at time of
+   *  review"), so a later reassignment cannot rewrite history. Undefined for
+   *  everyone else, which is what keeps the column — header and cells — off. */
+  const isAdmin = persona === "admin";
+  const assigneeFor = useMemo(
+    () =>
+      isAdmin
+        ? (item: TaskItem): string | null => {
+            const rec = careTab === "closed" ? closedById.get(item.id) : undefined;
+            if (rec) return rec.assignedTo?.name ?? null;
+            return assignedSupervisor(item)?.name ?? null;
+          }
+        : undefined,
+    [isAdmin, careTab, closedById]
+  );
+  /* A sort on a column this viewer cannot see sorts nothing. */
+  const effectiveSort =
+    careSort?.column === "assigned" && !isAdmin ? null : careSort;
   const ordered = useMemo(
-    () => applyCareSort(shown, careSort, paneItemFor),
-    [shown, careSort]
+    () =>
+      applyCareSort(
+        shown,
+        effectiveSort,
+        paneItemFor,
+        assigneeFor ? (e) => assigneeFor(paneItemFor(e)) : undefined
+      ),
+    [shown, effectiveSort, assigneeFor]
   );
 
 /* ═══ RETIRED BY §5.3 ═══
@@ -795,19 +881,7 @@ export function TasksPage({
     if (!mounted || careTab !== "open" || !activeEntry) return;
     markCareReviewViewed(activeEntry.id);
   }, [mounted, careTab, activeEntry, markCareReviewViewed]);
-  /** ═══ A COMPLETED ITEM IS NOT IN `entries` (arch-F, F4) ═══
-   *  It carries `status: "resolved"`, so the buckets have filtered it out — and
-   *  `entries.find(...)` returns undefined for it, which is exactly the shape of
-   *  the defect gap row 365 recorded about synthetic child rows: the lookup falls
-   *  through to a DIFFERENT item and nothing errors. So the completed selection
-   *  is resolved from `items`, which still holds it, and it wins while it is
-   *  set. */
-  const completedItem: TaskItem | null = completedSelectedId
-    ? (items.find((i) => i.id === completedSelectedId) ?? null)
-    : null;
-
   const selected: TaskItem | null =
-    completedItem ??
     // An explicitly picked child wins; otherwise the entry's pane item, which for
     // a group is its head.
     (pickedId
@@ -1062,7 +1136,7 @@ export function TasksPage({
 
     /** ═══ THE WINDOW CLOSED — THE SAME INSTANT THE LEDGER IS WRITTEN ═══
      *  §6's rule, and the rule F4 asks this group to match exactly: an item
-     *  enters "Completed today" when its close becomes a record, not when the
+     *  enters the Closed tab when its close becomes a record, not when the
      *  button was pressed. */
     onCommitted: (item, detail) => {
       setResolvingIds((prev) => {
@@ -1071,29 +1145,54 @@ export function TasksPage({
         return next;
       });
       setResolvedIds((prev) => new Set(prev).add(item.id));
-      /* ═══ §5.1 — THE SUBMISSION PERSISTS ═══
-         `resolvedIds` and `completed` are page state and die with the mount,
-         which is why the Submitted tab would have been empty on every fresh
-         visit. This is the persisted record — an id and an instant, nothing
-         else, so it never becomes a second copy of clinical data that can drift
-         from the fixture it points at. */
-      markCareReviewSubmitted(item.id, Date.now());
-      /* THE OUTCOME COMES FROM THE COMMIT DETAIL, not from the payload: the
-         supervisor may have picked a different code than the model proposed, and
-         the record is what they submitted. */
-      const code = typeof detail.code === "string" ? detail.code : null;
-      const outcome = detail.outcome === "unchanged" ? "unchanged" : "confirmed";
-      setCompleted((prev) => [
-        {
-          id: item.id,
-          teenName: item.teenDisplayName,
-          taskType: item.taskType,
-          code: code ?? "—",
-          outcome,
-          at: Date.now(),
-        },
-        ...prev,
-      ]);
+      /* ═══ THE SUBMISSION PERSISTS — ALL OF IT (Closed-tab pack §0.1) ═══
+         This wrote `markCareReviewSubmitted(item.id, Date.now())` — "an id and
+         an instant, nothing else" — and the assessment, both prose fields and
+         their provenance, which arrive in `detail`, were dropped on the floor.
+         The draft holding the same text was cleared by the form on the same
+         commit, so nothing anywhere kept what the supervisor attested.
+         THE RECORD NOW CARRIES THE COMMIT AND A SNAPSHOT of what was on screen
+         when it was made — see `buildClosedReview`. Only billing reviews close
+         onto the Closed tab; anything else keeps the old behaviour. */
+      if (item.payload.kind === "billing" && detail.documentation) {
+        const d = detail as unknown as BillingCommitDetail;
+        /* THE PAYLOAD AS THE FIXTURE GAVE IT. `allItems` folds a commit's
+           detail INTO the payload for the undo window, so the item reaching
+           here may carry `documentation`/`provenance` keys; the snapshot takes
+           the payload's own fields and nothing else. */
+        const p = item.payload;
+        const payload: BillingPayload = {
+          kind: "billing",
+          isReReview: p.isReReview,
+          current: p.current,
+          survey: p.survey,
+          mentorStats: p.mentorStats,
+          aiSummary: p.aiSummary,
+          recommended: p.recommended,
+        };
+        const clean: TaskItem = { ...item, status: "open", payload };
+        recordClosedCareReview(
+          buildClosedReview({
+            item: clean,
+            review: billingReviewFor(clean, payload),
+            committedCode: d.code ?? payload.recommended.code,
+            committedStatement: d.statement ?? payload.recommended.statement,
+            body: d.documentation,
+            provenance: {
+              clinical: d.provenance.clinical.state,
+              diagnostic: d.provenance.diagnostic.state,
+            },
+            submittedAt: Date.now(),
+            /* THE SAME ATTRIBUTION THE CARE PAGE WRITES — the signed-in name,
+               falling back to the role — so one supervisor is one byline on
+               both hosts. */
+            submittedBy: {
+              name: [staffFirst, staffLast].filter(Boolean).join(" ") || staffActorFor(persona),
+              role: staffActorFor(persona),
+            },
+          })
+        );
+      }
     },
 
     onRestore: (item) => {
@@ -1162,86 +1261,26 @@ export function TasksPage({
              §4.1's own rule, so the two list surfaces keep one grammar. */
           shiftDateLabel(now)
         }
-        metrics={
-          /* ═══ TWO, AND "overdue" IS NOT ONE OF THEM (addendum §2.9) ═══
-             The third segment counted breaches against a deadline this
-             destination no longer has. What is left is the pair §2.10 names.
-             NEEDS-COPY-NICOLE. Neither frames the work as an inbox: "open" is
-             a state, and "completed today" is a fact about the shift rather
-             than a score — it is the same figure the completed group below
-             already shows, stated once at the top. */
-          /* ═══ TWO FACTS, NOT THREE (Refinement §3.1) ═══
-             It showed `19 open`, `0 completed today` AND a track reading "0 of
-             19 reviews completed this shift" — the second and third nearly the
-             same number stated twice. `completed today` is removed: the shift
-             is the meaningful unit for a supervisor, the track already states
-             it against a denominator, and two overlapping completion counts is
-             noise.
-             SO BOTH DESTINATIONS NOW CARRY THE SAME PAIR — open plus oldest —
-             which is honest given neither has a deadline: `CARE_REVIEW_SLA` is
-             retired and `FLAG_REVIEW_SLA` is null, so age is the only temporal
-             fact either surface can state.
-             FILTER-AWARE, AND IT SAYS SO (§6.4) — see Monitoring's own note on
-             why the qualification lives in the label rather than the figure. */
-          careTab === "submitted"
-            ? /* ═══ §5.1 — THE FIGURES FOLLOW THE ACTIVE STATE ═══
-                 "Viewing Submitted must not show the open count." So the line
-                 is the submitted count alone: `unviewed` is a fact about work
-                 still waiting to be read, and `overdue` is a fact about work
-                 still open — neither means anything about a decision already
-                 made, and rendering either here would be a number that looks
-                 authoritative and describes the other tab.
-                 THE NAV BADGE IS UNAFFECTED and stays the open count whichever
-                 tab is active — it belongs to the destination, not to this
-                 control. `openCounts` is its source and nothing here touches
-                 it. */
-              [
-                {
-                  value: String(shown.length),
-                  /* NEEDS-COPY-NICOLE */
-                  label: "submitted",
-                },
-              ]
-            : [
-            {
-              value: String(shown.length),
-              label: "open",
-            },
-            /* ═══ §5.3 — UNVIEWED REPLACES `oldest` ═══
-               The line was `16 open · 3d oldest`. §5.3 makes it
-               `16 open · 4 unviewed · 2 overdue` and removes `oldest`
-               explicitly — age is still on every row, in its own column, where
-               a reader compares it against the rows around it rather than
-               against a single aggregate.
-               `filtering` IS GONE FROM THE LABEL because §4 removed filters
-               from this surface: there is no filtered state to qualify, and a
-               label reading "open · filtered" that can never be filtered is
-               the dead chrome the extensibility threshold forbids. */
-            {
-              value: String(unviewedCount),
-              /* NEEDS-COPY-NICOLE */
-              label: "unviewed",
-            },
-            /* ═══ §5.3 — THE OVERDUE SLOT, AND IT IS NO LONGER A SLOT ═══
-               §5.3 said to build the line with open and unviewed only and
-               "leave a typed slot for overdue" because §2 was unanswered. It
-               is answered — 48 hours since reception, unreviewed — so the
-               figure is real. `care-overdue.ts` holds the rule and the note on
-               why it is not a deadline.
-               IT RENDERS ONLY WHEN NON-ZERO. `2 overdue` is a condition; `0
-               overdue` is the resting state of the work, and a permanent zero
-               teaches a reader to stop reading the line. */
-            ...(overdue > 0
-              ? [
-                  {
-                    value: String(overdue),
-                    /* NEEDS-COPY-NICOLE */
-                    label: "overdue",
-                  },
-                ]
-              : []),
-          ]
-        }
+        /* ═══ §4.2 — THE METRIC LINE IS GONE, AND ITS JOB MOVED ═══
+           A PLAIN BLOCK COMMENT, not `{/* … *\/}`: this position is a prop
+           list, which takes attributes — a JSX comment is only valid in
+           children position and putting one here is a parse error. The same
+           trap `review-body.tsx` records at its own evidence block.
+            IT WAS `16 open · 4 unviewed · 2 overdue`, and every one of the three
+            is now somewhere better:
+              · the two COUNTS are in the tabs, where the thing they count is
+                the thing you click — §4.2's resolution of the duplication
+                Brandon flagged, since the tabs already had them in small type;
+              · OVERDUE is a chip beside the tabs (§4.3), because overdue items
+                are a SUBSET of open ones and a peer metric read as a sibling;
+              · UNVIEWED is dropped, by §4.4 — the per-row dots carry it, and a
+                header count of things you have not looked at is an inbox
+                framing this surface is specifically not.
+            SO THE HEADER CARRIES NO FIGURES AT ALL. `PageHeader`'s `metrics`
+            prop is untouched and still used by other destinations; this one
+            just stops passing it. §5.4 already noted the band would be
+            left-weighted with the track gone — it is more so now, and measured
+            in the report rather than filled with something invented. */
         /* ═══ §5.4 — THE SHIFT TRACK COMES OFF CARE REVIEWS ═══
            `0 of 16 reviews completed this shift` and its rail are gone.
            CONFIRMED SCOPE: Risk Flags loses it too ("no" to "does Risk Flags
@@ -1318,6 +1357,18 @@ export function TasksPage({
               // rather than the page. Same fix, same reason, as the dialog's
               // body row.
               "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
+              /* ═══ AN EXPLICIT COLUMN TOO, FOR THE SAME REASON AS THE ROW ═══
+                 Below the split the grid declared no columns, so its one track
+                 was the implicit `auto` — and an auto track's floor is its
+                 content's min-content width. A `truncate` line's min-content is
+                 its WHOLE string, so the rows' captions set the list's width
+                 rather than the canvas. MEASURED, supervisor at 360 with Support
+                 closed: the list column rendered 412px in a 312px content box
+                 and the canvas scrolled sideways by 76; Support open at 1024
+                 (a 336 canvas) gave 108. `minmax(0,1fr)` hands the column the
+                 canvas's width, and the rows' narrow tier (`ROW_NARROW_CANVAS` in
+                 `review-row.tsx`) is what makes that width enough. */
+              "grid-cols-[minmax(0,1fr)]",
               /* ═══ 50 / 50, AND IT WAS 40 / 60 — ANSWERED ═══
                  THE DEFECT IT FIXES, MEASURED. Four columns do not fit the list
                  card the 40% track left: at 1280 the card was 367px, the row
@@ -1377,7 +1428,14 @@ export function TasksPage({
                    variants sort against each other by value, so the order is
                    the arithmetic rather than the emitter's category ranking.
                    1280 is `xl` spelled out; nothing below this line changed. */
-                "min-[1280px]:grid-cols-[minmax(0,50fr)_minmax(0,50fr)] min-[1943px]:grid-cols-[minmax(0,1fr)_790px]"
+                /* ═══ AND THE CANVAS (SUP-2) ═══ Each split is its viewport
+                   breakpoint AND a canvas floor, because Support pushes: 1280
+                   and 1943 leave a staff canvas of 1016 and 1679 (measured,
+                   every staff persona is viewport − 264), and the floors sit
+                   16px under that so a classic scrollbar cannot tip a closed
+                   page into the takeover. Closed, nothing changes; open, the
+                   split waits for the canvas it was derived against. */
+                "min-[1280px]:@min-[1000px]/canvas:grid-cols-[minmax(0,50fr)_minmax(0,50fr)] min-[1943px]:@min-[1660px]/canvas:grid-cols-[minmax(0,1fr)_790px]"
             )}
           >
             {/* ── THE LIST SCROLLS ON ITS OWN, INSIDE ITSELF ──
@@ -1392,7 +1450,7 @@ export function TasksPage({
             <div
               className={cn(
                 "flex min-h-0 flex-col gap-3",
-                paneTakeover && "hidden xl:block"
+                paneTakeover && "hidden xl:@min-[1000px]/canvas:block"
               )}
             >
               {/* THE TOOLBAR SPANS THE LIST COLUMN (§5) — filters left, View
@@ -1422,8 +1480,8 @@ export function TasksPage({
                   scope === "care-reviews"
                     ? {
                         value: careTab,
-                        onChange: setCareTab,
-                        count: { open: openEntries.length, submitted: submitted.length },
+                        onChange: changeCareTab,
+                        count: { open: openEntries.length, closed: submitted.length },
                       }
                     : undefined
                 }
@@ -1442,7 +1500,7 @@ export function TasksPage({
                   live region, and a region that appears with its own first
                   message announces nothing. See the component. */}
               {scope === "care-reviews" && (
-                <CareSortNotice value={careSort} onReset={() => setCareSort(null)} />
+                <CareSortNotice value={effectiveSort} onReset={() => setCareSort(null)} />
               )}
               {shown.length === 0 && filtering ? (
                 /* ═══ RETIRED WITH FILTERS (§4) ═══
@@ -1495,7 +1553,7 @@ export function TasksPage({
                 sort={
                   scope === "care-reviews"
                     ? {
-                        value: careSort,
+                        value: effectiveSort,
                         onToggle: (c: CareSortColumn) =>
                           setCareSort((cur) => nextSort(cur, c)),
                       }
@@ -1525,8 +1583,6 @@ export function TasksPage({
                 selectedId={selectedEntryId ?? activeEntry?.id ?? null}
                 state={listState}
                 onSelect={(entry, item) => {
-                // THE OTHER SELECTION LETS GO — see `onSelectCompleted`.
-                setCompletedSelectedId(null);
                   setSelectedEntryId(entry.id);
                   setPickedId(item.id);
                   // AND HAND THE PANE THE SCREEN. Below `xl` the grid collapses
@@ -1551,32 +1607,21 @@ export function TasksPage({
                  by — so the list is flat, in the comparator's order, which
                  without an SLA is oldest-first. `AGENTS.md`'s "Tasks groups by
                  when" section is rewritten to say so. */
+                /* ═══ FLAT ON BOTH TABS ═══
+                   Closed briefly grouped by day (`Today — 2`, …); that was an
+                   addition the pack withdrew. It is one list, most recently
+                   closed first, and each row's `Review date` carries the day. */
                 grouping="none"
                 /* THE LIST'S OWN NAME, for the unlabelled band's accessible
                    name — `DOMAIN_LABEL` would say "Billing", which is the word
                    this destination was renamed away from. */
                 subject={scope ? SCOPE_TITLE[scope] : undefined}
                 rowVariant="task"
-                completed={completed}
-                completedSelectedId={completedSelectedId}
-                onSelectCompleted={(e) => {
-                  /* THE PANE OPENS READ-ONLY. The list's own selection is
-                     cleared: two selected rows in one tree would be two
-                     `aria-selected` and a reader with no way to tell which one
-                     the footer acts on — the same rule Monitoring's two lists
-                     follow. */
-                  setCompletedSelectedId(e.id);
-                  setSelectedEntryId(null);
-                  setPickedId(e.id);
-                  setPaneTakeover(true);
-                }}
-                /* ═══ THE LEDGER LINK CANNOT CARRY THE DAY ═══
-                   Activity's filter axes are objectId, domain, scope and event —
-                   there is no date axis (gap row 371, still open), so this lands
-                   on billing + mine rather than on today. Stated in the group's
-                   own comment rather than implied by a label that promises
-                   today. */
-                activityHref="/app/activity?domain=billing&scope=mine"
+                /* ═══ THE CLOSED TAB'S RECORDS (Closed-tab pack §1/§3) ═══
+                   Present only on Closed: the rows switch to the outcome line
+                   and the Closed column, and the header with them. */
+                closed={careTab === "closed" ? { byId: closedById } : undefined}
+                assigneeFor={scope === "care-reviews" ? assigneeFor : undefined}
                 resolvingIds={resolvingIds}
                 focusBand={asTaskType(focusBand)}
               onRetry={() =>
@@ -1602,8 +1647,8 @@ export function TasksPage({
                    button's height (measured 20px at 1024×800 — small enough to
                    read as rounding, and not), and `flex-1` everywhere overflowed
                    at DESKTOP by 234px. The cases genuinely differ. */
-                "flex min-h-0 flex-col xl:block",
-                !paneTakeover && "hidden xl:block"
+                "flex min-h-0 flex-col xl:@min-[1000px]/canvas:block",
+                !paneTakeover && "hidden xl:@min-[1000px]/canvas:block"
                 // `Full width`: no pane at all until a row is picked.
               )}
             >
@@ -1615,7 +1660,7 @@ export function TasksPage({
                     // `shrink-0 self-start`: a control, not a row — in a flex
                     // column a stretched button would span the width.
                     "mb-2 inline-flex min-h-9 shrink-0 self-start items-center gap-1 rounded-full px-2 text-[13px] font-semibold",
-                    "xl:hidden",
+                    "xl:@min-[1000px]/canvas:hidden",
                     "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                     RING
                   )}
@@ -1655,7 +1700,7 @@ export function TasksPage({
                   // through.
                   // `flex-1` below `xl` (the height left beside the back button);
                   // `h-full` at `xl` (the whole column). See the column's note.
-                  className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:h-full xl:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                  className="min-h-0 flex-1 rounded-[var(--radius-elevated)] xl:@min-[1000px]/canvas:h-full xl:@min-[1000px]/canvas:flex-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
                 >
                   {/* PANE AND EXCERPT ARE SEPARATE AXES (Part 4). Under partial
                       failure the excerpt errors while the pane stays healthy, so
@@ -1672,13 +1717,15 @@ export function TasksPage({
                       onResolve={onResolve}
                       actionsRef={paneActions}
                       excerptState={plan.excerpt}
-                      /* READ-ONLY WHEN THE SELECTION IS A COMPLETED ROW. The
-                         decision is on the record; there is nothing here to
-                         decide, and a live Submit over a closed review would
-                         offer to commit it twice. */
-                      completed={
-                        completedItem
-                          ? (completed.find((c) => c.id === completedItem.id) ?? null)
+                      /* ═══ READ-ONLY WHEN THE SELECTION IS A CLOSED REVIEW ═══
+                         (Closed-tab pack §0.2.) It was gated on `Completed
+                         today` alone, so a row picked on the Closed tab got the
+                         live form — `Save draft`, `Submit`, `3 fields needed` —
+                         over a review already on the record. The record is
+                         looked up by the selection's id on that tab only. */
+                      closed={
+                        careTab === "closed" && selected
+                          ? (closedById.get(selected.id) ?? null)
                           : null
                       }
                     />

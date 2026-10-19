@@ -1,6 +1,14 @@
 "use client";
 
-// THE CONVERSATION LIST — workspace switch, filters, rows.
+// THE CONVERSATION LIST — filters, rows.
+//
+// ═══ SUPERSEDED (SUP-5): THERE IS NO WORKSPACE SWITCH ═══
+// Support conversations moved into the global Support panel, and leaving a
+// `Teens | Support` switch here put the same conversations behind two routes
+// with two unread counts (Nielsen H4). This list holds teens; Support is the
+// top bar's CTA. The reasoning below is what built the switch and is kept
+// because it is still right about what a switch must do — the argument it
+// lost is whether Support belongs in this list at all.
 //
 // ═══ THE WORKSPACE SWITCH IS A VISIBLE CONTROL, NOT A DROPDOWN ═══
 //
@@ -37,10 +45,9 @@
 // control that appears and disappears as data changes is a control whose position
 // cannot be learned.
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { SegmentedControl } from "@/components/record/segmented-control";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ConversationRow } from "@/components/chat/list/conversation-row";
-import type { ChatThread, ThreadId, ThreadKind } from "@/lib/chat/types";
+import type { ChatThread, ThreadId } from "@/lib/chat/types";
 import { touchTarget } from "@/lib/touch-target";
 import { cn } from "@/lib/utils";
 
@@ -93,9 +100,9 @@ function applyFilter(threads: ChatThread[], f: ListFilter): ChatThread[] {
  *  client paint both see the initial values here, and it only ever diverges
  *  after a client-side navigation, where there is no server render to disagree
  *  with. */
-type ListMemory = { workspace: ThreadKind; filter: ListFilter; top: number };
+type ListMemory = { filter: ListFilter; top: number };
 
-const listMemory: ListMemory = { workspace: "teen", filter: "all", top: 0 };
+const listMemory: ListMemory = { filter: "all", top: 0 };
 
 /** The only writer. `react-hooks/immutability` forbids a component body from
  *  assigning to a module binding at all — it cannot see that these writes are in
@@ -124,24 +131,12 @@ export function ConversationList({
 }) {
   /* Lazy initialisers, so the read happens once at mount rather than on every
      render — and so a remount picks up where the last one left off. */
-  const [workspace, setWorkspaceState] = useState<ThreadKind>(
-    () => listMemory.workspace
-  );
   const [filter, setFilterState] = useState<ListFilter>(() => listMemory.filter);
-  const listId = useId();
 
   /* WRITE-THROUGH WRAPPERS rather than an effect watching the state. An effect
      would record the same values one commit later and fire on the restore too;
      these run exactly when a reader makes a choice, which is the only moment
      the memory should change. */
-  const setWorkspace = (v: ThreadKind) => {
-    /* A different workspace is a different list, so the remembered offset does
-       not transfer — 400px down Teens is meaningless in Support, and restoring
-       it would drop the reader mid-list in conversations they have not seen. */
-    remember({ workspace: v, top: 0 });
-    if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
-    setWorkspaceState(v);
-  };
   const setFilter = (v: ListFilter) => {
     remember({ filter: v, top: 0 });
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
@@ -170,18 +165,9 @@ export function ConversationList({
     restored.current = el.scrollTop === listMemory.top;
   };
 
-  const inWorkspace = useMemo(
-    () => threads.filter((t) => t.kind === workspace),
-    [threads, workspace]
-  );
-  /** UNREAD PER WORKSPACE, for the switch's own labels — the number a mentor
-   *  needs is "is anything waiting over there", which is unread in the workspace
-   *  they are NOT looking at. */
-  const unreadIn = (kind: ThreadKind) =>
-    threads
-      .filter((t) => t.kind === kind)
-      .reduce((n, t) => n + (t.unreadCount > 0 ? 1 : 0), 0);
-
+  /* TEENS ONLY (SUP-5). Support threads still arrive in `threads` — the page
+     needs them to hand a support deep link to the panel — and stop here. */
+  const inWorkspace = useMemo(() => threads.filter((t) => t.kind === "teen"), [threads]);
   const visible = applyFilter(inWorkspace, filter);
   /* A filter that empties when the workspace changes would leave a mentor
      looking at an empty list they did not ask for. Fall back to All rather than
@@ -248,61 +234,13 @@ export function ConversationList({
         className
       )}
     >
-      {/* ── WORKSPACE ─────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-3 pb-2.5 pt-3">
-        <SegmentedControl
-          /* ═══ THE COUNT APPEARS ON THE WORKSPACE YOU ARE NOT IN ═══
-             It was on both, and a screenshot showed why that is wrong: "Teens · 4"
-             sitting twenty pixels above "Unread 4". The same number twice, in two
-             controls, where the second one is the one that filters — so the first
-             was decoration that looked like information.
-             What the switch is actually for is the OTHER side: whether anything is
-             waiting in the workspace you are not looking at. On the active side the
-             filter row already answers it. So the number shows exactly when it is
-             news, and the switch is quiet the rest of the time. */
-          options={[
-            {
-              value: "teen" as ThreadKind,
-              // TODO-COPY. The count is the number of CONVERSATIONS with
-              // something unread, not the number of messages — a mentor decides
-              // where to look, not how much to read.
-              label:
-                workspace !== "teen" && unreadIn("teen") > 0
-                  ? `Teens · ${unreadIn("teen")}`
-                  : "Teens",
-              controls: `${listId}-list`,
-            },
-            {
-              value: "support" as ThreadKind,
-              label:
-                workspace !== "support" && unreadIn("support") > 0
-                  ? `Support · ${unreadIn("support")}`
-                  : "Support",
-              controls: `${listId}-list`,
-            },
-          ]}
-          value={workspace}
-          onChange={(v) => {
-            setWorkspace(v);
-            // The filter is per workspace in meaning — "unread" in Teens and
-            // "unread" in Support are different sets — but keeping the selection
-            // across the switch is what a reader expects, and the fallback above
-            // covers the case where it would empty the list.
-          }}
-          semantics="tabs"
-          fullWidth
-          size="md"
-          /* TODO-COPY */
-          ariaLabel="Conversations"
-        />
-      </div>
-
       {/* ── FILTERS ───────────────────────────────────────────────────── */}
       <div
         role="group"
         /* TODO-COPY */
         aria-label="Filter conversations"
-        className="flex shrink-0 items-center gap-1.5 px-3 pb-2.5"
+        /* `pt-3`: the switch above it, which carried the top padding, is gone. */
+        className="flex shrink-0 items-center gap-1.5 px-3 pt-3 pb-2.5"
       >
         {(["all", "unread", "check-in"] as ListFilter[]).map((f) => {
           const n = countFor(inWorkspace, f);
@@ -346,9 +284,11 @@ export function ConversationList({
 
       {/* ── ROWS ──────────────────────────────────────────────────────── */}
       <div
-        id={`${listId}-list`}
         data-anno-ref="chat-list-scroller"
-        role="tabpanel"
+        /* A region, no longer a tabpanel: the switch it belonged to is gone
+           (SUP-5), and a tabpanel with no tab is an ARIA error. TODO-COPY. */
+        role="region"
+        aria-label="Conversations"
         tabIndex={-1}
         ref={attachScroller}
         /* Recorded on scroll rather than on unmount: a route change tears this
@@ -387,9 +327,9 @@ export function ConversationList({
             className="px-4 py-8 text-center text-[var(--text-secondary)]"
             style={{ font: "var(--type-body)" }}
           >
-            {/* TODO-COPY. Only reachable in the Support workspace with no
-                contacts, which is not a state the fixtures produce — kept because
-                an empty branch that renders nothing is a blank panel. */}
+            {/* TODO-COPY. Only reachable with an empty roster, which is not a
+                state the fixtures produce — kept because an empty branch that
+                renders nothing is a blank panel. */}
             No conversations here yet.
           </p>
         ) : (

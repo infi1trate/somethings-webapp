@@ -389,6 +389,13 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   const pane = () => page.locator("main h2").first();
 
   const before = await pane().innerText();
+  /* ═══ RETARGETED (Closed-tab pack §4) ═══
+     `Completed today` is removed; a committed review becomes a record on the
+     Closed tab instead. So "it arrived" is the Closed segment's count moving by
+     exactly one — read from the segment's own `Closed (N)` label. */
+  const closedCount = async () =>
+    Number(((await page.locator('[data-anno-ref="care-tab:closed"]').innerText()).match(/\((\d+)\)/) || [])[1] ?? NaN);
+  const closedBefore = await closedCount();
   await fillReview(page);
   await page.keyboard.press("Control+Enter");
   await page.waitForTimeout(700);
@@ -427,12 +434,14 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
     "and leaves when the window closes — the same instant the ledger is written",
     !afterWindow.includes(before) && (await page.locator('[data-resolving="true"]').count()) === 0
   );
+  /* SUPERSEDES `mechanics.completed-group` ("arriving in Completed today,
+     collapsed") — that group is removed by the Closed-tab pack §4. */
+  const closedAfter = await closedCount();
   check(
-    "mechanics.completed-group",
-    "arriving in Completed today, collapsed",
-    (await page.locator('[data-slot="completed-group"]').count()) === 1 &&
-      (await page.locator('[data-slot="completed-toggle"]').getAttribute("aria-expanded")) === "false",
-    (await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")
+    "mechanics.closed-record",
+    "arriving on the Closed tab as a record — its count moves by exactly one",
+    Number.isFinite(closedBefore) && closedAfter === closedBefore + 1,
+    `${closedBefore} → ${closedAfter}`
   );
   await shot(page, "10-resolved");
 
@@ -450,13 +459,14 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, fullP
   const restored = await pane().innerText();
   check("mechanics.undo-restores", "undo puts the row back", (await textOf(page)).includes(second));
   check("mechanics.undo-reselects", "undo reselects what it restored", restored === second, `${second} → ${restored}`);
-  /* AND IT NEVER REACHES THE COMPLETED GROUP. One completion from the resolve
+  /* AND IT NEVER BECOMES A RECORD. SUPERSEDES `mechanics.undo-not-completed`,
+     which read the removed `Completed today — 1`: one record from the resolve
      above, and the undone one is not a second. */
   check(
-    "mechanics.undo-not-completed",
-    "an undone item never enters Completed today",
-    /Completed today — 1/.test((await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")),
-    (await page.locator('[data-slot="completed-group"]').innerText()).replace(/\s+/g, " ")
+    "mechanics.undo-not-closed",
+    "an undone item never becomes a closed record",
+    (await closedCount()) === closedBefore + 1,
+    `${closedBefore} → ${await closedCount()}`
   );
   await shot(page, "11-undone");
   await context.close();

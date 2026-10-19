@@ -283,35 +283,11 @@ console.log("\n── sending @ active-mentorship");
   await p.context().close();
 }
 
-// ═══ 5 · A support thread has nothing to send ═════════════════════════════
-console.log("\n── support thread @ active-mentorship");
-{
-  const ctx = await b.newContext({ viewport: { width: 1440, height: 980 } });
-  /* ═══ GUARDED, BECAUSE `addInitScript` RUNS ON EVERY LOAD ═══
-     Including a reload. An unguarded `setItem` therefore WIPES the store on the
-     way back in, which made a persistence check report zero and look like the app
-     had failed to save — the write was fine, the probe overwrote it. Same guarded
-     form `care-brief.mjs` already uses, and this is the reason it does. */
-  await ctx.addInitScript(
-    ([k, v]) => {
-      if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify(v));
-    },
-    [KEY, { state: { persona: "mentor", chatScenarioId: "active-mentorship" }, version: STORE_VERSION }]
-  );
-  const p = await ctx.newPage();
-  await p.goto(BASE + "/app/chat", { waitUntil: "networkidle" });
-  await p.waitForTimeout(1800);
-  await p.locator('[role="tab"]', { hasText: "Support" }).first().click();
-  await p.waitForTimeout(300);
-  await p.locator('[data-slot="conversation-list"] [role="tabpanel"] button[aria-label]').first().click();
-  await p.waitForTimeout(500);
-  const tabs = await p.evaluate(`
-    [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')].map((t) => t.textContent.trim())`);
-  /* THE TOOLKIT TAB IS ABSENT ALTOGETHER for a colleague — the panel set comes
-     from `kind`, so there is no tab to open onto an explanation. */
-  check(!tabs.includes("Toolkit"), "a colleague's rail has no Toolkit tab", tabs.join(" | "));
-  await ctx.close();
-}
+// ═══ 5 · SUPERSEDED (SUP-5): a support thread has nothing to send ════════
+/* It asserted a colleague's rail had no Toolkit tab. A support thread no
+   longer opens on /app/chat — it opens in the Support panel, which has no
+   rail — so the block measured a state that cannot be reached. The handoff
+   itself is checked in `chat-documentation.mjs` §4 and `support-handoff.mjs`. */
 
 await b.close();
 console.log(`\n${fails === 0 ? "ALL CHECKS PASS" : `${fails} FAILED`}`);

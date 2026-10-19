@@ -60,8 +60,9 @@
 // band. The defect was this surface's alone.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, PencilLine, Phone, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronRight, PencilLine, Phone, Repeat2, RotateCcw } from "lucide-react";
 import { RecordButton } from "@/components/record/record-button";
+import { OverlayScrollbar } from "@/components/ui/overlay-scrollbar";
 import { coalesceLabel, itemsOf, paneItemFor, type ListEntry } from "@/lib/tasks/list";
 import {
   bandHeaderLabel,
@@ -71,9 +72,18 @@ import {
   type TierBand,
 } from "@/lib/tasks/bands";
 import { elapsedLabel } from "@/components/tasks/strips";
-import { CompletedGroup, type CompletedEntry } from "@/components/tasks/completed-group";
+import {
+  OUTCOME_VERB,
+  outcomeNamesCode,
+  absoluteStamp,
+  reviewDateLabel,
+  closedLate,
+  type ClosedCareReview,
+} from "@/lib/tasks/closed-review";
+import { BillingCodeLozenge } from "@/components/record/proposal-codes";
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
+import { cycleLabelFor } from "@/lib/tasks/review-cycle";
 import { proposalSpoken } from "@/components/record/proposal-codes";
 import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
@@ -96,6 +106,9 @@ import {
 import { cn } from "@/lib/utils";
 import {
   COL_AGE,
+  COL_CLOSED_BOX,
+  ReviewAssignedCell,
+  CYCLE_HIDDEN_BELOW_1600,
   COL_MENTEE_MIN,
   COL_PRESENTATION,
   COL_REVIEW,
@@ -103,6 +116,7 @@ import {
   ReviewDisc,
   ReviewRowHeader,
   proposalCaption,
+  proposalCaptionIcon,
 } from "@/components/tasks/review-row";
 import type { CareSort, CareSortColumn } from "@/lib/ui/care-sort";
 
@@ -112,6 +126,13 @@ import type { CareSort, CareSortColumn } from "@/lib/ui/care-sort";
  *  row and the header did not have it at all, which measured as a 16px offset
  *  between "Mentee" and the names under it. */
 const MARKER_SLOT = 8;
+/* ═══ AND IT STAYS 8 THOUGH THE DOT IS NOW 6 (parity pack §3) ═══
+   The slot is the RESERVATION, not the mark: the dot is centred in it, so a
+   6px dot in an 8px slot leaves every disc, name and column exactly where it
+   was. Shrinking the slot to 6 would shift the whole row — and the HEADER with
+   it, since `ReviewRowHeader` takes `markerWidth={MARKER_SLOT}` precisely so
+   the two flex chains start at the same x. That alignment was measured to the
+   pixel one pack ago; it is not worth 2px. */
 
 /** ═══ FIXED ROW GEOMETRY — AND WHY IT IS FIXED ═══
  *
@@ -244,18 +265,25 @@ function childTimeLabel(openedAt: number): string {
 
 // ── Chips ───────────────────────────────────────────────────────────────────
 
-/** THE ONE BREACH CHIP PATTERN (§3.3), compact form for a row. Icon + text —
- *  never colour alone. */
-function OverdueChip() {
+/** THE ONE BREACH CHIP PATTERN (§3.3). Icon + text — never colour alone.
+ *  ═══ EXPORTED FOR THE PANE HEADER ═══
+ *  The detail header states the same fact for the same item, so it renders
+ *  this component rather than restating clay-on-clay plus a triangle in a
+ *  second place. A pattern described twice is a pattern that diverges once.
+ *  ═══ THE TOOLBAR FORM IS GONE ═══
+ *  This took `count`, `size`, `tone`, `label` and an `onToggle` that promoted
+ *  it to §5's overdue FILTER beside the Open/Closed tabs. Product removed the
+ *  filter — the default order already puts overdue rows first — and with it
+ *  the only caller of every parameter, so the component is the row label
+ *  again: a `span`, no tab stop, nothing to press. */
+export function OverdueChip() {
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-[14px]"
-      style={{
-        backgroundColor: "var(--band-clay-bg)",
-        color: "var(--band-clay-fg)",
-      }}
+      data-anno-ref="overdue-chip"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] leading-[14px] font-semibold"
+      style={{ backgroundColor: "var(--band-clay-bg)", color: "var(--band-clay-fg)" }}
     >
-      <AlertTriangle className="size-2.5 shrink-0" aria-hidden />
+      <AlertTriangle aria-hidden className="size-2.5 shrink-0" />
       {/* TODO-COPY */}
       Overdue
     </span>
@@ -347,7 +375,18 @@ function Row({
   hairline,
   unviewed = false,
   drafted = false,
+  closed = null,
+  assignee,
 }: {
+  /** The assigned supervisor's name — present only when the viewer is an admin
+   *  (see `Worklist.assigneeFor`). `null`: on, and unassigned. */
+  assignee?: string | null;
+  /** ═══ A CLOSED REVIEW'S RECORD (Closed-tab pack §3) ═══
+   *  Present only on the Closed tab. The row then says what was DECIDED rather
+   *  than what is being asked, and its trailing column is when it closed rather
+   *  than how long it has waited — `Review age` stops meaning anything once a
+   *  review is closed. */
+  closed?: { record: ClosedCareReview } | null;
   /** ═══ §8 — WHETHER THIS REVIEW HAS A SAVED DRAFT ═══
    *  Resolved by the list from `sessionStorage` through the version counter, and
    *  handed down as a boolean for the same reason `unviewed` is: a row must not
@@ -423,8 +462,15 @@ function Row({
    *  STATE, which is what tells a supervisor scanning the list whether this one
    *  is already in hand. One derivation each, both named elsewhere so the row
    *  does not hold a vocabulary. */
-  const disposition =
-    item.payload.kind === "billing"
+  const closedRec = closed?.record ?? null;
+  const late = closedRec ? closedLate(closedRec) : false;
+  const disposition = closedRec
+    ? /* NEEDS-COPY-NICOLE. The outcome, spoken — the row draws it as a verb
+         beside a lozenge, and the lozenge is a code without a relation. */
+      outcomeNamesCode(closedRec.decision.outcome)
+      ? `${OUTCOME_VERB[closedRec.decision.outcome]} ${closedRec.decision.code}`
+      : OUTCOME_VERB[closedRec.decision.outcome]
+    : item.payload.kind === "billing"
       ? /* ═══ THE SPOKEN FORM, FOR THE ACCESSIBLE NAME (addendum §2.9) ═══
            The row DRAWS lozenges now. This string is what a screen reader gets
            instead, and it states the direction in words because the arrow
@@ -559,7 +605,15 @@ function Row({
        two different facts about one item told to two readers. The probe caught
        it, and only because it checks the accessible name separately from the
        rendered spans. */
-    temporal,
+    /* A CLOSED ROW STATES WHEN IT CLOSED, ABSOLUTE — the same stamp the pane's
+       footer shows — and whether it was late, which the row draws in words. */
+    closedRec ? `closed ${absoluteStamp(closedRec.submittedAt)}` : temporal,
+    late ? /* NEEDS-COPY-NICOLE */ "submitted late" : null,
+    assignee === undefined
+      ? null
+      : /* NEEDS-COPY-NICOLE */ assignee
+        ? `assigned to ${assignee}`
+        : "unassigned",
     /* ═══ TWO FLAGS ON ONE TEEN NEED TWO NAMES ═══
        MEASURED on Monitoring: the Imminent band never coalesces — deliberately,
        so a 24h deadline cannot hide inside a group row — and a teen carrying two
@@ -574,7 +628,7 @@ function Row({
        NAME-ONLY. Nothing visual moves: the column still shows the age, because
        age is what a reader scans and a clock time in that column would be a
        second format in one line of figures. */
-    !isGroup && !indent ? childTimeLabel(item.openedAt) : null,
+    !isGroup && !indent && !closedRec ? childTimeLabel(item.openedAt) : null,
     /* THE STATE IN THE NAME, not only in the opacity. */
     resolving ? /* NEEDS-COPY-NICOLE */ "closing" : null,
   ]
@@ -760,15 +814,67 @@ function Row({
         className="flex shrink-0 items-center justify-center"
         style={{ width: MARKER_SLOT }}
       >
-        {unviewed && (
+        {/* ═══ §1 · ONE SLOT, RESOLVED IN ONE PLACE ═══
+            "Currently both render. Rows show an unviewed dot at the leading
+            edge AND a draft pencil before the event type — plus the change
+            glyph, giving three glyphs in one row."
+              draft started      → the draft icon
+              unviewed, no draft → the dot
+              viewed, no draft   → nothing
+            DRAFT SUPERSEDES THE DOT BECAUSE A DRAFT IMPLIES THE RECORD WAS
+            OPENED — so `unviewed && drafted` is unreachable in practice, and
+            the `!drafted` guard on the dot is what makes it unreachable in the
+            MARKUP too. The two can no longer co-render whatever the data says,
+            which is the property §7.1 asks to be confirmed rather than the
+            property the data happens to have today.
+            ═══ WHAT §8's ARGUMENT GOT RIGHT, AND WHAT IT COST ═══
+            §8 separated these two on every axis — "unviewed a DOT at the
+            leading edge, drafted an ICON in the content area" — to stop them
+            reading as the same signal. That reasoning is sound and it is why
+            they are still different AFFORDANCE CLASSES here: a dot and an icon,
+            in one slot, never both. What it cost was a third glyph in a row
+            that already had the change glyph, and §1 is the correction.
+            THE CHANGE GLYPH STAYS WITH THE EVENT TYPE, untouched — "it
+            describes the review, not its read state."
+            AND THE NAME-WEIGHT PAIRING STAYS on unviewed, which §1 asks for
+            explicitly: a 6px dot is too small a mark to carry the state alone,
+            so the mentee name's FACE still carries it independently. */}
+        {drafted ? (
+          <PencilLine
+            aria-hidden
+            data-anno-ref="draft-icon"
+            /* 12px, the size it was in the caption — it fits the 8px slot by
+               overflowing it symmetrically, which is what the slot's
+               `justify-center` and the row's own `-ml` spacer already allow for
+               the disclosure chevron. The slot reserves SPACE, not a clip. */
+            className="size-3 shrink-0 text-[var(--text-secondary)]"
+          />
+        ) : unviewed ? (
           <span
             data-anno-ref="unviewed-dot"
-            className="size-2 rounded-full bg-[var(--text-primary)]"
+            /* ═══ 6px, AND IT WAS 8 (parity pack §3) ═══
+               "Live dots are larger than the Figma. Reduce to match, snapped to
+               a Bloom step."
+               MEASURED BEFORE: `size-2` — 8px. AFTER: `size-1.5` — 6px.
+               ON THE 4px GRID'S HALF-STEP, which is the only scale available:
+               Bloom ships no spacing scale (four component pads and nothing
+               else), so Tailwind's 4px step with its 2px half is what this
+               product actually has — recorded when the type ramp was audited.
+               6 IS THE STEP DOWN, NOT 4. `size-1` would be 4px, and §3's own
+               sentence rules it out by naming "anyone who cannot resolve a 4px
+               mark" as the reason the weight pairing exists. Going TO 4 would
+               make the mark the thing the sentence says not to rely on.
+               THE PAIRING IS WHY THIS IS SAFE AT ALL. The dot is shape-and-hue;
+               the mentee name's FACE carries the same state independently (§5.2
+               swapped Lausanne's inert weight for Avantt), so shrinking the
+               mark does not shrink the signal. */
+            className="size-1.5 rounded-full bg-[var(--text-primary)]"
           />
-        )}
+        ) : null}
       </span>
 
-      <span className="flex shrink-0 items-center">
+      {/* NARROW (`ROW_NARROW_CANVAS`): the disc hides — see the constant. */}
+      <span className="flex shrink-0 items-center @max-[496px]/canvas:hidden">
         {/* SHARED WITH TODAY'S PREVIEW (K.1) — one disc implementation. */}
         <ReviewDisc
           teenId={item.teenId}
@@ -777,24 +883,45 @@ function Row({
         />
       </span>
 
-      {/* ═══ THE SEPARATOR LIVES ON THIS COLUMN (§3) ═══
-          "Separators inset — start after the avatar, stop before the trailing
-          metadata." A border on the row root cannot be inset horizontally, and
-          a border on a vertically-centred child renders at that child's top
-          rather than at the row boundary. A STRETCHED flex child solves both:
-          it spans exactly from after the disc to before the trailing block, so
-          §3's two ends are derived from the layout instead of from hardcoded
-          insets that would drift the day the disc changes size — which it now
-          does, per preset.
-          IT NEVER CROSSES A PILL. The line sits at y=0 of the row box and the
-          pill starts at y=4, so a hairline falls in the gutter between two
-          pills rather than cutting across a fill. That crossing is what made
-          the old full-bleed treatment read as a table. */}
+      {/* ═══ THE SEPARATOR IS NOT HERE ANY MORE — IT WAS THE SECOND STROKE ═══
+          THE SECTION THIS REPLACES asked for an inset separator: "start after
+          the avatar, stop before the trailing metadata", and a stretched flex
+          child was the right way to get it — the two ends derive from the
+          layout rather than from insets that drift when the disc resizes.
+          REFINEMENT §1.2 THEN REVERSED THE INSET and gave the divider to the
+          content wrapper above, measured: inset, the line stopped 272px short
+          of the row's right edge on Risk Flags, so the age hung past a ragged
+          edge and read as a rendering fault. THE OLD BORDER WAS NEVER REMOVED,
+          so both drew, and this is the double stroke reported three times.
+
+          MEASURED AT 1600, one row, the two borderers inside it:
+            div.flex.h-full.items-stretch  y=521  x=305  w=576  border-top 1px
+            span.flex.min-w-0.flex-col     y=522  x=373  w=316  border-top 1px
+
+          EXACTLY 1px APART, AND THE MECHANISM IS THE FIRST BORDER ITSELF: the
+          wrapper is `items-stretch`, so this child's box begins at the
+          wrapper's CONTENT edge — which its own 1px top border has already
+          pushed down by 1. So the segmentation and the "slightly different
+          vertical position" are one defect, not two: a 576px line at y=521
+          with a 316px line at y=522 sitting 68px into it, which is why it read
+          as a thick stroke under the mentee cell and a thin one after it.
+
+          ONE OWNER NOW, AND IT IS THE ROW. The wrapper's border is the one
+          Refinement §1.2 measured and argued; this one is the superseded
+          treatment, so it is the one that goes.
+          IT ALSO FIXES `Cards`, WHICH NOBODY REPORTED. The wrapper's border is
+          gated `!geo.detached` because a detached panel carries its own
+          contour; this one was gated on `hairline` alone, so under the Cards
+          preset it drew a divider inside a bordered panel — the exact
+          two-separators-for-one-boundary the wrapper's note rules out.
+          MEASURED, border-drawing elements per row under `Cards`: Care Reviews
+          2 -> 1. RISK FLAGS WAS ALREADY 1 IN BOTH STATES, because `event-list`
+          builds its own row and never carried this border — so the Cards defect
+          was this surface's alone, and the shared geometry is not what spread
+          it. Stated because "also fixes Cards" would otherwise read as a claim
+          about both surfaces. */}
       <span
-        className={cn(
-          "flex min-w-0 flex-col justify-center",
-          hairline && "border-t border-[color:var(--border-subtle)]"
-        )}
+        className="flex min-w-0 flex-col justify-center"
         /* ═══ THE MENTEE COLUMN'S SHARE (§6.5, CORRECTED IN §3) ═══
            MEASURED at 1280 before the cadence column replaced the codes
            column: this cell was **11px** wide and the NAME truncated — "Theo
@@ -948,13 +1075,17 @@ function Row({
               content — an `aria-label` on this icon would never be announced.
               The words go in `ariaLabel`, which is where §8's "accessible
               label" actually lands on this row. */}
-          {drafted && (
-            <PencilLine
-              aria-hidden
-              data-anno-ref="draft-icon"
-              className="mr-1 inline size-3 shrink-0 align-[-1px]"
-            />
-          )}
+          {/* ═══ THE DRAFT ICON MOVED TO THE LEADING-EDGE SLOT (§1) ═══
+              §1: "The draft icon moves to the leading-edge slot. Remove it from
+              its current position before the event type." Done — the marker is
+              resolved once, up where the dot lives, and the reasoning for the
+              consolidation is recorded there.
+              THE ARGUMENT FOR LINE 2 IS WORTH KEEPING because it was not wrong:
+              line 1 is the row's focal point and an icon beside the name would
+              put a second thing in that zone, which arch-D and arch-F both
+              forbid. The leading-edge slot is OUTSIDE both zones — it sits
+              before the identity disc, which is why it was the dot's home — so
+              moving there does not spend line 1's emphasis either. */}
           {taskLed ? (
             /* ═══ THE DISPOSITION ALONE (arch-F) ═══
                arch-E put the teen name here with the disposition beside it. The
@@ -964,7 +1095,20 @@ function Row({
                reason: they do not perform a billing review, are not accountable
                for it, and cannot change the decision. */
             <>
-              {resolving ? (
+              {closedRec ? (
+                /* ═══ THE OUTCOME, NOT THE REQUEST (§3.1) ═══
+                   On Open this line says what is being asked; on Closed what
+                   matters is what was decided. The code is the shared lozenge,
+                   `identity` tone — a statement of record, not a proposal. */
+                <span data-closed-outcome={closedRec.decision.outcome} className="inline-flex items-center gap-1.5">
+                  {OUTCOME_VERB[closedRec.decision.outcome]}
+                  {/* THREE STATES, AND ONLY ONE NAMES A CODE: `Changed to (x)`.
+                      `Reviewed` and `Assigned` are complete sentences. */}
+                  {outcomeNamesCode(closedRec.decision.outcome) && (
+                    <BillingCodeLozenge code={closedRec.decision.code} tone="identity" />
+                  )}
+                </span>
+              ) : resolving ? (
                 /* NEEDS-COPY-NICOLE. VISIBLE, not just dimmed — opacity alone
                    is a state nobody can read (SC 1.4.1). */
                 "Closing…"
@@ -982,11 +1126,24 @@ function Row({
                    says what kind of review it is. A pair still appears when
                    there are two codes to show, because two codes is data — but
                    it is no longer what a reader has to infer the kind from. */
-                /* SHARED WITH TODAY'S PREVIEW (K.1) — one caption expression. */
-                proposalCaption(
-                  item.payload.current?.code ?? null,
-                  item.payload.recommended.code
-                )
+                /* SHARED WITH TODAY'S PREVIEW (K.1) — one caption expression,
+                   and since §5 one glyph decision from the same two arguments. */
+                <>
+                  {proposalCaptionIcon(
+                    item.payload.current?.code ?? null,
+                    item.payload.recommended.code
+                  ) && (
+                    <Repeat2
+                      aria-hidden
+                      data-anno-ref="renew-icon"
+                      className="mr-1 inline size-3 shrink-0 align-[-1px]"
+                    />
+                  )}
+                  {proposalCaption(
+                    item.payload.current?.code ?? null,
+                    item.payload.recommended.code
+                  )}
+                </>
               ) : (
                 (disposition ?? TASK_KIND_LABEL[item.taskType])
               )}
@@ -1014,16 +1171,58 @@ function Row({
         /* ═══ THE REVIEW CYCLE, NOT THE CODES (§6.1, §6.3) ═══
            Codes leave the list entirely and live only in the detail pane. This
            column carries the cadence position instead. */
-        <ReviewCycleCell taskType={item.taskType} />
+        /* `grow={1}` IS THE ROW LAYOUT PASS's EVENNESS — the list's spare width
+           is shared with the mentee column instead of all landing on it. Today's
+           table leaves it at 0, because three exact thirds cannot have a
+           growing member. See the prop's own note. */
+        <ReviewCycleCell
+          taskType={item.taskType}
+          grow={1}
+          /* Admins: Cycle yields to `Assigned to` below 1600 — see the constant. */
+          /* NARROW: the value moves into the trailing stack below. */
+          className={cn(
+            "@max-[496px]/canvas:hidden",
+            assignee !== undefined && CYCLE_HIDDEN_BELOW_1600
+          )}
+        />
+      )}
+      {/* ═══ `Assigned to` — ADMIN ONLY ═══
+          `undefined` means the column is off for this viewer; `null` means it
+          is on and the review has no assigned supervisor. */}
+      {item.payload.kind === "billing" && assignee !== undefined && (
+        <ReviewAssignedCell name={assignee} />
       )}
 
       {/* pl-6 IS §3's "real separation from the content block" — the chips used
           to sit 6px from a truncating caption, so on a narrow column the two
           read as one run of text. */}
       <span
-        className="flex shrink-0 items-center justify-end gap-1.5 pl-6"
-        style={item.payload.kind === "billing" ? { width: COL_AGE + 24 } : undefined}
+        className={cn(
+          "flex shrink-0 justify-end pl-6",
+          /* ═══ NARROW (`ROW_NARROW_CANVAS`): THE TRAILING STACK ═══
+             Line 1 the figure, line 2 the cycle, right-aligned and sized to
+             what they hold. The row's `gap-3` is the separation, so the 24px
+             inset goes; `!` because the box width is an inline style. */
+          "@max-[496px]/canvas:w-auto! @max-[496px]/canvas:flex-col @max-[496px]/canvas:items-end @max-[496px]/canvas:justify-center @max-[496px]/canvas:gap-0 @max-[496px]/canvas:pl-0",
+          /* A CLOSED ROW STACKS: the date, and under it `Submitted late` when it
+             was — both right-aligned, so the dates still line up down the
+             column whether or not a row carries the second line. */
+          closedRec ? "flex-col items-end justify-center" : "items-center gap-1.5"
+        )}
+        style={
+          closedRec
+            ? { width: COL_CLOSED_BOX }
+            : item.payload.kind === "billing"
+              ? { width: COL_AGE + 24 }
+              : undefined
+        }
       >
+        {/* ═══ LINE 1 OF THE NARROW STACK ═══
+            `contents` above the tier, so the chips and the figure stay direct
+            flex children of the cell exactly as they were; a row of its own
+            inside the narrow stack, so a chip stays beside the figure it
+            qualifies rather than taking a line. */}
+        <span className="contents @max-[496px]/canvas:flex @max-[496px]/canvas:items-center @max-[496px]/canvas:gap-1.5">
         <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION SPAN IS GONE WITH THE TIERS (Phase 4) ═══
             arch-D moved it here from the mentor caption, on the reasoning that
@@ -1067,6 +1266,27 @@ function Row({
             header cannot. Primary ink at 14px made it the loudest thing in the
             row's right half and put it in competition with the breach chip
             beside it. */}
+        {/* ═══ 14/20, AND THE OLD 13px WAS OFF THE RAMP (row layout §1) ═══
+            "Cycle and Review age type size — up a step. They are column data,
+            not metadata, and currently read as subordinate to the mentee name
+            when they are peers."
+            THE STEP IS ALSO A CORRECTION. Bloom's ramp is 32/40 · 24/32 ·
+            16/24 · 14/20 · 12/16, and all three `taskLed` branches here were
+            `text-[13px]` — an invented size, and the exact defect
+            `view-presets.test.ts` says "the last pass retired from these rows
+            (11, 13 and 13.5px)". IT DID NOT REACH THIS ONE: that test reads the
+            GEOMETRY TABLE, and this size is an inline class the table does not
+            own. So the ramp guard passed while a 13px value sat on every row.
+            MEASURED BEFORE: 13px / 19.5px computed. The `leading-[18px]` that
+            once sat beside it is gone from this branch, so the line-height was
+            the 1.5 default rather than any declared pair — a second way the
+            value was off the ramp. 14/20 is declared, so it cannot fall back.
+            IT DOES NOT BECOME THE ROW'S FOCAL POINT. arch-F's rule is one
+            emphasised element per ZONE, and the right zone's emphasis is still
+            carried by nothing — this is secondary ink at regular weight. The
+            name stays strongest: 16px Avantt in primary ink, a face worth a
+            measured +19% ink over the text face. Size went up one step; the
+            weight and ink channels did not move. */}
         <span
           className={cn(
             "shrink-0 tabular-nums",
@@ -1076,15 +1296,15 @@ function Row({
                      it takes that pair's ink rather than the clay breach ink —
                      and goes semibold once the five minutes are gone. */
                   cn(
-                    "text-[13px] text-[var(--task-respond-fg)]",
+                    "text-[14px] leading-[20px] text-[var(--task-respond-fg)]",
                     overdue && "font-semibold"
                   )
                 : overdue
                   ? /* THE ONLY BREACH STATEMENT ON THE ROW NOW — so it carries
                        the ink. Not colour alone: the word "overdue" is in the
                        string and in the accessible name. */
-                    "text-[13px] font-semibold text-[var(--band-clay-fg)]"
-                  : "text-[13px] text-[var(--text-secondary)]"
+                    "text-[14px] leading-[20px] font-semibold text-[var(--band-clay-fg)]"
+                  : "text-[14px] leading-[20px] text-[var(--text-secondary)]"
               : emphasis === "deadline" && !indent
                 ? "text-[14px] font-bold text-[var(--text-primary)]"
                 : "text-[12px] text-[var(--text-secondary)]"
@@ -1099,8 +1319,51 @@ function Row({
               a row hears its fields in sequence with no column header above
               them, so `temporal` is still what `ariaLabel` is built from: the
               suffix is dropped from the CELL, not from the row. */}
-          {item.payload.kind === "billing" ? elapsedLabel(ageAt, now) : temporal}
+          {closedRec
+            ? /* ═══ THE REVIEW DATE ═══
+                 `Oct 6`, or `Sep 29, 2025` outside this year — absolute on
+                 every row, today's included. The minute is the footer's. */
+              reviewDateLabel(closedRec.submittedAt, now)
+            : item.payload.kind === "billing"
+              ? elapsedLabel(ageAt, now)
+              : temporal}
         </span>
+        </span>
+        {/* ═══ LINE 2 OF THE NARROW STACK: THE CYCLE ═══
+            The column's own value, moved rather than dropped. 12/16 — the
+            caption's step, because this line sits beside the caption and two
+            sizes on one line would not share a baseline. Mono and tabular
+            like the column it replaces. Not for an admin: their Cycle column
+            hides below 1600 (`CYCLE_HIDDEN_BELOW_1600`), and the stack does
+            not bring back what the wide row withheld. `aria-hidden` is not
+            needed — the row's name is stated (`ariaLabel`), not computed.
+            `font-mono` AS A CLASS, NOT THE INLINE STYLE the figure above
+            carries: `care-closed` finds the row's date as its last span with
+            an inline mono face, and this span is after it in source. */}
+        {item.payload.kind === "billing" && assignee === undefined && (
+          <span
+            data-narrow-cycle
+            className="hidden truncate font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)] @max-[496px]/canvas:block"
+          >
+            {cycleLabelFor(item.taskType)}
+          </span>
+        )}
+        {/* ═══ §3.3 · SUBMITTED LATE — QUIET, AND IN WORDS ═══
+            Answered: lateness persists on the record. Not the breach pattern —
+            no clay fill, no icon — because nothing is owed any more; it is a
+            fact about how the review closed.
+            UNDER THE DATE, NOT ON THE OUTCOME LINE: it is a fact about the
+            date. The phrase is 78.8px and the date box 104, so it fits beneath
+            the widest date with room to spare. */}
+        {late && (
+          <span
+            data-submitted-late
+            className="text-[12px] leading-[16px] whitespace-nowrap text-[var(--text-muted)]"
+          >
+            {/* NEEDS-COPY-NICOLE */}
+            Submitted late
+          </span>
+        )}
         </span>
         </div>
       </div>
@@ -1273,14 +1536,13 @@ export function Worklist({
   grouping = "tier",
   rowVariant = "subject",
   headersState = "ready",
-  /** ═══ THE BUCKET BEHIND YOU (arch-F, F4) ═══
-   *  Closed reviews whose undo window has shut, and where a link to the ledger
-   *  goes. Empty by default and absent entirely on Monitoring, which has its own
-   *  list — a surface that never empties has no completion to rest. */
-  completed = [],
-  completedSelectedId = null,
-  onSelectCompleted,
-  activityHref = "",
+  /** ═══ `Completed today` IS GONE (Closed-tab pack §4) ═══
+   *  It was a second, forked list of closed reviews below the queue — its own
+   *  row style, no avatar, the retired `Billing code review` label — listing
+   *  the same reviews the Closed tab lists. Its outcome line moved into the
+   *  closed row. */
+  closed,
+  assigneeFor,
   /** Items whose undo window is still open. They stay in their bucket, visibly
    *  resolving — see the row's own note. */
   resolvingIds,
@@ -1390,10 +1652,16 @@ export function Worklist({
    *  label with the COUNT withheld rather than a placeholder count, which would
    *  be a number that is wrong for 240ms. */
   headersState?: SurfaceState;
-  completed?: CompletedEntry[];
-  completedSelectedId?: string | null;
-  onSelectCompleted?: (entry: CompletedEntry) => void;
-  activityHref?: string;
+  /** ═══ THE CLOSED TAB (Closed-tab pack §1/§3) ═══
+   *  The records behind the closed entries, by id. Present only on Closed; it
+   *  switches the rows to the outcome line and the Closed column, and the
+   *  header's trailing column with them. */
+  closed?: { byId: ReadonlyMap<string, ClosedCareReview> };
+  /** ═══ `Assigned to` — PASSED ONLY FOR ADMINS ═══
+   *  The page decides who sees the column and supplies the lookup, because a
+   *  closed review's answer is the one frozen in its record. Omitted, the
+   *  column does not render — header and cells together. */
+  assigneeFor?: (item: TaskItem) => string | null;
   resolvingIds?: ReadonlySet<string>;
   now: number;
   /** The selected ENTRY id — a group id for a collapsed group, an item id
@@ -1868,8 +2136,38 @@ export function Worklist({
          100% of a column that now also holds a toolbar, so the page started
          scrolling. */
       style={{ minHeight: rowH * LIST_MIN_ROWS }}
-      className={cn(frame, "min-h-0 overflow-y-auto overscroll-contain")}
+      /* ═══ THE GUTTER — THIRD ATTEMPT, AND THE FIRST ONE THAT FOUND THE CAUSE ═══
+         The previous pass removed `pr-3` and declared the gutter gone. It was
+         not: `.scroll-slim` set `::-webkit-scrollbar { width: 24px }`, which
+         opts Chromium into a custom classic bar that reserves layout width on
+         every platform, macOS overlay included. Measured with real scrollbars:
+         a 24px gutter, the header 25px short, the trailing age 49px from the
+         edge against the marker's 25. Every earlier probe ran under
+         Playwright's `--hide-scrollbars` and read 0.
+         `.scroll-overlay` HIDES THE NATIVE BAR instead of styling it, and
+         `OverlayScrollbar` draws one. See both for the full account. */
+      className={cn(
+        frame,
+        "scroll-overlay min-h-0 overflow-y-auto overscroll-contain",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+      )}
+      /* ═══ FOCUSABLE AND NAMED (scrollbar pass §1.3) ═══
+         "Scroll container stays keyboard-focusable with an accessible name."
+         MEASURED BEFORE: it was NOT focusable — Chrome only makes a scroller a
+         tab stop when it has no focusable descendants, and this one holds the
+         tree's rows. Keyboard scrolling worked anyway, through a focused row,
+         and still does. This adds the region as its own stop so a reader can
+         land on the list and page through it without selecting anything.
+         THE COST, STATED: one more Tab press before the first row. */
+      tabIndex={0}
+      role="region"
+      /* TODO-COPY */
+      aria-label="Care reviews list"
     >
+      {/* THE CUSTOM THUMB — first child, so its sticky rail pins to the top of
+          the scroller's viewport. See `OverlayScrollbar` for why the native
+          bar is hidden rather than styled. */}
+      <OverlayScrollbar scrollerRef={scrollerRef} />
       {/* ═══ THE TABLE HEADER, ON THE BILLING SURFACE ONLY (§4.3) ═══
           `Worklist` is Care Reviews' list and nothing else's today, but the
           guard is on the DATA rather than on that fact: a header naming
@@ -1886,6 +2184,11 @@ export function Worklist({
              its width — which is what gives the mentee column back the room
              §6.5's collapse took. */
           presentationWidth={COL_REVIEW}
+          /* THE CLOSED TAB'S TRAILING COLUMN — `Closed`, not `Review age`, at
+             its own width so the header sits over the times it heads. */
+          trailing={closed ? "closed" : "age"}
+          assigned={!!assigneeFor}
+          ageWidth={closed ? COL_CLOSED_BOX : undefined}
           sticky
         />
       )}
@@ -1969,6 +2272,12 @@ export function Worklist({
                 unviewed={viewed ? !viewed.has(v.id) : false}
                 /* §8. Absent means the surface does not track drafts. */
                 drafted={drafted?.has(v.id) ?? false}
+                assignee={assigneeFor ? assigneeFor(v.item) : undefined}
+                closed={
+                  closed?.byId.get(v.item.id)
+                    ? { record: closed.byId.get(v.item.id)! }
+                    : null
+                }
                 /* ═══ WHICH ROW GOES WITHOUT A HAIRLINE ═══
                    Under a band header, every row keeps one: the header is a
                    filled strip and the line beneath it separates two different
@@ -2039,23 +2348,6 @@ export function Worklist({
       ))}
       </div>
 
-      {/* AFTER EVERY BUCKET AND AFTER THE RETIRING BANDS — the last thing in the
-          scroller, which is where "behind you" belongs. Outside the virtualizer
-          on purpose: it is collapsed by default and holds a shift's worth of
-          rows, not a hundred, so the spacer arithmetic has nothing to gain here
-          and everything to lose.
-          AND OUTSIDE THE TREE, which is new and is the point: its root is a
-          roleless div wrapping a toggle and a `ul role="list"`, so as a child
-          of `role="tree"` it broke the tree's content model. It is a separate
-          list with a separate selection and it was never queue content. */}
-      {onSelectCompleted && (
-        <CompletedGroup
-          entries={completed}
-          selectedId={completedSelectedId}
-          onSelect={onSelectCompleted}
-          activityHref={activityHref}
-        />
-      )}
     </div>
     </>
   );

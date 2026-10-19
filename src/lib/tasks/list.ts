@@ -25,6 +25,7 @@
 // plain row, and resolving the last one removes the row entirely — §4's "resolving
 // the last child resolves the group row", for free.
 
+import type { ClosedCareReview } from "@/lib/tasks/closed-review";
 import { compareTasks, listForDomain, sortedOpen } from "@/lib/tasks/sort";
 import type { TaskDomain, TaskItem, TaskType } from "@/lib/tasks/types";
 
@@ -125,23 +126,29 @@ export function listEntriesForDomains(
  *  are most likely looking for. Ordered by WHEN IT WAS SUBMITTED, not by when
  *  the item opened — the log is of decisions, not of arrivals.
  */
-export function submittedEntries(
-  items: TaskItem[],
-  submitted: readonly { id: string; at: number }[],
+export function closedEntries(
+  records: readonly ClosedCareReview[],
   domains: readonly TaskDomain[]
 ): ListEntry[] {
+  /* ═══ THE RECORD IS THE ROW (Closed-tab pack §0.1) ═══
+     This resolved `{ id, at }` pairs against the live fixture and DROPPED any id
+     that no longer resolved. A closed review is now a self-contained snapshot,
+     so the row is built from what was submitted — nothing is looked up, and
+     nothing can drift or disappear because the fixture moved.
+     DE-DUPLICATED BY ID, FIRST WINS: the caller passes the store's records
+     before the fixture history, so a review the tester submitted outranks a
+     fixture entry that happened to share its id. */
   const set = new Set(domains);
-  const byId = new Map(items.map((i) => [i.id, i]));
-  return [...submitted]
-    .sort((a, b) => b.at - a.at)
-    .map((r) => byId.get(r.id))
-    /* AN ID THAT NO LONGER RESOLVES IS DROPPED, not rendered as a blank row.
-       The store persists ids and the items come from a fixture, so switching
-       scenario leaves submissions pointing at items that do not exist in the
-       new one. That is a real state in the harness and a plausible one in
-       production after a data migration. */
-    .filter((i): i is TaskItem => !!i && set.has(i.domain))
-    .map((item) => ({ kind: "item" as const, id: item.id, item }));
+  const seen = new Set<string>();
+  const out: ClosedCareReview[] = [];
+  for (const r of records) {
+    if (seen.has(r.id) || !set.has(r.snapshot.item.domain)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out
+    .sort((a, b) => b.submittedAt - a.submittedAt)
+    .map((r) => ({ kind: "item" as const, id: r.id, item: r.snapshot.item }));
 }
 
 /** ═══ EVERY FLAG — AND THERE IS ONE DOMAIN NOW (Phase 4) ═══

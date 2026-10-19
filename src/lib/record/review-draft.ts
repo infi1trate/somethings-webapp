@@ -40,6 +40,25 @@ export type ReviewDecision =
 
 export interface ReviewDraft {
   decision: ReviewDecision | null;
+  /** ═══ WHETHER THE SUPERVISOR SAID `Save draft` (row-items §1.1) ═══
+   *
+   *  §1.1 asked whether an edit becomes a draft on any change or only on an
+   *  explicit save, because "these produce visibly different lists". ANSWERED:
+   *  only on explicit `Save draft`.
+   *
+   *  SO THERE ARE TWO THINGS HERE AND THERE USED TO BE ONE. The autosave buffer
+   *  still exists and still writes on every keystroke — removing it would mean
+   *  a supervisor who types a paragraph and clicks a row loses the paragraph,
+   *  which §1.1 did not ask for and which no answer about a MARKER should
+   *  cost. What the answer changes is what COUNTS as a draft: unsaved work is
+   *  not a draft, so it gets no marker and the list stays honest about what has
+   *  been committed to.
+   *
+   *  ABSENT MEANS NOT SAVED, which is also the right migration: every draft
+   *  already in a session's storage was written by the old keystroke autosave,
+   *  and none of those were explicit saves. They restore into the form exactly
+   *  as before and simply stop claiming a marker. */
+  saved?: boolean;
   body: CareUpdateBody;
   /** ═══ C3: PROVENANCE TRAVELS WITH THE TEXT ═══
    *
@@ -155,6 +174,26 @@ export function writeReviewDraft(
      draft. Announcing unconditionally keeps "the store changed" and "the store
      persisted" as two separate claims, and only the first one is this line's. */
   announceDraftChange();
+}
+
+/** ═══ PROMOTE THE AUTOSAVE BUFFER TO A SAVED DRAFT (§1.1) ═══
+ *  Reads what the keystroke autosave already put down and flips one flag, so
+ *  `Save draft` cannot disagree with the text on screen — there is no second
+ *  serialisation to get out of step.
+ *  A NO-OP IF NOTHING IS STORED. `Save draft` on an untouched form has nothing
+ *  to promote, and writing an empty draft to create a marker would make the
+ *  marker mean "somebody pressed a button" rather than "there is work here". */
+export function markReviewDraftSaved(teenId: string, reviewId: string): void {
+  const existing = readReviewDraft(teenId, reviewId);
+  if (!existing) return;
+  writeReviewDraft(teenId, reviewId, { ...existing, saved: true });
+}
+
+/** What the LIST tests. Separate from `readReviewDraft` because the form wants
+ *  any buffered text and the row wants only a saved draft — one storage key,
+ *  two questions, and conflating them is what made every keystroke a marker. */
+export function hasSavedReviewDraft(teenId: string, reviewId: string): boolean {
+  return readReviewDraft(teenId, reviewId)?.saved === true;
 }
 
 export function clearReviewDraft(teenId: string, reviewId: string): void {

@@ -263,6 +263,7 @@ export function ActivityRow({
   density = "dense",
   selected = false,
   onSelect,
+  onNavigate,
 }: {
   row: FeedRow;
   href: string;
@@ -288,6 +289,13 @@ export function ActivityRow({
   /** A12: a single click SELECTS rather than navigating. The row's own Open action
    *  still navigates — see the note on the overlay below. */
   onSelect?: (row: FeedRow) => void;
+  /** ═══ LINK MODE — THE BELL (2026-10-16) ═══
+   *  "Activity events no longer need a detail; the event list item is good
+   *  enough." With no `onSelect`, nothing is selected and no pane opens, so the
+   *  full-row target is a real LINK to the row's object and the action bar's
+   *  separate "Open" is dropped as a duplicate. `onNavigate` lets the bell's
+   *  popover close as the link is followed. */
+  onNavigate?: () => void;
   onClear: (row: FeedRow) => void;
   /** Present when the Cleared items filter is on. Its presence is what swaps
    *  Clear for Restore — the row does not need to be told which mode it is in. */
@@ -346,6 +354,21 @@ export function ActivityRow({
     };
   }, [row, unread, onSeen]);
 
+  /* THE FULL-ROW TARGET'S BOX — one class list for both modes (select button
+     and link), so the two cannot drift. */
+  const targetClass = cn(
+    detailed
+      ? "absolute inset-0 z-[1] rounded-[var(--radius-inset)] transition-colors"
+      : "absolute inset-y-0 left-1.5 right-1.5 z-[1] rounded-[var(--radius-inset)] transition-colors",
+    // SELECTED: a stronger fill AND a contour. Two channels, because the
+    // fill alone is one step along the same ladder hover uses and would be
+    // ambiguous the moment the cursor sat on a different row.
+    selected
+      ? "bg-[var(--tint-press)] outline outline-1 outline-[color:var(--border-contour)]"
+      : "group-hover:bg-[var(--tint-hover)]",
+    "focus-visible:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
+  );
+
   return (
     <li
       ref={ref}
@@ -396,27 +419,28 @@ export function ActivityRow({
           only meaningful inside a listbox/grid/tab container and this is an ordered
           list of feed items — A10's divider work and A7's list semantics both
           depend on that staying an `<ol>`. */}
-      <button
-        type="button"
-        onClick={() => onSelect?.(row)}
-        aria-current={selected ? "true" : undefined}
-        // THE ACCESSIBLE NAME IS THE FULL SENTENCE PLUS THE ABSOLUTE TIME —
-        // never the truncated visual string, and never the time-of-day alone
-        // (the day divider that supplies the date is not in the accessible name).
-        aria-label={`${row.sentence} ${row.absolute}${unread ? ". Unread" : ""}`}
-        className={cn(
-          detailed
-            ? "absolute inset-0 z-[1] rounded-[var(--radius-inset)] transition-colors"
-            : "absolute inset-y-0 left-1.5 right-1.5 z-[1] rounded-[var(--radius-inset)] transition-colors",
-          // SELECTED: a stronger fill AND a contour. Two channels, because the
-          // fill alone is one step along the same ladder hover uses and would be
-          // ambiguous the moment the cursor sat on a different row.
-          selected
-            ? "bg-[var(--tint-press)] outline outline-1 outline-[color:var(--border-contour)]"
-            : "group-hover:bg-[var(--tint-hover)]",
-          "focus-visible:bg-[var(--tint-hover)] focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--focus-ring)]"
-        )}
-      />
+      {onSelect ? (
+        <button
+          type="button"
+          onClick={() => onSelect(row)}
+          aria-current={selected ? "true" : undefined}
+          // THE ACCESSIBLE NAME IS THE FULL SENTENCE PLUS THE ABSOLUTE TIME —
+          // never the truncated visual string, and never the time-of-day alone
+          // (the day divider that supplies the date is not in the accessible name).
+          aria-label={`${row.sentence} ${row.absolute}${unread ? ". Unread" : ""}`}
+          className={targetClass}
+        />
+      ) : (
+        /* LINK MODE: the row is the way to the object (see `onNavigate`). The
+           same box and the same name, so a row reads the same in both modes. */
+        <Link
+          href={href}
+          onClick={onNavigate}
+          data-activity-row-link
+          aria-label={`${row.sentence} ${row.absolute}${unread ? ". Unread" : ""}`}
+          className={targetClass}
+        />
+      )}
 
       {/* ═══ UNREAD: A SURFACE STEP, NOT A DOT ALONE (A10 item 5, spec §12).
           
@@ -742,6 +766,7 @@ export function ActivityRow({
             {/* TODO-COPY */}
             {onRestore ? "Restore" : "Clear"}
           </button>
+          {onSelect && (
           <Link
             href={href}
             aria-label={`Open. ${row.sentence}`}
@@ -754,6 +779,7 @@ export function ActivityRow({
             {/* TODO-COPY */}
             Open
           </Link>
+          )}
         </span>
       </div>
 

@@ -53,7 +53,7 @@
       "id": "boundary.links-out",
       "label": "every link leaves for a surface that owns the work",
       "ok": true,
-      "detail": "/app/escalations /app/risk-flags /app/care-reviews /app/care-reviews?review=task-9 /app/care-reviews?review=task-10 /app/care-reviews?review=task-12 /app/care-reviews?review=task-11 /app/activity?scope=mine&domain=escalation /app/activity?scope=mine&domain=risk /app/activity?scope=mine&domain=billing"
+      "detail": "/app/escalations /app/risk-flags /app/care-reviews /app/care-reviews?review=task-9 /app/care-reviews?review=task-10 /app/care-reviews?review=task-12 /app/care-reviews?review=task-11"
     },
     {
       "id": "ladder.active-escalation",
@@ -129,7 +129,7 @@
       "id": "state.allclear-plain",
       "label": "an all-clear Home says what is true and does not celebrate",
       "ok": true,
-      "detail": "👋 Good morning Every count below belongs to the destination it links "
+      "detail": "👋 Good evening Every count below belongs to the destination it links "
     },
     {
       "id": "state.partial-is-noop",

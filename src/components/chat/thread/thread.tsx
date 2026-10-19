@@ -131,6 +131,7 @@ export function Thread({
   onEscalateFrom,
   onOpenEvent,
   onOpenAssessment,
+  onOpenSupervisor,
   onOpenCrisis,
   onResolveEscalation,
   insert,
@@ -158,6 +159,9 @@ export function Thread({
   onOpenEvent?: (event: ChatEvent) => void;
   /** The banner's three actions. Absent on a support thread. */
   onOpenAssessment?: () => void;
+  /** Opens the notified supervisor's thread in the Support panel (SUP-5).
+   *  Absent when this viewer cannot reach that contact: plain text then. */
+  onOpenSupervisor?: () => void;
   onOpenCrisis?: () => void;
   onResolveEscalation?: () => void;
   /** Text to drop into the composer, unsent. See `Composer`'s own note on why this
@@ -317,7 +321,30 @@ export function Thread({
               Not a toast. The mentor who raised this needs to be able to check — an
               hour later, mid-phone-call, after a navigation — that somebody knows.
               See `StatusBanner`. */
-          meta={`Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)} · opened ${clockTime(escalation.openedAt)}`}
+          meta={
+            onOpenSupervisor ? (
+              <>
+                {/* ═══ THE FACT IS THE DOOR (SUP-5) ═══ "Supervisor notified"
+                    opens that supervisor's thread in the Support panel — the
+                    moment a mentor needs them is the moment they are told. An
+                    inline link in a sentence, so 2.5.8's inline exception holds
+                    for its target height. */}
+                <button
+                  type="button"
+                  data-slot="banner-supervisor"
+                  onClick={onOpenSupervisor}
+                  /* TODO-COPY */
+                  aria-label={`Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)}. Message them in Support`}
+                  className="rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+                >
+                  Supervisor notified {clockTime(escalation.supervisorNotifiedAt)}
+                </button>
+                {` · opened ${clockTime(escalation.openedAt)}`}
+              </>
+            ) : (
+              `Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)} · opened ${clockTime(escalation.openedAt)}`
+            )
+          }
         >
           {/* ═══ CRISIS INFO IS THE PRIMARY, NOT THE ASSESSMENT ═══
               A mentor pressing something on this banner in a hurry is reaching for

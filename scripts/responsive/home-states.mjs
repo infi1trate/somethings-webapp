@@ -152,7 +152,9 @@ const mainText = (page) => page.locator("main").innerText();
 {
   const { context, page } = await open("boundary");
   const controls = await page.evaluate(() =>
-    [...document.querySelectorAll("main button, main [role='button'], main input, main select, main textarea")].map(
+    /* The Support panel sits inside `<main>` since SUP-2; it is shell chrome,
+       measured in `support-panel.mjs`, not a control Home owns. */
+    [...document.querySelectorAll("main button, main [role='button'], main input, main select, main textarea")].filter((e) => !e.closest("[data-support-slot]")).map(
       (e) => (e.getAttribute("aria-label") || e.innerText || e.tagName).replace(/\s+/g, " ").trim().slice(0, 40)
     )
   );
@@ -188,7 +190,7 @@ const mainText = (page) => page.locator("main").innerText();
        that own that work now, and the old list rejected both.
        `/app/escalation/{id}` STAYS ALLOWED AND IS NOT A BROKEN LINK: it is a
        documented HOP that redirects to `/app/escalations?escalation={id}` —
-       `src/app/app/escalation/[escalationId]/page.tsx` says so at the top.
+       `src/app/(console)/app/escalation/[escalationId]/page.tsx` says so at the top.
        THE CLAIM IS UNCHANGED: every link leaves for a surface that owns the
        work, and none of them acts on it here. */
     links.length > 0 &&

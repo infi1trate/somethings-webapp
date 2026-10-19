@@ -114,7 +114,9 @@
    content panel has to keep this much clear at the TOP or its first row starts
    underneath the wordmark.
 
-   96px = the frame's 16px top padding + its 64px chrome + 16px bottom padding.
+   76px = the frame's 16px top padding + 44px chrome + 16px bottom padding.
+   The frame's chrome is 64; SUP-1 took the buttons to 44 so the support CTA
+   fits a 390 phone (`top-bar.tsx`), and this moved with them.
    The safe-area inset is ADDED, not substituted: a notched device needs the
    physical inset as well as the designed padding.
 
@@ -125,7 +127,7 @@
    fix is the same shape. */
 :root,
 .theme-light {
-  --topbar-reserve: calc(96px + env(safe-area-inset-top, 0px));
+  --topbar-reserve: calc(76px + env(safe-area-inset-top, 0px));
 }
 
 @media (min-width: 60rem) {
@@ -470,5 +472,152 @@
   .chat-ref-flash > span > div {
     animation: none;
     background-color: var(--band-amber-bg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE LIST AND PANE SCROLLBARS — NATIVE BAR HIDDEN, CUSTOM THUMB OVERLAID
+   ═══════════════════════════════════════════════════════════════════════════
+
+   THIS REPLACES `.scroll-slim`, AND `.scroll-slim` WAS THE CAUSE. It styled
+   `::-webkit-scrollbar { width: 24px }` to get a 24px grab zone, and styling
+   that pseudo-element opts Chromium and WebKit into a custom CLASSIC bar that
+   always takes layout width — measured on this machine's Chrome 152, 15px
+   unstyled and 24px with the utility. On macOS's overlay default it created a
+   gutter where there had been none. It looked fixed in every probe because
+   Playwright launches Chromium with `--hide-scrollbars`.
+
+   SO THE NATIVE BAR IS NOT STYLED, IT IS REMOVED. `scrollbar-width: none` for
+   Firefox and the standards path; `::-webkit-scrollbar { display: none }` for
+   Chromium and Safari. Scrolling itself is untouched — only the paint goes —
+   and `OverlayScrollbar` draws a thumb over the rows.
+
+   THE GUTTER IS 0 ON EVERY PLATFORM BY CONSTRUCTION. There is no native bar
+   left that could reserve one, which is the only way to make the result hold on
+   Windows and on macOS "always show scroll bars", where a native bar takes
+   space however it is styled. */
+@layer utilities {
+  .scroll-overlay {
+    scrollbar-width: none;
+  }
+  .scroll-overlay::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* THE RAIL: zero-height and sticky, so it holds still while content scrolls
+     beneath it. `pointer-events: none` on the rail so it never eats a click
+     meant for a row; the thumb turns them back on for itself. */
+  .ovl-rail {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    height: 0;
+    pointer-events: none;
+  }
+
+  /* THE HIT AREA — 24px wide, at least 32px tall (see `THUMB_MIN_PX`). It is
+     transparent; the mark inside is what is painted. */
+  .ovl-thumb {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 24px;
+    pointer-events: auto;
+    cursor: default;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+  .ovl-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 6px;
+    width: 6px;
+    border-radius: var(--radius-pill);
+    /* `--text-muted`, AND IT WAS `--border-contour`. MEASURED: contour is
+       1.36-1.79:1 over every ground the thumb crosses (card rows, the s1 header,
+       the s2 selected row) in both themes. A NATIVE bar is a user-agent control
+       and exempt from SC 1.4.11; a custom, draggable thumb is author UI, and
+       when it is shown it has to be identifiable at 3:1. Muted clears it over
+       all six grounds, lowest 4.02:1. "Low contrast at rest" is satisfied by
+       the thumb being INVISIBLE at rest, not by being faint while in use. */
+    background-color: var(--text-muted);
+    transition: background-color 160ms ease;
+  }
+
+  /* SHOWN ON SCROLL, ON HOVER OF THE REGION, ON KEYBOARD FOCUS INSIDE IT, AND
+     WHILE DRAGGING — and only then. The overlap with the rows is TRANSIENT,
+     which is the convention; at rest the rows have the full width. */
+  .scroll-overlay[data-scrolling="true"] > .ovl-rail .ovl-thumb,
+  .scroll-overlay[data-dragging="true"] > .ovl-rail .ovl-thumb,
+  .scroll-overlay:hover > .ovl-rail .ovl-thumb,
+  .scroll-overlay:focus-visible > .ovl-rail .ovl-thumb {
+    opacity: 1;
+  }
+  /* Under the pointer and while dragging it steps up once more, so the reader
+     can see they have hold of it. */
+  .ovl-thumb:hover .ovl-mark,
+  .scroll-overlay[data-dragging="true"] > .ovl-rail .ovl-mark {
+    background-color: var(--text-secondary);
+  }
+
+  /* The bar still appears and still tints; it just does not fade. */
+  @media (prefers-reduced-motion: reduce) {
+    .ovl-thumb,
+    .ovl-mark {
+      transition: none;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEPARATED INLINE LISTS — A DOT BETWEEN ITEMS, NEVER AT A LINE START
+   ═══════════════════════════════════════════════════════════════════════════
+
+   THE DEFECT, MEASURED: the Care Reviews header sentence wraps at 1600 and
+   below, and when each clause carried its own leading `·` the wrapped clause
+   brought its dot to the start of line two — "· 140 days in mentorship". A
+   separator separates two things; at a line start it separates nothing.
+
+   CSS CANNOT ASK "AM I FIRST ON MY LINE", SO THE DOT IS PUT WHERE A CLIP CAN
+   ANSWER IT. Every item carries its dot in its own left padding; the list is
+   pulled left by exactly that padding; and the WRAPPER clips at the true left
+   edge. So the item that starts any line has its dot in the clipped strip, and
+   every other item's dot sits in the gap after its neighbour. No JavaScript, no
+   measuring, and it re-resolves on every reflow for free.
+
+   `content: "·" / ""` GIVES THE DOT EMPTY ALT TEXT. Generated content is in the
+   accessibility tree in Chromium and Safari, so a bare `content: "·"` would be
+   announced as "middle dot" between clauses. The callers supply their own
+   screen-reader separator. */
+@layer utilities {
+  .sep-clip {
+    overflow: hidden;
+  }
+  .sep-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin-left: -20px;
+  }
+  .sep-item {
+    position: relative;
+    padding-left: 20px;
+  }
+  /* 8px each side of a ~4px dot inside a 20px gap: the same 8px the inline
+     `mx-2` separator used, so the spacing a reader saw before is unchanged. */
+  .sep-item::before {
+    content: "·" / "";
+    position: absolute;
+    left: 8px;
+  }
+  /* The first item never takes one — explicit rather than relying on the clip,
+     so a list that does not wrap still reads "A · B · C" and not "· A · B · C"
+     if a wrapper ever loses its `overflow`. */
+  .sep-item:first-child::before {
+    content: none;
   }
 }

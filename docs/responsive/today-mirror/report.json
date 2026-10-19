@@ -1,11 +1,11 @@
 {
-  "generated": "2026-09-29T15:07:41.731Z",
+  "generated": "2026-10-16T21:16:27.258Z",
   "rows": [
     {
       "id": "store.present",
       "label": "the persisted store exists, so a diff of it means something",
       "ok": true,
-      "detail": "53 keys"
+      "detail": "55 keys"
     },
     {
       "id": "store.baseline-off-today",
@@ -47,7 +47,7 @@
       "id": "links.present",
       "label": "Today offers links at all",
       "ok": true,
-      "detail": "10 link(s)"
+      "detail": "8 link(s)"
     },
     {
       "id": "links.leave",

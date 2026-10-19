@@ -64,7 +64,7 @@ const SWATCHES: { token: string; value: string; note?: string }[] = [
   { token: "border/border-subtle", value: "#dfddd8" },
   { token: "text/primary", value: "#1f1e1d" },
   { token: "text/secondary", value: "#58534b" },
-  { token: "text/tertiary", value: "#a0998d", note: "⚠ 2.57:1 — decorative only" },
+  { token: "text/tertiary", value: "#716a60", note: "Bloom value since SUP-1; was #a0998d (2.57:1)" },
   { token: "muted (untokenized)", value: "#797774", note: "⚠ 4.06:1 on s1" },
   { token: "states/inactive", value: "#b8b2a9" },
   { token: "button/border/default", value: "#716a60", note: "focus ring" },

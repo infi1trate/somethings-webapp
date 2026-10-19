@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
+import { AlertTriangle, ChevronDown } from "lucide-react";
 import { PillButton } from "@/components/settings/pill-button";
 import { RecordButton } from "@/components/record/record-button";
 import { ReviewBody } from "@/components/record/review-body";
@@ -34,13 +34,16 @@ import {
   type BillingCommitDetail,
   type BillingSubmitHandle,
 } from "@/components/tasks/billing-review";
-import { elapsedLabel } from "@/components/tasks/strips";
 /* `chatThreadHref` AND `MessageSquare` LEFT WITH THE SECOND LINK (§3).
    The conversation link is gone — one way out, not two — and the import
    goes with it rather than sitting unused above a pane that no longer
    offers that destination. `chatThreadHref` is still exported and still
    used by the record header and the Risk Flags pane. */
-import type { CompletedEntry } from "@/components/tasks/completed-group";
+import { OUTCOME_VERB, type ClosedCareReview } from "@/lib/tasks/closed-review";
+import { BillingCodeLozenge } from "@/components/record/proposal-codes";
+
+import { CareUpdateBodyView, CareUpdateByline } from "@/components/record/care-update-view";
+import type { CareUpdateRecord } from "@/lib/record/care-demo";
 // Still used by the BILLING pane's Notes link — a different block from the
 // risk-flag excerpt. (It read "AI-summary link" until that block's label became
 // "Notes"; the link itself is unchanged.)
@@ -50,6 +53,9 @@ import {
   firstNameOf,
 } from "@/lib/tasks/conversation";
 import { ConversationExcerpt } from "@/components/tasks/conversation-excerpt";
+import { OverlayScrollbar } from "@/components/ui/overlay-scrollbar";
+import { OverdueChip } from "@/components/tasks/worklist";
+import { isOverdue } from "@/lib/tasks/care-overdue";
 import {
   type BillingPayload,
   type RiskFlagPayload,
@@ -62,6 +68,13 @@ import {
   SystemBlock,
 } from "@/components/ui/evidence-primitives";
 import { cn } from "@/lib/utils";
+
+/** The field-label face — the same tokens `review-body.tsx` and
+ *  `care-update-view.tsx` use for their own labels. */
+const LABEL_STYLE = {
+  font: "var(--type-field-label)",
+  letterSpacing: "var(--type-field-label-tracking)",
+} as const;
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -219,6 +232,204 @@ function RiskFlagBody({
    `messagesLast30` would look authoritative and be invented, which is the
    failure arch-mon spent a phase removing from the flag tiers. Blocked and
    reported rather than approximated. */
+/** ═══ THE MENTOR CHIP — INLINE, LINE-HEIGHT TALL (header pass 3, §2.2) ═══
+ *
+ *  Last pass this was a block-level pill carrying a `Mentor` label, an initial
+ *  and the name at two type steps. §2.2 puts it INSIDE a sentence — "Mentored by
+ *  [● Nour Barakat] · 140 days in mentorship · …" — so three things change:
+ *
+ *  · THE ROLE WORD LEAVES THE CHIP. "Mentored by" carries the role in the
+ *    language, so a `Mentor` label inside the pill would say it twice — and it
+ *    was the chip's second type style.
+ *  · IT IS EXACTLY THE LINE'S HEIGHT. 20px, the body step's line-height, so the
+ *    chip sits in the line like a word rather than bumping it taller. MEASURED in
+ *    the commit: the sentence's line box is the same height with and without it.
+ *  · ONE TYPE STYLE INSIDE IT. The initial and the name are both the body step;
+ *    the circle is what distinguishes the initial, not a smaller size.
+ *
+ *  ═══ STILL NOT INTERACTIVE, FOR THE SAME REASON ═══
+ *
+ *  There is no mentor record to link to: `/admin/person/{id}` is keyed by teen id
+ *  and the mentor exists here as a name on the task with no id. So it must not
+ *  look interactive — a `span`, no tab stop, no hover, no pointer cursor. A chip
+ *  is a pattern people expect to click, which is why this is asserted rather
+ *  than left to styling.
+ *
+ *  `--surface-s1` ON THE `--surface-s2` BAND — Tier 2 inside Tier 1, the same
+ *  ranking the Assessments block uses. No contour: a fill and a contour together
+ *  are two treatments, which `flag-task-card` rules out for tonal insets.
+ */
+function MentorChip({ name }: { name: string }) {
+  return (
+    <span
+      data-anno-ref="mentor-chip"
+      /* `align-top`, AND IT WAS `align-[-5px]`. MEASURED: the offset pushed the
+         chip 5px below its line box, so a two-line sentence measured 45px instead
+         of 40 — the chip WAS bumping the row, which my first check missed because
+         it compared the chip's height to the line-height rather than measuring
+         the line. A 20px inline box aligned to the TOP of a 20px line cannot
+         extend it, and because the name inside is the same 14/20 as the words
+         around it, the baselines still meet. */
+      className="inline-flex h-5 max-w-full items-center gap-1 rounded-full bg-[var(--surface-s1)] pr-2 align-top"
+    >
+      {/* THE MARK, at the line's own height. `aria-hidden` — it is the first
+          letter of the name beside it. */}
+      <span
+        aria-hidden
+        /* 14/20, NOT 14 with `leading-none` — `leading-none` made the initial a
+           14/14 style of its own, measured as a separate entry in the band's
+           type count. In a 20px circle a 20px line centres the same glyph. */
+        /* `--surface-card`, AND IT WAS `--surface-s2` — WHICH IS THE BAND'S OWN
+           FILL. The disc sits flush against the pill's left edge, so in the band's
+           colour it vanished into the band and the initial read as a letter on the
+           header rather than as the chip's avatar. Card is distinct from both the
+           band (s2) and the pill (s1) in both themes. */
+        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-card)] text-[14px] leading-[20px] text-[var(--text-secondary)]"
+      >
+        {name.charAt(0)}
+      </span>
+      <span className="min-w-0 truncate text-[14px] leading-[20px] text-[var(--text-primary)]">
+        {name}
+      </span>
+    </span>
+  );
+}
+
+/** ═══ THE HEADER SENTENCE (header pass 3, §2.2) ═══
+ *
+ *  Mentored by [● Nour Barakat] · 140 days in mentorship · 62 messages in the
+ *  last 30 days
+ *
+ *  ═══ WHY A SENTENCE AND NOT THE STAT STRIP ═══
+ *
+ *  §2.1's diagnosis, accepted in full: four stacked pairs with hairlines are a
+ *  dashboard idiom; their column widths came from the LABELS ("Messages, last 30
+ *  days" is 142px over a 2-digit value); the row mixed a one-line pill with
+ *  two-line pairs; and the band was 175px because four pairs did not fit beside
+ *  the chip at any width under 1920 — measured last pass. A sentence wraps where
+ *  a column grid breaks, and a supervisor reads one record here, so the header
+ *  has to orient rather than be scanned as columns. That last reading was the
+ *  pack's and is the reason the trade is worth it.
+ *
+ *  ═══ ONE TYPE STYLE — AND THE WEIGHT IS NOT WHERE THE PACK ASKED ═══
+ *
+ *  §2.2: "Numerals carry semibold weight inline; the surrounding words stay
+ *  regular. Emphasis by weight, not by size or column."
+ *  `font-semibold` ON THE BODY FAMILY RENDERS NOTHING. Only `TWKLausanne-400`
+ *  ships, and this repo has measured it identical at 400/500/600/700 in four
+ *  places — so semibold numerals in Lausanne would be the instruction declared
+ *  and not delivered.
+ *  THE NUMERALS TAKE THE DISPLAY FACE INSTEAD. Avantt is the band's title face
+ *  already and ships Bold only — a MEASURED +19% ink over Lausanne 400, which is
+ *  the weight step the pack wants, delivered by the only bold this product has.
+ *  It adds no family to the band (the title is Avantt) and no size (it is the
+ *  body step, 14/20). Ink is measured in the commit.
+ *  WORDS ARE SECONDARY INK, NUMERALS PRIMARY, so the figures lead on two
+ *  channels and the sentence still reads as one quiet line.
+ *
+ *  ═══ WHAT LEFT ═══
+ *
+ *  · `Days open`, per §2.4 — a fact about the REVIEW, not the mentorship, and the
+ *    list row already shows it. The overdue marker beside the name replaces it,
+ *    because urgency is what the header needs to say.
+ *  · The engaged-days slot and its em-dash, per §2.4: "No dash, no placeholder,
+ *    no reserved slot." It appends here when it can — and note that §2.4 calls
+ *    it undefined; it IS defined ("the days a teen sent a message", option a,
+ *    implemented in `lib/tasks/engaged-days.ts`). It is unrendered because the
+ *    fixture's whole conversation spans 4.5h, so the count would be a constant 1.
+ *    Same outcome; different reason.
+ */
+function HeaderSentence({
+  mentorName,
+  stats,
+  atTimeOfReview = false,
+}: {
+  mentorName: string;
+  /** ═══ §2.3 · A CLOSED RECORD'S FIGURES ARE THE ONES THE SUPERVISOR SAW ═══
+   *  On a closed review `stats` come from the snapshot, and the sentence says
+   *  so — live figures on a historical record would misrepresent what the
+   *  decision was made against. TODO-COPY. */
+  atTimeOfReview?: boolean;
+  /** The billing payload's figures. `null` on a non-billing item, where the
+   *  sentence states the mentorship and nothing about it. */
+  stats: { daysInMentorship: number; messagesLast30: number } | null;
+}) {
+  /* NEEDS-COPY-NICOLE on all three clauses — exact wording is Nicole's. */
+  const clauses: { id: string; value: number; tail: string }[] = stats
+    ? [
+        { id: "mentorship", value: stats.daysInMentorship, tail: "days in mentorship" },
+        { id: "messages", value: stats.messagesLast30, tail: "messages in the last 30 days" },
+      ]
+    : [];
+  return (
+    /* `.sep-clip` CLIPS AT THE BAND'S TRUE LEFT EDGE so a wrapped line's
+       leading dot is hidden — see `.sep-list` in `globals.css`, and the
+       measured defect it fixes ("· 140 days in mentorship" at 1280). */
+    <div className="sep-clip">
+      <p
+        data-slot="engagement"
+        /* TYPE STEP: BODY, 14/20. Secondary ink for the words; the numerals and
+           the chip's name carry primary. `gap-y-0`: each flex line IS a text
+           line, 20px, so two lines are 40 with nothing between them. */
+        className="sep-list text-[14px] leading-[20px] text-[var(--text-secondary)]"
+      >
+        {/* ═══ CLAUSES WRAP AS UNITS, NOT WORD BY WORD ═══
+            MEASURED at 1600: the line once broke inside the last clause and left
+            "days" alone on line two. Each clause is `whitespace-nowrap` and a
+            flex item, so a break can only fall BETWEEN clauses — and the
+            separator logic above hides the dot that would then lead the line.
+            The widest clause is ~210px against a 457px band at 1280. */}
+        {/* NEEDS-COPY-NICOLE */}
+        <span className="sep-item whitespace-nowrap">
+          Mentored by <MentorChip name={mentorName} />
+        </span>
+        {clauses.map((c) => (
+          <span key={c.id} data-metric={c.id} className="sep-item whitespace-nowrap">
+            {/* The spoken separator; the visible dot is CSS with empty alt
+                text, so it is not announced as "middle dot". */}
+            <span className="sr-only">, </span>
+            <span
+              data-metric-value
+              /* THE EMPHASIS: Avantt Bold at the body step — see the note on this
+                 component for why not `font-semibold`. `leading-none` stops the
+                 second face growing the line box (measured: 41px -> 40 for two
+                 lines) while keeping the figure on the words' baseline. */
+              className="font-display font-bold leading-none tabular-nums text-[var(--text-primary)]"
+            >
+              {c.value}
+            </span>{" "}
+            {c.tail}
+          </span>
+        ))}
+        {atTimeOfReview && stats && (
+          <span data-metric="as-of" className="sep-item whitespace-nowrap">
+            <span className="sr-only">, </span>
+            {/* TODO-COPY */}
+            at time of review
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/** ═══ RETIRED BY §3 — THE BORDERED STRIP IS DELETED, NOT MOVED ═══
+ *
+ *  §3.1 names three defects and all three were positional: mentor identity sat
+ *  below the Assessments block as though it belonged to it; two metrics hid
+ *  behind a chevron; and `View care journey` floated top-right with nothing near
+ *  it to explain it. §3.2 puts identity in the header's left and the figures in
+ *  its right, so there is nothing left for this container to hold.
+ *
+ *  UNMOUNTED RATHER THAN DELETED, per the strangler rule — and this component in
+ *  particular has already been removed and remounted once: the Figma alignment
+ *  pass took it out, §7 put it back, and the note inside it records that the
+ *  one-line remount is the argument FOR keeping retired code. Deleting it now
+ *  would throw away the thing that made §7 cheap, the second time round.
+ *  WHAT IS NOT RETIRED IS THE CONTENT. Every figure it held is on screen now,
+ *  and unconditionally — so this is a container retiring, not a fact.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function RecordContext({
   payload,
   mentorName,
@@ -392,7 +603,6 @@ function BillingBody({
          STILL A DISCLOSURE, not an expanded panel. The two counts stay behind
          the caret; what the closed state carries is the mentor and the
          duration, which are the two facts §7 named. */
-      recordContext={<RecordContext payload={payload} mentorName={item.mentorName} />}
       onGapsChange={onGapsChange}
       onBlocked={onBlocked}
     >
@@ -442,6 +652,22 @@ function BillingBody({
 
 // ── The frame ───────────────────────────────────────────────────────────────
 
+/** A closed review in the shape the shared read view takes. The view was written
+ *  for the Care page's `CareUpdateRecord`; adapting at the boundary keeps one
+ *  read view rather than a second one for the same three fields. */
+function closedAsUpdate(r: ClosedCareReview): CareUpdateRecord {
+  return {
+    id: `closed-${r.id}`,
+    teenId: r.snapshot.item.teenId,
+    createdAt: r.submittedAt,
+    author: r.submittedBy.name,
+    authorRole: r.submittedBy.role,
+    body: r.body,
+    clinicalProvenance: r.provenance.clinical,
+    diagnosticProvenance: r.provenance.diagnostic,
+  };
+}
+
 /** ═══ WHAT THE KEYBOARD CAN PRESS (Part 3) ═══
  *
  *  `y` / `n` / Enter act on the pane's controls, but the LISTENER lives on the
@@ -477,13 +703,16 @@ export function TaskPane({
      that distinction still matters — it matters on `event-pane.tsx`, which does
      the join now and takes the prop with the same reasoning. Here there is
      nothing left to join. */
-  /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (arch-F, F4) ═══
-   *  Set when the selection is a row from "Completed today". The review renders
-   *  with `canAct={false}` — the module's own tier gate, which already drops the
-   *  proposal chip and the picker — and the action bar is replaced by what was
-   *  submitted and when. A live Submit over a closed review would offer to commit
-   *  it a second time. */
-  completed = null,
+  /** ═══ READ-ONLY, BECAUSE THE DECISION IS ALREADY A RECORD (Closed-tab §2) ═══
+   *  Set when the selection is a review on the Closed tab. It replaces the
+   *  `completed` prop, which only `Completed today` rows ever set — so a row
+   *  picked on the Closed tab rendered the LIVE form (`Save draft`, `Submit`,
+   *  `3 fields needed`) over a review already on the record.
+   *  The review renders from the SNAPSHOT with `canAct={false}` — the module's
+   *  own tier gate, which drops the proposal chip, the picker and `Change
+   *  presentation` — the documentation renders as text, and the action bar is
+   *  the record's byline. Nothing on the pane can commit it a second time. */
+  closed = null,
 }: {
   item: TaskItem | null;
   now: number;
@@ -492,7 +721,7 @@ export function TaskPane({
   /** Where the pane publishes its keyboard-reachable actions. See PaneActions. */
   actionsRef?: React.MutableRefObject<PaneActions>;
   excerptState?: ExcerptState;
-  completed?: CompletedEntry | null;
+  closed?: ClosedCareReview | null;
 }) {
   /** RETRY IS LOCAL AND REAL. The fixture is synchronous, so "retry" is a
    *  re-render — but a reader cannot tell that, and a Retry that did nothing
@@ -625,6 +854,8 @@ export function TaskPane({
      hooks cannot live after one — and it has to handle the no-item case itself
      rather than being skipped, or the page would keep pressing the last item's
      buttons after the list emptied. */
+  /* The pane body's scroller — the custom thumb reads and drives it. */
+  const paneScrollRef = useRef<HTMLDivElement | null>(null);
   const payload = item?.payload;
   const confirmCode =
     payload?.kind === "billing" ? (activeOverride ?? payload.recommended) : null;
@@ -651,12 +882,14 @@ export function TaskPane({
          Bare Enter no longer routes here: `onEnter` returns false for billing so
          the key moves the keyboard into the pane instead. `⌘/Ctrl+Enter` is what
          reaches this. */
+      /* NOTHING TO CONFIRM ON A CLOSED RECORD — `⌘/Ctrl+Enter` must not reach a
+         submit that is not on screen (Closed-tab pack §0.2). */
       confirm:
-        payload.kind === "billing"
+        payload.kind === "billing" && !closed
           ? () => billingHandle.current?.submit()
           : undefined,
     };
-  }, [actionsRef, item, payload, confirmCode, onResolve]);
+  }, [actionsRef, item, payload, confirmCode, onResolve, closed]);
 
   if (!item) {
     return (
@@ -714,106 +947,153 @@ export function TaskPane({
             "due 6:24 PM" sees the same words in the pane rather than a second
             spelling of the same instant.
           · THE TWO WAYS OUT live here. See the note on the CTAs. */}
-      <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="min-w-0">
-            {/* ═══ THE EYEBROW IS GONE (addendum §2.9) ═══
-                It read "Billing code review" above every record on a
-                destination where every record is one — the same string the row
-                chip carried, removed for the same reason. The page title three
-                inches up says what surface this is; the pane's job is to say
-                WHICH one, which is the heading below. */}
-            <h2
-              /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance rule
-                 is a statement about which record is on screen after a resolve,
-                 and reading it off the heading is reading what a supervisor
-                 reads. */
-              data-pane-teen
-              className="mt-0.5 font-display text-[20px] font-bold leading-[28px] text-[var(--text-primary)]"
-            >
-              {item.teenDisplayName}
-            </h2>
-            {/* ═══ EVERY ESCALATION BRANCH IS GONE (Phase 6) ═══
-                This pane is Care Reviews', and Care Reviews has held billing
-                alone since Phase 2 — so `isEscalationTask(item)` was false on
-                every item that can reach here and each branch was unreachable
-                code. `EscalationMeta`, `EscalationCtas` and `EscalationTaskPane`
-                retire with them; the escalation record's own pane on
-                `/app/escalations` is the surviving representation, and Phase 6
-                moved the facts row and the link-outs onto it rather than letting
-                them die with the duplicate. */}
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-[18px] text-[var(--text-secondary)]">
-              <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-                {/* ═══ THE AGE, BARE (Figma alignment §3) ═══
-                    The list's own column is headed "Review age" and its cells
-                    read `3d`; the pane header repeating " open" made the same
-                    fact wear two shapes two inches apart. */}
-                {elapsedLabel(item.openedAt, now)}
-              </span>
-              {/* ═══ AND SO IS THE DUE FACT (addendum §2.9) ═══
-                  The meta line read "2d open · due 6:24 PM", and with
-                  `TASK_SLA_MS` null for both billing types the second half
-                  became the literal "no review deadline" — a clause announcing
-                  the absence of a concept the destination no longer has.
-                  THE AGE STAYS, and it is now the whole line: it is what the
-                  list is ordered by, so the pane and the row agree on the one
-                  figure that explains the queue. */}
-              {/* ═══ THE CHIP IS GONE FROM HERE TOO (arch-G, G1) ═══
-                  arch-F replaced its misleading label (`Past 3d`, the SLA's
-                  LENGTH) with "Overdue" — still a second statement beside
-                  "overdue by 9h". The meta line reads `3d open · overdue by 9h`
-                  and the due fact carries the breach ink, which is the same rule
-                  the rows now follow. */}
-            </p>
+      {/* ═══ TIER 1 · THE HEADER BAND'S TONE (elevation amendment §2) ═══
+          "Tones do not need to be unique. They need to be RANKED, and the
+          header must outrank anything beneath it." Three tiers:
+            Tier 1  this band          `--surface-s2`
+            Tier 0  the pane body      `--surface-card`
+            Tier 2  the nested block   `--surface-s1`  (already, untouched)
+
+          ═══ `--surface-s2` AND NOT `--band-sand-bg`, AND THE NUMBERS DECIDED ═══
+          The amendment describes Tier 1 as "deepest, warmest", and the
+          reference is a `TaskCard` whose band is `--band-sand-bg`. MEASURED as
+          relative luminance x100, sand does not rank:
+            light  Tier1 sand 86.40 < Tier2 s1 90.53 < Tier0 card 100.00
+                   — but sand:s1 is 1.045:1, which is not a rank, it is a
+                     rounding difference
+            dark   Tier2 s1 1.80 < Tier0 card 2.89 < Tier1 sand 6.38
+                   — THE ORDER INVERTS. The "deepest" tier becomes the
+                     brightest thing on the pane.
+          `--surface-s2` holds the ranking in BOTH themes:
+            light  Tier1 74.62 < Tier2 90.53 < Tier0 100.00
+            dark   Tier1  0.41 < Tier2  1.80 < Tier0   2.89
+          with separations of 1.319 / 1.200 light and 1.460 / 1.258 dark.
+          IT IS ALSO STILL WARM — #e5e0d2 is hue 44deg at chroma 19, the same
+          hue family as sand and the same chroma, just deeper. So it satisfies
+          "deepest, warmest" better than the warm-triad token does.
+          AND IT IS THE EXISTING NEUTRAL VARIANT OF THIS PATTERN, not a new
+          choice: `record-authority-note` already uses `--surface-s2` as a flush
+          filled header band over a white body, and its note says why — "the app
+          ground, one step darker than this card's white". The warm triad is
+          SEVERITY-coded (sand/amber/clay via `taskBandFill`), and this band
+          carries identity, not severity; importing a severity tone would import
+          a semantic this pane does not have.
+
+          THE HAIRLINE STAYS `--border-subtle`. `TaskBand` mixes its hairline
+          from the band's own ink at 22% because "a neutral #dfddd8 hairline
+          against a warm tint reads as a seam of a different colour" — that rule
+          is about the warm `--band-*` tints. `record-authority-note`'s
+          `--surface-s2` band keeps the neutral hairline, and this follows it.
+
+          NO `rounded-t-*` AND NO `-mx-*`: the pane container is already
+          `overflow-hidden rounded-[var(--radius-elevated)]`, so the fill
+          terminates on the radius by clipping. `today-page.tsx` records the
+          three-piece `rounded-t` + `border-x border-b` version as the bug.
+
+          PROPORTIONS LEFT ALONE, AND WHY. §3 says to take "the band's
+          proportions" from the reference, and those are specified in §6.3 of a
+          pack this session was never given — the amendment supersedes §6.2 of
+          it and I have only the amendment. `TaskBand`'s own proportions are
+          `min-h-14 px-[var(--surface-pad-x)] py-2` against this band's
+          `px-5 py-4`; changing them is a spec I cannot check, so the TONE is
+          applied and the geometry is not. Reported rather than guessed. */}
+      <div /* ═══ §6.4 · PADDING, BECAUSE A TONAL FILL NEEDS ROOM ═══
+             "With a tonal fill, padding has to be generous or the band reads as
+             a stripe rather than a header."
+             py-4 -> py-5, px-5 -> px-6. MEASURED AGAINST THE ONLY SCALE THIS
+             PRODUCT HAS: Bloom ships no spacing scale (four component pads and
+             nothing else), so Tailwind's 4px step is it — 16px -> 20px vertical
+             and 20px -> 24px horizontal are one step each.
+             AND BOTH NUMBERS ARE BLOOM PADS. `--surface-pad-y` is 20px and
+             `--surface-pad-x` is 24px, which is what the reference band uses
+             and what `TaskCard` uses for its own body. So this is not a nudge
+             to taste — it is the band adopting the component pads it should
+             have had once it became a container. Written as `py-5 px-6` rather
+             than the tokens because the tokens are only wired for the record
+             card's own padding utilities; the VALUES are theirs. */
+            className="shrink-0 border-b border-[color:var(--border-subtle)] bg-[var(--surface-s2)] px-6 py-5">
+      <div
+          /* ═══ TWO ROWS: THE TEEN, THEN ONE LINE ABOUT THE MENTORSHIP ═══
+             Row 1  teen name · View care history  |  overdue marker (when overdue)
+             Row 2  Mentored by [chip] · N days in mentorship · N messages …
+             SUPERSEDES LAST PASS's "chip | metrics" pairing, whose argument —
+             the metrics describe the mentorship and the chip IS the mentorship —
+             survives in the sentence itself: they are the same line now, which
+             is the strongest adjacency available. What did not survive was the
+             stat strip, for the reasons on `HeaderSentence`. */
+          className="flex flex-col gap-2"
+        >
+          {/* ── ROW 1 · the teen and their history | urgency ────────────── */}
+          {/* ═══ THE ACTION MOVED NEXT TO THE NAME, THE URGENCY TOOK ITS SLOT ═══
+              It read `name · [Overdue]  |  [View care journey]` — a bordered
+              button owning the right edge. Product moved it: the history is now
+              a quiet text link beside the name it belongs to, and the right
+              edge goes to the overdue marker, which is the one fact in the band
+              that changes from item to item and so earns the far corner.
+              `items-center` on the row: the marker is a box and centres on the
+              40px name line; the name and its link share a BASELINE inside the
+              left group, because both are text. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <h2
+                /* THE PROBE'S HANDLE ON "WHOSE RECORD IS THIS" — the advance
+                   rule is a statement about which record is on screen after a
+                   resolve, and reading it off the heading is reading what a
+                   supervisor reads. */
+                data-pane-teen
+                /* ═══ TITLE STEP, ONE UP: 24/32 -> 32/40 (§2.2) ═══
+                   "Nothing owns the band." Two passes ago this stopped at 24/32
+                   because 32/40 is also the PAGE title's step and a record header
+                   "must not compete with the page it sits inside". §2.2 asks for
+                   the step anyway, and the band is now one sentence shorter, so
+                   the name is the one thing in it at that size — it owns the band
+                   rather than competing with it. The page title and this name
+                   now share a size; that is the cost, stated. */
+                className="min-w-0 truncate font-display text-[32px] font-bold leading-[40px] text-[var(--text-primary)]"
+              >
+                {item.teenDisplayName}
+              </h2>
+              <Link
+                href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
+                data-care-history-link
+                /* ═══ A TEXT LINK, AND ITS HIT AREA IS STILL 24 TALL ═══
+                   12/16 underlined in `--text-secondary` — 5.78:1 light on the
+                   band (measured last pass for the same token on the same
+                   ground). A 16px line is under SC 2.5.8's 24px, so a
+                   transparent `::after` extends the target 4px above and below
+                   without moving the baseline the name and link share. */
+                className={cn(
+                  "relative shrink-0 whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)] underline underline-offset-2",
+                  "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
+                  "rounded-sm hover:text-[var(--text-primary)]",
+                  RING
+                )}
+              >
+                {/* NEEDS-COPY-NICOLE */}
+                View care history
+              </Link>
+            </div>
+
+            {/* ═══ §2.4 · URGENCY, ONLY WHEN THERE IS SOME ═══
+                `OverdueChip` is the system breach pattern — the same component
+                the list rows use, clay pair plus the triangle icon plus the
+                word, so it is never colour alone (SC 1.4.1). Without `onToggle`
+                it renders as a plain `span`: it states a fact and filters
+                nothing. `isOverdue`, THE SAME PREDICATE THE LIST USES, so the
+                pane and the row cannot disagree about the same item. */}
+            {!closed && isOverdue(item, now) && <OverdueChip />}
           </div>
 
-          {/* ═══ THE TWO WAYS OUT, AND WHY THEY ARE HERE AND NOT ON THE ROWS ═══
-              At 19–100 rows, two or three controls per row puts 40–300 targets in
-              a column whose only job is scanning — Hick's Law, and every one of
-              them a chance to leave the queue by accident. Navigation away from
-              triage is a deliberate, occasional act; selecting a row fills this
-              pane instantly, so the pane header IS the row's control surface.
-              TERTIARY, DELIBERATELY: text buttons with icons, no fill, no border.
-              They must not compete with the recommendation title below them or
-              with the footer's Submit, which is the one primary on the pane. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
-            {/* ═══ ONE SOURCE FOR THE SET, PER TASK KIND (arch-G, G4) ═══
-                MEASURED: two "View care profile" links, identical href, side by
-                side. `EscalationCtas` carries the escalation set — care profile,
-                conversation, escalation record — and this link rendered
-                unconditionally alongside it. A duplicated way out is not
-                harmless in a cluster whose whole design note above is about not
-                competing for the eye: it doubles one destination's weight
-                against the two beside it. */}
-            {/* ═══ ONE WAY OUT, NOT TWO (Figma alignment §3) ═══
-                It was `View care profile` + `View conversation`. The Figma
-                collapses them to a single `View care journey`, and that is the
-                better shape for the reason the cluster's own note above
-                already argues: two tertiary links side by side split the eye,
-                and this pane's job is the decision below them rather than the
-                navigation beside them.
-                IT GOES TO THE CARE TAB, which is where the journey is — the
-                conversation link's own note records that `?msg=` anchoring does
-                not work and that a billing review has no message to anchor to
-                anyway, so the dropped link was the weaker of the two.
-                NOT A FORK: these links are this pane's chrome. `ReviewBody` —
-                the module frozen against the Care page — renders none of them,
-                so the Care page is untouched by this change. */}
-            <Link
-              href={`/admin/person/${encodeURIComponent(item.teenId)}?tab=care`}
-              className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-semibold",
-                "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
-                RING
-              )}
-            >
-              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-              {/* NEEDS-COPY-NICOLE */}
-              View care journey
-            </Link>
-            {/* AN ESCALATION GETS A THIRD WAY OUT — the durable record. Its own
-                component, so the two escalation task types carry the same set. */}
-          </div>
+          {/* ── ROW 2 · one line about the mentorship ─────────────────────── */}
+          {/* §2.5: row 1 and row 2 share a LEFT edge. */}
+          <HeaderSentence
+            mentorName={item.mentorName}
+            /* A CLOSED REVIEW READS ITS SNAPSHOT — `item` IS the snapshot's
+               task on the Closed tab, payload included, so these figures are
+               the ones on screen when it was submitted. */
+            stats={p.kind === "billing" ? p.mentorStats : null}
+            atTimeOfReview={!!closed}
+          />
         </div>
         {/* ═══ THE TIER LINE IS GONE (Phase 4) ═══
             It rendered `tierLabel(p.tier)` under a flag's header — the per-flag
@@ -841,8 +1121,28 @@ export function TaskPane({
            transition is a measurement that cannot tell "no fade" from "a fade
            that has not started". */
         data-fade-phase={phase}
+        /* §2's "appears on scroll" needs a node to write the attribute onto;
+           hover and focus-within are CSS and need nothing. */
+        ref={paneScrollRef}
+        /* FOCUSABLE AND NAMED — same reasoning as the list's. It held form
+           fields, so Chrome never made it a tab stop on its own; keyboard
+           scrolling ran through a focused field. TODO-COPY on the name. */
+        tabIndex={0}
+        role="region"
+        aria-label="Review details"
         className={cn(
-          "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          /* ═══ §1 · SAME CORRECTION HERE — NO RESERVED GUTTER ═══
+             This carried `pr-7` (the existing `px-5` plus 8px) to hold the bar
+             off the prose. §1: "a reserved gutter defeats the point of an
+             overlay scrollbar", and the pane's alley was 8px wider than the
+             list's. Back to the symmetric `px-5` the pane had before the
+             scrollbar work; the bar overlays transiently and fades at rest. */
+          /* `.scroll-overlay`, NOT `.scroll-slim` — the old utility reserved a
+             24px gutter here too (measured, `offsetWidth - clientWidth` = 24 with
+             real scrollbars). The native bar is hidden and `OverlayScrollbar`
+             draws one over the prose. */
+          "scroll-overlay min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]",
           /* ═══ SCROLL PADDING FOR THE STICKY BAR (arch-F, F3) ═══
              The action bar is the last child of this scroller and sticks to its
              bottom edge, so a focus move to a field near the end would land the
@@ -855,6 +1155,7 @@ export function TaskPane({
             : "opacity-100 transition-opacity duration-[120ms] ease-out motion-reduce:transition-none"
         )}
       >
+        <OverlayScrollbar scrollerRef={paneScrollRef} />
         {p.kind === "riskFlag" && (
           <RiskFlagBody
             payload={p}
@@ -865,25 +1166,59 @@ export function TaskPane({
             onRetryExcerpt={() => setRetryNonce((n) => n + 1)}
           />
         )}
-        {p.kind === "billing" && recommended && completed && (
-          /* ═══ THE CLOSED REVIEW, AS A RECORD ═══
-             The module with `canAct={false}`: no proposal chip, no picker, no
-             documentation gate. What a supervisor gets is what they submitted. */
-          <ReviewBody
-            /* THE CLOSED REVIEW FORKS TOO — a supervisor reading back what they
-               submitted should see the pane they submitted it in, not the Care
-               page's rendering of it. */
-            surface="care-reviews"
-            review={billingReviewFor(item, p)}
-            currentCode={p.current?.code ?? null}
-            currentStatement={p.current?.statement ?? null}
-            showCurrentLine
-            decision={null}
-            canAct={false}
-            interactive
-          />
+        {p.kind === "billing" && closed && (
+          /* ═══ THE CLOSED REVIEW, AS A RECORD (Closed-tab pack §2.2) ═══
+             The shared module renders the SNAPSHOT — the review exactly as it
+             was rendered when this was submitted — with `canAct={false}`: no
+             proposal chip, no picker, no `Change presentation`.
+             THE DOCUMENTATION IS TEXT, NOT DISABLED INPUTS. Bloom has no
+             disabled state, and a greyed textarea reads as "you cannot do this
+             yet" rather than "this is finished". `CareUpdateBodyView` is the
+             read view the Care page already renders a committed update with
+             (`care-tab.tsx`), so this is the shared read-only state, on both
+             hosts, with its per-field AI provenance. */
+          <div data-slot="closed-record" className="space-y-4">
+            <ReviewBody
+              surface="care-reviews"
+              review={closed.snapshot.review}
+              currentCode={p.current?.code ?? null}
+              currentStatement={p.current?.statement ?? null}
+              showCurrentLine
+              /* THE RECOMMENDATION AS IT WAS RECOMMENDED. The decision is a
+                 separate fact and gets its own line below, rather than being
+                 folded into the module as a pending change it no longer is. */
+              decision={null}
+              canAct={false}
+              interactive={false}
+            />
+            {/* ═══ THE DECISION, STATED (§2.1) ═══
+                "The presentation decision (recommended code accepted, or changed
+                to what)." MEASURED before this line existed: a `Kept` record's
+                pane showed the recommendation (F33.1) and the code on record
+                (F33.0) and said nothing about which one the supervisor chose —
+                only the row did. Same verb and lozenge as the row's outcome. */}
+            <div data-slot="closed-decision">
+              <p className="text-[var(--text-muted)]" style={LABEL_STYLE}>
+                {/* TODO-COPY */}
+                Decision
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] leading-[20px] text-[var(--text-primary)]">
+                {OUTCOME_VERB[closed.decision.outcome]}
+                <BillingCodeLozenge code={closed.decision.code} tone="identity" />
+                <span className="text-[var(--text-secondary)]">{closed.decision.statement}</span>
+              </p>
+            </div>
+            <p
+              data-anno-ref="care-update-heading"
+              className="font-display text-[16px] font-bold leading-[24px] text-[var(--text-primary)]"
+            >
+              {/* NEEDS-COPY-NICOLE — the same heading the form carries. */}
+              Care Update
+            </p>
+            <CareUpdateBodyView update={closedAsUpdate(closed)} />
+          </div>
         )}
-        {p.kind === "billing" && recommended && !completed && (
+        {p.kind === "billing" && recommended && !closed && (
           <BillingBody
             payload={p}
             item={item}
@@ -951,7 +1286,14 @@ export function TaskPane({
       <div
         data-slot="task-pane-footer"
         className={cn(
-          "sticky bottom-0 -mx-5 -mb-4 mt-4 border-t border-[color:var(--border-subtle)]",
+          /* ═══ `-bottom-4`, NOT `bottom-0` — THE PADDING IS WHY ═══
+             A sticky box's inset is measured from the scroller's CONTENT edge,
+             inside its `py-4`. So `bottom-0` pinned the bar 16px ABOVE the
+             pane's bottom edge, and the fields scrolled through that strip
+             underneath it — measured, a 16px gap below the bar on every
+             scrolled pane. `-bottom-4` cancels the padding exactly, pinning
+             the bar to the edge; `-mb-4` still does the short-content case. */
+          "sticky -bottom-4 -mx-5 -mb-4 mt-4 border-t border-[color:var(--border-subtle)]",
           "bg-[var(--surface-card)] px-5 py-3.5",
           /* ═══ AN EXISTING TOKEN, NOT A NEW VALUE ═══
              The first two attempts were arbitrary values — `shadow-[0_-1px_3px_
@@ -1003,25 +1345,18 @@ export function TaskPane({
           </div>
         )}
 
-        {p.kind === "billing" && completed && (
-          /* NEEDS-COPY-NICOLE. WHAT WAS SUBMITTED AND WHEN — the bar's job on a
-             closed review is to state the outcome, not to offer one. */
-          <p className="text-[13px] leading-[18px] text-[var(--text-secondary)]">
-            {completed.outcome === "unchanged"
-              ? `${completed.code} confirmed`
-              : `Changed to ${completed.code}`}
-            <span aria-hidden className="px-1.5 opacity-40">·</span>
-            <span className="tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-              {new Date(completed.at).toLocaleTimeString("en-US", {
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
-              })}
-            </span>
-          </p>
+        {p.kind === "billing" && closed && (
+          /* ═══ THE FOOTER IS THE RECORD'S METADATA (Closed-tab pack §2.2) ═══
+             Who submitted it and when — absolute, never relative, because this
+             is a record. `CareUpdateByline` is the Care page's own byline for a
+             committed update; `withTime` adds the minute, which that page does
+             not show and this one must. */
+          <div data-slot="closed-byline">
+            <CareUpdateByline update={closedAsUpdate(closed)} withTime verb="Submitted by" />
+          </div>
         )}
 
-        {p.kind === "billing" && recommended && !completed && (
+        {p.kind === "billing" && recommended && !closed && (
           /* ═══ TWO BUTTONS, AND NEITHER NAMES THE CODE ANY MORE ═══
              It was `Confirm unchanged` (tonal, re-reviews only) and
              `Confirm {code}` (primary), and the second named its object for a

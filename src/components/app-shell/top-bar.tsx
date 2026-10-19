@@ -35,8 +35,9 @@
 //    it renders ~169px wide rather than 184px. Flagged rather than stretched.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import Link from "next/link";
-import { Bell } from "lucide-react";
+import { MessagesSquare } from "lucide-react";
+import { ActivityBellMobile } from "@/components/app-shell/activity-bell";
+import { toggleSupport, useSupportOpen } from "@/lib/support/panel";
 import { Wordmark } from "@/components/brand";
 import { AccountPopover } from "@/components/settings/account-popover";
 import { cn } from "@/lib/utils";
@@ -46,16 +47,23 @@ const RING =
 
 /** The circular 64px chrome button the frame uses for both the bell and (as a
  *  plain image) the avatar. */
+/* ═══ 44, NOT THE FRAME'S 64 (answered 2026-10-16) ═══
+   The support CTA joined this bar (SUP-1), and four items at 64px need 409px
+   on a 390px phone with 342 to spend. At 44 — the touch-target floor this
+   codebase holds (`--target-min`) — wordmark + three buttons + two 12px gaps
+   is 169 + 132 + 24 = 325. */
 const CIRCLE =
-  "flex size-16 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-card)]/94";
+  "flex size-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-card)]/94";
 
 export function TopBar({
-  activityHref,
   unread,
   avatarInitial,
   avatarSrc,
+  support,
 }: {
-  activityHref: string;
+  /** The support CTA (SUP-1), for the personas that have the panel; absent
+   *  for everyone else. Same store as the desktop bar's, so the two agree. */
+  support?: { unread: number };
   unread: number;
   avatarInitial?: string;
   avatarSrc?: string | null;
@@ -91,27 +99,12 @@ export function TopBar({
     >
       <Wordmark className="h-6" />
 
-      <div className="flex items-center gap-4">
-        {/* ACTIVITY — promoted out of the tab bar. A real link, so it keeps
-            middle-click and long-press-to-open like every other nav item. */}
-        <Link
-          href={activityHref}
-          aria-label={unread > 0 ? `Activity, ${unread} unread` : "Activity"}
-          className={cn(CIRCLE, "relative", RING)}
-        >
-          <Bell className="size-6 text-[var(--text-primary)]" aria-hidden />
-          {unread > 0 && (
-            // COPIED VERBATIM from the rail's badge — same fill, same 18px pill,
-            // same offsets. `aria-hidden` because the count is already in the
-            // link's accessible name above; announcing it twice is noise.
-            <span
-              aria-hidden
-              className="absolute right-2 top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--state-error)] px-1 text-[10px] font-semibold leading-none text-[var(--text-inverse)]"
-            >
-              {unread}
-            </span>
-          )}
-        </Link>
+      <div className="flex items-center gap-3">
+        {/* ACTIVITY — the bell opens it in a bottom sheet now (2026-10-16); it
+            was a link to `/app/activity`, which is gone. */}
+        <ActivityBellMobile unread={unread} circleClass={CIRCLE} ringClass={RING} />
+
+        {support && <MobileSupportButton unread={support.unread} />}
 
         {/* THE AVATAR OPENS A SHEET, NOT A ROUTE — and it is the SAME component
             the rail uses, in its `sheet` presentation. See the note on
@@ -121,9 +114,32 @@ export function TopBar({
           presentation="sheet"
           avatarSrc={avatarSrc ?? null}
           avatarInitial={avatarInitial ?? "S"}
-          triggerClassName="size-16"
+          triggerClassName="size-11"
         />
       </div>
     </header>
+  );
+}
+
+/** ═══ THE SUPPORT CTA, MOBILE TIER (SUP-1) ═══
+ *  The same toggle as the desktop bar's (`console-top-bar.tsx`), on the same
+ *  store, so opening it on one tier and resizing to the other agrees. Open is
+ *  the raised fill here too. The panel is SUP-2 (a full-screen sheet below
+ *  768). */
+function MobileSupportButton({ unread }: { unread: number }) {
+  const open = useSupportOpen();
+  return (
+    <button
+      type="button"
+      data-support-cta
+      aria-expanded={open}
+      aria-controls="support-panel"
+      /* TODO-COPY */
+      aria-label={unread > 0 ? `Support, ${unread} unread` : "Support"}
+      onClick={toggleSupport}
+      className={cn(CIRCLE, open && "bg-[var(--surface-raised)]", RING)}
+    >
+      <MessagesSquare className="size-6 text-[var(--text-primary)]" aria-hidden />
+    </button>
   );
 }

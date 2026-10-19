@@ -27,13 +27,17 @@
 // reason `useMounted` gates the seed rather than the render: the shell and the
 // three columns paint immediately; only the DATA waits a frame.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PanelRight, PanelRightClose, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
-import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
+import { Rail, tabsFor, type RailMode, type RailTab } from "@/components/chat/rail/rail";
+import { RailStrip } from "@/components/chat/rail/rail-strip";
+import { setSupportOpen, setSupportThread, useSupportOpen } from "@/lib/support/panel";
+import { markSupportRead } from "@/lib/support/outbox";
+import { supportThread } from "@/lib/support/threads";
 import { Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { CrisisView } from "@/components/chat/escalation/crisis-view";
@@ -63,6 +67,13 @@ import { cn } from "@/lib/utils";
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
 
+/** Open a support contact's thread in the panel, read (SUP-5). */
+function openInSupport(id: string): void {
+  markSupportRead(id);
+  setSupportThread(id);
+  setSupportOpen(true);
+}
+
 export function ChatPage({
   /** ═══ THE OPEN THREAD IS A ROUTE SEGMENT NOW, NOT A QUERY OR A STATE ═══
    *
@@ -82,6 +93,7 @@ export function ChatPage({
   const router = useRouter();
   const mounted = useMounted();
   const scenarioId = useOnboardingStore((s) => s.chatScenarioId);
+  const persona = useOnboardingStore((s) => s.persona);
 
   /** FIXED AT MOUNT, which is the house pattern (`tasks-page.tsx` carries the
    *  same line and the same reason): `Date.now()` in render scope is impure and
@@ -129,7 +141,8 @@ export function ChatPage({
   const view: "list" | "thread" = personId ? "thread" : "list";
   /** ═══ CLOSED BY DEFAULT, WHICH ONLY MATTERS BELOW `xl` ═══
    *  At `xl` the rail is a grid track and this flag does nothing — the class that
-   *  reads it is `!railOpen && "hidden xl:block"`, so `xl` always shows it.
+   *  reads it is `!railOpen && "hidden xl:@min-[1000px]/canvas:block"`, so `xl`
+   *  always shows it (with Support closed; open, the rail is a strip).
    *  Below `xl` it is a 320px overlay ON the conversation, and an overlay that
    *  starts open covers the thread a mentor came here to read. */
   const [railOpen, setRailOpen] = useState(false);
@@ -176,7 +189,27 @@ export function ChatPage({
      The scenario's focus thread is still the fallback at `md` and up, where the
      thread pane needs something to show before anyone has chosen. */
   const selectedId = personId ?? data?.focusThreadId ?? null;
-  const thread = threads.find((t) => t.id === selectedId) ?? threads[0];
+  /* ═══ TEENS ONLY (SUP-5) ═══ Support conversations live in the Support
+     panel now; this page never selects one. */
+  const teenThreads = useMemo(() => (data?.threads ?? []).filter((t) => t.kind === "teen"), [data]);
+  const thread = teenThreads.find((t) => t.id === selectedId) ?? teenThreads[0];
+
+  /* ═══ OPEN A SUPPORT THREAD IN THE PANEL (SUP-5) ═══ The one door into
+     Support from outside it: a deep link to a support thread (anything that
+     still links `/app/chat/s-…`) and the escalation banner's "Supervisor
+     notified". Opening reads it, as a row does. Null when this persona cannot
+     reach that contact, so the caller renders plain text rather than a link
+     that opens the wrong place. */
+  const canOpenInSupport = (id: string) => !!supportThread(id, persona, scenarioId, now);
+  const supportLink = !!personId && threads.some((t) => t.id === personId && t.kind === "support");
+  /* An effect because the route is the input: the handoff happens once the
+     threads have loaded, then the URL goes back to the list, which is what
+     this page shows. Module stores, so no setState runs here. */
+  useEffect(() => {
+    if (!supportLink || !personId) return;
+    if (supportThread(personId, persona, scenarioId, now)) openInSupport(personId);
+    router.replace("/app/chat");
+  }, [supportLink, personId, persona, scenarioId, now, router]);
   /* MEMOISED for the same reason `events` and `artifacts` are: it feeds the Assist
      memo, and a fresh array every render makes that memo useless. */
   const messages = useMemo<ChatMessage[]>(
@@ -296,10 +329,18 @@ export function ChatPage({
       : escalation
         ? "escalation"
         : "assist";
+  /* ═══ ONE RIGHT-HAND SURFACE (SUP standing rule 6) ═══
+     Every call here is a reader asking for the rail — raising an escalation,
+     opening a note, tagging a message — so it closes Support, which is the
+     other half of the mutual exclusion. A no-op when Support is closed. */
   const setRailTab = (tab: RailTab) => {
     if (!thread) return;
     setPickedTab({ threadId: thread.id, tab });
+    setSupportOpen(false);
   };
+  /** Support open on this screen collapses the rail to `RailStrip` (SUP-2). */
+  const supportOpen = useSupportOpen();
+  const stripped = supportOpen && !!thread;
   const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
   const [crisisOpen, setCrisisOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
@@ -550,17 +591,40 @@ export function ChatPage({
           cannot be compressed by a long name in the middle one. `minmax(0,1fr)`
           on the thread is what lets it shrink below its content — without it a
           wide message would push the rail off the right edge. */}
+      {/* ═══ THE CANVAS DECIDES, NOT THE VIEWPORT (SUP-2) ═══
+          Support always pushes, so the same viewport can hand this page two
+          widths. Each tier is its viewport breakpoint AND a canvas floor
+          (`@container/canvas`, `AppShell`). The floors sit at or below the
+          canvas each breakpoint gives with Support closed — measured: `md`
+          (960) leaves staff 696 and mentors 852; `xl` (1280) leaves 1016 and
+          1172 — so with it closed every width resolves exactly as before, and
+          with it open (424 narrower) a tier drops when its floor is not met.
+            640  = list 300 + a 340 conversation
+            1000 = list 320 + rail 320 + a 360 conversation */}
       <div
         className={cn(
           // `relative` because the rail is ABSOLUTE below `xl` — see its note.
           "relative grid h-full min-h-0",
-          // < 900: ONE column, and `view` decides which.
+          // < 960: ONE column, and `view` decides which.
           "grid-cols-[minmax(0,1fr)]",
-          // ≥ 900: list + thread. No third track: 300 + 320 leaves 280px for the
+          // ≥ 960: list + thread. No third track: 300 + 320 leaves 280px for the
           // conversation at this width, which is a column of two-word lines.
-          "md:grid-cols-[300px_minmax(0,1fr)]",
+          "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)]",
           // ≥ 1280: all three, always. The toggle is gone at this width.
-          "xl:grid-cols-[320px_minmax(0,1fr)_320px]"
+          "xl:@min-[1000px]/canvas:grid-cols-[320px_minmax(0,1fr)_320px]",
+          /* ═══ SUPPORT OPEN: THE RAIL IS A 56px STRIP, at every tier ═══
+             Same track count as the three-column layout, so at `xl` the third
+             track ANIMATES 320 → 56 alongside the push instead of swapping.
+             Reduced motion: instant. One column shows the strip only beside a
+             thread; the list has no rail to return to. */
+          stripped && [
+            view === "thread"
+              ? "min-[768px]:grid-cols-[minmax(0,1fr)_56px]"
+              : "md:grid-cols-[minmax(0,1fr)_56px]",
+            "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)_56px]",
+            "xl:@min-[1000px]/canvas:grid-cols-[320px_minmax(0,1fr)_56px]",
+          ],
+          "transition-[grid-template-columns] duration-[220ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
         )}
       >
         {/* ── LIST ──────────────────────────────────────────────────────── */}
@@ -575,7 +639,15 @@ export function ChatPage({
                shell see that a detail view is open. */
             router.push(chatThreadHref(id));
           }}
-          className={cn(view === "thread" && "hidden md:flex")}
+          className={cn(
+            view === "thread" && "hidden md:flex",
+            /* ═══ SUPPORT TOOK THE SECOND COLUMN ═══ At `md` with the canvas
+               under the two-column floor (only reachable with Support open),
+               the conversation stays and the LIST goes, whichever the route
+               says: a mentor who opened Support mid-conversation asked about
+               that conversation. Closing Support brings the list back. */
+            "md:@max-[639px]/canvas:hidden"
+          )}
         />
 
         {/* ── THREAD ────────────────────────────────────────────────────── */}
@@ -586,7 +658,10 @@ export function ChatPage({
           )}
         >
           {/* THE WAY BACK, below `md` only. Above it the list is on screen and a
-              Back button would point at something already visible. */}
+              Back button would point at something already visible — or, with
+              Support open below the two-column floor, at `/app/chat`, which at
+              this width renders this same conversation. Closing Support is the
+              way back to the list there. */}
           {view === "thread" && (
             /* ═══ A LINK, BECAUSE THREE GESTURES HAVE TO LAND ON THE LIST ═══
                Browser back, the Android system back gesture and iOS swipe-back
@@ -617,6 +692,13 @@ export function ChatPage({
           {thread ? (
             <div className="relative min-h-0 flex-1">
               <Thread
+                /* ═══ "SUPERVISOR NOTIFIED" OPENS THEIR THREAD (SUP-5) ═══ The
+                   moment a mentor most needs the person who was told. */
+                onOpenSupervisor={
+                  escalation && canOpenInSupport(escalation.supervisorId)
+                    ? () => openInSupport(escalation.supervisorId)
+                    : undefined
+                }
                 thread={thread}
                 messages={messages}
                 events={events}
@@ -711,7 +793,9 @@ export function ChatPage({
                 aria-label={railOpen ? "Hide conversation tools" : "Show conversation tools"}
                 title={railOpen ? "Hide conversation tools" : "Show conversation tools"}
                 className={cn(
-                  "absolute right-3 top-2.5 hidden size-9 items-center justify-center rounded-full text-[var(--text-secondary)] md:flex xl:hidden",
+                  "absolute right-3 top-2.5 hidden size-9 items-center justify-center rounded-full text-[var(--text-secondary)] md:@min-[640px]/canvas:flex xl:@min-[1000px]/canvas:hidden",
+                  // The strip is the way back while Support is open.
+                  stripped && "md:@min-[640px]/canvas:hidden",
                   "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
                 )}
@@ -748,13 +832,35 @@ export function ChatPage({
             mean one control silently doing two different things.
             `absolute` also keeps it out of the grid's flow below `xl`, so it
             cannot create an implicit third track at `md`. */}
-        {thread && (
+        {/* ═══ COLLAPSED, NOT CLOSED (SUP-2) ═══
+            While Support is open the rail's tabs persist as a strip in the
+            third track, and one click on a tab brings the rail back on it and
+            closes Support. Focus follows to the rail's selected tab, since the
+            strip button it was on is gone. */}
+        {thread && stripped && (
+          <div className={cn("min-w-0 overflow-hidden", view === "list" && "hidden md:block")}>
+            <RailStrip
+              tabs={tabsFor(thread.kind, !!escalation)}
+              active={railTab}
+              onOpen={(t) => {
+                setRailTab(t);
+                setRailOpen(true);
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector<HTMLElement>('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')
+                    ?.focus()
+                );
+              }}
+            />
+          </div>
+        )}
+        {thread && !stripped && (
           <div
             className={cn(
               "absolute inset-y-0 right-0 z-20 w-[320px] border-l border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]",
-              "xl:static xl:z-auto xl:w-auto xl:shadow-none",
+              "xl:@min-[1000px]/canvas:static xl:@min-[1000px]/canvas:z-auto xl:@min-[1000px]/canvas:w-auto xl:@min-[1000px]/canvas:shadow-none",
               // Hidden below `xl` until toggled; always present at `xl`.
-              !railOpen && "hidden xl:block"
+              !railOpen && "hidden xl:@min-[1000px]/canvas:block"
             )}
           >
             <Rail

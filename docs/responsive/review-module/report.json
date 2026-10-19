@@ -52,13 +52,13 @@
       "id": "tasks.current-line",
       "label": "a CHANGE renders the code on record as a subordinate line",
       "ok": true,
-      "detail": "Current · F33.0 Major depressive disorder, recur"
+      "detail": "onRecord lozenge: F33.0"
     },
     {
       "id": "tasks.no-line-on-renewal",
       "label": "and a NON-CHANGE renders none — the code would be stated twice",
       "ok": true,
-      "detail": "none"
+      "detail": "none, as expected"
     },
     {
       "id": "tasks.no-on-record-strip",
@@ -66,14 +66,74 @@
       "ok": true
     },
     {
-      "id": "tasks.no-record-context",
-      "label": "the mentorship accordion is gone from the pane — the figure lives on the record",
+      "id": "tasks.codes-found",
+      "label": "the pane renders at least one billing code, so the next two mean something",
       "ok": true,
-      "detail": "0 accordion(s); reachable via \"View care journey\""
+      "detail": "2 owned · 0 orphan(s)"
     },
     {
-      "id": "tasks.no-mentor",
-      "label": "and the pane no longer names the mentor",
+      "id": "tasks.one-lozenge",
+      "label": "and every one of them is the shared lozenge",
+      "ok": true,
+      "detail": "0 orphans"
+    },
+    {
+      "id": "tasks.one-lozenge-shape",
+      "label": "and they share one shape and one type size",
+      "ok": true,
+      "detail": "F33.1/changed, F33.0/onRecord — 12px/16px|3.35544e+07px"
+    },
+    {
+      "id": "tasks.no-record-strip",
+      "label": "the bordered mentorship strip is gone (§3.3 — deleted, not moved)",
+      "ok": true,
+      "detail": "0 strip(s)"
+    },
+    {
+      "id": "tasks.engagement-visible",
+      "label": "and the engagement figures are on screen in the header, not behind anything",
+      "ok": true,
+      "detail": "1 dl(s)"
+    },
+    {
+      "id": "tasks.engagement-duration",
+      "label": "including the mentorship duration, the figure that frames the rest",
+      "ok": true,
+      "detail": "dd = \"140\" · dt = \", 140 days in mentorship\""
+    },
+    {
+      "id": "tasks.engagement-window",
+      "label": "and the windowed figure names its window rather than standing bare",
+      "ok": true,
+      "detail": "dd = \"62\" · dt = \", 62 messages in the last 30 days\""
+    },
+    {
+      "id": "tasks.header-has-no-disclosure",
+      "label": "and the header band holds no disclosure at all",
+      "ok": true,
+      "detail": "0 disclosure(s) in the band"
+    },
+    {
+      "id": "tasks.header-has-mentor-chip",
+      "label": "the mentor is a contained chip, not a run of text (§3)",
+      "ok": true,
+      "detail": "1 chip(s)"
+    },
+    {
+      "id": "tasks.header-names-mentor-with-role",
+      "label": "and the role is stated in the language before the chip (§2.2)",
+      "ok": true,
+      "detail": "line = \"Mentored by M Maria Lopez , 140 days in mentorship , 62 messages in th\" · chip = \"M Maria Lopez\""
+    },
+    {
+      "id": "tasks.mentor-chip-not-interactive",
+      "label": "and does not present as interactive (§3, decided: no mentor record exists)",
+      "ok": true,
+      "detail": "<span> tabbable=false"
+    },
+    {
+      "id": "tasks.no-mentor-in-prose",
+      "label": "and the review prose still does not address a mentor by name",
       "ok": true
     },
     {

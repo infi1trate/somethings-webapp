@@ -45,6 +45,7 @@ import { GroupedRail } from "@/components/app-shell/grouped-rail";
 import type { NavGroup } from "@/components/settings/nav-items";
 import { BottomNav } from "@/components/app-shell/bottom-nav";
 import { TopBar } from "@/components/app-shell/top-bar";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -61,12 +62,26 @@ export function AppShell({
   onSelect,
   avatarInitial,
   avatarSrc,
-  activityHref,
   activityUnread = 0,
   bottomInset = "panel",
+  topBar,
+  aside,
+  mobileSupport,
   className,
   children,
 }: {
+  /** ═══ THE RIGHT-HAND PANEL SLOT (SUP-2) ═══
+   *  Rendered beside the canvas inside `<main>`, below the top bar, so it never
+   *  covers the bar and its width transition pushes the canvas. */
+  aside?: React.ReactNode;
+  /** The mobile bar's support CTA — passed for the personas that have it. */
+  mobileSupport?: { unread: number };
+  /** ═══ THE DESKTOP TOP BAR (SUP-1) ═══
+   *  Rendered in the column beside the rail, above `<main>`, so it spans the
+   *  content area only and the rail keeps the app's top edge. When present,
+   *  `<main>` drops its top padding: Figma's content container starts directly
+   *  under the 64px bar. */
+  topBar?: React.ReactNode;
   activeId: string;
   /** ═══ TWO ITEM SETS SINCE PHASE 2A ═══
    *
@@ -105,9 +120,8 @@ export function AppShell({
   onSelect?: (id: string) => void;
   avatarInitial?: string;
   avatarSrc?: string | null;
-  /** Where the top-bar bell goes, and what it is carrying. Activity is no
-   *  longer a tab, so this badge is the only signal it has anything in it. */
-  activityHref: string;
+  /** What the bell is carrying. Activity is no longer a tab (2026-10-16), so
+   *  this badge is the only signal it has anything in it. */
   activityUnread?: number;
   /** ═══ WHO RESERVES THE ROOM ABOVE THE BAR ═══
    *
@@ -147,6 +161,16 @@ export function AppShell({
    *  could not be read from here at all, which is why the bar used to appear and
    *  vanish with no navigation to explain it. */
   const pathname = usePathname();
+  /* ═══ EACH ROUTE STARTS AT THE TOP OF THE CANVAS (SUP-1) ═══
+     The shell used to remount per route, which reset this scroller for free.
+     It persists now (`(console)/layout.tsx`), so without this the next page
+     would open at the previous page's scroll offset. A DOM write in an effect,
+     keyed on the pathname — a query-string change (a tab, a filter) keeps its
+     place, as it always did. */
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (canvasRef.current) canvasRef.current.scrollTop = 0;
+  }, [pathname]);
   const isDetailView = (pathname ?? "").split("/").filter(Boolean).length > 2;
 
   return (
@@ -226,7 +250,7 @@ export function AppShell({
           half out of view. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TopBar
-        activityHref={activityHref}
+        support={mobileSupport}
         unread={activityUnread}
         avatarInitial={avatarInitial}
         avatarSrc={avatarSrc}
@@ -235,8 +259,19 @@ export function AppShell({
       {/* THE CONTENT PANEL. Below `md` it loses the rail's left inset and the
           right gutter — a 16px gutter on a 390px viewport is 4% of the width
           spent on nothing — and gains bottom room for the tab bar. */}
-      <main data-anno-ref="app-main" className="min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4">
+      {topBar}
+      <main
+        data-anno-ref="app-main"
+        className={cn(
+          "min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4",
+          topBar && "md:pt-0",
+          /* A ROW when a panel can sit beside the canvas (SUP-2). */
+          aside !== undefined && "flex"
+        )}
+      >
         <div
+          ref={canvasRef}
+          data-canvas-scroller
           // ═══ THE FOCUS-OBSTRUCTION GUARD (SC 2.4.11, RC-5) ═══
           //
           // Implemented ONCE, here, on the scroll container — not as padding on
@@ -272,6 +307,12 @@ export function AppShell({
             // 953 exactly. One invisible screen-reader label was still dragging
             // the rail out of the viewport.
             "relative h-full overflow-y-auto bg-[var(--surface-s1)]",
+            /* ═══ THE CANVAS IS A CONTAINER (SUP-2) ═══
+               The support panel pushes, so the canvas can be 424px narrower than
+               the viewport implies. Surfaces read `@…/canvas` alongside their
+               viewport breakpoints so a pushed canvas takes the narrower layout.
+               `min-w-0 flex-1` so it is the side of the row that gives. */
+            "@container/canvas min-w-0 flex-1",
             // ═══ UNLESS THE SURFACE ASKED TO OWN IT (`bottomInset`) ═══
             // Both halves move together. Handing over the padding but keeping
             // the scroll-padding here would reserve space against a panel that
@@ -296,6 +337,7 @@ export function AppShell({
         >
           {children}
         </div>
+        {aside}
       </main>
       </div>
 

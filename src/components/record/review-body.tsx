@@ -62,7 +62,11 @@ import {
 } from "@/lib/record/care-demo";
 import { Provenance } from "@/components/record/provenance";
 import { proposalKindFor } from "@/lib/record/proposal-kind";
-import { ProposalCodes } from "@/components/record/proposal-codes";
+import {
+  BillingCodeLozenge,
+  NewPresentationPill,
+  ProposalCodes,
+} from "@/components/record/proposal-codes";
 import { cn } from "@/lib/utils";
 
 /* VERBATIM FROM THE CARD, and it was wrong for one run: this was written with a
@@ -342,6 +346,10 @@ export function ReviewBody({
         <ProposalCodes
           currentCode={currentCode}
           recommendedCode={review.recommended.code}
+          /* THE HEADING BELOW STATES THE RECOMMENDED CODE — measured, it was
+             rendering twice on all four record fixtures. See the prop's note
+             and the lozenge's. */
+          codeStatedAbove
           className="min-w-0 shrink"
         />
       )
@@ -404,12 +412,59 @@ export function ReviewBody({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="flex min-w-48 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
             {/* `items-center` NOT `items-baseline` on this row now: the chip is a
-                22px box, and a box has no baseline of its own to share with the
-                20px statement beside it — aligning them by baseline hung the box
-                low. Centres agree; baselines only agree for text. */}
-            <span className="inline-flex h-[22px] shrink-0 items-center rounded-[4px] border border-[color:var(--border-subtle)] bg-[var(--surface-s1)] px-1 font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)]">
-              {shown.code}
-            </span>
+                box, and a box has no baseline of its own to share with the 20px
+                statement beside it — aligning them by baseline hung the box
+                low. Centres agree; baselines only agree for text.
+                STILL TRUE OF THE SHARED LOZENGE, which is also a box — it is
+                `py-px` on a 16px line rather than a fixed `h-[22px]`, so it is
+                18px now instead of 22. The alignment argument is about box
+                versus baseline and does not depend on the height. */}
+            {/* ═══ THE SHARED LOZENGE, NOT A SECOND CHIP (§3 continuity) ═══
+                This was `h-[22px] rounded-[4px] border-subtle bg-s1 px-1 mono
+                12px` written inline — a second billing-code lozenge, differing
+                from `BillingCodeLozenge` in shape, height and fill, carrying no
+                `data-billing-code` handle and offering no state tone. §3 asks
+                for "one lozenge component for billing codes across every state
+                and every surface", and this was the surface that had its own.
+                `identity` PRESERVES THIS SITE'S TREATMENT exactly — s1 fill,
+                subtle hairline, secondary ink — so what changes here is the
+                shape (a pill) and the height (18 from 22), not the weight the
+                chip carries. The tone is deliberately NOT `changed`: see the
+                prop's note on why a heading may not restate the decision. */}
+            <BillingCodeLozenge
+              code={shown.code}
+              /* ═══ §3 · THE STATE IS IN THE TONE NOW ═══
+                 The node paints the recommended code on a CHANGE in its
+                 "attention" tone and leaves every other state on Default. That
+                 is the differentiated treatment §3 says live is missing.
+                 `changed` IS THAT TONE, MAPPED — see its branch for why the
+                 node's own `surface/s4` + white cannot be used (no such token
+                 here, and 1.99:1 measured).
+                 AND IT IS STILL NOT A CLAIM ABOUT A SELECTION IN PROGRESS. The
+                 earlier note argued `identity` because `shown.code` is whatever
+                 the supervisor has picked; that holds for the OTHER states and
+                 is why they stay neutral. On a change the amber is not saying
+                 "this is final", it is saying "the code moves" — which is true
+                 of the proposal the moment it differs from the record, and
+                 reverts with it if the supervisor reverts. */
+              tone={proposalKind === "change" ? "changed" : "identity"}
+            />
+            {/* ═══ §3 · STATE 1 OF 3 — `New presentation` ═══
+                Gated on `assign`, which is `proposalKindFor`'s "no prior code
+                on record" — §3's state 1 exactly. The node puts this pill on
+                line 1 beside the code and statement, and hides it on a change.
+                RENEWAL GETS NEITHER THIS NOR LINE 2, which is what makes the
+                set complete rather than two-of-three: `assign` has the pill,
+                `change` has the amber code and the directional line, and
+                `renewal` has the neutral code alone — three states, three
+                readings, and no state falling back on "whatever the code
+                happens to do".
+                WHY A RENEWAL SAYS NOTHING EXTRA: the prior code stands, so
+                there is no delta to draw and no newness to mark. The kind is
+                still spoken — `proposalSpoken` carries "Renewal proposed" into
+                the accessible name — so the state is never silent, only quiet
+                on screen. */}
+            {proposalKind === "assign" && <NewPresentationPill />}
             <p className="text-[20px] font-semibold leading-[24px] tracking-[-0.2px] text-[var(--text-primary)]">
               {shown.statement}
             </p>
@@ -458,12 +513,33 @@ export function ReviewBody({
             was gated on the code being PRESENT rather than on the proposal being
             a change, so it rendered for renewals too. */}
         {showCurrentLine && currentCode && proposalKind === "change" && (
-          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[12.5px] leading-[17px] text-[var(--text-secondary)]">
-            {/* NEEDS-COPY-NICOLE */}
-            <span>Current</span>
-            <span aria-hidden className="opacity-40">·</span>
-            <span className="font-mono tabular-nums">{currentCode}</span>
-            {currentStatement && <span className="min-w-0">{currentStatement}</span>}
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+            {/* ═══ THE WORD "Current", BACK IN PLACE OF THE GLYPH ═══
+                §3 (node 4324:1111) replaced the word with a `CornerLeftUp`
+                elbow pointing at the recommendation above. Product reversed
+                that: the line reads `Current [code] statement`, and the label
+                wears the SAME style as `Recommended presentation` above it —
+                `LABEL_STYLE` in `--text-tertiary` — so the two slots read as a
+                pair of labelled values rather than a heading and a footnote.
+                A WORD NEEDS NO SPOKEN TWIN. The glyph was `aria-hidden` and had
+                an sr-only "changing from …" sentence standing in for it; the
+                visible word now says it to everybody, so that sentence is gone
+                rather than announcing the code twice. */}
+            <span className="inline-flex items-center gap-2">
+              <span className="text-[var(--text-tertiary)]" style={LABEL_STYLE}>
+                {/* TODO-COPY */}
+                Current
+              </span>
+              <BillingCodeLozenge code={currentCode} tone="onRecord" />
+            </span>
+            {currentStatement && (
+              /* THE NODE TYPES THIS AT `Body/Medium/Web` — Lausanne 400 14/20,
+                 `text/secondary`. The paragraph was 12.5/17, which is not a
+                 Bloom pair at all; 14/20 is, and it is the node's. */
+              <span className="min-w-0 text-[14px] leading-[20px]">
+                {currentStatement}
+              </span>
+            )}
           </p>
         )}
       </div>

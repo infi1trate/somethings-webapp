@@ -384,13 +384,16 @@ export function UserRecordShell({
       <div
         className={cn(
           "mt-6 grid items-start gap-8",
-          rail && "lg:grid-cols-[minmax(0,900px)_300px]",
+          /* AND THE CANVAS (SUP-2): `lg` leaves a staff canvas of 760, so
+             the aside also needs 744 of it — closed is unchanged, and with
+             Support open it stacks until there is room. */
+          rail && "lg:@min-[744px]/canvas:grid-cols-[minmax(0,900px)_300px]",
         )}
       >
         <div data-anno-ref="record-panel" className="min-w-0">
           {children}
         </div>
-        {rail && <aside className="min-w-0 lg:sticky lg:top-6">{rail}</aside>}
+        {rail && <aside className="min-w-0 lg:@min-[744px]/canvas:sticky lg:@min-[744px]/canvas:top-6">{rail}</aside>}
       </div>
     </div>
   );

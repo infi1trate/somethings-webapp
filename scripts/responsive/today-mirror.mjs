@@ -229,6 +229,11 @@ console.log("\n§4 · nothing on Today changes a record\n");
      change something: it leaves. */
   const locals = await page.evaluate(() =>
     [...document.querySelectorAll("main button, main [role='button'], main input, main select, main textarea")]
+      /* SUP-2 put the Support panel inside `<main>` (it pushes the canvas, so
+         it is the canvas's flex sibling). It is shell chrome, like the top bar
+         outside `<main>`, not a control Today owns; it is measured in
+         `support-panel.mjs`. */
+      .filter((e) => !e.closest("[data-support-slot]"))
       .map((e, i) => {
         e.setAttribute("data-mirror-idx", String(i));
         return {
@@ -553,23 +558,42 @@ console.log("\n§4 · the mirror agrees with the destination\n");
   /* ── CARE REVIEWS · the header's open count ─────────────────────────────── */
   {
     const { context, page } = await open("mirror-care", "/app/care-reviews");
-    /* ═══ THE METRIC PAIR, NOT A SENTENCE (addendum §2.10) ═══
-       It parsed "N open" out of the header's three-segment line. That line is
-       gone — the figure is a metric with `data-metric-value="open"` — and
-       reading the element rather than a regex over prose is also what stops
-       this check from matching a different "N open" elsewhere in the header. */
+    /* ═══ RETARGETED TWICE, AND THE SECOND TIME IT HAD BEEN PASSING ∅ ═══
+       FIRST it parsed "N open" out of the header's three-segment line; §2.10
+       replaced that with a metric pair and this read `data-metric-value="open"`.
+       THE PARITY PACK §4.2 THEN REMOVED THE METRIC PAIR ALTOGETHER — the header
+       carries no figures at all now, and the open count is the `Open` tab's own
+       numeral. So the selector matched nothing.
+
+       THE PROBE DID NOT SAY SO, WHICH IS THE WORSE HALF. `Number("".trim())` is
+       `0`, not `NaN`, so a missing element produced a finite zero and sailed
+       through the `Number.isFinite` guard — the check then reported
+       "destination 0 · today 16" as a DISAGREEMENT between two surfaces when
+       one of the two had no figure to read. An assertion whose input is absent
+       must fail on the absence, by name, rather than coerce it into a value.
+       Hence the explicit `null` sentinel below and the `not found` branch: the
+       next time this element is renamed, the probe says which element. */
     const dest = await page.evaluate(() => {
-      const el = [...document.querySelectorAll("[data-metric-value]")].find(
-        (e) => e.getAttribute("data-metric-value") === "open"
-      );
-      return Number((el?.textContent ?? "").trim());
+      const el = document.querySelector('[data-anno-ref="care-tab:open"]');
+      if (!el) return null;
+      /* The numeral, not the label: `aria-label` is "Open, 16" and the visible
+         figure is the `aria-hidden` span. This asserts what a sighted reader
+         compares, and the label carries the same number by construction. */
+      /* RETARGETED (segmented restyle, 2026-10-05): the segment reads
+         `Open (16)` now, so the figure is the parenthesised one rather than a
+         trailing bare numeral — the old `(\d+)\s*$` returned null on the
+         closing bracket and reported the element as missing. */
+      const n = (el.textContent ?? "").match(/\((\d+)\)\s*$/);
+      return n ? Number(n[1]) : null;
     });
     const onToday = Number(byId["care-reviews"]?.text.match(/(\d+) open/)?.[1] ?? NaN);
     check(
       "agree.care-reviews",
       "Care Reviews' open count equals the card's",
-      Number.isFinite(dest) && dest === onToday,
-      `destination ${dest} · today ${onToday}`
+      dest !== null && Number.isFinite(onToday) && dest === onToday,
+      dest === null
+        ? 'care-tab:open not found — the open count moved again'
+        : `destination ${dest} · today ${onToday}`
     );
     await context.close();
   }

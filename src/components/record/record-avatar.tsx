@@ -24,13 +24,16 @@
 
 import { cn } from "@/lib/utils";
 
-// Soft, low-chroma tints — see the note above on identity vs status.
+// Soft tints — see the note above on identity vs status. Bloom ramp steps with
+// light and dark values, in settings-tokens.css (`--avatar-*`). THE ORDER IS THE
+// ASSIGNMENT: `avatarTintFor` indexes into this list, so reordering or resizing
+// it changes everyone's colour.
 const TINTS = [
-  { bg: "#efe7f7", fg: "#5b41a8" },
-  { bg: "#e6efe8", fg: "#3a7d44" },
-  { bg: "#f2e9df", fg: "#8a5a2b" },
-  { bg: "#e6edf3", fg: "#3f5c78" },
-  { bg: "#f5e7ea", fg: "#9a4257" },
+  { bg: "var(--avatar-purple-bg)", fg: "var(--avatar-purple-fg)" },
+  { bg: "var(--avatar-green-bg)", fg: "var(--avatar-green-fg)" },
+  { bg: "var(--avatar-brown-bg)", fg: "var(--avatar-brown-fg)" },
+  { bg: "var(--avatar-blue-bg)", fg: "var(--avatar-blue-fg)" },
+  { bg: "var(--avatar-rose-bg)", fg: "var(--avatar-rose-fg)" },
 ];
 
 const NEUTRAL_TINT = { bg: "var(--surface-s1)", fg: "var(--text-muted)" };
@@ -58,6 +61,9 @@ const SIZE = {
   20: { box: "size-5", text: "text-[10px]" },
   24: { box: "size-6", text: "text-[11px]" },
   30: { box: "size-[30px]", text: "text-[13px]" },
+  /** 32 is the support list's `List-Item/Small-Density` avatar (SUP-3), the
+   *  pack's own size. Additive, as 16 was. */
+  32: { box: "size-8", text: "text-[14px]" },
 } as const;
 
 export function RecordAvatar({

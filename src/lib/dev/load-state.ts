@@ -45,11 +45,20 @@ export const LOAD_STATE_LABEL: Record<LoadState, string> = {
   partial: "Partial",
 };
 
-/** Which screens actually render these. Used by the dev bar to name the scope of
- *  the axis rather than implying it is universal — see the note above. */
-export const LOAD_STATE_SCREENS = [
-  "Activity",
-  "Tasks",
-  "Monitoring",
-  "Home",
-] as const;
+/* ═══ `LOAD_STATE_SCREENS` IS GONE (bar-01) ═══
+ *
+ *  It was `["Activity", "Tasks", "Monitoring", "Home"]`, and the dev bar spelled
+ *  it into the Load control's label to name the axis's scope.
+ *
+ *  TWO OF THE FOUR NAMES WERE WRONG when bar-00 measured them. "Tasks" is the
+ *  destination the addendum RETIRED — the surface is Care Reviews and
+ *  `/app/tasks` is a dead hop. "Home" is the LOADER's domain name for a route
+ *  called Today in the URL, the nav and the page's own heading. Nothing caught
+ *  either, because a label is not enforceable.
+ *
+ *  DELETED RATHER THAN CORRECTED, AND RATHER THAN RETIRED IN PLACE. The strangler
+ *  rule keeps retired CODE because its reasoning is load-bearing; this was a
+ *  list of four strings whose only job was to be read out, and a wrong list left
+ *  exported is one an import away from being wrong again. Scope is declared and
+ *  ENFORCED in `lib/dev/axes.ts` now — `LOAD_LIVE_ROUTES`, established by
+ *  operating every route rather than by naming screens. */

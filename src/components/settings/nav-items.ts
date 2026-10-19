@@ -26,7 +26,7 @@
 //   · `sidebar.tsx`      SIDEBAR_ITEMS  — the mentor base
 //   · `mentor-shell.tsx` LEAD_ITEMS     — the base, filtered (both shells
 //   · `admin-shell.tsx`  NAV            — its own literal array; both files
-//     are gone, folded into `app-shell/app-chrome.tsx` by addendum §2.3)
+//     are gone, folded into `app-shell/console-shell.tsx`, formerly `app-chrome.tsx`, by addendum §2.3)
 //
 // They had already drifted: the mentor base called the messaging destination
 // `chat` and the supervisor console called it `chats`, so the same place had two
@@ -244,7 +244,8 @@ export function railItems(persona: Persona): SidebarItemDef[] {
   const base = [
     NAV.home,
     NAV.chat,
-    NAV.activity,
+    /* ACTIVITY IS GONE FROM THE RAIL (2026-10-16): it lives in the top bar's
+       bell now. `NAV.activity` stays defined for `hrefFor` and the redirect. */
     NAV.tasks,
     // SUPERVISOR TIER ONLY (arch-B). A lead or a mentor has no Monitoring
     // surface, and an item that routes to the unbuilt-section placeholder is
@@ -353,7 +354,7 @@ export function railGroups(persona: Persona): NavGroup[] {
            first and the two reading surfaces follow them, which is the order
            the group has had since `ia-01`. */
         NAV.chat,
-        NAV.activity,
+        /* Activity moved into the top bar's bell (2026-10-16). */
       ],
     },
     {

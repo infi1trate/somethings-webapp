@@ -145,10 +145,7 @@ export function matchesBillingFilter(
   }
 }
 
-/** WHERE THE CODE LINKS. The object-scoped Activity feed IS the teen's code
- *  history: the ledger is append-only and BILLING_REVIEW_COMPLETE is the only
- *  billing ACTIVITY event, so this filtered feed is the whole record of how the
- *  code got where it is. No separate history model, no separate history screen. */
-export function billingHistoryHref(teenId: string): string {
-  return `/app/activity?objectId=${encodeURIComponent(teenId)}&domain=billing`;
-}
+/* `billingHistoryHref` LIVED HERE: it linked a roster's billing code to the
+   Activity ledger filtered to that teen's billing events. Activity moved into
+   the top bar's bell and its deep links were removed (2026-10-16), so the code
+   is a value and nothing links here. */

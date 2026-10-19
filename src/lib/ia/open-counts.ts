@@ -110,7 +110,7 @@ export function openCareReviews(items: TaskItem[]): TaskItem[] {
 /**
  * The open, actionable count for every destination.
  *
- * ONE CALLER PER SURFACE, and both surfaces call this. `app-chrome` reads it for
+ * ONE CALLER PER SURFACE, and both surfaces call this. `console-shell` reads it for
  * the rail badge; `todayCards` reads it for the row's figure AND for the number
  * inside the row's own sentence, so a row cannot say "19 open" beside a figure
  * of 18.

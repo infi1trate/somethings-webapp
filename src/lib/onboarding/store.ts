@@ -14,6 +14,11 @@ import { PIN_CAP, type PinnedMentee } from "@/lib/record/pinned";
  *  Not `PIN_CAP`: a pin is a deliberate working set of five and a trace is
  *  incidental. See the setters for why it is bounded at all. */
 const CARE_TRACE_CAP = 500;
+/** ═══ THE RECENT-SCENARIO LIST'S CAP (bar-02) ═══
+ *  Five, from the phase file. It is a shortcut row at the top of a panel, not a
+ *  history: past five, scanning it costs more than scanning the grouped list
+ *  underneath, which is the thing it exists to save you from. */
+const SCENARIO_RECENTS_CAP = 5;
 import {
   emptyDraft,
   type ChangeRequest,
@@ -90,6 +95,7 @@ import {
   cloneValue,
 } from "@/lib/onboarding/profile-update";
 import { emptyHubSteps } from "@/lib/onboarding/hub";
+import { normaliseClosedRecord, type ClosedCareReview } from "@/lib/tasks/closed-review";
 import { devClockByKey } from "@/lib/home/dev-clock";
 import { pinsFor, todayScenarioById } from "@/lib/home/scenarios";
 
@@ -378,9 +384,15 @@ interface OnboardingState {
   setTodayScenarioId: (id: string | null) => void;
   /** Marks a review viewed. Idempotent — opening the same row twice is one
    *  view, and the pane's effect fires on every selection change. */
+  /** Records a scenario as used. Moves an existing entry to the front rather
+   *  than duplicating it — a recents row with the same entry twice is a row
+   *  that has stopped being recents. */
+  noteScenarioUsed: (prefixedId: string) => void;
   markCareReviewViewed: (id: string) => void;
-  /** Records a committed review. Idempotent on id for the same reason. */
-  markCareReviewSubmitted: (id: string, at: number) => void;
+  /** Records a committed review — the whole record, not a pointer to it (see
+   *  `closedCareReviews`). Idempotent on id: a second commit of the same review
+   *  is the resubmission the Closed tab exists to prevent. */
+  recordClosedCareReview: (record: ClosedCareReview) => void;
   /** The dev harness's reset, matching `resetTasksReviewed`'s scope. */
   resetCareReviewState: () => void;
   /** WHEN THE SUPERVISOR LAST OPENED THE TASKS WORKLIST (v37).
@@ -464,15 +476,37 @@ interface OnboardingState {
    *  CAPPED on merge for the reason `pinnedMentees` is: an unbounded list in
    *  localStorage grows for the life of the browser profile. */
   viewedCareReviews: string[];
+  /** ═══ RECENTLY-USED SCENARIOS, NEWEST FIRST (bar-02) ═══
+   *  PREFIXED values exactly as the select carries them (`tasks:quiet-day`), so
+   *  one list spans all five scenario families and an entry names which family
+   *  it belongs to without a second field.
+   *  PERSISTED, AND IT HAS TO BE: selecting a scenario NAVIGATES, so a
+   *  non-persisted recents list would be empty every time the panel opened —
+   *  which is the bar-00 finding about `devClockKey` arriving by a different
+   *  road. Capped, sanitised and de-duplicated on merge. */
+  scenarioRecents: string[];
   /** ═══ SUBMITTED CARE REVIEWS (rework §5.1) ═══
    *  Committed reviews, persisted — Brandon's answer to the audit was
    *  "persist". Before this they lived in `useState` on the page and the
    *  Submitted tab would have been empty on every fresh visit, which is a tab
    *  that lies about history rather than one that shows it.
-   *  THE ITEM ID AND WHEN IT WAS COMMITTED, and nothing else. The item's own
-   *  content is rebuilt from the fixture by id, so this never becomes a second
-   *  copy of clinical data that can drift from the first. */
-  submittedCareReviews: { id: string; at: number }[];
+   *
+   *  ═══ v54 · THE RECORD, NOT A POINTER — AND IT IS ACTUALLY PERSISTED NOW ═══
+   *  This was `submittedCareReviews: { id, at }[]`, "the item id and when it
+   *  was committed, and nothing else", so that it would "never become a second
+   *  copy of clinical data that can drift from the first". Two defects, both
+   *  measured in the Closed-tab pack:
+   *    1. THE CONTENT WAS DISCARDED. The assessment, both prose fields and their
+   *       provenance reached the commit and were dropped here; the draft holding
+   *       the same text was cleared on the same commit. A closed review
+   *       re-rendered as an empty form.
+   *    2. IT WAS NEVER IN `partialize`, so the "persisted" set lived in memory
+   *       and a reload emptied the Closed tab.
+   *  The drift argument was backwards — the fixture is what moves; a record is
+   *  what must not. See `lib/tasks/closed-review.ts`.
+   *  UNCAPPED. It was capped at 500 as a trace; a record is not truncated. The
+   *  Closed tab's volume comes from fixture history, not from this array. */
+  closedCareReviews: ClosedCareReview[];
   pinMentee: (id: string, at: number) => void;
   unpinMentee: (id: string) => void;
   setTasksLastVisitAt: (at: number) => void;
@@ -729,7 +763,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       shiftDigestDismissedAt: 0,
       pinnedMentees: [],
       viewedCareReviews: [],
-      submittedCareReviews: [],
+      scenarioRecents: [],
+      closedCareReviews: [],
       careUpdates: {},
       careSummaryRefreshedAt: {},
       relationshipEvents: [],
@@ -1149,7 +1184,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       /* ═══ AND IT DROPS THE CARE TRACES (rework §9) ═══
          Exactly the reasoning `setChatScenarioId` below already runs on:
          "switching scenario drops everything keyed to the old fixtures".
-         `viewedCareReviews` and `submittedCareReviews` hold ENTRY IDS —
+         `viewedCareReviews` and `closedCareReviews` hold ENTRY IDS —
          `task-3`, a coalesce group's id — and every task scenario rebuilds
          those ids from index 1. So without this, switching from a 19-row
          fixture to a 3-row one left a reading trace whose ids now name
@@ -1165,7 +1200,22 @@ export const useOnboardingStore = create<OnboardingState>()(
         set({
           tasksScenarioId: id,
           viewedCareReviews: [],
-          submittedCareReviews: [],
+          /* CLOSED RECORDS ARE PER FIXTURE TOO. They are self-contained now, but
+             their ids are the old fixture's task ids, and the new fixture reuses
+             `task-1…n` — so a kept record would hide a DIFFERENT open review. */
+          closedCareReviews: [],
+          /* ═══ `scenarioRecents` IS NOT CLEARED HERE, AND IT WAS ═══
+             A blanket insert put it beside the two care traces, so selecting a
+             Care Reviews scenario RECORDED it as recent and then immediately
+             cleared the list — the recents row never appeared, and the value
+             read `[]` a moment after a set that had just written it. Found by
+             probing the action: it fired with the right id and `before=[]`
+             every time, which is what pointed at something downstream.
+             THE TRACES BELONG HERE AND RECENTS DOES NOT. The traces are keyed
+             to the fixture being replaced, so they are stale the instant it
+             changes. Recents is a record of what a reviewer REACHED FOR; a
+             scenario switch is the event that adds to it, so clearing it here
+             erased exactly the thing the action should have been feeding. */
         }),
       setMonitoringScenarioId: (id) => set({ monitoringScenarioId: id }),
       /* Switching scenario drops everything keyed to the old fixtures — the same
@@ -1218,24 +1268,31 @@ export const useOnboardingStore = create<OnboardingState>()(
          oldest entries fall off, which is correct for a trace — the rows a
          supervisor looked at a month ago are not rows this list still needs to
          mark. */
+      /* NEWEST FIRST, DE-DUPLICATED, CAPPED. The filter runs BEFORE the unshift
+         so an entry already present moves rather than repeats. */
+      noteScenarioUsed: (prefixedId) =>
+        set((st) => {
+          if (!prefixedId) return {};
+          const next = [
+            prefixedId,
+            ...st.scenarioRecents.filter((x) => x !== prefixedId),
+          ].slice(0, SCENARIO_RECENTS_CAP);
+          return { scenarioRecents: next };
+        }),
       markCareReviewViewed: (id) =>
         set((st) =>
           st.viewedCareReviews.includes(id)
             ? st
             : { viewedCareReviews: [...st.viewedCareReviews, id].slice(-CARE_TRACE_CAP) }
         ),
-      markCareReviewSubmitted: (id, at) =>
+      recordClosedCareReview: (record) =>
         set((st) =>
-          st.submittedCareReviews.some((r) => r.id === id)
+          st.closedCareReviews.some((r) => r.id === record.id)
             ? st
-            : {
-                submittedCareReviews: [...st.submittedCareReviews, { id, at }].slice(
-                  -CARE_TRACE_CAP
-                ),
-              }
+            : { closedCareReviews: [...st.closedCareReviews, record] }
         ),
       resetCareReviewState: () =>
-        set({ viewedCareReviews: [], submittedCareReviews: [] }),
+        set({ viewedCareReviews: [], closedCareReviews: [] }),
       setTodayScenarioId: (id) => {
         const sc = todayScenarioById(id);
         if (!sc) {
@@ -1421,7 +1478,12 @@ export const useOnboardingStore = create<OnboardingState>()(
       shiftDigestDismissedAt: 0,
       pinnedMentees: [],
       viewedCareReviews: [],
-      submittedCareReviews: [],
+      /* RESET CLEARS RECENTS, deliberately: it re-seeds every fixture, so a list
+         of scenarios reached against the old ones is exactly as stale as the chat
+         writes cleared below. This is the ONE action that should clear it —
+         `setTasksScenarioId` briefly did too, which was a bug; see its note. */
+      scenarioRecents: [],
+      closedCareReviews: [],
           careUpdates: {},
           careSummaryRefreshedAt: {},
           relationshipEvents: [], // dev "start over" restores the fixture edges
@@ -1574,7 +1636,17 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      and the §5.1 submitted set. Both sanitise to [] on merge and are
       //      re-capped, exactly as `pinnedMentees` is: a persisted array from
       //      an older build may be any shape at all.
-      version: 52,
+      // v53: scenarioRecents — bar-02's recent-scenario row. Sanitised to [],
+      //      de-duplicated and re-capped on merge, like every other persisted
+      //      array here: a list from an older build may be any shape at all,
+      //      and a malformed entry would put a dead scenario id in the panel's
+      //      shortcut row where it would silently no-op on click.
+      // v54: closedCareReviews replaces submittedCareReviews — the whole record
+      //      rather than `{ id, at }`, and now in `partialize`. The old entries
+      //      are DROPPED on merge (Brandon, 2026-10-06): they carry no content,
+      //      so a row for one would be a record with nothing in it. Their items
+      //      return to Open in the sessions that had them.
+      version: 54,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2337,22 +2409,56 @@ export const useOnboardingStore = create<OnboardingState>()(
             )
           : [];
 
-        const scr = (merged as { submittedCareReviews?: unknown }).submittedCareReviews;
-        if (!Array.isArray(scr)) {
-          merged.submittedCareReviews = [];
+        /* ═══ scenarioRecents, SANITISED AND RE-CAPPED (v53) ═══
+           Same posture as the trace above. The extra care here is that these are
+           SCENARIO IDS, so a malformed or retired entry does not just look odd —
+           it renders a clickable shortcut that no-ops, which is worse than not
+           offering it. Non-strings go, duplicates collapse, and the cap holds.
+           TRUNCATION KEEPS THE NEWEST, from the FRONT: this list is newest-first
+           (unlike the traces, which append), so the slice is `0, CAP` rather
+           than `-CAP`. Getting that backwards would keep the five OLDEST and
+           call them recent.
+           WHETHER AN ID STILL RESOLVES IS NOT CHECKED HERE. The store cannot
+           import the five scenario registries without a cycle, so the panel
+           filters unresolvable entries at render — which is also where it can
+           say so rather than silently dropping them. */
+        const rec = (merged as { scenarioRecents?: unknown }).scenarioRecents;
+        merged.scenarioRecents = Array.isArray(rec)
+          ? [
+              ...new Set(rec.filter((x): x is string => typeof x === "string" && !!x)),
+            ].slice(0, SCENARIO_RECENTS_CAP)
+          : [];
+
+        /* v54 · THE OLD `{ id, at }` TRACE IS DROPPED, NOT CONVERTED — there is
+           no content to convert, and inventing an empty record would put a
+           clinical row on screen with nothing in it. */
+        delete (merged as { submittedCareReviews?: unknown }).submittedCareReviews;
+        const ccr = (merged as { closedCareReviews?: unknown }).closedCareReviews;
+        if (!Array.isArray(ccr)) {
+          merged.closedCareReviews = [];
         } else {
-          const seenSub = new Set<string>();
-          merged.submittedCareReviews = scr
-            .filter((e): e is { id: string; at: number } => {
-              const o = e as Partial<{ id: string; at: number }> | null;
-              if (!o || typeof o !== "object") return false;
-              if (typeof o.id !== "string" || !o.id) return false;
-              if (typeof o.at !== "number" || !Number.isFinite(o.at)) return false;
-              if (seenSub.has(o.id)) return false;
-              seenSub.add(o.id);
-              return true;
-            })
-            .slice(-CARE_TRACE_CAP);
+          /* A PERSISTED RECORD IS UNTRUSTED INPUT, even though we wrote it: an
+             older build, a hand-edited store or a partial write may leave any
+             shape. The checks are the fields the Closed tab cannot render
+             without; anything failing them is dropped rather than half-drawn. */
+          const seenClosed = new Set<string>();
+          merged.closedCareReviews = ccr
+            .filter((e): e is ClosedCareReview => {
+            const o = e as Partial<ClosedCareReview> | null;
+            if (!o || typeof o !== "object") return false;
+            if (typeof o.id !== "string" || !o.id || seenClosed.has(o.id)) return false;
+            if (typeof o.submittedAt !== "number" || !Number.isFinite(o.submittedAt)) return false;
+            if (!o.body || typeof o.body !== "object") return false;
+            if (!o.decision || typeof o.decision.code !== "string") return false;
+            if (!o.snapshot?.item || o.snapshot.item.payload?.kind !== "billing") return false;
+            if (!o.snapshot.review) return false;
+            seenClosed.add(o.id);
+            return true;
+          })
+            /* OLDER RECORDS, BROUGHT TO THE CURRENT SHAPE: `kept` / `renewed`
+               read as `reviewed`, and `assignedTo` is filled from the record's
+               own snapshot — see `normaliseClosedRecord`. */
+            .map(normaliseClosedRecord);
         }
 
         const pm = (merged as { pinnedMentees?: unknown }).pinnedMentees;
@@ -2497,6 +2603,11 @@ export const useOnboardingStore = create<OnboardingState>()(
         chatNotes: state.chatNotes,
         chatArtifacts: state.chatArtifacts,
         devLoadState: state.devLoadState,
+        /* bar-02. See the field's note on why this one must persist. */
+        scenarioRecents: state.scenarioRecents,
+        /* v54. The closed records — the one care trace that MUST survive a
+           reload, because it is the clinical record. */
+        closedCareReviews: state.closedCareReviews,
         tasksLastVisitAt: state.tasksLastVisitAt,
         activityDensity: state.activityDensity,
         viewOptions: state.viewOptions,

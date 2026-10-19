@@ -70,7 +70,6 @@ import {
   billingCodeDescription,
   billingCodeSortValue,
   billingCodeStateFor,
-  billingHistoryHref,
   matchesBillingFilter,
   type BillingCodeFilter,
   type BillingCodeState,
@@ -743,25 +742,18 @@ function BillingCodeCell({ teen, now }: { teen: DemoTeen; now: number }) {
   return (
     <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
       <span className="flex flex-wrap items-center gap-1.5">
-        <Link
-          href={billingHistoryHref(teen.id)}
-          aria-label={description}
+        {/* ═══ NOT A LINK ANY MORE (2026-10-16) ═══
+            It linked to the Activity ledger filtered to this teen's billing
+            events. Activity moved into the top bar's bell and its deep links
+            were removed (answered), so the code is a value again. The full
+            description stays in the tooltip. */}
+        <span
           title={description}
-          className={cn(
-            // SC 2.5.8 — the code renders at 42x20, one per row. Not inline in a
-            // sentence (it is a `block` link in its own cell), so the inline
-            // exception does not apply and the target is genuinely under the floor.
-            "rounded-sm tabular-nums text-[var(--text-primary)] underline decoration-transparent underline-offset-2",
-            touchTarget(20),
-            "transition-colors hover:decoration-[color:var(--text-primary)]",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-          )}
-          // --font-mono, not Geist Mono: Geist is not loaded in this project.
-          // See design-system-gaps.md row 205.
+          className="tabular-nums text-[var(--text-primary)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           {state.code}
-        </Link>
+        </span>
         {expired && (
           <span
             className="inline-flex items-center gap-1 text-[12px] leading-[16px]"

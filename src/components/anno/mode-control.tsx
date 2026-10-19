@@ -18,6 +18,9 @@
 import { useEffect, useState } from "react";
 import { annotationStore } from "@/lib/anno";
 import { MessageSquare } from "lucide-react";
+/* bar-02's mutual exclusion — see the toggle's own note. No cycle: `lib/dev/panel`
+   imports `lib/anno/mode`, and this is a component. */
+import { closeDevPanel } from "@/lib/dev/panel";
 import {
   MODE_HINT,
   MODE_LABEL,
@@ -155,10 +158,27 @@ export function AnnoModeControl() {
         }
         title={unresolved > 0 ? `Comments — ${unresolved} unresolved` : "Comments"}
         aria-expanded={drawerOpen}
-        onClick={() => setDrawerOpen(!drawerOpen)}
+        /* ═══ OPENING THE DRAWER CLOSES THE DEV PANEL (bar-02) ═══
+           The other half of the mutual exclusion; `lib/dev/panel.ts` owns the
+           opening-the-panel direction and its note explains why this one lives
+           at the call site instead: `mode.ts` must not import the panel module
+           or the two form a cycle.
+           THE REASON IS GEOMETRIC. This drawer is `fixed inset-y-0 right-0
+           w-[22rem]` — full height — so it reaches the bar and would overlap a
+           50vh panel in the bottom-right corner. */
+        onClick={() => {
+          if (!drawerOpen) closeDevPanel();
+          setDrawerOpen(!drawerOpen);
+        }}
         data-anno-drawer-toggle
         className={cn(
-          "flex shrink-0 items-center gap-1 rounded-full px-1.5 py-1 transition-colors",
+          /* ═══ 24×24 FLOOR (bar-00's one sub-24 target) ═══
+             MEASURED at 26×22 — the only control in the bar under SC 2.5.8's
+             floor, and the one bar-03 says must survive every width. `px-1.5
+             py-1` around a 14px glyph could not reach it, so the box carries a
+             minimum rather than more padding, which would have widened it
+             further in a bar that is already short of room. */
+          "flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-full px-1.5 py-1 transition-colors",
           drawerOpen
             ? "bg-[var(--text-primary)] text-[var(--text-inverse)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
