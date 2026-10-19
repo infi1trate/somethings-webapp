@@ -98,6 +98,17 @@ export const MONITORING_SCENARIO_GROUPS: MonitoringScenarioGroup[] = [
       { id: "suspected-death", label: "Suspected death" },
     ],
   },
+  /* ═══ THE MONITORING PAGE'S TWO STATES (proto/monitoring-merge) ═══
+     Appended, so no existing key moves. Calm: nothing in crisis. Alert: a
+     Tier 1 teen is live — the lane fills, the strip shows. The escalation
+     lifecycle scenarios above also read as an alert there (`tierAlertLive`). */
+  {
+    label: "Tiers",
+    scenarios: [
+      { id: "tiers-monitor", label: "Tiers · Monitor" },
+      { id: "tiers-alert", label: "Tiers · Alert" },
+    ],
+  },
   {
     label: "Risk flags",
     scenarios: [

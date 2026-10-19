@@ -202,7 +202,36 @@ briefly both bold and the row had two places for the eye to land; the probe
 counts the emphasised elements per row for exactly that reason. A column of
 figures is scannable without winning the weight channel.
 
+### Monitoring is a group label AND a destination (proto/monitoring-merge)
+
+**This supersedes parts of "Monitoring asserts only what it can compute" below,
+and that section is kept, because its reasoning is what makes the reversal
+legible.** Answered 2026-10-19:
+
+- **Monitoring is both.** The group label stays "Monitoring"; under it, the
+  Monitoring page at `/app/monitoring` is a destination again, beside Chats.
+- **Escalations and Risk Flags fold into it.** Their dashboards go, the events do
+  not: each keeps its data model, notifications, teen-timeline records and badge
+  semantics. Escalations surface as the Tier 1 lane and the escalations column;
+  flags roll up to the teen row. `/app/escalations` and `/app/risk-flags` hop to
+  `/app/monitoring`, carrying `?escalation=` / `?flag=` (the page does not open
+  a record yet — `TODO(monitoring)`). The two nav items are removed; this was
+  the one case where removing nav items was asked.
+- **Tiers are a published model.** The stepped-care tiers come from the
+  stepped-care proposal and the Oct escalation flow, and their review cadences
+  from those documents — not invented. That answers arch-mon's objection, which
+  was that nothing PUBLISHED stated a severity or a deadline. The strings live in
+  `lib/monitoring/tiers.ts` (pending the tiering doc's own text), and the exit
+  rule is the flow's: Tier 1 and Tier 2 step down to Tier 3.
+- **Chats stays a separate job.** Monitoring is the global view for actions that
+  need taking; Chats is the one-conversation experience. Monitoring points into
+  Chats; it does not replace it.
+
 ### Monitoring asserts only what it can compute (arch-mon)
+
+**SUPERSEDED IN PART by the section above**: the tiers and their cadences now
+have a published source. What still holds: nothing on the page may manufacture a
+breach state from a deadline nobody published, and nothing is AI-ordered.
 
 The page grouped flags into **Imminent / Clinical review / Routine review** and
 counted each tier's SLA down to a breach. Neither half was computable: the

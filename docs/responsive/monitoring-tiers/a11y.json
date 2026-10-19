@@ -1,0 +1,231 @@
+{
+  "base": "http://localhost:3000",
+  "runs": [
+    {
+      "viewport": "xs",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xs",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "md",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "lg",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "light",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "light",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "dark",
+      "scenario": "tiers-monitor",
+      "layout": "cards",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "list",
+      "violations": 0
+    },
+    {
+      "viewport": "xl",
+      "theme": "dark",
+      "scenario": "tiers-alert",
+      "layout": "cards",
+      "violations": 0
+    }
+  ],
+  "byRule": {},
+  "total": 0
+}

@@ -320,7 +320,12 @@ export function todayCards(input: TodayInput): TodayCard[] {
            NEEDS-COPY-NICOLE: {n} acknowledgements overdue */
         state: parts.length ? parts.join(" · ") : "Nothing open",
         tone: breached ? "breach" : open.escalations > 0 ? "attention" : "clear",
-        href: "/app/escalations",
+        /* MONITORING, NOT A HOP (proto/monitoring-merge). Escalations and
+           Risk Flags folded into `/app/monitoring`; the cards keep their ids,
+           labels and counts, because the events keep their semantics — only
+           the dashboard each pointed at is gone. The old routes still hop
+           here, so a bookmark survives; a Today click does not spend one. */
+        href: "/app/monitoring",
         count: open.escalations,
       };
     })(),
@@ -339,7 +344,7 @@ export function todayCards(input: TodayInput): TodayCard[] {
           /* NEEDS-COPY-NICOLE */
           state: "Flag pipeline is down — no flags are arriving",
           tone: "unavailable" as const,
-          href: "/app/risk-flags",
+          href: "/app/monitoring",
           count: open["risk-flags"],
         };
       }
@@ -352,7 +357,7 @@ export function todayCards(input: TodayInput): TodayCard[] {
           ? `${plural(open["risk-flags"], "open", "open")} · oldest ${ageOf(at, now)}`
           : "Nothing waiting for judgment",
         tone: open["risk-flags"] ? "attention" : "clear",
-        href: "/app/risk-flags",
+        href: "/app/monitoring",
         count: open["risk-flags"],
       };
     })(),

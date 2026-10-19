@@ -154,8 +154,12 @@ describe("the cards are the rail, always", () => {
   });
 
   it("links every card to its own destination and never to a retired route", () => {
+    /* Escalations and Risk Flags folded into Monitoring (proto/monitoring-merge):
+       their routes are hops now, so their cards link to the page they hop to.
+       The card ids stay — the events keep their semantics. */
+    const FOLDED = new Set(["escalations", "risk-flags"]);
     for (const c of todayCards(input())) {
-      expect(c.href, c.id).toBe(`/app/${c.id}`);
+      expect(c.href, c.id).toBe(FOLDED.has(c.id) ? "/app/monitoring" : `/app/${c.id}`);
     }
   });
 });

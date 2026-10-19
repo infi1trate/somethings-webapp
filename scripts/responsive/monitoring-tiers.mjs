@@ -1,0 +1,703 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// /app/monitoring — THE TIERED OVERVIEW, measured (proto/monitoring-merge)
+//
+// Ported from the separate prototype's probe (`scripts/prototype/monitoring.mjs`
+// in the retired :3010 clone) when the page folded into this app. What changed
+// in the port, so a reader can tell a moved claim from a weakened one:
+//
+//   · BASE is :3000 and the route is `/app/monitoring`, seeded as a supervisor.
+//   · Monitor / Alert are the dev bar's Scenario axis (`Tiers · Monitor`,
+//     `Tiers · Alert`), driven through the real dev bar — not a prototype
+//     toolbar, which no longer exists.
+//   · Every colour is read off THIS app's tokens. The port substituted
+//     `--error-strong` → `--state-error`, `--text-disabled` →
+//     `--state-inactive`, `--border-strong` → `--border-default` and Elevation 2
+//     → `--shadow-panel`; the checks follow the substitution rather than a hex.
+//   · The hero's hairlines are its grid's 1px gaps now (so it can wrap), not a
+//     border-left per cell — the check measures the gap.
+//   · The sound toggle is gone, and Join no longer opens a mitigation layer
+//     (out of scope, `TODO(monitoring)`): Join answers the alert, and that is
+//     what is checked.
+//   · Storage that throws is scoped to the layout key: this app's persona lives
+//     in storage too, and blocking all of it measures the persona gate instead.
+//
+// ADDED IN THE PORT (step 7): the nav names Monitoring and Chats under the
+// Monitoring group and nothing else; the badge is teens needing review and
+// follows the scenario; the retired routes land here in one hop with their
+// params; and nothing scrolls sideways at a phone or a tablet.
+//
+// Exit codes: 0 all passed · 1 a check failed.
+
+import { chromium } from "playwright";
+import { mkdir } from "node:fs/promises";
+import { STORE_VERSION as VERSION } from "./store-version.mjs";
+
+const BASE = process.env.BASE ?? "http://localhost:3000";
+const PATH = "/app/monitoring";
+const KEY = "somethings.mentor-onboarding";
+const OUT = process.env.SHOT_OUT ?? "docs/responsive/monitoring-tiers";
+await mkdir(OUT, { recursive: true });
+let fails = 0;
+const check = (ok, label, extra = "") => {
+  if (!ok) fails++;
+  console.log(`  ${ok ? "✓" : "✗"} ${label}${extra ? `  — ${extra}` : ""}`);
+};
+
+const b = await chromium.launch();
+async function open(width = 1512, opts = {}) {
+  const ctx = await b.newContext({
+    viewport: { width, height: opts.height ?? 982 },
+    deviceScaleFactor: opts.dpr ?? 1,
+    reducedMotion: opts.reducedMotion ?? "no-preference",
+  });
+  await ctx.addInitScript(
+    ([k, v]) => {
+      if (!sessionStorage.getItem("seeded")) {
+        localStorage.setItem(k, JSON.stringify(v));
+        sessionStorage.setItem("seeded", "1");
+      }
+    },
+    [KEY, { state: { persona: "supervisor", monitoringScenarioId: opts.scenario ?? "tiers-monitor" }, version: VERSION }]
+  );
+  /* THE THEME COMES FROM STORAGE, not `emulateMedia`: this app applies a
+     `.dark` class from `somethings.theme` and never reads the OS preference
+     (`monitoring-contrast.mjs` measured light twice before learning that). */
+  if (opts.theme) {
+    await ctx.addInitScript((t) => localStorage.setItem("somethings.theme", t), opts.theme);
+  }
+  if (opts.blockLayout) {
+    await ctx.addInitScript(() => {
+      const get = Storage.prototype.getItem;
+      const set = Storage.prototype.setItem;
+      Storage.prototype.getItem = function (k) {
+        if (k === "somethings.monitoring.layout") throw new Error("blocked");
+        return get.call(this, k);
+      };
+      Storage.prototype.setItem = function (k, v) {
+        if (k === "somethings.monitoring.layout") throw new Error("blocked");
+        return set.call(this, k, v);
+      };
+    });
+  }
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}${opts.path ?? PATH}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  return { ctx, page };
+}
+/* THE DEV BAR'S SCENARIO AXIS, clicked as a person would. */
+const setMode = async (page, mode) => {
+  await page.locator('[data-dev-bar-root] button[aria-label^="Scenario:"]').first().click();
+  await page.waitForTimeout(200);
+  await page.locator("button", { hasText: new RegExp(`^Tiers · ${mode === "alert" ? "Alert" : "Monitor"}$`) }).first().click();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
+};
+/* A token's resolved value, for comparing a computed style to it. */
+const tok = (page, v, prop = "color") =>
+  page.evaluate(
+    ([v, prop]) => {
+      const e = document.createElement("span");
+      const key = prop === "color" ? "color" : prop === "shadow" ? "boxShadow" : "backgroundColor";
+      e.style[key] = `var(${v})`;
+      document.body.appendChild(e);
+      const c = getComputedStyle(e)[key];
+      e.remove();
+      return c;
+    },
+    [v, prop]
+  );
+const rgbOf = (c) => c.replace(/^rgba?\(/, "").replace(/\)$/, "").split(",").slice(0, 3).join(",").replace(/\s/g, "");
+/* Tailwind composes `shadow-[…]` into a STACK of `--tw-*` layers (four
+   transparent zeros, then the token), so a computed shadow equals the token
+   only as its last layer. `wears` is that comparison. */
+const wears = (shadow, token) => shadow === token || shadow.endsWith(`, ${token}`);
+const shadowHas = (shadow, color) => shadow.replace(/\s/g, "").includes(rgbOf(color));
+
+/* THE IDENTITY DISC IS NOT TIER COLOUR. `RecordAvatar` hashes a name to one
+   of five Bloom tints, the same on every surface in the app, and two of its
+   inks ARE the tier inks' Bloom steps (avatar-brown-fg = apricot/800 = t2-ink,
+   avatar-rose-fg = blush/950 = t1-ink — measured on teen-t4-0). The rule is
+   about what CARRIES TIER, so the disc is excluded by name, not by loosening
+   the colours; whether Monitoring should neutralise it is a design question in
+   the report. */
+const AVATAR = "[data-tier-ring] > span";
+
+// ── STEP 1 · title row and hero metrics ────────────────────────────────────
+{
+  console.log("\n── step 1 · the title row and the hero metrics (1512)");
+  const { ctx, page } = await open(1512, { dpr: 2 });
+  const t = await page.evaluate(() => {
+    const h = document.querySelector("[data-monitoring] h1");
+    const sub = document.querySelector("[data-monitoring-subline]");
+    const s = (e) => getComputedStyle(e);
+    return { h: h?.textContent.trim(), hfs: s(h).fontSize, hlh: s(h).lineHeight, hff: s(h).fontFamily, sub: sub?.textContent.trim(), subff: s(sub).fontFamily };
+  });
+  check(t.h === "Monitoring" && t.hfs === "24px" && t.hlh === "32px" && /avantt/i.test(t.hff), "Monitoring, in the heading face at 24/32", `${t.hfs}/${t.hlh} · ${t.hff.split(",")[0]}`);
+  check(/^\w{3}, \w{3} \d+ · \d+ on watch · 2 supervisors on shift$/.test(t.sub ?? "") && /mono/i.test(t.subff), "the mono sub-line: date · on watch · supervisors on shift", t.sub);
+
+  const hero = await page.evaluate(() => {
+    const bar = document.querySelector("[data-hero-metrics]");
+    const s = getComputedStyle(bar);
+    const cells = [...bar.querySelectorAll("[data-hero-cell]")].map((c) => {
+      const [num, label, detail] = [c.querySelector("span.font-display"), c.children[1], c.children[2]];
+      const cs = getComputedStyle(c);
+      const dot = c.querySelector("[data-crisis-dot]");
+      return {
+        label: label.textContent.trim(), value: num.textContent.trim(), detail: detail.textContent.trim(),
+        nfs: getComputedStyle(num).fontSize, nlh: getComputedStyle(num).lineHeight, nnum: getComputedStyle(num).fontVariantNumeric,
+        lfs: getComputedStyle(label).fontSize, lc: getComputedStyle(label).color, dfs: getComputedStyle(detail).fontSize, dff: getComputedStyle(detail).fontFamily,
+        bg: cs.backgroundColor, hot: c.dataset.hot === "true",
+        dot: dot ? { w: Math.round(dot.getBoundingClientRect().width), anim: getComputedStyle(dot).animationName } : null,
+        clickable: !!c.closest("a,button") || c.querySelector("a,button") !== null,
+      };
+    });
+    return { radius: s.borderRadius, shadow: s.boxShadow, bg: s.backgroundColor, gap: s.columnGap, cols: s.gridTemplateColumns.split(" ").length, cells };
+  });
+  const [secondary, raised, subtle, elev1] = [await tok(page, "--text-secondary"), await tok(page, "--surface-raised", "bg"), await tok(page, "--border-subtle", "bg"), await tok(page, "--elevation-1", "shadow")];
+  check(hero.radius === "16px" && wears(hero.shadow, elev1) && hero.cells.every((c) => c.bg === raised), "one raised surface: 16px, Elevation 1, every cell on surface-raised", `${hero.radius} · ${hero.cells[0].bg}`);
+  check(hero.cells.map((c) => c.label).join("|") === "In crisis|High risk|Open risk flags|Escalations · 30d|Active teens", "five cells, in order", hero.cells.map((c) => c.label).join(" · "));
+  check(hero.cols === 5 && hero.gap === "1px" && hero.bg === subtle, "five across, divided by 1px border-subtle hairlines", `${hero.cols} · ${hero.gap} · ${hero.bg}`);
+  check(hero.cells.every((c) => c.nfs === "32px" && c.nlh === "36px" && /tabular-nums/.test(c.nnum)), "numerals 32/36, tabular");
+  check(hero.cells.every((c) => c.lfs === "13px" && c.lc === secondary && c.dfs === "11px" && /mono/i.test(c.dff)), "labels 13px secondary, details 11px mono");
+  check(hero.cells.every((c) => !c.clickable), "not clickable");
+  const crisis0 = hero.cells[0];
+  check(crisis0.value === "0" && !crisis0.hot && crisis0.dot?.w === 10 && crisis0.dot.anim === "none", "Monitor: In crisis 0, a quiet 10px dot, no pulse", JSON.stringify(crisis0.dot));
+  check(hero.cells[1].value === "2" && /1 review due/.test(hero.cells[1].detail), "High risk 2, with its 1 review due — derived", hero.cells[1].detail);
+  check(hero.cells[4].value === "105", "Monitor: 105 active teens (the Tier 1 teen is not in a calm roster)", hero.cells[4].value);
+  await page.screenshot({ path: `${OUT}/01-monitor-1512.png` });
+
+  await setMode(page, "alert");
+  const hot = await page.evaluate(() => {
+    const c = document.querySelector('[data-hero-cell="In crisis"]');
+    const n = c.querySelector("span.font-display");
+    const d = c.querySelector("[data-crisis-dot]");
+    return { value: n.textContent, hot: c.dataset.hot, bg: getComputedStyle(c).backgroundColor, nc: getComputedStyle(n).color, dbg: getComputedStyle(d).backgroundColor, anim: getComputedStyle(d).animationName, dc: getComputedStyle(c.children[2]).color, active: document.querySelector('[data-hero-cell="Active teens"] span.font-display').textContent };
+  });
+  const t1 = await tok(page, "--t1");
+  const t1soft = await tok(page, "--t1-soft", "bg");
+  check(hot.value === "1" && hot.hot === "true" && hot.bg === t1soft && hot.nc === t1 && hot.dbg === t1 && hot.anim !== "none", "Alert: In crisis 1, the cell tints t1-soft, numeral and dot t1, the dot pulses", JSON.stringify({ v: hot.value, bg: hot.bg, anim: hot.anim }));
+  check(hot.dc === secondary, "its detail falls back to secondary on t1-soft (tertiary is 4.39:1)", hot.dc);
+  check(hot.active === "106", "Alert: active teens counts the Tier 1 teen — derived, not typed", hot.active);
+  await page.screenshot({ path: `${OUT}/02-alert-1512.png` });
+  await ctx.close();
+
+  const rm = await open(1512, { reducedMotion: "reduce", scenario: "tiers-alert" });
+  const anim = await rm.page.evaluate(() => getComputedStyle(document.querySelector("[data-crisis-dot]")).animationName);
+  check(anim === "none", "reduced motion: the dot does not pulse — and it is still there", anim);
+  await rm.ctx.close();
+}
+
+// ── STEP 2 · the Tier 1 lane, Monitor and Alert ────────────────────────────
+{
+  console.log("\n── step 2 · the Tier 1 lane");
+  const { ctx, page } = await open(1512, { dpr: 2 });
+  const empty = await page.evaluate(() => {
+    const g = document.querySelector('[data-tier-group="1"]');
+    const h = g.querySelector("h3");
+    const e = g.querySelector("[data-t1-empty]");
+    const s = e && getComputedStyle(e);
+    return { h3: h?.textContent.replace(/\s+/g, " ").trim(), text: e?.textContent.trim(), bg: s?.backgroundColor, border: s && `${s.borderTopWidth} ${s.borderTopColor}`, color: s?.color, live: !!g.querySelector("[data-t1-live]") };
+  });
+  const [tertiary, borderDefault, raised] = [await tok(page, "--text-tertiary"), await tok(page, "--border-default"), await tok(page, "--surface-raised", "bg")];
+  check(/^Tier 1 · Active crisis\s*0/.test(empty.h3 ?? ""), "its own h3 group header, naming the tier", empty.h3);
+  check(empty.text === "Nothing in crisis" && empty.bg === raised && empty.border === `1px ${borderDefault}` && empty.color === tertiary && !empty.live, "Monitor: a raised hairline surface, 'Nothing in crisis' in tertiary", JSON.stringify(empty));
+  await setMode(page, "alert");
+  const live = await page.evaluate(() => {
+    const r = document.querySelector("[data-t1-live]");
+    const s = getComputedStyle(r);
+    const ring = r.querySelector("[data-tier-ring]");
+    const join = r.querySelector("[data-t1-join]");
+    const rec = r.querySelector("[data-recommended]");
+    const flags = r.querySelector("[data-t1-flags]");
+    return {
+      bg: s.backgroundColor, border: `${s.borderTopWidth} ${s.borderTopColor}`, leftBorder: s.borderLeftWidth === s.borderTopWidth && s.borderLeftColor === s.borderTopColor,
+      ring: ring?.dataset.tierRing, ringShadow: getComputedStyle(ring).boxShadow,
+      text: r.textContent.replace(/\s+/g, " ").trim(),
+      rec: rec && { color: getComputedStyle(rec).color, border: getComputedStyle(rec).borderTopColor, text: rec.textContent.trim() },
+      flags: flags && { color: getComputedStyle(flags).color, text: flags.textContent.replace(/\s+/g, " ").trim() },
+      join: join && { bg: getComputedStyle(join).backgroundColor, color: getComputedStyle(join).color, text: join.textContent.trim(), label: join.getAttribute("aria-label"), h: Math.round(join.getBoundingClientRect().height) },
+    };
+  });
+  const [t1, t1soft, t1ink, ok, okink] = [await tok(page, "--t1"), await tok(page, "--t1-soft", "bg"), await tok(page, "--t1-ink"), await tok(page, "--ok"), await tok(page, "--ok-ink")];
+  check(live.bg === t1soft && live.border === `1px ${t1}` && live.leftBorder, "Alert: t1-soft with a 1px t1 keyline, all round (no left bar)", `${live.bg} · ${live.border}`);
+  check(live.ring === "1" && shadowHas(live.ringShadow, t1), "the avatar carries the t1 ring");
+  check(/Juniper S\./.test(live.text) && /Eden M\./.test(live.text) && /Eden in session/.test(live.text), "teen, mentor, presence", live.text.slice(0, 80));
+  check(live.rec?.text === "Recommended T1" && live.rec.border === ok && live.rec.color === okink, "★ Recommended T1, outlined ok, ink that passes", JSON.stringify(live.rec));
+  check(live.flags?.text.startsWith("4 · 24h") && live.flags.color === t1ink, "the flag signal in t1-ink", JSON.stringify(live.flags));
+  check(/^Join · [01]:[0-5]\d$/.test(live.join?.text ?? "") && live.join.bg === t1ink && live.join.color === "rgb(255, 255, 255)" && live.join.h >= 24, "a red Join with the response clock", JSON.stringify(live.join));
+  const t0 = await page.locator("[data-t1-join]").textContent();
+  await page.waitForTimeout(2100);
+  const t1txt = await page.locator("[data-t1-join]").textContent();
+  check(t0 !== t1txt, "and the clock runs", `${t0} → ${t1txt}`);
+  await page.screenshot({ path: `${OUT}/03-lane-alert-1512.png` });
+  await ctx.close();
+}
+
+// ── STEP 3 · the list view ─────────────────────────────────────────────────
+const ENGINE = `(() => {
+  if (window.__c) return;
+  const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  const rgba = (c) => { cx.clearRect(0,0,1,1); cx.fillStyle = "#000"; cx.fillStyle = c; cx.fillRect(0,0,1,1); const d = cx.getImageData(0,0,1,1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+  const over = (t, u) => { const a = t[3]; return [t[0]*a+u[0]*(1-a), t[1]*a+u[1]*(1-a), t[2]*a+u[2]*(1-a), 1]; };
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); }; return 0.2126*f(c[0])+0.7152*f(c[1])+0.0722*f(c[2]); };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05); };
+  const bgOf = (el) => { const st = []; for (let e = el; e; e = e.parentElement) { const c = rgba(getComputedStyle(e).backgroundColor); if (c[3] > 0) { st.push(c); if (c[3] >= 1) break; } } let base = [255,255,255,1]; if (st.length && st[st.length-1][3] >= 1) base = st.pop(); while (st.length) base = over(st.pop(), base); return base; };
+  window.__c = { rgba, ratio, bgOf };
+})()`;
+{
+  console.log("\n── step 3 · the list view (1512)");
+  const { ctx, page } = await open(1512, { dpr: 2, scenario: "tiers-alert" });
+  const t = await page.evaluate(() => {
+    const table = document.querySelector('[data-monitoring-list][role="table"]');
+    const heads = [...table.querySelectorAll('[role="columnheader"]')].map((h) => h.textContent.trim());
+    const rows = [...table.querySelectorAll("[data-monitoring-row]")];
+    const geo = rows.map((r) => {
+      const b = r.getBoundingClientRect();
+      const s = getComputedStyle(r);
+      return { id: r.dataset.monitoringRow, tier: +r.dataset.tier, top: Math.round(b.top), bottom: Math.round(b.bottom), h: Math.round(b.height), radius: s.borderRadius, bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`, cellsX: [...r.querySelectorAll(':scope > [role="cell"]')].map((c) => Math.round(c.getBoundingClientRect().left)), ring: r.querySelector("[data-tier-ring]")?.dataset.tierRing, ringShadow: getComputedStyle(r.querySelector("[data-tier-ring]")).boxShadow, loz: r.querySelector("[data-tier-lozenge]")?.textContent.trim() };
+    });
+    const h3 = [...table.querySelectorAll("h3")].map((h) => h.textContent.replace(/\s+/g, " ").trim());
+    const groups = [...table.querySelectorAll('[role="rowgroup"][data-tier-group]')].map((g) => ({ tier: g.dataset.tierGroup, labelled: !!document.getElementById(g.getAttribute("aria-labelledby") ?? "") }));
+    return { heads, geo, h3, groups };
+  });
+  check(t.heads.join("|") === "Teen|Mentor|Days on platform|Days engaged|Risk flags|Escalations|Surveys", "a table with the seven column headers", t.heads.join(" · "));
+  check(t.h3.some((h) => /^Tier 1 · Active crisis/.test(h)) && t.h3.some((h) => /^Tier 2 · High risk/.test(h)) && t.h3.some((h) => /^Tier 3 · Monitoring/.test(h)) && t.h3.some((h) => /^Tier 4 · General/.test(h)), "each tier is an h3 naming it", t.h3.map((h) => h.split(/\d+$/)[0]).join(" | "));
+  check(t.groups.length >= 3 && t.groups.filter((g) => g.tier !== "1").every((g) => g.labelled), "each tier rowgroup is labelled by its heading", `${t.groups.length} groups`);
+  const body = t.geo;
+  check(body.length > 0 && body.every((r) => r.h === 52 && r.radius === "10px"), "rows 52 tall, 10px radius", [...new Set(body.map((r) => `${r.h}/${r.radius}`))].join(","));
+  const gaps = body.slice(1).map((r, i) => (r.tier === body[i].tier ? r.top - body[i].bottom : null)).filter((g) => g !== null);
+  check(gaps.length > 0 && gaps.every((g) => g === 4), "4px between rows in a tier", [...new Set(gaps)].join(","));
+  const cols = body[0].cellsX.map((_, i) => new Set(body.map((r) => r.cellsX[i])).size);
+  check(cols.length === 7 && cols.every((n) => n === 1), "subgrid: every column starts at one x across all tiers", cols.join(","));
+  /* AND THE TRACKS ARE THE TABLE'S, not each row's own (seven equal columns
+     would align too, which is why alignment alone is not the check). */
+  const tracks = await page.evaluate(() => {
+    const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].map((h) => Math.round(h.getBoundingClientRect().left));
+    const row = document.querySelector("[data-monitoring-row]");
+    const cells = [...row.querySelectorAll(':scope > [role="cell"]')].map((c) => c.getBoundingClientRect());
+    return { hx, cx: cells.map((c) => Math.round(c.left)), teen: Math.round(cells[0].width), mentor: Math.round(cells[1].width) };
+  });
+  check(tracks.hx.every((x, i) => Math.abs(x - tracks.cx[i]) <= 1), "the column headers sit over the cells", `${tracks.hx.join(",")} / ${tracks.cx.join(",")}`);
+  check(tracks.teen > tracks.mentor * 1.8, "Teen holds its wide track against Mentor's", `${tracks.teen} vs ${tracks.mentor}`);
+  const [t2, t2soft, borderDefault, secondary, raised, elev1] = [await tok(page, "--t2"), await tok(page, "--t2-soft", "bg"), await tok(page, "--border-default"), await tok(page, "--text-secondary"), await tok(page, "--surface-raised", "bg"), await tok(page, "--elevation-1", "shadow")];
+  const by = (tier) => body.filter((r) => r.tier === tier);
+  check(by(2).length > 0 && by(2).every((r) => r.bg === t2soft && (/^0px/.test(r.bt) || /rgba\(0, 0, 0, 0\)$/.test(r.bt)) && r.shadow === "none"), "T2: t2-soft, no keyline (nothing visible at its edge)", JSON.stringify(by(2)[0] && { bg: by(2)[0].bg, bt: by(2)[0].bt }));
+  check(by(3).length > 0 && by(3).every((r) => r.bg === raised && wears(r.shadow, elev1)), "T3: surface-raised, Elevation 1 — elevation is the signifier");
+  check(by(4).length > 0 && by(4).every((r) => r.bg === "rgba(0, 0, 0, 0)" && r.bt === `1px ${borderDefault}` && r.shadow === "none"), "T4: transparent, a 1px border-default hairline, no shadow", JSON.stringify(by(4)[0] && { bg: by(4)[0].bg, bt: by(4)[0].bt }));
+  check(body.every((r) => r.bl === r.bt && !/inset/.test(r.shadow)), "no coloured bar or left border on any row");
+  check(by(2).every((r) => r.ring === "2" && shadowHas(r.ringShadow, t2)) && by(3).every((r) => r.ring === "3" && shadowHas(r.ringShadow, secondary)) && by(4).every((r) => r.ring === "none"), "rings: t2, text-secondary, none for T4");
+  check(body.every((r) => r.loz === `T${r.tier}`), "every row's lozenge says its tier");
+
+  /* ALERT COLOUR IS TIERS 1–2 ONLY: nothing on a T3 / T4 row computes to t1,
+     t2 or their inks — text, fill or border. */
+  const alert = await page.evaluate((AVATAR) => {
+    const probe = (v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+    const red = ["--t1", "--t2", "--t1-ink", "--t2-ink"].map(probe);
+    const hits = [];
+    const rows = document.querySelectorAll('[data-monitoring-row][data-tier="3"], [data-monitoring-row][data-tier="4"]');
+    for (const r of rows)
+      for (const el of [r, ...r.querySelectorAll("*")]) {
+        if (el.closest(AVATAR)) continue;
+        const s = getComputedStyle(el);
+        for (const c of [s.color, s.backgroundColor, s.borderTopColor, s.boxShadow]) if (red.some((x) => c.includes(x.slice(4, -1)))) hits.push(r.dataset.monitoringRow);
+      }
+    return { n: rows.length, hits: [...new Set(hits)] };
+  }, AVATAR);
+  check(alert.n > 0 && alert.hits.length === 0, "no red or amber anywhere on a Tier 3 or 4 row — the slow-burn glyph included", `${alert.n} rows ${alert.hits.join(",")}`);
+
+  const tones = await page.evaluate(() => {
+    const flag = (id) => getComputedStyle(document.querySelector(`[data-monitoring-row="${id}"] [role="cell"]:nth-child(5) > span`)).color;
+    const zero = getComputedStyle(document.querySelector('[data-monitoring-row="teen-ravi"] [role="cell"]:nth-child(5) > span')).color;
+    const theo = document.querySelector('[data-monitoring-row="teen-theo"] [role="cell"]:nth-child(5)').textContent;
+    const second = document.querySelector('[data-monitoring-row="teen-leo"] p')?.textContent;
+    const spark = [...document.querySelectorAll('[data-monitoring-row="teen-leo"] [data-sparkline] > span')].map((b) => ({ w: Math.round(b.getBoundingClientRect().width), x: Math.round(b.getBoundingClientRect().left), bg: getComputedStyle(b).backgroundColor }));
+    const sparkH = Math.round(document.querySelector('[data-monitoring-row="teen-leo"] [data-sparkline]').getBoundingClientRect().height);
+    return { mia: flag("teen-mia"), leo: flag("teen-leo"), zero, theo, second, spark, sparkH };
+  });
+  const [t2ink, primary, tertiary, sparkInk] = [await tok(page, "--t2-ink"), await tok(page, "--text-primary"), await tok(page, "--text-tertiary"), await tok(page, "--border-default", "bg")];
+  check(tones.mia === t2ink && tones.leo === primary, "T2 flags tone only on a surge (Mia t2-ink, Leo ink)", `${tones.mia} / ${tones.leo}`);
+  /* WAS state-inactive (the clone's text-disabled), which step 8 measured at
+     2.1:1 — a "0" is content. Tertiary is the quietest ink that is text. */
+  check(tones.zero === tertiary, "a zero count on an untinted row is tertiary — quiet, and still AA", tones.zero);
+  const tintZero = await page.evaluate(() => getComputedStyle(document.querySelector('[data-monitoring-row="teen-mia"] [role="cell"]:nth-child(6) > span')).color);
+  check(tintZero === secondary, "on a t2 tint a zero falls back to secondary", tintZero);
+  check(/↗/.test(tones.theo), "Theo's slow-burn reads ↗, in neutral ink", tones.theo);
+  check(tones.second === "From T1 · Fri · Day 3/7", "the second line: review reason · day N/M", tones.second);
+  check(tones.spark.length === 7 && tones.spark.every((b) => b.w === 4 && b.bg === sparkInk) && tones.spark.slice(1).every((b, i) => b.x - tones.spark[i].x === 6) && tones.sparkH === 16, "the sparkline: 7 bars, 4px, 2px apart, 16 tall, border-default", JSON.stringify(tones.spark.slice(0, 2)));
+
+  /* TEXT ON THE TINTS ≥ 4.5:1 — every text node on a T1 or T2 surface. */
+  const contrast = await page.evaluate(([ENGINE]) => {
+    eval(ENGINE);
+    const { rgba, ratio, bgOf } = window.__c;
+    const out = [];
+    for (const r of document.querySelectorAll('[data-monitoring-row][data-tier="2"], [data-t1-live]')) {
+      const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const el = n.parentElement;
+        if (!n.textContent.trim() || el.closest(".sr-only") || el.closest('[aria-hidden="true"]')) continue;
+        out.push({ t: n.textContent.trim().slice(0, 24), r: Math.round(ratio(rgba(getComputedStyle(el).color), bgOf(el)) * 100) / 100 });
+      }
+    }
+    return out;
+  }, [ENGINE]);
+  const texts = contrast.filter((c) => !/^[A-Z]$/.test(c.t));
+  const low = texts.filter((c) => c.r < 4.5);
+  check(texts.length > 0 && low.length === 0, "every text on t1-soft / t2-soft is ≥ 4.5:1", low.length ? JSON.stringify(low) : `${texts.length} texts, lowest ${Math.min(...texts.map((c) => c.r))}:1`);
+  await page.screenshot({ path: `${OUT}/04-list-alert-1512.png` });
+  await ctx.close();
+}
+
+// ── STEP 4 · the card view and the toggle ──────────────────────────────────
+{
+  console.log("\n── step 4 · the toggle and the card view (1512)");
+  const { ctx, page } = await open(1512, { dpr: 2, scenario: "tiers-alert" });
+  const tg = await page.evaluate(() => {
+    const g = document.querySelector("[data-layout-group]");
+    const gs = getComputedStyle(g);
+    const bs = [...g.querySelectorAll("button")].map((b) => {
+      const r = b.getBoundingClientRect();
+      const s = getComputedStyle(b);
+      return { v: b.dataset.layoutToggle, w: Math.round(r.width), h: Math.round(r.height), pressed: b.getAttribute("aria-pressed"), label: b.getAttribute("aria-label"), bg: s.backgroundColor, shadow: s.boxShadow };
+    });
+    return { role: g.getAttribute("role"), radius: gs.borderRadius, border: gs.borderTopWidth, right: Math.round(g.getBoundingClientRect().right), titleRow: Math.round(document.querySelector("[data-monitoring] h1").parentElement.parentElement.getBoundingClientRect().right), bs };
+  });
+  const [raised, elev1] = [await tok(page, "--surface-raised", "bg"), await tok(page, "--elevation-1", "shadow")];
+  check(tg.role === "group" && tg.radius === "10px" && tg.border === "1px" && Math.abs(tg.right - tg.titleRow) <= 1, "a bordered 10px group, right-aligned in the title row", JSON.stringify({ r: tg.radius, right: tg.right, row: tg.titleRow }));
+  check(tg.bs.length === 2 && tg.bs.every((b) => b.w === 36 && b.h === 32 && b.label), "two 36×32 named icon buttons", tg.bs.map((b) => `${b.label} ${b.w}×${b.h}`).join(" · "));
+  const on = tg.bs.find((b) => b.pressed === "true");
+  check(on?.v === "list" && on.bg === raised && wears(on.shadow, elev1) && tg.bs.find((b) => b.v === "cards").pressed === "false", "list pressed by default: raised, Elevation 1, aria-pressed", JSON.stringify(on));
+
+  await page.locator('[data-layout-toggle="cards"]').click();
+  await page.waitForTimeout(300);
+  const c = await page.evaluate(() => {
+    const root = document.querySelector("[data-monitoring-cards]");
+    const grid = root.querySelector('[data-tier-group="2"] [data-card-grid]');
+    const gs = getComputedStyle(grid);
+    const cards = [...root.querySelectorAll("[data-monitoring-card]")].map((a) => {
+      const s = getComputedStyle(a);
+      const r = a.getBoundingClientRect();
+      const name = document.getElementById(a.getAttribute("aria-labelledby"));
+      const loz = a.querySelector("[data-tier-lozenge]");
+      const av = a.querySelector("[data-tier-ring] > span");
+      return {
+        id: a.dataset.monitoringCard, tier: +a.dataset.tier, tag: a.tagName, name: name?.textContent.trim(), nfs: getComputedStyle(name).fontSize,
+        radius: s.borderRadius, pad: `${s.paddingTop} ${s.paddingRight}`, bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`,
+        loz: loz?.textContent.trim(), lozRight: Math.round(r.right - loz.getBoundingClientRect().right), av: Math.round(av.getBoundingClientRect().width),
+        days: a.querySelector("[data-card-days]")?.textContent.replace(/\s+/g, " ").replace(/ days engaged.*$/, "").trim(),
+        stats: a.querySelectorAll("[data-card-stats] > div").length,
+        tit: (() => { const b = a.querySelector("[data-card-tit] span[aria-hidden]"); return b ? Math.round(b.getBoundingClientRect().height) : null; })(),
+        footer: (() => { const f = a.querySelector("footer"); return { bt: getComputedStyle(f).borderTopWidth, text: f.textContent.replace(/\s+/g, " ").trim() }; })(),
+        open: (() => { const o = a.querySelector("[data-card-open]"); return o && { h: Math.round(o.getBoundingClientRect().height), label: o.getAttribute("aria-label") }; })(),
+      };
+    });
+    return { list: !!document.querySelector("[data-monitoring-list]"), lane: !!root.querySelector('[data-tier-group="1"] [data-t1-live]'), cols: gs.gridTemplateColumns.split(" ").length, gap: gs.columnGap, cards };
+  });
+  check(!c.list && c.lane, "the cards replace the list in place; the Tier 1 lane stays", JSON.stringify({ list: c.list, lane: c.lane }));
+  check(c.cols === 3 && c.gap === "12px", "a 3-column grid, 12px apart", `${c.cols} · ${c.gap}`);
+  const cs = c.cards;
+  check(cs.length > 0 && cs.every((x) => x.tag === "ARTICLE" && x.name), "each card is an article named by its teen", cs.slice(0, 3).map((x) => x.name).join(", "));
+  check(cs.every((x) => x.radius === "16px" && x.pad === "14px 16px"), "16px radius, padded 14 / 16", cs[0]?.pad);
+  check(cs.every((x) => x.av === 32 && x.nfs === "15px"), "32px ringed avatar, name 15px");
+  check(cs.every((x) => x.loz === `T${x.tier} · ${["", "Active crisis", "High risk", "Monitoring", "General"][x.tier]}` && x.lozRight <= 17), "the long lozenge, right-aligned", cs.map((x) => x.loz).filter((v, i, a) => a.indexOf(v) === i).join(" | "));
+  const leo = cs.find((x) => x.id === "teen-leo");
+  check(leo?.days === "48 / 132", "days engaged / on platform", leo?.days);
+  check(cs.every((x) => x.stats === 4), "a 2×2 stat grid");
+  check(leo?.tit === 3, "time in tier over a 3px bar", `${leo?.tit}`);
+  const ravi = cs.find((x) => x.id === "teen-ravi");
+  check(cs.every((x) => x.footer.bt === "1px" && /Open ›$/.test(x.footer.text)) && /^No review due/.test(ravi?.footer.text ?? ""), "a hairline footer: reason (or 'No review due') and Open ›", ravi?.footer.text);
+  check(cs.every((x) => x.open.h >= 24 && /^Open /.test(x.open.label)), "Open is a ≥ 24px target, named for its teen");
+  const [t2soft, borderDefault, panel] = [await tok(page, "--t2-soft", "bg"), await tok(page, "--border-default"), await tok(page, "--shadow-panel", "shadow")];
+  const by = (t) => cs.filter((x) => x.tier === t);
+  check(by(2).length > 0 && by(3).length > 0 && by(4).length > 0 && by(2).every((x) => x.bg === t2soft) && by(3).every((x) => x.bg === raised && wears(x.shadow, panel)) && by(4).every((x) => x.bg === "rgba(0, 0, 0, 0)" && x.bt === `1px ${borderDefault}` && x.shadow === "none"), "surfaces: T2 t2-soft, T3 raised with --shadow-panel (Elevation 2), T4 a hairline");
+  check(cs.every((x) => x.bl === x.bt), "no coloured left border on any card");
+  const alert = await page.evaluate((AVATAR) => {
+    const probe = (v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+    const red = ["--t1", "--t2", "--t1-ink", "--t2-ink"].map(probe);
+    const hits = [];
+    for (const r of document.querySelectorAll('[data-monitoring-card][data-tier="3"], [data-monitoring-card][data-tier="4"]'))
+      for (const el of [r, ...r.querySelectorAll("*")]) { if (el.closest(AVATAR)) continue; const s = getComputedStyle(el); for (const v of [s.color, s.backgroundColor, s.borderTopColor, s.boxShadow]) if (red.some((x) => v.includes(x.slice(4, -1)))) hits.push(r.dataset.monitoringCard); }
+    return [...new Set(hits)];
+  }, AVATAR);
+  check(alert.length === 0, "no red or amber on a Tier 3 or 4 card", alert.join(","));
+  const contrast = await page.evaluate(([ENGINE]) => {
+    eval(ENGINE);
+    const { rgba, ratio, bgOf } = window.__c;
+    const out = [];
+    for (const r of document.querySelectorAll('[data-monitoring-card][data-tier="2"]')) {
+      const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) { const el = n.parentElement; if (!n.textContent.trim() || el.closest(".sr-only") || el.closest('[aria-hidden="true"]')) continue; out.push({ t: n.textContent.trim().slice(0, 20), r: Math.round(ratio(rgba(getComputedStyle(el).color), bgOf(el)) * 100) / 100 }); }
+    }
+    return out;
+  }, [ENGINE]);
+  const low = contrast.filter((x) => x.r < 4.5);
+  check(contrast.length > 0 && low.length === 0, "every text on a t2 card is ≥ 4.5:1", low.length ? JSON.stringify(low) : `${contrast.length} texts, lowest ${Math.min(...contrast.map((x) => x.r))}:1`);
+  await page.screenshot({ path: `${OUT}/05-cards-alert-1512.png` });
+
+  /* PERSISTED: a reload keeps the cards. */
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  check(!!(await page.$("[data-monitoring-cards]")) && (await page.locator('[data-layout-toggle="cards"]').getAttribute("aria-pressed")) === "true", "the choice survives a reload");
+  await ctx.close();
+
+  /* LAYOUT STORAGE THAT THROWS: the page still renders, on the list. */
+  const blocked = await open(1512, { blockLayout: true });
+  const errors = [];
+  blocked.page.on("pageerror", (e) => errors.push(String(e)));
+  await blocked.page.reload({ waitUntil: "networkidle" });
+  await blocked.page.waitForTimeout(900);
+  const listOk = !!(await blocked.page.$("[data-monitoring-list]"));
+  await blocked.page.locator('[data-layout-toggle="cards"]').click().catch(() => {});
+  await blocked.page.waitForTimeout(300);
+  const cardsOk = !!(await blocked.page.$("[data-monitoring-cards]"));
+  check(listOk && cardsOk && errors.length === 0, "blocked storage: the list renders and the toggle still works", JSON.stringify({ listOk, cardsOk, errors: errors.slice(0, 2) }));
+  await blocked.ctx.close();
+}
+
+// ── STEP 5 · the alert strip ───────────────────────────────────────────────
+{
+  console.log("\n── step 5 · the alert strip (1512)");
+  const { ctx, page } = await open(1512, { dpr: 2 });
+  check(!(await page.$("[data-alert-strip]")), "Monitor: no strip");
+  await setMode(page, "alert");
+  const st = await page.evaluate(([ENGINE]) => {
+    eval(ENGINE);
+    const { rgba, ratio, bgOf } = window.__c;
+    const el = document.querySelector("[data-alert-strip]");
+    if (!el) return null;
+    const s = getComputedStyle(el);
+    const h1 = document.querySelector("[data-monitoring] h1").getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const texts = [];
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) { const e = n.parentElement; if (!n.textContent.trim() || e.closest('[aria-hidden="true"]')) continue; texts.push({ t: n.textContent.trim().slice(0, 18), r: Math.round(ratio(rgba(getComputedStyle(e).color), bgOf(e)) * 100) / 100 }); }
+    const dot = el.querySelector("[data-alert-dot]");
+    return {
+      role: el.getAttribute("role"), bg: s.backgroundColor, text: el.querySelector("[data-alert-text]").textContent.replace(/\s+/g, " ").trim(),
+      timer: el.querySelector("[data-alert-timer]").textContent.replace(/\s+/g, " ").trim(), timerFf: getComputedStyle(el.querySelector("[data-alert-timer]")).fontFamily,
+      lane: document.querySelector("[data-t1-join]")?.textContent.trim(),
+      dot: getComputedStyle(dot).animationName,
+      join: (() => { const j = el.querySelector("[data-alert-join]"); return { bg: getComputedStyle(j).backgroundColor, c: getComputedStyle(j).color, t: j.textContent.trim() }; })(),
+      ack: el.querySelector("[data-alert-ack]")?.textContent.trim(),
+      above: r.bottom <= h1.top,
+      sound: /sound/i.test(el.textContent),
+      texts,
+    };
+  }, [ENGINE]);
+  const errBg = await tok(page, "--state-error", "bg");
+  const errFg = await tok(page, "--state-error");
+  check(st?.role === "alert" && st.bg === errBg, "Alert: role=alert, on --state-error", st?.bg);
+  check(/^Tier 1 · Eden M\. flagged Juniper S\. · unconfirmed · note \+ C-SSRS · \d{1,2}:\d{2} (AM|PM)$/.test(st?.text ?? ""), "the pack's sentence, from the data", st?.text);
+  check(/^\d:\d\d left$/.test(st?.timer ?? "") && /mono/i.test(st.timerFf) && !st.sound, "a mono response timer chip, and no sound toggle", st?.timer);
+  check(st?.lane?.endsWith(st.timer.split(" ")[0]), "the strip and the lane show one clock", `${st?.timer.split(" ")[0]} / ${st?.lane}`);
+  check(st?.dot !== "none", "the dot pulses");
+  check(st?.join.bg === "rgb(255, 255, 255)" && st.join.c === errFg && st.join.t === "Join session" && st.ack === "Acknowledge", "Join session white and primary, then Acknowledge", JSON.stringify(st?.join));
+  check(st?.above, "above the page title, at the top of the canvas");
+  const low = (st?.texts ?? []).filter((x) => x.r < 4.5);
+  check(st?.texts.length > 0 && low.length === 0, "every text on the strip is ≥ 4.5:1", low.length ? JSON.stringify(low) : `${st?.texts.length} texts, lowest ${Math.min(...(st?.texts ?? []).map((x) => x.r))}:1`);
+  await page.screenshot({ path: `${OUT}/06-strip-alert-1512.png` });
+
+  /* ACKNOWLEDGE ends it; the lane stays live; Join from the lane does not bring it back. */
+  await page.locator("[data-alert-ack]").click();
+  await page.waitForTimeout(300);
+  check(!(await page.$("[data-alert-strip]")) && !!(await page.$("[data-t1-live]")), "Acknowledge ends the strip; the lane stays live");
+  await page.locator("[data-t1-join]").click();
+  await page.waitForTimeout(500);
+  check(!(await page.$("[data-alert-strip]")), "Join from the lane does not raise an answered strip");
+
+  /* A NEW ALERT is a new strip, on a fresh clock. */
+  await setMode(page, "monitor");
+  check(!(await page.$("[data-alert-strip]")) && !!(await page.$("[data-t1-empty]")), "back to Monitor: no strip, the lane calm");
+  await setMode(page, "alert");
+  const again = await page.evaluate(() => document.querySelector("[data-alert-timer]")?.textContent.trim());
+  check(/^(1:00|0:59|0:58) left/.test(again ?? ""), "Monitor then Alert again: a new strip, the clock from 1:00", again);
+
+  /* JOIN from the strip answers the alert (the session hand-off is TODO). */
+  await page.locator("[data-alert-join]").click();
+  await page.waitForTimeout(500);
+  check(!(await page.$("[data-alert-strip]")) && new URL(page.url()).pathname === PATH, "Join session ends the strip and stays on the page (navigation is TODO(monitoring))", page.url());
+  await ctx.close();
+
+  const rm = await open(1512, { reducedMotion: "reduce", scenario: "tiers-alert" });
+  const a = await rm.page.evaluate(() => { const d = document.querySelector("[data-alert-dot]"); return d && { anim: getComputedStyle(d).animationName, w: Math.round(d.getBoundingClientRect().width) }; });
+  check(a?.anim === "none" && a.w === 10, "reduced motion: no pulse, the dot still there", JSON.stringify(a));
+  await rm.ctx.close();
+}
+
+// ── STEP 6 · Tier 4 collapsed, windowed when shown ─────────────────────────
+for (const layout of ["list", "cards"]) {
+  console.log(`\n── step 6 · Tier 4 in the ${layout} (1512)`);
+  const { ctx, page } = await open(1512);
+  if (layout === "cards") {
+    await page.locator('[data-layout-toggle="cards"]').click();
+    await page.waitForTimeout(300);
+  }
+  const item = layout === "list" ? "[data-monitoring-row]" : "[data-monitoring-card]";
+  const rendered = () => page.evaluate((item) => document.querySelectorAll(`[data-tier-group="4"] ${item}`).length, item);
+  const c = await page.evaluate(() => {
+    const g = document.querySelector('[data-tier-group="4"]');
+    const b = g.querySelector("[data-tier4-toggle]");
+    const r = b.getBoundingClientRect();
+    const hdr = g.querySelector("h3").closest("div").parentElement.getBoundingClientRect();
+    return { text: b.textContent.trim(), exp: b.getAttribute("aria-expanded"), ff: getComputedStyle(b).fontFamily, bg: getComputedStyle(b).backgroundColor, h: Math.round(r.height), rightGap: Math.round(hdr.right - r.right), count: g.querySelector("h3").textContent.match(/(\d+)$/)?.[1], controls: !!document.getElementById(b.getAttribute("aria-controls")) };
+  });
+  const preview = layout === "list" ? 2 : 3;
+  check((await rendered()) === preview, `collapsed: a ${preview}-${layout === "list" ? "row" : "card"} preview`, `${await rendered()}`);
+  check(c.text === "Show all" && c.exp === "false" && c.controls && /mono/i.test(c.ff) && c.bg === "rgba(0, 0, 0, 0)" && c.h >= 24 && c.rightGap <= 4, "Show all: a mono ghost button, right-aligned, ≥ 24 tall, controlling the group", JSON.stringify(c));
+  check(c.count === "100", "the header still counts all of Tier 4", c.count);
+
+  /* Clicked in-page: the dev bar is fixed at the bottom of the viewport. */
+  await page.evaluate(() => document.querySelector("[data-tier4-toggle]").click());
+  await page.waitForTimeout(500);
+  const open1 = await page.evaluate(() => ({ exp: document.querySelector("[data-tier4-toggle]").getAttribute("aria-expanded"), text: document.querySelector("[data-tier4-toggle]").textContent.trim() }));
+  const n1 = await rendered();
+  check(open1.exp === "true" && open1.text === "Show fewer", "expanded: aria-expanded, Show fewer", JSON.stringify(open1));
+  check(n1 > preview && n1 < 100, "only a window renders, not all 100", `${n1} of 100`);
+
+  /* Scroll to the end: the last teen renders, and the window stays small. */
+  await page.evaluate(() => {
+    const sc = [...document.querySelectorAll("*")].find((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 200);
+    (sc ?? document.scrollingElement).scrollTop = 1e7;
+  });
+  await page.waitForTimeout(500);
+  const last = await page.evaluate((item) => [...document.querySelectorAll(`[data-tier-group="4"] ${item}`)].map((e) => e.dataset.monitoringRow ?? e.dataset.monitoringCard), item);
+  check(last.includes("teen-gen-94") && last.length < 100, "scrolled to the end: the last teen is there, the window still small", `${last.length} rendered, last ${last.at(-1)}`);
+  if (layout === "list") {
+    const align = await page.evaluate(() => {
+      const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].map((h) => Math.round(h.getBoundingClientRect().left));
+      const r = document.querySelector('[data-tier-group="4"] [data-monitoring-row]');
+      return { hx, cx: [...r.querySelectorAll(':scope > [role="cell"]')].map((c) => Math.round(c.getBoundingClientRect().left)) };
+    });
+    check(align.hx.every((x, i) => Math.abs(x - align.cx[i]) <= 1), "windowed rows keep the table's columns", `${align.hx.join(",")} / ${align.cx.join(",")}`);
+  }
+  await page.screenshot({ path: `${OUT}/07-tier4-${layout}-end-1512.png` });
+  await page.evaluate(() => document.querySelector("[data-tier4-toggle]").click());
+  await page.waitForTimeout(400);
+  check((await rendered()) === preview, "Show fewer collapses it again", `${await rendered()}`);
+  await ctx.close();
+}
+
+// ── STEP 7 · in this app: nav, badge, retired routes, narrow widths ────────
+{
+  console.log("\n── step 7 · the nav, the badge, the retired routes (1512)");
+  const { ctx, page } = await open(1512);
+  const nav = () =>
+    page.evaluate(() => {
+      const rail = document.querySelector('[data-anno-ref="app-rail"]');
+      const btn = rail?.querySelector('[data-rail-group="monitoring"]');
+      const items = btn ? [...document.getElementById(btn.getAttribute("aria-controls")).querySelectorAll("a")] : [];
+      const all = rail ? [...rail.querySelectorAll("nav a")].map((a) => a.textContent.replace(/\s+/g, " ").trim()) : [];
+      return {
+        group: btn?.textContent.trim(),
+        /* What is SEEN: the badge's digits are aria-hidden beside an sr-only
+           "N needing review", so textContent reads "44 needing review". */
+        items: items.map((a) => {
+          const seen = a.cloneNode(true);
+          seen.querySelectorAll(".sr-only, span.rounded-full").forEach((e) => e.remove());
+          const badge = a.querySelector("span.rounded-full");
+          return { text: seen.textContent.replace(/\s+/g, " ").trim(), href: a.getAttribute("href"), current: a.getAttribute("aria-current"), badge: badge?.querySelector('[aria-hidden="true"]')?.textContent.trim() ?? null, sr: badge?.querySelector(".sr-only")?.textContent.trim() ?? null };
+        }),
+        stale: all.filter((t) => /Escalations|Risk Flags/i.test(t)),
+      };
+    });
+  const n = await nav();
+  check(n.group === "Monitoring" && n.items.map((i) => i.text).join("|") === "Monitoring|Chats", "the Monitoring group holds Monitoring and Chats, in that order", JSON.stringify(n.items.map((i) => i.text)));
+  check(n.items[0]?.href === "/app/monitoring" && n.items[0].current === "page", "Monitoring is the current page, at /app/monitoring", JSON.stringify(n.items[0]));
+  check(n.stale.length === 0, "no Escalations or Risk Flags item anywhere in the rail", n.stale.join(","));
+  check(n.items[0]?.badge === "4" && n.items[0].sr === "4 needing review", "Monitor: the badge is teens needing review (4), and says so to a screen reader", `${n.items[0]?.badge} · ${n.items[0]?.sr}`);
+  await setMode(page, "alert");
+  const n2 = await nav();
+  check(n2.items[0]?.badge === "5", "Alert: the badge follows the scenario (5)", n2.items[0]?.badge);
+
+  for (const [from, to] of [
+    ["/app/escalations", "/app/monitoring"],
+    ["/app/escalations?escalation=esc-1", "/app/monitoring?escalation=esc-1"],
+    ["/app/risk-flags?flag=f-9", "/app/monitoring?flag=f-9"],
+    ["/app/escalation/esc-1", "/app/monitoring?escalation=esc-1"],
+  ]) {
+    const seen = [];
+    const onNav = (f) => f === page.mainFrame() && seen.push(new URL(f.url()).pathname);
+    page.on("framenavigated", onNav);
+    await page.goto(`${BASE}${from}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(900);
+    page.off("framenavigated", onNav);
+    const u = new URL(page.url());
+    const hops = seen.filter((p, i) => p !== seen[i - 1]);
+    /* ONE HOP: the only paths the frame visits are the retired one and this
+       page — the old record loop went /app/escalation → /app/escalations →
+       /app/escalation and never settled. */
+    const src = new URL(`${BASE}${from}`).pathname;
+    check(u.pathname + u.search === to && hops.every((p) => p === src || p === PATH) && hops.at(-1) === PATH, `${from} → ${to}, one hop`, `${u.pathname}${u.search} via ${hops.join(" → ")}`);
+  }
+  await ctx.close();
+
+  for (const width of [375, 768]) {
+    console.log(`\n── step 7 · nothing scrolls sideways (${width})`);
+    for (const layout of ["list", "cards"]) {
+      const { ctx, page } = await open(width, { scenario: "tiers-alert", height: width < 600 ? 844 : 1024 });
+      if (layout === "cards") {
+        await page.locator('[data-layout-toggle="cards"]').click();
+        await page.waitForTimeout(300);
+      }
+      const m = await page.evaluate(() => {
+        const canvas = document.querySelector("[data-monitoring]").parentElement.closest('[class*="@container/canvas"]');
+        const reg = document.querySelector("[data-monitoring-list-scroll]");
+        const strip = document.querySelector("[data-alert-strip]");
+        const grid = document.querySelector('[data-tier-group="2"] [data-card-grid]');
+        return {
+          canvas: canvas ? [canvas.scrollWidth, canvas.clientWidth] : null,
+          doc: [document.documentElement.scrollWidth, innerWidth],
+          strip: strip && [strip.scrollWidth, strip.clientWidth],
+          region: reg && { sw: reg.scrollWidth, cw: reg.clientWidth, tab: reg.tabIndex, role: reg.getAttribute("role"), name: reg.getAttribute("aria-label") },
+          cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : null,
+          hero: getComputedStyle(document.querySelector("[data-hero-metrics]")).gridTemplateColumns.split(" ").length,
+        };
+      });
+      check(m.canvas && m.canvas[0] <= m.canvas[1] && m.doc[0] <= m.doc[1], `${layout}: the canvas and the page do not scroll sideways`, `canvas ${m.canvas?.join("/")} · doc ${m.doc.join("/")}`);
+      check(m.strip && m.strip[0] <= m.strip[1], `${layout}: the strip wraps inside its width`, m.strip?.join("/"));
+      check(m.hero === (width < 600 ? 2 : 3), `${layout}: the hero wraps to ${width < 600 ? 2 : 3} across`, `${m.hero}`);
+      if (layout === "list") check(m.region && m.region.sw > m.region.cw && m.region.tab === 0 && m.region.role === "region" && m.region.name, "list: the table scrolls inside a focusable, named region", JSON.stringify(m.region));
+      else check(m.cols === (width < 600 ? 1 : 2), `cards: ${width < 600 ? 1 : 2} across`, `${m.cols}`);
+      await page.screenshot({ path: `${OUT}/08-${layout}-alert-${width}.png` });
+      await ctx.close();
+    }
+  }
+}
+
+// ── STEP 8 · every visible text on the page clears AA, both themes ─────────
+for (const theme of ["light", "dark"])
+  for (const layout of ["list", "cards"]) {
+    console.log(`\n── step 8 · contrast, ${theme}, ${layout} (Alert, Tier 4 open)`);
+    const { ctx, page } = await open(1512, { scenario: "tiers-alert", theme });
+    if (layout === "cards") {
+      await page.locator('[data-layout-toggle="cards"]').click();
+      await page.waitForTimeout(300);
+    }
+    await page.evaluate(() => document.querySelector("[data-tier4-toggle]")?.click());
+    await page.waitForTimeout(400);
+    const r = await page.evaluate(([ENGINE]) => {
+      eval(ENGINE);
+      const { rgba, ratio, bgOf } = window.__c;
+      const out = [];
+      const root = document.querySelector("[data-monitoring]");
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const el = n.parentElement;
+        if (!n.textContent.trim() || el.closest(".sr-only") || el.closest('[aria-hidden="true"]')) continue;
+        const s = getComputedStyle(el);
+        const px = parseFloat(s.fontSize);
+        const large = px >= 24 || (px >= 18.66 && Number(s.fontWeight) >= 700);
+        out.push({ t: n.textContent.trim().slice(0, 22), r: Math.round(ratio(rgba(s.color), bgOf(el)) * 100) / 100, need: large ? 3 : 4.5 });
+      }
+      return { dark: document.documentElement.classList.contains("dark"), out };
+    }, [ENGINE]);
+    const low = r.out.filter((x) => x.r < x.need);
+    check(r.dark === (theme === "dark"), `the ${theme} theme is the one measured`, `html.dark=${r.dark}`);
+    check(r.out.length > 50 && low.length === 0, `every visible text clears AA (${theme}, ${layout})`, low.length ? JSON.stringify(low.slice(0, 6)) : `${r.out.length} texts, lowest ${Math.min(...r.out.map((x) => x.r))}:1`);
+    await page.screenshot({ path: `${OUT}/09-${layout}-alert-${theme}-1512.png` });
+    await ctx.close();
+  }
+
+await b.close();
+console.log(`\n${fails === 0 ? "ALL CHECKS PASSED" : `${fails} CHECK(S) FAILED`}`);
+process.exit(fails === 0 ? 0 : 1);

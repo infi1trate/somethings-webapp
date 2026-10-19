@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { DESTINATION_ORDER, DESTINATION_TYPES, destinationOf } from "@/lib/ia/destinations";
-import { TODAY_PATH, retiredRouteTarget } from "@/lib/ia/retired-routes";
+import { MONITORING_PATH, TODAY_PATH, monitoringLegacyTarget, retiredRouteTarget } from "@/lib/ia/retired-routes";
 import type { TaskType } from "@/lib/tasks/types";
 
 describe("the destination map", () => {
@@ -62,66 +62,70 @@ describe("the retired routes", () => {
     expect(TODAY_PATH).toBe("/app/today");
   });
 
-  it("falls back per surface, and the monitoring fallback is the lossy one", () => {
-    /* Tasks was billing plus the escalation obligations; Care Reviews is the
-       larger half. Monitoring held every flag tier AND coverage AND the
-       escalation region, and no destination means all of that — so the loss is
-       asserted here rather than left to be noticed. */
+  /* RETARGETED (proto/monitoring-merge): /app/monitoring is a destination
+     again and Escalations / Risk Flags folded into it, so every landing that
+     was one of those is Monitoring, in ONE hop — and a record id is carried
+     as a param rather than sent round /app/escalation/{id}. The old
+     "monitoring" surface is gone from the union; its cases moved to the
+     surfaces that still retire. */
+  it("falls back per surface", () => {
     expect(retiredRouteTarget("tasks")).toBe("/app/care-reviews");
-    expect(retiredRouteTarget("monitoring")).toBe("/app/risk-flags");
+    expect(retiredRouteTarget("coverage")).toBe("/app/chat");
+    expect(retiredRouteTarget("mentor-practice")).toBe(MONITORING_PATH);
+  });
+
+  it("sends the folded dashboards to Monitoring, carrying a record id", () => {
+    expect(retiredRouteTarget("escalations")).toBe(MONITORING_PATH);
+    expect(retiredRouteTarget("risk-flags")).toBe(MONITORING_PATH);
+    expect(retiredRouteTarget("escalations", { escalation: "esc-1" })).toBe("/app/monitoring?escalation=esc-1");
+    expect(retiredRouteTarget("risk-flags", { flag: "flag-1" })).toBe("/app/monitoring?flag=flag-1");
   });
 
   it("maps every band the old digest could send", () => {
     const cases: [string, string][] = [
-      ["riskFlagReview", "/app/risk-flags"],
-      ["riskFlagReview", "/app/risk-flags"],
-      ["riskFlagReview", "/app/risk-flags"],
+      ["riskFlagReview", MONITORING_PATH],
       ["intakeBillingReview", "/app/care-reviews"],
       ["monthlyReReview", "/app/care-reviews"],
-      ["activeEscalation", "/app/escalations"],
-      ["escalationDocumentation", "/app/escalations"],
+      ["activeEscalation", MONITORING_PATH],
+      ["escalationDocumentation", MONITORING_PATH],
     ];
     for (const [band, to] of cases) {
-      expect(retiredRouteTarget("monitoring", { band }), band).toBe(to);
+      expect(retiredRouteTarget("home", { band }), band).toBe(to);
     }
   });
 
   it("maps the retired four-queue ids a bookmark may still carry", () => {
     for (const q of ["imminent", "clinical", "routine", "all"]) {
-      expect(retiredRouteTarget("home", { queue: q }), q).toBe("/app/risk-flags");
+      expect(retiredRouteTarget("home", { queue: q }), q).toBe(MONITORING_PATH);
     }
     expect(retiredRouteTarget("home", { queue: "billing" })).toBe("/app/care-reviews");
   });
 
-  it("sends the escalation region to Escalations", () => {
-    expect(retiredRouteTarget("monitoring", { region: "escalations" })).toBe(
-      "/app/escalations"
-    );
+  it("sends the escalation region to Monitoring", () => {
+    expect(retiredRouteTarget("home", { region: "escalations" })).toBe(MONITORING_PATH);
   });
 
-  it("sends an escalation ID to the RECORD's own route, not to a queue", () => {
-    // An id is a request for one object. `/app/escalation/{id}` is untouched by
-    // this pass and wins over every other param.
-    for (const from of ["home", "tasks", "monitoring"] as const) {
+  it("sends an escalation ID to Monitoring in one hop, carried as a param", () => {
+    for (const from of ["home", "tasks", "escalations"] as const) {
       expect(retiredRouteTarget(from, { escalation: "esc-naomi-live" })).toBe(
-        "/app/escalation/esc-naomi-live"
+        "/app/monitoring?escalation=esc-naomi-live"
       );
     }
   });
 
-  it("encodes an id rather than pasting it into the path", () => {
-    expect(retiredRouteTarget("monitoring", { escalation: "esc/one two" })).toBe(
-      "/app/escalation/esc%2Fone%20two"
+  it("encodes an id rather than pasting it into the URL", () => {
+    expect(retiredRouteTarget("home", { escalation: "esc/one two" })).toBe(
+      "/app/monitoring?escalation=esc%2Fone%20two"
     );
   });
 
   it("prefers the record over a band when a link carries both", () => {
     expect(
-      retiredRouteTarget("monitoring", {
-        band: "riskFlagReview",
+      retiredRouteTarget("home", {
+        band: "intakeBillingReview",
         escalation: "esc-1",
       })
-    ).toBe("/app/escalation/esc-1");
+    ).toBe("/app/monitoring?escalation=esc-1");
   });
 
   it("ignores an unknown band rather than dropping the reader somewhere odd", () => {
@@ -131,5 +135,21 @@ describe("the retired routes", () => {
     expect(retiredRouteTarget("tasks", { band: null, queue: null })).toBe(
       "/app/care-reviews"
     );
+  });
+});
+
+describe("Monitoring's own old links (proto/monitoring-merge)", () => {
+  it("sends a billing band or the billing queue on to Care Reviews", () => {
+    expect(monitoringLegacyTarget({ band: "intakeBillingReview" })).toBe("/app/care-reviews");
+    expect(monitoringLegacyTarget({ band: "monthlyReReview" })).toBe("/app/care-reviews");
+    expect(monitoringLegacyTarget({ queue: "billing" })).toBe("/app/care-reviews");
+  });
+
+  it("keeps everything that is Monitoring's own on the page", () => {
+    expect(monitoringLegacyTarget({})).toBeNull();
+    expect(monitoringLegacyTarget({ band: "riskFlagReview" })).toBeNull();
+    expect(monitoringLegacyTarget({ band: "activeEscalation" })).toBeNull();
+    expect(monitoringLegacyTarget({ queue: "imminent" })).toBeNull();
+    expect(monitoringLegacyTarget({ band: "nonsense" })).toBeNull();
   });
 });

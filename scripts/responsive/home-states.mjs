@@ -192,10 +192,13 @@ const mainText = (page) => page.locator("main").innerText();
        documented HOP that redirects to `/app/escalations?escalation={id}` —
        `src/app/(console)/app/escalation/[escalationId]/page.tsx` says so at the top.
        THE CLAIM IS UNCHANGED: every link leaves for a surface that owns the
-       work, and none of them acts on it here. */
+       work, and none of them acts on it here.
+       AND `/app/monitoring` AGAIN (proto/monitoring-merge): Escalations and
+       Risk Flags folded into it, so it owns that work now; the folded routes
+       stay allowed because they still hop there. */
     links.length > 0 &&
       links.every((h) =>
-        /^\/app\/(escalations?|risk-flags|care-reviews|activity)(\/|\?|$)/.test(h ?? "")
+        /^\/app\/(monitoring|escalations?|risk-flags|care-reviews|activity)(\/|\?|$)/.test(h ?? "")
       ),
     [...new Set(links)].join(" ")
   );
