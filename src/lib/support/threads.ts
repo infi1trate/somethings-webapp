@@ -30,7 +30,8 @@ export interface SupportMessage {
 
 export interface SupportThreadData {
   row: SupportRow;
-  section: SupportSectionId;
+  /** "pinned" for a contact pinned from outside the directory. */
+  section: SupportSectionId | "pinned";
   /** The header's second line: a person's role, or what kind of thread. */
   role: string;
   messages: SupportMessage[];
@@ -137,4 +138,23 @@ export function runBreaks(messages: { at: number; mine: boolean; author?: string
       !!a && !!b && a.mine === b.mine && a.author === b.author && Math.abs(b.at - a.at) < RUN_GAP;
     return { first: !same(prev, m), last: !same(m, next) };
   });
+}
+
+/** ═══ THE PINNED MENTOR'S THREAD (support-beside-hub) ═══ A supervisor and
+ *  the mentor whose conversation they are watching, while an escalation is
+ *  open on it. PLACEHOLDER (answered: placeholder data is fine), TODO-COPY:
+ *  neutral, no clinical content, nothing that names the teen. */
+export function pinnedThread(p: { id: string; name: string; shortName?: string }, now: number): SupportThreadData {
+  const messages: SupportMessage[] = [
+    { id: `${p.id}-pin1`, at: now - 6 * MIN, mine: false, text: "I've raised an escalation and I'm working through the checklist now." },
+    { id: `${p.id}-pin2`, at: now - 4 * MIN, mine: true, text: "Thank you. I'm here. Keep the conversation going, and tell me if anything changes." },
+  ];
+  const last = messages[messages.length - 1];
+  return {
+    row: { id: p.id, name: p.name, ...(p.shortName ? { shortName: p.shortName } : {}), presence: "online", preview: last.text, previewFromViewer: true, at: last.at, unread: 0 },
+    section: "pinned",
+    /* TODO-COPY */
+    role: "Mentor",
+    messages,
+  };
 }

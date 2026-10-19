@@ -181,6 +181,7 @@ export function OfflineBanner() {
 
 export function SupportList({
   sections,
+  pinned = null,
   persona,
   now,
   load,
@@ -188,6 +189,8 @@ export function SupportList({
   onOpen,
 }: {
   sections: SupportSection[];
+  /** A contact pinned from outside the directory (support-beside-hub). */
+  pinned?: SupportRow | null;
   persona: string;
   now: number;
   load: LoadState;
@@ -220,7 +223,7 @@ export function SupportList({
           text="Your support conversations didn't load. Check your connection, then try again."
           onRetry={retry}
         />
-      ) : state !== "loading" && isFirstRun(sections) ? (
+      ) : state !== "loading" && isFirstRun(sections) && !pinned ? (
         <div data-support-first-run className="flex flex-col gap-2 px-4 pt-4">
           <p className="text-[14px] leading-[20px] text-[var(--text-primary)]">
             {/* TODO-COPY */}
@@ -232,7 +235,22 @@ export function SupportList({
           </p>
         </div>
       ) : (
-        sections.map((s) => {
+        <>
+        {/* ═══ PINNED (support-beside-hub) ═══ The observed mentor, while an
+            escalation is open on what a supervisor is watching: above the
+            sections, because it is the conversation that cannot wait. */}
+        {pinned && state !== "loading" && (
+          <section data-support-pinned className="border-b border-[color:var(--border-subtle)] pb-2">
+            <h3 className="m-0 px-4 pt-3 pb-1 text-[12px] leading-[16px] text-[var(--text-secondary)]">
+              {/* TODO-COPY */}
+              Pinned · escalation open
+            </h3>
+            <ul>
+              <Row row={pinned} now={now} onOpen={onOpen} />
+            </ul>
+          </section>
+        )}
+        {sections.map((s) => {
           const open = disclosure[s.id];
           const unread = s.rows.reduce((n, r) => n + r.unread, 0);
           const failed = state === "partial" && s.id === PARTIAL_FAILS;
@@ -297,7 +315,8 @@ export function SupportList({
               </div>
             </section>
           );
-        })
+        })}
+        </>
       )}
     </div>
   );

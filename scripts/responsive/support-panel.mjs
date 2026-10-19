@@ -78,6 +78,7 @@ const geo = (page) =>
       slotOpen: slot.dataset.open,
       inert: a.inert,
       vw: innerWidth,
+      rail: Math.round(document.querySelector('[data-anno-ref="app-rail"]')?.getBoundingClientRect().width ?? 0),
       vh: innerHeight,
     };
   });
@@ -245,7 +246,11 @@ for (const width of [1280, 1024, 960, 768]) {
   const g0 = await geo(page);
   await toggle(page);
   const g1 = await geo(page);
-  check(g1.panel === 420 && g0.canvas - g1.canvas === 424, "pushes by 424, panel 420", `${g0.canvas} → ${g1.canvas} · ${g1.panel}`);
+  /* RETARGETED (support-beside-hub): below 1280 the staff rail collapses
+     248 → 72 while Support is open, so the canvas loses 424 LESS what the
+     rail gave back. The push itself is still exactly 424. */
+  const railBack = g0.rail - g1.rail;
+  check(g1.panel === 420 && g0.canvas - g1.canvas === 424 - railBack, "pushes by 424 (less what the rail gives back), panel 420", `${g0.canvas} → ${g1.canvas} · rail ${g0.rail} → ${g1.rail} · ${g1.panel}`);
   check(g1.hscroll <= 0 && g0.hscroll <= 0, "no horizontal page scroll, closed or open", `${g0.hscroll} / ${g1.hscroll}`);
   if (width < 960) {
     const bars = await page.evaluate(() => {
@@ -295,9 +300,9 @@ const SURFACES = [
     name: "chat",
     path: "/app/chat",
     measure: () => {
-      const grid = (document.querySelector("[data-slot=chat-rail]") ?? document.querySelector("[data-rail-strip]"))?.closest(".grid");
+      const grid = document.querySelector("[data-chat-layout]");
       const v = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().width) : 0; };
-      return { cols: getComputedStyle(grid).gridTemplateColumns, rail: v("[data-slot=chat-rail]"), strip: v("[data-rail-strip]") };
+      return { cols: getComputedStyle(grid).gridTemplateColumns, rail: v("[data-slot=chat-rail]"), list: v('[data-slot="conversation-list"]') };
     },
   },
   {
@@ -375,60 +380,24 @@ for (const width of [1024, 1280, 1512, 1728]) {
       check(openTier === expectOpen[s.name](width, g.canvas), `${s.name} open: the tier a ${g.canvas} canvas earns`, `${o.row ?? o.cols}`);
     }
     if (s.name === "chat") {
-      check(o.rail === 0 && o.strip === 56, "chat open: the rail is a 56 strip", JSON.stringify(o));
+      /* RETARGETED (support-beside-hub): this read "the rail is a 56 strip".
+         The pack reverses SUP-2 on chat — the hub stays and the list goes. */
+      /* Below a 1120 viewport the hub is a drawer by design, so "stays" is
+         a column only from 1120. */
+      check(o.list === 0 && (width < 1120 || o.rail > 0), "chat open: the list collapses and the hub stays (a drawer below 1120)", JSON.stringify(o));
     }
     if (width === 1512) await page.screenshot({ path: `${OUT}/03-${s.name}-open-1512.png` });
     await ctx.close();
   }
 }
 
-// ── 6 · chat: the collapse animates, the strip brings the rail back ───────
-{
-  console.log("\n── chat at 1728, the collapse and the return");
-  const { ctx, page } = await open("supervisor", 1728, "/app/chat", { dpr: 2 });
-  const third = () =>
-    page.evaluate(() => {
-      const grid = (document.querySelector("[data-slot=chat-rail]") ?? document.querySelector("[data-rail-strip]")).closest(".grid");
-      return parseFloat(getComputedStyle(grid).gridTemplateColumns.split(" ")[2]);
-    });
-  const before = await third();
-  await cta(page).click();
-  await page.waitForTimeout(90);
-  const mid = await third();
-  await page.waitForTimeout(400);
-  const after = await third();
-  check(before === 320 && after === 56, "the third track goes 320 → 56", `${before} → ${after}`);
-  check(mid > 56 && mid < 320, "and passes through the widths between — animated, not swapped", `${mid} at ~90ms`);
-  await page.screenshot({ path: `${OUT}/04-chat-strip-1728.png` });
-  const strip = await page.evaluate(() => [...document.querySelectorAll("[data-rail-strip-tab]")].map((e) => ({ t: e.dataset.railStripTab, w: Math.round(e.getBoundingClientRect().width), label: e.getAttribute("aria-label") })));
-  check(strip.length >= 2 && strip.every((x) => x.w === 40 && /^Open /.test(x.label)), "the strip holds the rail's tabs as 40px named buttons", JSON.stringify(strip.map((x) => x.label)));
-  await page.locator('[data-rail-strip-tab="timeline"]').click();
-  await page.waitForTimeout(500);
-  const r = await page.evaluate(() => ({
-    open: document.querySelector("[data-support-slot]").dataset.open,
-    tab: document.querySelector('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')?.textContent.trim(),
-    focus: document.activeElement?.closest('[data-slot="chat-rail"]') ? document.activeElement.textContent.trim() : document.activeElement?.tagName,
-  }));
-  check(r.open === "false", "a strip tab closes Support");
-  check(r.tab === "Timeline", "and brings the rail back on that tab", `${r.tab}`);
-  check(r.focus === "Timeline", "focus lands on the rail's tab", `${r.focus}`);
-  check((await third()) === 320, "the rail is a full track again", `${await third()}`);
-  await ctx.close();
-}
-{
-  console.log("\n── chat at 1280 open: below the two-column floor");
-  const { ctx, page } = await open("supervisor", 1280, "/app/chat");
-  await toggle(page);
-  const m = await page.evaluate(() => {
-    const v = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().width) : 0; };
-    const list = document.querySelector("[data-rail-strip]").closest(".grid").firstElementChild;
-    return { list: Math.round(list.getBoundingClientRect().width), strip: v("[data-rail-strip]"), back: v("[data-slot=chat-back]"), composer: v("textarea") };
-  });
-  check(m.list === 0 && m.strip === 56 && m.composer > 0, "the conversation stays, the list goes, the strip is there", JSON.stringify(m));
-  check(m.back === 0, "no Back link pointing at this same conversation");
-  await page.screenshot({ path: `${OUT}/05-chat-1280-open.png` });
-  await ctx.close();
-}
+// ── 6 · SUPERSEDED (support-beside-hub) ────────────────────────────────────
+/* §6 measured SUP-2's chat rule: the rail collapsing 320 → 56 into a strip, a
+   strip tab bringing it back and closing Support, and the conversation keeping
+   the canvas below the two-column floor. The support-beside-hub pack reverses
+   that rule — opening Support collapses the LIST and the hub stays — so the
+   strip is gone and its checks with it. The new rule is measured in
+   `support-beside-hub.mjs`. */
 
 await b.close();
 console.log(`\n${fails === 0 ? "ALL CHECKS PASSED" : `${fails} CHECK(S) FAILED`}`);

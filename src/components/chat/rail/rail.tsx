@@ -20,14 +20,25 @@
 // selection and focus together, `aria-controls` pointing only from the selected
 // tab (the others' panels are not in the DOM), and a measured thumb.
 //
+// ═══ SUPERSEDED (support-beside-hub, answered 2026-10-19): GLYPHS NOW ═══
+// "Add a profile icon, but follow the Figma design paradigm" — the hub header
+// is 40px round icon tabs: Now first and on its own at the left, the rest at
+// the right; the selected one filled, the others outlined. What the words
+// argument protected is kept rather than lost: every tab carries its word as
+// its accessible name and its tooltip, so a reader still hears "Tools, tab,
+// 3 of 4", and `RailTabs` below re-implements the roving tabindex, ←/→/Home/
+// End and selected-only `aria-controls` the segmented control gave. The cost
+// stated: a sighted reader now learns four glyphs.
+//
 // ═══ THE PANEL SET DEPENDS ON `kind`, NOT ON A SECOND RAIL ═══
 //
 // A support thread has no teen profile to read and no activities to send. It gets
 // two tabs, from the same component, because the alternative is a second rail
 // that starts identical and drifts.
 
-import { useId } from "react";
-import { SegmentedControl } from "@/components/record/segmented-control";
+import { useId, useRef } from "react";
+import { Clock, Grid2x2Plus, House, Sparkles, UserRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PanelShell } from "@/components/chat/rail/rail-panel";
 import { ToolkitPanel } from "@/components/chat/rail/toolkit";
 import { TimelinePanel } from "@/components/chat/rail/timeline";
@@ -59,11 +70,103 @@ export const RAIL_TAB_LABEL: Record<RailTab, string> = {
      is FOR rather than naming a feature; and a tab reading "Escalation" beside a
      banner reading "Escalation open" is the same word twice in fifty pixels. */
   escalation: "Now",
-  assist: "Assist",
+  /* Renamed with the glyph header (support-beside-hub): the pack's Context,
+     Tools and History. The ids are unchanged, so nothing that stores or links
+     a tab moves. */
+  assist: "Context",
   profile: "Profile",
-  toolkit: "Toolkit",
-  timeline: "Timeline",
+  toolkit: "Tools",
+  timeline: "History",
 };
+
+/** The hub's glyphs, from the Figma header (6011:1540): a house for Now, the
+ *  sparkle for Context, a grid-plus for Tools, a clock for History; Profile
+ *  joins them as a person (answered). */
+export const RAIL_TAB_ICON: Record<RailTab, LucideIcon> = {
+  escalation: House,
+  assist: Sparkles,
+  profile: UserRound,
+  toolkit: Grid2x2Plus,
+  timeline: Clock,
+};
+
+const TAB_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
+
+/** ═══ THE HUB'S TABS ═══ A tablist of 40px round icon buttons. Now, when it
+ *  exists, stands alone at the left; the rest sit at the right. Selected is
+ *  filled `surface-sunken-strong`, the rest outlined `border-subtle` — the
+ *  Figma's filled house against its three outlined glyphs. */
+function RailTabs({
+  tabs,
+  active,
+  onChange,
+  controls,
+}: {
+  tabs: RailTab[];
+  active: RailTab;
+  onChange: (t: RailTab) => void;
+  controls: string;
+}) {
+  const refs = useRef<Partial<Record<RailTab, HTMLButtonElement | null>>>({});
+  const move = (to: RailTab) => {
+    onChange(to);
+    refs.current[to]?.focus();
+  };
+  const onKey = (e: React.KeyboardEvent, t: RailTab) => {
+    const i = tabs.indexOf(t);
+    const to =
+      e.key === "ArrowRight" ? tabs[(i + 1) % tabs.length]
+      : e.key === "ArrowLeft" ? tabs[(i - 1 + tabs.length) % tabs.length]
+      : e.key === "Home" ? tabs[0]
+      : e.key === "End" ? tabs[tabs.length - 1]
+      : null;
+    if (!to) return;
+    e.preventDefault();
+    move(to);
+  };
+  const tab = (t: RailTab) => {
+    const Icon = RAIL_TAB_ICON[t];
+    const selected = t === active;
+    return (
+      <button
+        key={t}
+        ref={(el) => {
+          refs.current[t] = el;
+        }}
+        type="button"
+        role="tab"
+        data-rail-tab={t}
+        aria-selected={selected}
+        aria-controls={selected ? controls : undefined}
+        title={RAIL_TAB_LABEL[t]}
+        tabIndex={selected ? 0 : -1}
+        onClick={() => onChange(t)}
+        onKeyDown={(e) => onKey(e, t)}
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
+          selected
+            ? "border-transparent bg-[var(--surface-sunken-strong)] text-[var(--text-primary)]"
+            : "border-[color:var(--border-subtle)] text-[var(--icon-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+          TAB_RING
+        )}
+      >
+        <Icon aria-hidden className="size-5" strokeWidth={1.75} />
+        {/* The word, as text rather than `aria-label`: the same accessible
+            name, and anything reading the tab's text still finds it. */}
+        <span className="sr-only">{RAIL_TAB_LABEL[t]}</span>
+      </button>
+    );
+  };
+  const now = tabs.includes("escalation");
+  return (
+    /* TODO-COPY. Names the region, not the widget. */
+    <div role="tablist" aria-label="Conversation tools" className="flex w-full items-center gap-2">
+      {now && tab("escalation")}
+      <div className="ml-auto flex items-center gap-2">{tabs.filter((t) => t !== "escalation").map(tab)}</div>
+    </div>
+  );
+}
 
 /** WHICH TABS A THREAD GETS. A support thread has no profile canvas and no
  *  activity shelf; it keeps Assist and Timeline, which are about the working
@@ -123,6 +226,7 @@ export function Rail({
   onUseWording,
   onOpenCrisis,
   onResolveEscalation,
+  presence,
   className,
 }: {
   thread: ChatThread;
@@ -156,6 +260,8 @@ export function Rail({
   onUseWording: (text: string) => void;
   onOpenCrisis: () => void;
   onResolveEscalation: () => void;
+  /** "Brandy is in this chat" — see the header. */
+  presence?: string;
   className?: string;
 }) {
   const tabs = tabsFor(thread.kind, !!escalation);
@@ -183,23 +289,22 @@ export function Rail({
         className
       )}
     >
-      <div className="shrink-0 border-b border-[color:var(--border-subtle)] px-4 py-2.5">
-        <SegmentedControl
-          options={tabs.map((t) => ({
-            value: t,
-            label: RAIL_TAB_LABEL[t],
-            controls: `${panelId}-panel`,
-          }))}
-          value={active}
-          onChange={onTabChange}
-          semantics="tabs"
-          fullWidth
-          size="sm"
-          /* TODO-COPY. Names the region, not the widget: a reader hearing
-             "Conversation tools" knows what the four tabs are for. */
-          ariaLabel="Conversation tools"
-        />
+      {/* ── THE HUB HEADER: 64, the tabs, a divider ─────────────────── */}
+      <div data-rail-header className="flex h-16 shrink-0 items-center border-b border-[color:var(--border-subtle)] px-4">
+        <RailTabs tabs={tabs} active={active} onChange={onTabChange} controls={`${panelId}-panel`} />
       </div>
+      {/* ═══ WHO ELSE IS HERE (support-beside-hub) ═══ When the open support
+          thread is with the other party to this escalation, one thin line
+          says so, so the two panes read as linked. */}
+      {presence && (
+        <p
+          data-rail-presence
+          className="flex shrink-0 items-center gap-2 border-b border-[color:var(--border-subtle)] px-4 py-2 text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        >
+          <span aria-hidden className="size-2 shrink-0 rounded-full bg-[var(--status-online)]" />
+          {presence}
+        </p>
+      )}
 
       <div
         id={`${panelId}-panel`}

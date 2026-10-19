@@ -34,13 +34,14 @@
 // Doherty threshold. Reduced motion: instant, no transform.
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronDown, Search, SquarePen, X } from "lucide-react";
-import { setSupportOpen, setSupportThread, useSupportOpen, useSupportThread } from "@/lib/support/panel";
+import { setSupportOpen, setSupportThread, useSupportOpen, useSupportPinned, useSupportThread } from "@/lib/support/panel";
 import { SupportList } from "@/components/support/support-list";
 import { SupportThread, type ThreadMessage } from "@/components/support/support-thread";
 import { markSupportRead, useOutbox } from "@/lib/support/outbox";
 import { useSupportSections } from "@/lib/support/use-support";
-import { supportThread } from "@/lib/support/threads";
+import { pinnedThread, supportThread } from "@/lib/support/threads";
 import { useOnline } from "@/lib/support/online";
 import { useNavClock } from "@/lib/app-shell/shell-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
@@ -73,6 +74,7 @@ const visibleCta = () =>
 
 export function SupportPanel() {
   const open = useSupportOpen();
+  const onChat = (usePathname() ?? "").startsWith("/app/chat");
   const panelRef = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const wasOpen = useRef(open);
@@ -89,17 +91,23 @@ export function SupportPanel() {
   /* ═══ THE LIST, WITH THIS SESSION ON TOP OF IT ═══ Read threads lose their
      unread, written ones preview what was sent — from the one hook the CTA
      badge reads too (SUP-5, `use-support.ts`). */
-  const { sections } = useSupportSections();
+  const { sections, pinned } = useSupportSections();
+  const pin = useSupportPinned();
 
   /* ═══ WHICH VIEW ═══ A thread id that this persona cannot see (the persona
      switched) falls back to the list rather than an empty panel. */
   const threadId = useSupportThread();
   const thread = useMemo(() => {
-    const t = threadId ? supportThread(threadId, persona, chatScenarioId, now) : null;
+    /* A pinned contact's thread comes from the pin, not the directory. */
+    const t = !threadId
+      ? null
+      : pin && threadId === pin.id
+        ? pinnedThread(pin, now)
+        : supportThread(threadId, persona, chatScenarioId, now);
     if (!t) return null;
     const row = sections.flatMap((s) => s.rows).find((r) => r.id === t.row.id) ?? t.row;
     return { ...t, row };
-  }, [threadId, persona, chatScenarioId, now, sections]);
+  }, [threadId, persona, chatScenarioId, now, sections, pin]);
   const messages = useMemo<ThreadMessage[]>(
     () =>
       thread
@@ -178,17 +186,27 @@ export function SupportPanel() {
            media-variant transition was emitted after the reset and won, so a
            reduced-motion reader still got a 220ms push. */
         `motion-safe:min-[768px]:transition-[width] motion-safe:min-[768px]:duration-[220ms] ${EASE}`,
-        open ? "min-[768px]:w-[424px] md:w-[432px]" : "min-[768px]:w-0",
+        /* ═══ ITS WIDTH IS A VARIABLE (support-beside-hub) ═══ 420 everywhere
+           but chat, where the canvas card (conversation + hub, 50/50) holds
+           840 while it can and Support gives way first, to 348:
+           `clamp(348px, 100cqi − 844px, 420px)` against `<main>`'s width
+           (844 = the 840 card + the 4px gutter). */
+        "[--support-w:420px]",
+        onChat && "md:[--support-w:clamp(348px,calc(100cqi-844px),420px)]",
+        open ? "min-[768px]:w-[calc(var(--support-w)+4px)] md:w-[calc(var(--support-w)+12px)]" : "min-[768px]:w-0",
         /* ═══ 768–959: BETWEEN THE MOBILE BARS (standing rule 2) ═══ The top
            bar and the bottom bar are fixed at this tier, so the panel keeps
            their reservations clear rather than running underneath them. */
         "min-[768px]:max-md:pt-[var(--topbar-reserve)] min-[768px]:max-md:pb-[var(--nav-reserve)]",
+        /* `max-[768px]` is width < 768, the exact complement of
+           `min-[768px]`; it was `max-[767px]`, which left a 767px viewport
+           neither a sheet nor a push (measured, support-beside-hub). */
         /* ═══ BELOW 768: A FULL-SCREEN SHEET ═══ Fixed from under the mobile
            top bar to the bottom, over the bottom bar. Under the top bar, not
            over it, so the CTA that opened it is still there to close it
            (standing rule 2); it also closes from its own header. */
-        "max-[767px]:fixed max-[767px]:inset-x-0 max-[767px]:top-[var(--topbar-reserve)] max-[767px]:bottom-[var(--dev-bar-h,0px)] max-[767px]:z-50",
-        !open && "max-[767px]:hidden"
+        "max-[768px]:fixed max-[768px]:inset-x-0 max-[768px]:top-[var(--topbar-reserve)] max-[768px]:bottom-[var(--dev-bar-h,0px)] max-[768px]:z-50",
+        !open && "max-[768px]:hidden"
       )}
     >
       <aside
@@ -207,8 +225,8 @@ export function SupportPanel() {
         }}
         className={cn(
           "flex h-full flex-col overflow-hidden bg-[var(--surface-raised)] pb-4",
-          "min-[768px]:ml-1 min-[768px]:w-[420px] min-[768px]:rounded-[4px_24px_24px_4px] min-[768px]:shadow-[var(--elevation-1)]",
-          "max-[767px]:w-full",
+          "min-[768px]:ml-1 min-[768px]:w-[var(--support-w)] min-[768px]:rounded-[4px_24px_24px_4px] min-[768px]:shadow-[var(--elevation-1)]",
+          "max-[768px]:w-full",
           `transition-[opacity,transform] duration-[220ms] ${EASE} motion-reduce:transition-none motion-reduce:transform-none`,
           open ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"
         )}
@@ -265,7 +283,7 @@ export function SupportPanel() {
 
         {/* ── BODY: the grouped list (SUP-3) ─────────────────────────────── */}
         <div ref={bodyRef} data-support-body className="min-h-0 flex-1 overflow-y-auto">
-          <SupportList sections={sections} persona={persona} now={now} load={load} online={online} onOpen={openThread} />
+          <SupportList sections={sections} pinned={pinned} persona={persona} now={now} load={load} online={online} onOpen={openThread} />
         </div>
         </>
         )}

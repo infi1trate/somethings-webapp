@@ -72,6 +72,22 @@ const TONE: Record<string, string> = {
   neutral: "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)]",
 };
 
+/* ═══ THE RAIL COLLAPSES WHILE SUPPORT IS OPEN BELOW 1280 (support-beside-hub) ═══
+   "Below 1280 viewport width, collapse the nav to the rail automatically when
+   the support chat opens." 248 → 72, read off the shell root's
+   `data-support-open` so no state threads through here. Labels go
+   VISUALLY hidden, never removed — every row keeps its accessible name, and
+   a `title` gives the sighted reader the word back on hover. A badge becomes
+   a dot that keeps its spoken count. Animated 240ms (within the pack's 360),
+   instant under reduced motion. */
+/* `max-[1280px]`, not 1279: Tailwind v4 reads `max-[X]` as width < X, and
+   1279 measured uncollapsed at a 1279px viewport. */
+const COLLAPSED_LABEL = "max-[1280px]:in-data-[support-open=true]:sr-only";
+const COLLAPSED_ROW = "max-[1280px]:in-data-[support-open=true]:justify-center max-[1280px]:in-data-[support-open=true]:px-0";
+const COLLAPSED_BADGE =
+  "max-[1280px]:in-data-[support-open=true]:absolute max-[1280px]:in-data-[support-open=true]:top-1.5 max-[1280px]:in-data-[support-open=true]:right-2 max-[1280px]:in-data-[support-open=true]:h-2.5 max-[1280px]:in-data-[support-open=true]:min-w-2.5 max-[1280px]:in-data-[support-open=true]:px-0";
+const COLLAPSED_HIDE = "max-[1280px]:in-data-[support-open=true]:hidden";
+
 function Badge({ itemId, count }: { itemId: string; count: number }) {
   const { shape, tone } = badgeStyleFor(itemId);
   return (
@@ -79,13 +95,14 @@ function Badge({ itemId, count }: { itemId: string; count: number }) {
       className={cn(
         "ml-auto inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2",
         "text-[12px] font-semibold leading-[16px] tabular-nums",
+        COLLAPSED_BADGE,
         TONE[tone] ?? TONE.neutral
       )}
     >
       {/* THE CLOCK IS THE SHAPE, so it is `aria-hidden` and the noun carries the
           same information in words — "8 due" already says there is a deadline. */}
-      {shape === "clockCount" && <Clock className="size-3 shrink-0" aria-hidden />}
-      <span aria-hidden>{count}</span>
+      {shape === "clockCount" && <Clock className={cn("size-3 shrink-0", COLLAPSED_HIDE)} aria-hidden />}
+      <span aria-hidden className={COLLAPSED_HIDE}>{count}</span>
       <span className="sr-only">{`${count} ${badgeNounFor(itemId)}`}</span>
     </span>
   );
@@ -119,7 +136,7 @@ function Row({
           active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
         )}
       />
-      <span className="min-w-0 truncate">{item.label}</span>
+      <span className={cn("min-w-0 truncate", COLLAPSED_LABEL)}>{item.label}</span>
       {count > 0 && <Badge itemId={item.id} count={count} />}
     </>
   );
@@ -127,8 +144,9 @@ function Row({
     /* 44px, and the row is the target — not the label. A rail row that is only
        as tall as its text is the smallest thing on the screen and the one a
        reader aims at most often. */
-    "flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 text-[14px] leading-[20px]",
+    "relative flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 text-[14px] leading-[20px]",
     "transition-colors duration-150",
+    COLLAPSED_ROW,
     active
       ? /* ═══ THE SELECTED PILL ═══
            A card-coloured fill with the small raised-surface shadow, which is
@@ -145,7 +163,7 @@ function Row({
     RING
   );
   return href ? (
-    <Link href={href} aria-current={active ? "page" : undefined} className={cls}>
+    <Link href={href} aria-current={active ? "page" : undefined} title={item.label} className={cls}>
       {inner}
     </Link>
   ) : (
@@ -216,11 +234,15 @@ function Group({
           RING
         )}
       >
-        <span id={labelId}>{group.label}</span>
+        <span id={labelId} className={COLLAPSED_LABEL}>{group.label}</span>
+        {/* Collapsed, a group's heading is a short rule: still the button,
+            still named, still toggling its rows. */}
+        <span aria-hidden className="mx-auto hidden h-px w-6 bg-[var(--border-subtle)] max-[1280px]:in-data-[support-open=true]:block" />
         <ChevronDown
           aria-hidden
           className={cn(
             "ml-auto size-4 shrink-0 transition-transform duration-150",
+            COLLAPSED_HIDE,
             "motion-reduce:transition-none",
             open ? "" : "-rotate-90"
           )}
@@ -316,13 +338,14 @@ export function RailThemeToggle({
       className={cn(
         "flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 text-[14px] leading-[20px]",
         "font-medium text-[var(--text-secondary)] transition-colors duration-150",
+        COLLAPSED_ROW,
         "hover:bg-white/50 hover:text-[var(--text-primary)]",
         RING
       )}
     >
       <Icon aria-hidden className="size-[18px] shrink-0 text-[var(--text-secondary)]" />
       {/* NEEDS-COPY-NICOLE. The target nav's phrasing, which states the state. */}
-      <span className="min-w-0 truncate">{label}</span>
+      <span className={cn("min-w-0 truncate", COLLAPSED_LABEL)}>{label}</span>
     </button>
   );
 }
@@ -361,12 +384,18 @@ export function GroupedRail({
          row breathing without letting the label column drift away from the
          icons. The icon rail's 92px is unrelated and unchanged. */
       className={cn(
-        "flex h-full w-[248px] flex-col bg-[var(--surface-s2)] px-3 py-5",
+        "flex h-full w-[248px] flex-col overflow-hidden bg-[var(--surface-s2)] px-3 py-5",
+        "max-[1280px]:in-data-[support-open=true]:w-[72px]",
+        "motion-safe:transition-[width] motion-safe:duration-[240ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
         className
       )}
     >
-      <div className="px-1">
-        <AccountPopover avatarSrc={avatarSrc} avatarInitial={avatarInitial} />
+      <div className="px-1 max-[1280px]:in-data-[support-open=true]:px-0">
+        <AccountPopover
+          avatarSrc={avatarSrc}
+          avatarInitial={avatarInitial}
+          triggerClassName="max-[1280px]:in-data-[support-open=true]:size-12"
+        />
       </div>
 
       <nav aria-label={navLabel} className="mt-7 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">

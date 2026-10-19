@@ -125,7 +125,7 @@ console.log("\n── tagging @ active-mentorship");
       threadVisible: document.querySelector('[data-slot="chat-thread"]').getBoundingClientRect().width > 400,
     };
   })()`);
-  check(opened.tab === "Timeline", "tagging switches the rail to the panel that owns notes", String(opened.tab));
+  check(opened.tab === "History", "tagging switches the rail to the panel that owns notes", String(opened.tab));
   check(opened.composing, "and opens the composer");
   check(opened.refs === 1, "with the message already attached", `${opened.refs}`);
   check(!!opened.header && opened.cancel, "the takeover has its own header and its own way out", String(opened.header));
@@ -188,7 +188,7 @@ console.log("\n── where notes live @ active-mentorship");
   await writeNote(p, { nth: 1, title: "Chemistry retake went better" });
 
   const panels = {};
-  for (const name of ["Assist", "Profile", "Toolkit", "Timeline"]) {
+  for (const name of ["Context", "Profile", "Tools", "History"]) {
     await p.locator('[role="tab"]', { hasText: name }).first().click();
     await p.waitForTimeout(350);
     panels[name] = await p.evaluate(`(() => {
@@ -206,12 +206,12 @@ console.log("\n── where notes live @ active-mentorship");
      AI summary — which made a mentor's own written observations look like
      supporting material for a machine's paragraph, and put the most durable record
      here inside a panel whose other contents are a dismissible suggestion. */
-  check(panels.Assist.notes === 0, "the Assist panel contains no note");
-  check(!panels.Assist.mentionsNote, "and does not mention one");
-  check(!panels.Assist.newNote, "and offers no way to write one");
-  check(panels.Timeline.notes === 1, "the Timeline panel holds it", `${panels.Timeline.notes}`);
-  check(panels.Timeline.newNote, "and offers the second entry point");
-  check(panels.Toolkit.notes === 0 && panels.Profile.notes === 0, "nowhere else does");
+  check(panels.Context.notes === 0, "the Context panel contains no note");
+  check(!panels.Context.mentionsNote, "and does not mention one");
+  check(!panels.Context.newNote, "and offers no way to write one");
+  check(panels.History.notes === 1, "the History panel holds it", `${panels.History.notes}`);
+  check(panels.History.newNote, "and offers the second entry point");
+  check(panels.Tools.notes === 0 && panels.Profile.notes === 0, "nowhere else does");
   await p.context().close();
 }
 
@@ -243,7 +243,7 @@ console.log("\n── provenance @ active-mentorship");
          missing amendment path is logged as gap row 356. */
       editable: d.querySelectorAll("input, textarea").length,
       deletable: [...d.querySelectorAll("button")].some((x) => /delete|remove/i.test(x.innerText + (x.getAttribute("aria-label") ?? ""))),
-      back: [...d.querySelectorAll("button")].some((x) => x.innerText.trim() === "Timeline"),
+      back: [...d.querySelectorAll("button")].some((x) => x.innerText.trim() === "History"),
     };
   })()`);
   check(!!detail, "the note opened");
@@ -305,7 +305,7 @@ console.log("\n── persistence @ active-mentorship");
   await writeNote(p, { nth: 1, title: "Worth revisiting the sleep thing" });
   await p.reload({ waitUntil: "networkidle" });
   await p.waitForTimeout(1900);
-  await p.locator('[role="tab"]', { hasText: "Timeline" }).first().click();
+  await p.locator('[role="tab"]', { hasText: "History" }).first().click();
   await p.waitForTimeout(400);
   const after = await p.evaluate(`(() => {
     const rail = document.querySelector('[data-slot="chat-rail"]');

@@ -88,6 +88,7 @@ import { ConsoleTopBar } from "@/components/app-shell/console-top-bar";
 import { SupportPanel } from "@/components/support/support-panel";
 import { useSupportUnread } from "@/lib/support/use-support";
 import { teensNeedingReview, tierAlertLive, tierRoster } from "@/lib/monitoring/tier-roster";
+import { useSupportOpen } from "@/lib/support/panel";
 
 /** Who gets the desktop top bar and the support CTA (answered 2026-10-16). */
 const TOP_BAR_PERSONAS = new Set(["mentor", "lead-mentor", "supervisor", "admin"]);
@@ -303,6 +304,7 @@ function ConsoleShellBody({
    *  One source since SUP-5: the same rows the panel lists (`use-support.ts`),
    *  so the badge and the panel cannot disagree. Zero until hydrated, when the
    *  persona is the real one. */
+  const supportOpen = useSupportOpen();
   const supportUnreadLive = useSupportUnread();
   const supportUnread = mounted ? supportUnreadLive : 0;
 
@@ -385,6 +387,7 @@ function ConsoleShellBody({
       /* THE SUPPORT PANEL (SUP-2), for the same personas as its CTA. Mounted
          by the persistent shell, so it survives route changes. */
       aside={mounted && TOP_BAR_PERSONAS.has(persona) ? <SupportPanel /> : undefined}
+      asideOpen={mounted && TOP_BAR_PERSONAS.has(persona) && supportOpen}
       topBar={
         mounted && TOP_BAR_PERSONAS.has(persona) ? (
           <ConsoleTopBar supportUnread={supportUnread} activityUnread={unread} />
