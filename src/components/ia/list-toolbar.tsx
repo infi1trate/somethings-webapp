@@ -202,7 +202,16 @@ export function ListToolbar<T extends Filterable>({
         {/* ═══ SEARCH REPLACES TWO DROPDOWNS (§6.1) ═══
             `mentee` and `mentor` collapsed into one field: matching either name
             is more useful than two selects and covers both. */}
-        <span className="relative inline-flex min-w-0 flex-1 items-center">
+        {/* ═══ THE FIELD'S FLOOR IS ON THE FLEX ITEM, NOT ONLY THE INPUT ═══
+            It was `min-w-0` here over a `min-w-[10rem]` input. A wrapping line
+            breaks on each item's hypothetical size — basis clamped by min —
+            and `flex-1`'s basis is 0, so this item claimed 0 and the line
+            never wrapped: MEASURED on a 272px list column (a 320 phone) the
+            span got 33px, the 160px input spilled out of it, and the Open /
+            Closed control painted over the field. With the floor here the
+            field takes its own line below 160 + the control, and still
+            grows to fill one when there is room. */}
+        <span className="relative inline-flex min-w-[10rem] flex-1 items-center">
           <label htmlFor={searchId} className="sr-only">
             {searchHint}
           </label>

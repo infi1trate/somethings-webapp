@@ -159,6 +159,35 @@ export function shortName(full: string): string {
 export const CYCLE_HIDDEN_BELOW_1600 = "max-[1599px]:hidden @max-[1319px]/canvas:hidden";
 export const COL_CLOSED_BOX = COL_CLOSED + 24;
 
+/** ═══ THE NARROW TIER: A CANVAS UNDER 496 ═══
+ *  Read off the CANVAS (`@container/canvas`), not the viewport, so a phone and
+ *  a desktop with Support open (1024 → a 336 canvas) take the same row.
+ *
+ *  WHY 496. The four-column row is fixed furniture plus a mentee column, and
+ *  the furniture is: page gutters 48 + card border 2 + row inset 48 + marker 8
+ *  + disc 36 + four gaps 48 + Cycle's floor 56 + the Closed box 128 = 374. The
+ *  widest outcome line, `Changed to F33.1`, is 120 — so the row holds every
+ *  line whole down to a 494 canvas, and 496 is the next 4px step. ONE NUMBER
+ *  FOR BOTH TABS, the Closed one, so a tab switch never changes the anatomy.
+ *
+ *  WHAT THE TIER DOES, and why it cannot be less. MEASURED at 320 (the SC
+ *  1.4.10 floor) the row has 222px inside its inset. Marker, disc, Cycle and
+ *  the age box with their gaps are 244 of it: no mentee column at all.
+ *    · THE TRAILING FIGURES STACK — age (or review date) on line 1 beside the
+ *      name, Cycle on line 2 beside the caption — content-sized, right-aligned,
+ *      so the right edge still lines up down the list. The Cycle column hides
+ *      and its value moves into the stack: relocated, not deleted.
+ *    · THE DISC HIDES. It is `aria-hidden` and restates the first letter of
+ *      the name printed beside it; the 48px it costs is the name's. COST,
+ *      stated: the hue that says "same teen" down a list is gone on a phone.
+ *    · THE HEADER keeps all three sort controls — Cycle and Review age sit
+ *      together over the stack they head.
+ *  MEASURED at 320, 336 and 360, supervisor, Open and Closed (600 closed
+ *  included): canvas overflow 0, and no name, caption or outcome truncated.
+ *  Literal classes at each site, because Tailwind reads class names from
+ *  source and cannot see one assembled from this number. */
+export const ROW_NARROW_CANVAS = 496;
+
 /** ═══ THE MENTEE COLUMN'S SHARE OF THE ROW (§6.5, corrected in §3) ═══
  *  MEASURED at 1280 before §6.5: the flexible mentee cell was **11px** wide and
  *  the NAME truncated — "Theo L." at 50px of content in an 11px box. §6.5
@@ -336,7 +365,8 @@ export function ReviewRowHeader({
         <span aria-hidden style={{ width: markerWidth }} className="shrink-0" />
       )}
       {equalWidth == null && (
-        <span aria-hidden style={{ width: disc }} className="shrink-0" />
+        /* The row's disc hides in the narrow tier, so its spacer does too. */
+        <span aria-hidden style={{ width: disc }} className="shrink-0 @max-[496px]/canvas:hidden" />
       )}
       <span
         className="flex min-w-0 items-center gap-3 text-[12px] leading-[16px] text-[var(--text-secondary)]"
@@ -383,6 +413,12 @@ export function ReviewRowHeader({
            equal thirds keep 0 on both sides. */
         className={cn(
           "flex min-w-0 items-center whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]",
+          /* ═══ NARROW (`ROW_NARROW_CANVAS`): CONTENT-SIZED, BESIDE THE AGE ═══
+             The column it heads has moved into the trailing stack, so the
+             header stops being a column and sits with `Review age` over it.
+             `!` because the list geometry is an inline style, which beats any
+             class it does not mark important. */
+          equalWidth == null && "@max-[496px]/canvas:flex-none! @max-[496px]/canvas:min-w-0!",
           assigned && CYCLE_HIDDEN_BELOW_1600
         )}
         style={{
@@ -424,7 +460,11 @@ export function ReviewRowHeader({
            10px past the column whose values it heads. The 24px of separation
            `COL_AGE_BOX` carries is still there; it is just slack the control
            can borrow instead of a wall it overflows. */
-        className="flex shrink-0 items-center justify-end whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]"
+        className={cn(
+          "flex shrink-0 items-center justify-end whitespace-nowrap text-[12px] leading-[16px] text-[var(--text-secondary)]",
+          /* NARROW: the stack below is content-sized, so its header is too. */
+          equalWidth == null && "@max-[496px]/canvas:w-auto!"
+        )}
         style={{ width: ageWidth }}
       >
         {/* ═══ "Review age", NOT "Due date" (§2, answered) ═══

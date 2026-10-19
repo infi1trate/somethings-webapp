@@ -83,6 +83,7 @@ import {
 import { BillingCodeLozenge } from "@/components/record/proposal-codes";
 import { deadlineBandsFor } from "@/lib/tasks/deadline-buckets";
 import { TASK_KIND_LABEL } from "@/lib/tasks/task-kind";
+import { cycleLabelFor } from "@/lib/tasks/review-cycle";
 import { proposalSpoken } from "@/components/record/proposal-codes";
 import { escalationStateLine } from "@/lib/tasks/escalation-response";
 import {
@@ -872,7 +873,8 @@ function Row({
         ) : null}
       </span>
 
-      <span className="flex shrink-0 items-center">
+      {/* NARROW (`ROW_NARROW_CANVAS`): the disc hides — see the constant. */}
+      <span className="flex shrink-0 items-center @max-[496px]/canvas:hidden">
         {/* SHARED WITH TODAY'S PREVIEW (K.1) — one disc implementation. */}
         <ReviewDisc
           teenId={item.teenId}
@@ -1177,7 +1179,11 @@ function Row({
           taskType={item.taskType}
           grow={1}
           /* Admins: Cycle yields to `Assigned to` below 1600 — see the constant. */
-          className={assignee !== undefined ? CYCLE_HIDDEN_BELOW_1600 : undefined}
+          /* NARROW: the value moves into the trailing stack below. */
+          className={cn(
+            "@max-[496px]/canvas:hidden",
+            assignee !== undefined && CYCLE_HIDDEN_BELOW_1600
+          )}
         />
       )}
       {/* ═══ `Assigned to` — ADMIN ONLY ═══
@@ -1193,6 +1199,11 @@ function Row({
       <span
         className={cn(
           "flex shrink-0 justify-end pl-6",
+          /* ═══ NARROW (`ROW_NARROW_CANVAS`): THE TRAILING STACK ═══
+             Line 1 the figure, line 2 the cycle, right-aligned and sized to
+             what they hold. The row's `gap-3` is the separation, so the 24px
+             inset goes; `!` because the box width is an inline style. */
+          "@max-[496px]/canvas:w-auto! @max-[496px]/canvas:flex-col @max-[496px]/canvas:items-end @max-[496px]/canvas:justify-center @max-[496px]/canvas:gap-0 @max-[496px]/canvas:pl-0",
           /* A CLOSED ROW STACKS: the date, and under it `Submitted late` when it
              was — both right-aligned, so the dates still line up down the
              column whether or not a row carries the second line. */
@@ -1206,6 +1217,12 @@ function Row({
               : undefined
         }
       >
+        {/* ═══ LINE 1 OF THE NARROW STACK ═══
+            `contents` above the tier, so the chips and the figure stay direct
+            flex children of the cell exactly as they were; a row of its own
+            inside the narrow stack, so a chip stays beside the figure it
+            qualifies rather than taking a line. */}
+        <span className="contents @max-[496px]/canvas:flex @max-[496px]/canvas:items-center @max-[496px]/canvas:gap-1.5">
         <RowChips entry={entry} now={now} suppressOverdue={taskLed} />
         {/* ═══ THE COMPOSITION SPAN IS GONE WITH THE TIERS (Phase 4) ═══
             arch-D moved it here from the mentor caption, on the reasoning that
@@ -1311,6 +1328,26 @@ function Row({
               ? elapsedLabel(ageAt, now)
               : temporal}
         </span>
+        </span>
+        {/* ═══ LINE 2 OF THE NARROW STACK: THE CYCLE ═══
+            The column's own value, moved rather than dropped. 12/16 — the
+            caption's step, because this line sits beside the caption and two
+            sizes on one line would not share a baseline. Mono and tabular
+            like the column it replaces. Not for an admin: their Cycle column
+            hides below 1600 (`CYCLE_HIDDEN_BELOW_1600`), and the stack does
+            not bring back what the wide row withheld. `aria-hidden` is not
+            needed — the row's name is stated (`ariaLabel`), not computed.
+            `font-mono` AS A CLASS, NOT THE INLINE STYLE the figure above
+            carries: `care-closed` finds the row's date as its last span with
+            an inline mono face, and this span is after it in source. */}
+        {item.payload.kind === "billing" && assignee === undefined && (
+          <span
+            data-narrow-cycle
+            className="hidden truncate font-mono text-[12px] leading-[16px] tabular-nums text-[var(--text-secondary)] @max-[496px]/canvas:block"
+          >
+            {cycleLabelFor(item.taskType)}
+          </span>
+        )}
         {/* ═══ §3.3 · SUBMITTED LATE — QUIET, AND IN WORDS ═══
             Answered: lateness persists on the record. Not the breach pattern —
             no clay fill, no icon — because nothing is owed any more; it is a

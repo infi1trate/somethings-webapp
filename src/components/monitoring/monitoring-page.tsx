@@ -1159,6 +1159,14 @@ export function MonitoringPage({
         <div
           className={cn(
             "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
+            /* ═══ AN EXPLICIT COLUMN BELOW THE SPLIT ═══ See Care Reviews'
+               grid: an implicit `auto` track floors at its content's
+               min-content, and a `truncate` line's min-content is its whole
+               string. MEASURED, supervisor at 360 with Support closed: the list
+               column rendered 497px — the rows, not the filter selects, whose
+               toolbar already wraps to a 208px floor — and the canvas scrolled
+               sideways by 161 (193 with Support open at 1024). */
+            "grid-cols-[minmax(0,1fr)]",
             /* ONE COLUMN WHEN THERE IS ONE COLUMN. A 40/60 grid with an absent
                first child leaves the pane in the 60% track and 40% of the width
                blank, which reads as a failed render rather than a full-width

@@ -119,11 +119,53 @@ function ariaFor(g: FlagGroup, now: number): string {
 /** The quiet markers. NONE of these is breach treatment — that belongs to
  *  escalation obligations alone now — and none carries colour alone: each is a
  *  glyph plus words. */
-function Marker({ icon: Icon, children }: { icon: typeof Repeat2; children: React.ReactNode }) {
+/** ═══ THE NARROW TIER: A CANVAS UNDER 588 ═══
+ *  Read off the canvas (`@container/canvas`), so a phone and a desktop with
+ *  Support open (1024 → a 336 canvas) take the same row — the same tier Care
+ *  Reviews has (`ROW_NARROW_CANVAS`, 496), at this row's own number.
+ *
+ *  WHY 588. The widest fixture row, every line whole, is the row inset 48 +
+ *  disc 36 + two gaps 24 + `Assessment scores below threshold` 194 + its
+ *  trailing furniture 236 (inset 24 + `2 in this conversation` 146 + 6 + the
+ *  age's 60 floor) = 538. Plus the card border 2 and page gutters 48 is 588,
+ *  on the 4px step. Checked across the default, repeat-pattern, no-reply,
+ *  in-escalation and false-positive scenarios; MEASURED at a 548 canvas, that
+ *  row's category rendered 154 of its 194px — so the floor is the arithmetic,
+ *  not the browser's min-content, which reported 495 for the same row.
+ *  WHAT IT DOES NOT COVER, stated: no fixture row carries two markers. All
+ *  three in words are 451 of trailing furniture and would need an 803 canvas,
+ *  so a row like that compresses its mentor and category, then scrolls inside
+ *  its card, between 588 and 803. Taking 803 as the tier would put glyphs on a
+ *  1024 desktop with Support closed (a 760 canvas) for a row no data produces.
+ *
+ *  BELOW IT: the disc hides, the age and the markers stack, and the markers
+ *  become glyphs — see each site. */
+export const FLAG_ROW_NARROW_CANVAS = 588;
+
+/* ═══ NARROW (`FLAG_ROW_NARROW_CANVAS`): THE GLYPH, AND `short` ═══
+   MEASURED: the three markers in words are 118.5, 146 and 77.6 wide, and at a 320
+   phone the row has 222 inside its inset — one marker in words and the age
+   already leave the names 0. So below the tier each marker is its glyph, plus
+   `short` where the words carry a number (`3` for the repeat count).
+   JUDGMENT, AND ITS COST: a glyph is a weaker statement than a phrase. What
+   keeps it honest is that nothing is lost to assistive tech — the row's name
+   is STATED (`ariaFor`) and says all three in words — and that the glyphs are
+   distinct shapes, not colours (SC 1.4.1). The words come back above the
+   tier and are always in the pane. */
+function Marker({
+  icon: Icon,
+  short,
+  children,
+}: {
+  icon: typeof Repeat2;
+  short?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-s1)] px-2 py-0.5 text-[12px] leading-[16px] text-[var(--text-secondary)]">
       <Icon className="size-3 shrink-0" aria-hidden />
-      {children}
+      <span className="@max-[588px]/canvas:hidden">{children}</span>
+      {short != null && <span className="hidden tabular-nums @max-[588px]/canvas:inline">{short}</span>}
     </span>
   );
 }
@@ -262,7 +304,9 @@ function Row({
           hairline && !geo.detached && "border-t border-[color:var(--border-subtle)]"
         )}
       >
-        <span className="flex shrink-0 items-center">
+        {/* NARROW: the disc hides, as on Care Reviews — it restates the first
+            letter of the name beside it, and the 48px is the names'. */}
+        <span className="flex shrink-0 items-center @max-[588px]/canvas:hidden">
           <span
             aria-hidden
             className="flex items-center justify-center rounded-full text-[12px] font-semibold"
@@ -279,8 +323,14 @@ function Row({
         <span className="flex min-w-0 flex-1 flex-col justify-center">
           <span className="flex min-w-0 items-baseline gap-1.5">
             {/* THE ONE EMPHASISED ELEMENT. */}
+            {/* ═══ THE TEEN NAME DOES NOT YIELD TO THE MENTOR'S ═══
+                Both were `truncate` at the default shrink of 1, so a squeezed
+                line cut both — MEASURED at a 320 phone, "Naomi R." at 51 of
+                its 62px beside a clipped "Brandy Forrestor". `shrink-0` hands
+                the whole deficit to the mentor; `max-w-full` is what still
+                truncates a name too long for the line on its own. */}
             <span
-              className="truncate font-display text-[var(--text-primary)]"
+              className="max-w-full shrink-0 truncate font-display text-[var(--text-primary)]"
               style={{
                 fontSize: geo.primary.size,
                 lineHeight: `${geo.primary.leading}px`,
@@ -330,14 +380,31 @@ function Row({
             ═══ pl-6 IS §3's "REAL SEPARATION FROM THE CONTENT BLOCK" ═══
             The markers used to sit 6px from a truncating category label, so on a
             narrow column the two read as one run of text. */}
-        <span className="flex shrink-0 items-center gap-1.5 pl-6">
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 pl-6",
+            /* ═══ NARROW: THE TRAILING STACK, AS ON CARE REVIEWS ═══
+               The age on line 1 beside the names, the markers on line 2 beside
+               the category. `flex-col-reverse` because the age is last in
+               source and first on screen; the row's name is stated, so the
+               visual order is the only order this changes. The row's `gap-3`
+               is the separation, so the 24px inset goes. */
+            "@max-[588px]/canvas:flex-col-reverse @max-[588px]/canvas:items-end @max-[588px]/canvas:justify-center @max-[588px]/canvas:gap-0 @max-[588px]/canvas:pl-0"
+          )}
+        >
+          {(g.escalationOpen || isRepeatPattern(g) || g.anyUnanswered) && (
+          /* `contents` above the tier, so the markers stay direct flex
+             children exactly as they were; one line of glyphs below it. */
+          <span className="contents @max-[588px]/canvas:flex @max-[588px]/canvas:gap-1">
           {g.escalationOpen && <Marker icon={ShieldAlert}>Escalation open</Marker>}
           {/* ═══ THE MARKER FINALLY DESCRIBES ITS OWN ROW ═══
               It read "3 in this conversation" on each of three separate rows for
               the same conversation. One row per conversation, so the count is a
               fact about the row a reader is looking at. */}
-          {isRepeatPattern(g) && <Marker icon={Repeat2}>{n} in this conversation</Marker>}
+          {isRepeatPattern(g) && <Marker icon={Repeat2} short={n}>{n} in this conversation</Marker>}
           {g.anyUnanswered && <Marker icon={MessageSquareOff}>No reply</Marker>}
+          </span>
+          )}
           {/* ═══ THE ONE MONO STRING ON THIS ROW ═══
               §3: "Mono — time values only". This row already complied and still
               does; the age is the only mono on it. RIGHT-ALIGNED ON A CONSISTENT
@@ -345,7 +412,12 @@ function Row({
               floor and its own right edge lands at the same x on every row,
               which is the axis §3 asks for. */}
           <span
-            className="shrink-0 text-right tabular-nums"
+            /* NARROW: the 60px floor aligned the age past markers of varying
+               width on one line; in the stack it has its own line and is
+               right-aligned, so the floor is 16px the category can use — the
+               difference, at a 360 phone, between `Assessment scores below
+               threshold` whole and clipped by 4px. */
+            className="shrink-0 text-right tabular-nums @max-[588px]/canvas:min-w-0!"
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: geo.secondary.size,

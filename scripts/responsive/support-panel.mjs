@@ -11,7 +11,7 @@
 //   · it is one mount: a route change keeps the node and its scroll
 //   · below 768 a sheet under the mobile top bar
 //   · closed, every surface lays out exactly as its viewport tier says; open,
-//     it drops a tier and nothing scrolls sideways
+//     it drops a tier and nothing scrolls sideways — nor at a 320 or 360 phone
 //   · /app/chat: the rail collapses to a 56 strip (animated), and a strip tab
 //     brings the rail back on that tab and closes Support
 
@@ -331,12 +331,6 @@ const expectClosed = {
   "risk-flags": (vw) => (vw >= 1280 ? 2 : 1),
   today: (vw) => (vw >= 1470 ? "row" : "column"),
 };
-/* ═══ KNOWN, PRE-EXISTING: the worklists overflow a phone-width canvas ═══
-   Care Reviews' row has a 412px floor and Risk Flags' filter selects do not
-   wrap, so both already scroll sideways at a 360 phone with Support closed.
-   Support at 1024 hands them a 336 canvas, which shows the same defect on a
-   desktop. Not SUP-2's to fix here; the baseline is measured live so the line
-   says how big it is, and a canvas over 412 is still a hard check. */
 /* Open: the tier its CANVAS earns, on top of the viewport's — the floors the
    surfaces declare (chat's own collapse is checked separately). */
 const expectOpen = {
@@ -344,13 +338,20 @@ const expectOpen = {
   "risk-flags": (vw, cw) => (vw >= 1280 && cw >= 1000 ? 2 : 1),
   today: (vw, cw) => (vw >= 1470 && cw >= 1190 ? "row" : "column"),
 };
-const phoneBaseline = {};
-for (const s of SURFACES) {
-  const { ctx, page } = await open("supervisor", 360, s.path);
-  phoneBaseline[s.name] = (await geo(page)).canvasOverflow;
-  await ctx.close();
+/* ═══ THE PHONE CANVAS, CLOSED — WHAT SUPPORT AT 1024 HANDS A SURFACE ═══
+   It was a KNOWN branch: Care Reviews and Risk Flags scrolled sideways at a 360
+   phone (76 and 161) and so at a 336 canvas with Support open (108 and 193).
+   Both grids now declare their one column and both rows have a canvas-read
+   narrow tier, so this is a hard check down to the SC 1.4.10 floor. */
+for (const width of [320, 360]) {
+  console.log(`\n── surfaces, supervisor at ${width}, Support closed`);
+  for (const s of SURFACES) {
+    const { ctx, page } = await open("supervisor", width, s.path);
+    const g = await geo(page);
+    check(g.canvasOverflow <= 0 && g.hscroll <= 0, `${s.name}: nothing scrolls sideways`, `canvas ${g.canvas} · overflow ${g.canvasOverflow} · page ${g.hscroll}`);
+    await ctx.close();
+  }
 }
-const KNOWN_BELOW = 412;
 for (const width of [1024, 1280, 1512, 1728]) {
   console.log(`\n── surfaces, supervisor at ${width}`);
   for (const s of SURFACES) {
@@ -362,11 +363,7 @@ for (const width of [1024, 1280, 1512, 1728]) {
     const o = await page.evaluate(s.measure);
     const g = await geo(page);
     const detail = `canvas ${g.canvas} · overflow ${g.canvasOverflow} · page ${g.hscroll} · ${o.row ?? o.cols}`;
-    if (g.canvasOverflow > 0 && g.canvas < KNOWN_BELOW && phoneBaseline[s.name] > 0 && g.hscroll <= 0) {
-      console.log(`  ⚠ KNOWN ${s.name} open: overflows a ${g.canvas} canvas — pre-existing, ${phoneBaseline[s.name]}px at a 360 phone closed  — ${detail}`);
-    } else {
-      check(g.canvasOverflow <= 0 && g.hscroll <= 0, `${s.name} open: nothing scrolls sideways`, detail);
-    }
+    check(g.canvasOverflow <= 0 && g.hscroll <= 0, `${s.name} open: nothing scrolls sideways`, detail);
     if (expectOpen[s.name]) {
       const openTier = o.row ?? tracks(o.cols);
       check(openTier === expectOpen[s.name](width, g.canvas), `${s.name} open: the tier a ${g.canvas} canvas earns`, `${o.row ?? o.cols}`);

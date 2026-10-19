@@ -1357,6 +1357,18 @@ export function TasksPage({
               // rather than the page. Same fix, same reason, as the dialog's
               // body row.
               "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-5",
+              /* ═══ AN EXPLICIT COLUMN TOO, FOR THE SAME REASON AS THE ROW ═══
+                 Below the split the grid declared no columns, so its one track
+                 was the implicit `auto` — and an auto track's floor is its
+                 content's min-content width. A `truncate` line's min-content is
+                 its WHOLE string, so the rows' captions set the list's width
+                 rather than the canvas. MEASURED, supervisor at 360 with Support
+                 closed: the list column rendered 412px in a 312px content box
+                 and the canvas scrolled sideways by 76; Support open at 1024
+                 (a 336 canvas) gave 108. `minmax(0,1fr)` hands the column the
+                 canvas's width, and the rows' narrow tier (`ROW_NARROW_CANVAS` in
+                 `review-row.tsx`) is what makes that width enough. */
+              "grid-cols-[minmax(0,1fr)]",
               /* ═══ 50 / 50, AND IT WAS 40 / 60 — ANSWERED ═══
                  THE DEFECT IT FIXES, MEASURED. Four columns do not fit the list
                  card the 40% track left: at 1280 the card was 367px, the row
