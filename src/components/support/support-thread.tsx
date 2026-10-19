@@ -104,7 +104,7 @@ export function SupportThread({
   /* A PERSON BY FIRST NAME, A GROUP BY ITS WHOLE NAME (SUP-6). Measured:
      "Message Fall" — the first word of "Fall 2026 cohort". Only a person has
      presence, so presence is what says this is a person. */
-  const first = row.presence ? row.name.split(" ")[0] : row.name;
+  const first = row.shortName ?? (row.presence ? row.name.split(" ")[0] : row.name);
   const logRef = useRef<HTMLOListElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());

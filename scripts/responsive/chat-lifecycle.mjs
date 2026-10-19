@@ -216,7 +216,7 @@ console.log("\n── the lock after a rescind @ re-matched");
      proves the UI cannot get into a state where a mentor rescinds their way out of
      an unlock they are mid-way through using. */
   const p = await chat("re-matched");
-  await p.locator('[role="tab"]', { hasText: "Toolkit" }).first().click();
+  await p.locator('[role="tab"]', { hasText: "Tools" }).first().click();
   await p.waitForTimeout(500);
   const open = await p.evaluate(
     `!document.querySelector('${RAIL} div[role="group"][aria-disabled="true"]')`

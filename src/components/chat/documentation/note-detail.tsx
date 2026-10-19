@@ -66,8 +66,9 @@ export function NoteDetail({
         style={{ font: "var(--type-body)" }}
       >
         <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
-        {/* TODO-COPY. Names where it goes, since Timeline is where notes live. */}
-        Timeline
+        {/* TODO-COPY. Names where it goes, since History is where notes live. */}
+        {/* The tab's name since support-beside-hub renamed it. TODO-COPY */}
+        History
       </button>
 
       <div>

@@ -49,6 +49,7 @@ export function MessageBubble({
   message,
   /** Who "them" is, for the accessible name. */
   theirName,
+  selfName,
   /** False when this message continues the one above it — see `needsMeta`. */
   showMeta = true,
   /** Reactions added in this session, merged over the fixture's own. Session-local
@@ -69,6 +70,8 @@ export function MessageBubble({
 }: {
   message: ChatMessage;
   theirName: string;
+  /** Overrides "You" on the mentor's own lines (an observer is reading). */
+  selfName?: string;
   showMeta?: boolean;
   added?: string[];
   inEscalation?: boolean;
@@ -78,7 +81,9 @@ export function MessageBubble({
   onEscalate?: () => void;
 }) {
   const mine = message.sender === "mentor";
-  const who = mine ? "You" : theirName; // TODO-COPY
+  /* `selfName` when a supervisor is watching: the mentor's lines are the
+     mentor's, not "You" (support-beside-hub). */
+  const who = mine ? (selfName ?? "You") : theirName; // TODO-COPY
 
   /* ═══ FIXTURE REACTIONS AND ADDED ONES ARE ONE LIST, DEDUPED ═══
      A mentor pressing 😂 on a message a teen already reacted to with 😂 should not

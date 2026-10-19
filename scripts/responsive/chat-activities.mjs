@@ -36,7 +36,7 @@ async function toolkit(scenario, width = 1440, height = 980) {
   p.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 160)); });
   await p.goto(BASE + "/app/chat", { waitUntil: "networkidle" });
   await p.waitForTimeout(1800);
-  await p.locator('[role="tab"]', { hasText: "Toolkit" }).first().click();
+  await p.locator('[role="tab"]', { hasText: "Tools" }).first().click();
   await p.waitForTimeout(500);
   p.__errors = errors;
   return p;

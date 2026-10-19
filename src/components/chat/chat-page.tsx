@@ -33,12 +33,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
-import { Rail, tabsFor, type RailMode, type RailTab } from "@/components/chat/rail/rail";
-import { RailStrip } from "@/components/chat/rail/rail-strip";
-import { setSupportOpen, setSupportThread, useSupportOpen } from "@/lib/support/panel";
+import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
+import { setSupportOpen, setSupportPinned, setSupportThread, useSupportOpen, useSupportThread } from "@/lib/support/panel";
+import { isSupervisorTier } from "@/lib/record/permission-map";
+import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
+import { DEMO_PEOPLE } from "@/lib/record/people-demo";
 import { markSupportRead } from "@/lib/support/outbox";
 import { supportThread } from "@/lib/support/threads";
-import { Thread } from "@/components/chat/thread/thread";
+import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { CrisisView } from "@/components/chat/escalation/crisis-view";
 import { ResolveDialog } from "@/components/chat/escalation/resolve-dialog";
@@ -329,18 +331,52 @@ export function ChatPage({
       : escalation
         ? "escalation"
         : "assist";
-  /* ═══ ONE RIGHT-HAND SURFACE (SUP standing rule 6) ═══
-     Every call here is a reader asking for the rail — raising an escalation,
-     opening a note, tagging a message — so it closes Support, which is the
-     other half of the mutual exclusion. A no-op when Support is closed. */
+  /* ═══ SUPERSEDED (support-beside-hub): THE HUB AND SUPPORT COEXIST ═══
+     SUP standing rule 6 was "one right-hand surface at a time", so a reader
+     asking for the rail closed Support. The pack replaces it on this screen:
+     opening Support must not close the hub — the LIST collapses instead — so
+     a tab change is only a tab change now. */
   const setRailTab = (tab: RailTab) => {
     if (!thread) return;
     setPickedTab({ threadId: thread.id, tab });
-    setSupportOpen(false);
   };
-  /** Support open on this screen collapses the rail to `RailStrip` (SUP-2). */
+  /** ═══ SUPPORT BESIDE THE HUB ═══ Open, the list collapses and the
+   *  conversation and the hub split the canvas card 50/50; closed, the list
+   *  returns (300 · flex · 360). The hub never unmounts either way. */
   const supportOpen = useSupportOpen();
-  const stripped = supportOpen && !!thread;
+  const supportThreadId = useSupportThread();
+  const beside = supportOpen && !!thread;
+  /** ═══ A SUPERVISOR WATCHES (support-beside-hub) ═══ The conversation is
+   *  the observed mentor's, read-only. */
+  const liveMentor = useLiveMentorRow();
+  const observer = isSupervisorTier(persona)
+    ? { mentorName: liveMentor?.name || "The mentor" }
+    : undefined;
+  /* THE OTHER PARTY TO THIS ESCALATION, when Support is open on them: the
+     notified supervisor for a mentor, the mentor for a supervisor. */
+  const otherParty = escalation ? (observer ? LIVE_ID : escalation.supervisorId) : null;
+  const otherName = otherParty === LIVE_ID
+    ? (observer?.mentorName ?? "")
+    : (DEMO_PEOPLE.find((x) => x.id === otherParty)?.name ?? "");
+  /* A first name when there is a name; the whole fallback when there is not
+     (measured: an unnamed mentor read "The is in this chat"). */
+  const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
+  const presence =
+    supportOpen && otherParty && supportThreadId === otherParty && otherName
+      ? /* TODO-COPY */ `${otherFirst} is in this chat`
+      : undefined;
+  /* ═══ PINNED FOR A SUPERVISOR ═══ While an escalation is open on what a
+     supervisor is watching, the observed mentor is pinned at the top of their
+     Support list. Published to the panel's store; cleared on the way out. */
+  const pinMentor = !!observer && !!escalation;
+  const pinnedName = observer?.mentorName ?? "";
+  /* TODO-COPY. An unnamed mentor is addressed as "the mentor". */
+  const pinnedShort = liveMentor?.name ? liveMentor.name.split(" ")[0] : "the mentor";
+  useEffect(() => {
+    if (!pinMentor) return;
+    setSupportPinned({ id: LIVE_ID, name: pinnedName, shortName: pinnedShort });
+    return () => setSupportPinned(null);
+  }, [pinMentor, pinnedName, pinnedShort]);
   const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
   const [crisisOpen, setCrisisOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
@@ -601,32 +637,54 @@ export function ChatPage({
           with it open (424 narrower) a tier drops when its floor is not met.
             640  = list 300 + a 340 conversation
             1000 = list 320 + rail 320 + a 360 conversation */}
+      {/* ═══ NAMED AREAS (support-beside-hub) ═══ list · banner · thread ·
+          rail. The banner has its own row over the conversation AND the hub,
+          so an escalation spans the canvas card rather than one pane of it.
+          CLOSED: < 960 one column; ≥ 960 list + thread (the hub an overlay);
+          ≥ 1280 list 300 · thread · hub 360 (300 + 360 + a 340 conversation =
+          the 1000 floor). OPEN: the list is gone; ≥ 680 of canvas the thread
+          and hub split 50/50, below it the hub is a drawer over the
+          conversation. Track counts differ between the two, so the change is a
+          swap, not an animation. */}
       <div
+        data-chat-layout={beside ? "beside" : "list"}
         className={cn(
-          // `relative` because the rail is ABSOLUTE below `xl` — see its note.
-          "relative grid h-full min-h-0",
-          // < 960: ONE column, and `view` decides which.
-          "grid-cols-[minmax(0,1fr)]",
-          // ≥ 960: list + thread. No third track: 300 + 320 leaves 280px for the
-          // conversation at this width, which is a column of two-word lines.
-          "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)]",
-          // ≥ 1280: all three, always. The toggle is gone at this width.
-          "xl:@min-[1000px]/canvas:grid-cols-[320px_minmax(0,1fr)_320px]",
-          /* ═══ SUPPORT OPEN: THE RAIL IS A 56px STRIP, at every tier ═══
-             Same track count as the three-column layout, so at `xl` the third
-             track ANIMATES 320 → 56 alongside the push instead of swapping.
-             Reduced motion: instant. One column shows the strip only beside a
-             thread; the list has no rail to return to. */
-          stripped && [
-            view === "thread"
-              ? "min-[768px]:grid-cols-[minmax(0,1fr)_56px]"
-              : "md:grid-cols-[minmax(0,1fr)_56px]",
-            "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)_56px]",
-            "xl:@min-[1000px]/canvas:grid-cols-[320px_minmax(0,1fr)_56px]",
-          ],
-          "transition-[grid-template-columns] duration-[220ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+          // `relative` because the rail is ABSOLUTE wherever it is a drawer.
+          "relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]",
+          "grid-cols-[minmax(0,1fr)] [grid-template-areas:'banner'_'thread']",
+          beside
+            ? /* Two panes from a 1120 VIEWPORT, the pack's rule (it was a
+                 680 canvas floor, which turned the hub into a drawer at 1280
+                 for staff: their nav is 248, not the Figma's 232). The 600
+                 canvas guard keeps 300 a pane. */
+              "min-[1120px]:@min-[600px]/canvas:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] min-[1120px]:@min-[600px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+            : [
+                "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)] md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
+                "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
+              ]
         )}
       >
+        {/* ── THE ACTION BAR SLOT: the banner spans thread + hub ─────────── */}
+        {thread && escalation && (
+          <div data-chat-banner className={cn("[grid-area:banner]", view === "list" && "hidden md:block")}>
+            <EscalationBanner
+              escalation={escalation}
+              onOpenSupervisor={
+                !observer && canOpenInSupport(escalation.supervisorId)
+                  ? () => openInSupport(escalation.supervisorId)
+                  : undefined
+              }
+              onOpenAssessment={() => {
+                setRailTab("escalation");
+                setRailMode({ kind: "list" });
+                setRailOpen(true);
+              }}
+              onOpenCrisis={() => setCrisisOpen(true)}
+              onResolveEscalation={() => setResolveOpen(true)}
+            />
+          </div>
+        )}
+
         {/* ── LIST ──────────────────────────────────────────────────────── */}
         <ConversationList
           threads={threads}
@@ -640,20 +698,20 @@ export function ChatPage({
             router.push(chatThreadHref(id));
           }}
           className={cn(
+            /* One area with the thread below `md` (the route picks which
+               shows); its own column above it. */
+            "[grid-area:thread] md:@min-[640px]/canvas:[grid-area:list] row-span-2",
             view === "thread" && "hidden md:flex",
-            /* ═══ SUPPORT TOOK THE SECOND COLUMN ═══ At `md` with the canvas
-               under the two-column floor (only reachable with Support open),
-               the conversation stays and the LIST goes, whichever the route
-               says: a mentor who opened Support mid-conversation asked about
-               that conversation. Closing Support brings the list back. */
-            "md:@max-[639px]/canvas:hidden"
+            /* ═══ SUPPORT OPEN: THE LIST COLLAPSES ═══ Not narrowed — gone.
+               Back to chats, in the conversation header, brings it back. */
+            beside && "!hidden"
           )}
         />
 
         {/* ── THREAD ────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            "flex min-h-0 flex-col",
+            "flex min-h-0 flex-col [grid-area:thread]",
             view === "list" && "hidden md:flex"
           )}
         >
@@ -662,7 +720,7 @@ export function ChatPage({
               Support open below the two-column floor, at `/app/chat`, which at
               this width renders this same conversation. Closing Support is the
               way back to the list there. */}
-          {view === "thread" && (
+          {view === "thread" && !beside && (
             /* ═══ A LINK, BECAUSE THREE GESTURES HAVE TO LAND ON THE LIST ═══
                Browser back, the Android system back gesture and iOS swipe-back
                all navigate — none of them fire an onClick. A button could only
@@ -692,13 +750,10 @@ export function ChatPage({
           {thread ? (
             <div className="relative min-h-0 flex-1">
               <Thread
-                /* ═══ "SUPERVISOR NOTIFIED" OPENS THEIR THREAD (SUP-5) ═══ The
-                   moment a mentor most needs the person who was told. */
-                onOpenSupervisor={
-                  escalation && canOpenInSupport(escalation.supervisorId)
-                    ? () => openInSupport(escalation.supervisorId)
-                    : undefined
-                }
+                /* The way back to the list while Support has it collapsed:
+                   closing Support is what restores it (the pack's rule 4). */
+                onBackToChats={beside ? () => setSupportOpen(false) : undefined}
+                observer={observer}
                 thread={thread}
                 messages={messages}
                 events={events}
@@ -706,21 +761,17 @@ export function ChatPage({
                 artifacts={artifactById}
                 escalation={escalation}
                 reactions={reactions}
-                onReact={react}
+                /* READ-ONLY for an observer: no reactions, notes or escalate
+                   from a conversation they are invisible in. */
+                onReact={observer ? undefined : react}
                 /* Teen threads only — a colleague's conversation has no teen to
                    document, and the menu then holds reactions alone rather than a
                    disabled row. */
-                onTagMessage={thread.kind === "teen" ? tagMessage : undefined}
+                onTagMessage={!observer && thread.kind === "teen" ? tagMessage : undefined}
                 onEscalateFrom={
-                  thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
+                  !observer && thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
                 }
-                onOpenAssessment={() => {
-                  setRailTab("escalation");
-                  setRailMode({ kind: "list" });
-                }}
-                onOpenCrisis={() => setCrisisOpen(true)}
-                onResolveEscalation={() => setResolveOpen(true)}
-                insert={insert}
+                insert={observer ? null : insert}
                 phone={teen?.phone ?? null}
                 onOpenEvent={(e) => {
                   /* ═══ A NOTE EVENT OPENS THE NOTE, NOT THE SHEET ═══
@@ -793,9 +844,12 @@ export function ChatPage({
                 aria-label={railOpen ? "Hide conversation tools" : "Show conversation tools"}
                 title={railOpen ? "Hide conversation tools" : "Show conversation tools"}
                 className={cn(
-                  "absolute right-3 top-2.5 hidden size-9 items-center justify-center rounded-full text-[var(--text-secondary)] md:@min-[640px]/canvas:flex xl:@min-[1000px]/canvas:hidden",
-                  // The strip is the way back while Support is open.
-                  stripped && "md:@min-[640px]/canvas:hidden",
+                  "absolute right-3 top-2.5 hidden size-9 items-center justify-center rounded-full text-[var(--text-secondary)]",
+                  /* Shown wherever the hub is a drawer: closed between `md`
+                     and `xl`; open, below the 680 two-pane floor. */
+                  beside
+                    ? "flex min-[1120px]:@min-[600px]/canvas:hidden"
+                    : "md:@min-[640px]/canvas:flex xl:@min-[1000px]/canvas:hidden",
                   "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
                 )}
@@ -832,35 +886,28 @@ export function ChatPage({
             mean one control silently doing two different things.
             `absolute` also keeps it out of the grid's flow below `xl`, so it
             cannot create an implicit third track at `md`. */}
-        {/* ═══ COLLAPSED, NOT CLOSED (SUP-2) ═══
-            While Support is open the rail's tabs persist as a strip in the
-            third track, and one click on a tab brings the rail back on it and
-            closes Support. Focus follows to the rail's selected tab, since the
-            strip button it was on is gone. */}
-        {thread && stripped && (
-          <div className={cn("min-w-0 overflow-hidden", view === "list" && "hidden md:block")}>
-            <RailStrip
-              tabs={tabsFor(thread.kind, !!escalation)}
-              active={railTab}
-              onOpen={(t) => {
-                setRailTab(t);
-                setRailOpen(true);
-                requestAnimationFrame(() =>
-                  document
-                    .querySelector<HTMLElement>('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')
-                    ?.focus()
-                );
-              }}
-            />
-          </div>
-        )}
-        {thread && !stripped && (
+        {/* ═══ SUPERSEDED (support-beside-hub): NO STRIP ═══ SUP-2 collapsed
+            the hub to a 56px strip of its tabs while Support was open. The
+            pack reverses it: the hub stays and the list collapses, so the
+            strip has nothing left to stand in for. */}
+        {/* ═══ ONE HUB, ALWAYS MOUNTED ═══ The same element whichever layout
+            is up — a track, or a drawer — so its tab and mode never reset when
+            Support opens or closes. */}
+        {thread && (
           <div
+            data-chat-hub
             className={cn(
-              "absolute inset-y-0 right-0 z-20 w-[320px] border-l border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]",
-              "xl:@min-[1000px]/canvas:static xl:@min-[1000px]/canvas:z-auto xl:@min-[1000px]/canvas:w-auto xl:@min-[1000px]/canvas:shadow-none",
-              // Hidden below `xl` until toggled; always present at `xl`.
-              !railOpen && "hidden xl:@min-[1000px]/canvas:block"
+              "absolute inset-y-0 right-0 z-20 w-[360px] max-w-full border-l border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]",
+              beside
+                ? [
+                    "min-[1120px]:@min-[600px]/canvas:static min-[1120px]:@min-[600px]/canvas:z-auto min-[1120px]:@min-[600px]/canvas:w-auto min-[1120px]:@min-[600px]/canvas:max-w-none min-[1120px]:@min-[600px]/canvas:shadow-none min-[1120px]:@min-[600px]/canvas:[grid-area:rail]",
+                    !railOpen && "hidden min-[1120px]:@min-[600px]/canvas:block",
+                  ]
+                : [
+                    "xl:@min-[1000px]/canvas:static xl:@min-[1000px]/canvas:z-auto xl:@min-[1000px]/canvas:w-auto xl:@min-[1000px]/canvas:max-w-none xl:@min-[1000px]/canvas:shadow-none xl:@min-[1000px]/canvas:[grid-area:rail]",
+                    // Hidden below `xl` until toggled; always present at `xl`.
+                    !railOpen && "hidden xl:@min-[1000px]/canvas:block",
+                  ]
             )}
           >
             <Rail
@@ -874,6 +921,7 @@ export function ChatPage({
               now={now}
               tab={railTab}
               onTabChange={setRailTab}
+              presence={presence}
               mode={railMode}
               onModeChange={setRailMode}
               onSendActivity={sendActivity}

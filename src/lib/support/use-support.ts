@@ -19,6 +19,9 @@ import { useNavClock } from "@/lib/app-shell/shell-config";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { supportDirectory, type SupportSection } from "@/lib/support/directory";
 import { useOutbox, useSupportRead, type OutboxMessage } from "@/lib/support/outbox";
+import { useSupportPinned } from "@/lib/support/panel";
+import { pinnedThread } from "@/lib/support/threads";
+import type { SupportRow } from "@/lib/support/directory";
 
 export function overlaySession(
   sections: SupportSection[],
@@ -42,7 +45,7 @@ export function overlaySession(
 export const supportUnreadCount = (sections: SupportSection[]) =>
   sections.reduce((n, s) => n + s.rows.filter((r) => r.unread > 0).length, 0);
 
-export function useSupportSections(): { sections: SupportSection[]; now: number } {
+export function useSupportSections(): { sections: SupportSection[]; pinned: SupportRow | null; now: number } {
   const persona = useOnboardingStore((s) => s.persona);
   const chatScenarioId = useOnboardingStore((s) => s.chatScenarioId);
   const now = useNavClock();
@@ -52,7 +55,14 @@ export function useSupportSections(): { sections: SupportSection[]; now: number 
     () => overlaySession(supportDirectory(persona, chatScenarioId, now), outbox, read),
     [persona, chatScenarioId, now, outbox, read]
   );
-  return { sections, now };
+  /* The pinned contact, with this session on top of it like any row. */
+  const pin = useSupportPinned();
+  const pinned = useMemo(() => {
+    if (!pin) return null;
+    const [s] = overlaySession([{ id: "other", label: "", empty: "", rows: [pinnedThread(pin, now).row] }], outbox, read);
+    return s.rows[0];
+  }, [pin, now, outbox, read]);
+  return { sections, pinned, now };
 }
 
 export function useSupportUnread(): number {

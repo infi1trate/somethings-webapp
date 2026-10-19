@@ -58,7 +58,10 @@ console.log("\n── the banner @ escalation-active");
     if (!el) return null;
     const thread = document.querySelector('[data-slot="chat-thread"]');
     const scroller = thread.querySelector('[class*="overflow-y-auto"]');
-    const buttons = [...el.querySelectorAll("button")].map((x) => ({
+    /* THE ACTIONS, not every button: since SUP-5 "Supervisor notified" in the
+       sentence is a link-style button into Support, and it is part of the
+       fact, not one of the three actions. */
+    const buttons = [...el.querySelectorAll("button")].filter((x) => x.dataset.slot !== "banner-supervisor").map((x) => ({
       text: x.innerText.trim(),
       slot: x.dataset.slot,
       bg: getComputedStyle(x).backgroundColor,
@@ -461,7 +464,7 @@ console.log("\n── resolving @ escalation-active");
     resolved.note.join(" | ")
   );
   check(
-    resolved.tab.includes("Timeline"),
+    resolved.tab.includes("History"),
     "and the rail lands where that note is, not on a tab that just vanished",
     resolved.tab.join(",")
   );

@@ -28,7 +28,7 @@
 // nobody — the same treatment the Tasks excerpt's truncation marker uses.
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { ShieldAlert } from "lucide-react";
+import { ChevronLeft, ShieldAlert } from "lucide-react";
 import { ThreadMenu } from "@/components/chat/thread/thread-menu";
 import {
   BannerButton,
@@ -130,10 +130,8 @@ export function Thread({
   onTagMessage,
   onEscalateFrom,
   onOpenEvent,
-  onOpenAssessment,
-  onOpenSupervisor,
-  onOpenCrisis,
-  onResolveEscalation,
+  onBackToChats,
+  observer,
   insert,
   /** For the kebab's dialer link. Null on a thread with no number on file. */
   phone,
@@ -157,13 +155,14 @@ export function Thread({
    *  note on why both paths exist. */
   onEscalateFrom?: (message: ChatMessage | null) => void;
   onOpenEvent?: (event: ChatEvent) => void;
-  /** The banner's three actions. Absent on a support thread. */
-  onOpenAssessment?: () => void;
-  /** Opens the notified supervisor's thread in the Support panel (SUP-5).
-   *  Absent when this viewer cannot reach that contact: plain text then. */
-  onOpenSupervisor?: () => void;
-  onOpenCrisis?: () => void;
-  onResolveEscalation?: () => void;
+  /* The banner's actions moved with it to `EscalationBanner`. */
+  /** While Support is open the list collapses, and this is the way back to it
+   *  (support-beside-hub): a 40px round chevron at the header's start. */
+  onBackToChats?: () => void;
+  /** ═══ A SUPERVISOR WATCHING (support-beside-hub) ═══ Read-only: the
+   *  mentor's lines are attributed to them rather than to "You", the message
+   *  and thread menus are gone, and the composer is the observer's footer. */
+  observer?: { mentorName: string };
   /** Text to drop into the composer, unsent. See `Composer`'s own note on why this
    *  is a nonce rather than a plain string. */
   insert?: { text: string; nonce: number } | null;
@@ -259,14 +258,26 @@ export function Thread({
            see `StatusBanner` on why an escalation a mentor can scroll away from is
            an escalation they forget. */
         "grid h-full min-h-0 bg-[var(--surface-card)]",
-        escalation
-          ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]"
-          : "grid-rows-[auto_minmax(0,1fr)_auto]",
+        /* Three rows: the banner moved to the page (support-beside-hub). */
+        "grid-rows-[auto_minmax(0,1fr)_auto]",
         className
       )}
     >
       {/* ── HEADER ────────────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3">
+        {onBackToChats && (
+          <button
+            type="button"
+            data-slot="chat-back-to-chats"
+            onClick={onBackToChats}
+            /* TODO-COPY */
+            aria-label="Back to chats"
+            title="Back to chats"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-subtle)] text-[var(--icon-secondary)] transition-colors hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+          >
+            <ChevronLeft aria-hidden className="size-5" strokeWidth={1.75} />
+          </button>
+        )}
         <RecordAvatar name={thread.displayName} size={30} />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -298,7 +309,7 @@ export function Thread({
             </p>
           )}
         </div>
-        <ThreadMenu
+        {!observer && <ThreadMenu
           threadId={thread.id}
           theirName={theirName}
           phone={phone ?? null}
@@ -307,64 +318,13 @@ export function Thread({
           onEscalate={
             onEscalateFrom && !escalation ? () => onEscalateFrom(null) : undefined
           }
-        />
+        />}
       </div>
 
-      {/* ── ESCALATION BANNER ─────────────────────────────────────────── */}
-      {escalation && (
-        <StatusBanner
-          tone="critical"
-          glyph={ShieldAlert}
-          /* TODO-COPY. Present tense, because the state is present. */
-          title="Escalation open"
-          /* ═══ THE TIMESTAMPED FACT ═══
-              Not a toast. The mentor who raised this needs to be able to check — an
-              hour later, mid-phone-call, after a navigation — that somebody knows.
-              See `StatusBanner`. */
-          meta={
-            onOpenSupervisor ? (
-              <>
-                {/* ═══ THE FACT IS THE DOOR (SUP-5) ═══ "Supervisor notified"
-                    opens that supervisor's thread in the Support panel — the
-                    moment a mentor needs them is the moment they are told. An
-                    inline link in a sentence, so 2.5.8's inline exception holds
-                    for its target height. */}
-                <button
-                  type="button"
-                  data-slot="banner-supervisor"
-                  onClick={onOpenSupervisor}
-                  /* TODO-COPY */
-                  aria-label={`Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)}. Message them in Support`}
-                  className="rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
-                >
-                  Supervisor notified {clockTime(escalation.supervisorNotifiedAt)}
-                </button>
-                {` · opened ${clockTime(escalation.openedAt)}`}
-              </>
-            ) : (
-              `Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)} · opened ${clockTime(escalation.openedAt)}`
-            )
-          }
-        >
-          {/* ═══ CRISIS INFO IS THE PRIMARY, NOT THE ASSESSMENT ═══
-              A mentor pressing something on this banner in a hurry is reaching for
-              the phone numbers. The checklist is the considered path and sits
-              second. */}
-          <BannerButton tone="critical" primary onClick={onOpenCrisis} data-slot="banner-crisis">
-            {/* TODO-COPY */}
-            Emergency info
-          </BannerButton>
-          <BannerButton tone="critical" onClick={onOpenAssessment} data-slot="banner-assessment">
-            {/* TODO-COPY. Names the count so a mentor returning knows where they
-                got to without opening it. */}
-            Checklist
-          </BannerButton>
-          <BannerButton tone="critical" onClick={onResolveEscalation} data-slot="banner-resolve">
-            {/* TODO-COPY */}
-            Resolve
-          </BannerButton>
-        </StatusBanner>
-      )}
+      {/* ── THE ESCALATION BANNER MOVED UP (support-beside-hub) ─────────
+          It is `EscalationBanner` below, rendered by the page above the
+          conversation AND the hub, so it spans both: the pack's Action Bar
+          slot belongs to the card, not to one pane of it. */}
 
       {/* ── TRANSCRIPT ────────────────────────────────────────────────── */}
       <div
@@ -419,6 +379,7 @@ export function Thread({
                     <MessageBubble
                       message={entry.message}
                       theirName={theirName}
+                      selfName={observer?.mentorName}
                       // A new day always re-states who is speaking, whatever the
                       // clustering rule says — a reader arriving at "Tuesday"
                       // needs the next line attributed.
@@ -458,7 +419,7 @@ export function Thread({
                          party's first name otherwise — a mentor scanning needs to
                          know which of them did this. */
                       actorName={
-                        entry.event.actorId === LIVE_ID ? "You" : theirName
+                        entry.event.actorId === LIVE_ID ? (observer?.mentorName ?? "You") : theirName
                       }
                       retracted={
                         entry.event.kind === "activity-sent" &&
@@ -475,7 +436,109 @@ export function Thread({
       </div>
 
       {/* ── COMPOSER ─────────────────────────────────────────────────── */}
-      <Composer theirName={theirName} insert={insert} />
+      {observer ? (
+        /* ═══ THE OBSERVER'S FOOTER (Figma 6011:1450) ═══ Where the composer
+           was: who is watching, that they are invisible, and Take over —
+           drawn, and DISABLED until what taking over does is specified
+           (standing rule 3, flagged). */
+        <div
+          data-slot="chat-observer"
+          className="flex shrink-0 items-center gap-4 bg-[var(--surface-sunken-strong)] px-4 py-5"
+        >
+          <div className="min-w-0 flex-1">
+            {/* TODO-COPY, both lines */}
+            <p className="text-[14px] leading-[20px] font-semibold text-[var(--text-primary)]">Viewing as a supervisor</p>
+            <p className="text-[12px] leading-[16px] text-[var(--text-secondary)]">You are invisible to this chat.</p>
+          </div>
+          <button
+            type="button"
+            data-slot="chat-take-over"
+            aria-disabled
+            tabIndex={-1}
+            title="Coming soon."
+            onClick={(e) => e.preventDefault()}
+            aria-label="Take over (coming soon)"
+            className="h-10 shrink-0 cursor-default rounded-full border border-[color:var(--border-default)] px-5 text-[14px] leading-[16px] font-semibold text-[var(--text-primary)]"
+          >
+            Take over
+          </button>
+        </div>
+      ) : (
+        <Composer theirName={theirName} insert={insert} />
+      )}
     </div>
+  );
+}
+
+/** ═══ THE ESCALATION BANNER (moved out of `Thread`, support-beside-hub) ═══
+ *  The same banner, the same three actions and the same "Supervisor
+ *  notified" door — rendered by the page across the conversation and the hub
+ *  rather than inside the conversation pane. */
+export function EscalationBanner({
+  escalation,
+  onOpenAssessment,
+  onOpenSupervisor,
+  onOpenCrisis,
+  onResolveEscalation,
+}: {
+  escalation: EscalationState;
+  onOpenAssessment?: () => void;
+  onOpenSupervisor?: () => void;
+  onOpenCrisis?: () => void;
+  onResolveEscalation?: () => void;
+}) {
+  return (
+    <StatusBanner
+      tone="critical"
+      glyph={ShieldAlert}
+      /* TODO-COPY. Present tense, because the state is present. */
+      title="Escalation open"
+      /* ═══ THE TIMESTAMPED FACT ═══
+          Not a toast. The mentor who raised this needs to be able to check — an
+          hour later, mid-phone-call, after a navigation — that somebody knows.
+          See `StatusBanner`. */
+      meta={
+        onOpenSupervisor ? (
+          <>
+            {/* ═══ THE FACT IS THE DOOR (SUP-5) ═══ "Supervisor notified"
+                opens that supervisor's thread in the Support panel — the
+                moment a mentor needs them is the moment they are told. An
+                inline link in a sentence, so 2.5.8's inline exception holds
+                for its target height. */}
+            <button
+              type="button"
+              data-slot="banner-supervisor"
+              onClick={onOpenSupervisor}
+              /* TODO-COPY */
+              aria-label={`Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)}. Message them in Support`}
+              className="rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+            >
+              Supervisor notified {clockTime(escalation.supervisorNotifiedAt)}
+            </button>
+            {` · opened ${clockTime(escalation.openedAt)}`}
+          </>
+        ) : (
+          `Supervisor notified ${clockTime(escalation.supervisorNotifiedAt)} · opened ${clockTime(escalation.openedAt)}`
+        )
+      }
+    >
+      {/* ═══ CRISIS INFO IS THE PRIMARY, NOT THE ASSESSMENT ═══
+          A mentor pressing something on this banner in a hurry is reaching for
+          the phone numbers. The checklist is the considered path and sits
+          second. */}
+      <BannerButton tone="critical" primary onClick={onOpenCrisis} data-slot="banner-crisis">
+        {/* TODO-COPY */}
+        Emergency info
+      </BannerButton>
+      <BannerButton tone="critical" onClick={onOpenAssessment} data-slot="banner-assessment">
+        {/* TODO-COPY. Names the count so a mentor returning knows where they
+            got to without opening it. */}
+        Checklist
+      </BannerButton>
+      <BannerButton tone="critical" onClick={onResolveEscalation} data-slot="banner-resolve">
+        {/* TODO-COPY */}
+        Resolve
+      </BannerButton>
+    </StatusBanner>
   );
 }

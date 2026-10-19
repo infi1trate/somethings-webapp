@@ -1,0 +1,282 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// SUPPORT BESIDE THE HUB, measured (Figma Supervisor-Dashboard-Clean 6011:1450)
+//
+//   · every chat role, one layout: open Support → the list collapses, Back to
+//     chats appears, the hub stays, the banner spans conversation + hub only;
+//     close → list 300 · conversation · hub 360, the hub's tab kept
+//   · the hub is ONE element across both layouts, never remounted
+//   · the split surface: canvas card 24/4/4/24, support card 4/24/24/4, both
+//     Elevation 1; support surface-raised, canvas surface-canvas
+//   · the hub header: Now filled at the left (default while an escalation is
+//     open), the rest 40px outlined round at the right
+//   · the presence line, for a mentor and for a supervisor
+//   · a supervisor watches: read-only, the observer's footer, Take over
+//     inert, the mentor's lines named; the mentor pinned in Support
+//   · keyboard: conversation header → hub header → support header; Esc in the
+//     support composer closes the support card
+//   · widths: canvas 840 while it can, support 348–420; the staff rail
+//     collapses below 1280 (≤ 360ms, reduced motion instant); a drawer hub
+//     below 1120; nothing scrolls sideways
+//   · switching role in the dev bar without a reload keeps the one layout
+
+import { chromium } from "playwright";
+import { mkdir } from "node:fs/promises";
+import { STORE_VERSION as VERSION } from "./store-version.mjs";
+
+const BASE = process.env.BASE ?? "http://localhost:3000";
+const KEY = "somethings.mentor-onboarding";
+const OUT = "docs/support-panel/beside-hub";
+await mkdir(OUT, { recursive: true });
+let fails = 0;
+const check = (ok, label, extra = "") => {
+  if (!ok) fails++;
+  console.log(`  ${ok ? "✓" : "✗"} ${label}${extra ? `  — ${extra}` : ""}`);
+};
+
+const b = await chromium.launch();
+async function open(persona, width, opts = {}) {
+  const ctx = await b.newContext({ viewport: { width, height: 982 }, deviceScaleFactor: opts.dpr ?? 1, reducedMotion: opts.reducedMotion ?? "no-preference" });
+  await ctx.addInitScript(
+    ([k, v]) => {
+      if (!sessionStorage.getItem("seeded")) {
+        localStorage.setItem(k, JSON.stringify(v));
+        localStorage.removeItem("somethings.support.disclosure");
+        sessionStorage.setItem("seeded", "1");
+      }
+    },
+    [KEY, { state: { persona, chatScenarioId: "escalation-active" }, version: VERSION }]
+  );
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/app/chat/t13`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  return { ctx, page };
+}
+const cta = (p) => p.locator("[data-support-cta]").filter({ visible: true }).first();
+const toggleSupport = async (p) => {
+  await cta(p).click();
+  await p.waitForTimeout(500);
+};
+const geo = (p) =>
+  p.evaluate(() => {
+    const R = (s) => {
+      const e = document.querySelector(s);
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return r.width ? { x: Math.round(r.left), r: Math.round(r.right), w: Math.round(r.width) } : null;
+    };
+    return {
+      layout: document.querySelector("[data-chat-layout]")?.dataset.chatLayout,
+      list: R('[data-slot="conversation-list"]'),
+      thread: R('[data-slot="chat-thread"]'),
+      hub: R("[data-chat-hub]"),
+      banner: R("[data-chat-banner]"),
+      back: R('[data-slot="chat-back-to-chats"]'),
+      support: R("#support-panel"),
+      rail: R('[data-anno-ref="app-rail"]'),
+      hscroll: document.documentElement.scrollWidth - innerWidth,
+    };
+  });
+
+// ── 1 · every role: the rule ───────────────────────────────────────────────
+for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
+  console.log(`\n── ${persona} at 1512`);
+  const { ctx, page } = await open(persona, 1512, { dpr: persona === "supervisor" ? 2 : 1 });
+  const c = await geo(page);
+  check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 360, "closed: list 300 · conversation · hub 360", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  check(c.banner && c.banner.x === c.thread.x && Math.abs(c.banner.r - c.hub.r) <= 1, "closed: the banner spans conversation + hub, not the list", JSON.stringify({ banner: c.banner, thread: c.thread?.x, hubR: c.hub?.r }));
+
+  /* The hub's identity and tab, before Support opens. */
+  await page.locator('[data-rail-tab="timeline"]').click();
+  await page.evaluate(() => (document.querySelector("[data-chat-hub]").__probe = "same-hub"));
+  await toggleSupport(page);
+  const o = await geo(page);
+  const same = await page.evaluate(() => ({
+    node: document.querySelector("[data-chat-hub]").__probe,
+    tab: document.querySelector('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')?.dataset.railTab,
+  }));
+  check(o.layout === "beside" && o.list === null, "open: the list collapses — gone, not narrowed");
+  check(o.back?.w === 40, "Back to chats, 40px, at the conversation header's start", JSON.stringify(o.back));
+  check(!!o.hub && Math.abs(o.hub.w - o.thread.w) <= 1, "the hub stays, conversation and hub 50/50", `${o.thread?.w} / ${o.hub?.w}`);
+  check(o.banner && o.banner.x === o.thread.x && Math.abs(o.banner.r - o.hub.r) <= 1 && o.banner.r <= o.support.x - 4, "the banner spans conversation + hub, never the support card", JSON.stringify({ banner: o.banner, support: o.support?.x }));
+  check(same.node === "same-hub" && same.tab === "timeline", "the hub never remounted, and kept its tab", JSON.stringify(same));
+  check(o.hscroll <= 0, "nothing scrolls sideways", `${o.hscroll}`);
+
+  await page.locator('[data-slot="chat-back-to-chats"]').click();
+  await page.waitForTimeout(500);
+  const back = await geo(page);
+  const kept = await page.evaluate(() => ({
+    node: document.querySelector("[data-chat-hub]").__probe,
+    tab: document.querySelector('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')?.dataset.railTab,
+    open: document.querySelector("[data-support-slot]").dataset.open,
+  }));
+  check(kept.open === "false" && back.list?.w === 300 && back.hub?.w === 360, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  check(kept.node === "same-hub" && kept.tab === "timeline", "the hub's tab survives the round trip", JSON.stringify(kept));
+  await ctx.close();
+}
+
+// ── 2 · the split surface and the hub header ───────────────────────────────
+{
+  console.log("\n── the split surface, the hub header (mentor at 1512)");
+  const { ctx, page } = await open("mentor", 1512, { dpr: 2 });
+  const hdr = await page.evaluate(() => {
+    const tabs = [...document.querySelectorAll('[data-slot="chat-rail"] [role="tab"]')].map((t) => {
+      const r = t.getBoundingClientRect();
+      const s = getComputedStyle(t);
+      return { t: t.dataset.railTab, w: Math.round(r.width), h: Math.round(r.height), radius: parseFloat(s.borderTopLeftRadius), bg: s.backgroundColor, border: s.borderTopColor, selected: t.getAttribute("aria-selected"), x: Math.round(r.left), right: Math.round(r.right), name: t.textContent.trim() };
+    });
+    const hub = document.querySelector('[data-slot="chat-rail"]').getBoundingClientRect();
+    const tok = (v, prop = "backgroundColor") => { const e = document.createElement("span"); e.style[prop === "backgroundColor" ? "background" : "color"] = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e)[prop]; e.remove(); return c; };
+    return { tabs, strong: tok("--surface-sunken-strong"), subtle: tok("--border-subtle", "color"), hubL: Math.round(hub.left), hubR: Math.round(hub.right) };
+  });
+  const now = hdr.tabs[0];
+  check(now?.t === "escalation" && now.selected === "true" && now.bg === hdr.strong, "Now is first, filled, and the default while an escalation is open", JSON.stringify(now));
+  check(hdr.tabs.every((t) => t.w === 40 && t.h === 40 && t.radius >= 20), "every hub tab is a 40px round button", hdr.tabs.map((t) => `${t.t} ${t.w}×${t.h}`).join(" · "));
+  check(hdr.tabs.slice(1).every((t) => t.selected === "false" && t.border === hdr.subtle && t.bg === "rgba(0, 0, 0, 0)"), "the rest are outlined border-subtle");
+  /* Now on the header's left inset, the last tab on its right inset (16). */
+  check(now.x === hdr.hubL + 16 && hdr.tabs.at(-1).right === hdr.hubR - 16 && hdr.tabs[1].x - now.right > 40, "Now at the left, the rest at the right", `hub ${hdr.hubL}–${hdr.hubR} · Now ${now.x} · last ${hdr.tabs.at(-1).right}`);
+  check(hdr.tabs.map((t) => t.name).join() === "Now,Context,Profile,Tools,History", "named Now · Context · Profile · Tools · History", hdr.tabs.map((t) => t.name).join(" · "));
+  await toggleSupport(page);
+  const s = await page.evaluate(() => {
+    const c = getComputedStyle(document.querySelector("[data-canvas-scroller]"));
+    const a = getComputedStyle(document.querySelector("#support-panel"));
+    const tok = (v) => { const e = document.createElement("span"); e.style.background = `var(${v})`; document.body.appendChild(e); const x = getComputedStyle(e).backgroundColor; e.remove(); return x; };
+    return {
+      canvasR: c.borderRadius, canvasShadow: c.boxShadow, canvasBg: c.backgroundColor,
+      supportR: [a.borderTopLeftRadius, a.borderTopRightRadius, a.borderBottomRightRadius, a.borderBottomLeftRadius].join(" "),
+      supportShadow: a.boxShadow, supportBg: a.backgroundColor,
+      canvasTok: tok("--surface-canvas"), raisedTok: tok("--surface-raised"),
+    };
+  });
+  check(s.canvasR === "24px 4px 4px 24px", "canvas card 24 / 4 / 4 / 24", s.canvasR);
+  check(s.supportR === "4px 24px 24px 4px", "support card 4 / 24 / 24 / 4", s.supportR);
+  check(/rgba\(0, 0, 0, 0\.13\) 0px 3px 6px/.test(s.canvasShadow) && /rgba\(0, 0, 0, 0\.13\) 0px 3px 6px/.test(s.supportShadow), "both carry Elevation 1");
+  check(s.supportBg === s.raisedTok && s.canvasBg === s.canvasTok, "support surface-raised, canvas surface-canvas", `${s.supportBg} · ${s.canvasBg}`);
+
+  /* PRESENCE */
+  await page.locator('[data-support-row="s-brandy"] [data-support-row-open]').click();
+  await page.waitForTimeout(400);
+  const pres = await page.evaluate(() => document.querySelector("[data-rail-presence]")?.textContent.trim());
+  check(pres === "Brandy is in this chat", "with the notified supervisor open, the hub says she is in this chat", pres);
+
+  /* KEYBOARD ORDER, and Esc from the support composer */
+  const order = await page.evaluate(() => {
+    const a = document.querySelector('[data-slot="chat-back-to-chats"]');
+    const h = document.querySelector('[data-slot="chat-rail"] [role="tab"][tabindex="0"]');
+    const s = document.querySelector("#support-panel [data-support-back]");
+    const before = (x, y) => !!(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return { ok: before(a, h) && before(h, s) };
+  });
+  check(order.ok, "focus order: conversation header → hub header → support header");
+  await page.locator('[data-slot="chat-rail"] [role="tab"][tabindex="0"]').focus();
+  let reached = false;
+  for (let i = 0; i < 60 && !reached; i++) {
+    await page.keyboard.press("Tab");
+    reached = await page.evaluate(() => !!document.activeElement?.closest("#support-panel"));
+  }
+  check(reached, "and Tab travels from the hub into the support card");
+  await page.locator("[data-support-composer] textarea").focus();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  check((await page.evaluate(() => document.querySelector("[data-support-slot]").dataset.open)) === "false", "Esc in the support composer closes the support card");
+  await page.screenshot({ path: `${OUT}/01-mentor-closed-after-esc-1512.png` });
+  await ctx.close();
+}
+
+// ── 3 · a supervisor watches ───────────────────────────────────────────────
+{
+  console.log("\n── supervisor at 1512, observing");
+  const { ctx, page } = await open("supervisor", 1512, { dpr: 2 });
+  const w = await page.evaluate(() => ({
+    footer: document.querySelector('[data-slot="chat-observer"]')?.textContent.replace(/\s+/g, " ").trim(),
+    takeOver: (() => { const t = document.querySelector('[data-slot="chat-take-over"]'); return t && { disabled: t.getAttribute("aria-disabled"), tab: t.getAttribute("tabindex"), title: t.getAttribute("title") }; })(),
+    composer: !!document.querySelector('[data-slot="chat-thread"] textarea'),
+    menu: !!document.querySelector('[data-slot="chat-thread"] [aria-label*="More"]'),
+    you: [...document.querySelectorAll('[data-slot="chat-thread"] li')].some((li) => /^You\b/.test(li.textContent.trim())),
+  }));
+  check(/^Viewing as a supervisor\s*You are invisible to this chat\./.test(w.footer ?? ""), "the observer's footer replaces the composer", w.footer);
+  check(w.takeOver?.disabled === "true" && w.takeOver.tab === "-1" && w.takeOver.title === "Coming soon.", "Take over is drawn and disabled", JSON.stringify(w.takeOver));
+  check(!w.composer, "no composer: the conversation is read-only");
+  check(!w.you, "the mentor's lines are the mentor's, never 'You'");
+  await toggleSupport(page);
+  const pin = await page.evaluate(() => document.querySelector("[data-support-pinned]")?.textContent.replace(/\s+/g, " ").trim());
+  check(/^Pinned · escalation open/.test(pin ?? ""), "the observed mentor is pinned in Support while the escalation is open", pin?.slice(0, 60));
+  await page.locator('[data-support-pinned] [data-support-row-open]').click();
+  await page.waitForTimeout(400);
+  const ws = await page.evaluate(() => ({
+    pres: document.querySelector("[data-rail-presence]")?.textContent.trim(),
+    role: document.querySelector("[data-support-role]")?.textContent.trim(),
+    ph: document.querySelector("[data-support-composer] textarea")?.getAttribute("placeholder"),
+  }));
+  check(/ is in this chat$/.test(ws.pres ?? "") && !/^The is/.test(ws.pres ?? ""), "the hub says the mentor is in this chat", ws.pres);
+  check(ws.role === "Mentor" && !/Message The$/.test(ws.ph ?? ""), "the support header names them a Mentor, and the composer addresses them", `${ws.role} · ${ws.ph}`);
+  await page.screenshot({ path: `${OUT}/02-supervisor-observing-1512.png` });
+  await ctx.close();
+}
+
+// ── 4 · widths, the rail, the drawer ───────────────────────────────────────
+for (const [width, expect] of [
+  [1512, { two: true, rail: 248 }],
+  [1440, { two: true, rail: 248, support: 348 }],
+  [1280, { two: true, rail: 248 }],
+  [1279, { two: true, rail: 72 }],
+  [1100, { two: false, rail: 72 }],
+]) {
+  console.log(`\n── supervisor at ${width}, Support open`);
+  const { ctx, page } = await open("supervisor", width);
+  await toggleSupport(page);
+  await page.waitForTimeout(300);
+  const g = await geo(page);
+  const drawerToggle = await page.evaluate(() => [...document.querySelectorAll("button")].some((x) => /conversation tools/i.test(x.getAttribute("aria-label") ?? "") && x.getBoundingClientRect().width > 0));
+  check(g.rail?.w === expect.rail, `the staff rail is ${expect.rail}`, `${g.rail?.w}`);
+  if (expect.two) {
+    check(!!g.hub && Math.abs(g.hub.w - g.thread.w) <= 1 && !drawerToggle, "two panes, 50/50, no drawer toggle", `${g.thread?.w} / ${g.hub?.w}`);
+  } else {
+    check(!g.hub && drawerToggle, "below 1120 the hub is a drawer, opened from the conversation", JSON.stringify({ hub: g.hub, toggle: drawerToggle }));
+  }
+  check(g.support && g.support.w >= 348 && g.support.w <= 420, "support 348–420", `${g.support?.w}`);
+  if (width === 1512) check(g.thread.w + g.hub.w === 840, "the canvas card holds 840 while it can", `${g.thread.w + g.hub.w}`);
+  if (expect.support) check(g.support.w === expect.support, `support gives way first, to ${expect.support}`, `${g.support.w}`);
+  check(g.hscroll <= 0, "nothing scrolls sideways", `${g.hscroll}`);
+  await ctx.close();
+}
+{
+  console.log("\n── the rail's motion");
+  for (const rm of ["no-preference", "reduce"]) {
+    const { ctx, page } = await open("supervisor", 1200, { reducedMotion: rm });
+    const t = await page.evaluate(() => {
+      const s = getComputedStyle(document.querySelector('[data-anno-ref="app-rail"]'));
+      return { prop: s.transitionProperty, dur: s.transitionDuration };
+    });
+    if (rm === "reduce") check(t.dur.split(",").every((d) => parseFloat(d) === 0), "reduced motion: the rail does not animate", JSON.stringify(t));
+    else check(t.prop.includes("width") && parseFloat(t.dur) > 0 && parseFloat(t.dur) <= 0.36, "the rail animates its width in ≤ 360ms", JSON.stringify(t));
+    await ctx.close();
+  }
+}
+
+// ── 5 · switch role in the dev bar, no reload ──────────────────────────────
+{
+  console.log("\n── switching role without a reload");
+  const { ctx, page } = await open("mentor", 1512);
+  await page.evaluate(() => (window.__noReload = "still-here"));
+  await toggleSupport(page);
+  const seen = [];
+  for (const role of ["Lead mentor", "Supervisor", "Admin", "Mentor"]) {
+    await page.locator("[data-dev-bar-root] button").filter({ hasText: new RegExp(`^${role}$`) }).first().click();
+    await page.waitForTimeout(700);
+    const s = await page.evaluate(() => ({
+      persona: JSON.parse(localStorage.getItem("somethings.mentor-onboarding") ?? "{}").state?.persona,
+      alive: window.__noReload,
+      layout: document.querySelector("[data-chat-layout]")?.dataset.chatLayout,
+      hub: !!document.querySelector("[data-chat-hub] [data-slot='chat-rail']"),
+      observer: !!document.querySelector('[data-slot="chat-observer"]'),
+    }));
+    seen.push(`${s.persona}:${s.alive === "still-here" ? "" : "RELOADED "}${s.layout}${s.hub ? "+hub" : ""}${s.observer ? "+observer" : ""}`);
+  }
+  check(seen.every((x) => /beside\+hub/.test(x) && !/RELOADED/.test(x)), "every role, one layout, no reload", seen.join(" · "));
+  check(seen.filter((x) => /observer/.test(x)).map((x) => x.split(":")[0]).join() === "supervisor,admin", "and only supervisor and admin watch", seen.join(" · "));
+  await ctx.close();
+}
+
+await b.close();
+console.log(`\n${fails === 0 ? "ALL CHECKS PASSED" : `${fails} CHECK(S) FAILED`}`);
+process.exit(fails === 0 ? 0 : 1);
