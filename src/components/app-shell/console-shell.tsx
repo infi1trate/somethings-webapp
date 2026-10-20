@@ -87,6 +87,7 @@ import { bumpNavClock, useNavClock, useShellConfig } from "@/lib/app-shell/shell
 import { ConsoleTopBar } from "@/components/app-shell/console-top-bar";
 import { SupportPanel } from "@/components/support/support-panel";
 import { useSupportUnread } from "@/lib/support/use-support";
+import { teensNeedingReview, tierAlertLive, tierRoster } from "@/lib/monitoring/tier-roster";
 
 /** Who gets the desktop top bar and the support CTA (answered 2026-10-16). */
 const TOP_BAR_PERSONAS = new Set(["mentor", "lead-mentor", "supervisor", "admin"]);
@@ -305,16 +306,20 @@ function ConsoleShellBody({
   const supportUnreadLive = useSupportUnread();
   const supportUnread = mounted ? supportUnreadLive : 0;
 
+  /* `monitoringScenarioId` is already read above, for the open counts. */
+  const monitoringReview = useMemo(
+    () => (mounted ? teensNeedingReview(tierRoster(tierAlertLive(monitoringScenarioId))) : 0),
+    [mounted, monitoringScenarioId]
+  );
+
   const badges: Record<string, number> = {
     /* THE ACTIVITY BADGE MOVED TO THE BELL (2026-10-16), with the tab. */
     ...(reviewsWaiting > 0 ? { team: reviewsWaiting } : {}),
     ...(staff && owed.total > 0 ? { today: owed.total } : {}),
-    ...(staff && openBy.escalations > 0
-      ? { escalations: openBy.escalations }
-      : {}),
-    ...(staff && openBy["risk-flags"] > 0
-      ? { "risk-flags": openBy["risk-flags"] }
-      : {}),
+    /* ESCALATIONS AND RISK FLAGS FOLDED INTO MONITORING (proto/monitoring-
+       merge): one badge, teens needing review, from the tier roster the page
+       renders — so the rail and the page cannot disagree. */
+    ...(staff && monitoringReview > 0 ? { monitoring: monitoringReview } : {}),
     ...(staff && openBy["care-reviews"] > 0
       ? { "care-reviews": openBy["care-reviews"] }
       : {}),

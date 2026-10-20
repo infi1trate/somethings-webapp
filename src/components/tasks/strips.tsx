@@ -81,8 +81,10 @@ export function escalationRecordHref(escalationId: string): string {
      forever, both legs a `router.replace`, so Back could not escape it either.
      Phase 1's probe opened the retired routes and asserted the FIRST hop's URL,
      which is exactly the assertion a two-hop cycle passes.
-     The record's destination is `/app/escalations` now. */
-  return `/app/escalations?escalation=${encodeURIComponent(escalationId)}`;
+     The record's destination was `/app/escalations`; that dashboard folded
+     into Monitoring (proto/monitoring-merge), so the id goes there in one
+     hop. TODO(monitoring): Monitoring does not open the record yet. */
+  return `/app/monitoring?escalation=${encodeURIComponent(escalationId)}`;
 }
 
 // ── Respond strip (§3.2) ────────────────────────────────────────────────────

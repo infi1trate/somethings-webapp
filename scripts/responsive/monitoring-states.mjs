@@ -12,7 +12,7 @@
 //
 // Exit codes: 0 all passed · 1 a check failed.
 
-import { launch, openView, VIEWPORTS, readStoreVersion } from "./harness.mjs";
+import { launch, openView, VIEWPORTS, readStoreVersion, subjectMovedFrom, exitSubjectRetired } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
 /* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
@@ -57,6 +57,12 @@ const OUT = process.env.SHOT_OUT ?? "docs/responsive/monitoring";
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1000 };
 const version = await readStoreVersion();
 const browser = await launch();
+/* ═══ THE FOLDED DASHBOARD, ASKED FIRST (proto/monitoring-merge) ═══ This
+   file's subject is /app/risk-flags's dashboard. See `subjectMovedFrom` in the harness. */
+{
+  const landed = await subjectMovedFrom(browser, "/app/risk-flags", version);
+  if (landed) await exitSubjectRetired(browser, "monitoring-states", "/app/risk-flags", landed, "monitoring-tiers.mjs");
+}
 await mkdir(OUT, { recursive: true });
 
 const rows = [];

@@ -58,11 +58,14 @@ export type AxisApplicability = "live" | "recorded" | "n/a";
 export const TASKS_ROUTES = ["/app/care-reviews", "/app/tasks"] as const;
 export const TODAY_ROUTES = ["/app/today"] as const;
 export const MONITORING_ROUTES = [
+  /* FIRST since the Monitoring page is a destination again (proto/monitoring-
+     merge): picking a Monitoring scenario off-axis lands here, not on a
+     route that now redirects to it. */
+  "/app/monitoring",
   "/app/escalations",
   "/app/risk-flags",
   "/app/mentor-practice",
   "/app/coverage",
-  "/app/monitoring",
 ] as const;
 export const ACTIVITY_ROUTES = ["/app/activity"] as const;
 export const CHAT_ROUTES = ["/app/chat"] as const;

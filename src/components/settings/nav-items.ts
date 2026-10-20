@@ -183,6 +183,9 @@ export interface BadgeStyle {
 export const BADGE_STYLE: Record<string, BadgeStyle> = {
   escalations: { shape: "count", tone: "alarm" },
   "risk-flags": { shape: "count", tone: "attention" },
+  /* Monitoring's badge is teens needing review (answered): the count pill,
+     in the attention tone the flag queue it absorbed used. */
+  monitoring: { shape: "count", tone: "attention" },
   /* ═══ A BARE COUNT, NOT A CLOCK (addendum §2.9) ═══
      It was `clockCount`, on the argument that Care Reviews was "the one
      destination with a real published SLA". §2.9 retires that: care reviews
@@ -226,7 +229,7 @@ const BADGE_NOUN: Record<string, string> = {
   /* NOT "open" — Monitoring's badge counts what is OWED, not what is open, and
    *  the two differ by two orders of magnitude on this surface. See
    *  `monitoringObligations`. */
-  monitoring: "overdue",
+  monitoring: "needing review",
 };
 
 export function badgeNounFor(itemId: string): string {
@@ -333,8 +336,15 @@ export function railGroups(persona: Persona): NavGroup[] {
       // NEEDS-COPY-NICOLE. A category of destinations, never a destination.
       label: "Monitoring",
       items: [
-        NAV.escalations,
-        NAV.riskFlags,
+        /* ═══ ONE MONITORING ITEM WHERE ESCALATIONS AND RISK FLAGS WERE ═══
+           (proto/monitoring-merge, answered 2026-10-19) The two dashboards fold
+           into the Monitoring page: the events stay — data model,
+           notifications, timeline records, badge semantics — and surface
+           there, escalations as the Tier 1 lane and the escalations column,
+           flags on the teen row. Their routes hop to /app/monitoring. The
+           group label stays "Monitoring" and now names a destination under it
+           as well; this is the one case where removing nav items was asked. */
+        NAV.monitoring,
         /* ═══ CHAT SITS HERE, WHERE THE MOCKUP PUT IT — DECIDED ═══
            MENTOR PRACTICE AND COVERAGE WERE IN THIS SLOT, between Risk Flags
            and Activity, and both are gone (see `NAV` above). Chat takes the

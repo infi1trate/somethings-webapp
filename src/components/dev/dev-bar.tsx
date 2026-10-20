@@ -131,11 +131,14 @@ const MONITORING_PREFIX = "monitoring:";
 const TASKS_ROUTES = ["/app/care-reviews", "/app/tasks"] as const;
 const TODAY_ROUTES = ["/app/today"] as const;
 const MONITORING_ROUTES = [
+  /* FIRST since the Monitoring page is a destination again (proto/monitoring-
+     merge): picking a Monitoring scenario off-axis lands here, not on a
+     route that now redirects to it. */
+  "/app/monitoring",
   "/app/escalations",
   "/app/risk-flags",
   "/app/mentor-practice",
   "/app/coverage",
-  "/app/monitoring",
 ] as const;
 
 /** WHERE THE SELECT NAVIGATES when the reader is not already on the axis. The

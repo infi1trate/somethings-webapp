@@ -23,11 +23,18 @@
 // Exit codes: 0 every check passed · 1 a check failed.
 
 import AxeBuilder from "@axe-core/playwright";
-import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
+import { launch, openView, VIEWPORTS, BASE, readStoreVersion, subjectMovedFrom, exitSubjectRetired } from "./harness.mjs";
 
 const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 900 };
 const version = await readStoreVersion();
 const browser = await launch();
+/* ═══ THE ESCALATION PANE, ASKED FIRST (proto/monitoring-merge) ═══ This
+   file's subject is the escalation response pane and timeline, which lived on
+   the Escalations dashboard. See `subjectMovedFrom` in the harness. */
+{
+  const landed = await subjectMovedFrom(browser, "/app/escalations", version);
+  if (landed) await exitSubjectRetired(browser, "tasks-g-escalation", "/app/escalations", landed, "monitoring-tiers.mjs (the Tier 1 lane); the record pane has no host yet");
+}
 
 let failed = 0;
 function check(id, label, ok, detail) {

@@ -21,7 +21,7 @@
 // matters. If a check here is ever edited through a quoted heredoc again, re-read
 // the file before trusting the run.
 
-import { launch, openView, VIEWPORTS, BASE, readStoreVersion } from "./harness.mjs";
+import { launch, openView, VIEWPORTS, BASE, readStoreVersion, subjectMovedFrom } from "./harness.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 
 const OUT = process.env.SHOT_OUT ?? "docs/responsive/row-semantics";
@@ -29,6 +29,18 @@ const XL = { ...VIEWPORTS.find((v) => v.label === "xl"), height: 1000 };
 const version = await readStoreVersion();
 const browser = await launch();
 await mkdir(OUT, { recursive: true });
+
+/* ═══ THE FLAG QUEUE, ASKED FIRST (proto/monitoring-merge) ═══ Sections 3, 5
+   (its Monitoring half) and 7 measure the Risk Flags queue's rows, which
+   folded into `/app/monitoring`. When the route no longer lands there, those
+   sections print ⊘ and run nothing; the Care Reviews claims run as before.
+   The tiered page's rows are measured by `monitoring-tiers.mjs`. */
+const flagsGone = await subjectMovedFrom(browser, "/app/risk-flags", version);
+let blockedSections = 0;
+function blockedSection(what, landed) {
+  blockedSections += 1;
+  console.log(`  ⊘ ${what} — BLOCKED: /app/risk-flags lands on ${landed}; nothing measured, nothing passed`);
+}
 
 const rows = [];
 let failed = 0;
@@ -399,7 +411,7 @@ const rowReport = `(row) => {
 // and the emphasis follows what the surface is FOR. On Tasks that is the job; on
 // Monitoring it is the subject of review. The rest of Monitoring's anatomy is
 // asserted in `monitoring-states.mjs`, which owns that surface.
-{
+if (!flagsGone) {
   const { context, page } = await open("monitoring", "/app/risk-flags");
   const rows = await page.evaluate(
     `[...document.querySelectorAll('[role="treeitem"]')].slice(0, 6).map(${rowReport})`
@@ -433,7 +445,7 @@ const rowReport = `(row) => {
   );
   await page.locator('[data-anno-ref="monitoring-scroller"]').screenshot({ path: `${OUT}/monitoring-rows.png` });
   await context.close();
-}
+} else blockedSection("3 · monitoring rows", flagsGone);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 4 · THE GROUP HEADER — RETIRED, BECAUSE NEITHER SURFACE HAS ONE
@@ -471,7 +483,7 @@ const rowReport = `(row) => {
 // from the row's own surface.
 for (const [url, name, scroller, monitoring] of [
   ["/app/care-reviews", "tasks", "tasks-worklist-scroller", null],
-  ["/app/risk-flags", "monitoring", "monitoring-scroller", "normal-day"],
+  ...(flagsGone ? [] : [["/app/risk-flags", "monitoring", "monitoring-scroller", "normal-day"]]),
 ]) {
   const { context, page } = await open(`sr-${name}`, url, { monitoring });
   /* SCROLL TO THE COALESCED ROWS FIRST on Monitoring. Only Imminent rows are
@@ -701,7 +713,7 @@ for (const [url, name, scroller, monitoring] of [
 // rather than after a preposition. The third — the identity disc — still stands
 // and is still checked below.
 // ═══════════════════════════════════════════════════════════════════════════
-{
+if (!flagsGone) {
   const { context, page } = await open("mon-intact", "/app/risk-flags");
   const bands = await page.evaluate(() =>
     [...document.querySelectorAll('[role="group"]')]
@@ -737,10 +749,11 @@ for (const [url, name, scroller, monitoring] of [
   );
   check("e.monitoring-avatar", "and still carries the identity disc", disc);
   await context.close();
-}
+} else blockedSection("7 · monitoring intact", flagsGone);
 
 
 await browser.close();
 await writeFile(`${OUT}/report.json`, JSON.stringify({ base: BASE, rows }, null, 2));
+console.log(`\n${blockedSections} section(s) blocked (⊘), not counted as passes`);
 console.log(failed ? `\n${failed} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
 process.exit(failed ? 1 : 0);

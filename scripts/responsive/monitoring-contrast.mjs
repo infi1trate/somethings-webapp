@@ -19,7 +19,7 @@
 // boundaries.
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { VIEWPORTS, launch, openView, readStoreVersion, BASE } from "./harness.mjs";
+import { VIEWPORTS, launch, openView, readStoreVersion, BASE, subjectMovedFrom, exitSubjectRetired } from "./harness.mjs";
 
 /* ROUTE RETARGETED — supervisor IA restructure, Phase 2. `/app/tasks` and
    `/app/monitoring` are `replace` hops now, and a probe that navigates to a hop
@@ -31,6 +31,12 @@ import { VIEWPORTS, launch, openView, readStoreVersion, BASE } from "./harness.m
 const OUT = "docs/responsive/monitoring";
 const version = await readStoreVersion();
 const browser = await launch();
+/* ═══ THE FOLDED DASHBOARD, ASKED FIRST (proto/monitoring-merge) ═══ This
+   file's subject is /app/risk-flags's dashboard. See `subjectMovedFrom` in the harness. */
+{
+  const landed = await subjectMovedFrom(browser, "/app/risk-flags", version);
+  if (landed) await exitSubjectRetired(browser, "monitoring-contrast", "/app/risk-flags", landed, "monitoring-tiers.mjs");
+}
 await mkdir(OUT, { recursive: true });
 
 const rows = [];

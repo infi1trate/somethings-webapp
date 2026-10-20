@@ -167,8 +167,18 @@ describe("every scenario fixture", () => {
        (§2.2), and adds `flag-user-reported` (§2.8) — because the axis-2
        suppression it exercises is exactly the rule that would otherwise be
        asserted over an empty set. The count is asserted rather than the list
-       because a fixture arriving unannounced is the thing worth catching. */
-    expect(MONITORING_SCENARIOS).toHaveLength(33);
+       because a fixture arriving unannounced is the thing worth catching.
+       NOW 35, ANNOUNCED (proto/monitoring-merge): `tiers-monitor` and
+       `tiers-alert`, the Monitor / Alert modes of the tiered Monitoring page,
+       which joined the Scenario axis rather than bringing their own toolbar.
+       Their roster is `lib/monitoring/tier-roster.ts`, not `monitoringData`,
+       so for the queue they build its default surface — which the next test
+       still requires to build. */
+    expect(MONITORING_SCENARIOS).toHaveLength(35);
+    expect(MONITORING_SCENARIOS.filter((s) => s.id.startsWith("tiers-")).map((s) => s.id)).toEqual([
+      "tiers-monitor",
+      "tiers-alert",
+    ]);
     /* AND NONE OF THE REMOVED ONES IS STILL REACHABLE. A key left in the
        switch with no group entry is a fixture nobody can select and nobody
        will notice is broken. */

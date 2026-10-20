@@ -21,7 +21,15 @@ import { VIEWPORTS, launch, openView, readStoreVersion, BASE } from "./harness.m
    have passed too. Care Reviews is the billing surface; Risk Flags is the flag
    queue. */
 
-const OUT = "docs/responsive/monitoring";
+/* RETARGETED AGAIN (proto/monitoring-merge). Risk Flags folded into
+   `/app/monitoring`, which is a destination again: the tiered page, in both
+   of its modes (`tiers-monitor`, `tiers-alert` — the Alert one is the only
+   state with the strip and a live Tier 1 lane) and both layouts, with Tier 4
+   expanded so the windowed rows are in the sweep. The old queue's prepare
+   step (scroll a virtualized tree, open a chevron) went with the queue; it is
+   in git at 2978adb. */
+
+const OUT = "docs/responsive/monitoring-tiers";
 const version = await readStoreVersion();
 const browser = await launch();
 await mkdir(OUT, { recursive: true });
@@ -29,64 +37,61 @@ await mkdir(OUT, { recursive: true });
 const TIERS = ["xs", "md", "lg", "xl"];
 const report = { base: BASE, runs: [], byRule: {}, total: 0 };
 
-/** Open the page, then put it in the state a sweep actually needs to see: the
- *  list scrolled far enough to mount teen rows, and one of them expanded. */
-async function prepare(page) {
-  for (let i = 0; i < 14; i += 1) {
-    if (await page.locator('[role="treeitem"][aria-expanded]').count()) break;
-    const more = await page.evaluate(() => {
-      const el = document.querySelector('[data-anno-ref="tasks-worklist-scroller"]');
-      if (!el) return false;
-      const before = el.scrollTop;
-      el.scrollTop = before + el.clientHeight * 0.9;
-      el.dispatchEvent(new Event("scroll"));
-      return el.scrollTop > before;
-    });
-    await page.waitForTimeout(180);
-    if (!more) break;
+/** Open the page, then put it in the state a sweep needs to see: the layout
+ *  chosen, and Tier 4 expanded (clicked in-page — the dev bar is fixed over
+ *  the bottom of the viewport). */
+async function prepare(page, layout) {
+  if (layout === "cards") {
+    await page.locator('[data-layout-toggle="cards"]').click();
+    await page.waitForTimeout(250);
   }
-  const group = page.locator('[role="treeitem"][aria-expanded]').first();
-  if (await group.count()) {
-    await group.click();
-    await page.waitForTimeout(200);
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(300);
-  }
+  await page.evaluate(() => document.querySelector("[data-tier4-toggle]")?.click());
+  await page.waitForTimeout(400);
 }
 
 for (const label of TIERS) {
   const vp = { ...VIEWPORTS.find((v) => v.label === label), height: 1000 };
-  for (const theme of ["light", "dark"]) {
+  for (const theme of ["light", "dark"])
+  for (const scenario of ["tiers-monitor", "tiers-alert"])
+  for (const layout of ["list", "cards"]) {
     const { context, page } = await openView(
       browser,
       {
         /* Theme from the seed, not emulateMedia — see home-contrast. */
         theme,
-        id: `monitoring-${label}-${theme}`,
-        url: "/app/risk-flags",
-        seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift" } },
+        id: `monitoring-${label}-${theme}-${scenario}-${layout}`,
+        url: "/app/monitoring",
+        seed: { persona: "supervisor", extra: { tasksScenarioId: "typical-shift", monitoringScenarioId: scenario } },
       },
       vp,
       version
     );
     await page.waitForTimeout(300);
-    await prepare(page);
+    /* THE SUBJECT IS PRESENT, or a clean sweep is a sweep of nothing. */
+    const present = await page.locator("[data-hero-metrics]").count();
+    if (!present) {
+      report.total += 1;
+      console.log(`  × ${label.padEnd(3)} ${theme.padEnd(5)} ${scenario} ${layout}: the Monitoring page did not render`);
+      await context.close();
+      continue;
+    }
+    await prepare(page, layout);
 
     const res = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .analyze();
     const n = res.violations.reduce((s, v) => s + v.nodes.length, 0);
-    report.runs.push({ viewport: label, theme, violations: n });
+    report.runs.push({ viewport: label, theme, scenario, layout, violations: n });
     report.total += n;
     for (const v of res.violations) {
       report.byRule[v.id] ??= { impact: v.impact, count: 0, where: [] };
       report.byRule[v.id].count += v.nodes.length;
-      report.byRule[v.id].where.push(`${label}/${theme}`);
+      report.byRule[v.id].where.push(`${label}/${theme}/${scenario}/${layout}`);
       for (const node of v.nodes.slice(0, 2)) {
         report.byRule[v.id].sample ??= node.html?.slice(0, 160);
       }
     }
-    console.log(`  ${n === 0 ? "✓" : "×"} ${label.padEnd(3)} ${theme.padEnd(5)} ${n} violation(s)`);
+    console.log(`  ${n === 0 ? "✓" : "×"} ${label.padEnd(3)} ${theme.padEnd(5)} ${scenario.padEnd(13)} ${layout.padEnd(5)} ${n} violation(s)`);
     await context.close();
   }
 }

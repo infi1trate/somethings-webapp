@@ -114,6 +114,22 @@
   /* The composer's Shadow/Small, at the 8px blur the panel composer uses
      (Appendix B); Shadow/Small itself is 16px. Flagged as a variant. */
   --shadow-composer: 0 0 8px rgb(0 0 0 / 0.08);
+
+  /* ── THE STEPPED-CARE TIERS (Monitoring, proto/monitoring-merge) ──────
+     The concept board's tier colours, for rings, dots, keylines and tints
+     (3:1 non-text). They fail AA as TEXT (t1 on t1-soft 4.00, t2 on white
+     3.11, ok on white 4.25), so text and filled lozenges take the -ink
+     steps — Bloom blush/950, apricot/800, emerald/700 — answered as part
+     of the tier set. Everything else Monitoring needs is an existing token. */
+  --t1: #d2372a;
+  --t1-soft: #fbe4e0;
+  --t2: #d97a1f;
+  --t2-soft: #fbe9d4;
+  --ok: #2e8b57;
+  --ok-soft: #e0f2e7;
+  --t1-ink: #b70b1f;
+  --t2-ink: #844b04;
+  --ok-ink: #0f7542;
   --radius-surface: 16px;
   /* CONTROL RADIUS. Added because four files already referenced
      `--radius-control` and it was NEVER DEFINED — `rounded-[var(--radius-control)]`
@@ -766,6 +782,17 @@
   --bubble-outgoing: #485af8;
   --bubble-outgoing-fg: #ffffff;
   --shadow-composer: 0 0 8px rgb(0 0 0 / 0.4);
+
+  /* The tiers, dark: the board's dark values; inks read on the dark tints. */
+  --t1: #f0695c;
+  --t1-soft: #3c221f;
+  --t2: #ee9a4a;
+  --t2-soft: #3a2a1a;
+  --ok: #5cbf86;
+  --ok-soft: #1e3327;
+  --t1-ink: #f0695c;
+  --t2-ink: #ee9a4a;
+  --ok-ink: #5cbf86;
   --border-contour: rgb(255 255 255 / 18%); /* contour flips light-on-dark; raised with the light value */
 
   /* The same three hues, inverted: fill dark, ink light. Lifted clear of the
