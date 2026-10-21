@@ -43,8 +43,6 @@ import { supportThread } from "@/lib/support/threads";
 import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { CrisisView } from "@/components/chat/escalation/crisis-view";
-import { ResolveDialog } from "@/components/chat/escalation/resolve-dialog";
-import { RESOLUTION_OUTCOMES } from "@/components/chat/escalation/resolve-dialog";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
 import { relLength, teenAsMentee } from "@/lib/record/mentees-demo";
@@ -64,10 +62,10 @@ import type {
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
-import { CarePanel, type CareBrief, type Guidance } from "@/components/chat/rail/care";
+import { CarePanel, type CareBrief } from "@/components/chat/rail/care";
 import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
 import { useTiering } from "@/lib/tiering/use-tiering";
-import { escalationTarget, safetyOf, stepDownFor } from "@/lib/tiering/escalation";
+import { workingTier } from "@/lib/tiering/escalation";
 import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
 import { recordHrefFor } from "@/lib/record/subject";
 import { presentationFor } from "@/lib/record/care-demo";
@@ -185,7 +183,6 @@ export function ChatPage({
   const writtenEvents = useOnboardingStore((s) => s.chatEvents);
   const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
   const writtenNotes = useOnboardingStore((s) => s.chatNotes);
-  const putEscalation = useOnboardingStore((s) => s.putEscalation);
   const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
   const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
   const putChatNote = useOnboardingStore((s) => s.putChatNote);
@@ -288,6 +285,13 @@ export function ChatPage({
      Tier 1 lane. Same rule: the store's record wins, resolved is history. */
   const tiering = useTiering(now);
   const escalation = thread ? tiering.openEscalationFor(thread.id) : undefined;
+  /** ═══ THE MENTOR'S WRAP-UP (M4) ═══ A closed escalation the mentor has
+   *  not read yet keeps Care in the exchange until they do. Up here because
+   *  the rail's default tab reads it — a wrap the rail opened past is a wrap
+   *  nobody reads (measured: the rail landed on Assist). */
+  const latest = thread ? tiering.escalationFor(thread.id) : undefined;
+  const careEscalation =
+    escalation ?? (!isSupervisorTier(persona) && latest && latest.resolvedAt !== null && !latest.wrapSeenAt ? latest : undefined);
 
   /** ═══ THE ASSIST LADDER'S INPUTS, AND THE TEEN BEHIND THE THREAD ═══
    *
@@ -333,7 +337,7 @@ export function ChatPage({
   const railTab: RailTab =
     pickedTab && pickedTab.threadId === thread?.id
       ? pickedTab.tab
-      : escalation
+      : careEscalation
         ? "care"
         : "assist";
   /* ═══ SUPERSEDED (support-beside-hub): THE HUB AND SUPPORT COEXIST ═══
@@ -384,7 +388,6 @@ export function ChatPage({
   }, [pinMentor, pinnedName, pinnedShort]);
   const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
   const [crisisOpen, setCrisisOpen] = useState(false);
-  const [resolveOpen, setResolveOpen] = useState(false);
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
   const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
@@ -401,15 +404,11 @@ export function ChatPage({
   };
   const supervisorFirst =
     (escalation && DEMO_PEOPLE.find((x) => x.id === escalation.supervisorId)?.name.split(" ")[0]) || "Your supervisor";
-  /** The supervisor's latest word since the escalation opened — their last
-   *  Support message to this mentor. Null until there is one. */
-  const guidance: Guidance | null = useMemo(() => {
-    if (!escalation || !data) return null;
-    const last = [...(data.messages[escalation.supervisorId] ?? [])]
-      .filter((m) => m.sender !== "mentor" && m.text && m.at >= escalation.openedAt)
-      .at(-1);
-    return last?.text ? { text: last.text, from: supervisorFirst, at: last.at } : null;
-  }, [escalation, data, supervisorFirst]);
+  /* GUIDANCE LIVES ON THE RECORD NOW (pack v2.0) — `escalation.guidance`,
+     written by the supervisor's S2 composer, read by the mentor's M3. */
+  /** The conversation's own lines, for the supervisor's debrief draft. */
+  const teenLines = useMemo(() => messages.filter((m) => m.sender === "them" && m.text).map((m) => m.text!), [messages]);
+  const mentorLines = useMemo(() => messages.filter((m) => m.sender === "mentor" && m.text).map((m) => m.text!), [messages]);
   const careReviews = useOnboardingStore((s) => s.careReviews);
   const careUpdates = useOnboardingStore((s) => s.careUpdates);
   const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
@@ -572,102 +571,10 @@ export function ChatPage({
     setRaise(null);
   };
 
-  /** The safety check streams: each answer is written as it is given. */
-  const answerSafety = (questionId: string, value: "yes" | "no") => {
-    if (!escalation) return;
-    const s = safetyOf(escalation);
-    if (s.submittedAt !== null) return;
-    putEscalation({ ...escalation, safetyCheck: { ...s, answers: { ...s.answers, [questionId]: { value, at: Date.now() } } } });
-  };
-  const submitSafety = () => {
-    if (!escalation) return;
-    const s = safetyOf(escalation);
-    if (s.submittedAt !== null) return;
-    putEscalation({ ...escalation, safetyCheck: { ...s, submittedAt: Date.now() } });
-  };
-
-  /** Checking a step records WHEN. Steps do not un-check — see `AssessmentPanel`. */
-  const checkStep = (stepId: string) => {
-    if (!escalation || escalation.assessment[stepId]?.checked) return;
-    putEscalation({
-      ...escalation,
-      assessment: {
-        ...escalation.assessment,
-        [stepId]: { checked: true, at: Date.now() },
-      },
-    });
-  };
-
-  /** ═══ RESOLVING WRITES THREE THINGS ═══
-   *
-   *  `resolvedAt` on the escalation, a NOTE holding the account of how it ended, and
-   *  an `escalation-resolved` event. Three because they answer three different
-   *  questions — is it live, what happened, and when did what happen — and one
-   *  record answering all three would be a record that has to be edited to stay
-   *  true.
-   *
-   *  The note is why the dialog demands prose: an escalation whose only trace is two
-   *  timestamps tells a supervisor nothing about whether a teenager is all right. */
-  const resolveEscalation = (resolution: { outcomeId: string; note: string }) => {
-    if (!thread || !escalation) return;
-    const at = Date.now();
-    const noteId = `note-${thread.id}-${at}`;
-    const outcome =
-      RESOLUTION_OUTCOMES.find((o) => o.id === resolution.outcomeId)?.label ??
-      resolution.outcomeId;
-    putChatNote({
-      id: noteId,
-      threadId: thread.id,
-      // TODO-COPY. The title is the OUTCOME, so a lead scanning Timeline sees how
-      // it ended without opening it.
-      title: `Escalation resolved — ${outcome.toLowerCase()}`,
-      body: resolution.note,
-      createdAt: at,
-      updatedAt: at,
-      /* THE ANCHOR TRAVELS INTO THE NOTE. The message that caused the escalation is
-         the single most useful thing a supervisor reading back can be handed, and
-         without this it would only exist on a record that is no longer live. */
-      references: escalation.anchorMessageId
-        ? (() => {
-            const m = messages.find((x) => x.id === escalation.anchorMessageId);
-            return m
-              ? [
-                  {
-                    messageId: m.id,
-                    senderName:
-                      m.sender === "mentor" ? "You" : thread.displayName.split(" ")[0],
-                    at: m.at,
-                    firstLine: firstLineOf(m.text ?? m.media?.alt ?? "(no text)"),
-                  },
-                ]
-              : [];
-          })()
-        : [],
-      reminderAt: null,
-    });
-    putEscalation({ ...escalation, resolvedAt: at, resolutionNoteId: noteId, outcomeId: resolution.outcomeId });
-    /* ═══ FOR TIER 1, THE CRISIS NOTE REQUESTS THE STEP DOWN ═══ Tier 2 by
-       default, Tier 3 on "no longer a threat"; a supervisor's confirmation
-       completes it. A mentor never steps a teen down directly. */
-    const down = stepDownFor(escalation, resolution.outcomeId);
-    if (down !== null) {
-      tiering.requestStepDown({ teenId: thread.id, tier: down, reason: `${outcome}. ${resolution.note}`, escalationId: escalation.id, outcomeId: resolution.outcomeId });
-    }
-    appendChatEvent({
-      id: `ev-${thread.id}-${at}`,
-      threadId: thread.id,
-      at,
-      kind: "escalation-resolved",
-      actorId: LIVE_ID,
-      artifactId: escalation.id,
-      artifactName: "the escalation",
-    });
-    /* BACK TO CARE, IN ITS STEADY STATE — where History now holds the whole
-       escalation as one story. (It went to Timeline while the escalation tab
-       vanished on resolve; Care does not vanish.) */
-    setRailTab("care");
-    setRailMode({ kind: "list" });
-  };
+  /* ═══ RETIRED (pack v2.0): the checklist's `checkStep`, the safety check's
+     handlers and the mentor's `resolveEscalation`. The assessment, the
+     supervisor's confirmation, guidance, crisis note, outcome and close are
+     all `useTiering` moves now, on the one record. */
 
   /** ═══ RESCINDING WRITES, AND NEVER UNWRITES ═══
    *
@@ -747,14 +654,14 @@ export function ChatPage({
                   ? () => openInSupport(escalation.supervisorId)
                   : undefined
               }
-              tone={isAlertTier(escalationTarget(escalation)) ? "critical" : "neutral"}
+              /* The WORKING tier — a supervisor's adjustment recolours it. */
+              tone={isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "critical" : "neutral"}
               onOpenAssessment={() => {
                 setRailTab("care");
                 setRailMode({ kind: "list" });
                 setRailOpen(true);
               }}
               onOpenCrisis={() => setCrisisOpen(true)}
-              onResolveEscalation={() => setResolveOpen(true)}
             />
           </div>
         )}
@@ -912,15 +819,6 @@ export function ChatPage({
                 ) : null;
               })()}
 
-              {escalation && (
-                <ResolveDialog
-                  escalation={escalation}
-                  theirName={thread.displayName.split(" ")[0]}
-                  open={resolveOpen}
-                  onOpenChange={setResolveOpen}
-                  onResolve={resolveEscalation}
-                />
-              )}
 
               {/* ═══ THE RAIL TOGGLE LIVES ON THE THREAD, NOT IN THE RAIL ═══
                   A control that hides a panel cannot live inside the panel it
@@ -1006,28 +904,23 @@ export function ChatPage({
               artifacts={artifacts}
               events={events}
               notes={notes}
-              careDot={escalation ? (isAlertTier(escalationTarget(escalation)) ? "alert" : "neutral") : null}
+              careDot={escalation ? (isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "alert" : "neutral") : null}
               care={
                 <CarePanel
                   teenId={thread.id}
                   name={thread.displayName.split(" ")[0]}
                   now={now}
                   tiering={tiering}
-                  escalation={escalation}
+                  escalation={careEscalation}
                   observer={!!observer}
                   raising={raising}
                   onStartRaise={() => raiseEscalation(null)}
                   onCancelRaise={() => setRaise(null)}
                   onConfirmRaise={confirmRaise}
-                  onCheckStep={checkStep}
                   onUseWording={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))}
-                  onAnswerSafety={answerSafety}
-                  onSubmitSafety={submitSafety}
                   onOpenCrisis={() => setCrisisOpen(true)}
-                  onResolve={() => setResolveOpen(true)}
                   onUpdateTier={() => setTierDialog("update")}
                   onRequestStepDown={() => setTierDialog("step-down")}
-                  guidance={guidance}
                   supervisorName={supervisorFirst}
                   onReplyInSupport={
                     !observer && escalation && canOpenInSupport(escalation.supervisorId)
@@ -1037,6 +930,12 @@ export function ChatPage({
                   presence={presence}
                   emergency={emergencyInfo}
                   brief={careBrief}
+                  teenLines={teenLines}
+                  mentorLines={mentorLines}
+                  /* Closing (or leaving the wrap) ends the escalation the
+                     default tab was following — pin Care so the person who
+                     just acted sees the steady state and its history. */
+                  onSettled={() => setRailTab("care")}
                 />
               }
               assist={assist}

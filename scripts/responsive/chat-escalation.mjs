@@ -4,8 +4,14 @@
 // are about the properties that matter rather than about the layout: the supervisor
 // is notified BEFORE the assessment, the notification is a durable timestamped fact
 // rather than a toast, the state survives navigation until somebody resolves it,
-// 911 is the primary and is a real dialer link, and resolving cannot happen without
+// 911 is the primary and is a real dialer link, and closing cannot happen without
 // an account of how it ended.
+//
+// ═══ RETARGETED (Escalation Exchange v2.0, 2026-10-21) ═══ The checklist, the
+// mentor's Resolve and its dialog are deleted: the mentor answers a sequential
+// assessment in Care, and the SUPERVISOR closes. Sections 1–3 and 6 assert the
+// exchange; the claims that did not change (notified at creation, durable fact,
+// 911 first, survives navigation) are kept word for word.
 import { chromium } from "playwright";
 import { STORE_VERSION } from "./store-version.mjs";
 
@@ -29,19 +35,19 @@ const check = (ok, label, extra = "") => {
 
 const b = await chromium.launch();
 
-async function chat(scenario, width = 1440, height = 1000) {
+async function chat(scenario, width = 1440, height = 1000, { persona = "mentor", extra = {}, path = "/app/chat" } = {}) {
   const ctx = await b.newContext({ viewport: { width, height } });
   await ctx.addInitScript(
     ([k, v]) => {
       if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify(v));
     },
-    [KEY, { state: { persona: "mentor", chatScenarioId: scenario }, version: STORE_VERSION }]
+    [KEY, { state: { persona, chatScenarioId: scenario, ...extra }, version: STORE_VERSION }]
   );
   const p = await ctx.newPage();
   const errors = [];
   p.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
   p.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 160)); });
-  await p.goto(BASE + "/app/chat", { waitUntil: "networkidle" });
+  await p.goto(BASE + path, { waitUntil: "networkidle" });
   await p.waitForTimeout(1900);
   p.__errors = errors;
   return p;
@@ -122,10 +128,13 @@ console.log("\n── the banner @ escalation-active");
     "and is filled, with a foreground that differs from its fill",
     `${primary?.bg} on ${primary?.color}`
   );
+  /* SUPERSEDED: "crisis first, then the checklist, then resolve". The
+     checklist is the assessment in Care, and the mentor no longer resolves —
+     the supervisor closes, so a Resolve here would be a door that is not
+     theirs. */
   check(
-    banner.buttons.map((x) => x.slot).join() ===
-      "banner-crisis,banner-assessment,banner-resolve",
-    "crisis first, then the checklist, then resolve",
+    banner.buttons.map((x) => x.slot).join() === "banner-crisis,banner-assessment",
+    "crisis first, then Open Care — and no Resolve",
     banner.buttons.map((x) => x.text).join(" | ")
   );
   await p.context().close();
@@ -137,17 +146,22 @@ console.log("\n── the rail @ escalation-active");
   const p = await chat("escalation-active");
   const rail = await p.evaluate(`(() => {
     const tabs = [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')];
-    const panel = document.querySelector('[data-slot="assessment"]');
+    const panel = document.querySelector("[data-assessment]");
+    const ex = document.querySelector("[data-exchange]");
+    /* The exchange's text with the advisory chip taken out. */
+    const rest = ex ? [...ex.querySelectorAll("*")].filter((el) => !el.closest("[data-risk-chip]") && el.children.length === 0).map((el) => el.textContent).join(" ") : "";
     return {
       labels: tabs.map((t) => t.textContent.trim()),
       selected: tabs.find((t) => t.getAttribute("aria-selected") === "true")?.textContent.trim(),
       assessmentOpen: !!panel,
       progress: /[0-9] of [0-9]/.exec(panel?.innerText ?? "")?.[0],
-      /* NO SCORE, NO TOTAL BAR, NO COLOUR THAT CHANGES WITH A COUNT. A number would
-         invite a mentor to decide whether this is bad enough — which is exactly the
-         judgement the surface exists to take off them. */
-      hasPercent: /%/.test(panel?.innerText ?? ""),
-      hasRiskWord: /\brisk (score|level)\b/i.test(panel?.innerText ?? ""),
+      /* NO SCORE, NO PERCENTAGE. SUPERSEDED IN PART (pack v2.0): the pack
+         adds ONE advisory line, "Assessment suggests: …", computed from the
+         answers and never a tier. A risk word anywhere else would be the
+         surface deciding for the mentor. */
+      hasPercent: /%|\\bscore\\b/i.test(ex?.innerText ?? ""),
+      riskOutsideChip: /\\b(low|moderate|high) risk\\b/i.test(rest),
+      chip: ex?.querySelector("[data-risk-chip]")?.textContent ?? null,
     };
   })()`);
   /* ═══ THE ESCALATION TAB IS FIRST AND SELECTED ═══
@@ -158,66 +172,50 @@ console.log("\n── the rail @ escalation-active");
      after Context — tabs never reorder — and it is what opens. */
   check(rail.labels[1]?.startsWith("Care"), "Care is the tab after Context", rail.labels.join(" | "));
   check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
-  check(rail.assessmentOpen, "the checklist is what it shows");
-  check(!!rail.progress, "with a count of what is covered", String(rail.progress));
-  check(!rail.hasPercent && !rail.hasRiskWord, "and no score, percentage or risk level");
+  check(rail.assessmentOpen, "the assessment is what it shows");
+  check(rail.progress === "2 of 6", "with a count of what is answered", String(rail.progress));
+  check(!rail.hasPercent && !rail.riskOutsideChip && /^Assessment suggests: /.test(rail.chip ?? ""), "no score or percentage; risk is named only in the advisory chip", String(rail.chip));
   await p.context().close();
 }
 
-// ═══ 3 · Checking a step records a time, one way ══════════════════════════
-console.log("\n── the checklist @ escalation-active");
+// ═══ 3 · An answer records a time, and the wording goes in unsent ═════════
+/* SUPERSEDED: "checking a step records a time, one way". The checklist is
+   the sequential assessment; the property kept is that what a mentor does is
+   on the record the moment they do it, and that wording help never sends. */
+console.log("\n── the assessment @ escalation-active");
 {
   const p = await chat("escalation-active");
-  const before = await p.evaluate(`(() => {
-    const panel = document.querySelector('[data-slot="assessment"]');
-    const items = [...panel.querySelectorAll("ol li")];
-    return {
-      total: items.length,
-      done: items.filter((li) => /Covered /.test(li.innerText)).length,
-      /* THE WORDING HELP is the field that matters most at 2am, and one press puts
-         it in the composer rather than making a frightened mentor retype it. */
-      wording: items.filter((li) => /Put in message box/.test(li.innerText)).length,
-    };
-  })()`);
-  check(before.total === 5, "five steps", `${before.total}`);
-  check(before.done === 2, "two already covered, with times", `${before.done}`);
-  /* SUPERSEDED: "the open ones offer wording". The NEXT step is expanded with
-     its suggested line; the rest open on press (make it magical, 2). */
-  check(before.wording === 1, "and the next open step offers its wording", `${before.wording}`);
+  const before = await p.evaluate(`(() => ({
+    active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive,
+    answered: document.querySelectorAll("[data-answered]").length,
+    /* THE WORDING HELP is the field that matters most at 2am, and one press puts
+       it in the composer rather than making a frightened mentor retype it. */
+    wording: document.querySelectorAll("[data-assessment-wording]").length,
+  }))()`);
+  check(before.answered === 2 && before.active === "q3", "two answered, Q3 the one open question", JSON.stringify(before));
+  check(before.wording === 1, "and only the open question offers its wording", `${before.wording}`);
 
-  const open = p.locator(`${RAIL} ol li button[aria-label^="Mark as covered"]`).first();
-  await open.click();
+  await p.locator('[data-yes-no="q3:no"]').click();
   await p.waitForTimeout(400);
   const after = await p.evaluate(`(() => {
-    const panel = document.querySelector('[data-slot="assessment"]');
-    const items = [...panel.querySelectorAll("ol li")];
-    const covered = items.filter((li) => /Covered /.test(li.innerText));
+    const s = JSON.parse(localStorage.getItem("${KEY}")).state.escalations.t13;
     return {
-      done: covered.length,
-      progress: /[0-9] of [0-9]/.exec(panel.innerText)?.[0],
-      /* ═══ IT DOES NOT UN-CHECK ═══
-         Once something has been asked it has been asked, and a toggle would let the
-         record be quietly walked back — the same reasoning that makes a note
-         read-only and the event log append-only. */
-      stillActionable: !!panel.querySelector('button[aria-label^="Mark as covered"][aria-disabled="false"]:nth-of-type(0)'),
-      firstIsDisabled:
-        covered[0]?.querySelector("button")?.getAttribute("aria-disabled") === "true",
+      at: s?.safetyCheck?.answers?.q3?.at ?? null,
+      progress: /[0-9] of [0-9]/.exec(document.querySelector("[data-assessment]")?.innerText ?? "")?.[0],
+      active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive,
     };
   })()`);
-  check(after.done === 3, "checking one records it", `${after.done}`);
-  check(after.progress === "3 of 5", "and the count follows", String(after.progress));
-  check(after.firstIsDisabled, "a covered step is no longer actionable");
+  check(typeof after.at === "number", "answering records it, with a time", String(after.at));
+  check(after.progress === "3 of 6" && after.active === "q4", "and the count follows, with the next question open", JSON.stringify(after));
 
   // The wording goes into the composer, unsent.
-  const useWording = p.locator(`${RAIL} ol li button`, { hasText: "Put in message box" }).first();
-  await useWording.click();
+  await p.locator("[data-assessment-wording]").click();
   await p.waitForTimeout(400);
   const composer = await p.evaluate(`(() => {
     const ta = document.querySelector('[data-slot="composer"] textarea');
     const send = [...document.querySelectorAll('[data-slot="composer"] button')]
       .find((x) => x.innerText.trim() === "Send");
-    const chips = [...document.querySelectorAll('${LIST} > li')].length;
-    return { value: ta?.value ?? "", focused: document.activeElement === ta, sendEnabled: !send?.disabled, entries: chips };
+    return { value: ta?.value ?? "", focused: document.activeElement === ta, sendEnabled: !send?.disabled };
   })()`);
   check(composer.value.length > 10, "the wording lands in the composer", composer.value.slice(0, 40));
   check(composer.focused, "with the field focused");
@@ -377,7 +375,7 @@ console.log("\n── raising one @ active-mentorship");
   })()`);
   check(raised.banner && raised.notified, "raising it notifies immediately", "no pending state");
   check(!raised.pending, "with no sending spinner over a write that already happened");
-  check(raised.tab?.startsWith("Care"), "and puts the Care tab's checklist in front of the mentor", String(raised.tab));
+  check(raised.tab?.startsWith("Care"), "and puts the Care tab's assessment in front of the mentor", String(raised.tab));
   check(raised.opened, "an event lands in the transcript");
   check(raised.markedMessages >= 1, "and the anchor message is marked", `${raised.markedMessages}`);
   void target;
@@ -409,109 +407,59 @@ console.log("\n── raising one @ active-mentorship");
   await p.context().close();
 }
 
-// ═══ 6 · Resolving writes an account of how it ended ══════════════════════
-console.log("\n── resolving @ escalation-active");
+// ═══ 6 · The supervisor closes, and the account survives ══════════════════
+/* SUPERSEDED: "resolving writes an account of how it ended", through a mentor's
+   Resolve dialog. The supervisor closes now (pack v2.0); the account is the
+   escalation record itself — tier, reason, outcome — and the mentor reads it
+   in the M4 wrap and in History. The S1 exit (Tier 3, a standard tier update)
+   is the shortest close; tiering.mjs walks the full Tier 1 path. */
+console.log("\n── closing @ escalation-active");
 {
-  const p = await chat("escalation-active");
-  await p.locator('[data-slot="banner-resolve"]').click();
-  await p.waitForTimeout(500);
+  const sup = await chat("escalation-active", 1440, 1000, { persona: "supervisor", path: "/app/chat/t13" });
+  const noResolve = await sup.evaluate(`!document.querySelector('[data-slot="banner-resolve"]')`);
+  check(noResolve, "the supervisor's banner carries no Resolve either — closing is a stage, not a button");
+  await sup.locator('[data-s1-tier="3"]').click();
+  await sup.locator('[data-exchange-field="confirm-reason"]').fill("Aunt is home; Jordan agreed to the plan. A standard update to Tier 3.");
+  await sup.locator('[data-exchange-primary="confirm-tier"]').click();
+  await sup.waitForTimeout(700);
+  const st = await sup.evaluate(`JSON.parse(localStorage.getItem("${KEY}")).state`);
+  await sup.context().close();
 
-  const dialog = await p.evaluate(`(() => {
-    const d = document.querySelector('[data-slot="resolve-dialog"]');
-    if (!d) return null;
-    const resolve = [...d.querySelectorAll("button")].find((x) => x.innerText.trim() === "Resolve");
-    return {
-      outcomes: [...d.querySelectorAll('button[aria-pressed]')].length,
-      hasProse: !!d.querySelector("textarea"),
-      resolveDisabled: resolve?.disabled ?? null,
-      /* THE ASSESSMENT'S STATE IS STATED, NOT ENFORCED. A supervisor reading back
-         will see the same thing and should not be the first to notice — but a gate
-         would push a mentor into ticking boxes to get past it. */
-      statesProgress: /2 of 5 covered/.test(d.innerText),
-      /* NOTHING CELEBRATES. An escalation ending is not an achievement. */
-      celebrates: /nice work|well done|great|!/i.test(d.innerText.replace(/[^a-z !]/gi, "")),
-      missing: /Choose how it ended/.test(d.innerText),
-    };
-  })()`);
-  check(!!dialog, "the resolve dialog opened");
-  /* FIVE now: the canon's "no longer a threat", which lets a Tier 1 crisis
-     note exit to Tier 3. */
-  check(dialog.outcomes === 5, "five named endings", `${dialog.outcomes}`);
-  check(dialog.hasProse, "and a prose field");
-  check(dialog.resolveDisabled === true, "Resolve is disabled to start");
-  check(dialog.missing, "and it says what is missing rather than leaving a dead button");
-  check(dialog.statesProgress, "the checklist's state is stated but not enforced");
-  check(!dialog.celebrates, "and nothing celebrates");
-
-  // An outcome alone is not enough.
-  await p.locator('[data-slot="resolve-dialog"] button[aria-pressed]').first().click();
-  await p.waitForTimeout(250);
-  const half = await p.evaluate(`(() => {
-    const d = document.querySelector('[data-slot="resolve-dialog"]');
-    const r = [...d.querySelectorAll("button")].find((x) => x.innerText.trim() === "Resolve");
-    return { disabled: r?.disabled, says: /Add a line about what happened/.test(d.innerText) };
-  })()`);
-  check(half.disabled === true, "an outcome alone does not enable it");
-  check(half.says, "and it says the prose is what is missing");
-
-  await p.locator('[data-slot="resolve-dialog"] textarea').fill(
-    "Her aunt came home at six. She is not alone tonight and I will check in tomorrow."
-  );
-  await p.waitForTimeout(250);
-  await p.locator('[data-slot="resolve-dialog"] button', { hasText: "Resolve" }).click();
-  await p.waitForTimeout(800);
-
+  const p = await chat("escalation-active", 1440, 1000, { extra: { escalations: st.escalations, tierEvents: st.tierEvents, chatEvents: st.chatEvents } });
   const resolved = await p.evaluate(`(() => {
     const chips = [...document.querySelectorAll('${LIST} > li[data-slot="event-chip"]')]
       .map((li) => li.innerText.replace(/\\s+/g, " ").trim());
-    const tabs = [...document.querySelectorAll('[role="tablist"][aria-label="Conversation tools"] [role="tab"]')]
-      .map((t) => t.textContent.trim());
-    const rail = document.querySelector('[data-slot="chat-rail"]');
     return {
       bannerGone: !document.querySelector('[data-slot="status-banner"]'),
-      /* THE HISTORY SURVIVES: both events, opened and resolved. Resolving writes
-         resolvedAt rather than deleting the row. */
+      /* THE HISTORY SURVIVES: both events, opened and resolved. Closing
+         writes resolvedAt rather than deleting the row. */
       opened: chips.some((c) => /raised an escalation/.test(c)),
       resolvedChip: chips.some((c) => /resolved the escalation/.test(c)),
-      careStays: tabs.some((t) => t.startsWith("Care")),
-      steady: document.querySelector("[data-care-state]")?.dataset.careState,
+      stage: document.querySelector("[data-exchange]")?.dataset.stage,
+      outcome: document.querySelector("[data-wrap-outcome]")?.textContent,
       tab: [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) => t.textContent.trim()),
-      /* AND A NOTE, holding the account. An escalation whose only trace is two
-         timestamps tells a supervisor nothing about whether a teenager is all
-         right. */
-      note: [...rail.querySelectorAll('[data-slot="timeline-note"]')].map((x) => x.innerText.split(String.fromCharCode(10))[0].trim()),
     };
   })()`);
   check(resolved.bannerGone, "the banner is gone");
-  /* SUPERSEDED: "and so is the escalation tab". Care does not vanish; it
-     returns to its steady state. */
-  check(resolved.careStays && resolved.steady === "steady", "and Care stays, back in its steady state", String(resolved.steady));
   check(resolved.opened && resolved.resolvedChip, "both events survive in the transcript");
-  /* The note lives on History (the Timeline panel); the rail lands on Care
-     now, so open History to read it. */
-  await p.locator('[data-rail-tab="timeline"]').click();
-  await p.waitForTimeout(300);
-  resolved.note = await p.evaluate(`[...document.querySelectorAll('[data-slot="chat-rail"] [data-slot="timeline-note"]')].map((x) => x.innerText.split(String.fromCharCode(10))[0].trim())`);
-  check(
-    resolved.note.some((t) => /^Escalation resolved —/.test(t)),
-    "a note holds the account of how it ended",
-    resolved.note.join(" | ")
-  );
-  check(
-    resolved.tab.some((t) => t.startsWith("Care")),
-    "and the rail lands on Care, whose History now holds the escalation",
-    resolved.tab.join(",")
-  );
+  /* AN ACCOUNT, NOT TWO TIMESTAMPS. An escalation whose only trace is when it
+     opened and closed tells nobody whether a teenager is all right. */
+  check(resolved.stage === "M4" && /Tier 3 confirmed/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
+  await p.locator('[data-exchange-primary="back-to-care"]').click();
+  await p.waitForTimeout(400);
+  const story = await p.evaluate(`document.querySelector("[data-escalation-story]")?.innerText.replace(/\\s+/g, " ") ?? ""`);
+  check(/tier update/.test(story), "and History keeps the account as one story", story.slice(0, 100));
 
-  // And it stays resolved.
+  // And it stays closed.
   await p.reload({ waitUntil: "networkidle" });
   await p.waitForTimeout(1900);
   const after = await p.evaluate(`(() => ({
     banner: !!document.querySelector('[data-slot="status-banner"]'),
+    exchange: !!document.querySelector("[data-exchange]"),
     resolvedChip: [...document.querySelectorAll('${LIST} > li[data-slot="event-chip"]')]
       .some((li) => /resolved the escalation/.test(li.innerText)),
   }))()`);
-  check(!after.banner && after.resolvedChip, "and it stays resolved through a reload");
+  check(!after.banner && !after.exchange && after.resolvedChip, "and it stays closed through a reload");
   await p.context().close();
 }
 

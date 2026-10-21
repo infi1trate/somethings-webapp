@@ -480,7 +480,6 @@ export function EscalationBanner({
   onOpenAssessment,
   onOpenSupervisor,
   onOpenCrisis,
-  onResolveEscalation,
 }: {
   escalation: EscalationState;
   /** ═══ RED ONLY FOR TIER 1–2 (Tiering & Escalation pack) ═══ A Tier 3 or
@@ -490,7 +489,6 @@ export function EscalationBanner({
   onOpenAssessment?: () => void;
   onOpenSupervisor?: () => void;
   onOpenCrisis?: () => void;
-  onResolveEscalation?: () => void;
 }) {
   return (
     <StatusBanner
@@ -535,14 +533,13 @@ export function EscalationBanner({
         {/* TODO-COPY */}
         Emergency info
       </BannerButton>
+      {/* ═══ "CHECKLIST" → "CARE", AND NO RESOLVE (pack v2.0) ═══ The checklist
+          is gone into the sequential assessment, which lives in Care; and the
+          mentor no longer resolves — the supervisor closes, so the banner has
+          no Resolve. */}
       <BannerButton tone={tone} onClick={onOpenAssessment} data-slot="banner-assessment">
-        {/* TODO-COPY. Names the count so a mentor returning knows where they
-            got to without opening it. */}
-        Checklist
-      </BannerButton>
-      <BannerButton tone={tone} onClick={onResolveEscalation} data-slot="banner-resolve">
         {/* TODO-COPY */}
-        Resolve
+        Open Care
       </BannerButton>
     </StatusBanner>
   );

@@ -165,7 +165,10 @@ looking sorted:
 | no mentor reply | any — one courtesy reply must not clear the signal |
 | age | the **oldest**, or a busy conversation sinks below a quiet one |
 
-All four derived keys are mutation-tested in `flag-group.test.ts`.
+All four derived keys were mutation-tested in `flag-group.test.ts`. **The list,
+`flag-group.ts` and its test were deleted in Escalation Exchange v2** — the Risk
+Flags dashboard had been unreachable since flags rolled up to Monitoring's teen
+row. The table stays as the rule any future flag list has to meet.
 
 ### Rows: emphasis follows obligation
 
@@ -225,7 +228,9 @@ legible.** Answered 2026-10-19:
   rule is the flow's: Tier 1 and Tier 2 step down to Tier 3. **SUPERSEDED by
   "Tiering & Escalation" below** (2026-10-20): the strings moved to
   `lib/tiering/tiers.ts`, Tier 3 is "Medium risk", and Tier 1 exits to Tier 2
-  — to Tier 3 only on a "no longer a threat" crisis note.
+  — to Tier 3 only on a "no longer a threat" crisis note. **SUPERSEDED again
+  by Escalation Exchange v2:** closing an escalation moves the teen to
+  `CLOSE_OUT_TIER` (Tier 3).
 - **Chats stays a separate job.** Monitoring is the global view for actions that
   need taking; Chats is the one-conversation experience. Monitoring points into
   Chats; it does not replace it.
@@ -249,6 +254,8 @@ FCP-2 tier names, and parts of the Monitoring section above, each in place.**
 - **Movement is asymmetric.** Up anywhere in one tap; down one step on the
   tier's exit document; Tier 1 exits only via the crisis note (the Resolve
   dialog), to Tier 2 — or Tier 3 on "no longer a threat" — never to Tier 4.
+  **SUPERSEDED by v2:** the Resolve dialog is deleted; the supervisor's S4
+  close is the exit, and it lands on Tier 3.
 - **One store, two views (answered: "unify the data").** `useTiering` is the
   only read/write path; fixtures (`lib/tiering/seed.ts`) and session writes
   merge at read time. The chat, the user record and Monitoring's roster all
@@ -270,9 +277,55 @@ FCP-2 tier names, and parts of the Monitoring section above, each in place.**
 - **Platform safety is a category, not a tier.** It routes to review and writes
   no tier event.
 - **C-SSRS question text is a placeholder** until the verbatim Columbia wording
-  is supplied — and it says so on screen. No paraphrase, ever.
+  is supplied — and it says so on screen. No paraphrase, ever. **SUPERSEDED by
+  v2:** the pack supplied the wording; `ASSESSMENT_QUESTIONS` carries it
+  verbatim and the placeholder notice is gone. "No paraphrase" still holds.
 - **No tiering page, no tier nav item, no tier dashboard, no flags inbox.**
   Message-level flagging is a separate content-moderation flow (answered).
+
+### Escalation Exchange (pack v2.0, feat/escalation-exchange)
+
+Answered 2026-10-21. **This supersedes pack v1 Phases 2–3 — the checklist, the
+mentor safety check, the mentor Resolve dialog — each marked in place above.**
+
+- **Care's active state is a staged, turn-based exchange**
+  (`components/chat/escalation/exchange.tsx`). Mentor lens M2 assess → M3 stay
+  → M4 wrap; supervisor lens S1 confirm → S2 guide + crisis note → S3 outcome →
+  S4 close. A baton strip says whose turn it is; done stages collapse into the
+  spine.
+- **Stage is derived, never stored.** `mentorStage`, `supervisorStage` and
+  `batonHolder` (`lib/tiering/escalation.ts`) read the record's fields, so no
+  stage field can fall out of step with what was actually written.
+- **One record, both lenses.** `escalations[teenId]`: `safetyCheck`,
+  `mentorSummary`, `confirmedTier`, `confirmedAt`, `meta`, `guidance`,
+  `crisisNote`, `outcome`, `followUp`, `wrapSeenAt`, plus `tierEvents[]` and
+  `escalationHistory[]`. Every write goes through `useTiering`.
+- **The supervisor closes Tier 1–2.** The mentor no longer resolves; a Tier 3–4
+  confirmation at S1 closes the escalation as a standard tier update; Platform
+  safety is "Mark reviewed".
+- **Guidance lives on the escalation record**, not the Support outbox — the
+  outbox is in-memory and carries no author.
+- **The debrief is a fake AI draft** (`draftDebrief`), templated from the
+  record and badged "AI draft · edit before saving". It writes narrative only:
+  never a tier, never a subtype.
+- **Time-to-confirm is recorded, never shown.** `meta.timeToConfirmMs` is on
+  the record for the response-time metric and is absent from every rendered
+  surface — a supervisor is not timed on screen.
+- **`REFERRAL_TYPE` is the pack's list** (988 · mobile crisis · ED · therapist
+  / psychiatrist · PCP · school counselor). It replaced the old list on every
+  host.
+- **Close-out lands on Tier 3, with the copy "Tier 3 Monitoring".**
+  `CLOSE_OUT_TIER` / `CLOSE_OUT_TIER_COPY` are BLOCKED CONSTANTS. The copy
+  collides with the "Monitoring" forbidden-as-a-tier-name rule above. It ships
+  as-is on instruction ("We can address the naming later"); this is the one
+  named exception to that rule, and the conflict is stated at the constant.
+- **Deleted, not orphaned:** the checklist (`lib/chat/assessment.ts`,
+  `assessment-panel.tsx`), `safety-check.tsx`, `resolve-dialog.tsx`, and the
+  unreachable escalation/flag dashboard chain (`monitoring-page`,
+  `event-list`, `event-pane`, `escalation-region`, `escalation-timeline`,
+  `escalation-note-module`, `tasks/chips`, `tasks/domain-tabs`,
+  `lib/monitoring/{disposition,flag-group,surfacing,timeline,timeline-fixtures}`,
+  `lib/record/escalation-note`, `lib/tasks/obligations`) with their tests.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 
@@ -316,7 +369,10 @@ to Chat, which is where a conversation is read. `lib/monitoring/coverage.ts` is
 dormant, not deleted. **The rule that outlived it: progress is never expressed
 as a count of what is left.**
 
-**The disposition is two axes, and escalating is neither (§2.8).** A required
+**The disposition is two axes, and escalating is neither (§2.8).** *(The
+disposition model and its pane were deleted in Escalation Exchange v2, along
+with the unreachable flag dashboard. The rule below is kept for the day flag
+review returns.)* A required
 clinical disposition is the only thing that can close an event; an optional,
 never-primary, never-pre-selected note about the classifier resolves nothing.
 `Escalate now` used to be a fourth value of the first axis — it is a secondary
@@ -331,7 +387,9 @@ about a producer that did not produce this.
 `1`/`2`/`3` select AND commit; `e` escalates. The mouse path is two steps on a
 123-item queue, which is why the keyboard path is one.
 
-**Monitoring has its own list and pane.** `event-list.tsx` and `event-pane.tsx`
+**Monitoring had its own list and pane** — deleted in Escalation Exchange v2,
+since the tiered overview replaced them; kept as the record of why a second
+list was justified. `event-list.tsx` and `event-pane.tsx` were used
 rather than Tasks' `Worklist`/`TaskPane`, because after this phase the two
 surfaces share no row anatomy, no grouping, no ordering and no footer. What is
 still shared is what should be: the identity disc and the conversation excerpt,

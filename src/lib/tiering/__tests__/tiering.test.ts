@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { appendable, canSetTier, placementsFrom, tierStateFor, type TierEvent } from "@/lib/tiering/events";
-import { escalationTarget, stepDownFor, SAFETY_QUESTIONS, NO_THREAT_OUTCOME } from "@/lib/tiering/escalation";
+import {
+  ASSESSMENT_QUESTIONS,
+  CLOSE_OUT_TIER,
+  CLOSE_OUT_TIER_COPY,
+  activeSection,
+  activeStep,
+  answeredCount,
+  autoOutcome,
+  crisisSections,
+  draftDebrief,
+  escalationTarget,
+  mentorStage,
+  riskLevel,
+  supervisorStage,
+} from "@/lib/tiering/escalation";
 import { seedEscalations, seedTierEvents, seedEscalationEvents } from "@/lib/tiering/seed";
 import { RAISE_TARGETS, TIER_NAME } from "@/lib/tiering/tiers";
 import { DEMO_TEENS } from "@/lib/record/people-demo";
@@ -90,14 +104,6 @@ describe("movement is asymmetric", () => {
     expect(placementsFrom(1, { noThreat: true }).find((p) => p.tier === 4)?.allowed).toBe(false);
   });
 
-  it("asks the crisis note for its step down, and nothing of a Tier 2 or 3 escalation", () => {
-    const e = { requested: 1 } as EscalationState;
-    expect(stepDownFor(e, "guardian")).toBe(2);
-    expect(stepDownFor(e, NO_THREAT_OUTCOME)).toBe(3);
-    expect(stepDownFor({ requested: 2 } as EscalationState, "guardian")).toBeNull();
-    expect(stepDownFor({ requested: "platform" } as EscalationState, "guardian")).toBeNull();
-  });
-
   it("reads an escalation from before tiering as a Tier 1 crisis", () => {
     expect(escalationTarget({} as EscalationState)).toBe(1);
   });
@@ -125,8 +131,88 @@ describe("one seed for every surface", () => {
     expect(s.pending?.tier).toBe(1);
   });
 
-  it("carries six safety-check questions, each one marked as a placeholder until the Columbia text lands", () => {
-    expect(SAFETY_QUESTIONS).toHaveLength(6);
-    expect(SAFETY_QUESTIONS.every((q) => /pending/.test(q.text))).toBe(true);
+});
+
+/* ═══ THE ESCALATION EXCHANGE (pack v2.0) ═══ */
+const yes = (ids: string[], no: string[] = []) =>
+  Object.fromEntries([...ids.map((id) => [id, { value: "yes" as const, at: 1 }]), ...no.map((id) => [id, { value: "no" as const, at: 1 }])]);
+const esc = (over: Partial<EscalationState>): EscalationState =>
+  ({ id: "e", threadId: "t1", openedAt: 0, anchorMessageId: null, supervisorNotifiedAt: 0, supervisorId: "s", resolvedAt: null, resolutionNoteId: null, requested: 1, ...over }) as EscalationState;
+const calm = { tier: 3, since: 0, setBy: null, pending: null, history: [] } as never;
+
+describe("the assessment — the sanctioned wording, in order", () => {
+  it("is six questions, verbatim, with Q3's example and Q6's follow-up", () => {
+    expect(ASSESSMENT_QUESTIONS).toHaveLength(6);
+    expect(ASSESSMENT_QUESTIONS[0].text).toBe("Have you wished you were dead or wished you could go to sleep and not wake up?");
+    expect(ASSESSMENT_QUESTIONS[4].text).toBe("Have you started to work out the details of how to kill yourself? Do you intend to carry out this plan?");
+    expect(ASSESSMENT_QUESTIONS[2].example).toMatch(/I thought about pills, but I.d never actually do it/);
+    expect(ASSESSMENT_QUESTIONS[5].followUp?.text).toBe("Was this within the past 3 months?");
+    expect(ASSESSMENT_QUESTIONS.every((q) => !/pending|placeholder/i.test(q.text))).toBe(true);
+  });
+
+  it("asks one at a time, and only asks Q6's follow-up after a Yes", () => {
+    expect(activeStep({})?.id).toBe("q1");
+    expect(activeStep(yes(["q1"]))?.id).toBe("q2");
+    expect(activeStep(yes(["q6"], ["q1", "q2", "q3", "q4", "q5"]))?.id).toBe("q6b");
+    expect(activeStep(yes([], ["q1", "q2", "q3", "q4", "q5", "q6"]))).toBeNull();
+    expect(answeredCount(yes(["q6", "q6b"], ["q1"]))).toBe(2); // the follow-up is not one of the six
+  });
+
+  it("suggests a risk level — Low on Q1–Q2, Moderate on Q3, High on Q4–Q6 — and is advisory only", () => {
+    expect(riskLevel({})).toBeNull();
+    expect(riskLevel(yes(["q1", "q2"]))).toBe("low");
+    expect(riskLevel(yes([], ["q1", "q2"]))).toBe("low");
+    expect(riskLevel(yes(["q3"]))).toBe("moderate");
+    for (const q of ["q4", "q5", "q6"]) expect(riskLevel(yes([q])), q).toBe("high");
+  });
+});
+
+describe("one record, two lenses", () => {
+  it("walks the mentor M2 → M3 → M4 and the supervisor S1 → S4 off the record's own fields", () => {
+    const open = esc({});
+    expect([mentorStage(open, calm), supervisorStage(open)]).toEqual(["M2", "S1"]);
+    const sent = esc({ safetyCheck: { answers: {}, submittedAt: 5 } });
+    expect(mentorStage(sent, calm)).toBe("M3");
+    const confirmed = esc({ safetyCheck: { answers: {}, submittedAt: 5 }, confirmedTier: 1 });
+    expect(supervisorStage(confirmed)).toBe("S2");
+    const noted = { ...confirmed, crisisNote: { subtype: "x", safetyPlan: { status: "created", usage: "" }, resources: { shared: false, list: "" }, referral: { made: false, list: [] }, contact: { engaged: false, details: "" }, services: { contacted: false, which: [] } } };
+    expect(supervisorStage(noted)).toBe("S3");
+    const outcome = { ...noted, outcome: { id: "stabilized", autoTagged: false, debrief: "d", debriefIsDraft: false, plan: "p", additional: "", savedAt: 9 } };
+    expect(supervisorStage(outcome)).toBe("S4");
+    expect([mentorStage({ ...outcome, resolvedAt: 10 }, calm), supervisorStage({ ...outcome, resolvedAt: 10 })]).toEqual(["M4", "closed"]);
+  });
+
+  it("skips the assessment for Tier 3 and Platform safety — the mentor waits from the start", () => {
+    expect(mentorStage(esc({ requested: 3 }), calm)).toBe("M3");
+    expect(mentorStage(esc({ requested: "platform" }), calm)).toBe("M3");
+  });
+
+  it("renders section 5 for Tier 1 only, and opens one section at a time", () => {
+    expect(crisisSections(1)).toContain("emergency");
+    expect(crisisSections(2)).not.toContain("emergency");
+    expect(activeSection(undefined, 2)).toBe("subtype");
+    expect(activeSection({ subtype: "x" }, 2)).toBe("safety-plan");
+    expect(activeSection({ subtype: "x", safetyPlan: { status: "created", usage: "" }, resources: { shared: true, list: "" } }, 2)).toBe("resources"); // a Yes needs its list
+  });
+});
+
+describe("S3 and S4", () => {
+  it("auto-tags the outcome from the note, and only as a pre-fill", () => {
+    expect(autoOutcome({ services: { contacted: true, which: ["welfare_check"] } })).toBe("911");
+    expect(autoOutcome({ referral: { made: true, list: ["mobile_crisis"] } })).toBe("mobile_crisis");
+    expect(autoOutcome({ referral: { made: true, list: ["therapist"] } })).toBe("referred");
+    expect(autoOutcome({})).toBeNull();
+  });
+
+  it("drafts the debrief narrative from the record, and writes no clinical determination", () => {
+    const d = draftDebrief({ name: "Jordan", escalation: esc({ contextNote: "Things are bad at home.", safetyCheck: { answers: yes(["q1", "q3"]), submittedAt: 1 } }), teenLines: ["i'm in my room"], mentorLines: ["I'm here."] });
+    expect(d).toMatch(/Jordan/);
+    expect(d).toMatch(/moderate risk/);
+    expect(d).not.toMatch(/Tier \d|confirmed|subtype/i);
+  });
+
+  it("closes to the blocked close-out constant — Tier 3, named 'Tier 3 Monitoring' for now", () => {
+    expect(CLOSE_OUT_TIER).toBe(3);
+    expect(CLOSE_OUT_TIER_COPY).toBe("Tier 3 Monitoring");
   });
 });

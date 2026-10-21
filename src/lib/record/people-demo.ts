@@ -821,7 +821,8 @@ export const DEMO_TEENS: DemoTeen[] = [
         // The brief's own example pair — escalation type "Crisis", sub-type
         // "Other". Without this the "all fields populated" case was not.
         crisis: { type: "other" },
-        referral: { type: "family_services" },
+        /* Was "family_services", which the chart's list does not carry. */
+        referral: { type: "therapist" },
         resolvedDaysAgo: 38,
         resolvedBy: "Dr. Amara Patel",
         resolvedByRole: "Supervisor",
@@ -1390,15 +1391,17 @@ export const CRISIS_TYPE = [
 ] as const;
 export type CrisisType = (typeof CRISIS_TYPE)[number]["id"];
 
+/** ═══ REPLACED (Escalation Exchange, pack v2.0; answered 2026-10-21) ═══
+ *  The record's eight-value referral list gave way to the clinical chart's,
+ *  verbatim, so the supervisor's crisis note and the record's flag review
+ *  name a referral the same way. One list, two hosts. */
 export const REFERRAL_TYPE = [
-  { id: "mental_health", label: "Mental health professional" },
-  { id: "medical", label: "Medical provider" },
-  { id: "emergency", label: "Emergency services" },
-  { id: "crisis_hotline", label: "Crisis hotline" },
-  { id: "school_counselor", label: "School counsellor" },
-  { id: "family_services", label: "Family services" },
-  { id: "substance_abuse", label: "Substance abuse treatment" },
-  { id: "other", label: "Other" },
+  { id: "988", label: "988" },
+  { id: "mobile_crisis", label: "Mobile crisis" },
+  { id: "ed", label: "Emergency department (ED)" },
+  { id: "therapist", label: "Therapist / psychiatrist" },
+  { id: "pcp", label: "Primary care provider (PCP)" },
+  { id: "school_counselor", label: "School counselor" },
 ] as const;
 export type ReferralType = (typeof REFERRAL_TYPE)[number]["id"];
 

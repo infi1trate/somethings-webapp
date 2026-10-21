@@ -30,8 +30,6 @@
 // state would fail today and tell nobody anything; a test that asserts the
 // broken state is what makes the breakage visible and its repair noticed.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEMO_TEENS } from "@/lib/record/people-demo";
 import { ROSTER, tasksScenario } from "@/lib/tasks/seed";
@@ -86,34 +84,10 @@ describe("the two namespaces, as they are", () => {
   });
 });
 
-describe("no supervisor surface offers a link it cannot land", () => {
-  /** The removed affordances, by the component that held them. Asserted from
-   *  source, because their ABSENCE is the decision and a DOM check on a surface
-   *  that renders nothing proves nothing. */
-  const read = (p: string) =>
-    readSource(p).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
-
-  it("the escalation pane links to neither the record nor the conversation", () => {
-    const src = read("src/components/monitoring/event-pane.tsx");
-    expect(src, "the pane links to a teen record").not.toContain(
-      "/admin/person/"
-    );
-    expect(src, "the pane links to a chat thread").not.toContain(
-      "chatThreadHref"
-    );
-  });
-
-  /* ═══ THE COVERAGE ROW'S CHECK IS GONE WITH THE VIEW (addendum §2.2) ═══
-     It asserted that `coverage-view.tsx` contained no `<Link`, no `<button`
-     and no `chatThreadHref` — that Phase 7's removal of a control which
-     recorded "looked" without looking had stayed removed. Coverage IS Chat
-     now and the component is deleted, so there is no row left to offer a link
-     it cannot land.
-     WHAT REPLACES IT, AND WHY IT IS NOT NOTHING: the escalation pane's two
-     link-outs are still checked above, and they are the remaining place where
-     this namespace split could produce a door that does not open. */
-});
-
-function readSource(rel: string): string {
-  return readFileSync(join(process.cwd(), rel), "utf8");
-}
+/* ═══ "NO SUPERVISOR SURFACE OFFERS A LINK IT CANNOT LAND" IS RETIRED ═══
+   Its last check read `components/monitoring/event-pane.tsx` for record and
+   chat link-outs. The pane was unreachable once Monitoring became the tiered
+   overview, and Escalation Exchange v2 deleted it with the rest of the
+   escalation/flag dashboard chain. The coverage-row check before it went with
+   Coverage (addendum §2.2). Nothing that renders today holds the removed
+   affordances, so there is nothing left to assert their absence from. */

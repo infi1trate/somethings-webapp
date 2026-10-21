@@ -167,7 +167,10 @@ describe("both surfaces mount it, so the absence on screen is the gate", () => {
 
   for (const [name, path] of [
     ["Today", "src/components/today/today-page.tsx"],
-    ["Monitoring", "src/components/monitoring/monitoring-page.tsx"],
+    /* Monitoring WAS here, reading `monitoring-page.tsx`. That page became
+       unreachable when /app/monitoring turned into the tiered overview
+       (proto/monitoring-merge), and Escalation Exchange v2 deleted it. The
+       overview does not mount the band; if it ever does, it comes back here. */
   ] as const) {
     it(`${name} renders NowBand and feeds it the gate`, () => {
       const src = read(path);
