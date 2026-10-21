@@ -290,6 +290,8 @@ for (const tier of ["3", "platform", "1"]) {
   const st = await page.evaluate(() => ({
     tone: document.querySelector('[data-slot="status-banner"]')?.dataset.tone,
     dot: document.querySelector("[data-care-dot]")?.dataset.careDot,
+    /* pack v3.0: the Overview tab carries the escalation dot too. */
+    overviewDot: document.querySelector('[data-care-tab="overview"] [data-overview-dot]')?.dataset.overviewDot,
     /* The in-panel Emergency information button is gone (pack v3.0); the
        banner's Emergency info chip is the one entry, and carries the tone. */
     emergency: getComputedStyle(document.querySelector('[data-slot="banner-crisis"]')).backgroundColor,
@@ -299,8 +301,8 @@ for (const tier of ["3", "platform", "1"]) {
   const accent = await tok(page, "--alert-critical-accent", "bg");
   const alert = tier === "1";
   check(
-    (st.tone === "critical") === alert && (st.dot === "alert") === alert && (st.emergency === accent) === alert,
-    `Tier ${tier}: banner, dot and Emergency information are ${alert ? "red" : "neutral"}`,
+    (st.tone === "critical") === alert && (st.dot === "alert") === alert && st.overviewDot === st.dot && (st.emergency === accent) === alert,
+    `Tier ${tier}: banner, both dots and the Emergency info chip are ${alert ? "red" : "neutral"}`,
     JSON.stringify(st)
   );
   check(st.assessment === alert && st.stage === (alert ? "M2" : "M3"), `Tier ${tier}: the assessment is ${alert ? "there (M2)" : "skipped (M3)"} — Tier 1–2 only`, String(st.stage));
