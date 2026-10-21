@@ -285,7 +285,8 @@ export function Rail({
   /* ═══ THE SELECTED TAB IS NOT PERSISTED, AND THAT IS A DECISION ═══
      It is per-thread UI that is worthless after a reload, and storing it would
      mean a localStorage write every time a mentor glances at Profile. It also
-     resets to Assist when the thread changes, which is right: the panel that
+     resets when the thread changes — to Care while an escalation is open, to
+     Context otherwise (`chat-page.tsx`) — which is right: the panel that
      opens on a conversation should be the one that says what to do next, not
      whichever one you happened to leave open on somebody else. */
   const active = tabs.includes(tab) ? tab : tabs[0];

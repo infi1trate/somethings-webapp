@@ -222,10 +222,54 @@ legible.** Answered 2026-10-19:
   from those documents — not invented. That answers arch-mon's objection, which
   was that nothing PUBLISHED stated a severity or a deadline. The strings live in
   `lib/monitoring/tiers.ts` (pending the tiering doc's own text), and the exit
-  rule is the flow's: Tier 1 and Tier 2 step down to Tier 3.
+  rule is the flow's: Tier 1 and Tier 2 step down to Tier 3. **SUPERSEDED by
+  "Tiering & Escalation" below** (2026-10-20): the strings moved to
+  `lib/tiering/tiers.ts`, Tier 3 is "Medium risk", and Tier 1 exits to Tier 2
+  — to Tier 3 only on a "no longer a threat" crisis note.
 - **Chats stays a separate job.** Monitoring is the global view for actions that
   need taking; Chats is the one-conversation experience. Monitoring points into
   Chats; it does not replace it.
+
+### Tiering & Escalation (pack v1.0, feat/tiering-escalation)
+
+Answered 2026-10-20. **This supersedes the chat's temporary "Now" tab, the
+FCP-2 tier names, and parts of the Monitoring section above, each in place.**
+
+- **One canon, one file.** `lib/tiering/tiers.ts`: Active crisis · High risk ·
+  Medium risk · General. "Monitoring" as a tier name collides with the
+  supervisor surface and is forbidden; so is FCP-2's "Clinical resources" (the
+  tab is **Care**). Tier names, dwell periods and exit documents are BLOCKED
+  CONSTANTS — clinical policy, Meg / Dr. Nissan.
+- **A tier is the last placement in an append-only log** (`lib/tiering/events.ts`).
+  Mentor and system FLAG (`requested`, `step-down-requested` → a "Requested:
+  Tier N" chip); only a supervisor SETS (`placed`, `confirmed`,
+  `stepped-down`), and `declined` clears a request. The gate is enforced in
+  the store's write (`appendable`), not by the UI — a mentor never steps a
+  teen down directly, and the reasoning is on `canSetTier`.
+- **Movement is asymmetric.** Up anywhere in one tap; down one step on the
+  tier's exit document; Tier 1 exits only via the crisis note (the Resolve
+  dialog), to Tier 2 — or Tier 3 on "no longer a threat" — never to Tier 4.
+- **One store, two views (answered: "unify the data").** `useTiering` is the
+  only read/write path; fixtures (`lib/tiering/seed.ts`) and session writes
+  merge at read time. The chat, the user record and Monitoring's roster all
+  read it, and every roster teen with a name is a record teen. Jordan's crisis
+  is one fixture raised by either dev axis. The C-SSRS answers stream into the
+  same escalation record the supervisor's view renders.
+- **Care replaces Now.** Persistent, fixed after Context, for every teen; an
+  escalation changes its STATE (and adds a dot), not its existence. Raising
+  from any of the three doors opens one flow in it — pick a tier, say what is
+  happening, confirm — and Confirm opens the escalation at once (the tier is
+  the part that waits for a supervisor).
+- **Red only in Tier 1–2 contexts and the 911 call.** The banner, the Care dot
+  and Emergency information are red for Tier 1–2 escalations and neutral for
+  Tier 3 and Platform safety; the "Raise an escalation" menu items lost their
+  tint. Tier is never colour alone.
+- **Platform safety is a category, not a tier.** It routes to review and writes
+  no tier event.
+- **C-SSRS question text is a placeholder** until the verbatim Columbia wording
+  is supplied — and it says so on screen. No paraphrase, ever.
+- **No tiering page, no tier nav item, no tier dashboard, no flags inbox.**
+  Message-level flagging is a separate content-moderation flow (answered).
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

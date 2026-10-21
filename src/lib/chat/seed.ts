@@ -869,7 +869,9 @@ export function chatScenario(id: string, now: number): ChatData {
     messages["s-brandy"] = [
       ...(messages["s-brandy"] ?? []),
       {
-        id: "s-brandy-esc-1",
+        /* The house id shape — `{thread}-m{position}` — so order stays
+           auditable (seed.test.ts). */
+        id: `s-brandy-m${(messages["s-brandy"]?.length ?? 0) + 1}`,
         threadId: "s-brandy",
         at: opened + 6 * MINUTE,
         sender: "them",

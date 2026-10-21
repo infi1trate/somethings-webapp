@@ -1,11 +1,11 @@
 {
-  "generated": "2026-10-19T22:17:58.373Z",
+  "generated": "2026-10-21T04:08:41.271Z",
   "rows": [
     {
       "id": "store.present",
       "label": "the persisted store exists, so a diff of it means something",
       "ok": true,
-      "detail": "55 keys"
+      "detail": "57 keys"
     },
     {
       "id": "store.baseline-off-today",

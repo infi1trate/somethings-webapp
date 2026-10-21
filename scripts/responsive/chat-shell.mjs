@@ -116,9 +116,11 @@ console.log("\n── the rail @ 1440x900");
     };
   })()`);
   check(!!rail, "the rail rendered");
-  check(rail.labels.length === 4, "four panels", rail.labels.join(" | "));
+  /* FIVE since the Tiering & Escalation pack: Care is persistent, after
+     Context, for every teen (it replaced the escalation-only Now tab). */
+  check(rail.labels.length === 5 && rail.labels[1] === "Care", "five panels, Care after Context", rail.labels.join(" | "));
   check(rail.allTextual, "every tab carries a word, not a bare glyph", rail.labels.join(" | "));
-  check(rail.noneTruncated, "and none of the four truncates at 320px");
+  check(rail.noneTruncated, "and none of the five truncates at 320px");
   check(rail.selected === 1 && rail.controlsResolve, "the selected tab points at a real panel");
   check(rail.roving === 1, "roving tabindex — one tab stop for the whole set");
 
@@ -128,7 +130,7 @@ console.log("\n── the rail @ 1440x900");
   await p.waitForTimeout(250);
   const moved = await p.evaluate(`
     document.querySelector('[role="tablist"][aria-label="Conversation tools"] [role="tab"][aria-selected="true"]')?.textContent.trim()`);
-  check(moved === "Profile", "ArrowRight moves to the next panel", String(moved));
+  check(moved === "Care", "ArrowRight moves to the next panel", String(moved));
 
   /* SUPERSEDED (SUP-5): a support thread no longer opens on this page — it
      opens in the Support panel, which has no rail. The two-panel rule for a
