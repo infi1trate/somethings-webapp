@@ -348,7 +348,10 @@ let assessed;
   await page.keyboard.press("Enter");
   await page.waitForTimeout(250);
   const streamed = (await store(page)).escalations.t13?.safetyCheck;
-  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, risk: document.querySelector("[data-m2] [data-risk-chip]")?.dataset.riskChip }));
+  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, risk: document.querySelector("[data-m2] [data-risk-chip]")?.dataset.riskChip, focus: document.activeElement?.dataset.yesNo, live: document.querySelector("[data-assessment-active] [data-question-live]")?.getAttribute("aria-live") }));
+  /* Keyboard and screen reader: focus stays on an answer, and the new
+     question is in a polite live region, so it is heard. */
+  check(s1.focus === "q4:yes" && s1.live === "polite", "after Enter, focus is on Q4's Yes and Q4 is announced (polite live region)", JSON.stringify({ focus: s1.focus, live: s1.live }));
   check(streamed?.answers?.q3?.value === "yes" && streamed.submittedAt === null, "an answer is on the record the moment it is given — before Submit", JSON.stringify(streamed?.answers?.q3));
   check(s1.active === "q4" && s1.risk === "moderate", "answering reveals Q4, and the chip moves to Moderate", JSON.stringify(s1));
   for (const id of ["q4:no", "q5:no", "q6:yes"]) {

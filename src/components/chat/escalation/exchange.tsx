@@ -381,17 +381,23 @@ function Assessment({
       {/* THE ONE ACTIVE QUESTION — answering reveals the next. */}
       {active && (
         <div data-assessment-active={active.id} className="rounded-[var(--radius-inset)] border border-[color:var(--border-default)] bg-[var(--surface-card)] px-3 py-3">
-          <p className="text-[var(--text-muted)]" style={LABEL}>
-            {active.followUpOf ? "Follow-up" : `Question ${ASSESSMENT_QUESTIONS.findIndex((q) => q.id === active.id) + 1}`}
-          </p>
-          <p className="mt-1 text-[var(--text-primary)]" style={{ font: "var(--type-card-title)" }}>
-            &ldquo;{active.text}&rdquo;
-          </p>
-          {active.example && (
-            <p className="mt-1 text-[var(--text-secondary)]" style={LABEL}>
-              {active.example}
+          {/* ═══ THE NEXT QUESTION IS ANNOUNCED ═══ Answering keeps focus on
+              the same Yes/No (React reuses the buttons), so nothing else would
+              tell a screen reader the question changed. Polite and atomic: the
+              whole question is read once, without interrupting. */}
+          <div data-question-live aria-live="polite" aria-atomic="true">
+            <p className="text-[var(--text-muted)]" style={LABEL}>
+              {active.followUpOf ? "Follow-up" : `Question ${ASSESSMENT_QUESTIONS.findIndex((q) => q.id === active.id) + 1}`}
             </p>
-          )}
+            <p className="mt-1 text-[var(--text-primary)]" style={{ font: "var(--type-card-title)" }}>
+              &ldquo;{active.text}&rdquo;
+            </p>
+            {active.example && (
+              <p className="mt-1 text-[var(--text-secondary)]" style={LABEL}>
+                {active.example}
+              </p>
+            )}
+          </div>
           {onAnswer && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               {onUseWording && (
