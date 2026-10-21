@@ -133,6 +133,7 @@ export function Thread({
   onBackToChats,
   observer,
   insert,
+  onSend,
   /** For the kebab's dialer link. Null on a thread with no number on file. */
   phone,
   className,
@@ -166,6 +167,10 @@ export function Thread({
   /** Text to drop into the composer, unsent. See `Composer`'s own note on why this
    *  is a nonce rather than a plain string. */
   insert?: { text: string; nonce: number } | null;
+  /** Sends a message on this thread. Absent for an observer, who has no
+   *  composer. Before pack v3.0 nothing passed it, so Send cleared the box and
+   *  went nowhere. */
+  onSend?: (text: string) => void;
   phone?: string | null;
   className?: string;
 }) {
@@ -182,6 +187,17 @@ export function Thread({
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [thread.id]);
+
+  /* ═══ A SENT MESSAGE IS SEEN ═══ When the newest message is the mentor's
+     own, they just sent it: bring it into view. Keyed on that message's id, so
+     a teen's reply arriving while the mentor reads back does not yank them. */
+  const last = messages.at(-1);
+  const lastSentId = last?.sender === "mentor" ? last.id : null;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !lastSentId) return;
+    el.scrollTop = el.scrollHeight;
+  }, [lastSentId]);
 
   /* And again once media has had a chance to lay out. The frames are sized from
      data (see `MediaFrame`) so nothing should move — this is the belt to that
@@ -464,7 +480,7 @@ export function Thread({
           </button>
         </div>
       ) : (
-        <Composer theirName={theirName} insert={insert} />
+        <Composer theirName={theirName} insert={insert} onSend={onSend} />
       )}
     </div>
   );

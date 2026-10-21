@@ -184,6 +184,8 @@ export function ChatPage({
   const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
   const writtenNotes = useOnboardingStore((s) => s.chatNotes);
   const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
+  const writtenMessages = useOnboardingStore((s) => s.chatMessages);
+  const appendChatMessage = useOnboardingStore((s) => s.appendChatMessage);
   const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
   const putChatNote = useOnboardingStore((s) => s.putChatNote);
 
@@ -217,10 +219,15 @@ export function ChatPage({
   }, [supportLink, personId, persona, scenarioId, now, router]);
   /* MEMOISED for the same reason `events` and `artifacts` are: it feeds the Assist
      memo, and a fresh array every render makes that memo useless. */
-  const messages = useMemo<ChatMessage[]>(
-    () => (thread ? (data?.messages[thread.id] ?? []) : []),
-    [thread, data]
-  );
+  /* ═══ FIXTURES + WHAT WAS SENT, MERGED AT READ TIME ═══ The same rule as
+     `events`: the scenario supplies the history, the store carries what the
+     mentor sent since, and neither is copied into the other. */
+  const messages = useMemo<ChatMessage[]>(() => {
+    if (!thread) return [];
+    const fixture = data?.messages[thread.id] ?? [];
+    const sent = mounted ? (writtenMessages[thread.id] ?? []) : [];
+    return sent.length === 0 ? fixture : [...fixture, ...sent].sort((a, b) => a.at - b.at);
+  }, [thread, data, mounted, writtenMessages]);
 
   /** Which artifact the DetailSheet is showing. Held by ID rather than by object,
    *  so the sheet re-reads the live record — a rescind that wrote to the store
@@ -753,6 +760,16 @@ export function ChatPage({
                   !observer && thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
                 }
                 insert={observer ? null : insert}
+                /* ═══ SEND GOES SOMEWHERE (pack v3.0, Phase 0's confirmed bug) ═══
+                   An observer has no composer, so no sender. */
+                onSend={
+                  observer
+                    ? undefined
+                    : (text) => {
+                        const at = Date.now();
+                        appendChatMessage({ id: `sent-${thread.id}-${at}`, threadId: thread.id, at, sender: "mentor", kind: "text", text });
+                      }
+                }
                 phone={teen?.phone ?? null}
                 onOpenEvent={(e) => {
                   /* ═══ A NOTE EVENT OPENS THE NOTE, NOT THE SHEET ═══
