@@ -49,6 +49,7 @@ import { GuardianDetailsSection } from "@/components/record/guardian-details";
 import { guardianFor } from "@/lib/record/guardian";
 import { resolveMode } from "@/lib/record/permission-map";
 import { RecordTaskRegions } from "@/components/record/record-task-regions";
+import { RecordTier } from "@/components/record/record-tier";
 import {
   alertsForTeen,
   alertRoleForStore,
@@ -353,6 +354,10 @@ export default function PersonRecordPage({
             {/* ATTENTION REGIONS FIRST — see the ordering note in
                 record-task-regions. Renders NOTHING when both are empty, so a
                 quiet record shows no attention chrome at all. */}
+            {/* ═══ THE TIER, FIRST (Tiering & Escalation pack, Phase 4) ═══
+                The same TierCard as the chat's Care tab, from the same store,
+                above the attention regions and "Worth a look". */}
+            {subject.teen && <RecordTier teenId={subject.teen.id} firstName={subject.teen.firstName} />}
             {subject.teen && (
               <RecordTaskRegions
                 teen={subject.teen}

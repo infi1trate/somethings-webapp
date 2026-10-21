@@ -37,7 +37,7 @@
 // that starts identical and drifts.
 
 import { useId, useRef } from "react";
-import { Clock, Grid2x2Plus, House, Sparkles, UserRound } from "lucide-react";
+import { Clock, Grid2x2Plus, LifeBuoy, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PanelShell } from "@/components/chat/rail/rail-panel";
 import { ToolkitPanel } from "@/components/chat/rail/toolkit";
@@ -47,29 +47,29 @@ import { ProfilePanel } from "@/components/chat/rail/profile";
 import type { AssistInput } from "@/lib/chat/assist";
 import { NoteComposer } from "@/components/chat/documentation/note-composer";
 import { NoteDetail } from "@/components/chat/documentation/note-detail";
-import { AssessmentPanel } from "@/components/chat/escalation/assessment-panel";
 import type {
   ActivityId,
   ChatEvent,
   ChatThread,
   ContextRef,
-  EscalationState,
   Note,
   SentArtifact,
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
-export type RailTab = "escalation" | "assist" | "profile" | "toolkit" | "timeline";
+/* ═══ SUPERSEDED (Tiering & Escalation pack, answered 2026-10-20): "Care
+   replaces Now". `escalation` → `care`: a persistent tab for every teen,
+   not one that appears with an escalation. */
+export type RailTab = "care" | "assist" | "profile" | "toolkit" | "timeline";
 
 /** TODO-COPY. Short enough that four fit a 320px column at 11px without
  *  truncating — measured, not assumed. */
 export const RAIL_TAB_LABEL: Record<RailTab, string> = {
-  /* TODO-COPY. "Now", not "Escalation". Three reasons: it is the shortest label in
-     the set, which matters when a fifth tab has to fit 320px; it says what the tab
-     is FOR rather than naming a feature; and a tab reading "Escalation" beside a
-     banner reading "Escalation open" is the same word twice in fifty pixels. */
-  escalation: "Now",
+  /* TODO-COPY. "Care", the pack's label — it supersedes FCP-2's "Clinical
+     resources" to match the care language, and it supersedes "Now", whose
+     argument (a short word that says what the tab is FOR) Care also passes. */
+  care: "Care",
   /* Renamed with the glyph header (support-beside-hub): the pack's Context,
      Tools and History. The ids are unchanged, so nothing that stores or links
      a tab moves. */
@@ -79,11 +79,11 @@ export const RAIL_TAB_LABEL: Record<RailTab, string> = {
   timeline: "History",
 };
 
-/** The hub's glyphs, from the Figma header (6011:1540): a house for Now, the
- *  sparkle for Context, a grid-plus for Tools, a clock for History; Profile
- *  joins them as a person (answered). */
+/** The hub's glyphs, from the Figma header (6011:1540): the sparkle for
+ *  Context, a grid-plus for Tools, a clock for History; Profile joins them as
+ *  a person (answered); Care is the pack's lifesaver. */
 export const RAIL_TAB_ICON: Record<RailTab, LucideIcon> = {
-  escalation: House,
+  care: LifeBuoy,
   assist: Sparkles,
   profile: UserRound,
   toolkit: Grid2x2Plus,
@@ -102,11 +102,15 @@ function RailTabs({
   active,
   onChange,
   controls,
+  careDot,
 }: {
   tabs: RailTab[];
   active: RailTab;
   onChange: (t: RailTab) => void;
   controls: string;
+  /** An open escalation: red for Tier 1–2, neutral otherwise (the canon's
+   *  colour rule), and said in words to a screen reader. */
+  careDot: "alert" | "neutral" | null;
 }) {
   const refs = useRef<Partial<Record<RailTab, HTMLButtonElement | null>>>({});
   const move = (to: RailTab) => {
@@ -144,7 +148,7 @@ function RailTabs({
         onClick={() => onChange(t)}
         onKeyDown={(e) => onKey(e, t)}
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "relative flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
           selected
             ? "border-transparent bg-[var(--surface-sunken-strong)] text-[var(--text-primary)]"
             : "border-[color:var(--border-subtle)] text-[var(--icon-secondary)] hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
@@ -154,16 +158,31 @@ function RailTabs({
         <Icon aria-hidden className="size-5" strokeWidth={1.75} />
         {/* The word, as text rather than `aria-label`: the same accessible
             name, and anything reading the tab's text still finds it. */}
-        <span className="sr-only">{RAIL_TAB_LABEL[t]}</span>
+        <span className="sr-only">
+          {RAIL_TAB_LABEL[t]}
+          {/* TODO-COPY */}
+          {t === "care" && careDot ? ", escalation open" : ""}
+        </span>
+        {t === "care" && careDot && (
+          <span
+            aria-hidden
+            data-care-dot={careDot}
+            className={cn(
+              "absolute right-0.5 top-0.5 size-2.5 rounded-full ring-2 ring-[var(--surface-card)]",
+              careDot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]"
+            )}
+          />
+        )}
       </button>
     );
   };
-  const now = tabs.includes("escalation");
+  /* ═══ ONE ROW, FIXED ORDER ═══ Now stood alone at the left because it came
+     and went; Care is always there, so the tabs are one group and never
+     reorder. */
   return (
     /* TODO-COPY. Names the region, not the widget. */
-    <div role="tablist" aria-label="Conversation tools" className="flex w-full items-center gap-2">
-      {now && tab("escalation")}
-      <div className="ml-auto flex items-center gap-2">{tabs.filter((t) => t !== "escalation").map(tab)}</div>
+    <div role="tablist" aria-label="Conversation tools" className="flex w-full items-center justify-end gap-2">
+      {tabs.map(tab)}
     </div>
   );
 }
@@ -171,7 +190,15 @@ function RailTabs({
 /** WHICH TABS A THREAD GETS. A support thread has no profile canvas and no
  *  activity shelf; it keeps Assist and Timeline, which are about the working
  *  relationship rather than about a teen. */
-/** ═══ AN OPEN ESCALATION ADDS A TAB, AT THE FRONT ═══
+/** ═══ SUPERSEDED: AN OPEN ESCALATION ADDED A TAB, AT THE FRONT ═══
+ *  (Kept for the reasoning.) Care replaced it: a persistent tab after
+ *  Context, for every teen, whose STATE changes with the escalation rather
+ *  than its existence. The argument below for a tab that comes and goes —
+ *  that a permanent Escalation tab is a permanent invitation — is answered by
+ *  naming it Care: it is where the care record lives, and an escalation is
+ *  one of the things it holds.
+ *
+ *  ═══ AN OPEN ESCALATION ADDED A TAB, AT THE FRONT ═══
  *
  *  The rail's job is "what to do next", and while an escalation is open the answer
  *  is the escalation — so it takes first position rather than being appended. Five
@@ -183,15 +210,8 @@ function RailTabs({
  *  avoid — a control whose position cannot be learned. It is correct here because
  *  the state it belongs to is itself exceptional and loudly announced by the banner
  *  above; a permanently-present Escalation tab would be a permanent invitation. */
-export function tabsFor(
-  kind: ChatThread["kind"],
-  hasEscalation = false
-): RailTab[] {
-  const base: RailTab[] =
-    kind === "teen"
-      ? ["assist", "profile", "toolkit", "timeline"]
-      : ["assist", "timeline"];
-  return hasEscalation ? ["escalation", ...base] : base;
+export function tabsFor(kind: ChatThread["kind"]): RailTab[] {
+  return kind === "teen" ? ["assist", "care", "profile", "toolkit", "timeline"] : ["assist", "timeline"];
 }
 
 /** ═══ WHAT THE TIMELINE PANEL IS SHOWING ═══
@@ -208,7 +228,8 @@ export function Rail({
   artifacts,
   events,
   notes,
-  escalation,
+  care,
+  careDot,
   assist,
   matchedFor,
   now,
@@ -222,10 +243,6 @@ export function Rail({
   onSaveNote,
   onOpenEvent,
   onOpenReference,
-  onCheckStep,
-  onUseWording,
-  onOpenCrisis,
-  onResolveEscalation,
   presence,
   className,
 }: {
@@ -235,7 +252,10 @@ export function Rail({
   artifacts: SentArtifact[];
   events: ChatEvent[];
   notes: Note[];
-  escalation?: EscalationState;
+  /** The Care tab's panel — built by the page, which holds the tiering and
+   *  escalation state it reads. */
+  care: React.ReactNode;
+  careDot: "alert" | "neutral" | null;
   /** Everything the Assist ladder reads. Null on a support thread, where none of
    *  its rules apply. */
   assist: AssistInput | null;
@@ -255,16 +275,11 @@ export function Rail({
   }) => void;
   onOpenEvent?: (event: ChatEvent) => void;
   onOpenReference: (ref: ContextRef) => void;
-  /** The escalation panel's four outward actions. */
-  onCheckStep: (stepId: string) => void;
-  onUseWording: (text: string) => void;
-  onOpenCrisis: () => void;
-  onResolveEscalation: () => void;
   /** "Brandy is in this chat" — see the header. */
   presence?: string;
   className?: string;
 }) {
-  const tabs = tabsFor(thread.kind, !!escalation);
+  const tabs = tabsFor(thread.kind);
   const panelId = useId();
 
   /* ═══ THE SELECTED TAB IS NOT PERSISTED, AND THAT IS A DECISION ═══
@@ -291,7 +306,7 @@ export function Rail({
     >
       {/* ── THE HUB HEADER: 64, the tabs, a divider ─────────────────── */}
       <div data-rail-header className="flex h-16 shrink-0 items-center border-b border-[color:var(--border-subtle)] px-4">
-        <RailTabs tabs={tabs} active={active} onChange={onTabChange} controls={`${panelId}-panel`} />
+        <RailTabs tabs={tabs} active={active} onChange={onTabChange} controls={`${panelId}-panel`} careDot={careDot} />
       </div>
       {/* ═══ WHO ELSE IS HERE (support-beside-hub) ═══ When the open support
           thread is with the other party to this escalation, one thin line
@@ -320,16 +335,7 @@ export function Rail({
               than saying "coming soon" — a mentor reading these learns what the
               rail is for, which is more than the built version of three of these
               panels would teach them today. Phases 3, 5 and 7 replace them. */}
-          {active === "escalation" && escalation && (
-            <AssessmentPanel
-              escalation={escalation}
-              theirName={theirName}
-              onCheck={onCheckStep}
-              onUseWording={onUseWording}
-              onOpenCrisis={onOpenCrisis}
-              onResolve={onResolveEscalation}
-            />
-          )}
+          {active === "care" && care}
           {active === "assist" && (
             <AssistPanel
               input={assist}

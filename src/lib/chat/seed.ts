@@ -861,6 +861,22 @@ export function chatScenario(id: string, now: number): ChatData {
   // The lead's last message is unanswered in the escalation scenario — the
   // supervisor has acknowledged and is waiting on the mentor.
   if (scenario.id === "escalation-active") {
+    /* ═══ THE SUPERVISOR'S GUIDANCE (Tiering & Escalation pack) ═══ What the
+       Care tab quotes as "Latest from your supervisor" — her answer to the
+       escalation, six minutes after it opened, and the one still unread. The
+       Support panel reads this same thread, so the two agree. TODO-COPY. */
+    const opened = now - 235 * MINUTE;
+    messages["s-brandy"] = [
+      ...(messages["s-brandy"] ?? []),
+      {
+        id: "s-brandy-esc-1",
+        threadId: "s-brandy",
+        at: opened + 6 * MINUTE,
+        sender: "them",
+        kind: "text",
+        text: "I'm here and I've got your notes. Keep Jordan talking and ask if their aunt is home. I'm calling her now.",
+      },
+    ];
     const brandy = threads.find((t) => t.id === "s-brandy");
     if (brandy) brandy.unreadCount = 1;
   }

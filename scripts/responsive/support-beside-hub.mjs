@@ -128,13 +128,17 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
     const tok = (v, prop = "backgroundColor") => { const e = document.createElement("span"); e.style[prop === "backgroundColor" ? "background" : "color"] = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e)[prop]; e.remove(); return c; };
     return { tabs, strong: tok("--surface-sunken-strong"), subtle: tok("--border-subtle", "color"), hubL: Math.round(hub.left), hubR: Math.round(hub.right) };
   });
-  const now = hdr.tabs[0];
-  check(now?.t === "escalation" && now.selected === "true" && now.bg === hdr.strong, "Now is first, filled, and the default while an escalation is open", JSON.stringify(now));
+  /* ═══ RETARGETED (Tiering & Escalation pack): CARE REPLACED NOW ═══ Now was
+     first, alone at the left, and present only during an escalation. Care is
+     persistent and fixed after Context — tabs never reorder — and is the
+     default while one is open. The claims about size and fill are unchanged. */
+  const care = hdr.tabs.find((t) => t.t === "care");
+  check(hdr.tabs[1]?.t === "care" && care.selected === "true" && care.bg === hdr.strong, "Care is after Context, filled, and the default while an escalation is open", JSON.stringify(care));
   check(hdr.tabs.every((t) => t.w === 40 && t.h === 40 && t.radius >= 20), "every hub tab is a 40px round button", hdr.tabs.map((t) => `${t.t} ${t.w}×${t.h}`).join(" · "));
-  check(hdr.tabs.slice(1).every((t) => t.selected === "false" && t.border === hdr.subtle && t.bg === "rgba(0, 0, 0, 0)"), "the rest are outlined border-subtle");
-  /* Now on the header's left inset, the last tab on its right inset (16). */
-  check(now.x === hdr.hubL + 16 && hdr.tabs.at(-1).right === hdr.hubR - 16 && hdr.tabs[1].x - now.right > 40, "Now at the left, the rest at the right", `hub ${hdr.hubL}–${hdr.hubR} · Now ${now.x} · last ${hdr.tabs.at(-1).right}`);
-  check(hdr.tabs.map((t) => t.name).join() === "Now,Context,Profile,Tools,History", "named Now · Context · Profile · Tools · History", hdr.tabs.map((t) => t.name).join(" · "));
+  check(hdr.tabs.filter((t) => t.t !== "care").every((t) => t.selected === "false" && t.border === hdr.subtle && t.bg === "rgba(0, 0, 0, 0)"), "the rest are outlined border-subtle");
+  /* One group, at the header's right inset (16). */
+  check(hdr.tabs.at(-1).right === hdr.hubR - 16 && hdr.tabs.slice(1).every((t, i) => t.x - hdr.tabs[i].right === 8), "one row at the right, 8 apart", `hub ${hdr.hubL}–${hdr.hubR} · last ${hdr.tabs.at(-1).right}`);
+  check(hdr.tabs.map((t) => t.name.replace(/, escalation open$/, "")).join() === "Context,Care,Profile,Tools,History", "named Context · Care · Profile · Tools · History", hdr.tabs.map((t) => t.name).join(" · "));
   await toggleSupport(page);
   const s = await page.evaluate(() => {
     const c = getComputedStyle(document.querySelector("[data-canvas-scroller]"));

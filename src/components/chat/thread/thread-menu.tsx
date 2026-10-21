@@ -112,14 +112,13 @@ export function ThreadMenu({
         {onEscalate && (
           <>
             <DropdownMenuSeparator />
-            {/* TINTED BY CLASS, because this `DropdownMenuItem` has no destructive
-                variant — and "destructive" would be the wrong word anyway: raising an
-                escalation destroys nothing, it tells somebody. The tint is the alert
-                accent, so it reads as urgent rather than as dangerous. */}
-            <DropdownMenuItem
-              onSelect={onEscalate}
-              className="text-[var(--alert-critical-accent)] focus:text-[var(--alert-critical-accent)]"
-            >
+            {/* ═══ SUPERSEDED: NO LONGER TINTED (Tiering & Escalation pack) ═══
+                It was the alert accent, so it read as urgent. The canon spends
+                red on Tier 1–2 contexts and the 911 call alone, and this item
+                opens the raise flow BEFORE any tier is chosen — so it is
+                neutral, marked by its glyph and its own separated group. The
+                cost, stated: it no longer pops out of the menu by colour. */}
+            <DropdownMenuItem onSelect={onEscalate}>
               <ShieldAlert aria-hidden />
               {/* TODO-COPY. The SECOND entry point — the primary is on the message,
                   because that is how it happens. This one exists for the mentor who

@@ -23,15 +23,27 @@
 // checkbox that toggles would let the record be quietly walked back — which is the
 // same reasoning that makes a note read-only and an event log append-only.
 //
+// ═══ SUPERSEDED IN PART (Tiering & Escalation pack, Phase 2) ═══ This was
+// the whole of the "Now" tab, with Emergency information and Resolve at its
+// foot. Care replaced Now (answered 2026-10-20), and the checklist is one
+// section of Care's active state now — so the footer moved to the Care
+// panel, which owns the order the pack sets. What changed here:
+//   · the next uncovered step is EXPANDED with its suggested line; the rest
+//     show their prompt and why, and open on press (make it magical, 2 —
+//     covering a step advances the counter and opens the next, so a mentor
+//     mid-crisis never hunts for what comes next);
+//   · "Put this in the message box" → the pack's "Put in message box";
+//   · a supervisor watching reads it without the controls (`onCheck` absent).
+//
 // ═══ NO SCORE, NO TOTAL, NO COLOUR THAT CHANGES ═══
 //
 // See `lib/chat/assessment.ts`. A number would invite a mentor to decide whether
 // this is bad enough, and that is not a judgement this surface asks them to make —
 // a supervisor was notified before the assessment opened.
 
-import { Check } from "lucide-react";
-import { ASSESSMENT, assessmentProgress } from "@/lib/chat/assessment";
-import { PanelSection } from "@/components/chat/rail/rail-panel";
+import { useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
+import { ASSESSMENT } from "@/lib/chat/assessment";
 import type { EscalationState } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -51,106 +63,109 @@ export function AssessmentPanel({
   onCheck,
   /** Puts the step's suggested wording into the composer. See the button's note. */
   onUseWording,
-  onOpenCrisis,
-  onResolve,
 }: {
   escalation: EscalationState;
   theirName: string;
-  onCheck: (stepId: string) => void;
-  onUseWording: (text: string) => void;
-  onOpenCrisis: () => void;
-  onResolve: () => void;
+  /** Absent for a read-only viewer. */
+  onCheck?: (stepId: string) => void;
+  onUseWording?: (text: string) => void;
 }) {
-  return (
-    <div data-slot="assessment" className="space-y-4">
-      <PanelSection>
-        <p
-          className="text-[var(--text-secondary)]"
-          style={{ font: "var(--type-body)" }}
-        >
-          {/* TODO-COPY. Says what this is FOR and removes the pressure in one
-              sentence — a mentor working through this is frightened, and "in any
-              order" is the part that stops them freezing on step one. */}
-          Work through these with {theirName}, in any order. Your supervisor already
-          knows.
-        </p>
-        <p
-          className="mt-1.5 tabular-nums text-[var(--text-muted)]"
-          style={{ font: "var(--type-field-label)" }}
-        >
-          {/* A COUNT, NOT A SCORE — see the module note. */}
-          {assessmentProgress(escalation.assessment)}
-        </p>
-      </PanelSection>
+  const covered = ASSESSMENT.filter((s) => escalation.assessment[s.id]?.checked).length;
+  const next = ASSESSMENT.find((s) => !escalation.assessment[s.id]?.checked)?.id ?? null;
+  /* The step a reader opened by hand, if any; otherwise the next uncovered
+     one is open. Derived, so covering a step moves the open one with no
+     effect to run. */
+  const [picked, setPicked] = useState<{ id: string; covered: number } | null>(null);
+  const openId = picked && picked.covered === covered ? picked.id : next;
 
-      <ol className="space-y-2.5">
+  return (
+    <div data-slot="assessment" className="space-y-3">
+      <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+        {/* TODO-COPY. Says what this is FOR and removes the pressure in one
+            sentence — "in any order" is the part that stops a frightened
+            mentor freezing on step one. */}
+        Work through these with {theirName}, in any order ·{" "}
+        {/* A COUNT, NOT A SCORE. Keyed on the count, so it settles once each
+            time a step is covered. */}
+        <span key={covered} data-assessment-count className="tier-settle inline-block tabular-nums text-[var(--text-primary)]">
+          {covered} of {ASSESSMENT.length}
+        </span>
+      </p>
+
+      <ol className="space-y-2">
         {ASSESSMENT.map((step) => {
           const state = escalation.assessment[step.id];
           const done = !!state?.checked;
+          const expanded = !done && openId === step.id;
           return (
             <li
               key={step.id}
+              data-assessment-step={step.id}
+              data-expanded={expanded || undefined}
               className={cn(
                 "rounded-[var(--radius-inset)] px-3 py-2.5",
-                done
-                  ? "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]"
-                  : "bg-[var(--surface-s1)]"
+                done ? "bg-[var(--band-sage-bg)] text-[var(--band-sage-fg)]" : "bg-[var(--surface-s1)]"
               )}
             >
               <div className="flex items-start gap-2.5">
                 {/* ═══ A BUTTON, NOT A CHECKBOX, AND IT DOES NOT TOGGLE ═══
-                    A checkbox promises two-way state. This is a one-way record of
-                    something having been asked, so it is a button that becomes a
-                    statement of fact — and `aria-disabled` once done, so a screen
-                    reader knows it is no longer actionable without the control
-                    vanishing from the order. */}
-                <button
-                  type="button"
-                  onClick={() => !done && onCheck(step.id)}
-                  aria-disabled={done}
-                  /* TODO-COPY */
-                  aria-label={
-                    done
-                      ? `Covered at ${clock(state.at)}: ${step.prompt}`
-                      : `Mark as covered: ${step.prompt}`
-                  }
-                  className={cn(
-                    "mt-px flex size-5 shrink-0 items-center justify-center rounded-full border",
-                    done
-                      ? "border-current bg-current/15"
-                      : "border-[color:var(--border-contour)] hover:bg-[var(--tint-hover)]",
-                    RING
-                  )}
-                >
-                  {done && <Check className="size-3" aria-hidden />}
-                </button>
+                    A one-way record of something having been asked, so it is a
+                    button that becomes a statement of fact — `aria-disabled`
+                    once done, so it stays in the order. Read-only viewers get
+                    the mark without the button. */}
+                {onCheck ? (
+                  <button
+                    type="button"
+                    onClick={() => !done && onCheck(step.id)}
+                    aria-disabled={done}
+                    /* TODO-COPY */
+                    aria-label={done ? `Covered at ${clock(state.at)}: ${step.prompt}` : `Mark as covered: ${step.prompt}`}
+                    className={cn(
+                      "mt-px flex size-5 shrink-0 items-center justify-center rounded-full border",
+                      done ? "border-current bg-current/15" : "border-[color:var(--border-contour)] hover:bg-[var(--tint-hover)]",
+                      RING
+                    )}
+                  >
+                    {done && <Check className="size-3" aria-hidden />}
+                  </button>
+                ) : (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "mt-px flex size-5 shrink-0 items-center justify-center rounded-full border",
+                      done ? "border-current bg-current/15" : "border-[color:var(--border-contour)]"
+                    )}
+                  >
+                    {done && <Check className="size-3" />}
+                  </span>
+                )}
 
                 <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(done ? "" : "text-[var(--text-primary)]")}
-                    style={{ font: "var(--type-body)" }}
-                  >
-                    {step.prompt}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-0.5",
-                      done ? "opacity-80" : "text-[var(--text-muted)]"
-                    )}
-                    style={{ font: "var(--type-field-label)" }}
-                  >
+                  {done ? (
+                    <p style={{ font: "var(--type-body)" }}>{step.prompt}</p>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() => setPicked({ id: expanded ? "" : step.id, covered })}
+                      className={cn("flex w-full items-start justify-between gap-2 text-left text-[var(--text-primary)]", RING)}
+                      style={{ font: "var(--type-body)" }}
+                    >
+                      <span>{step.prompt}</span>
+                      <ChevronDown aria-hidden className={cn("mt-0.5 size-4 shrink-0 text-[var(--icon-secondary)] transition-transform motion-reduce:transition-none", expanded && "rotate-180")} />
+                    </button>
+                  )}
+                  <p className={cn("mt-0.5", done ? "opacity-80" : "text-[var(--text-muted)]")} style={{ font: "var(--type-field-label)" }}>
                     {done ? `Covered ${clock(state.at)}` : step.why}
                   </p>
 
-                  {/* ═══ THE WORDING, AND A WAY TO USE IT ═══
-                      The field that matters most at 2am: a mentor who cannot find
-                      their words gets the sentence, and one press puts it in the
-                      composer rather than making them retype it. Not sent — the
-                      mentor still says it in their own voice if they want to, and
-                      nothing goes to a teen that a mentor did not press Send on. */}
-                  {!done && step.say && (
+                  {/* ═══ THE WORDING, AND A WAY TO USE IT ═══ One press puts the
+                      sentence in the composer; nothing goes to a teen that a
+                      mentor did not press Send on. */}
+                  {expanded && step.say && onUseWording && (
                     <button
                       type="button"
+                      data-assessment-wording={step.id}
                       onClick={() => onUseWording(step.say!)}
                       className={cn(
                         "mt-1.5 w-full rounded-[var(--radius-inset)] border border-dashed border-[color:var(--border-contour)] px-2.5 py-1.5 text-left",
@@ -158,19 +173,12 @@ export function AssessmentPanel({
                         RING
                       )}
                     >
-                      <span
-                        className="block italic text-[var(--text-secondary)]"
-                        style={{ font: "var(--type-body)" }}
-                      >
+                      <span className="block italic text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
                         &ldquo;{step.say}&rdquo;
                       </span>
-                      <span
-                        className="mt-0.5 block text-[var(--text-muted)]"
-                        style={{ font: "var(--type-field-label)" }}
-                      >
-                        {/* TODO-COPY. Says exactly what pressing it does, including
-                            what it does NOT do. */}
-                        Put this in the message box
+                      <span className="mt-0.5 block text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
+                        {/* TODO-COPY. The pack's label. */}
+                        Put in message box
                       </span>
                     </button>
                   )}
@@ -180,43 +188,6 @@ export function AssessmentPanel({
           );
         })}
       </ol>
-
-      <PanelSection divided>
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={onOpenCrisis}
-            className={cn(
-              "flex min-h-10 w-full items-center justify-center gap-2 rounded-full",
-              "bg-[var(--alert-critical-accent)] text-[var(--text-inverse)]",
-              "transition-opacity hover:opacity-90",
-              RING
-            )}
-            style={{ font: "var(--type-button)" }}
-          >
-            {/* TODO-COPY. Available from here as well as from the banner, because a
-                mentor part-way through the assessment is exactly who needs it and
-                should not have to look back up. */}
-            Emergency information
-          </button>
-          <button
-            type="button"
-            onClick={onResolve}
-            className={cn(
-              "flex min-h-9 w-full items-center justify-center rounded-full border border-[color:var(--border-contour)] text-[var(--text-primary)]",
-              "transition-colors hover:bg-[var(--tint-hover)]",
-              RING
-            )}
-            style={{ font: "var(--type-body)" }}
-          >
-            {/* NOT GATED ON THE CHECKLIST. An escalation can be over before every
-                step is covered — the teen's guardian arrives, a supervisor takes it
-                — and a Resolve that demanded five ticks would push a mentor into
-                ticking them. TODO-COPY. */}
-            Resolve this escalation
-          </button>
-        </div>
-      </PanelSection>
     </div>
   );
 }

@@ -145,7 +145,8 @@ export interface RosterInput {
 
 /** ═══ THE ROSTER, FROM THE ONE LOG ═══ */
 export function tierRoster({ stateFor, escalationsFor, liveMentorName, now }: RosterInput): MonitoringTeen[] {
-  const liveShort = liveMentorName ? short(liveMentorName) : "Your mentor";
+  /* Unnamed, the mentor is "the mentor" — never a broken possessive. */
+  const liveShort = liveMentorName ? short(liveMentorName) : "The mentor";
   const records: MonitoringTeen[] = DEMO_TEENS.map((teen) => {
     const state = stateFor(teen.id);
     const escalations = escalationsFor(teen.id);
@@ -182,7 +183,11 @@ export function tierRoster({ stateFor, escalationsFor, liveMentorName, now }: Ro
       timeInTier: tier === current && day !== null && minimum && current !== 4 && current !== 1 ? { day, minimum } : undefined,
       reviewReason: state.pending ? `Confirm Tier ${state.pending.tier}` : sig?.reviewReason,
       presence:
-        sig?.presence === "in-session" ? (open ? `${mentorName.split(" ")[0]} in session` : undefined) : sig?.presence,
+        sig?.presence === "in-session"
+          ? open
+            ? `${teen.mentorId === LIVE_ID && !liveMentorName ? "Mentor" : mentorName.split(" ")[0]} in session`
+            : undefined
+          : sig?.presence,
     };
   });
   const recordT4 = records.filter((t) => t.tier === 4).length;

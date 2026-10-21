@@ -122,6 +122,15 @@ const shadowHas = (shadow, color) => shadow.replace(/\s/g, "").includes(rgbOf(co
    the report. */
 const AVATAR = "[data-tier-ring] > span";
 
+/* ═══ RETARGETED (Tiering & Escalation pack, 2026-10-20) ═══ The roster is
+   derived from the one tier store now, and its cast is RECORD teens: the
+   board's Juniper / Leo / Mia / Ava / Theo / Ravi became Jordan (t13), Imani
+   (t21), Riley (t15), Naomi (t17), Simone (t19) and Ravi (t22). Jordan moves
+   INTO the Tier 1 lane on an alert rather than being added, so active teens
+   are 106 in both modes. Tier 3 is "Medium risk"; "★ Recommended T1" is the
+   canon's "Requested: Tier 1". The seeded store has no mentor name, so the
+   live mentor reads "The mentor". */
+
 // ── STEP 1 · title row and hero metrics ────────────────────────────────────
 {
   console.log("\n── step 1 · the title row and the hero metrics (1512)");
@@ -163,7 +172,7 @@ const AVATAR = "[data-tier-ring] > span";
   const crisis0 = hero.cells[0];
   check(crisis0.value === "0" && !crisis0.hot && crisis0.dot?.w === 10 && crisis0.dot.anim === "none", "Monitor: In crisis 0, a quiet 10px dot, no pulse", JSON.stringify(crisis0.dot));
   check(hero.cells[1].value === "2" && /1 review due/.test(hero.cells[1].detail), "High risk 2, with its 1 review due — derived", hero.cells[1].detail);
-  check(hero.cells[4].value === "105", "Monitor: 105 active teens (the Tier 1 teen is not in a calm roster)", hero.cells[4].value);
+  check(hero.cells[4].value === "106", "Monitor: 106 active teens — every record teen plus Tier 4's generated rows", hero.cells[4].value);
   await page.screenshot({ path: `${OUT}/01-monitor-1512.png` });
 
   await setMode(page, "alert");
@@ -177,7 +186,7 @@ const AVATAR = "[data-tier-ring] > span";
   const t1soft = await tok(page, "--t1-soft", "bg");
   check(hot.value === "1" && hot.hot === "true" && hot.bg === t1soft && hot.nc === t1 && hot.dbg === t1 && hot.anim !== "none", "Alert: In crisis 1, the cell tints t1-soft, numeral and dot t1, the dot pulses", JSON.stringify({ v: hot.value, bg: hot.bg, anim: hot.anim }));
   check(hot.dc === secondary, "its detail falls back to secondary on t1-soft (tertiary is 4.39:1)", hot.dc);
-  check(hot.active === "106", "Alert: active teens counts the Tier 1 teen — derived, not typed", hot.active);
+  check(hot.active === "106", "Alert: still 106 — the Tier 1 teen MOVED into the lane, derived, not typed", hot.active);
   await page.screenshot({ path: `${OUT}/02-alert-1512.png` });
   await ctx.close();
 
@@ -207,13 +216,13 @@ const AVATAR = "[data-tier-ring] > span";
     const s = getComputedStyle(r);
     const ring = r.querySelector("[data-tier-ring]");
     const join = r.querySelector("[data-t1-join]");
-    const rec = r.querySelector("[data-recommended]");
+    const rec = r.querySelector("[data-requested-tier]");
     const flags = r.querySelector("[data-t1-flags]");
     return {
       bg: s.backgroundColor, border: `${s.borderTopWidth} ${s.borderTopColor}`, leftBorder: s.borderLeftWidth === s.borderTopWidth && s.borderLeftColor === s.borderTopColor,
       ring: ring?.dataset.tierRing, ringShadow: getComputedStyle(ring).boxShadow,
       text: r.textContent.replace(/\s+/g, " ").trim(),
-      rec: rec && { color: getComputedStyle(rec).color, border: getComputedStyle(rec).borderTopColor, text: rec.textContent.trim() },
+      rec: rec && { color: getComputedStyle(rec).color, border: `${getComputedStyle(rec).borderTopStyle} ${getComputedStyle(rec).borderTopColor}`, text: rec.textContent.trim() },
       flags: flags && { color: getComputedStyle(flags).color, text: flags.textContent.replace(/\s+/g, " ").trim() },
       join: join && { bg: getComputedStyle(join).backgroundColor, color: getComputedStyle(join).color, text: join.textContent.trim(), label: join.getAttribute("aria-label"), h: Math.round(join.getBoundingClientRect().height) },
     };
@@ -221,8 +230,9 @@ const AVATAR = "[data-tier-ring] > span";
   const [t1, t1soft, t1ink, ok, okink] = [await tok(page, "--t1"), await tok(page, "--t1-soft", "bg"), await tok(page, "--t1-ink"), await tok(page, "--ok"), await tok(page, "--ok-ink")];
   check(live.bg === t1soft && live.border === `1px ${t1}` && live.leftBorder, "Alert: t1-soft with a 1px t1 keyline, all round (no left bar)", `${live.bg} · ${live.border}`);
   check(live.ring === "1" && shadowHas(live.ringShadow, t1), "the avatar carries the t1 ring");
-  check(/Juniper S\./.test(live.text) && /Eden M\./.test(live.text) && /Eden in session/.test(live.text), "teen, mentor, presence", live.text.slice(0, 80));
-  check(live.rec?.text === "Recommended T1" && live.rec.border === ok && live.rec.color === okink, "★ Recommended T1, outlined ok, ink that passes", JSON.stringify(live.rec));
+  check(/Jordan T\./.test(live.text) && /The mentor/.test(live.text) && /Mentor in session/.test(live.text), "teen, mentor, presence — a record teen", live.text.slice(0, 80));
+  const secondaryInk = await tok(page, "--text-secondary");
+  check(live.rec?.text === "Requested: Tier 1" && /^dashed/.test(live.rec.border) && live.rec.color === secondaryInk, "Requested: Tier 1 — dashed, in words, awaiting a supervisor", JSON.stringify(live.rec));
   check(live.flags?.text.startsWith("4 · 24h") && live.flags.color === t1ink, "the flag signal in t1-ink", JSON.stringify(live.flags));
   check(/^Join · [01]:[0-5]\d$/.test(live.join?.text ?? "") && live.join.bg === t1ink && live.join.color === "rgb(255, 255, 255)" && live.join.h >= 24, "a red Join with the response clock", JSON.stringify(live.join));
   const t0 = await page.locator("[data-t1-join]").textContent();
@@ -262,7 +272,7 @@ const ENGINE = `(() => {
     return { heads, geo, h3, groups };
   });
   check(t.heads.join("|") === "Teen|Mentor|Days on platform|Days engaged|Risk flags|Escalations|Surveys", "a table with the seven column headers", t.heads.join(" · "));
-  check(t.h3.some((h) => /^Tier 1 · Active crisis/.test(h)) && t.h3.some((h) => /^Tier 2 · High risk/.test(h)) && t.h3.some((h) => /^Tier 3 · Monitoring/.test(h)) && t.h3.some((h) => /^Tier 4 · General/.test(h)), "each tier is an h3 naming it", t.h3.map((h) => h.split(/\d+$/)[0]).join(" | "));
+  check(t.h3.some((h) => /^Tier 1 · Active crisis/.test(h)) && t.h3.some((h) => /^Tier 2 · High risk/.test(h)) && t.h3.some((h) => /^Tier 3 · Medium risk/.test(h)) && t.h3.some((h) => /^Tier 4 · General/.test(h)), "each tier is an h3 naming it", t.h3.map((h) => h.split(/\d+$/)[0]).join(" | "));
   check(t.groups.length >= 3 && t.groups.filter((g) => g.tier !== "1").every((g) => g.labelled), "each tier rowgroup is labelled by its heading", `${t.groups.length} groups`);
   const body = t.geo;
   check(body.length > 0 && body.every((r) => r.h === 52 && r.radius === "10px"), "rows 52 tall, 10px radius", [...new Set(body.map((r) => `${r.h}/${r.radius}`))].join(","));
@@ -308,21 +318,21 @@ const ENGINE = `(() => {
 
   const tones = await page.evaluate(() => {
     const flag = (id) => getComputedStyle(document.querySelector(`[data-monitoring-row="${id}"] [role="cell"]:nth-child(5) > span`)).color;
-    const zero = getComputedStyle(document.querySelector('[data-monitoring-row="teen-ravi"] [role="cell"]:nth-child(5) > span')).color;
-    const theo = document.querySelector('[data-monitoring-row="teen-theo"] [role="cell"]:nth-child(5)').textContent;
-    const second = document.querySelector('[data-monitoring-row="teen-leo"] p')?.textContent;
-    const spark = [...document.querySelectorAll('[data-monitoring-row="teen-leo"] [data-sparkline] > span')].map((b) => ({ w: Math.round(b.getBoundingClientRect().width), x: Math.round(b.getBoundingClientRect().left), bg: getComputedStyle(b).backgroundColor }));
-    const sparkH = Math.round(document.querySelector('[data-monitoring-row="teen-leo"] [data-sparkline]').getBoundingClientRect().height);
-    return { mia: flag("teen-mia"), leo: flag("teen-leo"), zero, theo, second, spark, sparkH };
+    const zero = getComputedStyle(document.querySelector('[data-monitoring-row="t22"] [role="cell"]:nth-child(5) > span')).color;
+    const theo = document.querySelector('[data-monitoring-row="t19"] [role="cell"]:nth-child(5)').textContent;
+    const second = document.querySelector('[data-monitoring-row="t21"] p')?.textContent;
+    const spark = [...document.querySelectorAll('[data-monitoring-row="t21"] [data-sparkline] > span')].map((b) => ({ w: Math.round(b.getBoundingClientRect().width), x: Math.round(b.getBoundingClientRect().left), bg: getComputedStyle(b).backgroundColor }));
+    const sparkH = Math.round(document.querySelector('[data-monitoring-row="t21"] [data-sparkline]').getBoundingClientRect().height);
+    return { mia: flag("t15"), leo: flag("t21"), zero, theo, second, spark, sparkH };
   });
   const [t2ink, primary, tertiary, sparkInk] = [await tok(page, "--t2-ink"), await tok(page, "--text-primary"), await tok(page, "--text-tertiary"), await tok(page, "--border-default", "bg")];
-  check(tones.mia === t2ink && tones.leo === primary, "T2 flags tone only on a surge (Mia t2-ink, Leo ink)", `${tones.mia} / ${tones.leo}`);
+  check(tones.mia === t2ink && tones.leo === primary, "T2 flags tone only on a surge (Riley t2-ink, Imani ink)", `${tones.mia} / ${tones.leo}`);
   /* WAS state-inactive (the clone's text-disabled), which step 8 measured at
      2.1:1 — a "0" is content. Tertiary is the quietest ink that is text. */
   check(tones.zero === tertiary, "a zero count on an untinted row is tertiary — quiet, and still AA", tones.zero);
-  const tintZero = await page.evaluate(() => getComputedStyle(document.querySelector('[data-monitoring-row="teen-mia"] [role="cell"]:nth-child(6) > span')).color);
+  const tintZero = await page.evaluate(() => getComputedStyle(document.querySelector('[data-monitoring-row="t15"] [role="cell"]:nth-child(6) > span')).color);
   check(tintZero === secondary, "on a t2 tint a zero falls back to secondary", tintZero);
-  check(/↗/.test(tones.theo), "Theo's slow-burn reads ↗, in neutral ink", tones.theo);
+  check(/↗/.test(tones.theo), "Simone's slow-burn reads ↗, in neutral ink", tones.theo);
   check(tones.second === "From T1 · Fri · Day 3/7", "the second line: review reason · day N/M", tones.second);
   check(tones.spark.length === 7 && tones.spark.every((b) => b.w === 4 && b.bg === sparkInk) && tones.spark.slice(1).every((b, i) => b.x - tones.spark[i].x === 6) && tones.sparkH === 16, "the sparkline: 7 bars, 4px, 2px apart, 16 tall, border-default", JSON.stringify(tones.spark.slice(0, 2)));
 
@@ -399,12 +409,12 @@ const ENGINE = `(() => {
   check(cs.length > 0 && cs.every((x) => x.tag === "ARTICLE" && x.name), "each card is an article named by its teen", cs.slice(0, 3).map((x) => x.name).join(", "));
   check(cs.every((x) => x.radius === "16px" && x.pad === "14px 16px"), "16px radius, padded 14 / 16", cs[0]?.pad);
   check(cs.every((x) => x.av === 32 && x.nfs === "15px"), "32px ringed avatar, name 15px");
-  check(cs.every((x) => x.loz === `T${x.tier} · ${["", "Active crisis", "High risk", "Monitoring", "General"][x.tier]}` && x.lozRight <= 17), "the long lozenge, right-aligned", cs.map((x) => x.loz).filter((v, i, a) => a.indexOf(v) === i).join(" | "));
-  const leo = cs.find((x) => x.id === "teen-leo");
-  check(leo?.days === "48 / 132", "days engaged / on platform", leo?.days);
+  check(cs.every((x) => x.loz === `T${x.tier} · ${["", "Active crisis", "High risk", "Medium risk", "General"][x.tier]}` && x.lozRight <= 17), "the long lozenge, right-aligned", cs.map((x) => x.loz).filter((v, i, a) => a.indexOf(v) === i).join(" | "));
+  const leo = cs.find((x) => x.id === "t21");
+  check(leo?.days === "48 / 151", "days engaged / on platform — Imani's record tenure", leo?.days);
   check(cs.every((x) => x.stats === 4), "a 2×2 stat grid");
   check(leo?.tit === 3, "time in tier over a 3px bar", `${leo?.tit}`);
-  const ravi = cs.find((x) => x.id === "teen-ravi");
+  const ravi = cs.find((x) => x.id === "t22");
   check(cs.every((x) => x.footer.bt === "1px" && /Open ›$/.test(x.footer.text)) && /^No review due/.test(ravi?.footer.text ?? ""), "a hairline footer: reason (or 'No review due') and Open ›", ravi?.footer.text);
   check(cs.every((x) => x.open.h >= 24 && /^Open /.test(x.open.label)), "Open is a ≥ 24px target, named for its teen");
   const [t2soft, borderDefault, panel] = [await tok(page, "--t2-soft", "bg"), await tok(page, "--border-default"), await tok(page, "--shadow-panel", "shadow")];
@@ -487,7 +497,7 @@ const ENGINE = `(() => {
   const errBg = await tok(page, "--state-error", "bg");
   const errFg = await tok(page, "--state-error");
   check(st?.role === "alert" && st.bg === errBg, "Alert: role=alert, on --state-error", st?.bg);
-  check(/^Tier 1 · Eden M\. flagged Juniper S\. · unconfirmed · note \+ C-SSRS · \d{1,2}:\d{2} (AM|PM)$/.test(st?.text ?? ""), "the pack's sentence, from the data", st?.text);
+  check(/^Tier 1 · The mentor flagged Jordan T\. · unconfirmed · note \+ C-SSRS · \d{1,2}:\d{2} (AM|PM)$/.test(st?.text ?? ""), "the pack's sentence, from the data", st?.text);
   check(/^\d:\d\d left$/.test(st?.timer ?? "") && /mono/i.test(st.timerFf) && !st.sound, "a mono response timer chip, and no sound toggle", st?.timer);
   check(st?.lane?.endsWith(st.timer.split(" ")[0]), "the strip and the lane show one clock", `${st?.timer.split(" ")[0]} / ${st?.lane}`);
   check(st?.dot !== "none", "the dot pulses");
@@ -561,7 +571,7 @@ for (const layout of ["list", "cards"]) {
   });
   await page.waitForTimeout(500);
   const last = await page.evaluate((item) => [...document.querySelectorAll(`[data-tier-group="4"] ${item}`)].map((e) => e.dataset.monitoringRow ?? e.dataset.monitoringCard), item);
-  check(last.includes("teen-gen-94") && last.length < 100, "scrolled to the end: the last teen is there, the window still small", `${last.length} rendered, last ${last.at(-1)}`);
+  check(last.includes("teen-gen-79") && last.length < 100, "scrolled to the end: the last teen is there, the window still small", `${last.length} rendered, last ${last.at(-1)}`);
   if (layout === "list") {
     const align = await page.evaluate(() => {
       const hx = [...document.querySelectorAll('[data-monitoring-list] [role="columnheader"]')].map((h) => Math.round(h.getBoundingClientRect().left));

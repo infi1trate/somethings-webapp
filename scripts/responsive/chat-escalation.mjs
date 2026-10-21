@@ -47,6 +47,19 @@ async function chat(scenario, width = 1440, height = 1000) {
   return p;
 }
 
+/* ═══ RETARGETED (Tiering & Escalation pack, 2026-10-20) ═══ Care replaced
+   Now, and raising opens a flow (tier · what's happening · confirm) rather
+   than writing the escalation in one press. Every claim below that changed is
+   rewritten in place with the supersession named; the claims about the
+   ORDER — notified at creation, not at the end of a checklist — are kept,
+   because Confirm is still the write that notifies. */
+async function completeRaise(p, tier = "1", note = "They said they might not be safe tonight.") {
+  await p.locator(`[data-raise-option="${tier}"]`).click();
+  await p.locator("[data-raise-note]").fill(note);
+  await p.locator("[data-raise-confirm]").click();
+  await p.waitForTimeout(600);
+}
+
 // ═══ 1 · The banner, and what it states ═══════════════════════════════════
 console.log("\n── the banner @ escalation-active");
 {
@@ -129,7 +142,7 @@ console.log("\n── the rail @ escalation-active");
       labels: tabs.map((t) => t.textContent.trim()),
       selected: tabs.find((t) => t.getAttribute("aria-selected") === "true")?.textContent.trim(),
       assessmentOpen: !!panel,
-      progress: /[0-9] of [0-9] covered/.exec(panel?.innerText ?? "")?.[0],
+      progress: /[0-9] of [0-9]/.exec(panel?.innerText ?? "")?.[0],
       /* NO SCORE, NO TOTAL BAR, NO COLOUR THAT CHANGES WITH A COUNT. A number would
          invite a mentor to decide whether this is bad enough — which is exactly the
          judgement the surface exists to take off them. */
@@ -141,8 +154,10 @@ console.log("\n── the rail @ escalation-active");
      A screenshot caught the rail opening on Assist while the banner two inches away
      read "Escalation open" — the rail's job is "what to do next", and it was
      answering with a suggestion panel. */
-  check(rail.labels[0] === "Now", "the escalation tab is first", rail.labels.join(" | "));
-  check(rail.selected === "Now", "and selected on open", String(rail.selected));
+  /* SUPERSEDED: "the escalation tab is first". Care is PERSISTENT and FIXED
+     after Context — tabs never reorder — and it is what opens. */
+  check(rail.labels[1]?.startsWith("Care"), "Care is the tab after Context", rail.labels.join(" | "));
+  check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
   check(rail.assessmentOpen, "the checklist is what it shows");
   check(!!rail.progress, "with a count of what is covered", String(rail.progress));
   check(!rail.hasPercent && !rail.hasRiskWord, "and no score, percentage or risk level");
@@ -161,12 +176,14 @@ console.log("\n── the checklist @ escalation-active");
       done: items.filter((li) => /Covered /.test(li.innerText)).length,
       /* THE WORDING HELP is the field that matters most at 2am, and one press puts
          it in the composer rather than making a frightened mentor retype it. */
-      wording: items.filter((li) => /Put this in the message box/.test(li.innerText)).length,
+      wording: items.filter((li) => /Put in message box/.test(li.innerText)).length,
     };
   })()`);
   check(before.total === 5, "five steps", `${before.total}`);
   check(before.done === 2, "two already covered, with times", `${before.done}`);
-  check(before.wording === 3, "and the open ones offer wording", `${before.wording}`);
+  /* SUPERSEDED: "the open ones offer wording". The NEXT step is expanded with
+     its suggested line; the rest open on press (make it magical, 2). */
+  check(before.wording === 1, "and the next open step offers its wording", `${before.wording}`);
 
   const open = p.locator(`${RAIL} ol li button[aria-label^="Mark as covered"]`).first();
   await open.click();
@@ -177,7 +194,7 @@ console.log("\n── the checklist @ escalation-active");
     const covered = items.filter((li) => /Covered /.test(li.innerText));
     return {
       done: covered.length,
-      progress: /[0-9] of [0-9] covered/.exec(panel.innerText)?.[0],
+      progress: /[0-9] of [0-9]/.exec(panel.innerText)?.[0],
       /* ═══ IT DOES NOT UN-CHECK ═══
          Once something has been asked it has been asked, and a toggle would let the
          record be quietly walked back — the same reasoning that makes a note
@@ -188,11 +205,11 @@ console.log("\n── the checklist @ escalation-active");
     };
   })()`);
   check(after.done === 3, "checking one records it", `${after.done}`);
-  check(after.progress === "3 of 5 covered", "and the count follows", String(after.progress));
+  check(after.progress === "3 of 5", "and the count follows", String(after.progress));
   check(after.firstIsDisabled, "a covered step is no longer actionable");
 
   // The wording goes into the composer, unsent.
-  const useWording = p.locator(`${RAIL} ol li button`, { hasText: "Put this in the message box" }).first();
+  const useWording = p.locator(`${RAIL} ol li button`, { hasText: "Put in message box" }).first();
   await useWording.click();
   await p.waitForTimeout(400);
   const composer = await p.evaluate(`(() => {
@@ -264,6 +281,7 @@ console.log("\n── the crisis view @ escalation-active");
   await q.waitForTimeout(250);
   await q.locator('button[aria-label="Raise an escalation about this message"]').click();
   await q.waitForTimeout(600);
+  await completeRaise(q);
   await q.locator('[data-slot="banner-crisis"]').click();
   await q.waitForTimeout(500);
   const thin = await q.evaluate(`(() => {
@@ -326,10 +344,17 @@ console.log("\n── raising one @ active-mentorship");
     "and its tooltip says a supervisor is told",
     String(menuItem.title)
   );
-  check(menuItem.color !== menuItem.neutralColor, "and it is the only tinted item");
+  /* SUPERSEDED: "the only tinted item". The canon spends red on Tier 1–2
+     contexts and the 911 call alone; this opens the raise flow before a tier
+     is chosen, so it is neutral now. */
+  check(menuItem.color === menuItem.neutralColor, "and it is no longer red — the canon's colour rule");
 
   await p.locator('button[aria-label="Raise an escalation about this message"]').click();
   await p.waitForTimeout(700);
+  /* THE FLOW OPENS IN CARE; NOTHING IS WRITTEN UNTIL CONFIRM. */
+  const flow = await p.evaluate(`({ flow: !!document.querySelector("[data-raise-flow]"), banner: !!document.querySelector('[data-slot="status-banner"]') })`);
+  check(flow.flow && !flow.banner, "the raise flow opens, and nothing is written before Confirm", JSON.stringify(flow));
+  await completeRaise(p);
 
   const raised = await p.evaluate(`(() => {
     const banner = document.querySelector('[data-slot="status-banner"]');
@@ -353,7 +378,7 @@ console.log("\n── raising one @ active-mentorship");
   })()`);
   check(raised.banner && raised.notified, "raising it notifies immediately", "no pending state");
   check(!raised.pending, "with no sending spinner over a write that already happened");
-  check(raised.tab === "Now", "and puts the checklist in front of the mentor", String(raised.tab));
+  check(raised.tab?.startsWith("Care"), "and puts the Care tab's checklist in front of the mentor", String(raised.tab));
   check(raised.opened, "an event lands in the transcript");
   check(raised.markedMessages >= 1, "and the anchor message is marked", `${raised.markedMessages}`);
   void target;
@@ -410,7 +435,9 @@ console.log("\n── resolving @ escalation-active");
     };
   })()`);
   check(!!dialog, "the resolve dialog opened");
-  check(dialog.outcomes === 4, "four named endings", `${dialog.outcomes}`);
+  /* FIVE now: the canon's "no longer a threat", which lets a Tier 1 crisis
+     note exit to Tier 3. */
+  check(dialog.outcomes === 5, "five named endings", `${dialog.outcomes}`);
   check(dialog.hasProse, "and a prose field");
   check(dialog.resolveDisabled === true, "Resolve is disabled to start");
   check(dialog.missing, "and it says what is missing rather than leaving a dead button");
@@ -447,7 +474,8 @@ console.log("\n── resolving @ escalation-active");
          resolvedAt rather than deleting the row. */
       opened: chips.some((c) => /raised an escalation/.test(c)),
       resolvedChip: chips.some((c) => /resolved the escalation/.test(c)),
-      tabGone: !tabs.includes("Now"),
+      careStays: tabs.some((t) => t.startsWith("Care")),
+      steady: document.querySelector("[data-care-state]")?.dataset.careState,
       tab: [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) => t.textContent.trim()),
       /* AND A NOTE, holding the account. An escalation whose only trace is two
          timestamps tells a supervisor nothing about whether a teenager is all
@@ -456,16 +484,23 @@ console.log("\n── resolving @ escalation-active");
     };
   })()`);
   check(resolved.bannerGone, "the banner is gone");
-  check(resolved.tabGone, "and so is the escalation tab");
+  /* SUPERSEDED: "and so is the escalation tab". Care does not vanish; it
+     returns to its steady state. */
+  check(resolved.careStays && resolved.steady === "steady", "and Care stays, back in its steady state", String(resolved.steady));
   check(resolved.opened && resolved.resolvedChip, "both events survive in the transcript");
+  /* The note lives on History (the Timeline panel); the rail lands on Care
+     now, so open History to read it. */
+  await p.locator('[data-rail-tab="timeline"]').click();
+  await p.waitForTimeout(300);
+  resolved.note = await p.evaluate(`[...document.querySelectorAll('[data-slot="chat-rail"] [data-slot="timeline-note"]')].map((x) => x.innerText.split(String.fromCharCode(10))[0].trim())`);
   check(
     resolved.note.some((t) => /^Escalation resolved —/.test(t)),
     "a note holds the account of how it ended",
     resolved.note.join(" | ")
   );
   check(
-    resolved.tab.includes("History"),
-    "and the rail lands where that note is, not on a tab that just vanished",
+    resolved.tab.some((t) => t.startsWith("Care")),
+    "and the rail lands on Care, whose History now holds the escalation",
     resolved.tab.join(",")
   );
 

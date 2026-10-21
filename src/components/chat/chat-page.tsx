@@ -59,12 +59,19 @@ import type {
   ChatEvent,
   ChatMessage,
   ContextRef,
-  EscalationState,
   Note,
   SentArtifact,
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
+import { CarePanel, type CareBrief, type Guidance } from "@/components/chat/rail/care";
+import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
+import { useTiering } from "@/lib/tiering/use-tiering";
+import { escalationTarget, safetyOf, stepDownFor } from "@/lib/tiering/escalation";
+import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
+import { recordHrefFor } from "@/lib/record/subject";
+import { presentationFor } from "@/lib/record/care-demo";
+import { careSummaryFor } from "@/lib/record/care-summary-doc";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -178,7 +185,6 @@ export function ChatPage({
   const writtenEvents = useOnboardingStore((s) => s.chatEvents);
   const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
   const writtenNotes = useOnboardingStore((s) => s.chatNotes);
-  const writtenEscalations = useOnboardingStore((s) => s.escalations);
   const putEscalation = useOnboardingStore((s) => s.putEscalation);
   const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
   const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
@@ -276,13 +282,12 @@ export function ChatPage({
    *  rather than deleting the row, because the history is that this happened — so
    *  the read filters it out here, once, and every consumer downstream sees
    *  `undefined` and renders the no-escalation state. */
-  const escalation = useMemo<EscalationState | undefined>(() => {
-    if (!thread) return undefined;
-    const live =
-      (mounted ? writtenEscalations[thread.id] : undefined) ??
-      data?.escalations[thread.id];
-    return live && live.resolvedAt === null ? live : undefined;
-  }, [thread, mounted, writtenEscalations, data]);
+  /* ═══ MOVED (Tiering & Escalation pack): THE ONE STORE ═══ The merge
+     above now lives in `useTiering`, which the user record and Monitoring
+     read too — so the escalation a mentor sees here is the one in the
+     Tier 1 lane. Same rule: the store's record wins, resolved is history. */
+  const tiering = useTiering(now);
+  const escalation = thread ? tiering.openEscalationFor(thread.id) : undefined;
 
   /** ═══ THE ASSIST LADDER'S INPUTS, AND THE TEEN BEHIND THE THREAD ═══
    *
@@ -329,7 +334,7 @@ export function ChatPage({
     pickedTab && pickedTab.threadId === thread?.id
       ? pickedTab.tab
       : escalation
-        ? "escalation"
+        ? "care"
         : "assist";
   /* ═══ SUPERSEDED (support-beside-hub): THE HUB AND SUPPORT COEXIST ═══
      SUP standing rule 6 was "one right-hand surface at a time", so a reader
@@ -383,6 +388,50 @@ export function ChatPage({
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
   const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
+
+  /** Which tier dialog is up: a supervisor's update, a mentor's request. */
+  const [tierDialog, setTierDialog] = useState<"update" | "step-down" | null>(null);
+
+  /* ═══ WHAT THE CARE TAB READS ═══ */
+  const emergencyInfo = (thread && data?.emergency[thread.id]) || {
+    teenPhone: null,
+    address: null,
+    liveLocation: null,
+    contact: null,
+  };
+  const supervisorFirst =
+    (escalation && DEMO_PEOPLE.find((x) => x.id === escalation.supervisorId)?.name.split(" ")[0]) || "Your supervisor";
+  /** The supervisor's latest word since the escalation opened — their last
+   *  Support message to this mentor. Null until there is one. */
+  const guidance: Guidance | null = useMemo(() => {
+    if (!escalation || !data) return null;
+    const last = [...(data.messages[escalation.supervisorId] ?? [])]
+      .filter((m) => m.sender !== "mentor" && m.text && m.at >= escalation.openedAt)
+      .at(-1);
+    return last?.text ? { text: last.text, from: supervisorFirst, at: last.at } : null;
+  }, [escalation, data, supervisorFirst]);
+  const careReviews = useOnboardingStore((s) => s.careReviews);
+  const careUpdates = useOnboardingStore((s) => s.careUpdates);
+  const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
+  /** ═══ THE CARE BRIEF — A MINIMISED READ OF THE CARE RECORD ═══ The same
+   *  derivations the record's Care tab uses (`presentationFor`,
+   *  `careSummaryFor`), read-only here. */
+  const careBrief: CareBrief = useMemo(() => {
+    const id = thread?.id ?? "";
+    if (!mounted || !thread || thread.kind !== "teen")
+      return { presentation: null, code: null, summary: null, freshAt: null, href: recordHrefFor(id) };
+    const store = { decisions: Object.values(careReviews), updates: Object.values(careUpdates), closures: Object.values(careFlagClosures) };
+    const p = presentationFor(id, now, store);
+    const doc = careSummaryFor(id, now, store);
+    const latest = Object.values(careUpdates).filter((u) => u.teenId === id).sort((a, b) => b.createdAt - a.createdAt)[0];
+    return {
+      presentation: p?.statement ?? null,
+      code: p?.code ?? null,
+      summary: doc?.conversationSummary ?? null,
+      freshAt: latest?.createdAt ?? p?.reviewedAt ?? p?.assignedAt ?? null,
+      href: `${recordHrefFor(id)}?tab=care`,
+    };
+  }, [mounted, thread, careReviews, careUpdates, careFlagClosures, now]);
 
   /** ═══ SENDING WRITES TWO RECORDS, AND NEITHER IS THE OTHER ═══
    *
@@ -490,35 +539,51 @@ export function ChatPage({
    *  it as a fact from the first render. There is no pending state and no "sending"
    *  spinner: in this prototype the notification IS the record, and a spinner would
    *  be theatre over a write that already happened. */
+  /* ═══ SUPERSEDED (Tiering & Escalation pack): THREE DOORS, ONE FLOW ═══
+     Raising used to write the escalation in one press. Now every entry —
+     Care's Escalate, the conversation menu, a message's action — opens the
+     raise flow in the Care tab (pick a tier, say what is happening,
+     confirm), carrying the message it came from. The notification still
+     happens in the same write as the record, on Confirm (`confirmRaise`):
+     the order the old note argued for is unchanged. */
+  const [raise, setRaise] = useState<{ threadId: string; anchorMessageId: string | null } | null>(null);
+  const raising = !!raise && raise.threadId === thread?.id;
   const raiseEscalation = (from: ChatMessage | null) => {
     if (!thread) return;
-    const at = Date.now();
-    putEscalation({
-      id: `esc-${thread.id}-${at}`,
-      threadId: thread.id,
-      openedAt: at,
-      anchorMessageId: from?.id ?? null,
-      supervisorNotifiedAt: at,
-      // TODO-DATA. The lead is the mentor's own, from the supervision edges in
-      // people-demo — not a constant, so it is right when the roster changes.
-      supervisorId: "s-brandy",
-      assessment: {},
-      resolvedAt: null,
-      resolutionNoteId: null,
-    });
+    setRaise({ threadId: thread.id, anchorMessageId: from?.id ?? null });
+    setRailTab("care");
+    setRailMode({ kind: "list" });
+    /* Below `xl` the hub is a drawer — open it, or the flow is invisible
+       (the audit's gap: raising selected the tab and left it closed). */
+    setRailOpen(true);
+  };
+  const confirmRaise = ({ target, note }: { target: RaiseTarget; note: string }) => {
+    if (!thread || !raise) return;
+    const e = tiering.raise({ teenId: thread.id, target, note, anchorMessageId: raise.anchorMessageId });
     appendChatEvent({
-      id: `ev-${thread.id}-${at}`,
+      id: `ev-${thread.id}-${e.openedAt}`,
       threadId: thread.id,
-      at,
+      at: e.openedAt,
       kind: "escalation-opened",
       actorId: LIVE_ID,
-      artifactId: `esc-${thread.id}-${at}`,
+      artifactId: e.id,
       artifactName: "an escalation",
     });
-    // AND PUT THE CHECKLIST IN FRONT OF THEM. Raising it and then leaving a mentor
-    // to find the panel is the moment they most need not to be looking for things.
-    setRailTab("escalation");
-    setRailMode({ kind: "list" });
+    setRaise(null);
+  };
+
+  /** The safety check streams: each answer is written as it is given. */
+  const answerSafety = (questionId: string, value: "yes" | "no") => {
+    if (!escalation) return;
+    const s = safetyOf(escalation);
+    if (s.submittedAt !== null) return;
+    putEscalation({ ...escalation, safetyCheck: { ...s, answers: { ...s.answers, [questionId]: { value, at: Date.now() } } } });
+  };
+  const submitSafety = () => {
+    if (!escalation) return;
+    const s = safetyOf(escalation);
+    if (s.submittedAt !== null) return;
+    putEscalation({ ...escalation, safetyCheck: { ...s, submittedAt: Date.now() } });
   };
 
   /** Checking a step records WHEN. Steps do not un-check — see `AssessmentPanel`. */
@@ -580,7 +645,14 @@ export function ChatPage({
         : [],
       reminderAt: null,
     });
-    putEscalation({ ...escalation, resolvedAt: at, resolutionNoteId: noteId });
+    putEscalation({ ...escalation, resolvedAt: at, resolutionNoteId: noteId, outcomeId: resolution.outcomeId });
+    /* ═══ FOR TIER 1, THE CRISIS NOTE REQUESTS THE STEP DOWN ═══ Tier 2 by
+       default, Tier 3 on "no longer a threat"; a supervisor's confirmation
+       completes it. A mentor never steps a teen down directly. */
+    const down = stepDownFor(escalation, resolution.outcomeId);
+    if (down !== null) {
+      tiering.requestStepDown({ teenId: thread.id, tier: down, reason: `${outcome}. ${resolution.note}`, escalationId: escalation.id, outcomeId: resolution.outcomeId });
+    }
     appendChatEvent({
       id: `ev-${thread.id}-${at}`,
       threadId: thread.id,
@@ -590,9 +662,10 @@ export function ChatPage({
       artifactId: escalation.id,
       artifactName: "the escalation",
     });
-    // BACK TO THE TIMELINE, where the resolution note now is — rather than to a tab
-    // that has just vanished from under the reader.
-    setRailTab("timeline");
+    /* BACK TO CARE, IN ITS STEADY STATE — where History now holds the whole
+       escalation as one story. (It went to Timeline while the escalation tab
+       vanished on resolve; Care does not vanish.) */
+    setRailTab("care");
     setRailMode({ kind: "list" });
   };
 
@@ -674,8 +747,9 @@ export function ChatPage({
                   ? () => openInSupport(escalation.supervisorId)
                   : undefined
               }
+              tone={isAlertTier(escalationTarget(escalation)) ? "critical" : "neutral"}
               onOpenAssessment={() => {
-                setRailTab("escalation");
+                setRailTab("care");
                 setRailMode({ kind: "list" });
                 setRailOpen(true);
               }}
@@ -805,21 +879,38 @@ export function ChatPage({
               />
 
               <CrisisView
-                info={
-                  data?.emergency[thread.id] ?? {
-                    // A thread with no fixture emergency record gets the same
-                    // all-absent shape rather than a missing dialog — every
-                    // scenario has to be able to open this.
-                    teenPhone: null,
-                    address: null,
-                    liveLocation: null,
-                    contact: null,
-                  }
-                }
+                /* A thread with no fixture emergency record gets the all-absent
+                   shape rather than a missing dialog — every scenario has to be
+                   able to open this. */
+                info={emergencyInfo}
                 theirName={thread.displayName.split(" ")[0]}
                 open={crisisOpen}
                 onOpenChange={setCrisisOpen}
               />
+
+              {tierDialog === "update" && observer && (
+                <TierUpdateDialog
+                  open
+                  onOpenChange={(o) => !o && setTierDialog(null)}
+                  state={tiering.stateFor(thread.id)}
+                  name={thread.displayName.split(" ")[0]}
+                  nameOf={tiering.nameOf}
+                  onSetTier={({ tier, reason }) => tiering.setTier({ teenId: thread.id, tier, reason })}
+                  onDecline={(reason) => tiering.decline({ teenId: thread.id, reason })}
+                />
+              )}
+              {tierDialog === "step-down" && !observer && (() => {
+                const from = tiering.stateFor(thread.id).tier;
+                return from === 2 || from === 3 ? (
+                  <StepDownRequestDialog
+                    open
+                    onOpenChange={(o) => !o && setTierDialog(null)}
+                    name={thread.displayName.split(" ")[0]}
+                    from={from}
+                    onRequest={({ tier, reason }) => tiering.requestStepDown({ teenId: thread.id, tier, reason })}
+                  />
+                ) : null;
+              })()}
 
               {escalation && (
                 <ResolveDialog
@@ -915,7 +1006,39 @@ export function ChatPage({
               artifacts={artifacts}
               events={events}
               notes={notes}
-              escalation={escalation}
+              careDot={escalation ? (isAlertTier(escalationTarget(escalation)) ? "alert" : "neutral") : null}
+              care={
+                <CarePanel
+                  teenId={thread.id}
+                  name={thread.displayName.split(" ")[0]}
+                  now={now}
+                  tiering={tiering}
+                  escalation={escalation}
+                  observer={!!observer}
+                  raising={raising}
+                  onStartRaise={() => raiseEscalation(null)}
+                  onCancelRaise={() => setRaise(null)}
+                  onConfirmRaise={confirmRaise}
+                  onCheckStep={checkStep}
+                  onUseWording={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))}
+                  onAnswerSafety={answerSafety}
+                  onSubmitSafety={submitSafety}
+                  onOpenCrisis={() => setCrisisOpen(true)}
+                  onResolve={() => setResolveOpen(true)}
+                  onUpdateTier={() => setTierDialog("update")}
+                  onRequestStepDown={() => setTierDialog("step-down")}
+                  guidance={guidance}
+                  supervisorName={supervisorFirst}
+                  onReplyInSupport={
+                    !observer && escalation && canOpenInSupport(escalation.supervisorId)
+                      ? () => openInSupport(escalation.supervisorId)
+                      : undefined
+                  }
+                  presence={presence}
+                  emergency={emergencyInfo}
+                  brief={careBrief}
+                />
+              }
               assist={assist}
               matchedFor={matchedFor}
               now={now}
@@ -939,14 +1062,9 @@ export function ChatPage({
                  navigate. Implemented as a DOM scroll rather than as state,
                  because the target is a rendered list item and the transcript's
                  own scroller is the thing that has to move. */
-              onCheckStep={checkStep}
-              /* PUTS THE SUGGESTED WORDING IN THE COMPOSER, unsent. The mentor still
-                 presses Send — nothing reaches a teen that a mentor did not send. */
-              onUseWording={(text) =>
-                setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))
-              }
-              onOpenCrisis={() => setCrisisOpen(true)}
-              onResolveEscalation={() => setResolveOpen(true)}
+              /* THE SUGGESTED WORDING goes in the composer, unsent — through the
+                 Care panel's `onUseWording` above. Nothing reaches a teen that a
+                 mentor did not press Send on. */
               onOpenReference={(r) => {
                 const el = document.getElementById(`msg-${r.messageId}`);
                 el?.scrollIntoView({ block: "center", behavior: "smooth" });

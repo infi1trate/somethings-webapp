@@ -194,11 +194,15 @@ export function MessageActions({
                 </button>
               )}
               {onEscalate && (
-                /* ═══ LAST IN THE MENU, AND THE ONLY TINTED ITEM ═══
-                   Last because a menu whose most consequential item sits beside six
-                   one-tap reactions is a menu somebody mis-presses. Tinted because
-                   at the moment a mentor needs it they are not reading — they are
-                   looking for the red one, and everything else here is neutral. */
+                /* ═══ LAST IN THE MENU ═══ Last because a menu whose most
+                   consequential item sits beside six one-tap reactions is a menu
+                   somebody mis-presses.
+                   ═══ SUPERSEDED: NO LONGER RED (Tiering & Escalation pack) ═══ It
+                   was tinted so a mentor "looking for the red one" would find it.
+                   The canon spends red on Tier 1–2 contexts and the 911 call
+                   alone, and this opens the raise flow before a tier is chosen —
+                   so it is neutral, marked by the shield glyph, its separator and
+                   its place last. The cost, stated: colour no longer finds it. */
                 <button
                   type="button"
                   role="menuitem"
@@ -213,7 +217,7 @@ export function MessageActions({
                   }}
                   className={cn(
                     "flex size-8 items-center justify-center rounded-full transition-colors",
-                    "text-[var(--alert-critical-accent)] hover:bg-[var(--alert-critical-bg)]",
+                    "text-[var(--text-primary)] hover:bg-[var(--tint-hover)]",
                     RING
                   )}
                 >

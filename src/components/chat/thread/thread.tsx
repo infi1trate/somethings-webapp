@@ -476,12 +476,17 @@ export function Thread({
  *  rather than inside the conversation pane. */
 export function EscalationBanner({
   escalation,
+  tone = "critical",
   onOpenAssessment,
   onOpenSupervisor,
   onOpenCrisis,
   onResolveEscalation,
 }: {
   escalation: EscalationState;
+  /** ═══ RED ONLY FOR TIER 1–2 (Tiering & Escalation pack) ═══ A Tier 3 or
+   *  Platform safety escalation is still announced, as the one banner, but in
+   *  the neutral tone — alert colour is spent on Tiers 1–2 alone. */
+  tone?: "critical" | "neutral";
   onOpenAssessment?: () => void;
   onOpenSupervisor?: () => void;
   onOpenCrisis?: () => void;
@@ -489,7 +494,7 @@ export function EscalationBanner({
 }) {
   return (
     <StatusBanner
-      tone="critical"
+      tone={tone}
       glyph={ShieldAlert}
       /* TODO-COPY. Present tense, because the state is present. */
       title="Escalation open"
@@ -526,16 +531,16 @@ export function EscalationBanner({
           A mentor pressing something on this banner in a hurry is reaching for
           the phone numbers. The checklist is the considered path and sits
           second. */}
-      <BannerButton tone="critical" primary onClick={onOpenCrisis} data-slot="banner-crisis">
+      <BannerButton tone={tone} primary onClick={onOpenCrisis} data-slot="banner-crisis">
         {/* TODO-COPY */}
         Emergency info
       </BannerButton>
-      <BannerButton tone="critical" onClick={onOpenAssessment} data-slot="banner-assessment">
+      <BannerButton tone={tone} onClick={onOpenAssessment} data-slot="banner-assessment">
         {/* TODO-COPY. Names the count so a mentor returning knows where they
             got to without opening it. */}
         Checklist
       </BannerButton>
-      <BannerButton tone="critical" onClick={onResolveEscalation} data-slot="banner-resolve">
+      <BannerButton tone={tone} onClick={onResolveEscalation} data-slot="banner-resolve">
         {/* TODO-COPY */}
         Resolve
       </BannerButton>
