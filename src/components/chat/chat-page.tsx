@@ -42,7 +42,6 @@ import { markSupportRead } from "@/lib/support/outbox";
 import { supportThread } from "@/lib/support/threads";
 import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
-import { CrisisView } from "@/components/chat/escalation/crisis-view";
 import { chatScenario } from "@/lib/chat/seed";
 import { activityById } from "@/lib/chat/activities";
 import { relLength, teenAsMentee } from "@/lib/record/mentees-demo";
@@ -62,7 +61,7 @@ import type {
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
-import { CarePanel, type CareBrief } from "@/components/chat/rail/care";
+import { CarePanel, type CareBrief, type CareTab } from "@/components/chat/rail/care";
 import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
 import { useTiering } from "@/lib/tiering/use-tiering";
 import { workingTier } from "@/lib/tiering/escalation";
@@ -145,7 +144,12 @@ export function ChatPage({
    *  so there is no second copy to fall out of step with the URL — and a browser
    *  back is a route change, which means it just works rather than needing a
    *  popstate listener. */
-  const view: "list" | "thread" = personId ? "thread" : "list";
+  /** ═══ A SUPERVISOR'S CHAT HAS NO LIST (pack v3.0, Workstream A) ═══
+   *  Chats left the supervisor-tier nav: they arrive from a Monitoring entry,
+   *  so the route is one conversation — a wider thread and the Care panel —
+   *  with "← Monitoring" as the way back, at every width. */
+  const listless = isSupervisorTier(persona);
+  const view: "list" | "thread" = personId || listless ? "thread" : "list";
   /** ═══ CLOSED BY DEFAULT, WHICH ONLY MATTERS BELOW `xl` ═══
    *  At `xl` the rail is a grid track and this flag does nothing — the class that
    *  reads it is `!railOpen && "hidden xl:@min-[1000px]/canvas:block"`, so `xl`
@@ -394,7 +398,22 @@ export function ChatPage({
     return () => setSupportPinned(null);
   }, [pinMentor, pinnedName, pinnedShort]);
   const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
-  const [crisisOpen, setCrisisOpen] = useState(false);
+  /** ═══ THE CARE PANEL'S TAB, HELD HERE (pack v3.0, Workstream B) ═══
+   *  Because the banner's "Emergency info" opens it on a tab. Stored WITH the
+   *  thread it was picked on, as `pickedTab` is, so a new conversation opens on
+   *  Overview with no effect to reset it. */
+  const [pickedCareTab, setPickedCareTab] = useState<{ threadId: string; tab: CareTab } | null>(null);
+  const careTab: CareTab = pickedCareTab && pickedCareTab.threadId === thread?.id ? pickedCareTab.tab : "overview";
+  const setCareTab = (tab: CareTab) => {
+    if (thread) setPickedCareTab({ threadId: thread.id, tab });
+  };
+  /** Open the hub on Care, on a given tab — the drawer too, below `xl`. */
+  const openCare = (tab: CareTab) => {
+    setRailTab("care");
+    setCareTab(tab);
+    setRailMode({ kind: "list" });
+    setRailOpen(true);
+  };
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
   const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
@@ -557,11 +576,10 @@ export function ChatPage({
   const raiseEscalation = (from: ChatMessage | null) => {
     if (!thread) return;
     setRaise({ threadId: thread.id, anchorMessageId: from?.id ?? null });
-    setRailTab("care");
-    setRailMode({ kind: "list" });
-    /* Below `xl` the hub is a drawer — open it, or the flow is invisible
-       (the audit's gap: raising selected the tab and left it closed). */
-    setRailOpen(true);
+    /* The raise flow is an Overview takeover. Below `xl` the hub is a drawer —
+       `openCare` opens it, or the flow is invisible (the audit's gap: raising
+       selected the tab and left it closed). */
+    openCare("overview");
   };
   const confirmRaise = ({ target, note }: { target: RaiseTarget; note: string }) => {
     if (!thread || !raise) return;
@@ -645,10 +663,12 @@ export function ChatPage({
                  for staff: their nav is 248, not the Figma's 232). The 600
                  canvas guard keeps 300 a pane. */
               "min-[1120px]:@min-[600px]/canvas:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] min-[1120px]:@min-[600px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
-            : [
-                "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)] md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
-                "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
-              ]
+            : listless
+              ? "xl:@min-[1000px]/canvas:grid-cols-[minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+              : [
+                  "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)] md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
+                  "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
+                ]
         )}
       >
         {/* ── THE ACTION BAR SLOT: the banner spans thread + hub ─────────── */}
@@ -663,18 +683,16 @@ export function ChatPage({
               }
               /* The WORKING tier — a supervisor's adjustment recolours it. */
               tone={isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "critical" : "neutral"}
-              onOpenAssessment={() => {
-                setRailTab("care");
-                setRailMode({ kind: "list" });
-                setRailOpen(true);
-              }}
-              onOpenCrisis={() => setCrisisOpen(true)}
+              /* ═══ THE ONE EMERGENCY ENTRY (pack v3.0, Supersessions 5–6) ═══
+                 "Open Care" is gone and the in-panel red button with it; the
+                 chip opens Care on its Emergency info tab, both lenses. */
+              onOpenCrisis={() => openCare("emergency")}
             />
           </div>
         )}
 
-        {/* ── LIST ──────────────────────────────────────────────────────── */}
-        <ConversationList
+        {/* ── LIST ── (none for the supervisor tier — see `listless`) ───── */}
+        {!listless && <ConversationList
           threads={threads}
           now={now}
           selectedId={thread?.id ?? null}
@@ -694,7 +712,7 @@ export function ChatPage({
                Back to chats, in the conversation header, brings it back. */
             beside && "!hidden"
           )}
-        />
+        />}
 
         {/* ── THREAD ────────────────────────────────────────────────────── */}
         <div
@@ -708,7 +726,26 @@ export function ChatPage({
               Support open below the two-column floor, at `/app/chat`, which at
               this width renders this same conversation. Closing Support is the
               way back to the list there. */}
-          {view === "thread" && !beside && (
+          {listless ? (
+            /* ═══ BACK TO MONITORING, AT EVERY WIDTH ═══ The way in was a
+               Monitoring entry, and with no list on this route it is the
+               only way back that names its destination. A link, for the
+               same reason as "All conversations" below. */
+            <Link
+              href="/app/monitoring"
+              data-slot="chat-back-monitoring"
+              className={cn(
+                "flex min-h-11 shrink-0 items-center gap-1.5 border-b border-[color:var(--border-subtle)] bg-[var(--surface-card)] px-4 text-[var(--text-secondary)]",
+                "hover:text-[var(--text-primary)]",
+                RING
+              )}
+              style={{ font: "var(--type-body)" }}
+            >
+              <ArrowLeft className="size-4 shrink-0" aria-hidden />
+              {/* TODO-COPY */}
+              Monitoring
+            </Link>
+          ) : view === "thread" && !beside && (
             /* ═══ A LINK, BECAUSE THREE GESTURES HAVE TO LAND ON THE LIST ═══
                Browser back, the Android system back gesture and iOS swipe-back
                all navigate — none of them fire an onClick. A button could only
@@ -802,15 +839,6 @@ export function ChatPage({
                 onRescind={rescind}
               />
 
-              <CrisisView
-                /* A thread with no fixture emergency record gets the all-absent
-                   shape rather than a missing dialog — every scenario has to be
-                   able to open this. */
-                info={emergencyInfo}
-                theirName={thread.displayName.split(" ")[0]}
-                open={crisisOpen}
-                onOpenChange={setCrisisOpen}
-              />
 
               {tierDialog === "update" && observer && (
                 <TierUpdateDialog
@@ -935,7 +963,9 @@ export function ChatPage({
                   onCancelRaise={() => setRaise(null)}
                   onConfirmRaise={confirmRaise}
                   onUseWording={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))}
-                  onOpenCrisis={() => setCrisisOpen(true)}
+                  tab={careTab}
+                  onTab={setCareTab}
+                  dot={escalation ? (isAlertTier(workingTier(escalation, tiering.stateFor(thread.id))) ? "alert" : "neutral") : null}
                   onUpdateTier={() => setTierDialog("update")}
                   onRequestStepDown={() => setTierDialog("step-down")}
                   supervisorName={supervisorFirst}

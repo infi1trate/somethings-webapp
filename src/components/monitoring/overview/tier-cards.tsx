@@ -16,6 +16,8 @@
 // OPEN is a stub: there is no teen record in the prototype yet.
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { useWindowedRange } from "@/lib/ui/use-windowed-range";
 import { ShowAll } from "@/components/monitoring/overview/tier-list";
@@ -184,17 +186,22 @@ function Card({ teen, measure }: { teen: MonitoringTeen; measure?: (el: HTMLElem
           {/* TODO-COPY */}
           {teen.reviewReason ?? "No review due"}
         </span>
-        <button
-          type="button"
-          data-card-open
-          /* TODO(monitoring): Open › hands off to the teen's record, which
-             the prototype does not have yet. A no-op until it does. */
-          onClick={() => {}}
-          aria-label={`Open ${teen.teen}`}
-          className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full px-2 text-[12px] font-medium text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
-        >
-          Open ›
-        </button>
+        {/* ═══ OPEN › GOES SOMEWHERE (pack v3.0) ═══ The conversation, or
+            the record where there is no thread; absent when there is neither
+            — a no-op button was a door that did not open. */}
+        {(() => {
+          const link = monitoringEntryHref(teen);
+          return link ? (
+            <Link
+              href={link.href}
+              data-card-open={link.kind}
+              aria-label={`Open ${teen.teen}${link.kind === "conversation" ? "'s conversation" : "'s record"}`}
+              className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full px-2 text-[12px] font-medium text-[var(--text-primary)] hover:bg-[var(--tint-hover)]", RING)}
+            >
+              Open ›
+            </Link>
+          ) : null;
+        })()}
       </footer>
     </article>
   );

@@ -511,9 +511,18 @@ const ENGINE = `(() => {
   await page.locator("[data-alert-ack]").click();
   await page.waitForTimeout(300);
   check(!(await page.$("[data-alert-strip]")) && !!(await page.$("[data-t1-live]")), "Acknowledge ends the strip; the lane stays live");
+  /* ═══ JOIN GOES INTO THE CONVERSATION (pack v3.0, Workstream A) ═══ It
+     was a no-op with a TODO; with Chats gone from a supervisor's nav it is
+     their door into the chat. So the claim is now two: it lands on the
+     conversation, and coming back does not raise the answered strip. */
   await page.locator("[data-t1-join]").click();
-  await page.waitForTimeout(500);
-  check(!(await page.$("[data-alert-strip]")), "Join from the lane does not raise an answered strip");
+  await page.waitForURL(/\/app\/chat\/t13$/, { timeout: 8000 }).catch(() => {});
+  check(new URL(page.url()).pathname === "/app/chat/t13", "Join lands on Jordan's conversation", new URL(page.url()).pathname);
+  /* BACK, not a fresh load: the answered state is this session's, and a
+     reload is a new session. */
+  await page.goBack({ waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  check(!(await page.$("[data-alert-strip]")), "and back on Monitoring, the answered strip does not come back");
 
   /* A NEW ALERT is a new strip, on a fresh clock. */
   await setMode(page, "monitor");
@@ -611,7 +620,8 @@ for (const layout of ["list", "cards"]) {
       };
     });
   const n = await nav();
-  check(n.group === "Monitoring" && n.items.map((i) => i.text).join("|") === "Monitoring|Chats", "the Monitoring group holds Monitoring and Chats, in that order", JSON.stringify(n.items.map((i) => i.text)));
+  /* Chats left the supervisor's nav (pack v3.0, Supersession 7). */
+  check(n.group === "Monitoring" && n.items.map((i) => i.text).join("|") === "Monitoring", "the Monitoring group holds Monitoring alone — no Chats", JSON.stringify(n.items.map((i) => i.text)));
   check(n.items[0]?.href === "/app/monitoring" && n.items[0].current === "page", "Monitoring is the current page, at /app/monitoring", JSON.stringify(n.items[0]));
   check(n.stale.length === 0, "no Escalations or Risk Flags item anywhere in the rail", n.stale.join(","));
   check(n.items[0]?.badge === "4" && n.items[0].sr === "4 needing review", "Monitor: the badge is teens needing review (4), and says so to a screen reader", `${n.items[0]?.badge} · ${n.items[0]?.sr}`);

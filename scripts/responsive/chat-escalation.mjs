@@ -132,9 +132,11 @@ console.log("\n── the banner @ escalation-active");
      checklist is the assessment in Care, and the mentor no longer resolves —
      the supervisor closes, so a Resolve here would be a door that is not
      theirs. */
+  /* SUPERSEDED AGAIN (pack v3.0, Supersession 6): "Open Care" is gone too —
+     the Care tab is a tap away and carries the dot. One action remains. */
   check(
-    banner.buttons.map((x) => x.slot).join() === "banner-crisis,banner-assessment",
-    "crisis first, then Open Care — and no Resolve",
+    banner.buttons.map((x) => x.slot).join() === "banner-crisis",
+    "one action: Emergency info — no Open Care, no Resolve",
     banner.buttons.map((x) => x.text).join(" | ")
   );
   await p.context().close();
@@ -257,9 +259,14 @@ console.log("\n── the crisis view @ escalation-active");
          this is a young mentor waiting to be sure enough. */
       permission: /do not need to be certain/i.test(d.innerText),
       rows: [...d.querySelectorAll("p")].map((x) => x.textContent.trim()),
+      /* A TAB, NOT A DIALOG (pack v3.0, Supersession 5). */
+      inTab: !!d.closest('[data-care-tabpanel="emergency"]'),
+      dialog: !!d.closest('[role="dialog"]'),
+      tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab,
     };
   })()`);
   check(!!crisis, "the crisis view opened");
+  check(crisis.inTab && !crisis.dialog && crisis.tab === "emergency", "the banner chip opens Care on its Emergency info tab — not a dialog", JSON.stringify({ inTab: crisis.inTab, dialog: crisis.dialog, tab: crisis.tab }));
   check(crisis.callIsLink, "911 is a link, not a button");
   check(crisis.callHref === "tel:911", "pointing at the dialer", String(crisis.callHref));
   check(/^Call 911$/.test(crisis.callLabel ?? ""), "and the number IS the label", String(crisis.callLabel));
@@ -447,6 +454,9 @@ console.log("\n── closing @ escalation-active");
   check(resolved.stage === "M4" && /Tier 3 confirmed/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
   await p.locator('[data-exchange-primary="back-to-care"]').click();
   await p.waitForTimeout(400);
+  /* History is a Care tab of its own now (pack v3.0). */
+  await p.locator('[data-care-tab="history"]').click();
+  await p.waitForTimeout(200);
   const story = await p.evaluate(`document.querySelector("[data-escalation-story]")?.innerText.replace(/\\s+/g, " ") ?? ""`);
   check(/tier update/.test(story), "and History keeps the account as one story", story.slice(0, 100));
 

@@ -167,22 +167,27 @@ console.log("\n── 2 · TierCard, five states, two hosts");
 }
 
 // ── 4 · SUB-SECTIONS, BY KEYBOARD ─────────────────────────────────────────
-console.log("\n── 4 · the Care sub-sections");
+/* ═══ RETARGETED (pack v3.0, Workstream B) ═══ The four mid-panel sub-chips
+   are five first-class tabs at the top of the panel, Overview first. */
+console.log("\n── 4 · the Care tabs");
 {
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const chips = await page.evaluate(() => [...document.querySelectorAll("[data-care-sub]")].map((c) => c.textContent));
-  check(chips.join("|") === "History|Safety plan|Emergency info|Resources", "History · Safety plan · Emergency info · Resources, sentence case", chips.join(" · "));
-  await page.locator('[data-care-sub="history"]').focus();
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: document.querySelector("[data-care-panel]")?.firstElementChild?.matches("[data-care-tabs]"), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, at the top, on Overview", JSON.stringify(tabs));
+  const sub = await page.evaluate(() => document.querySelectorAll("[data-care-sub]").length);
+  check(sub === 0, "and the mid-panel sub-chips are gone", `${sub}`);
+  await page.locator('[data-care-tab="overview"]').focus();
   const seen = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(80);
-    seen.push(await page.evaluate(() => ({ focus: document.activeElement?.dataset.careSub, sel: document.querySelector('[data-care-sub][aria-selected="true"]')?.dataset.careSub })));
+    seen.push(await page.evaluate(() => ({ focus: document.activeElement?.dataset.careTab, sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, panel: document.querySelector("[data-care-tabpanel]")?.dataset.careTabpanel })));
   }
-  check(seen.map((s) => s.sel).join() === "safety-plan,emergency,resources" && seen.every((s) => s.focus === s.sel), "arrow keys move selection and focus together", JSON.stringify(seen));
-  /* Resources → one ArrowLeft → Emergency info. */
+  check(seen.map((s) => s.sel).join() === "safety-plan,emergency,resources,history" && seen.every((s) => s.focus === s.sel && s.panel === s.sel), "arrow keys move selection, focus and the panel together", JSON.stringify(seen));
+  /* History → two ArrowLeft → Emergency info. */
+  await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
   await page.waitForTimeout(100);
   const emerg = await page.evaluate(() => document.querySelector("[data-emergency-info]")?.innerText ?? "");
@@ -285,7 +290,9 @@ for (const tier of ["3", "platform", "1"]) {
   const st = await page.evaluate(() => ({
     tone: document.querySelector('[data-slot="status-banner"]')?.dataset.tone,
     dot: document.querySelector("[data-care-dot]")?.dataset.careDot,
-    emergency: getComputedStyle(document.querySelector("[data-care-emergency]")).backgroundColor,
+    /* The in-panel Emergency information button is gone (pack v3.0); the
+       banner's Emergency info chip is the one entry, and carries the tone. */
+    emergency: getComputedStyle(document.querySelector('[data-slot="banner-crisis"]')).backgroundColor,
     assessment: !!document.querySelector("[data-assessment]"),
     stage: document.querySelector("[data-exchange]")?.dataset.stage,
   }));
@@ -503,7 +510,11 @@ console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at 
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
   await page.locator('[data-exchange-primary="back-to-care"]').click();
   await page.waitForTimeout(400);
-  const after = await page.evaluate(() => ({ state: document.querySelector("[data-care-state]")?.dataset.careState, story: document.querySelector("[data-escalation-story]")?.innerText.replace(/\s+/g, " ") }));
+  const steadyNow = await page.evaluate(() => ({ state: document.querySelector("[data-care-state]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  /* History is its own tab now (pack v3.0); Back to Care lands on Overview. */
+  await page.locator('[data-care-tab="history"]').click();
+  await page.waitForTimeout(200);
+  const after = { state: steadyNow.tab === "overview" ? steadyNow.state : `on ${steadyNow.tab}`, story: await page.evaluate(() => document.querySelector("[data-escalation-story]")?.innerText.replace(/\s+/g, " ")) };
   const seen = (await store(page)).escalationHistory.concat(Object.values((await store(page)).escalations)).find((e) => e.id === "esc-t13")?.wrapSeenAt;
   check(after.state === "steady" && typeof seen === "number", "Back to Care: steady, and the wrap is marked seen on the record", JSON.stringify({ state: after.state, seen }));
   check(/Raised .+→ assessed \(high risk\) → Tier 1 confirmed → mobile crisis responded → stepped down to Tier 3/.test(after.story ?? ""), "History tells the whole escalation in one line", after.story?.slice(0, 120));

@@ -82,7 +82,11 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   console.log(`\n── ${persona} at 1512`);
   const { ctx, page } = await open(persona, 1512, { dpr: persona === "supervisor" ? 2 : 1 });
   const c = await geo(page);
-  check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 360, "closed: list 300 · conversation · hub 360", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  /* ═══ A SUPERVISOR'S CHAT HAS NO LIST (pack v3.0, Workstream A) ═══ They
+     arrive from Monitoring; the route is the conversation and the hub. */
+  const listless = persona === "supervisor" || persona === "admin";
+  if (listless) check(c.layout === "list" && c.list === null && c.hub?.w === 360, "closed: no list — conversation · hub 360", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
+  else check(c.layout === "list" && c.list?.w === 300 && c.hub?.w === 360, "closed: list 300 · conversation · hub 360", JSON.stringify({ list: c.list?.w, thread: c.thread?.w, hub: c.hub?.w }));
   check(c.banner && c.banner.x === c.thread.x && Math.abs(c.banner.r - c.hub.r) <= 1, "closed: the banner spans conversation + hub, not the list", JSON.stringify({ banner: c.banner, thread: c.thread?.x, hubR: c.hub?.r }));
 
   /* The hub's identity and tab, before Support opens. */
@@ -109,7 +113,8 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
     tab: document.querySelector('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')?.dataset.railTab,
     open: document.querySelector("[data-support-slot]").dataset.open,
   }));
-  check(kept.open === "false" && back.list?.w === 300 && back.hub?.w === 360, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  if (listless) check(kept.open === "false" && back.list === null && back.hub?.w === 360, "Back closes Support, and the list-less layout returns", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
+  else check(kept.open === "false" && back.list?.w === 300 && back.hub?.w === 360, "Back to chats closes Support and restores the list", JSON.stringify({ list: back.list?.w, hub: back.hub?.w }));
   check(kept.node === "same-hub" && kept.tab === "timeline", "the hub's tab survives the round trip", JSON.stringify(kept));
   await ctx.close();
 }
@@ -119,7 +124,8 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   console.log("\n── the split surface, the hub header (mentor at 1512)");
   const { ctx, page } = await open("mentor", 1512, { dpr: 2 });
   const hdr = await page.evaluate(() => {
-    const tabs = [...document.querySelectorAll('[data-slot="chat-rail"] [role="tab"]')].map((t) => {
+    /* The HUB's tabs — Care has its own tablist inside the panel now (pack v3.0). */
+    const tabs = [...document.querySelectorAll('[data-slot="chat-rail"] [role="tab"][data-rail-tab]')].map((t) => {
       const r = t.getBoundingClientRect();
       const s = getComputedStyle(t);
       return { t: t.dataset.railTab, w: Math.round(r.width), h: Math.round(r.height), radius: parseFloat(s.borderTopLeftRadius), bg: s.backgroundColor, border: s.borderTopColor, selected: t.getAttribute("aria-selected"), x: Math.round(r.left), right: Math.round(r.right), name: t.textContent.trim() };
@@ -165,13 +171,13 @@ for (const persona of ["mentor", "lead-mentor", "supervisor", "admin"]) {
   /* KEYBOARD ORDER, and Esc from the support composer */
   const order = await page.evaluate(() => {
     const a = document.querySelector('[data-slot="chat-back-to-chats"]');
-    const h = document.querySelector('[data-slot="chat-rail"] [role="tab"][tabindex="0"]');
+    const h = document.querySelector('[data-slot="chat-rail"] [role="tab"][data-rail-tab][tabindex="0"]');
     const s = document.querySelector("#support-panel [data-support-back]");
     const before = (x, y) => !!(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);
     return { ok: before(a, h) && before(h, s) };
   });
   check(order.ok, "focus order: conversation header → hub header → support header");
-  await page.locator('[data-slot="chat-rail"] [role="tab"][tabindex="0"]').focus();
+  await page.locator('[data-slot="chat-rail"] [role="tab"][data-rail-tab][tabindex="0"]').focus();
   let reached = false;
   for (let i = 0; i < 60 && !reached; i++) {
     await page.keyboard.press("Tab");

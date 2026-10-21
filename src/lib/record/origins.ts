@@ -40,6 +40,9 @@ interface OriginDef {
  *  one breaks links people have already shared, so treat them as a contract. */
 const ORIGINS: Record<string, OriginDef> = {
   mentees: { href: "/app/mentees", label: "Mentees" },
+  /* pack v3.0: a supervisor reaches a record from a Monitoring entry whose
+     teen has no conversation here. */
+  monitoring: { href: "/app/monitoring", label: "Monitoring" },
   team: { href: "/app/team", label: "Team" },
   teens: { href: "/admin/users?tab=teens", label: "Teens" },
   mentors: { href: "/admin/users", label: "Mentors" },

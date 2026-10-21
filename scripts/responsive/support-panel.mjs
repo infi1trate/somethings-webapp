@@ -335,7 +335,9 @@ const SURFACES = [
   },
 ];
 const expectClosed = {
-  chat: (vw) => (vw >= 1280 ? 3 : vw >= 960 ? 2 : 1),
+  /* SUPERVISOR, so NO LIST (pack v3.0, Workstream A): the conversation and,
+     from xl on a 1000 canvas, the hub — two tracks, never three. */
+  chat: (vw, cw) => (vw >= 1280 && cw >= 1000 ? 2 : 1),
   "care-reviews": (vw) => (vw >= 1280 ? 2 : 1),
   /* Read off the canvas, not the viewport (`@container/canvas`). */
   monitoring: (vw, cw) => (cw >= 880 ? 5 : cw >= 520 ? 3 : 2),

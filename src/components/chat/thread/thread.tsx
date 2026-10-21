@@ -493,7 +493,6 @@ export function Thread({
 export function EscalationBanner({
   escalation,
   tone = "critical",
-  onOpenAssessment,
   onOpenSupervisor,
   onOpenCrisis,
 }: {
@@ -502,7 +501,6 @@ export function EscalationBanner({
    *  Platform safety escalation is still announced, as the one banner, but in
    *  the neutral tone — alert colour is spent on Tiers 1–2 alone. */
   tone?: "critical" | "neutral";
-  onOpenAssessment?: () => void;
   onOpenSupervisor?: () => void;
   onOpenCrisis?: () => void;
 }) {
@@ -541,22 +539,17 @@ export function EscalationBanner({
         )
       }
     >
-      {/* ═══ CRISIS INFO IS THE PRIMARY, NOT THE ASSESSMENT ═══
+      {/* ═══ CRISIS INFO IS THE BANNER'S ONE ACTION ═══
           A mentor pressing something on this banner in a hurry is reaching for
-          the phone numbers. The checklist is the considered path and sits
-          second. */}
+          the phone numbers. It opens Care on the Emergency info tab (pack
+          v3.0), where 911 is first. */}
       <BannerButton tone={tone} primary onClick={onOpenCrisis} data-slot="banner-crisis">
         {/* TODO-COPY */}
         Emergency info
       </BannerButton>
-      {/* ═══ "CHECKLIST" → "CARE", AND NO RESOLVE (pack v2.0) ═══ The checklist
-          is gone into the sequential assessment, which lives in Care; and the
-          mentor no longer resolves — the supervisor closes, so the banner has
-          no Resolve. */}
-      <BannerButton tone={tone} onClick={onOpenAssessment} data-slot="banner-assessment">
-        {/* TODO-COPY */}
-        Open Care
-      </BannerButton>
+      {/* ═══ "OPEN CARE" IS GONE (pack v3.0, Supersession 6) ═══ The Care tab
+          is a tap away and already carries the escalation dot; a second door
+          to it was chrome. No Resolve either — the supervisor closes. */}
     </StatusBanner>
   );
 }

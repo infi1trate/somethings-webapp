@@ -572,7 +572,6 @@ export function EscalationExchange({
   supervisorName,
   presence,
   onUseWording,
-  onOpenCrisis,
   onReplyInSupport,
   teenLines,
   mentorLines,
@@ -586,7 +585,6 @@ export function EscalationExchange({
   supervisorName: string;
   presence?: string;
   onUseWording: (text: string) => void;
-  onOpenCrisis: () => void;
   onReplyInSupport?: () => void;
   teenLines: string[];
   mentorLines: string[];
@@ -598,7 +596,6 @@ export function EscalationExchange({
 }) {
   const state = tiering.stateFor(teenId);
   const tier = workingTier(e, state);
-  const red = isAlertTier(tier);
   const a = assessmentOf(e);
   const risk = riskLevel(a.answers);
   const mStage = mentorStage(e, state);
@@ -729,25 +726,9 @@ export function EscalationExchange({
         {lens === "supervisor" && sStage === "S4" && <SupervisorClose e={e} name={name} tiering={tiering} teenId={teenId} onSettled={onSettled} />}
       </div>
 
-      {/* ── (d) THE PINNED ROW ───────────────────────────────────────────── */}
-      {stage !== "M4" && (
-        <div data-pinned className="border-t border-[color:var(--border-subtle)] pt-3">
-          <button
-            type="button"
-            data-care-emergency
-            onClick={onOpenCrisis}
-            className={cn(
-              "flex min-h-10 w-full items-center justify-center gap-2 rounded-full transition-opacity hover:opacity-90",
-              red ? "bg-[var(--alert-critical-accent)] text-[var(--text-inverse)]" : "border border-[color:var(--border-contour)] text-[var(--text-primary)]",
-              RING
-            )}
-            style={{ font: "var(--type-button)" }}
-          >
-            {/* TODO-COPY */}
-            Emergency information
-          </button>
-        </div>
-      )}
+      {/* ── (d) THE PINNED ROW IS GONE (pack v3.0, Supersession 5) ─────────
+          Its red "Emergency information" doubled the banner's chip. The chip
+          is the one entry and opens Care on the Emergency info tab. */}
     </section>
   );
 }
