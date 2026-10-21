@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { assessmentProgress, checkedCount, ASSESSMENT } from "@/lib/chat/assessment";
 import type { EscalationState } from "@/lib/chat/types";
+import { NO_THREAT_OUTCOME, escalationTarget, stepDownFor } from "@/lib/tiering/escalation";
 import { cn } from "@/lib/utils";
 
 const RING =
@@ -60,6 +61,10 @@ const OUTCOMES: Array<{ id: string; label: string }> = [
   { id: "supervisor", label: "My supervisor has taken it from here" },
   { id: "services", label: "Emergency services were called" },
   { id: "settled", label: "They are safe and we have a plan" },
+  /* ═══ ADDED (Tiering & Escalation pack, Phase 3) ═══ The canon's one
+     outcome that lets a Tier 1 crisis note exit to Tier 3 rather than
+     Tier 2 (`stepDownFor`). The id is the constant the tier rule reads. */
+  { id: NO_THREAT_OUTCOME, label: "The danger has passed — they're no longer a threat to themselves" },
 ];
 
 export function ResolveDialog({
@@ -91,6 +96,16 @@ export function ResolveDialog({
             {/* TODO-COPY. Names who reads it, which is what changes how it is
                 written. */}
             Your lead and your supervisor will read this.
+            {/* ═══ FOR TIER 1 THIS IS THE CRISIS NOTE ═══ The only way out of
+                Tier 1, so it says so: submitting asks for the step down, and
+                a supervisor's confirmation completes it. */}
+            {escalationTarget(escalation) === 1 && (
+              <span data-crisis-note className="mt-1 block">
+                {/* TODO-COPY */}
+                For Tier 1 this is the crisis note. Submitting asks your supervisor to step {theirName} down to Tier{" "}
+                {outcome ? stepDownFor(escalation, outcome) : 2}.
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

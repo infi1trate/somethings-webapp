@@ -591,6 +591,20 @@ const ESCALATION: ScenarioBuild = {
     },
     resolvedAt: null,
     resolutionNoteId: null,
+    /* TIERING (pack v1.0): raised as a Tier 1 crisis, still awaiting a
+       supervisor's confirmation on the placement, the safety check two
+       answers in — the pack's "active Tier 1 with partial safety check". */
+    requested: 1,
+    /* TODO-COPY */
+    contextNote: "Jordan said they don't know how much longer they can keep doing this. Things at home are bad again.",
+    safetyCheck: {
+      answers: {
+        "cssrs-1": { value: "yes", at: now - 212 * MINUTE },
+        "cssrs-2": { value: "no", at: now - 209 * MINUTE },
+      },
+      submittedAt: null,
+    },
+    outcomeId: null,
   }),
 };
 
@@ -777,6 +791,19 @@ function supportThread(id: string, messages: ChatMessage[]): ChatThread {
 }
 
 /** Build a scenario. `now` is the caller's clock — see the module note. */
+/** ═══ THE SCENARIO'S ESCALATIONS ALONE ═══ What `lib/tiering` reads, so the
+ *  user record and Monitoring see the chat's escalation without building
+ *  every thread. Keyed by thread id, which is the teen's record id. */
+export function scenarioEscalations(id: string, now: number): Record<ThreadId, EscalationState> {
+  const scenario = CHAT_SCENARIOS.find((s) => s.id === id);
+  const e = scenario?.build.escalation?.(now);
+  return e ? { [e.threadId]: e } : {};
+}
+
+/** The crisis escalation fixture, by itself — Monitoring's Alert scenarios
+ *  raise the same one, so the two axes agree about who is in crisis. */
+export const crisisEscalationFixture = (now: number): EscalationState => ESCALATION.escalation!(now);
+
 export function chatScenario(id: string, now: number): ChatData {
   const scenario =
     CHAT_SCENARIOS.find((s) => s.id === id) ??
@@ -834,6 +861,24 @@ export function chatScenario(id: string, now: number): ChatData {
   // The lead's last message is unanswered in the escalation scenario — the
   // supervisor has acknowledged and is waiting on the mentor.
   if (scenario.id === "escalation-active") {
+    /* ═══ THE SUPERVISOR'S GUIDANCE (Tiering & Escalation pack) ═══ What the
+       Care tab quotes as "Latest from your supervisor" — her answer to the
+       escalation, six minutes after it opened, and the one still unread. The
+       Support panel reads this same thread, so the two agree. TODO-COPY. */
+    const opened = now - 235 * MINUTE;
+    messages["s-brandy"] = [
+      ...(messages["s-brandy"] ?? []),
+      {
+        /* The house id shape — `{thread}-m{position}` — so order stays
+           auditable (seed.test.ts). */
+        id: `s-brandy-m${(messages["s-brandy"]?.length ?? 0) + 1}`,
+        threadId: "s-brandy",
+        at: opened + 6 * MINUTE,
+        sender: "them",
+        kind: "text",
+        text: "I'm here and I've got your notes. Keep Jordan talking and ask if their aunt is home. I'm calling her now.",
+      },
+    ];
     const brandy = threads.find((t) => t.id === "s-brandy");
     if (brandy) brandy.unreadCount = 1;
   }

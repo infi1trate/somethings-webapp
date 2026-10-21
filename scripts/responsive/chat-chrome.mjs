@@ -48,7 +48,7 @@ console.log("\n── assist @ active-mentorship");
 {
   const p = await open("/app/chat");
   check(p.__errors.length === 0, "no console or page errors", p.__errors.slice(0, 2).join(" | "));
-  await tab(p, "Assist");
+  await tab(p, "Context");
 
   const assist = await p.evaluate(`(() => {
     const el = document.querySelector('[data-slot="assist"]');

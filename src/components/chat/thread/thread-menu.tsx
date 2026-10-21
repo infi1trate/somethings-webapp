@@ -115,7 +115,13 @@ export function ThreadMenu({
             {/* TINTED BY CLASS, because this `DropdownMenuItem` has no destructive
                 variant — and "destructive" would be the wrong word anyway: raising an
                 escalation destroys nothing, it tells somebody. The tint is the alert
-                accent, so it reads as urgent rather than as dangerous. */}
+                accent, so it reads as urgent rather than as dangerous.
+                ═══ KEPT RED — A NAMED EXCEPTION TO THE CANON'S COLOUR RULE ═══
+                The Tiering & Escalation pack spends red on Tier 1–2 contexts and
+                the 911 call alone, and this opens the raise flow before a tier is
+                chosen. Neutralised once, then reversed (Brandon, 2026-10-21:
+                "keep the red on raise an escalation"): a mentor reaching for it
+                in a hurry is looking for the red one. */}
             <DropdownMenuItem
               onSelect={onEscalate}
               className="text-[var(--alert-critical-accent)] focus:text-[var(--alert-critical-accent)]"

@@ -194,11 +194,16 @@ export function MessageActions({
                 </button>
               )}
               {onEscalate && (
-                /* ═══ LAST IN THE MENU, AND THE ONLY TINTED ITEM ═══
-                   Last because a menu whose most consequential item sits beside six
-                   one-tap reactions is a menu somebody mis-presses. Tinted because
-                   at the moment a mentor needs it they are not reading — they are
-                   looking for the red one, and everything else here is neutral. */
+                /* ═══ LAST IN THE MENU ═══ Last because a menu whose most
+                   consequential item sits beside six one-tap reactions is a menu
+                   somebody mis-presses.
+                   ═══ AND THE ONLY TINTED ITEM — A NAMED EXCEPTION ═══ At the
+                   moment a mentor needs it they are not reading; they are looking
+                   for the red one. The Tiering & Escalation pack's colour rule
+                   (red on Tier 1–2 contexts and the 911 call alone) would make it
+                   neutral, since no tier is chosen yet; that was tried and
+                   reversed (Brandon, 2026-10-21: "keep the red on raise an
+                   escalation"). */
                 <button
                   type="button"
                   role="menuitem"

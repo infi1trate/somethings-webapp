@@ -66,6 +66,7 @@ export function AppShell({
   bottomInset = "panel",
   topBar,
   aside,
+  asideOpen = false,
   mobileSupport,
   className,
   children,
@@ -74,6 +75,9 @@ export function AppShell({
    *  Rendered beside the canvas inside `<main>`, below the top bar, so it never
    *  covers the bar and its width transition pushes the canvas. */
   aside?: React.ReactNode;
+  /** Whether that panel is open (support-beside-hub): the canvas card and the
+   *  panel then read as one split surface, and the staff rail may collapse. */
+  asideOpen?: boolean;
   /** The mobile bar's support CTA — passed for the personas that have it. */
   mobileSupport?: { unread: number };
   /** ═══ THE DESKTOP TOP BAR (SUP-1) ═══
@@ -178,6 +182,8 @@ export function AppShell({
       /* `data-detail-view` is for tests and anything that wants to style off the
          mode; the reservation itself is the class below. */
       data-detail-view={isDetailView ? "true" : undefined}
+      /* Read by the staff rail's collapse (`in-data-[support-open=true]:`). */
+      data-support-open={asideOpen ? "true" : "false"}
       className={cn(
         /* ═══ A DETAIL VIEW RESERVES NOTHING AT THE BOTTOM ═══
            `--nav-reserve` keeps the content panel clear of the floating bar. A
@@ -265,8 +271,10 @@ export function AppShell({
         className={cn(
           "min-h-0 min-w-0 flex-1 py-0 pr-0 md:py-4 md:pr-4",
           topBar && "md:pt-0",
-          /* A ROW when a panel can sit beside the canvas (SUP-2). */
-          aside !== undefined && "flex"
+          /* A ROW when a panel can sit beside the canvas (SUP-2), and a query
+             container so the panel can size itself against the room (its
+             width on chat is `clamp(348px, 100cqi − 844px, 420px)`). */
+          aside !== undefined && "flex @container/main"
         )}
       >
         <div
@@ -333,6 +341,13 @@ export function AppShell({
             // panel is the screen, so a radius and an inset would just be a
             // frame around everything.
             "md:rounded-[var(--radius-panel)] md:shadow-[var(--shadow-panel)]",
+            /* ═══ ONE SPLIT SURFACE (support-beside-hub) ═══ While Support is
+               open the canvas card's right corners close to 4 against the
+               panel's 4 / 24 / 24 / 4, and both carry Elevation 1, so the two
+               read as one surface split by the 4px gap. Everywhere, not only
+               on chat (answered). */
+            asideOpen && "md:rounded-[var(--radius-panel)_4px_4px_var(--radius-panel)] md:shadow-[var(--elevation-1)]",
+            "motion-safe:transition-[border-radius] motion-safe:duration-[220ms]",
           )}
         >
           {children}

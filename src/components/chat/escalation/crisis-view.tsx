@@ -124,6 +124,57 @@ function InfoRow({
   );
 }
 
+/** ═══ THE ROWS, ON THEIR OWN ═══ Also the Care tab's "Emergency info"
+ *  sub-section, so the two cannot disagree about what is on file — and both
+ *  show the same designed unavailable states, never a bare dash. */
+export function EmergencyInfoList({ info, theirName }: { info: EmergencyInfo; theirName: string }) {
+  const i = info;
+  return (
+    <div data-emergency-info>
+            <InfoRow
+              glyph={Phone}
+              /* TODO-COPY */
+              label={`${theirName}'s phone`}
+              value={i.teenPhone}
+              href={i.teenPhone ? `tel:${i.teenPhone}` : null}
+              absent="Not on file. Reach them in the conversation, and tell your supervisor."
+            />
+            <InfoRow
+              glyph={User}
+              label="Emergency contact"
+              value={
+                i.contact ? `${i.contact.name} · ${i.contact.relation}` : null
+              }
+              absent="Not on file yet — intake may not have finished. Your supervisor can reach the guardian."
+            />
+            {i.contact && (
+              <InfoRow
+                glyph={Phone}
+                label={`${i.contact.name}'s phone`}
+                value={i.contact.phone}
+                href={`tel:${i.contact.phone}`}
+                absent="Not on file."
+              />
+            )}
+            <InfoRow
+              glyph={MapPin}
+              label="Address"
+              value={i.address}
+              absent="Not on file. Emergency services can trace the number; say so when you call."
+            />
+            <InfoRow
+              glyph={Shield}
+              /* TODO-COPY. "Last shared location", not "Live location" — the word
+                 "live" would claim it is current, and it is a timestamped share
+                 from whenever the teen last sent one. */
+              label="Last shared location"
+              value={i.liveLocation?.label ?? null}
+              absent="Nothing shared. Ask where they are."
+            />
+              </div>
+  );
+}
+
 export function CrisisView({
   info,
   theirName,
@@ -193,47 +244,15 @@ export function CrisisView({
             </span>
           </p>
 
+          {/* ═══ "READ THIS TO THE OPERATOR" (Tiering & Escalation pack) ═══
+              The rows below are what a 911 call asks for, in the order it asks;
+              the heading says what they are FOR. */}
           <div>
-            <InfoRow
-              glyph={Phone}
-              /* TODO-COPY */
-              label={`${theirName}'s phone`}
-              value={i.teenPhone}
-              href={i.teenPhone ? `tel:${i.teenPhone}` : null}
-              absent="Not on file. Reach them in the conversation, and tell your supervisor."
-            />
-            <InfoRow
-              glyph={User}
-              label="Emergency contact"
-              value={
-                i.contact ? `${i.contact.name} · ${i.contact.relation}` : null
-              }
-              absent="Not on file yet — intake may not have finished. Your supervisor can reach the guardian."
-            />
-            {i.contact && (
-              <InfoRow
-                glyph={Phone}
-                label={`${i.contact.name}'s phone`}
-                value={i.contact.phone}
-                href={`tel:${i.contact.phone}`}
-                absent="Not on file."
-              />
-            )}
-            <InfoRow
-              glyph={MapPin}
-              label="Address"
-              value={i.address}
-              absent="Not on file. Emergency services can trace the number; say so when you call."
-            />
-            <InfoRow
-              glyph={Shield}
-              /* TODO-COPY. "Last shared location", not "Live location" — the word
-                 "live" would claim it is current, and it is a timestamped share
-                 from whenever the teen last sent one. */
-              label="Last shared location"
-              value={i.liveLocation?.label ?? null}
-              absent="Nothing shared. Ask where they are."
-            />
+            <h3 className="mb-1 text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
+              {/* TODO-COPY */}
+              Read this to the operator
+            </h3>
+            <EmergencyInfoList info={i} theirName={theirName} />
           </div>
         </div>
       </DialogContent>

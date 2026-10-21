@@ -55,6 +55,7 @@ import {
   type CareTimelineHandle,
 } from "@/components/record/care-timeline";
 import { RecordAuthorityNote } from "@/components/record/record-authority-note";
+import { RecordTierHistory } from "@/components/record/record-tier";
 import { CareSummaryCard } from "@/components/record/care-summary";
 import { RecordButton } from "@/components/record/record-button";
 import {
@@ -1011,6 +1012,22 @@ export function CareTab({
             What is not lost: the clustering its prose described ("two fell
             within 19 days of each other") reads off two triangles 19 days apart
             on the strip's shared axis. */}
+        {/* ═══ TIER AND ESCALATION HISTORY (Tiering & Escalation pack) ═══
+            The append-only tier and escalation trail, with audit lozenges —
+            the same component, from the same store, as the chat Care tab's
+            History, so the two cannot tell different stories. Above the care
+            timeline because placement is what a reader of this tab is asked
+            about first. */}
+        <section aria-label="Tier and escalation history" data-record-tier-history>
+          <h2 className={H2}>
+            {/* TODO-COPY */}
+            Tier and escalation history
+          </h2>
+          <div className="mt-3">
+            <RecordTierHistory teenId={teen.id} firstName={teen.firstName} />
+          </div>
+        </section>
+
         {/* 5 · HISTORY */}
         <section aria-label="History">
           <h2 className={H2} ref={historyHeading} tabIndex={-1}>

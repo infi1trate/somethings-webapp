@@ -475,6 +475,33 @@
   }
 }
 
+/* ═══ THE TIER SETTLE (Tiering & Escalation pack, "make it magical") ═══
+ *
+ *  One short settle, used twice: the "Requested: Tier N" chip resolving into
+ *  the confirmed lozenge when a supervisor confirms, and the checklist's
+ *  "2 of 5" counter advancing. Applied by a `key` change, so it plays once
+ *  per real change and never on a re-render. Nothing moves under reduced
+ *  motion — the change itself is the signal, and it is in words.
+ */
+@keyframes tier-settle {
+  0% {
+    opacity: 0.35;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.tier-settle {
+  animation: tier-settle 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tier-settle {
+    animation: none;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE LIST AND PANE SCROLLBARS — NATIVE BAR HIDDEN, CUSTOM THUMB OVERLAID
    ═══════════════════════════════════════════════════════════════════════════

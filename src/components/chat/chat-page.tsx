@@ -33,12 +33,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chatThreadHref } from "@/lib/record/chat";
 import { ConversationList } from "@/components/chat/list/conversation-list";
-import { Rail, tabsFor, type RailMode, type RailTab } from "@/components/chat/rail/rail";
-import { RailStrip } from "@/components/chat/rail/rail-strip";
-import { setSupportOpen, setSupportThread, useSupportOpen } from "@/lib/support/panel";
+import { Rail, type RailMode, type RailTab } from "@/components/chat/rail/rail";
+import { setSupportOpen, setSupportPinned, setSupportThread, useSupportOpen, useSupportThread } from "@/lib/support/panel";
+import { isSupervisorTier } from "@/lib/record/permission-map";
+import { useLiveMentorRow } from "@/lib/record/use-live-mentor";
+import { DEMO_PEOPLE } from "@/lib/record/people-demo";
 import { markSupportRead } from "@/lib/support/outbox";
 import { supportThread } from "@/lib/support/threads";
-import { Thread } from "@/components/chat/thread/thread";
+import { EscalationBanner, Thread } from "@/components/chat/thread/thread";
 import { DetailSheet } from "@/components/chat/thread/detail-sheet";
 import { CrisisView } from "@/components/chat/escalation/crisis-view";
 import { ResolveDialog } from "@/components/chat/escalation/resolve-dialog";
@@ -57,12 +59,19 @@ import type {
   ChatEvent,
   ChatMessage,
   ContextRef,
-  EscalationState,
   Note,
   SentArtifact,
   SentArtifactItem,
 } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
+import { CarePanel, type CareBrief, type Guidance } from "@/components/chat/rail/care";
+import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
+import { useTiering } from "@/lib/tiering/use-tiering";
+import { escalationTarget, safetyOf, stepDownFor } from "@/lib/tiering/escalation";
+import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
+import { recordHrefFor } from "@/lib/record/subject";
+import { presentationFor } from "@/lib/record/care-demo";
+import { careSummaryFor } from "@/lib/record/care-summary-doc";
 
 const RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]";
@@ -176,7 +185,6 @@ export function ChatPage({
   const writtenEvents = useOnboardingStore((s) => s.chatEvents);
   const writtenArtifacts = useOnboardingStore((s) => s.chatArtifacts);
   const writtenNotes = useOnboardingStore((s) => s.chatNotes);
-  const writtenEscalations = useOnboardingStore((s) => s.escalations);
   const putEscalation = useOnboardingStore((s) => s.putEscalation);
   const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
   const putChatArtifact = useOnboardingStore((s) => s.putChatArtifact);
@@ -274,13 +282,12 @@ export function ChatPage({
    *  rather than deleting the row, because the history is that this happened — so
    *  the read filters it out here, once, and every consumer downstream sees
    *  `undefined` and renders the no-escalation state. */
-  const escalation = useMemo<EscalationState | undefined>(() => {
-    if (!thread) return undefined;
-    const live =
-      (mounted ? writtenEscalations[thread.id] : undefined) ??
-      data?.escalations[thread.id];
-    return live && live.resolvedAt === null ? live : undefined;
-  }, [thread, mounted, writtenEscalations, data]);
+  /* ═══ MOVED (Tiering & Escalation pack): THE ONE STORE ═══ The merge
+     above now lives in `useTiering`, which the user record and Monitoring
+     read too — so the escalation a mentor sees here is the one in the
+     Tier 1 lane. Same rule: the store's record wins, resolved is history. */
+  const tiering = useTiering(now);
+  const escalation = thread ? tiering.openEscalationFor(thread.id) : undefined;
 
   /** ═══ THE ASSIST LADDER'S INPUTS, AND THE TEEN BEHIND THE THREAD ═══
    *
@@ -327,26 +334,104 @@ export function ChatPage({
     pickedTab && pickedTab.threadId === thread?.id
       ? pickedTab.tab
       : escalation
-        ? "escalation"
+        ? "care"
         : "assist";
-  /* ═══ ONE RIGHT-HAND SURFACE (SUP standing rule 6) ═══
-     Every call here is a reader asking for the rail — raising an escalation,
-     opening a note, tagging a message — so it closes Support, which is the
-     other half of the mutual exclusion. A no-op when Support is closed. */
+  /* ═══ SUPERSEDED (support-beside-hub): THE HUB AND SUPPORT COEXIST ═══
+     SUP standing rule 6 was "one right-hand surface at a time", so a reader
+     asking for the rail closed Support. The pack replaces it on this screen:
+     opening Support must not close the hub — the LIST collapses instead — so
+     a tab change is only a tab change now. */
   const setRailTab = (tab: RailTab) => {
     if (!thread) return;
     setPickedTab({ threadId: thread.id, tab });
-    setSupportOpen(false);
   };
-  /** Support open on this screen collapses the rail to `RailStrip` (SUP-2). */
+  /** ═══ SUPPORT BESIDE THE HUB ═══ Open, the list collapses and the
+   *  conversation and the hub split the canvas card 50/50; closed, the list
+   *  returns (300 · flex · 360). The hub never unmounts either way. */
   const supportOpen = useSupportOpen();
-  const stripped = supportOpen && !!thread;
+  const supportThreadId = useSupportThread();
+  const beside = supportOpen && !!thread;
+  /** ═══ A SUPERVISOR WATCHES (support-beside-hub) ═══ The conversation is
+   *  the observed mentor's, read-only. */
+  const liveMentor = useLiveMentorRow();
+  const observer = isSupervisorTier(persona)
+    ? { mentorName: liveMentor?.name || "The mentor" }
+    : undefined;
+  /* THE OTHER PARTY TO THIS ESCALATION, when Support is open on them: the
+     notified supervisor for a mentor, the mentor for a supervisor. */
+  const otherParty = escalation ? (observer ? LIVE_ID : escalation.supervisorId) : null;
+  const otherName = otherParty === LIVE_ID
+    ? (observer?.mentorName ?? "")
+    : (DEMO_PEOPLE.find((x) => x.id === otherParty)?.name ?? "");
+  /* A first name when there is a name; the whole fallback when there is not
+     (measured: an unnamed mentor read "The is in this chat"). */
+  const otherFirst = otherParty === LIVE_ID && !liveMentor?.name ? "The mentor" : otherName.split(" ")[0];
+  const presence =
+    supportOpen && otherParty && supportThreadId === otherParty && otherName
+      ? /* TODO-COPY */ `${otherFirst} is in this chat`
+      : undefined;
+  /* ═══ PINNED FOR A SUPERVISOR ═══ While an escalation is open on what a
+     supervisor is watching, the observed mentor is pinned at the top of their
+     Support list. Published to the panel's store; cleared on the way out. */
+  const pinMentor = !!observer && !!escalation;
+  const pinnedName = observer?.mentorName ?? "";
+  /* TODO-COPY. An unnamed mentor is addressed as "the mentor". */
+  const pinnedShort = liveMentor?.name ? liveMentor.name.split(" ")[0] : "the mentor";
+  useEffect(() => {
+    if (!pinMentor) return;
+    setSupportPinned({ id: LIVE_ID, name: pinnedName, shortName: pinnedShort });
+    return () => setSupportPinned(null);
+  }, [pinMentor, pinnedName, pinnedShort]);
   const [railMode, setRailMode] = useState<RailMode>({ kind: "list" });
   const [crisisOpen, setCrisisOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
   /** Text the assessment wants put in the composer. A one-shot value the composer
    *  consumes — see the Composer's `insert` prop. */
   const [insert, setInsert] = useState<{ text: string; nonce: number } | null>(null);
+
+  /** Which tier dialog is up: a supervisor's update, a mentor's request. */
+  const [tierDialog, setTierDialog] = useState<"update" | "step-down" | null>(null);
+
+  /* ═══ WHAT THE CARE TAB READS ═══ */
+  const emergencyInfo = (thread && data?.emergency[thread.id]) || {
+    teenPhone: null,
+    address: null,
+    liveLocation: null,
+    contact: null,
+  };
+  const supervisorFirst =
+    (escalation && DEMO_PEOPLE.find((x) => x.id === escalation.supervisorId)?.name.split(" ")[0]) || "Your supervisor";
+  /** The supervisor's latest word since the escalation opened — their last
+   *  Support message to this mentor. Null until there is one. */
+  const guidance: Guidance | null = useMemo(() => {
+    if (!escalation || !data) return null;
+    const last = [...(data.messages[escalation.supervisorId] ?? [])]
+      .filter((m) => m.sender !== "mentor" && m.text && m.at >= escalation.openedAt)
+      .at(-1);
+    return last?.text ? { text: last.text, from: supervisorFirst, at: last.at } : null;
+  }, [escalation, data, supervisorFirst]);
+  const careReviews = useOnboardingStore((s) => s.careReviews);
+  const careUpdates = useOnboardingStore((s) => s.careUpdates);
+  const careFlagClosures = useOnboardingStore((s) => s.careFlagClosures);
+  /** ═══ THE CARE BRIEF — A MINIMISED READ OF THE CARE RECORD ═══ The same
+   *  derivations the record's Care tab uses (`presentationFor`,
+   *  `careSummaryFor`), read-only here. */
+  const careBrief: CareBrief = useMemo(() => {
+    const id = thread?.id ?? "";
+    if (!mounted || !thread || thread.kind !== "teen")
+      return { presentation: null, code: null, summary: null, freshAt: null, href: recordHrefFor(id) };
+    const store = { decisions: Object.values(careReviews), updates: Object.values(careUpdates), closures: Object.values(careFlagClosures) };
+    const p = presentationFor(id, now, store);
+    const doc = careSummaryFor(id, now, store);
+    const latest = Object.values(careUpdates).filter((u) => u.teenId === id).sort((a, b) => b.createdAt - a.createdAt)[0];
+    return {
+      presentation: p?.statement ?? null,
+      code: p?.code ?? null,
+      summary: doc?.conversationSummary ?? null,
+      freshAt: latest?.createdAt ?? p?.reviewedAt ?? p?.assignedAt ?? null,
+      href: `${recordHrefFor(id)}?tab=care`,
+    };
+  }, [mounted, thread, careReviews, careUpdates, careFlagClosures, now]);
 
   /** ═══ SENDING WRITES TWO RECORDS, AND NEITHER IS THE OTHER ═══
    *
@@ -454,35 +539,51 @@ export function ChatPage({
    *  it as a fact from the first render. There is no pending state and no "sending"
    *  spinner: in this prototype the notification IS the record, and a spinner would
    *  be theatre over a write that already happened. */
+  /* ═══ SUPERSEDED (Tiering & Escalation pack): THREE DOORS, ONE FLOW ═══
+     Raising used to write the escalation in one press. Now every entry —
+     Care's Escalate, the conversation menu, a message's action — opens the
+     raise flow in the Care tab (pick a tier, say what is happening,
+     confirm), carrying the message it came from. The notification still
+     happens in the same write as the record, on Confirm (`confirmRaise`):
+     the order the old note argued for is unchanged. */
+  const [raise, setRaise] = useState<{ threadId: string; anchorMessageId: string | null } | null>(null);
+  const raising = !!raise && raise.threadId === thread?.id;
   const raiseEscalation = (from: ChatMessage | null) => {
     if (!thread) return;
-    const at = Date.now();
-    putEscalation({
-      id: `esc-${thread.id}-${at}`,
-      threadId: thread.id,
-      openedAt: at,
-      anchorMessageId: from?.id ?? null,
-      supervisorNotifiedAt: at,
-      // TODO-DATA. The lead is the mentor's own, from the supervision edges in
-      // people-demo — not a constant, so it is right when the roster changes.
-      supervisorId: "s-brandy",
-      assessment: {},
-      resolvedAt: null,
-      resolutionNoteId: null,
-    });
+    setRaise({ threadId: thread.id, anchorMessageId: from?.id ?? null });
+    setRailTab("care");
+    setRailMode({ kind: "list" });
+    /* Below `xl` the hub is a drawer — open it, or the flow is invisible
+       (the audit's gap: raising selected the tab and left it closed). */
+    setRailOpen(true);
+  };
+  const confirmRaise = ({ target, note }: { target: RaiseTarget; note: string }) => {
+    if (!thread || !raise) return;
+    const e = tiering.raise({ teenId: thread.id, target, note, anchorMessageId: raise.anchorMessageId });
     appendChatEvent({
-      id: `ev-${thread.id}-${at}`,
+      id: `ev-${thread.id}-${e.openedAt}`,
       threadId: thread.id,
-      at,
+      at: e.openedAt,
       kind: "escalation-opened",
       actorId: LIVE_ID,
-      artifactId: `esc-${thread.id}-${at}`,
+      artifactId: e.id,
       artifactName: "an escalation",
     });
-    // AND PUT THE CHECKLIST IN FRONT OF THEM. Raising it and then leaving a mentor
-    // to find the panel is the moment they most need not to be looking for things.
-    setRailTab("escalation");
-    setRailMode({ kind: "list" });
+    setRaise(null);
+  };
+
+  /** The safety check streams: each answer is written as it is given. */
+  const answerSafety = (questionId: string, value: "yes" | "no") => {
+    if (!escalation) return;
+    const s = safetyOf(escalation);
+    if (s.submittedAt !== null) return;
+    putEscalation({ ...escalation, safetyCheck: { ...s, answers: { ...s.answers, [questionId]: { value, at: Date.now() } } } });
+  };
+  const submitSafety = () => {
+    if (!escalation) return;
+    const s = safetyOf(escalation);
+    if (s.submittedAt !== null) return;
+    putEscalation({ ...escalation, safetyCheck: { ...s, submittedAt: Date.now() } });
   };
 
   /** Checking a step records WHEN. Steps do not un-check — see `AssessmentPanel`. */
@@ -544,7 +645,14 @@ export function ChatPage({
         : [],
       reminderAt: null,
     });
-    putEscalation({ ...escalation, resolvedAt: at, resolutionNoteId: noteId });
+    putEscalation({ ...escalation, resolvedAt: at, resolutionNoteId: noteId, outcomeId: resolution.outcomeId });
+    /* ═══ FOR TIER 1, THE CRISIS NOTE REQUESTS THE STEP DOWN ═══ Tier 2 by
+       default, Tier 3 on "no longer a threat"; a supervisor's confirmation
+       completes it. A mentor never steps a teen down directly. */
+    const down = stepDownFor(escalation, resolution.outcomeId);
+    if (down !== null) {
+      tiering.requestStepDown({ teenId: thread.id, tier: down, reason: `${outcome}. ${resolution.note}`, escalationId: escalation.id, outcomeId: resolution.outcomeId });
+    }
     appendChatEvent({
       id: `ev-${thread.id}-${at}`,
       threadId: thread.id,
@@ -554,9 +662,10 @@ export function ChatPage({
       artifactId: escalation.id,
       artifactName: "the escalation",
     });
-    // BACK TO THE TIMELINE, where the resolution note now is — rather than to a tab
-    // that has just vanished from under the reader.
-    setRailTab("timeline");
+    /* BACK TO CARE, IN ITS STEADY STATE — where History now holds the whole
+       escalation as one story. (It went to Timeline while the escalation tab
+       vanished on resolve; Care does not vanish.) */
+    setRailTab("care");
     setRailMode({ kind: "list" });
   };
 
@@ -601,32 +710,55 @@ export function ChatPage({
           with it open (424 narrower) a tier drops when its floor is not met.
             640  = list 300 + a 340 conversation
             1000 = list 320 + rail 320 + a 360 conversation */}
+      {/* ═══ NAMED AREAS (support-beside-hub) ═══ list · banner · thread ·
+          rail. The banner has its own row over the conversation AND the hub,
+          so an escalation spans the canvas card rather than one pane of it.
+          CLOSED: < 960 one column; ≥ 960 list + thread (the hub an overlay);
+          ≥ 1280 list 300 · thread · hub 360 (300 + 360 + a 340 conversation =
+          the 1000 floor). OPEN: the list is gone; ≥ 680 of canvas the thread
+          and hub split 50/50, below it the hub is a drawer over the
+          conversation. Track counts differ between the two, so the change is a
+          swap, not an animation. */}
       <div
+        data-chat-layout={beside ? "beside" : "list"}
         className={cn(
-          // `relative` because the rail is ABSOLUTE below `xl` — see its note.
-          "relative grid h-full min-h-0",
-          // < 960: ONE column, and `view` decides which.
-          "grid-cols-[minmax(0,1fr)]",
-          // ≥ 960: list + thread. No third track: 300 + 320 leaves 280px for the
-          // conversation at this width, which is a column of two-word lines.
-          "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)]",
-          // ≥ 1280: all three, always. The toggle is gone at this width.
-          "xl:@min-[1000px]/canvas:grid-cols-[320px_minmax(0,1fr)_320px]",
-          /* ═══ SUPPORT OPEN: THE RAIL IS A 56px STRIP, at every tier ═══
-             Same track count as the three-column layout, so at `xl` the third
-             track ANIMATES 320 → 56 alongside the push instead of swapping.
-             Reduced motion: instant. One column shows the strip only beside a
-             thread; the list has no rail to return to. */
-          stripped && [
-            view === "thread"
-              ? "min-[768px]:grid-cols-[minmax(0,1fr)_56px]"
-              : "md:grid-cols-[minmax(0,1fr)_56px]",
-            "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)_56px]",
-            "xl:@min-[1000px]/canvas:grid-cols-[320px_minmax(0,1fr)_56px]",
-          ],
-          "transition-[grid-template-columns] duration-[220ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+          // `relative` because the rail is ABSOLUTE wherever it is a drawer.
+          "relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]",
+          "grid-cols-[minmax(0,1fr)] [grid-template-areas:'banner'_'thread']",
+          beside
+            ? /* Two panes from a 1120 VIEWPORT, the pack's rule (it was a
+                 680 canvas floor, which turned the hub into a drawer at 1280
+                 for staff: their nav is 248, not the Figma's 232). The 600
+                 canvas guard keeps 300 a pane. */
+              "min-[1120px]:@min-[600px]/canvas:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] min-[1120px]:@min-[600px]/canvas:[grid-template-areas:'banner_banner'_'thread_rail']"
+            : [
+                "md:@min-[640px]/canvas:grid-cols-[300px_minmax(0,1fr)] md:@min-[640px]/canvas:[grid-template-areas:'list_banner'_'list_thread']",
+                "xl:@min-[1000px]/canvas:grid-cols-[300px_minmax(0,1fr)_360px] xl:@min-[1000px]/canvas:[grid-template-areas:'list_banner_banner'_'list_thread_rail']",
+              ]
         )}
       >
+        {/* ── THE ACTION BAR SLOT: the banner spans thread + hub ─────────── */}
+        {thread && escalation && (
+          <div data-chat-banner className={cn("[grid-area:banner]", view === "list" && "hidden md:block")}>
+            <EscalationBanner
+              escalation={escalation}
+              onOpenSupervisor={
+                !observer && canOpenInSupport(escalation.supervisorId)
+                  ? () => openInSupport(escalation.supervisorId)
+                  : undefined
+              }
+              tone={isAlertTier(escalationTarget(escalation)) ? "critical" : "neutral"}
+              onOpenAssessment={() => {
+                setRailTab("care");
+                setRailMode({ kind: "list" });
+                setRailOpen(true);
+              }}
+              onOpenCrisis={() => setCrisisOpen(true)}
+              onResolveEscalation={() => setResolveOpen(true)}
+            />
+          </div>
+        )}
+
         {/* ── LIST ──────────────────────────────────────────────────────── */}
         <ConversationList
           threads={threads}
@@ -640,20 +772,20 @@ export function ChatPage({
             router.push(chatThreadHref(id));
           }}
           className={cn(
+            /* One area with the thread below `md` (the route picks which
+               shows); its own column above it. */
+            "[grid-area:thread] md:@min-[640px]/canvas:[grid-area:list] row-span-2",
             view === "thread" && "hidden md:flex",
-            /* ═══ SUPPORT TOOK THE SECOND COLUMN ═══ At `md` with the canvas
-               under the two-column floor (only reachable with Support open),
-               the conversation stays and the LIST goes, whichever the route
-               says: a mentor who opened Support mid-conversation asked about
-               that conversation. Closing Support brings the list back. */
-            "md:@max-[639px]/canvas:hidden"
+            /* ═══ SUPPORT OPEN: THE LIST COLLAPSES ═══ Not narrowed — gone.
+               Back to chats, in the conversation header, brings it back. */
+            beside && "!hidden"
           )}
         />
 
         {/* ── THREAD ────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            "flex min-h-0 flex-col",
+            "flex min-h-0 flex-col [grid-area:thread]",
             view === "list" && "hidden md:flex"
           )}
         >
@@ -662,7 +794,7 @@ export function ChatPage({
               Support open below the two-column floor, at `/app/chat`, which at
               this width renders this same conversation. Closing Support is the
               way back to the list there. */}
-          {view === "thread" && (
+          {view === "thread" && !beside && (
             /* ═══ A LINK, BECAUSE THREE GESTURES HAVE TO LAND ON THE LIST ═══
                Browser back, the Android system back gesture and iOS swipe-back
                all navigate — none of them fire an onClick. A button could only
@@ -692,13 +824,10 @@ export function ChatPage({
           {thread ? (
             <div className="relative min-h-0 flex-1">
               <Thread
-                /* ═══ "SUPERVISOR NOTIFIED" OPENS THEIR THREAD (SUP-5) ═══ The
-                   moment a mentor most needs the person who was told. */
-                onOpenSupervisor={
-                  escalation && canOpenInSupport(escalation.supervisorId)
-                    ? () => openInSupport(escalation.supervisorId)
-                    : undefined
-                }
+                /* The way back to the list while Support has it collapsed:
+                   closing Support is what restores it (the pack's rule 4). */
+                onBackToChats={beside ? () => setSupportOpen(false) : undefined}
+                observer={observer}
                 thread={thread}
                 messages={messages}
                 events={events}
@@ -706,21 +835,17 @@ export function ChatPage({
                 artifacts={artifactById}
                 escalation={escalation}
                 reactions={reactions}
-                onReact={react}
+                /* READ-ONLY for an observer: no reactions, notes or escalate
+                   from a conversation they are invisible in. */
+                onReact={observer ? undefined : react}
                 /* Teen threads only — a colleague's conversation has no teen to
                    document, and the menu then holds reactions alone rather than a
                    disabled row. */
-                onTagMessage={thread.kind === "teen" ? tagMessage : undefined}
+                onTagMessage={!observer && thread.kind === "teen" ? tagMessage : undefined}
                 onEscalateFrom={
-                  thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
+                  !observer && thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
                 }
-                onOpenAssessment={() => {
-                  setRailTab("escalation");
-                  setRailMode({ kind: "list" });
-                }}
-                onOpenCrisis={() => setCrisisOpen(true)}
-                onResolveEscalation={() => setResolveOpen(true)}
-                insert={insert}
+                insert={observer ? null : insert}
                 phone={teen?.phone ?? null}
                 onOpenEvent={(e) => {
                   /* ═══ A NOTE EVENT OPENS THE NOTE, NOT THE SHEET ═══
@@ -754,21 +879,38 @@ export function ChatPage({
               />
 
               <CrisisView
-                info={
-                  data?.emergency[thread.id] ?? {
-                    // A thread with no fixture emergency record gets the same
-                    // all-absent shape rather than a missing dialog — every
-                    // scenario has to be able to open this.
-                    teenPhone: null,
-                    address: null,
-                    liveLocation: null,
-                    contact: null,
-                  }
-                }
+                /* A thread with no fixture emergency record gets the all-absent
+                   shape rather than a missing dialog — every scenario has to be
+                   able to open this. */
+                info={emergencyInfo}
                 theirName={thread.displayName.split(" ")[0]}
                 open={crisisOpen}
                 onOpenChange={setCrisisOpen}
               />
+
+              {tierDialog === "update" && observer && (
+                <TierUpdateDialog
+                  open
+                  onOpenChange={(o) => !o && setTierDialog(null)}
+                  state={tiering.stateFor(thread.id)}
+                  name={thread.displayName.split(" ")[0]}
+                  nameOf={tiering.nameOf}
+                  onSetTier={({ tier, reason }) => tiering.setTier({ teenId: thread.id, tier, reason })}
+                  onDecline={(reason) => tiering.decline({ teenId: thread.id, reason })}
+                />
+              )}
+              {tierDialog === "step-down" && !observer && (() => {
+                const from = tiering.stateFor(thread.id).tier;
+                return from === 2 || from === 3 ? (
+                  <StepDownRequestDialog
+                    open
+                    onOpenChange={(o) => !o && setTierDialog(null)}
+                    name={thread.displayName.split(" ")[0]}
+                    from={from}
+                    onRequest={({ tier, reason }) => tiering.requestStepDown({ teenId: thread.id, tier, reason })}
+                  />
+                ) : null;
+              })()}
 
               {escalation && (
                 <ResolveDialog
@@ -793,9 +935,12 @@ export function ChatPage({
                 aria-label={railOpen ? "Hide conversation tools" : "Show conversation tools"}
                 title={railOpen ? "Hide conversation tools" : "Show conversation tools"}
                 className={cn(
-                  "absolute right-3 top-2.5 hidden size-9 items-center justify-center rounded-full text-[var(--text-secondary)] md:@min-[640px]/canvas:flex xl:@min-[1000px]/canvas:hidden",
-                  // The strip is the way back while Support is open.
-                  stripped && "md:@min-[640px]/canvas:hidden",
+                  "absolute right-3 top-2.5 hidden size-9 items-center justify-center rounded-full text-[var(--text-secondary)]",
+                  /* Shown wherever the hub is a drawer: closed between `md`
+                     and `xl`; open, below the 680 two-pane floor. */
+                  beside
+                    ? "flex min-[1120px]:@min-[600px]/canvas:hidden"
+                    : "md:@min-[640px]/canvas:flex xl:@min-[1000px]/canvas:hidden",
                   "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
                   RING
                 )}
@@ -832,35 +977,28 @@ export function ChatPage({
             mean one control silently doing two different things.
             `absolute` also keeps it out of the grid's flow below `xl`, so it
             cannot create an implicit third track at `md`. */}
-        {/* ═══ COLLAPSED, NOT CLOSED (SUP-2) ═══
-            While Support is open the rail's tabs persist as a strip in the
-            third track, and one click on a tab brings the rail back on it and
-            closes Support. Focus follows to the rail's selected tab, since the
-            strip button it was on is gone. */}
-        {thread && stripped && (
-          <div className={cn("min-w-0 overflow-hidden", view === "list" && "hidden md:block")}>
-            <RailStrip
-              tabs={tabsFor(thread.kind, !!escalation)}
-              active={railTab}
-              onOpen={(t) => {
-                setRailTab(t);
-                setRailOpen(true);
-                requestAnimationFrame(() =>
-                  document
-                    .querySelector<HTMLElement>('[data-slot="chat-rail"] [role="tab"][aria-selected="true"]')
-                    ?.focus()
-                );
-              }}
-            />
-          </div>
-        )}
-        {thread && !stripped && (
+        {/* ═══ SUPERSEDED (support-beside-hub): NO STRIP ═══ SUP-2 collapsed
+            the hub to a 56px strip of its tabs while Support was open. The
+            pack reverses it: the hub stays and the list collapses, so the
+            strip has nothing left to stand in for. */}
+        {/* ═══ ONE HUB, ALWAYS MOUNTED ═══ The same element whichever layout
+            is up — a track, or a drawer — so its tab and mode never reset when
+            Support opens or closes. */}
+        {thread && (
           <div
+            data-chat-hub
             className={cn(
-              "absolute inset-y-0 right-0 z-20 w-[320px] border-l border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]",
-              "xl:@min-[1000px]/canvas:static xl:@min-[1000px]/canvas:z-auto xl:@min-[1000px]/canvas:w-auto xl:@min-[1000px]/canvas:shadow-none",
-              // Hidden below `xl` until toggled; always present at `xl`.
-              !railOpen && "hidden xl:@min-[1000px]/canvas:block"
+              "absolute inset-y-0 right-0 z-20 w-[360px] max-w-full border-l border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]",
+              beside
+                ? [
+                    "min-[1120px]:@min-[600px]/canvas:static min-[1120px]:@min-[600px]/canvas:z-auto min-[1120px]:@min-[600px]/canvas:w-auto min-[1120px]:@min-[600px]/canvas:max-w-none min-[1120px]:@min-[600px]/canvas:shadow-none min-[1120px]:@min-[600px]/canvas:[grid-area:rail]",
+                    !railOpen && "hidden min-[1120px]:@min-[600px]/canvas:block",
+                  ]
+                : [
+                    "xl:@min-[1000px]/canvas:static xl:@min-[1000px]/canvas:z-auto xl:@min-[1000px]/canvas:w-auto xl:@min-[1000px]/canvas:max-w-none xl:@min-[1000px]/canvas:shadow-none xl:@min-[1000px]/canvas:[grid-area:rail]",
+                    // Hidden below `xl` until toggled; always present at `xl`.
+                    !railOpen && "hidden xl:@min-[1000px]/canvas:block",
+                  ]
             )}
           >
             <Rail
@@ -868,12 +1006,45 @@ export function ChatPage({
               artifacts={artifacts}
               events={events}
               notes={notes}
-              escalation={escalation}
+              careDot={escalation ? (isAlertTier(escalationTarget(escalation)) ? "alert" : "neutral") : null}
+              care={
+                <CarePanel
+                  teenId={thread.id}
+                  name={thread.displayName.split(" ")[0]}
+                  now={now}
+                  tiering={tiering}
+                  escalation={escalation}
+                  observer={!!observer}
+                  raising={raising}
+                  onStartRaise={() => raiseEscalation(null)}
+                  onCancelRaise={() => setRaise(null)}
+                  onConfirmRaise={confirmRaise}
+                  onCheckStep={checkStep}
+                  onUseWording={(text) => setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))}
+                  onAnswerSafety={answerSafety}
+                  onSubmitSafety={submitSafety}
+                  onOpenCrisis={() => setCrisisOpen(true)}
+                  onResolve={() => setResolveOpen(true)}
+                  onUpdateTier={() => setTierDialog("update")}
+                  onRequestStepDown={() => setTierDialog("step-down")}
+                  guidance={guidance}
+                  supervisorName={supervisorFirst}
+                  onReplyInSupport={
+                    !observer && escalation && canOpenInSupport(escalation.supervisorId)
+                      ? () => openInSupport(escalation.supervisorId)
+                      : undefined
+                  }
+                  presence={presence}
+                  emergency={emergencyInfo}
+                  brief={careBrief}
+                />
+              }
               assist={assist}
               matchedFor={matchedFor}
               now={now}
               tab={railTab}
               onTabChange={setRailTab}
+              presence={presence}
               mode={railMode}
               onModeChange={setRailMode}
               onSendActivity={sendActivity}
@@ -891,14 +1062,9 @@ export function ChatPage({
                  navigate. Implemented as a DOM scroll rather than as state,
                  because the target is a rendered list item and the transcript's
                  own scroller is the thing that has to move. */
-              onCheckStep={checkStep}
-              /* PUTS THE SUGGESTED WORDING IN THE COMPOSER, unsent. The mentor still
-                 presses Send — nothing reaches a teen that a mentor did not send. */
-              onUseWording={(text) =>
-                setInsert((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))
-              }
-              onOpenCrisis={() => setCrisisOpen(true)}
-              onResolveEscalation={() => setResolveOpen(true)}
+              /* THE SUGGESTED WORDING goes in the composer, unsent — through the
+                 Care panel's `onUseWording` above. Nothing reaches a teen that a
+                 mentor did not press Send on. */
               onOpenReference={(r) => {
                 const el = document.getElementById(`msg-${r.messageId}`);
                 el?.scrollIntoView({ block: "center", behavior: "smooth" });

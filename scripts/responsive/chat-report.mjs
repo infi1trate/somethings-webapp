@@ -35,7 +35,7 @@ for (const [scenario, label] of [
 
   // Walk every rail panel so all rendered copy is sampled.
   const texts = [];
-  for (const t of ["Now", "Assist", "Profile", "Toolkit", "Timeline"]) {
+  for (const t of ["Now", "Context", "Profile", "Tools", "History"]) {
     const tab = p.locator('[role="tab"]', { hasText: new RegExp(`^${t}$`) });
     if (await tab.count()) { await tab.first().click(); await p.waitForTimeout(300); }
     texts.push(await p.evaluate(`document.querySelector("main")?.innerText ?? document.body.innerText`));

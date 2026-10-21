@@ -8,19 +8,21 @@
 // title row with the list / cards toggle, the hero metrics, the Tier 1 lane
 // (always, both views), then Tiers 2 → 4.
 //
-// THE SCENARIO DRIVES IT. The dev bar's Scenario, on the Monitoring axis
-// (`monitoringScenarioId`), decides calm or alert (`tierAlertLive`); the page
-// tells the alert clock, so the strip and the lane share one countdown.
+// THE ONE TIER STORE DRIVES IT (Tiering & Escalation pack). The roster is
+// read through `useTierRoster`, and "alert" is a teen in the Tier 1 lane —
+// an open Tier 1 escalation, from the dev bar's Alert scenario or from a
+// mentor raising one in the chat. The page tells the alert clock, so the
+// strip and the lane share one countdown.
 //
 // It folds the Escalations and Risk Flags dashboards (answered 2026-10-19):
 // /app/escalations and /app/risk-flags redirect here. Escalations surface as
 // the Tier 1 lane and the escalations column; flags roll up to the teen row.
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LayoutGrid, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useOnboardingStore } from "@/lib/onboarding/store";
-import { monitoringMetrics, SUPERVISORS_ON_SHIFT, tierAlertLive, tierRoster } from "@/lib/monitoring/tier-roster";
+import { monitoringMetrics, SUPERVISORS_ON_SHIFT } from "@/lib/monitoring/tier-roster";
+import { useTierRoster } from "@/lib/monitoring/use-tier-roster";
 import { syncTierAlert } from "@/lib/monitoring/alert-clock";
 import { setMonitoringLayout, useMonitoringLayout, type MonitoringLayout } from "@/lib/monitoring/layout-pref";
 import { HeroMetrics } from "@/components/monitoring/overview/hero-metrics";
@@ -65,9 +67,9 @@ function LayoutToggle() {
 const DATE = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 export function MonitoringOverview() {
-  const scenarioId = useOnboardingStore((s) => s.monitoringScenarioId);
-  const live = tierAlertLive(scenarioId);
-  const teens = useMemo(() => tierRoster(live), [live]);
+  /* Fixed at mount, the house pattern: `Date.now()` in render is impure. */
+  const [now] = useState(() => Date.now());
+  const { teens, live } = useTierRoster(now);
   const m = useMemo(() => monitoringMetrics(teens), [teens]);
   const layout = useMonitoringLayout();
   /* The alert clock is module state; telling it is an external write. */

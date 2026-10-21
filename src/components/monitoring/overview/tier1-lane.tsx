@@ -13,7 +13,8 @@
 // JOIN answers the alert (the strip goes) and will open the session; that
 // layer (mitigation) is out of scope here — see the TODO on the button.
 
-import { Flag, Star } from "lucide-react";
+import { Flag } from "lucide-react";
+import { RequestedChip } from "@/components/tiering/requested-chip";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { answerAlert, responseClock as clock, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
 import { TierAvatar, TierGroupHeader, TierLozenge } from "@/components/monitoring/overview/tier-bits";
@@ -44,16 +45,11 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
       <TierLozenge tier={1} />
       {/* Secondary, not tertiary: tertiary is 4.39:1 on t1-soft. */}
       <span className="truncate text-[13px] text-[var(--text-secondary)]">{teen.mentor}</span>
-      {teen.recommendedTier === 1 && (
-        <span
-          data-recommended
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-[color:var(--ok)] bg-[var(--surface-raised)] px-2 text-[12px] leading-none text-[var(--ok-ink)]"
-        >
-          <Star aria-hidden className="size-3" strokeWidth={2} />
-          {/* TODO-COPY */}
-          Recommended T1
-        </span>
-      )}
+      {/* ═══ SUPERSEDED: "★ Recommended T1" → "Requested: Tier 1" ═══ The
+          canon's flagged-but-unconfirmed chip, shared with the chat and the
+          record. The teen is in this lane at once; the chip is the placement
+          still waiting for a supervisor. */}
+      {teen.requestedTier !== undefined && <RequestedChip tier={teen.requestedTier} />}
       <span data-t1-flags className="inline-flex shrink-0 items-center gap-1 font-mono text-[13px] tabular-nums text-[var(--t1-ink)]">
         <Flag aria-hidden className="size-3.5" strokeWidth={2} />
         {teen.riskFlags.count} · {teen.riskFlags.window}

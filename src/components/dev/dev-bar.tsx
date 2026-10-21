@@ -538,7 +538,11 @@ export function DevBar() {
     setPersona(p.key);
     // STAY PUT ON A RECORD — see the module note. Off a record, enter the
     // persona's own destination the way the old pill did.
-    if (onRecord) return;
+    // AND ON CHAT (support-beside-hub): every chat role shares one layout, and
+    // the pack's acceptance is switching role there WITHOUT a reload to see it
+    // hold. Chat is a supervisor-tier destination too (Chats), so no persona
+    // lands somewhere it cannot be.
+    if (onRecord || onChat) return;
     window.location.assign(p.dest === "__mentor__" ? mentorDest() : p.dest);
   };
 

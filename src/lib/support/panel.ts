@@ -59,3 +59,32 @@ export function useSupportThread(): string | null {
     () => null
   );
 }
+
+/* ═══ A PINNED CONTACT (support-beside-hub) ═══
+   A supervisor watching a conversation with an open escalation gets that
+   conversation's mentor pinned at the top of their Support list. The chat
+   page publishes it and clears it on the way out; null is nothing pinned. */
+export interface SupportPinned {
+  id: string;
+  name: string;
+  shortName?: string;
+}
+let pinned: SupportPinned | null = null;
+const pinnedListeners = new Set<() => void>();
+
+export function setSupportPinned(next: SupportPinned | null): void {
+  if (pinned?.id === next?.id && pinned?.name === next?.name && pinned?.shortName === next?.shortName) return;
+  pinned = next;
+  pinnedListeners.forEach((l) => l());
+}
+
+export function useSupportPinned(): SupportPinned | null {
+  return useSyncExternalStore(
+    (l) => {
+      pinnedListeners.add(l);
+      return () => pinnedListeners.delete(l);
+    },
+    () => pinned,
+    () => null
+  );
+}

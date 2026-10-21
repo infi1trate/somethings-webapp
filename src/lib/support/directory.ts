@@ -33,6 +33,9 @@ export type SupportSectionId = "supervisors" | "cohorts" | "groups" | "other";
 export interface SupportRow {
   id: string;
   name: string;
+  /** How the composer and empty state address them, when a first word of
+   *  `name` would not do (an unnamed mentor is "the mentor"). */
+  shortName?: string;
   /** People have presence; a cohort or group does not. */
   presence?: "online" | "offline";
   /** Empty when nothing has been said yet. */
