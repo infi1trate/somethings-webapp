@@ -21,7 +21,6 @@ import { useId, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TierLozenge } from "@/components/ui/tier-lozenge";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
-import { NO_THREAT_OUTCOME } from "@/lib/tiering/escalation";
 import { describeEvent, placementsFrom, type TierActor, type TierState } from "@/lib/tiering/events";
 import { EXIT_DOCUMENT, EXITS_TO, TIER_NAME, type RaiseTarget, type Tier } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
@@ -119,8 +118,10 @@ export function TierUpdateModule({
   onDone: () => void;
 }) {
   const pending = state.pending;
-  const noThreat = pending?.outcomeId === NO_THREAT_OUTCOME;
-  const options = placementsFrom(state.tier, { noThreat });
+  /* The "no longer a threat" crisis-note exit retired with the mentor's
+     Resolve (Escalation Exchange, pack v2.0); the close-out's own step down
+     is `CLOSE_OUT_TIER`. */
+  const options = placementsFrom(state.tier);
   const [tier, setTier] = useState<Tier | null>(pending && options.find((o) => o.tier === pending.tier)?.allowed ? pending.tier : null);
   const [reason, setReason] = useState("");
   const [tried, setTried] = useState(false);

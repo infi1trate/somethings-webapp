@@ -37,7 +37,22 @@ let idx = 0;
 let max = 0;
 let installed = false;
 const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((l) => l());
+/* ═══ NOTIFY AFTER THE COMMIT, NEVER INSIDE IT ═══ Next's router calls
+   `history.pushState` from a `useInsertionEffect` (its HistoryUpdater), and
+   a `useSyncExternalStore` listener firing synchronously there schedules an
+   update mid-commit — React's "useInsertionEffect must not schedule
+   updates". A microtask runs once the commit has finished; calls in the same
+   tick coalesce into one notification. The position itself is still updated
+   synchronously, so a snapshot read at any moment is correct. */
+let queued = false;
+const emit = () => {
+  if (queued) return;
+  queued = true;
+  queueMicrotask(() => {
+    queued = false;
+    listeners.forEach((l) => l());
+  });
+};
 
 const stampOf = (state: unknown): number | null => {
   const v = (state as Record<string, unknown> | null)?.[STAMP];

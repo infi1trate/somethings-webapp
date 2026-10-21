@@ -18,11 +18,9 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { ASSESSMENT } from "@/lib/chat/assessment";
 import type { EscalationState } from "@/lib/chat/types";
-import { RESOLUTION_OUTCOMES } from "@/components/chat/escalation/resolve-dialog";
 import { describeEvent, type TierActor, type TierEvent, type TierEventKind } from "@/lib/tiering/events";
-import { escalationTarget, safetyOf } from "@/lib/tiering/escalation";
+import { FOLLOW_UP_STATUS, OUTCOMES, RISK_LABEL, assessmentOf, escalationTarget, riskLevel } from "@/lib/tiering/escalation";
 import { RAISE_LABEL } from "@/lib/tiering/tiers";
 import { cn } from "@/lib/utils";
 
@@ -103,26 +101,35 @@ function EscalationStory({
   mentorName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const covered = Object.values(escalation.assessment).filter((s) => s.checked).length;
-  const safety = safetyOf(escalation);
-  const outcome = RESOLUTION_OUTCOMES.find((o) => o.id === escalation.outcomeId)?.label;
+  /* ═══ ONE-CARD HISTORY (pack v2.0, make it magical 3) ═══ raised →
+     assessed (risk) → confirmed → outcome → step-down, in one line; the
+     audit trail behind it on expand. */
+  const a = assessmentOf(escalation);
+  const risk = riskLevel(a.answers);
+  const outcome = OUTCOMES.find((o) => o.id === escalation.outcome?.id)?.label ?? (escalation.outcome?.id === "tier_update" ? "tier update" : escalation.outcome?.id === "reviewed" ? "reviewed" : undefined);
   const target = escalationTarget(escalation);
   const stepDown = events.find((e) => e.kind === "stepped-down");
+  const followUp = FOLLOW_UP_STATUS.find((f) => f.id === escalation.followUp?.status)?.label;
   /* THE ARC, IN ONE LINE. TODO-COPY. */
   const arc = [
-    `Opened ${WHEN.format(escalation.openedAt)}`,
-    `${covered} of ${ASSESSMENT.length} covered${safety.submittedAt ? " · safety check sent" : ""}`,
-    escalation.resolvedAt !== null ? `resolved${outcome ? `: ${outcome.toLowerCase()}` : ""}` : "still open",
+    `Raised ${WHEN.format(escalation.openedAt)}`,
+    ...(a.submittedAt !== null ? [`assessed${risk ? ` (${RISK_LABEL[risk].toLowerCase()})` : ""}`] : []),
+    ...(escalation.confirmedTier !== undefined ? [`Tier ${escalation.confirmedTier} confirmed`] : []),
+    escalation.resolvedAt !== null ? (outcome ? outcome.toLowerCase() : "closed") : "still open",
     ...(stepDown ? [`stepped down to Tier ${stepDown.tier}`] : []),
   ].join(" → ");
   const entries: Entry[] = [
-    { key: `${escalation.id}-open`, at: escalation.openedAt, label: "Opened", sentence: `${mentorName} raised ${RAISE_LABEL[target]}`, reason: escalation.contextNote || undefined },
+    { key: `${escalation.id}-open`, at: escalation.openedAt, label: "Raised", sentence: `${mentorName} raised ${RAISE_LABEL[target]}`, reason: escalation.contextNote || undefined },
     ...events.map((e) => tierEntry(e, nameOf)),
-    ...(safety.submittedAt ? [{ key: `${escalation.id}-safety`, at: safety.submittedAt, label: "Safety check", sentence: "Safety check sent to supervisor" }] : []),
-    ...(escalation.resolvedAt !== null
-      ? [{ key: `${escalation.id}-resolved`, at: escalation.resolvedAt, label: "Resolved", sentence: outcome ? `Resolved · ${outcome}` : "Resolved" }]
+    ...(a.submittedAt !== null
+      ? [{ key: `${escalation.id}-assessed`, at: a.submittedAt, label: "Assessed", sentence: `Assessment sent to supervisor${risk ? ` · suggested ${RISK_LABEL[risk].toLowerCase()}` : ""}`, reason: escalation.mentorSummary || undefined }]
       : []),
-  ].sort((a, b) => a.at - b.at);
+    ...(escalation.guidance ?? []).map((g) => ({ key: g.id, at: g.at, label: "Guidance", sentence: `${g.author}: ${g.text}` })),
+    ...(escalation.crisisNote?.updatedAt && escalation.resolvedAt !== null ? [{ key: `${escalation.id}-note`, at: escalation.crisisNote.updatedAt, label: "Crisis note", sentence: "Crisis note filed" }] : []),
+    ...(escalation.outcome?.savedAt ? [{ key: `${escalation.id}-outcome`, at: escalation.outcome.savedAt, label: "Outcome", sentence: outcome ? `Outcome · ${outcome}` : "Outcome recorded", reason: escalation.outcome.plan || undefined }] : []),
+    ...(escalation.resolvedAt !== null ? [{ key: `${escalation.id}-closed`, at: escalation.resolvedAt, label: "Closed", sentence: "Escalation closed" }] : []),
+    ...(escalation.followUp ? [{ key: `${escalation.id}-follow`, at: escalation.followUp.dueAt, label: "Follow-up", sentence: followUp ? `Follow-up · ${followUp}` : "Follow-up scheduled" }] : []),
+  ].sort((x, y) => x.at - y.at);
   return (
     <li data-escalation-story={escalation.id} className="rounded-[var(--radius-inset)] border border-[color:var(--border-subtle)] bg-[var(--surface-card)]">
       <button

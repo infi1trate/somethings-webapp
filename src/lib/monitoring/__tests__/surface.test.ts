@@ -1,4 +1,5 @@
-// COVERAGE, PRACTICE, THE LIVE BAND, THE DISPOSITION MODEL, AND ALL 39 FIXTURES.
+// COVERAGE, PRACTICE, THE LIVE BAND AND ALL 39 FIXTURES. (The disposition
+// model went with the dashboard that rendered it — Escalation Exchange v2.)
 
 import { describe, expect, it } from "vitest";
 import {
@@ -14,7 +15,6 @@ import {
   type SupervisedConversation,
 } from "@/lib/monitoring/coverage";
 import { bandItems, bandStateFor, interrupts, type LiveItem } from "@/lib/monitoring/live";
-import { DISPOSITION_VALUES, dispositionById, resolves } from "@/lib/monitoring/disposition";
 import { MONITORING_SCENARIOS, monitoringData } from "@/lib/monitoring/scenarios";
 import { isSettled, recordLifecycleOf } from "@/lib/monitoring/escalation";
 
@@ -113,38 +113,6 @@ describe("the live band", () => {
     for (const k of ["awaitingReply", "mentorOffline", "outreachWindow", "wentActive", "flagArrived"] as const) {
       expect(interrupts(k)).toBe(false);
     }
-  });
-});
-
-describe("the disposition model", () => {
-  it("has a value that neither closes nor escalates, and it is the open question", () => {
-    /* WAS "has a path that escalates rather than resolving", over a fourth
-       disposition value that §2.8 removed — escalating is a button now. The
-       property worth keeping is that not every value closes the event, which
-       `watching` carries. */
-    const watch = DISPOSITION_VALUES.find((d) => d.effect === "watch");
-    expect(watch).toBeTruthy();
-    expect(resolves(watch ?? null)).toBe(false);
-    expect(watch?.unresolvedQuestion).toBe(true);
-  });
-
-  it("only a resolving disposition closes anything", () => {
-    for (const d of DISPOSITION_VALUES) {
-      expect(resolves(d)).toBe(d.effect === "resolve");
-    }
-    // NO DISPOSITION RESOLVES NOTHING — the rule Phase 2's acceptance turns on.
-    expect(resolves(null)).toBe(false);
-    expect(resolves(dispositionById("nonsense"))).toBe(false);
-  });
-
-  it("carries the unresolved third state, flagged as the open question", () => {
-    const watching = DISPOSITION_VALUES.filter((d) => d.unresolvedQuestion);
-    expect(watching).toHaveLength(1);
-    expect(watching[0].effect).toBe("watch");
-  });
-
-  it("states a consequence for every value, because one of them does not close", () => {
-    for (const d of DISPOSITION_VALUES) expect(d.consequence.length).toBeGreaterThan(10);
   });
 });
 

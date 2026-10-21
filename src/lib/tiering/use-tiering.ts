@@ -14,13 +14,13 @@
 // server render sees nothing and the client fills in.
 
 import { useMemo } from "react";
-import type { EscalationState } from "@/lib/chat/types";
+import type { CrisisNote, EscalationOutcome, EscalationState } from "@/lib/chat/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier, staffActorFor } from "@/lib/record/permission-map";
 import { LIVE_ID } from "@/lib/record/subject";
 import { useMounted } from "@/lib/use-mounted";
 import { tierStateFor, type TierActor, type TierEvent, type TierState } from "@/lib/tiering/events";
-import { isOpen } from "@/lib/tiering/escalation";
+import { CLOSE_OUT_TIER, assessmentOf, isOpen } from "@/lib/tiering/escalation";
 import { seedEscalationEvents, seedEscalationHistory, seedEscalations, seedTierEvents } from "@/lib/tiering/seed";
 import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 
@@ -45,6 +45,20 @@ export interface Tiering {
   setTier: (input: { teenId: string; tier: Tier; reason: string; escalationId?: string }) => boolean;
   decline: (input: { teenId: string; reason: string }) => boolean;
   putEscalation: (e: EscalationState) => void;
+  /* ═══ THE EXCHANGE (pack v2.0) — every move, on the one record ═══ */
+  answer: (teenId: string, questionId: string, value: "yes" | "no") => void;
+  submitAssessment: (teenId: string, summary: string) => void;
+  /** S1. Tier 1–2 continues to S2; Tier 3–4 is the standard tier update and
+   *  closes the escalation (the crisis-note flow does not apply). */
+  confirm: (teenId: string, tier: Tier, reason: string) => boolean;
+  postGuidance: (teenId: string, text: string) => void;
+  saveCrisisNote: (teenId: string, patch: Partial<CrisisNote>) => void;
+  saveOutcome: (teenId: string, outcome: EscalationOutcome) => void;
+  /** S4. Closes, files the follow-up, and steps the teen down. */
+  close: (teenId: string, input: { followUpDays: number; reason: string }) => boolean;
+  /** Platform safety: reviewed, closed, no tier event. */
+  closeReviewed: (teenId: string, reason: string) => void;
+  seeWrap: (teenId: string) => void;
 }
 
 let seq = 0;
@@ -62,6 +76,7 @@ export function useTiering(now: number): Tiering {
   const writtenHistory = useOnboardingStore((s) => s.escalationHistory);
   const putEscalation = useOnboardingStore((s) => s.putEscalation);
   const appendTierEvent = useOnboardingStore((s) => s.appendTierEvent);
+  const appendChatEvent = useOnboardingStore((s) => s.appendChatEvent);
 
   const fixtures = useMemo(() => {
     if (!mounted) return null;
@@ -111,6 +126,10 @@ export function useTiering(now: number): Tiering {
       if (a.role === "system") return "Intake";
       return a.name || (a.role === "supervisor" ? "A supervisor" : "The mentor");
     };
+    /* THE THREAD KEEPS ITS HISTORY: closing writes the `escalation-resolved`
+       chat event the transcript's chip reads, whoever closes. */
+    const closedInThread = (teenId: string, e: EscalationState, at: number) =>
+      appendChatEvent({ id: `ev-${teenId}-${at}`, threadId: teenId, at, kind: "escalation-resolved", actorId: viewer.id, artifactId: e.id, artifactName: "the escalation" });
     const write = (e: Omit<TierEvent, "id" | "actor" | "at"> & { at?: number }) => {
       const at = e.at ?? Date.now();
       return appendTierEvent({ ...e, at, id: nextId("tier", at), actor: viewer } as TierEvent);
@@ -143,13 +162,11 @@ export function useTiering(now: number): Tiering {
           anchorMessageId,
           supervisorNotifiedAt: at,
           supervisorId,
-          assessment: {},
           resolvedAt: null,
           resolutionNoteId: null,
           requested: target,
           contextNote: note.trim(),
           safetyCheck: { answers: {}, submittedAt: null },
-          outcomeId: null,
         };
         putEscalation(e);
         if (target !== "platform") {
@@ -173,6 +190,78 @@ export function useTiering(now: number): Tiering {
         return write({ teenId, kind: "declined", tier: s.pending.tier, fromTier: s.tier, reason, escalationId: s.pending.escalationId });
       },
       putEscalation,
+      answer: (teenId, questionId, value) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e)) return;
+        const a = assessmentOf(e);
+        if (a.submittedAt !== null) return;
+        /* A change of mind before Submit replaces the answer; Q6's follow-up
+           goes when Q6 goes back to No, so nothing stale is sent. */
+        const answers = { ...a.answers, [questionId]: { value, at: Date.now() } };
+        if (questionId === "q6" && value === "no") delete answers.q6b;
+        putEscalation({ ...e, safetyCheck: { ...a, answers } });
+      },
+      submitAssessment: (teenId, summary) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e)) return;
+        putEscalation({ ...e, mentorSummary: summary.trim(), safetyCheck: { ...assessmentOf(e), submittedAt: Date.now() } });
+      },
+      confirm: (teenId, tier, reason) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e) || !reason.trim()) return false;
+        const s = tierStateFor(eventsFor(teenId));
+        const at = Date.now();
+        const kind = s.pending && s.pending.tier === tier ? "confirmed" : s.tier !== null && tier > s.tier ? "stepped-down" : "placed";
+        if (!write({ at, teenId, kind, tier, fromTier: s.tier, reason, escalationId: e.id })) return false;
+        /* RECORD METADATA, NEVER RENDERED: time to confirm. */
+        const meta = { ...e.meta, timeToConfirmMs: at - e.openedAt };
+        /* TIER 3–4 EXITS THE CRISIS-NOTE FLOW: the tier update is the whole
+           answer, and the escalation closes with it. */
+        if (tier >= 3) {
+          putEscalation({ ...e, confirmedTier: tier, confirmedAt: at, meta, resolvedAt: at, outcome: { id: "tier_update", autoTagged: false, debrief: reason, debriefIsDraft: false, plan: "", additional: "", savedAt: at } });
+          closedInThread(teenId, e, at);
+        } else putEscalation({ ...e, confirmedTier: tier, confirmedAt: at, meta });
+        return true;
+      },
+      postGuidance: (teenId, text) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e) || !text.trim()) return;
+        const at = Date.now();
+        putEscalation({ ...e, guidance: [...(e.guidance ?? []), { id: `g-${teenId}-${at}`, at, text: text.trim(), author: viewer.name || "Your supervisor" }] });
+      },
+      saveCrisisNote: (teenId, patch) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e)) return; // append-only once closed
+        putEscalation({ ...e, crisisNote: { ...e.crisisNote, ...patch, updatedAt: Date.now() } });
+      },
+      saveOutcome: (teenId, outcome) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e)) return;
+        putEscalation({ ...e, outcome: { ...outcome, savedAt: Date.now() } });
+      },
+      close: (teenId, { followUpDays, reason }) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e) || !reason.trim()) return false;
+        const at = Date.now();
+        const s = tierStateFor(eventsFor(teenId));
+        /* THE STEP DOWN — CLOSE_OUT_TIER, a blocked constant (see its note). */
+        if (s.tier !== CLOSE_OUT_TIER) write({ at, teenId, kind: "stepped-down", tier: CLOSE_OUT_TIER, fromTier: s.tier, reason, escalationId: e.id });
+        putEscalation({ ...e, resolvedAt: at, followUp: { dueAt: at + followUpDays * 86_400_000, status: null } });
+        closedInThread(teenId, e, at);
+        return true;
+      },
+      closeReviewed: (teenId, reason) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e) || !reason.trim()) return;
+        const at = Date.now();
+        putEscalation({ ...e, resolvedAt: at, meta: { ...e.meta, timeToConfirmMs: at - e.openedAt }, outcome: { id: "reviewed", autoTagged: false, debrief: reason.trim(), debriefIsDraft: false, plan: "", additional: "", savedAt: at } });
+        closedInThread(teenId, e, at);
+      },
+      seeWrap: (teenId) => {
+        const e = escalationFor(teenId);
+        if (!e || e.resolvedAt === null || e.wrapSeenAt) return;
+        putEscalation({ ...e, wrapSeenAt: Date.now() });
+      },
     };
-  }, [fixtures, mounted, written, writtenEscalations, writtenHistory, persona, liveMentorName, isSupervisor, viewer, appendTierEvent, putEscalation]);
+  }, [fixtures, mounted, written, writtenEscalations, writtenHistory, persona, liveMentorName, isSupervisor, viewer, appendTierEvent, appendChatEvent, putEscalation]);
 }

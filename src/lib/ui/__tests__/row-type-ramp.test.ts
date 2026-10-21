@@ -48,12 +48,12 @@ import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
-/** The row surfaces. `event-list` is Risk Flags' own row, which shares the
- *  geometry table and nothing else. */
+/** The row surfaces. `event-list` (Risk Flags' own row) was the third, and
+ *  went with the escalation/flag dashboard chain in Escalation Exchange v2 —
+ *  its two unpaired 12px classes left the count below with it. */
 const FILES = [
   "src/components/tasks/worklist.tsx",
   "src/components/tasks/review-row.tsx",
-  "src/components/monitoring/event-list.tsx",
 ] as const;
 
 /** Bloom's ramp, measured off `settings-tokens.css` and stated the same way
@@ -144,7 +144,7 @@ const REGISTERED_PAIRS: Record<string, string> = {
  *  12.5px and 13px all render somewhere on those two surfaces. Reported rather
  *  than registered, because this file's scope is the row components and a
  *  product-wide type audit needs its own pass. */
-const UNPAIRED_COUNT = 6;
+const UNPAIRED_COUNT = 4; // 6 at §1, less event-list's two (Exchange v2)
 
 describe("the rows' inline type", () => {
   const found = scan();

@@ -585,26 +585,61 @@ const ESCALATION: ScenarioBuild = {
     anchorMessageId: "t13-m5",
     supervisorNotifiedAt: now - 231 * MINUTE,
     supervisorId: "s-brandy",
-    assessment: {
-      "safe-now": { checked: true, at: now - 220 * MINUTE },
-      alone: { checked: true, at: now - 214 * MINUTE },
-    },
     resolvedAt: null,
     resolutionNoteId: null,
-    /* TIERING (pack v1.0): raised as a Tier 1 crisis, still awaiting a
-       supervisor's confirmation on the placement, the safety check two
-       answers in — the pack's "active Tier 1 with partial safety check". */
+    /* THE EXCHANGE (pack v2.0): raised as a Tier 1 crisis, MID-ASSESSMENT
+       (two of six answered) and AWAITING CONFIRMATION — the mentor's M2, the
+       supervisor's S1, at once. */
     requested: 1,
     /* TODO-COPY */
     contextNote: "Jordan said they don't know how much longer they can keep doing this. Things at home are bad again.",
     safetyCheck: {
       answers: {
-        "cssrs-1": { value: "yes", at: now - 212 * MINUTE },
-        "cssrs-2": { value: "no", at: now - 209 * MINUTE },
+        q1: { value: "yes", at: now - 212 * MINUTE },
+        q2: { value: "yes", at: now - 209 * MINUTE },
       },
       submittedAt: null,
     },
-    outcomeId: null,
+  }),
+};
+
+/** ESCALATION · TIER 2 — Jordan again, further along (pack v2.0 coverage):
+ *  the assessment submitted (Moderate), Tier 2 confirmed, the supervisor's
+ *  first guidance on the record, the crisis note one section in. Mentor M3,
+ *  supervisor S2 — and Tier 2, so the note's emergency section never
+ *  renders. */
+const ESCALATION_TIER2: ScenarioBuild = {
+  ...ESCALATION,
+  escalation: (now) => ({
+    ...ESCALATION.escalation!(now),
+    id: "esc-t13-t2",
+    requested: 2,
+    safetyCheck: {
+      answers: {
+        q1: { value: "yes", at: now - 212 * MINUTE },
+        q2: { value: "yes", at: now - 209 * MINUTE },
+        q3: { value: "yes", at: now - 206 * MINUTE },
+        q4: { value: "no", at: now - 203 * MINUTE },
+        q5: { value: "no", at: now - 201 * MINUTE },
+        q6: { value: "no", at: now - 199 * MINUTE },
+      },
+      submittedAt: now - 196 * MINUTE,
+    },
+    /* TODO-COPY */
+    mentorSummary: "Jordan is safe in their room for now. Their aunt gets home around six.",
+    confirmedTier: 2,
+    confirmedAt: now - 190 * MINUTE,
+    meta: { timeToConfirmMs: 45 * MINUTE },
+    guidance: [
+      {
+        id: "g-t13-1",
+        at: now - 186 * MINUTE,
+        author: "Brandy Forrestor",
+        /* TODO-COPY */
+        text: "You're doing the right things. Keep Jordan talking, and ask whether their aunt is on her way home.",
+      },
+    ],
+    crisisNote: { subtype: "suicidal_ideation", tags: ["housing"], updatedAt: now - 180 * MINUTE },
   }),
 };
 
@@ -720,6 +755,14 @@ export const CHAT_SCENARIOS: ChatScenario[] = [
     description: "Jordan. Banner pinned, supervisor notified, full crisis data.",
     data: "real",
     build: ESCALATION,
+  },
+  {
+    id: "escalation-tier2",
+    label: "Escalation · Tier 2",
+    /* TODO-COPY */
+    description: "Jordan, Tier 2 confirmed. Assessment sent, supervisor guiding, crisis note under way.",
+    data: "real",
+    build: ESCALATION_TIER2,
   },
   {
     id: "re-matched",
@@ -860,7 +903,7 @@ export function chatScenario(id: string, now: number): ChatData {
   }
   // The lead's last message is unanswered in the escalation scenario — the
   // supervisor has acknowledged and is waiting on the mentor.
-  if (scenario.id === "escalation-active") {
+  if (scenario.id === "escalation-active" || scenario.id === "escalation-tier2") {
     /* ═══ THE SUPERVISOR'S GUIDANCE (Tiering & Escalation pack) ═══ What the
        Care tab quotes as "Latest from your supervisor" — her answer to the
        escalation, six minutes after it opened, and the one still unread. The

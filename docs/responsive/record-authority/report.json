@@ -4,8 +4,8 @@
   "card": {
     "mounts": 2,
     "headingIds": [
-      "_r_g_",
-      "_r_i_"
+      "_r_b_",
+      "_r_d_"
     ],
     "card": {
       "bg": "rgb(255, 255, 255)",
@@ -72,7 +72,7 @@
       "submitDisabled": null,
       "stored": {},
       "persisted": true,
-      "storedVersion": 43
+      "storedVersion": 55
     },
     {
       "step": "thumbs up",
@@ -106,11 +106,11 @@
         "t17": {
           "rating": "up",
           "note": null,
-          "at": 1789073413768
+          "at": 1792604809411
         }
       },
       "persisted": true,
-      "storedVersion": 43
+      "storedVersion": 55
     },
     {
       "step": "thumbs down",
@@ -144,11 +144,11 @@
         "t17": {
           "rating": "down",
           "note": null,
-          "at": 1789073414023
+          "at": 1792604809674
         }
       },
       "persisted": true,
-      "storedVersion": 43
+      "storedVersion": 55
     },
     {
       "step": "typed",
@@ -182,11 +182,11 @@
         "t17": {
           "rating": "down",
           "note": null,
-          "at": 1789073414023
+          "at": 1792604809674
         }
       },
       "persisted": true,
-      "storedVersion": 43
+      "storedVersion": 55
     },
     {
       "step": "submitted",
@@ -220,11 +220,11 @@
         "t17": {
           "rating": "down",
           "note": "The trajectory sentence contradicted the chart.",
-          "at": 1789073414539
+          "at": 1792604810220
         }
       },
       "persisted": true,
-      "storedVersion": 43
+      "storedVersion": 55
     },
     {
       "step": "switched back to up",
@@ -258,11 +258,11 @@
         "t17": {
           "rating": "up",
           "note": null,
-          "at": 1789073414793
+          "at": 1792604810481
         }
       },
       "persisted": true,
-      "storedVersion": 43
+      "storedVersion": 55
     }
   ],
   "contrast": {

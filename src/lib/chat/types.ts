@@ -33,7 +33,7 @@
 // mutable field in the model is a sent artifact's `completion`, which tracks what
 // the teen has actually done with it.
 
-import type { RaiseTarget } from "@/lib/tiering/tiers";
+import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 
 import type { LucideIcon } from "lucide-react";
 
@@ -232,9 +232,9 @@ export interface EscalationState {
    *  to check, an hour later and after a navigation, that someone knows. */
   supervisorNotifiedAt: number;
   supervisorId: string;
-  /** Keyed by question id. The `at` is what makes the assessment a record of when
-   *  each thing was checked rather than a form's current value. */
-  assessment: Record<string, { checked: boolean; at: number }>;
+  /* ═══ THE CHECKLIST FIELD IS GONE (Escalation Exchange, pack v2.0) ═══ The
+     5-step `assessment` map was one of two question sets; the sequential
+     six-question assessment in `safetyCheck` replaced both. */
   resolvedAt: number | null;
   resolutionNoteId: string | null;
   /* ═══ TIERING (pack v1.0) — optional, so a record written before tiering
@@ -244,11 +244,61 @@ export interface EscalationState {
   requested?: RaiseTarget;
   /** "What's happening?" — the line the supervisor reads first. */
   contextNote?: string;
-  /** The C-SSRS screener, Tier 1–2 only. Same record the supervisor's view
-   *  renders: answers stream as they are captured. */
+  /** The six-question assessment (pack v2.0), Tier 1–2 only — the same
+   *  record the supervisor's view renders, so answers stream as given.
+   *  `submittedAt` is the mentor's Submit to supervisor. */
   safetyCheck?: SafetyCheck;
-  /** How it ended, once resolved — a `RESOLUTION_OUTCOMES` id. */
-  outcomeId?: string | null;
+  /** "In a sentence or two, what's going on" — the mentor's, after Q6. */
+  mentorSummary?: string;
+  /* ═══ THE EXCHANGE (pack v2.0) — the supervisor's half of the record ═══ */
+  /** S1: the tier the supervisor confirmed (or adjusted to). */
+  confirmedTier?: Tier;
+  confirmedAt?: number;
+  /** RECORD METADATA, NEVER RENDERED: how long the confirmation took. */
+  meta?: { timeToConfirmMs?: number };
+  /** S2: the supervisor's guidance to the mentor, append-only, newest last.
+   *  Stored on the record rather than in the Support outbox, which keeps
+   *  no author and does not persist (answered 2026-10-21). */
+  guidance?: GuidanceEntry[];
+  /** S2: the crisis note, section by section. Append-only once closed. */
+  crisisNote?: CrisisNote;
+  /** S3: the outcome and debrief. */
+  outcome?: EscalationOutcome;
+  /** S4: the follow-up filed when the escalation closed. */
+  followUp?: { dueAt: number; status: string | null };
+  /** M4: when the mentor read the wrap-up, after which Care is steady. */
+  wrapSeenAt?: number;
+}
+
+export interface GuidanceEntry {
+  id: string;
+  at: number;
+  text: string;
+  /** Who wrote it, as the record signs it. */
+  author: string;
+}
+
+export interface CrisisNote {
+  subtype?: string;
+  tags?: string[];
+  safetyPlan?: { status: string; usage: string };
+  resources?: { shared: boolean | null; list: string };
+  referral?: { made: boolean | null; list: string[] };
+  contact?: { engaged: boolean | null; details: string };
+  services?: { contacted: boolean | null; which: string[] };
+  updatedAt?: number;
+}
+
+export interface EscalationOutcome {
+  id: string;
+  /** Whether `id` is still the auto-tag, or the supervisor changed it. */
+  autoTagged: boolean;
+  debrief: string;
+  /** True while the debrief is the untouched AI draft. */
+  debriefIsDraft: boolean;
+  plan: string;
+  additional: string;
+  savedAt: number | null;
 }
 
 export interface SafetyCheck {

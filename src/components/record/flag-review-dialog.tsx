@@ -169,7 +169,7 @@ function FlagReviewBody({
   const [crisisOn, setCrisisOn] = useState(false);
   const [crisisType, setCrisisType] = useState<CrisisType>("self_harm");
   const [referralOn, setReferralOn] = useState(false);
-  const [referralType, setReferralType] = useState<ReferralType>("mental_health");
+  const [referralType, setReferralType] = useState<ReferralType>("therapist");
 
   const ready = noteReady(note);
   // SAME PATTERN AS APPROVE: Close is always live, and pressing it empty puts
