@@ -176,7 +176,9 @@ console.log("\n── the rail @ escalation-active");
   check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
   check(rail.assessmentOpen, "the assessment is what it shows");
   check(rail.progress === "2 of 6", "with a count of what is answered", String(rail.progress));
-  check(!rail.hasPercent && !rail.riskOutsideChip && /^Assessment suggests: /.test(rail.chip ?? ""), "no score or percentage; risk is named only in the advisory chip", String(rail.chip));
+  /* pack v3.0: the mentor's question card carries no live chip; the risk
+     arrives on the completed node once the assessment is sent. */
+  check(!rail.hasPercent && !rail.riskOutsideChip && rail.chip === null, "no score, percentage or risk word while the mentor is still answering", String(rail.chip));
   await p.context().close();
 }
 
@@ -394,7 +396,9 @@ console.log("\n── raising one @ active-mentorship");
   await bubbles.nth(3).locator('button[aria-label="React to this message"]').click();
   await p.waitForTimeout(250);
   const second = await p.evaluate(
-    `!!document.querySelector('[role="menu"] [role="menuitem"][aria-label*="escalation"]')`
+    /* "Raise an escalation" specifically: "Add this message to the escalation"
+       is offered while one is open, by design (pack v3.0). */
+    `!!document.querySelector('[role="menu"] [role="menuitem"][aria-label^="Raise an escalation"]')`
   );
   check(!second, "and Escalate is gone while one is open");
   await p.keyboard.press("Escape");
@@ -422,7 +426,18 @@ console.log("\n── raising one @ active-mentorship");
    is the shortest close; tiering.mjs walks the full Tier 1 path. */
 console.log("\n── closing @ escalation-active");
 {
-  const sup = await chat("escalation-active", 1440, 1000, { persona: "supervisor", path: "/app/chat/t13" });
+  /* The assessment arrives first: Confirm waits for it (pack v3.0, S0). */
+  const men = await chat("escalation-active", 1440, 1000, { path: "/app/chat/t13" });
+  for (const id of ["q3:no", "q4:no", "q5:no", "q6:no"]) {
+    await men.locator(`[data-yes-no="${id}"]`).click();
+    await men.waitForTimeout(120);
+  }
+  await men.locator('[data-exchange-field="mentor-summary"]').fill("Aunt is home now; Jordan is calmer.");
+  await men.locator('[data-exchange-primary="submit-assessment"]').click();
+  await men.waitForTimeout(400);
+  const sent = await men.evaluate(`JSON.parse(localStorage.getItem("${KEY}")).state`);
+  await men.context().close();
+  const sup = await chat("escalation-active", 1440, 1000, { persona: "supervisor", path: "/app/chat/t13", extra: { escalations: sent.escalations, tierEvents: sent.tierEvents } });
   const noResolve = await sup.evaluate(`!document.querySelector('[data-slot="banner-resolve"]')`);
   check(noResolve, "the supervisor's banner carries no Resolve either — closing is a stage, not a button");
   await sup.locator('[data-s1-tier="3"]').click();

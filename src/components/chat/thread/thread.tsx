@@ -134,6 +134,8 @@ export function Thread({
   observer,
   insert,
   onSend,
+  onAddToEscalation,
+  addedMoments,
   /** For the kebab's dialer link. Null on a thread with no number on file. */
   phone,
   className,
@@ -171,6 +173,10 @@ export function Thread({
    *  composer. Before pack v3.0 nothing passed it, so Send cleared the box and
    *  went nowhere. */
   onSend?: (text: string) => void;
+  /** Attach a message to the open escalation (mentor only). */
+  onAddToEscalation?: (message: ChatMessage) => void;
+  /** Messages already on the escalation's timeline: id → the mentor's note. */
+  addedMoments?: Record<string, string>;
   phone?: string | null;
   className?: string;
 }) {
@@ -427,6 +433,10 @@ export function Thread({
                           ? () => onEscalateFrom(entry.message)
                           : undefined
                       }
+                      /* ═══ ADD TO ESCALATION (pack v3.0) ═══ While one is open,
+                         the mentor can attach this message to its timeline. */
+                      onAddToEscalation={onAddToEscalation && escalation ? () => onAddToEscalation(entry.message) : undefined}
+                      addedToEscalation={addedMoments?.[entry.message.id]}
                     />
                   ) : (
                     <EventChip

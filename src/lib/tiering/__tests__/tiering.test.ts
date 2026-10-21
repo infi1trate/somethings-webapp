@@ -168,11 +168,14 @@ describe("the assessment — the sanctioned wording, in order", () => {
 });
 
 describe("one record, two lenses", () => {
-  it("walks the mentor M2 → M3 → M4 and the supervisor S1 → S4 off the record's own fields", () => {
+  it("walks the mentor M2 → M3 → M4 and the supervisor S0 → S4 off the record's own fields", () => {
+    /* S0 (pack v3.0): while the mentor is still assessing, Confirm waits. */
     const open = esc({});
-    expect([mentorStage(open, calm), supervisorStage(open)]).toEqual(["M2", "S1"]);
+    expect([mentorStage(open, calm), supervisorStage(open)]).toEqual(["M2", "S0"]);
     const sent = esc({ safetyCheck: { answers: {}, submittedAt: 5 } });
-    expect(mentorStage(sent, calm)).toBe("M3");
+    expect([mentorStage(sent, calm), supervisorStage(sent)]).toEqual(["M3", "S1"]);
+    /* No assessment for a Tier 3 raise: straight to S1. */
+    expect(supervisorStage(esc({ requested: 3 }))).toBe("S1");
     const confirmed = esc({ safetyCheck: { answers: {}, submittedAt: 5 }, confirmedTier: 1 });
     expect(supervisorStage(confirmed)).toBe("S2");
     const noted = { ...confirmed, crisisNote: { subtype: "x", safetyPlan: { status: "created", usage: "" }, resources: { shared: false, list: "" }, referral: { made: false, list: [] }, contact: { engaged: false, details: "" }, services: { contacted: false, which: [] } } };

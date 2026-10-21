@@ -37,7 +37,7 @@
 // hidden: if reactions become real content, they belong beside `chatNotes`.
 
 import { useState } from "react";
-import { FileText, ShieldAlert, SmilePlus } from "lucide-react";
+import { FileText, ListPlus, ShieldAlert, SmilePlus } from "lucide-react";
 import type { Sender } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -79,12 +79,16 @@ export function MessageActions({
    *  one it was about, and what gives a supervisor reading back the sentence rather
    *  than a timestamp. Absent when one is already open, and on support threads. */
   onEscalate,
+  /** ═══ ADD THIS MOMENT TO THE OPEN ESCALATION (pack v3.0, Workstream C) ═══
+   *  Present only while one is open, and never on a message already added. */
+  onAddToEscalation,
   className,
 }: {
   side: Sender;
   onReact: (emoji: string) => void;
   onTag?: () => void;
   onEscalate?: () => void;
+  onAddToEscalation?: () => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -161,7 +165,7 @@ export function MessageActions({
             </button>
           ))}
 
-          {(onTag || onEscalate) && (
+          {(onTag || onEscalate || onAddToEscalation) && (
             <>
               {/* A RULE, NOT A GAP. The six reactions are one gesture; tagging is a
                   different kind of act — it starts a written record — and a
@@ -191,6 +195,26 @@ export function MessageActions({
                   )}
                 >
                   <FileText className="size-4" aria-hidden />
+                </button>
+              )}
+              {onAddToEscalation && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  /* TODO-COPY */
+                  aria-label="Add this message to the escalation"
+                  title="Add to escalation"
+                  onClick={() => {
+                    onAddToEscalation();
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors",
+                    "hover:bg-[var(--tint-hover)] hover:text-[var(--text-primary)]",
+                    RING
+                  )}
+                >
+                  <ListPlus className="size-4" aria-hidden />
                 </button>
               )}
               {onEscalate && (

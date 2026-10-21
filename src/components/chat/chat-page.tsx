@@ -63,6 +63,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { CarePanel, type CareBrief, type CareTab } from "@/components/chat/rail/care";
 import { StepDownRequestDialog, TierUpdateDialog } from "@/components/tiering/tier-update-module";
+import { AddMomentDialog } from "@/components/chat/escalation/add-moment-dialog";
 import { useTiering } from "@/lib/tiering/use-tiering";
 import { workingTier } from "@/lib/tiering/escalation";
 import { isAlertTier, type RaiseTarget } from "@/lib/tiering/tiers";
@@ -402,6 +403,8 @@ export function ChatPage({
    *  Because the banner's "Emergency info" opens it on a tab. Stored WITH the
    *  thread it was picked on, as `pickedTab` is, so a new conversation opens on
    *  Overview with no effect to reset it. */
+  /** The message being added to the escalation (pack v3.0). */
+  const [momentFrom, setMomentFrom] = useState<ChatMessage | null>(null);
   const [pickedCareTab, setPickedCareTab] = useState<{ threadId: string; tab: CareTab } | null>(null);
   const careTab: CareTab = pickedCareTab && pickedCareTab.threadId === thread?.id ? pickedCareTab.tab : "overview";
   const setCareTab = (tab: CareTab) => {
@@ -797,6 +800,10 @@ export function ChatPage({
                   !observer && thread.kind === "teen" ? (m) => raiseEscalation(m) : undefined
                 }
                 insert={observer ? null : insert}
+                /* ═══ ADD TO ESCALATION (pack v3.0, Workstream C) ═══ The mentor's
+                   only; the supervisor reads the moments on the timeline. */
+                onAddToEscalation={!observer && escalation ? setMomentFrom : undefined}
+                addedMoments={escalation ? Object.fromEntries((escalation.moments ?? []).map((m) => [m.messageId, m.note])) : undefined}
                 /* ═══ SEND GOES SOMEWHERE (pack v3.0, Phase 0's confirmed bug) ═══
                    An observer has no composer, so no sender. */
                 onSend={
@@ -839,6 +846,17 @@ export function ChatPage({
                 onRescind={rescind}
               />
 
+
+              <AddMomentDialog
+                message={momentFrom}
+                senderName={momentFrom?.sender === "mentor" ? "You" : thread.displayName.split(" ")[0]}
+                onOpenChange={(o) => {
+                  if (!o) setMomentFrom(null);
+                }}
+                onAdd={(note) => {
+                  if (momentFrom) tiering.addMoment(thread.id, { message: momentFrom, senderName: momentFrom.sender === "mentor" ? tiering.liveMentorName || "The mentor" : thread.displayName.split(" ")[0], note });
+                }}
+              />
 
               {tierDialog === "update" && observer && (
                 <TierUpdateDialog
@@ -969,10 +987,13 @@ export function ChatPage({
                   onUpdateTier={() => setTierDialog("update")}
                   onRequestStepDown={() => setTierDialog("step-down")}
                   supervisorName={supervisorFirst}
+                  /* ═══ COACHING IS IN SUPPORT (pack v3.0, Supersession 2) ═══ The
+                     timeline's one link out, both lenses: the mentor to their
+                     supervisor, the supervisor to the mentor they watch. */
                   onReplyInSupport={
-                    !observer && escalation && canOpenInSupport(escalation.supervisorId)
-                      ? () => openInSupport(escalation.supervisorId)
-                      : undefined
+                    /* A supervisor's mentor is the PINNED contact (not in their
+                       directory), which the panel resolves by id while pinned. */
+                    otherParty && (observer ? pinMentor : canOpenInSupport(otherParty)) ? () => openInSupport(otherParty) : undefined
                   }
                   presence={presence}
                   emergency={emergencyInfo}

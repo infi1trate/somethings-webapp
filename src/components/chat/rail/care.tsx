@@ -221,6 +221,7 @@ export function CarePanel({
             lens={observer ? "supervisor" : "mentor"}
             tiering={tiering}
             supervisorName={supervisorName}
+            mentorName={tiering.liveMentorName || "the mentor"}
             presence={presence}
             onUseWording={onUseWording}
             onReplyInSupport={onReplyInSupport}
