@@ -591,6 +591,20 @@ const ESCALATION: ScenarioBuild = {
     },
     resolvedAt: null,
     resolutionNoteId: null,
+    /* TIERING (pack v1.0): raised as a Tier 1 crisis, still awaiting a
+       supervisor's confirmation on the placement, the safety check two
+       answers in — the pack's "active Tier 1 with partial safety check". */
+    requested: 1,
+    /* TODO-COPY */
+    contextNote: "Jordan said they don't know how much longer they can keep doing this. Things at home are bad again.",
+    safetyCheck: {
+      answers: {
+        "cssrs-1": { value: "yes", at: now - 212 * MINUTE },
+        "cssrs-2": { value: "no", at: now - 209 * MINUTE },
+      },
+      submittedAt: null,
+    },
+    outcomeId: null,
   }),
 };
 
@@ -777,6 +791,19 @@ function supportThread(id: string, messages: ChatMessage[]): ChatThread {
 }
 
 /** Build a scenario. `now` is the caller's clock — see the module note. */
+/** ═══ THE SCENARIO'S ESCALATIONS ALONE ═══ What `lib/tiering` reads, so the
+ *  user record and Monitoring see the chat's escalation without building
+ *  every thread. Keyed by thread id, which is the teen's record id. */
+export function scenarioEscalations(id: string, now: number): Record<ThreadId, EscalationState> {
+  const scenario = CHAT_SCENARIOS.find((s) => s.id === id);
+  const e = scenario?.build.escalation?.(now);
+  return e ? { [e.threadId]: e } : {};
+}
+
+/** The crisis escalation fixture, by itself — Monitoring's Alert scenarios
+ *  raise the same one, so the two axes agree about who is in crisis. */
+export const crisisEscalationFixture = (now: number): EscalationState => ESCALATION.escalation!(now);
+
 export function chatScenario(id: string, now: number): ChatData {
   const scenario =
     CHAT_SCENARIOS.find((s) => s.id === id) ??

@@ -33,6 +33,8 @@
 // mutable field in the model is a sent artifact's `completion`, which tracks what
 // the teen has actually done with it.
 
+import type { RaiseTarget } from "@/lib/tiering/tiers";
+
 import type { LucideIcon } from "lucide-react";
 
 /** A person id, doubling as the thread id. See the module note. */
@@ -235,6 +237,25 @@ export interface EscalationState {
   assessment: Record<string, { checked: boolean; at: number }>;
   resolvedAt: number | null;
   resolutionNoteId: string | null;
+  /* ═══ TIERING (pack v1.0) — optional, so a record written before tiering
+     existed still reads. Go through `lib/tiering/escalation.ts` rather than
+     reading these directly; it supplies the defaults. ═══ */
+  /** What the mentor raised: Tier 1–3, or Platform safety. */
+  requested?: RaiseTarget;
+  /** "What's happening?" — the line the supervisor reads first. */
+  contextNote?: string;
+  /** The C-SSRS screener, Tier 1–2 only. Same record the supervisor's view
+   *  renders: answers stream as they are captured. */
+  safetyCheck?: SafetyCheck;
+  /** How it ended, once resolved — a `RESOLUTION_OUTCOMES` id. */
+  outcomeId?: string | null;
+}
+
+export interface SafetyCheck {
+  /** Keyed by question id. `at` is when it was answered. */
+  answers: Record<string, { value: "yes" | "no"; at: number }>;
+  /** Null until Submit; then read-only, "Sent to supervisor". */
+  submittedAt: number | null;
 }
 
 /** ═══ EVERY FIELD NULLABLE ON PURPOSE ═══

@@ -97,6 +97,7 @@ import {
 import { emptyHubSteps } from "@/lib/onboarding/hub";
 import { normaliseClosedRecord, type ClosedCareReview } from "@/lib/tasks/closed-review";
 import { devClockByKey } from "@/lib/home/dev-clock";
+import { appendable, type TierEvent } from "@/lib/tiering/events";
 import { pinsFor, todayScenarioById } from "@/lib/home/scenarios";
 
 // A persisted-shape copy of the draft (no password, no volatile blob url) — the
@@ -349,6 +350,18 @@ interface OnboardingState {
    *  mutable field in the chat model, so they cannot live in the append-only
    *  event log. */
   chatArtifacts: Record<string, ChatArtifactRecord>;
+  /** ═══ THE TIER LOG — APPEND-ONLY (Tiering & Escalation pack) ═══
+   *  Every placement, request, confirmation and step-down this session wrote,
+   *  merged at read time with the fixtures' (`lib/tiering/seed.ts`). One log
+   *  for every teen; the chat, the user record and Monitoring all read it. */
+  tierEvents: TierEvent[];
+  /** Escalations that were resolved and then superseded by a new one on the
+   *  same thread — kept whole, so History can still tell the earlier story. */
+  escalationHistory: ChatEscalation[];
+  /** ═══ APPEND, THROUGH THE GATE ═══ Refuses an event without a reason, and a
+   *  tier-SETTING event from anyone but a supervisor (`appendable`). Returns
+   *  whether it was written, so a caller cannot believe it was. */
+  appendTierEvent: (event: TierEvent) => boolean;
   setActivityScenarioId: (id: string) => void;
   setTasksScenarioId: (id: string) => void;
   setMonitoringScenarioId: (id: string | null) => void;
@@ -755,6 +768,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       chatEvents: {},
       chatNotes: {},
       chatArtifacts: {},
+      tierEvents: [],
+      escalationHistory: [],
       tasksResetNonce: 0,
       tasksLastVisitAt: 0,
       shiftLastSeenAt: 0,
@@ -1217,7 +1232,11 @@ export const useOnboardingStore = create<OnboardingState>()(
              scenario switch is the event that adds to it, so clearing it here
              erased exactly the thing the action should have been feeding. */
         }),
-      setMonitoringScenarioId: (id) => set({ monitoringScenarioId: id }),
+      /* The tier log and the escalation records are ONE store across both dev
+         axes now, so switching either scenario drops what this session wrote
+         against the old fixtures — the same reasoning as the chat switch. */
+      setMonitoringScenarioId: (id) =>
+        set({ monitoringScenarioId: id, tierEvents: [], escalationHistory: [], escalations: {} }),
       /* Switching scenario drops everything keyed to the old fixtures — the same
          reasoning as `setActivityScenarioId` clearing its read overlay. An
          escalation on Jordan's thread means nothing once the roster's threads have
@@ -1236,9 +1255,21 @@ export const useOnboardingStore = create<OnboardingState>()(
       putChatNote: (note) =>
         set((st) => ({ chatNotes: { ...st.chatNotes, [note.id]: note } })),
       putEscalation: (escalation) =>
-        set((st) => ({
-          escalations: { ...st.escalations, [escalation.threadId]: escalation },
-        })),
+        set((st) => {
+          const prev = st.escalations[escalation.threadId];
+          /* A NEW escalation on a thread whose last one was resolved: the old
+             record is history, not something to overwrite. */
+          const superseded = prev && prev.id !== escalation.id && prev.resolvedAt !== null;
+          return {
+            escalations: { ...st.escalations, [escalation.threadId]: escalation },
+            ...(superseded ? { escalationHistory: [...st.escalationHistory, prev] } : {}),
+          };
+        }),
+      appendTierEvent: (event) => {
+        if (!appendable(event).ok) return false;
+        set((st) => ({ tierEvents: [...st.tierEvents, event] }));
+        return true;
+      },
       setChatScenarioId: (id) =>
         set({
           chatScenarioId: id,
@@ -1246,6 +1277,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           chatEvents: {},
           chatNotes: {},
           chatArtifacts: {},
+          tierEvents: [],
+          escalationHistory: [],
         }),
       resetTasksReviewed: () =>
         set((st) => ({ tasksResetNonce: st.tasksResetNonce + 1 })),
@@ -1471,6 +1504,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           chatEvents: {},
           chatNotes: {},
           chatArtifacts: {},
+          tierEvents: [],
+          escalationHistory: [],
           tasksLastVisitAt: 0,
           shiftLastSeenAt: 0, // …and brings the shift-start digest back
           activityDensity: "dense",
@@ -1646,7 +1681,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       //      are DROPPED on merge (Brandon, 2026-10-06): they carry no content,
       //      so a row for one would be a record with nothing in it. Their items
       //      return to Open in the sessions that had them.
-      version: 54,
+      // v55: `tierEvents` and `escalationHistory` (Tiering & Escalation pack),
+      //      both arrays, both in `partialize`. Backfilled to [] — a session
+      //      from before tiering has written no tier events, which is true.
+      version: 55,
       migrate: (persisted, version) => {
         const s = persisted as {
           draft?: Record<string, unknown>;
@@ -2133,6 +2171,10 @@ export const useOnboardingStore = create<OnboardingState>()(
             st33.careFlagClosures = {};
           }
         }
+        // v55: arrays — [] is the right backfill.
+        const st55 = persisted as { tierEvents?: unknown; escalationHistory?: unknown };
+        if (!Array.isArray(st55.tierEvents)) st55.tierEvents = [];
+        if (!Array.isArray(st55.escalationHistory)) st55.escalationHistory = [];
         return s as unknown as OnboardingState;
       },
       // Self-healing merge — defense-in-depth for the shape transforms.
@@ -2602,6 +2644,8 @@ export const useOnboardingStore = create<OnboardingState>()(
         chatEvents: state.chatEvents,
         chatNotes: state.chatNotes,
         chatArtifacts: state.chatArtifacts,
+        tierEvents: state.tierEvents,
+        escalationHistory: state.escalationHistory,
         devLoadState: state.devLoadState,
         /* bar-02. See the field's note on why this one must persist. */
         scenarioRecents: state.scenarioRecents,

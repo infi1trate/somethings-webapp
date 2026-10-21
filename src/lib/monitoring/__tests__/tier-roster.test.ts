@@ -4,8 +4,27 @@ import {
   teensNeedingReview,
   tierAlertLive,
   tierRoster,
+  TIER4_TOTAL,
   type MonitoringTeen,
 } from "@/lib/monitoring/tier-roster";
+import { tierStateFor } from "@/lib/tiering/events";
+import { seedEscalationEvents, seedEscalationHistory, seedEscalations, seedTierEvents } from "@/lib/tiering/seed";
+
+/* ═══ THE ROSTER IS DERIVED FROM THE ONE TIER LOG NOW ═══ (Tiering &
+   Escalation pack). These build the same inputs `useTiering` does, from the
+   seed, for the calm and the alert axis. */
+const NOW = Date.UTC(2026, 9, 20, 15);
+function roster(alert: boolean) {
+  const esc = seedEscalations(NOW, "active-mentorship", alert ? "tiers-alert" : "tiers-monitor");
+  const events = [...seedTierEvents(NOW), ...seedEscalationEvents(esc)];
+  const history = seedEscalationHistory(NOW);
+  return tierRoster({
+    stateFor: (id) => tierStateFor(events.filter((e) => e.teenId === id)),
+    escalationsFor: (id) => [...history.filter((e) => e.threadId === id), ...(esc[id] ? [esc[id]] : [])],
+    liveMentorName: "Alex Kim",
+    now: NOW,
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // THE TIERED ROSTER (proto/monitoring-merge)
@@ -40,17 +59,36 @@ describe("which scenarios are Alert", () => {
   });
 });
 
-describe("the roster", () => {
-  it("holds a Tier 1 teen only while an alert is live", () => {
-    expect(tierRoster(false).some((t) => t.tier === 1)).toBe(false);
-    expect(tierRoster(true).filter((t) => t.tier === 1)).toHaveLength(1);
-    // Alert ADDS the crisis; it does not reshuffle anyone else.
-    expect(tierRoster(true).length).toBe(tierRoster(false).length + 1);
+describe("the roster, from the one log", () => {
+  it("puts Jordan in the Tier 1 lane only while the crisis is open — moved, not added", () => {
+    expect(roster(false).some((t) => t.tier === 1)).toBe(false);
+    const lane = roster(true).filter((t) => t.tier === 1);
+    expect(lane.map((t) => [t.recordId, t.teen, t.requestedTier])).toEqual([["t13", "Jordan T.", 1]]);
+    expect(roster(true).length).toBe(roster(false).length);
+    expect(roster(false).find((t) => t.recordId === "t13")?.tier).toBe(3);
+  });
+
+  it("is every record teen plus enough generated rows to make Tier 4 a hundred", () => {
+    const r = roster(false);
+    expect(r.filter((t) => t.recordId).length).toBe(26);
+    expect(r.filter((t) => t.tier === 4).length).toBe(TIER4_TOTAL);
+    expect(r.filter((t) => t.tier === 2).map((t) => t.recordId)).toEqual(["t15", "t21"]);
+  });
+
+  it("names the live mentor's teens after the live mentor", () => {
+    expect(roster(true).find((t) => t.recordId === "t13")?.mentor).toBe("Alex K.");
+    expect(roster(true).find((t) => t.recordId === "t13")?.presence).toBe("Alex in session");
+    expect(roster(false).find((t) => t.recordId === "t13")?.presence).toBeUndefined();
+  });
+
+  it("reads time in tier off the log, against the tier's minimum or dwell", () => {
+    expect(roster(false).find((t) => t.recordId === "t21")?.timeInTier).toEqual({ day: 3, minimum: 7 });
+    expect(roster(false).find((t) => t.recordId === "t17")?.timeInTier).toEqual({ day: 14, minimum: 14 });
   });
 
   it("has a teen in every tier from 2 to 4 in both modes", () => {
     for (const live of [false, true])
-      for (const tier of [2, 3, 4]) expect(tierRoster(live).some((t) => t.tier === tier), `${live} T${tier}`).toBe(true);
+      for (const tier of [2, 3, 4]) expect(roster(live).some((t) => t.tier === tier), `${live} T${tier}`).toBe(true);
   });
 });
 
@@ -62,8 +100,8 @@ describe("the rail badge is teens needing review", () => {
   });
 
   it("is 4 calm and 5 on an alert, which is what the rail shows", () => {
-    expect(teensNeedingReview(tierRoster(false))).toBe(4);
-    expect(teensNeedingReview(tierRoster(true))).toBe(5);
+    expect(teensNeedingReview(roster(false))).toBe(4);
+    expect(teensNeedingReview(roster(true))).toBe(5);
   });
 });
 
@@ -91,10 +129,11 @@ describe("the hero metrics derive from the roster", () => {
   });
 
   it("moves with the mode: the crisis is counted only on an alert", () => {
-    const calm = monitoringMetrics(tierRoster(false));
-    const alert = monitoringMetrics(tierRoster(true));
+    const calm = monitoringMetrics(roster(false));
+    const alert = monitoringMetrics(roster(true));
     expect(calm.inCrisis).toBe(0);
     expect(alert.inCrisis).toBe(1);
-    expect(alert.activeTeens).toBe(calm.activeTeens + 1);
+    expect(alert.activeTeens).toBe(calm.activeTeens);
+    expect(alert.escalationsOpen).toBe(1);
   });
 });
