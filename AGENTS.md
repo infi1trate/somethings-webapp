@@ -262,8 +262,11 @@ FCP-2 tier names, and parts of the Monitoring section above, each in place.**
   the part that waits for a supervisor).
 - **Red only in Tier 1–2 contexts and the 911 call.** The banner, the Care dot
   and Emergency information are red for Tier 1–2 escalations and neutral for
-  Tier 3 and Platform safety; the "Raise an escalation" menu items lost their
-  tint. Tier is never colour alone.
+  Tier 3 and Platform safety. Tier is never colour alone. **One named
+  exception:** the two "Raise an escalation" entry points (conversation menu,
+  message menu) stay alert-red although no tier is chosen yet — neutralised
+  once, reversed on instruction (2026-10-21): a mentor reaching for it in a
+  hurry is looking for the red one.
 - **Platform safety is a category, not a tier.** It routes to review and writes
   no tier event.
 - **C-SSRS question text is a placeholder** until the verbatim Columbia wording

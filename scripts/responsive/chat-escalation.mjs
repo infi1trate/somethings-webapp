@@ -344,10 +344,9 @@ console.log("\n── raising one @ active-mentorship");
     "and its tooltip says a supervisor is told",
     String(menuItem.title)
   );
-  /* SUPERSEDED: "the only tinted item". The canon spends red on Tier 1–2
-     contexts and the 911 call alone; this opens the raise flow before a tier
-     is chosen, so it is neutral now. */
-  check(menuItem.color === menuItem.neutralColor, "and it is no longer red — the canon's colour rule");
+  /* KEPT RED (answered 2026-10-21) — a named exception to the tiering
+     pack's colour rule. */
+  check(menuItem.color !== menuItem.neutralColor, "and it is the only tinted item");
 
   await p.locator('button[aria-label="Raise an escalation about this message"]').click();
   await p.waitForTimeout(700);
