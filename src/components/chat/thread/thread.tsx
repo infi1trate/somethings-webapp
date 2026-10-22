@@ -133,6 +133,11 @@ export function Thread({
   onBackToChats,
   observer,
   insert,
+  onSend,
+  onAddToEscalation,
+  addedMoments,
+  nameActor,
+  escalationAlert = false,
   /** For the kebab's dialer link. Null on a thread with no number on file. */
   phone,
   className,
@@ -166,6 +171,18 @@ export function Thread({
   /** Text to drop into the composer, unsent. See `Composer`'s own note on why this
    *  is a nonce rather than a plain string. */
   insert?: { text: string; nonce: number } | null;
+  /** Sends a message on this thread. Absent for an observer, who has no
+   *  composer. Before pack v3.0 nothing passed it, so Send cleared the box and
+   *  went nowhere. */
+  onSend?: (text: string) => void;
+  /** Attach a message to the open escalation (mentor only). */
+  onAddToEscalation?: (message: ChatMessage) => void;
+  /** Messages already on the escalation's timeline: id → the mentor's note. */
+  addedMoments?: Record<string, string>;
+  /** ═══ WHO DID IT, BY ACTOR ID (pack v3.0, E1) ═══ `lib/chat/actor-name`. */
+  nameActor?: (actorId: string) => string;
+  /** The open escalation is Tier 1–2: its raise chip is in the alert family. */
+  escalationAlert?: boolean;
   phone?: string | null;
   className?: string;
 }) {
@@ -182,6 +199,17 @@ export function Thread({
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [thread.id]);
+
+  /* ═══ A SENT MESSAGE IS SEEN ═══ When the newest message is the mentor's
+     own, they just sent it: bring it into view. Keyed on that message's id, so
+     a teen's reply arriving while the mentor reads back does not yank them. */
+  const last = messages.at(-1);
+  const lastSentId = last?.sender === "mentor" ? last.id : null;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !lastSentId) return;
+    el.scrollTop = el.scrollHeight;
+  }, [lastSentId]);
 
   /* And again once media has had a chance to lay out. The frames are sized from
      data (see `MediaFrame`) so nothing should move — this is the belt to that
@@ -411,6 +439,10 @@ export function Thread({
                           ? () => onEscalateFrom(entry.message)
                           : undefined
                       }
+                      /* ═══ ADD TO ESCALATION (pack v3.0) ═══ While one is open,
+                         the mentor can attach this message to its timeline. */
+                      onAddToEscalation={onAddToEscalation && escalation ? () => onAddToEscalation(entry.message) : undefined}
+                      addedToEscalation={addedMoments?.[entry.message.id]}
                     />
                   ) : (
                     <EventChip
@@ -418,9 +450,8 @@ export function Thread({
                       /* TODO-COPY. "You" for the mentor's own actions, the other
                          party's first name otherwise — a mentor scanning needs to
                          know which of them did this. */
-                      actorName={
-                        entry.event.actorId === LIVE_ID ? (observer?.mentorName ?? "You") : theirName
-                      }
+                      actorName={nameActor ? nameActor(entry.event.actorId) : entry.event.actorId === LIVE_ID ? (observer?.mentorName ?? "You") : theirName}
+                      live={escalationAlert && !!escalation && entry.event.kind === "escalation-opened" && entry.event.artifactId === escalation.id}
                       retracted={
                         entry.event.kind === "activity-sent" &&
                         !!artifacts[entry.event.artifactId]?.rescindedAt
@@ -464,7 +495,7 @@ export function Thread({
           </button>
         </div>
       ) : (
-        <Composer theirName={theirName} insert={insert} />
+        <Composer theirName={theirName} insert={insert} onSend={onSend} />
       )}
     </div>
   );
@@ -477,7 +508,6 @@ export function Thread({
 export function EscalationBanner({
   escalation,
   tone = "critical",
-  onOpenAssessment,
   onOpenSupervisor,
   onOpenCrisis,
 }: {
@@ -486,7 +516,6 @@ export function EscalationBanner({
    *  Platform safety escalation is still announced, as the one banner, but in
    *  the neutral tone — alert colour is spent on Tiers 1–2 alone. */
   tone?: "critical" | "neutral";
-  onOpenAssessment?: () => void;
   onOpenSupervisor?: () => void;
   onOpenCrisis?: () => void;
 }) {
@@ -525,22 +554,17 @@ export function EscalationBanner({
         )
       }
     >
-      {/* ═══ CRISIS INFO IS THE PRIMARY, NOT THE ASSESSMENT ═══
+      {/* ═══ CRISIS INFO IS THE BANNER'S ONE ACTION ═══
           A mentor pressing something on this banner in a hurry is reaching for
-          the phone numbers. The checklist is the considered path and sits
-          second. */}
+          the phone numbers. It opens Care on the Emergency info tab (pack
+          v3.0), where 911 is first. */}
       <BannerButton tone={tone} primary onClick={onOpenCrisis} data-slot="banner-crisis">
         {/* TODO-COPY */}
         Emergency info
       </BannerButton>
-      {/* ═══ "CHECKLIST" → "CARE", AND NO RESOLVE (pack v2.0) ═══ The checklist
-          is gone into the sequential assessment, which lives in Care; and the
-          mentor no longer resolves — the supervisor closes, so the banner has
-          no Resolve. */}
-      <BannerButton tone={tone} onClick={onOpenAssessment} data-slot="banner-assessment">
-        {/* TODO-COPY */}
-        Open Care
-      </BannerButton>
+      {/* ═══ "OPEN CARE" IS GONE (pack v3.0, Supersession 6) ═══ The Care tab
+          is a tap away and already carries the escalation dot; a second door
+          to it was chrome. No Resolve either — the supervisor closes. */}
     </StatusBanner>
   );
 }

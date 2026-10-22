@@ -362,8 +362,13 @@ export function railGroups(persona: Persona): NavGroup[] {
            the same reason and nobody has objected to that.
            IT IS ABOVE ACTIVITY, not below: the three judgment destinations come
            first and the two reading surfaces follow them, which is the order
-           the group has had since `ia-01`. */
-        NAV.chat,
+           the group has had since `ia-01`.
+           ═══ REMOVED (pack v3.0, Supersession 7) ═══ A supervisor reaches a
+           conversation through the Monitoring entry that needs them (and the
+           Support hub), never through a list of every thread — so Chat is no
+           longer a destination for the supervisor tier. The argument above is
+           kept because it is why it WAS here; the route still serves an
+           observer who arrives from Monitoring. */
         /* Activity moved into the top bar's bell (2026-10-16). */
       ],
     },
@@ -430,6 +435,11 @@ export function barItems(persona: Persona): SidebarItemDef[] {
    *  answer is no longer "add a fifth cell", and a fifth cell would undo the
    *  phase that fixed the labels. Stated so the trade is visible rather than
    *  inherited. */
+  /* ═══ SUPERVISOR TIER: MONITORING TAKES CHAT'S CELL (pack v3.0) ═══ With
+     Chats gone from their nav, the cell it held goes to Monitoring — the
+     destination row 361 says a phone could not reach. A lead mentor still
+     chats and keeps the cell. */
+  if (isSupervisorTier(persona)) return [NAV.today, NAV.monitoring, NAV.careReviews, NAV.people];
   return [NAV.today, NAV.chat, NAV.careReviews, NAV.people];
 }
 

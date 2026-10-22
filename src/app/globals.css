@@ -502,6 +502,32 @@
   }
 }
 
+/* ═══ THE TIMELINE'S CURRENT NODE (pack v3.0, Workstream C) ═══
+   A soft ring that breathes outward from the node in the Bloom ink — never
+   alert red, which the escalation dot and the Tier 1–2 lozenges own.
+   REDUCED MOTION: no animation; a static, emphasised ring in its place, so
+   "this is the live step" survives without movement. */
+@keyframes node-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-primary) 28%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--text-primary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-primary) 0%, transparent);
+  }
+}
+.node-pulse {
+  animation: node-pulse 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .node-pulse {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 22%, transparent);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE LIST AND PANE SCROLLBARS — NATIVE BAR HIDDEN, CUSTOM THUMB OVERLAID
    ═══════════════════════════════════════════════════════════════════════════

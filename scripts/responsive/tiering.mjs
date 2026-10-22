@@ -167,22 +167,27 @@ console.log("\n── 2 · TierCard, five states, two hosts");
 }
 
 // ── 4 · SUB-SECTIONS, BY KEYBOARD ─────────────────────────────────────────
-console.log("\n── 4 · the Care sub-sections");
+/* ═══ RETARGETED (pack v3.0, Workstream B) ═══ The four mid-panel sub-chips
+   are five first-class tabs at the top of the panel, Overview first. */
+console.log("\n── 4 · the Care tabs");
 {
   const { ctx, page } = await open("/app/chat/t14");
   await careTab(page).click();
   await page.waitForTimeout(300);
-  const chips = await page.evaluate(() => [...document.querySelectorAll("[data-care-sub]")].map((c) => c.textContent));
-  check(chips.join("|") === "History|Safety plan|Emergency info|Resources", "History · Safety plan · Emergency info · Resources, sentence case", chips.join(" · "));
-  await page.locator('[data-care-sub="history"]').focus();
+  const tabs = await page.evaluate(() => ({ labels: [...document.querySelectorAll("[data-care-tab]")].map((c) => c.textContent), first: document.querySelector("[data-care-panel]")?.firstElementChild?.matches("[data-care-tabs]"), sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
+  check(tabs.labels.join("|") === "Overview|Safety plan|Emergency info|Resources|History" && tabs.first && tabs.sel === "overview", "Overview · Safety plan · Emergency info · Resources · History, at the top, on Overview", JSON.stringify(tabs));
+  const sub = await page.evaluate(() => document.querySelectorAll("[data-care-sub]").length);
+  check(sub === 0, "and the mid-panel sub-chips are gone", `${sub}`);
+  await page.locator('[data-care-tab="overview"]').focus();
   const seen = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(80);
-    seen.push(await page.evaluate(() => ({ focus: document.activeElement?.dataset.careSub, sel: document.querySelector('[data-care-sub][aria-selected="true"]')?.dataset.careSub })));
+    seen.push(await page.evaluate(() => ({ focus: document.activeElement?.dataset.careTab, sel: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab, panel: document.querySelector("[data-care-tabpanel]")?.dataset.careTabpanel })));
   }
-  check(seen.map((s) => s.sel).join() === "safety-plan,emergency,resources" && seen.every((s) => s.focus === s.sel), "arrow keys move selection and focus together", JSON.stringify(seen));
-  /* Resources → one ArrowLeft → Emergency info. */
+  check(seen.map((s) => s.sel).join() === "safety-plan,emergency,resources,history" && seen.every((s) => s.focus === s.sel && s.panel === s.sel), "arrow keys move selection, focus and the panel together", JSON.stringify(seen));
+  /* History → two ArrowLeft → Emergency info. */
+  await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
   await page.waitForTimeout(100);
   const emerg = await page.evaluate(() => document.querySelector("[data-emergency-info]")?.innerText ?? "");
@@ -215,9 +220,17 @@ async function raiseVia(page, door, tier, note = "They said they are not okay to
   await DOORS[door](page);
   await page.waitForTimeout(400);
   const before = await page.evaluate(() => ({ flow: !!document.querySelector("[data-raise-flow]"), banner: !!document.querySelector('[data-slot="status-banner"]'), care: document.querySelector('[data-rail-tab="care"]')?.getAttribute("aria-selected") }));
-  await page.locator(`[data-raise-option="${tier}"]`).click();
-  await page.locator("[data-raise-note]").fill(note);
-  await page.locator("[data-raise-confirm]").click();
+  if (tier === "platform") {
+    /* A platform concern is not a tier (pack v3.0, Supersession 3): the quiet
+       link below the tiers opens its own report. */
+    await page.locator("[data-raise-platform]").click();
+    await page.locator("[data-platform-note]").fill(note);
+    await page.locator("[data-platform-send]").click();
+  } else {
+    await page.locator(`[data-raise-option="${tier}"]`).click();
+    await page.locator("[data-raise-note]").fill(note);
+    await page.locator("[data-raise-confirm]").click();
+  }
   await page.waitForTimeout(600);
   return before;
 }
@@ -265,7 +278,14 @@ for (const door of Object.keys(DOORS)) {
   const picked = await page.evaluate(() => document.querySelector('[data-raise-option][aria-checked="true"]')?.dataset.raiseOption);
   check(!!picked, "arrow keys select in the tier picker", String(picked));
   const cur = await page.evaluate(() => [...document.querySelectorAll("[data-raise-option]")].map((o) => o.dataset.raiseOption));
-  check(cur.join() === "1,2,3,platform", "the picker offers Tiers 1–3 and Platform safety — never Tier 4", cur.join(","));
+  check(cur.join() === "1,2,3", "the picker offers strictly Tiers 1–3 — never Tier 4, and no Platform option", cur.join(","));
+  /* ═══ SOMETHING ELSE ═══ The platform concern, as a quiet link below. */
+  const link = await page.evaluate(() => { const l = document.querySelector("[data-raise-platform]"); const g = document.querySelector('[data-raise-flow] [role="radiogroup"]'); return { text: l?.textContent, after: !!(l && g && g.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), radio: l?.getAttribute("role") }; });
+  check(link.text === "Something else? Report a platform concern" && link.after && link.radio === null, "below the tiers: a quiet link, not a radio, opens the platform report", JSON.stringify(link));
+  await page.locator("[data-raise-platform]").click();
+  await page.waitForTimeout(150);
+  const rep = await page.evaluate(() => ({ form: !!document.querySelector("[data-platform-report]"), lozenge: document.querySelectorAll("[data-platform-report] [data-tier-lozenge]").length }));
+  check(rep.form && rep.lozenge === 0, "its own lighter flow, with no tier in it", JSON.stringify(rep));
   await ctx.close();
   /* Jordan, Tier 3: the current tier is information, not a choice. */
   const j = await open("/app/chat/t13");
@@ -285,15 +305,19 @@ for (const tier of ["3", "platform", "1"]) {
   const st = await page.evaluate(() => ({
     tone: document.querySelector('[data-slot="status-banner"]')?.dataset.tone,
     dot: document.querySelector("[data-care-dot]")?.dataset.careDot,
-    emergency: getComputedStyle(document.querySelector("[data-care-emergency]")).backgroundColor,
+    /* pack v3.0: the Overview tab carries the escalation dot too. */
+    overviewDot: document.querySelector('[data-care-tab="overview"] [data-overview-dot]')?.dataset.overviewDot,
+    /* The in-panel Emergency information button is gone (pack v3.0); the
+       banner's Emergency info chip is the one entry, and carries the tone. */
+    emergency: getComputedStyle(document.querySelector('[data-slot="banner-crisis"]')).backgroundColor,
     assessment: !!document.querySelector("[data-assessment]"),
     stage: document.querySelector("[data-exchange]")?.dataset.stage,
   }));
   const accent = await tok(page, "--alert-critical-accent", "bg");
   const alert = tier === "1";
   check(
-    (st.tone === "critical") === alert && (st.dot === "alert") === alert && (st.emergency === accent) === alert,
-    `Tier ${tier}: banner, dot and Emergency information are ${alert ? "red" : "neutral"}`,
+    (st.tone === "critical") === alert && (st.dot === "alert") === alert && st.overviewDot === st.dot && (st.emergency === accent) === alert,
+    `Tier ${tier}: banner, both dots and the Emergency info chip are ${alert ? "red" : "neutral"}`,
     JSON.stringify(st)
   );
   check(st.assessment === alert && st.stage === (alert ? "M2" : "M3"), `Tier ${tier}: the assessment is ${alert ? "there (M2)" : "skipped (M3)"} — Tier 1–2 only`, String(st.stage));
@@ -308,17 +332,35 @@ for (const tier of ["3", "platform", "1"]) {
   await ctx.close();
 }
 
-// ── 7 · M2: THE SEQUENTIAL ASSESSMENT (pack v2.0) ─────────────────────────
-/* ═══ RETARGETED (Escalation Exchange v2.0) ═══ Sections 7–9 asserted the v1
-   flat panel — a six-question placeholder safety check, a supervisor Update
-   tier dialog and a mentor Resolve. All three are deleted; these sections walk
-   the staged exchange instead, on ONE record, through both lenses. */
-console.log("\n── 7 · M2: the mentor's assessment, one question at a time");
+// ── 7 · M2: THE SEQUENTIAL ASSESSMENT, ON THE TIMELINE (pack v3.0) ────────
+/* ═══ RETARGETED AGAIN (Care Panel & Escalation Timeline, pack v3.0) ═══ The
+   v2 baton strip, spine and tier line are one timeline now: a header that
+   states every status once, then upcoming → current → completed nodes. The
+   claims are the same claims; what they read moved. */
+console.log("\n── 7 · M2: the mentor's assessment, as the current node");
 const xs = (page) =>
   page.evaluate(() => {
     const x = document.querySelector("[data-exchange]");
-    return x && { lens: x.dataset.lens, stage: x.dataset.stage, baton: x.querySelector("[data-baton]")?.dataset.baton, batonText: x.querySelector("[data-baton-text]")?.textContent, spine: [...x.querySelectorAll("[data-spine-row]")].map((r) => r.dataset.spineRow) };
+    if (!x) return null;
+    const nodes = [...x.querySelectorAll("[data-node]")];
+    return {
+      lens: x.dataset.lens,
+      stage: x.dataset.stage,
+      current: nodes.filter((n) => n.dataset.nodeState === "current").map((n) => n.dataset.node),
+      title: x.querySelector('[data-node-state="current"] [data-node-title]')?.textContent,
+      live: x.querySelector("[data-timeline-live]")?.textContent,
+      done: nodes.filter((n) => n.dataset.nodeState === "completed").map((n) => n.dataset.node),
+      upcoming: nodes.filter((n) => n.dataset.nodeState === "upcoming").map((n) => n.dataset.node),
+      order: nodes.map((n) => n.dataset.nodeState),
+      baton: !!x.querySelector("[data-baton]"),
+    };
   });
+/* Expand a completed node by id, and return its expanded text. */
+const expandNode = async (page, id) => {
+  await page.locator(`[data-node="${id}"] button[aria-expanded]`).first().click();
+  await page.waitForTimeout(120);
+  return page.evaluate((id) => document.querySelector(`[data-node="${id}"] [data-node-expanded]`)?.innerText ?? "", id);
+};
 let assessed;
 {
   const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active" });
@@ -327,39 +369,37 @@ let assessed;
     text: document.querySelector("[data-assessment-active]")?.innerText,
     answered: [...document.querySelectorAll("[data-answered]")].map((q) => q.dataset.answered),
     progress: document.querySelector("[data-assessment-progress]")?.textContent,
-    risk: document.querySelector("[data-m2] [data-risk-chip]")?.textContent,
+    folded: !!document.querySelector("[data-assessment-active] [data-assessment-progress]"),
     placeholder: /placeholder/i.test(document.querySelector("[data-assessment]")?.innerText ?? ""),
   }));
   const x0 = await xs(page);
-  check(x0?.lens === "mentor" && x0.stage === "M2" && x0.baton === "yours" && /^Your move/.test(x0.batonText ?? ""), "mid-assessment: the mentor holds the baton at M2", JSON.stringify(x0));
+  check(x0?.lens === "mentor" && x0.stage === "M2" && x0.current.join() === "assessment" && !x0.baton, "mid-assessment: the assessment is the one current node — no baton banner", JSON.stringify(x0));
+  check(x0?.order.join() === "upcoming,upcoming,current,completed", "upcoming on top, then the current node, then completed below", x0?.order.join());
+  check(x0?.upcoming.join() === "closed,waiting" && /Supervisor closes or steps down/.test(await page.evaluate(() => document.querySelector('[data-node="closed"] [data-node-condition]')?.textContent ?? "")), "the exit is always visible, ghosted, with its condition", x0?.upcoming.join());
+  check(x0?.live === "Now: Go through the assessment with Jordan", "the current node is announced in the header's live region", String(x0?.live));
   check(s0.active.join() === "q3" && s0.answered.join() === "q1,q2", "exactly one active question (Q3); Q1–Q2 collapsed above; Q4–Q6 not rendered", JSON.stringify({ a: s0.active, d: s0.answered }));
   /* Quotes normalised: the panel sets the question in typographic quotes. */
   const q3 = (s0.text ?? "").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
   check(q3.includes('"Have you thought about how you might do that?"') && q3.includes("I thought about pills, but I'd never actually do it."), "Q3 in the pack's wording, with its example", q3.slice(0, 80));
-  check(/^2 of 6 answered · your supervisor sees each answer/.test(s0.progress ?? "") && !s0.placeholder, "the progress line counts six, and nothing says placeholder", s0.progress);
-  check(s0.risk === "Assessment suggests: Low risk", "the risk chip reads Low on two Yes answers to Q1–Q2", String(s0.risk));
+  check(/^2 of 6 answered · your supervisor sees each answer/.test(s0.progress ?? "") && s0.folded && !s0.placeholder, "the progress line counts six, folded into the question card", s0.progress);
   /* Put in message box: the question's own words, into the composer, unsent. */
   await page.locator('[data-assessment-wording="q3"]').click();
   await page.waitForTimeout(250);
   const comp = await page.evaluate(() => document.querySelector('[data-slot="composer"] textarea')?.value);
   check(comp === "Have you thought about how you might do that?", "Put in message box drops the verbatim question into the composer", String(comp));
-  /* Keyboard: the answers are buttons in a group, so Tab reaches them and Enter answers. */
   await page.locator('[data-yes-no="q3:yes"]').focus();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(250);
   const streamed = (await store(page)).escalations.t13?.safetyCheck;
-  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, risk: document.querySelector("[data-m2] [data-risk-chip]")?.dataset.riskChip, focus: document.activeElement?.dataset.yesNo, live: document.querySelector("[data-assessment-active] [data-question-live]")?.getAttribute("aria-live") }));
-  /* Keyboard and screen reader: focus stays on an answer, and the new
-     question is in a polite live region, so it is heard. */
-  check(s1.focus === "q4:yes" && s1.live === "polite", "after Enter, focus is on Q4's Yes and Q4 is announced (polite live region)", JSON.stringify({ focus: s1.focus, live: s1.live }));
+  const s1 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, focus: document.activeElement?.dataset.yesNo, live: document.querySelector("[data-assessment-active] [data-question-live]")?.getAttribute("aria-live") }));
+  check(s1.focus === "q4:yes" && s1.live === "polite", "after Enter, focus is on Q4's Yes and Q4 is announced (polite live region)", JSON.stringify(s1));
   check(streamed?.answers?.q3?.value === "yes" && streamed.submittedAt === null, "an answer is on the record the moment it is given — before Submit", JSON.stringify(streamed?.answers?.q3));
-  check(s1.active === "q4" && s1.risk === "moderate", "answering reveals Q4, and the chip moves to Moderate", JSON.stringify(s1));
   for (const id of ["q4:no", "q5:no", "q6:yes"]) {
     await page.locator(`[data-yes-no="${id}"]`).click();
     await page.waitForTimeout(150);
   }
-  const s2 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, text: document.querySelector("[data-assessment-active]")?.innerText, risk: document.querySelector("[data-m2] [data-risk-chip]")?.dataset.riskChip, submit: !!document.querySelector('[data-exchange-primary="submit-assessment"]') }));
-  check(s2.active === "q6b" && /Was this within the past 3 months\?/.test(s2.text ?? "") && s2.risk === "high" && !s2.submit, "a Yes on Q6 asks the 3-month follow-up; High; no Submit yet", JSON.stringify({ ...s2, text: undefined }));
+  const s2 = await page.evaluate(() => ({ active: document.querySelector("[data-assessment-active]")?.dataset.assessmentActive, text: document.querySelector("[data-assessment-active]")?.innerText, submit: !!document.querySelector('[data-exchange-primary="submit-assessment"]') }));
+  check(s2.active === "q6b" && /Was this within the past 3 months\?/.test(s2.text ?? "") && !s2.submit, "a Yes on Q6 asks the 3-month follow-up; no Submit yet", JSON.stringify({ ...s2, text: undefined }));
   await page.locator('[data-yes-no="q6b:no"]').click();
   await page.waitForTimeout(200);
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
@@ -370,33 +410,47 @@ let assessed;
   await page.locator('[data-exchange-primary="submit-assessment"]').click();
   await page.waitForTimeout(500);
   const x1 = await xs(page);
-  const stay = await page.evaluate(() => document.querySelector("[data-stay]")?.innerText ?? "");
-  check(x1?.stage === "M3" && x1.baton === "theirs" && /has this · stay with Jordan/.test(x1.batonText ?? "") && x1.spine.includes("assessed"), "Submit hands the baton over: M3, the assessment collapses into the spine", JSON.stringify(x1));
-  check(/has this\. Stay with Jordan\./.test(stay) && /Reply in Support/.test(stay), "M3 says stay with them, and offers Reply in Support", stay.slice(0, 80));
+  const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
+  check(x1?.stage === "M3" && x1.current.join() === "waiting" && x1.done.includes("assessment") && chip === "High risk", "Submit: the assessment settles into a completed node with its risk chip; waiting is current", JSON.stringify({ ...x1, chip }));
+  check(x1?.title === "Brandy has this. Stay with Jordan." && !(await page.evaluate(() => !!document.querySelector('[data-node="waiting"] [data-node-card] > :not([data-node-title])'))), "waiting says the pack's line and nothing else", String(x1?.title));
+  check(await page.evaluate(() => /Reply in Support/.test(document.querySelector('[data-timeline-support="mentor"]')?.textContent ?? "")), "and Reply in Support lives in the header");
   await page.screenshot({ path: `${OUT}/03-m3-stay.png` });
   assessed = await store(page);
   await ctx.close();
 }
 
-// ── 8 · S1–S4: THE SUPERVISOR, SAME RECORD, TIER 1 FULL PATH ──────────────
-console.log("\n── 8 · the supervisor lens: confirm → guide → outcome → close");
+// ── 8 · THE SUPERVISOR LENS, SAME RECORD, TIER 1 FULL PATH ────────────────
+console.log("\n── 8 · the supervisor lens: assessment → confirm → the note → outcome → debrief → close");
 let closed;
 {
+  /* S0 first: while the mentor is still assessing, progress only. */
+  const z = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
+  const z0 = await xs(z.page);
+  const prog = await z.page.evaluate(() => ({ text: document.querySelector("[data-s0-progress]")?.textContent, questions: document.querySelectorAll("[data-node-state='current'] [data-assessment-active], [data-node-state='current'] [data-s1-answer]").length }));
+  check(z0?.stage === "S0" && z0.current.join() === "assessment" && prog.text === "2 of 6 answered" && prog.questions === 0, "assessment in progress: the current node is a count — no live question sprawl", JSON.stringify({ z0, prog }));
+  check(z0?.upcoming.join() === "close,confirm", "and Confirm waits, ghosted, with the exit above it", z0?.upcoming.join());
+  await z.ctx.close();
+
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: assessed.escalations, tierEvents: assessed.tierEvents } });
   const x0 = await xs(page);
+  check(x0?.lens === "supervisor" && x0.stage === "S1" && x0.current.join() === "confirm" && x0.done.includes("assessment"), "assessment received: completed; Confirm tier is current", JSON.stringify(x0));
+  const answers = await expandNode(page, "assessment");
+  const risk = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.dataset.riskChip);
+  const answerRows = await page.evaluate(() => document.querySelectorAll('[data-node="assessment"] [data-s1-answer]').length);
+  check(answerRows === 7 && risk === "high" && /gave away her headphones/.test(answers), "expanded, the received node holds the seven answers, High, and the summary — the same record", JSON.stringify({ answerRows, risk }));
+  const note = await expandNode(page, "raised");
+  check(/Jordan said/.test(note) && (await page.evaluate(() => !!document.querySelector('[data-node="raised"] [data-quote="mentor-note"] figcaption'))), "the mentor's note is quote-framed with attribution", note.slice(0, 60));
   const s1 = await page.evaluate(() => ({
-    answers: document.querySelectorAll("[data-s1-answer]").length,
-    risk: document.querySelector("[data-s1-answers] [data-risk-chip]")?.dataset.riskChip,
-    summary: /gave away her headphones/.test(document.querySelector("[data-s1]")?.innerText ?? ""),
     checked: document.querySelector('[data-s1-tier][aria-checked="true"]')?.dataset.s1Tier,
     tabStops: [...document.querySelectorAll("[data-s1-tier]")].filter((b) => b.tabIndex === 0).length,
     label: document.querySelector('[data-exchange-primary="confirm-tier"]')?.textContent,
     reason: document.querySelector('[data-exchange-field="confirm-reason"]')?.value,
     line: document.querySelector("[data-tier-line-text]")?.textContent,
   }));
-  check(x0?.lens === "supervisor" && x0.stage === "S1" && x0.baton === "yours" && /confirm Jordan's tier/.test(x0.batonText ?? ""), "awaiting confirmation: the supervisor holds the baton at S1", JSON.stringify(x0));
-  check(s1.answers === 7 && s1.risk === "high" && s1.summary, "the mentor's seven answers, the High chip and the summary — the same record", JSON.stringify(s1));
   check(s1.checked === "1" && s1.tabStops === 1 && s1.label === "Confirm Tier 1" && !!s1.reason && s1.line === "Awaiting confirmation on tiering", "the request is pre-selected, one tab stop, a prefilled reason", JSON.stringify(s1));
+  /* ═══ NEUTRAL UNTIL CONFIRMED (blocked constant) ═══ */
+  const neutral = await alertHits(page, "[data-s1]");
+  check(neutral.length === 0, "the tier picker and Confirm are neutral — no alert colour before the confirmation", neutral.slice(0, 3).join(", "));
   await page.locator('[data-s1-tier="1"]').focus();
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(100);
@@ -418,19 +472,17 @@ let closed;
   const ms = e1.meta?.timeToConfirmMs;
   const shown = await page.evaluate((ms) => { const t = document.body.innerText; return { ms: t.includes(String(ms)), words: /time to confirm|response time|took \d|confirmed in \d/i.test(t), attr: [...document.querySelectorAll("*")].some((el) => [...el.attributes].some((a) => a.value === String(ms))) }; }, ms);
   check(typeof ms === "number" && ms > 0 && !shown.ms && !shown.words && !shown.attr, "meta.timeToConfirmMs is on the record and nowhere in the DOM", `${ms}ms · ${JSON.stringify(shown)}`);
-  const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle"), sections: [...document.querySelectorAll("[data-crisis-section]")].map((s) => s.dataset.crisisSection) }));
-  check(s2.stage === "S2" && /^Tier 1 confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
-  check(s2.sections.join() === "subtype", "the crisis note shows section 1 only — future sections are not rendered", s2.sections.join());
-  /* Guidance, onto the record. */
-  await page.locator('[data-exchange-field="guidance"]').fill("Ask whether the pills are still in the house. Stay on with her.");
-  await page.locator("[data-send-guidance]").click();
-  await page.waitForTimeout(250);
-  st = await store(page);
-  check(st.escalations.t13.guidance?.at(-1)?.text.startsWith("Ask whether the pills") && !!st.escalations.t13.guidance.at(-1).author, "Send guidance writes an authored entry on the escalation record", JSON.stringify(st.escalations.t13.guidance?.at(-1)?.author));
-  /* The note, section by section. */
+  const s2 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, line: document.querySelector("[data-tier-line-text]")?.textContent, lozenge: !!document.querySelector("[data-tier-line] .tier-settle [data-tier-lozenge]") }));
+  const x2 = await xs(page);
+  check(s2.stage === "S2" && /^Tier 1 confirmed by .+ · \d/.test(s2.line ?? "") && s2.lozenge, "S2: the header's chip has settled into the Tier 1 lozenge, signed and timed", JSON.stringify(s2));
+  check(x2?.current.join() === "note:subtype" && x2.upcoming.join() === "close,note:safety-plan", "the note assembles as nodes: Clinical subtype is current, the next section a ghost", JSON.stringify({ cur: x2?.current, up: x2?.upcoming }));
+  /* ═══ NO GUIDANCE COMPOSER (Supersession 2) ═══ */
+  const g = await page.evaluate(() => ({ composer: !!document.querySelector("[data-send-guidance], [data-guidance-composer]"), link: document.querySelector('[data-timeline-support="supervisor"]')?.textContent ?? null }));
+  check(!g.composer && /^Message .+ in Support/.test(g.link ?? ""), "no guidance composer — a quiet Message {mentor} in Support link instead", JSON.stringify(g));
+  /* The note, node by node. */
   await page.locator('[data-crisis-continue="subtype"]').click();
   await page.waitForTimeout(100);
-  check(!!(await page.evaluate(() => document.querySelector('[data-crisis-section="subtype"] [role=alert]'))), "Continue on an empty section names the gap");
+  check(!!(await page.evaluate(() => document.querySelector('[data-node="note:subtype"] [role=alert]'))), "Continue on an empty section names the gap");
   await page.locator('[data-choice="subtype:suicidal_ideation"]').click();
   await page.locator('[data-chip="housing"]').click();
   await page.locator('[data-crisis-continue="subtype"]').click();
@@ -446,8 +498,8 @@ let closed;
   await page.locator('[data-chip="therapist"]').click();
   await page.locator('[data-crisis-continue="referral"]').click();
   await page.waitForTimeout(150);
-  const five = await page.evaluate(() => ({ open: document.querySelector("[data-crisis-section][data-open]")?.dataset.crisisSection, done: [...document.querySelectorAll("[data-crisis-section][data-done]")].map((s) => s.dataset.crisisSection) }));
-  check(five.open === "emergency" && five.done.join() === "subtype,safety-plan,resources,referral", "Tier 1 reaches section 5 (emergency), with 1–4 collapsed behind Edit", JSON.stringify(five));
+  const x5 = await xs(page);
+  check(x5?.current.join() === "note:emergency" && ["note:subtype", "note:safety-plan", "note:resources", "note:referral"].every((n) => x5.done.includes(n)), "Tier 1 reaches section 5 (emergency) as the current node; 1–4 are completed nodes", JSON.stringify({ cur: x5?.current, done: x5?.done }));
   await page.locator('[data-yes-no="contact:yes"]').click();
   await page.locator('[data-exchange-field="contact-details"]').fill("Her aunt, by phone.");
   await page.locator('[data-yes-no="services:yes"]').click();
@@ -455,28 +507,31 @@ let closed;
   await page.locator('[data-crisis-continue="emergency"]').click();
   await page.waitForTimeout(400);
   const s3 = await page.evaluate(() => ({
-    stage: document.querySelector("[data-exchange]")?.dataset.stage,
+    current: document.querySelector('[data-node-state="current"]')?.dataset.node,
     auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice,
     tagged: !!document.querySelector("[data-auto-tagged]"),
-    draft: !!document.querySelector("[data-ai-draft]"),
-    debrief: document.querySelector('[data-exchange-field="debrief"]')?.value ?? "",
   }));
-  check(s3.stage === "S3" && s3.auto === "outcome:mobile_crisis" && s3.tagged, "S3: the outcome is auto-tagged Mobile crisis from the note, and says so", JSON.stringify({ ...s3, debrief: undefined }));
-  check(s3.draft && s3.debrief.length > 40 && !/Tier \d|Suicidal ideation/.test(s3.debrief), "the debrief is an AI draft, badged, and writes no tier or subtype", s3.debrief.slice(0, 70));
-  await page.locator('[data-exchange-field="debrief"]').fill(s3.debrief + " Mobile crisis arrived at 7:40.");
+  check(s3.current === "outcome" && s3.auto === "outcome:mobile_crisis" && s3.tagged, "the outcome node: auto-tagged Mobile crisis from the note, and says so", JSON.stringify(s3));
+  await page.locator('[data-exchange-primary="choose-outcome"]').click();
+  await page.waitForTimeout(300);
+  const s3b = await page.evaluate(() => ({ current: document.querySelector('[data-node-state="current"]')?.dataset.node, draft: !!document.querySelector("[data-ai-draft]"), debrief: document.querySelector('[data-exchange-field="debrief"]')?.value ?? "" }));
+  check(s3b.current === "debrief" && s3b.draft && s3b.debrief.length > 40 && !/Tier \d|Suicidal ideation/.test(s3b.debrief), "then the debrief node: an AI draft, badged, that writes no tier or subtype", s3b.debrief.slice(0, 70));
+  await page.locator('[data-exchange-field="debrief"]').fill(s3b.debrief + " Mobile crisis arrived at 7:40.");
   await page.waitForTimeout(100);
   check(!(await page.evaluate(() => !!document.querySelector("[data-ai-draft]"))), "editing the draft takes the AI badge off");
   await page.locator('[data-exchange-primary="save-outcome"]').click();
   await page.waitForTimeout(150);
-  check(!(await store(page)).escalations.t13.outcome, "Save with no plan saves nothing");
+  check(!(await store(page)).escalations.t13.outcome?.savedAt, "Save with no plan saves nothing");
   await page.locator('[data-exchange-field="plan"]').fill("Daily check-ins this week; therapist intake Thursday.");
   await page.locator('[data-exchange-primary="save-outcome"]').click();
   await page.waitForTimeout(400);
   st = await store(page);
   const o = st.escalations.t13.outcome;
-  check(o?.id === "mobile_crisis" && o.autoTagged && o.debriefIsDraft === false && typeof o.savedAt === "number", "the outcome is saved, auto-tagged, marked as edited", JSON.stringify(o && { id: o.id, auto: o.autoTagged, draft: o.debriefIsDraft }));
-  const s4 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, dest: document.querySelector("[data-close-destination]")?.textContent, follow: document.querySelector('[data-follow-up][aria-checked="true"]')?.dataset.followUp, spine: [...document.querySelectorAll("[data-spine-row]")].map((r) => r.dataset.spineRow) }));
-  check(s4.stage === "S4" && /moves Jordan to Tier 3 Monitoring/.test(s4.dest ?? "") && s4.follow === "1" && s4.spine.join() === "raised,assessed,confirmed,note,outcome", "S4: the close-out names Tier 3 Monitoring; every stage is in the spine", JSON.stringify(s4));
+  check(o?.id === "mobile_crisis" && o.autoTagged && o.debriefIsDraft === false && typeof o.chosenAt === "number" && typeof o.savedAt === "number" && o.savedAt >= o.chosenAt, "outcome then debrief: two writes on one record, marked as edited", JSON.stringify(o && { id: o.id, auto: o.autoTagged, draft: o.debriefIsDraft }));
+  const s4 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, dest: document.querySelector("[data-close-destination]")?.textContent, follow: document.querySelector('[data-follow-up][aria-checked="true"]')?.dataset.followUp }));
+  const x4 = await xs(page);
+  check(s4.stage === "S4" && /moves Jordan to Tier 3 Monitoring/.test(s4.dest ?? "") && s4.follow === "1" && x4.current.join() === "close" && x4.upcoming.length === 0, "close is the last current node, nothing left ahead; it names Tier 3 Monitoring", JSON.stringify(s4));
+  check(["raised", "assessment", "confirm", "note:subtype", "note:emergency", "outcome", "debrief"].every((n) => x4.done.includes(n)), "every step is a completed node below it", x4.done.join(" "));
   await page.locator('[data-follow-up="1"]').focus();
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(100);
@@ -494,27 +549,35 @@ let closed;
   await ctx.close();
 }
 
-// ── 9 · M4, AND THE OTHER PATHS ───────────────────────────────────────────
-console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at S1 · Platform");
+// ── 9 · THE CLOSED NODE, AND THE OTHER PATHS ──────────────────────────────
+console.log("\n── 9 · the closed node · Tier 2 skips section 5 · Tier 3 exits at S1 · Platform");
 {
   const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-active", extra: { escalations: closed.escalations, tierEvents: closed.tierEvents, escalationHistory: closed.escalationHistory } });
-  const w = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, outcome: document.querySelector("[data-wrap-outcome]")?.textContent, tier: document.querySelector("[data-wrap-tier]")?.textContent, next: document.querySelector("[data-wrap-next]")?.textContent, emergency: !!document.querySelector("[data-care-emergency]"), banner: !!document.querySelector('[data-slot="status-banner"]'), tierLine: !!document.querySelector("[data-exchange] [data-tier-line]") }));
-  check(w.stage === "M4" && w.outcome === "Mobile crisis responded" && /moves to Tier 3 Monitoring/.test(w.tier ?? "") && /checks in on Jordan again/.test(w.next ?? "") && !w.emergency && !w.banner && !w.tierLine, "M4: the mentor sees the outcome, the new tier and what happens next — no banner, no red, no stale Tier 1 line", JSON.stringify(w));
+  const w = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, outcome: document.querySelector("[data-wrap-outcome]")?.textContent, tier: [...(document.querySelector("[data-wrap-tier]")?.querySelectorAll("[data-tier-lozenge]") ?? [])].map((l) => l.dataset.tierLozenge).join("→"), next: document.querySelector("[data-wrap-next]")?.textContent, follow: document.querySelector("[data-wrap-follow-up]")?.textContent, labelOverValue: [...document.querySelectorAll("[data-wrap] dl > div")].every((d) => d.firstElementChild?.tagName === "DT" && d.lastElementChild?.tagName === "DD"), line: document.querySelector("[data-tier-line-text]")?.textContent, banner: !!document.querySelector('[data-slot="status-banner"]') }));
+  const xw = await xs(page);
+  check(w.stage === "M4" && xw.current.join() === "closed" && xw.upcoming.length === 0 && w.outcome === "Mobile crisis responded" && w.tier === "1→3" && /checks in with Jordan again/.test(w.next ?? "") && /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d{1,2}$/.test(w.follow ?? "") && w.labelOverValue && !w.banner, "closed: a designed summary — outcome, Tier 1 → Tier 3 as lozenges, what happens next, the follow-up date; label over value", JSON.stringify(w));
+  check(/^Closed .+ · Tier 1 → Tier 3 Medium risk$/.test(w.line ?? ""), "and the header states the movement, not a stale Tier 1 confirmation", String(w.line));
+  /* MEASURED: the closed summary once named "Your supervisor" — the name was
+     read off the OPEN escalation, and there is none once it closes. */
+  const named = await page.evaluate(() => ({ next: document.querySelector("[data-wrap-next]")?.textContent ?? "", meta: document.querySelector("[data-timeline-meta]")?.textContent ?? "" }));
+  check(/^Brandy checks in/.test(named.next) && /Brandy notified/.test(named.meta), "and it names the supervisor, Brandy — never \u201cYour supervisor\u201d", JSON.stringify(named));
   await page.screenshot({ path: `${OUT}/05-m4-wrap.png` });
   await page.locator('[data-exchange-primary="back-to-care"]').click();
   await page.waitForTimeout(400);
-  const after = await page.evaluate(() => ({ state: document.querySelector("[data-care-state]")?.dataset.careState, story: document.querySelector("[data-escalation-story]")?.innerText.replace(/\s+/g, " ") }));
+  const steadyNow = await page.evaluate(() => ({ state: document.querySelector("[data-care-state]")?.dataset.careState, tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab }));
   const seen = (await store(page)).escalationHistory.concat(Object.values((await store(page)).escalations)).find((e) => e.id === "esc-t13")?.wrapSeenAt;
-  check(after.state === "steady" && typeof seen === "number", "Back to Care: steady, and the wrap is marked seen on the record", JSON.stringify({ state: after.state, seen }));
-  check(/Raised .+→ assessed \(high risk\) → Tier 1 confirmed → mobile crisis responded → stepped down to Tier 3/.test(after.story ?? ""), "History tells the whole escalation in one line", after.story?.slice(0, 120));
+  check(steadyNow.state === "steady" && steadyNow.tab === "overview" && typeof seen === "number", "Back to Care: Overview, steady, and the wrap is marked seen on the record", JSON.stringify({ ...steadyNow, seen }));
+  /* History is its own tab now (pack v3.0). */
+  await page.locator('[data-care-tab="history"]').click();
+  await page.waitForTimeout(200);
+  const story = await page.evaluate(() => document.querySelector("[data-escalation-story]")?.innerText.replace(/\s+/g, " "));
+  check(/Raised .+→ assessed \(high risk\) → Tier 1 confirmed → mobile crisis responded → stepped down to Tier 3/.test(story ?? ""), "History tells the whole escalation in one line", story?.slice(0, 120));
   await page.locator("[data-escalation-story] > button").click();
   await page.waitForTimeout(150);
   const entries = await page.evaluate(() => [...document.querySelectorAll("[data-story-entries] [data-audit-lozenge]")].map((l) => l.textContent));
-  check(["Raised", "Assessed", "Confirmed", "Guidance", "Crisis note", "Outcome", "Closed", "Stepped down", "Follow-up"].every((k) => entries.includes(k)), "expanded: every entry, each with its lozenge", entries.join(" · "));
+  check(["Raised", "Assessed", "Confirmed", "Crisis note", "Outcome", "Closed", "Stepped down", "Follow-up"].every((k) => entries.includes(k)) && !entries.includes("Guidance"), "expanded: every entry, each with its lozenge — and no Guidance", entries.join(" · "));
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(900);
-  /* Read once, the wrap is gone: no exchange anywhere, and Care is steady
-     (the rail opens on its default again, so Care is opened to read it). */
   const gone = !(await page.evaluate(() => !!document.querySelector("[data-exchange]")));
   await careTab(page).click();
   await page.waitForTimeout(200);
@@ -525,10 +588,9 @@ console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at 
 {
   /* TIER 2: SECTION 5 DOES NOT EXIST. The fixture is at S2 with section 1 done. */
   const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2" });
-  const t0 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, open: document.querySelector("[data-crisis-section][data-open]")?.dataset.crisisSection, risk: document.querySelector("[data-spine-row=assessed] [data-risk-chip]")?.dataset.riskChip, label: document.querySelector("[data-spine-row=assessed] > span")?.textContent, clipped: [...document.querySelectorAll("[data-spine-row] span")].filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent) }));
-  check(t0.stage === "S2" && t0.open === "safety-plan" && t0.risk === "moderate", "Tier 2 fixture: S2, section 1 done, the spine keeps the Moderate chip", JSON.stringify(t0));
-  /* MEASURED: the full chip once cut "Assessment sent" to "As…". */
-  check(t0.label === "Assessment sent" && t0.clipped.length === 0, "  and no spine row is clipped at the rail's width", JSON.stringify({ label: t0.label, clipped: t0.clipped }));
+  const x = await xs(page);
+  const chip = await page.evaluate(() => document.querySelector('[data-node="assessment"] [data-risk-chip]')?.textContent);
+  check(x?.stage === "S2" && x.current.join() === "note:safety-plan" && x.done.includes("note:subtype") && chip === "Moderate risk", "Tier 2 fixture: section 1 completed, Safety plan current; the received node keeps the Moderate chip", JSON.stringify({ x, chip }));
   await page.locator('[data-choice="safety-plan:maintained"]').click();
   await page.locator('[data-crisis-continue="safety-plan"]').click();
   await page.waitForTimeout(120);
@@ -539,17 +601,20 @@ console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at 
   await page.locator('[data-yes-no="referral:no"]').click();
   await page.locator('[data-crisis-continue="referral"]').click();
   await page.waitForTimeout(350);
-  const t1 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, emergency: !!document.querySelector('[data-crisis-section="emergency"]'), auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice ?? null }));
-  check(t1.stage === "S3" && !t1.emergency && t1.auto === null, "after section 4 a Tier 2 note is complete — no section 5, and nothing to auto-tag", JSON.stringify(t1));
+  const t1 = await page.evaluate(() => ({ current: document.querySelector('[data-node-state="current"]')?.dataset.node, emergency: !!document.querySelector('[data-node="note:emergency"]'), auto: document.querySelector('[data-choice][aria-checked="true"]')?.dataset.choice ?? null }));
+  check(t1.current === "outcome" && !t1.emergency && t1.auto === null, "after section 4 a Tier 2 note is complete — no section 5, and nothing to auto-tag", JSON.stringify(t1));
   await ctx.close();
   const m = await open("/app/chat/t13", { chat: "escalation-tier2" });
-  const g = await m.page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, guidance: document.querySelector("[data-stay] [data-guidance]")?.innerText.replace(/\s+/g, " ") }));
-  check(g.stage === "M3" && /Brandy Forrestor/.test(g.guidance ?? ""), "the mentor's lens on the same record: M3, with the supervisor's guidance", JSON.stringify(g).slice(0, 120));
+  const mx = await xs(m.page);
+  const guidance = await m.page.evaluate(() => !!document.querySelector("[data-guidance]"));
+  check(mx?.stage === "M3" && mx.current.join() === "waiting" && !guidance, "the mentor's lens on the same record: waiting, and no guidance quote — coaching is in Support", JSON.stringify(mx));
   await m.ctx.close();
 }
 {
-  /* TIER 3 AT S1 IS A STANDARD TIER UPDATE: it closes the escalation. */
-  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active" });
+  /* TIER 3 AT S1 IS A STANDARD TIER UPDATE: it closes the escalation. The
+     assessment must arrive first (S0) — seed it submitted. */
+  const seed = { t13: { ...assessed.escalations.t13 } };
+  const { ctx, page } = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-active", extra: { escalations: seed, tierEvents: assessed.tierEvents } });
   await page.locator('[data-s1-tier="3"]').click();
   await page.waitForTimeout(100);
   const exit = await page.evaluate(() => ({ note: document.querySelector("[data-s1-exit]")?.textContent, label: document.querySelector('[data-exchange-primary="confirm-tier"]')?.textContent }));
@@ -558,7 +623,7 @@ console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at 
   await page.waitForTimeout(500);
   const st = await store(page);
   const e = st.escalations.t13 ?? st.escalationHistory.find((x) => x.id === "esc-t13");
-  check(e?.resolvedAt && e.outcome?.id === "tier_update" && e.confirmedTier === 3 && !e.crisisNote, "it closes at S1 with outcome tier_update — no crisis note, no S2", JSON.stringify(e && { r: !!e.resolvedAt, o: e.outcome?.id, t: e.confirmedTier }));
+  check(e?.resolvedAt && e.outcome?.id === "tier_update" && e.confirmedTier === 3 && !e.crisisNote, "it closes at S1 with outcome tier_update — no crisis note", JSON.stringify(e && { r: !!e.resolvedAt, o: e.outcome?.id, t: e.confirmedTier }));
   await ctx.close();
 }
 {
@@ -566,12 +631,12 @@ console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at 
   const r = await open("/app/chat/t14");
   await raiseVia(r.page, "care", "platform");
   const x = await xs(r.page);
-  check(x?.stage === "M3", "a Platform raise skips the assessment: the mentor goes straight to M3", JSON.stringify(x));
+  check(x?.stage === "M3" && x.current.join() === "waiting", "a Platform raise skips the assessment: the mentor waits at once", JSON.stringify(x));
   const raised = await store(r.page);
   await r.ctx.close();
   const { ctx, page } = await open("/app/chat/t14", { persona: "supervisor", extra: { escalations: raised.escalations, tierEvents: raised.tierEvents } });
-  const p0 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, radios: document.querySelectorAll("[data-s1-tier]").length, line: !!document.querySelector("[data-tier-line]") }));
-  check(p0.stage === "S1" && p0.radios === 0 && !p0.line, "the supervisor's S1 for Platform safety: no tier picker, no tier line", JSON.stringify(p0));
+  const p0 = await page.evaluate(() => ({ stage: document.querySelector("[data-exchange]")?.dataset.stage, current: document.querySelector('[data-node-state="current"]')?.dataset.node, radios: document.querySelectorAll("[data-s1-tier]").length, line: !!document.querySelector("[data-tier-line-text]") }));
+  check(p0.stage === "S1" && p0.current === "review" && p0.radios === 0 && !p0.line, "the supervisor's review node for Platform safety: no tier picker, no tier line", JSON.stringify(p0));
   await page.locator('[data-exchange-field="review-reason"]').fill("Spam account, removed.");
   await page.locator('[data-exchange-primary="mark-reviewed"]').click();
   await page.waitForTimeout(400);
@@ -579,6 +644,40 @@ console.log("\n── 9 · M4 wrap · Tier 2 skips section 5 · Tier 3 exits at 
   const e = st.escalations.t14 ?? st.escalationHistory.find((x) => x.teenId === "t14" || x.id?.includes("t14"));
   check(!!e?.resolvedAt && st.tierEvents.length === 0, "Mark reviewed closes it and writes no tier event", JSON.stringify({ r: !!e?.resolvedAt, ev: st.tierEvents.length }));
   await ctx.close();
+}
+{
+  /* ═══ ADD TO ESCALATION (Workstream C) ═══ The mentor attaches a message;
+     both lenses see it as a quote-framed completed node; the thread marks it. */
+  const { ctx, page } = await open("/app/chat/t13", { chat: "escalation-tier2" });
+  const li = page.locator('[role="list"][aria-label^="Conversation with"] > li[id^="msg-"]').nth(3);
+  const msgText = (await li.innerText()).split("\n")[0];
+  await li.hover();
+  await page.waitForTimeout(150);
+  await li.locator('button[aria-label="React to this message"]').click();
+  await page.waitForTimeout(150);
+  await page.locator('button[aria-label="Add this message to the escalation"]').click();
+  await page.waitForTimeout(300);
+  await page.locator("[data-moment-note]").fill("This is the line that worried me.");
+  await page.locator("[data-moment-add]").click();
+  await page.waitForTimeout(500);
+  const mo = (await store(page)).escalations.t13?.moments?.at(-1);
+  const glyph = await li.locator("[data-added-to-escalation]").count();
+  check(mo?.note === "This is the line that worried me." && mo.quote.text.length > 3 && glyph === 1, "the moment is on the record with its note, and the thread marks the message", JSON.stringify(mo && { note: mo.note, quote: mo.quote.text.slice(0, 30) }));
+  const node = await page.evaluate(() => [...document.querySelectorAll('[data-node-kind="moment"]')].map((n) => n.dataset.nodeState));
+  check(node.join() === "completed", "on the mentor's timeline it is a completed node", node.join());
+  /* Offered once per message. */
+  await li.hover();
+  await li.locator('button[aria-label="React to this message"]').click();
+  await page.waitForTimeout(150);
+  check(!(await page.locator('button[aria-label="Add this message to the escalation"]').count()), "and not offered again on the same message");
+  await page.keyboard.press("Escape");
+  const st = await store(page);
+  await ctx.close();
+  const s = await open("/app/chat/t13", { persona: "supervisor", chat: "escalation-tier2", extra: { escalations: st.escalations, tierEvents: st.tierEvents } });
+  const text = await expandNode(s.page, (await s.page.evaluate(() => document.querySelector('[data-node-kind="moment"]')?.dataset.node)) ?? "none");
+  check(/This is the line that worried me/.test(text) && (await s.page.evaluate(() => !!document.querySelector('[data-node-kind="moment"] [data-quote="moment"] figcaption'))), "the supervisor sees the same moment, quote-framed with sender and time", text.slice(0, 80));
+  void msgText;
+  await s.ctx.close();
 }
 
 // ── 10 · THE RECORD ────────────────────────────────────────────────────────

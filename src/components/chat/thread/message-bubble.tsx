@@ -23,7 +23,7 @@
 // is not shipped, so it would be a browser-synthesised fake (gap row 330). Nothing
 // in the thread design needs it.
 
-import { Mic } from "lucide-react";
+import { ListPlus, Mic } from "lucide-react";
 import { MediaFrame } from "@/components/chat/thread/media-frame";
 import { MessageActions } from "@/components/chat/thread/message-actions";
 import type { ChatMessage, MessageReaction } from "@/lib/chat/types";
@@ -67,6 +67,8 @@ export function MessageBubble({
   onReact,
   onTag,
   onEscalate,
+  onAddToEscalation,
+  addedToEscalation,
 }: {
   message: ChatMessage;
   theirName: string;
@@ -79,6 +81,11 @@ export function MessageBubble({
   onReact?: (emoji: string) => void;
   onTag?: () => void;
   onEscalate?: () => void;
+  onAddToEscalation?: () => void;
+  /** This message is on the escalation's timeline — its note, if any (pack
+   *  v3.0, make it magical 3: the thread and the record acknowledge each
+   *  other). `undefined` when it is not. */
+  addedToEscalation?: string;
 }) {
   const mine = message.sender === "mentor";
   /* `selfName` when a supervisor is watching: the mentor's lines are the
@@ -178,6 +185,7 @@ export function MessageBubble({
             onReact={onReact}
             onTag={onTag}
             onEscalate={onEscalate}
+            onAddToEscalation={addedToEscalation === undefined ? onAddToEscalation : undefined}
           />
         )}
       <div
@@ -211,6 +219,19 @@ export function MessageBubble({
               )
         )}
       >
+        {addedToEscalation !== undefined && (
+          /* ═══ ON THE ESCALATION'S TIMELINE ═══ A quiet corner glyph; hover
+             previews the mentor's note (make it magical 3). The words are in
+             the accessible name too, so it is never an icon alone. */
+          <span
+            data-added-to-escalation
+            title={addedToEscalation ? `Added to the escalation: ${addedToEscalation}` : "Added to the escalation"}
+            className="absolute -top-2 right-2 flex size-5 items-center justify-center rounded-full border border-[color:var(--border-default)] bg-[var(--surface-card)] text-[var(--text-secondary)]"
+          >
+            <ListPlus aria-hidden className="size-3" />
+            <span className="sr-only">Added to the escalation{addedToEscalation ? `: ${addedToEscalation}` : ""}</span>
+          </span>
+        )}
         {message.kind === "text" && (
           <p
             className="whitespace-pre-wrap break-words"

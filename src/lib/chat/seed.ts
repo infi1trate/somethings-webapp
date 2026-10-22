@@ -163,7 +163,7 @@ function previewOfEvent(e: ChatEvent): string {
     case "escalation-opened":
       return `Raised an escalation`;
     case "escalation-resolved":
-      return `Resolved the escalation`;
+      return `Closed the escalation`;
   }
 }
 
@@ -604,8 +604,8 @@ const ESCALATION: ScenarioBuild = {
 };
 
 /** ESCALATION · TIER 2 — Jordan again, further along (pack v2.0 coverage):
- *  the assessment submitted (Moderate), Tier 2 confirmed, the supervisor's
- *  first guidance on the record, the crisis note one section in. Mentor M3,
+ *  the assessment submitted (Moderate), Tier 2 confirmed, the crisis note
+ *  one section in (coaching is in the Support thread, pack v3.0). Mentor M3,
  *  supervisor S2 — and Tier 2, so the note's emergency section never
  *  renders. */
 const ESCALATION_TIER2: ScenarioBuild = {
@@ -630,15 +630,6 @@ const ESCALATION_TIER2: ScenarioBuild = {
     confirmedTier: 2,
     confirmedAt: now - 190 * MINUTE,
     meta: { timeToConfirmMs: 45 * MINUTE },
-    guidance: [
-      {
-        id: "g-t13-1",
-        at: now - 186 * MINUTE,
-        author: "Brandy Forrestor",
-        /* TODO-COPY */
-        text: "You're doing the right things. Keep Jordan talking, and ask whether their aunt is on her way home.",
-      },
-    ],
     crisisNote: { subtype: "suicidal_ideation", tags: ["housing"], updatedAt: now - 180 * MINUTE },
   }),
 };
@@ -904,10 +895,10 @@ export function chatScenario(id: string, now: number): ChatData {
   // The lead's last message is unanswered in the escalation scenario — the
   // supervisor has acknowledged and is waiting on the mentor.
   if (scenario.id === "escalation-active" || scenario.id === "escalation-tier2") {
-    /* ═══ THE SUPERVISOR'S GUIDANCE (Tiering & Escalation pack) ═══ What the
-       Care tab quotes as "Latest from your supervisor" — her answer to the
-       escalation, six minutes after it opened, and the one still unread. The
-       Support panel reads this same thread, so the two agree. TODO-COPY. */
+    /* ═══ THE SUPERVISOR'S COACHING, IN SUPPORT (pack v3.0, Supersession 2) ═══
+       Her answer to the escalation, six minutes after it opened, and the one
+       still unread. Coaching lives here, not on the escalation record; the
+       timeline's "Reply in Support →" opens this thread. TODO-COPY. */
     const opened = now - 235 * MINUTE;
     messages["s-brandy"] = [
       ...(messages["s-brandy"] ?? []),

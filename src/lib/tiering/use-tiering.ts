@@ -14,13 +14,13 @@
 // server render sees nothing and the client fills in.
 
 import { useMemo } from "react";
-import type { CrisisNote, EscalationOutcome, EscalationState } from "@/lib/chat/types";
+import type { ChatMessage, CrisisNote, EscalationState } from "@/lib/chat/types";
 import { useOnboardingStore } from "@/lib/onboarding/store";
 import { isSupervisorTier, staffActorFor } from "@/lib/record/permission-map";
 import { LIVE_ID } from "@/lib/record/subject";
 import { useMounted } from "@/lib/use-mounted";
 import { tierStateFor, type TierActor, type TierEvent, type TierState } from "@/lib/tiering/events";
-import { CLOSE_OUT_TIER, assessmentOf, isOpen } from "@/lib/tiering/escalation";
+import { CLOSE_OUT_TIER, assessmentOf, crisisSections, isOpen, sectionDone } from "@/lib/tiering/escalation";
 import { seedEscalationEvents, seedEscalationHistory, seedEscalations, seedTierEvents } from "@/lib/tiering/seed";
 import type { RaiseTarget, Tier } from "@/lib/tiering/tiers";
 
@@ -51,9 +51,13 @@ export interface Tiering {
   /** S1. Tier 1–2 continues to S2; Tier 3–4 is the standard tier update and
    *  closes the escalation (the crisis-note flow does not apply). */
   confirm: (teenId: string, tier: Tier, reason: string) => boolean;
-  postGuidance: (teenId: string, text: string) => void;
   saveCrisisNote: (teenId: string, patch: Partial<CrisisNote>) => void;
-  saveOutcome: (teenId: string, outcome: EscalationOutcome) => void;
+  /** The outcome node: which outcome, and whether it is still the auto-tag. */
+  chooseOutcome: (teenId: string, input: { id: string; autoTagged: boolean }) => void;
+  /** The debrief node, after the outcome: saving it completes the step. */
+  saveDebrief: (teenId: string, input: { debrief: string; debriefIsDraft: boolean; plan: string; additional: string }) => void;
+  /** A chat moment added to the escalation, with an optional note. Append-only. */
+  addMoment: (teenId: string, input: { message: ChatMessage; senderName: string; note: string }) => void;
   /** S4. Closes, files the follow-up, and steps the teen down. */
   close: (teenId: string, input: { followUpDays: number; reason: string }) => boolean;
   /** Platform safety: reviewed, closed, no tier event. */
@@ -223,21 +227,53 @@ export function useTiering(now: number): Tiering {
         } else putEscalation({ ...e, confirmedTier: tier, confirmedAt: at, meta });
         return true;
       },
-      postGuidance: (teenId, text) => {
-        const e = escalationFor(teenId);
-        if (!isOpen(e) || !text.trim()) return;
-        const at = Date.now();
-        putEscalation({ ...e, guidance: [...(e.guidance ?? []), { id: `g-${teenId}-${at}`, at, text: text.trim(), author: viewer.name || "Your supervisor" }] });
-      },
       saveCrisisNote: (teenId, patch) => {
         const e = escalationFor(teenId);
         if (!isOpen(e)) return; // append-only once closed
-        putEscalation({ ...e, crisisNote: { ...e.crisisNote, ...patch, updatedAt: Date.now() } });
+        const at = Date.now();
+        const next = { ...e.crisisNote, ...patch };
+        /* STAMP EACH SECTION ONCE, the first time it is complete — its node's
+           time. An edit later re-saves the note, not the section's moment. */
+        const sectionAt = { ...e.crisisNote?.sectionAt };
+        for (const id of crisisSections(e.confirmedTier ?? 1)) {
+          if (!sectionDone(next, id) || sectionAt[id] !== undefined) continue;
+          /* Done BEFORE this save (a record from before the stamp existed):
+             its moment is the note's previous write, not now. */
+          sectionAt[id] = sectionDone(e.crisisNote, id) ? (e.crisisNote?.updatedAt ?? at) : at;
+        }
+        putEscalation({ ...e, crisisNote: { ...next, sectionAt, updatedAt: at } });
       },
-      saveOutcome: (teenId, outcome) => {
+      /* ═══ OUTCOME, THEN DEBRIEF — two nodes (pack v3.0) ═══ Choosing writes
+         the outcome with no debrief yet; saving the debrief completes it. */
+      chooseOutcome: (teenId, { id, autoTagged }) => {
         const e = escalationFor(teenId);
         if (!isOpen(e)) return;
-        putEscalation({ ...e, outcome: { ...outcome, savedAt: Date.now() } });
+        putEscalation({ ...e, outcome: { id, autoTagged, debrief: e.outcome?.debrief ?? "", debriefIsDraft: e.outcome?.debriefIsDraft ?? true, plan: e.outcome?.plan ?? "", additional: e.outcome?.additional ?? "", chosenAt: Date.now(), savedAt: null } });
+      },
+      saveDebrief: (teenId, input) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e) || !e.outcome) return;
+        putEscalation({ ...e, outcome: { ...e.outcome, ...input, savedAt: Date.now() } });
+      },
+      addMoment: (teenId, { message, senderName, note }) => {
+        const e = escalationFor(teenId);
+        if (!isOpen(e)) return;
+        if ((e.moments ?? []).some((m) => m.messageId === message.id)) return; // once per message
+        const at = Date.now();
+        putEscalation({
+          ...e,
+          moments: [
+            ...(e.moments ?? []),
+            {
+              id: `mo-${teenId}-${at}`,
+              at,
+              messageId: message.id,
+              note: note.trim(),
+              actor: { id: viewer.id, name: viewer.name, role: viewer.role === "supervisor" ? "supervisor" : "mentor" },
+              quote: { text: message.text ?? "", sender: message.sender, senderName, at: message.at },
+            },
+          ],
+        });
       },
       close: (teenId, { followUpDays, reason }) => {
         const e = escalationFor(teenId);

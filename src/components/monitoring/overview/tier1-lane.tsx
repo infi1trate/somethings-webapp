@@ -14,6 +14,8 @@
 // layer (mitigation) is out of scope here — see the TODO on the button.
 
 import { Flag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import { RequestedChip } from "@/components/tiering/requested-chip";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { answerAlert, responseClock as clock, useResponseSecondsLeft } from "@/lib/monitoring/alert-clock";
@@ -35,6 +37,8 @@ export function PresenceChip({ text }: { text: string }) {
 
 function LiveRow({ teen }: { teen: MonitoringTeen }) {
   const left = useResponseSecondsLeft();
+  const router = useRouter();
+  const link = monitoringEntryHref(teen);
   return (
     <div
       data-t1-live={teen.id}
@@ -62,8 +66,9 @@ function LiveRow({ teen }: { teen: MonitoringTeen }) {
         onClick={() => {
           /* Joining answers the alert: the strip does not come back. */
           answerAlert();
-          /* TODO(monitoring): navigate into the session (the mitigation
-             layer), which is out of scope for this merge. */
+          /* pack v3.0: and goes into the conversation — the supervisor's
+             only door into a chat now that Chats left their nav. */
+          if (link) router.push(link.href);
         }}
         /* TODO-COPY */
         aria-label={`Join session with ${teen.teen}, ${clock(left)} left to respond`}

@@ -124,7 +124,9 @@ function EscalationStory({
     ...(a.submittedAt !== null
       ? [{ key: `${escalation.id}-assessed`, at: a.submittedAt, label: "Assessed", sentence: `Assessment sent to supervisor${risk ? ` · suggested ${RISK_LABEL[risk].toLowerCase()}` : ""}`, reason: escalation.mentorSummary || undefined }]
       : []),
-    ...(escalation.guidance ?? []).map((g) => ({ key: g.id, at: g.at, label: "Guidance", sentence: `${g.author}: ${g.text}` })),
+    /* Guidance left the record for Support (pack v3.0); added chat moments
+       file here instead, quote-framed by sender. */
+    ...(escalation.moments ?? []).map((m) => ({ key: m.id, at: m.at, label: "Moment", sentence: `${m.quote.senderName}: “${m.quote.text}”`, reason: m.note || undefined })),
     ...(escalation.crisisNote?.updatedAt && escalation.resolvedAt !== null ? [{ key: `${escalation.id}-note`, at: escalation.crisisNote.updatedAt, label: "Crisis note", sentence: "Crisis note filed" }] : []),
     ...(escalation.outcome?.savedAt ? [{ key: `${escalation.id}-outcome`, at: escalation.outcome.savedAt, label: "Outcome", sentence: outcome ? `Outcome · ${outcome}` : "Outcome recorded", reason: escalation.outcome.plan || undefined }] : []),
     ...(escalation.resolvedAt !== null ? [{ key: `${escalation.id}-closed`, at: escalation.resolvedAt, label: "Closed", sentence: "Escalation closed" }] : []),

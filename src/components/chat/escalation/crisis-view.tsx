@@ -2,6 +2,12 @@
 
 // THE CRISIS VIEW — everything needed to get help to a teenager, in one place.
 //
+// ═══ A TAB NOW, NOT A DIALOG (pack v3.0, Supersession 5) ═══ It was a modal
+// the banner and an in-panel red button both opened. The banner's "Emergency
+// info" chip is the one entry now, and it opens the Care panel on its
+// Emergency info tab, which renders `EmergencyInfoPanel` — this surface, with
+// the same 911 primary first. Everything below still holds.
+//
 // ═══ THIS IS THE SURFACE THAT HAS TO WORK BADLY-LIT AND ONE-HANDED ═══
 //
 // It gets opened by a twenty-three-year-old who has just read something frightening
@@ -31,13 +37,6 @@
 
 import { AlertTriangle, MapPin, Phone, Shield, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import type { EmergencyInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -127,7 +126,7 @@ function InfoRow({
 /** ═══ THE ROWS, ON THEIR OWN ═══ Also the Care tab's "Emergency info"
  *  sub-section, so the two cannot disagree about what is on file — and both
  *  show the same designed unavailable states, never a bare dash. */
-export function EmergencyInfoList({ info, theirName }: { info: EmergencyInfo; theirName: string }) {
+function EmergencyInfoList({ info, theirName }: { info: EmergencyInfo; theirName: string }) {
   const i = info;
   return (
     <div data-emergency-info>
@@ -175,87 +174,60 @@ export function EmergencyInfoList({ info, theirName }: { info: EmergencyInfo; th
   );
 }
 
-export function CrisisView({
-  info,
-  theirName,
-  open,
-  onOpenChange,
-}: {
-  info: EmergencyInfo | undefined;
-  theirName: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const i = info ?? {
-    teenPhone: null,
-    address: null,
-    liveLocation: null,
-    contact: null,
-  };
-
+/** ═══ THE EMERGENCY INFO TAB ═══ 911 first, the permission not to be
+ *  certain, then what to read to the operator. A blocked constant: 911 is the
+ *  primary here, in every tier, both lenses. */
+export function EmergencyInfoPanel({ info, theirName }: { info: EmergencyInfo; theirName: string }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-slot="crisis-view" className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{/* TODO-COPY */}Emergency information</DialogTitle>
-          <DialogDescription>
-            {/* TODO-COPY. Names the person, because a mentor with fourteen teens
-                opening this at speed needs to know it is the right one. */}
-            For {theirName}. Your supervisor has already been notified.
-          </DialogDescription>
-        </DialogHeader>
+    <div data-slot="crisis-view" className="space-y-4">
+      {/* ═══ 911 FIRST, AND IT IS A LINK ═══
+          The primary action of the surface, at the top, before anything a
+          mentor has to read. A `tel:` link rather than a button with a
+          confirmation: a confirmation step on the one action that saves a life
+          is a step in the wrong place, and on a phone this opens the dialer
+          with the number already in it. */}
+      <a
+        href={`tel:${EMERGENCY_NUMBER}`}
+        data-slot="call-emergency"
+        className={cn(
+          "flex min-h-12 w-full items-center justify-center gap-2 rounded-full",
+          "bg-[var(--alert-critical-accent)] text-[var(--text-inverse)]",
+          "transition-opacity hover:opacity-90",
+          RING
+        )}
+        style={{ font: "var(--type-button)" }}
+      >
+        <Phone className="size-4 shrink-0" aria-hidden />
+        {/* TODO-COPY. The number IS the label — "Get help" would make a mentor
+            work out what happens when they press it. */}
+        Call {EMERGENCY_NUMBER}
+      </a>
 
-        <div className="space-y-4">
-          {/* ═══ 911 FIRST, AND IT IS A LINK ═══
-              The primary action of the surface, at the top, before anything a
-              mentor has to read. A `tel:` link rather than a button with a
-              confirmation: a confirmation step on the one action that saves a life
-              is a step in the wrong place, and on a phone this opens the dialer
-              with the number already in it. */}
-          <a
-            href={`tel:${EMERGENCY_NUMBER}`}
-            data-slot="call-emergency"
-            className={cn(
-              "flex min-h-12 w-full items-center justify-center gap-2 rounded-full",
-              "bg-[var(--alert-critical-accent)] text-[var(--text-inverse)]",
-              "transition-opacity hover:opacity-90",
-              RING
-            )}
-            style={{ font: "var(--type-button)" }}
-          >
-            <Phone className="size-4 shrink-0" aria-hidden />
-            {/* TODO-COPY. The number IS the label — "Get help" would make a mentor
-                work out what happens when they press it. */}
-            Call {EMERGENCY_NUMBER}
-          </a>
+      <p
+        className="flex items-start gap-2 rounded-[var(--radius-inset)] bg-[var(--alert-critical-bg)] px-3 py-2.5 text-[var(--alert-critical-fg)]"
+        style={{ font: "var(--type-body)" }}
+      >
+        <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+        {/* TODO-COPY. REMOVES THE DECISION a mentor should not be making alone.
+            The most common failure in a moment like this is a young mentor
+            waiting to be sure enough, and this sentence is the permission not
+            to be. */}
+        <span>
+          If you think they are in danger, call now. You do not need to be
+          certain, and you will not be in trouble for calling.
+        </span>
+      </p>
 
-          <p
-            className="flex items-start gap-2 rounded-[var(--radius-inset)] bg-[var(--alert-critical-bg)] px-3 py-2.5 text-[var(--alert-critical-fg)]"
-            style={{ font: "var(--type-body)" }}
-          >
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-            {/* TODO-COPY. REMOVES THE DECISION a mentor should not be making alone.
-                The most common failure in a moment like this is a young mentor
-                waiting to be sure enough, and this sentence is the permission not
-                to be. */}
-            <span>
-              If you think they are in danger, call now. You do not need to be
-              certain, and you will not be in trouble for calling.
-            </span>
-          </p>
-
-          {/* ═══ "READ THIS TO THE OPERATOR" (Tiering & Escalation pack) ═══
-              The rows below are what a 911 call asks for, in the order it asks;
-              the heading says what they are FOR. */}
-          <div>
-            <h3 className="mb-1 text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
-              {/* TODO-COPY */}
-              Read this to the operator
-            </h3>
-            <EmergencyInfoList info={i} theirName={theirName} />
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      {/* ═══ "READ THIS TO THE OPERATOR" (Tiering & Escalation pack) ═══
+          The rows below are what a 911 call asks for, in the order it asks;
+          the heading says what they are FOR. */}
+      <div>
+        <h3 className="mb-1 text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
+          {/* TODO-COPY */}
+          Read this to the operator · {theirName}
+        </h3>
+        <EmergencyInfoList info={info} theirName={theirName} />
+      </div>
+    </div>
   );
 }

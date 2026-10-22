@@ -120,7 +120,10 @@ export const RISK_LABEL: Record<RiskLevel, string> = { low: "Low risk", moderate
  *  S4 close & follow-up. Both are views of the same record's fields, read
  *  here; there is no stage field to fall out of step with them. */
 export type MentorStage = "M2" | "M3" | "M4";
-export type SupervisorStage = "S1" | "S2" | "S3" | "S4" | "closed";
+/** S0 (pack v3.0): the mentor's assessment is still in progress — the
+ *  supervisor's current node is its progress, and Confirm tier waits for it
+ *  (the pack's sequence: assessment received → confirm). */
+export type SupervisorStage = "S0" | "S1" | "S2" | "S3" | "S4" | "closed";
 
 export function mentorStage(e: EscalationState, state: TierState): MentorStage {
   if (e.resolvedAt !== null) return "M4";
@@ -131,6 +134,8 @@ export function mentorStage(e: EscalationState, state: TierState): MentorStage {
 
 export function supervisorStage(e: EscalationState): SupervisorStage {
   if (e.resolvedAt !== null) return "closed";
+  const target = escalationTarget(e);
+  if (e.confirmedTier === undefined && target !== "platform" && needsAssessment(target) && assessmentOf(e).submittedAt === null) return "S0";
   if (e.confirmedTier === undefined) return "S1";
   if (!isAlertTier(e.confirmedTier)) return "S1"; // never stays here: Tier 3–4 confirmation closes
   if (!crisisNoteComplete(e.crisisNote, e.confirmedTier)) return "S2";

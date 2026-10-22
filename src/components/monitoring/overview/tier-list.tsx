@@ -14,6 +14,8 @@
 // border, and never alert colour below Tier 2.
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import { monitoringEntryHref } from "@/lib/monitoring/entry-href";
 import type { MonitoringTeen } from "@/lib/monitoring/tier-roster";
 import { useWindowedRange } from "@/lib/ui/use-windowed-range";
 import type { Tier } from "@/lib/monitoring/tiers";
@@ -54,6 +56,7 @@ function Row({ teen }: { teen: MonitoringTeen }) {
     .join(" · ");
   const detail = tierDetailInk(teen.tier);
   const tint = teen.tier <= 2;
+  const link = monitoringEntryHref(teen);
   return (
     <div
       role="row"
@@ -66,7 +69,21 @@ function Row({ teen }: { teen: MonitoringTeen }) {
         <TierAvatar name={teen.teen} tier={teen.tier} />
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[14px] leading-[20px] font-semibold text-[var(--text-primary)]">{teen.teen}</span>
+            {/* ═══ THE NAME IS THE DOOR (pack v3.0) ═══ Into the conversation,
+                or the record when this prototype has no thread for the teen;
+                plain text when there is neither. A link on the name, not on
+                the row, so the grid's row/cell semantics stay intact. */}
+            {link ? (
+              <Link
+                href={link.href}
+                data-entry-link={link.kind}
+                className="truncate rounded-sm text-[14px] leading-[20px] font-semibold text-[var(--text-primary)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring)]"
+              >
+                {teen.teen}
+              </Link>
+            ) : (
+              <span className="truncate text-[14px] leading-[20px] font-semibold text-[var(--text-primary)]">{teen.teen}</span>
+            )}
             <TierLozenge tier={teen.tier} />
             {teen.presence && <PresenceChip text={teen.presence} />}
           </div>

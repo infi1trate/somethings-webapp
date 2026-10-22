@@ -122,6 +122,7 @@ export function TimelinePanel({
   onNewNote,
   onOpenNote,
   onOpenEvent,
+  nameActor,
   /** So the retracted-send treatment matches the thread's. */
   rescindedArtifactIds,
 }: {
@@ -132,6 +133,8 @@ export function TimelinePanel({
   onNewNote?: () => void;
   onOpenNote: (note: Note) => void;
   onOpenEvent?: (event: ChatEvent) => void;
+  /** Who did it, by actor id (pack v3.0, E1). */
+  nameActor?: (actorId: string) => string;
   rescindedArtifactIds: Set<string>;
 }) {
   /** ═══ NEWEST FIRST, AND THAT IS THE OPPOSITE OF THE TRANSCRIPT ═══
@@ -203,9 +206,7 @@ export function TimelinePanel({
                     key={entry.event.id}
                     event={entry.event}
                     variant="row"
-                    actorName={
-                      entry.event.actorId === LIVE_ID ? "You" : theirName
-                    }
+                    actorName={nameActor ? nameActor(entry.event.actorId) : entry.event.actorId === LIVE_ID ? "You" : theirName}
                     retracted={
                       entry.event.kind === "activity-sent" &&
                       rescindedArtifactIds.has(entry.event.artifactId)

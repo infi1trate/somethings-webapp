@@ -63,6 +63,7 @@ import { DEFAULT_CHAT_SCENARIO_ID } from "@/lib/chat/seed";
    to make one file read better. */
 import type {
   ChatEvent as ChatEventRecord,
+  ChatMessage as ChatMessageRecord,
   EscalationState as ChatEscalation,
   Note as ChatNoteRecord,
   SentArtifact as ChatArtifactRecord,
@@ -342,6 +343,12 @@ interface OnboardingState {
    *  gets a SECOND event, because "sent and then pulled back" is the true history
    *  and "never sent" is not. Keyed by thread id. */
   chatEvents: Record<string, ChatEventRecord[]>;
+  /** APPEND-ONLY. What the mentor has SENT this session, merged with the
+   *  scenario's fixture messages at read time (`chat-page.tsx`), exactly as
+   *  `chatEvents` is. Keyed by thread id. Before this slice existed the
+   *  composer's Send cleared the box and called nothing (pack v3.0, Phase 0):
+   *  there was nowhere for a sent message to go. */
+  chatMessages: Record<string, ChatMessageRecord[]>;
   /** Documentation. Keyed by note id rather than by thread, because a note is
    *  reached from Timeline, from a reminder and from the thread it references —
    *  three paths that would each need their own index into a thread-keyed map. */
@@ -371,6 +378,8 @@ interface OnboardingState {
    *  property of the store rather than a convention every caller has to keep. A
    *  rescinded activity gets a SECOND event; the first one stays. */
   appendChatEvent: (event: ChatEventRecord) => void;
+  /** A message the mentor sent. Append-only, like `appendChatEvent`. */
+  appendChatMessage: (message: ChatMessageRecord) => void;
   /** Sent artifacts. Upsert rather than append, because `completion` is the one
    *  mutable field in the chat model — a teen opening a set changes it. */
   putChatArtifact: (artifact: ChatArtifactRecord) => void;
@@ -766,6 +775,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       chatScenarioId: DEFAULT_CHAT_SCENARIO_ID,
       escalations: {},
       chatEvents: {},
+      chatMessages: {},
       chatNotes: {},
       chatArtifacts: {},
       tierEvents: [],
@@ -1248,6 +1258,13 @@ export const useOnboardingStore = create<OnboardingState>()(
             [event.threadId]: [...(st.chatEvents[event.threadId] ?? []), event],
           },
         })),
+      appendChatMessage: (message) =>
+        set((st) => ({
+          chatMessages: {
+            ...st.chatMessages,
+            [message.threadId]: [...(st.chatMessages[message.threadId] ?? []), message],
+          },
+        })),
       putChatArtifact: (artifact) =>
         set((st) => ({
           chatArtifacts: { ...st.chatArtifacts, [artifact.id]: artifact },
@@ -1275,6 +1292,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           chatScenarioId: id,
           escalations: {},
           chatEvents: {},
+          chatMessages: {},
           chatNotes: {},
           chatArtifacts: {},
           tierEvents: [],
@@ -1502,6 +1520,7 @@ export const useOnboardingStore = create<OnboardingState>()(
              been rebuilt from scratch. */
           escalations: {},
           chatEvents: {},
+          chatMessages: {},
           chatNotes: {},
           chatArtifacts: {},
           tierEvents: [],
@@ -2642,6 +2661,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         chatScenarioId: state.chatScenarioId,
         escalations: state.escalations,
         chatEvents: state.chatEvents,
+        chatMessages: state.chatMessages,
         chatNotes: state.chatNotes,
         chatArtifacts: state.chatArtifacts,
         tierEvents: state.tierEvents,

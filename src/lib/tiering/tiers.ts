@@ -90,20 +90,25 @@ export const isAlertTier = (t: Tier | RaiseTarget | null | undefined) => t === 1
 
 // ── RAISING ─────────────────────────────────────────────────────────────────
 
-/** ═══ PLATFORM SAFETY IS A CATEGORY, NOT A TIER ═══ Impersonation or account
- *  activity that is not right. It routes to supervisor review and never
- *  changes a teen's clinical tier by itself. */
+/** ═══ A PLATFORM CONCERN IS NOT A TIER (pack v3.0, Supersession 3) ═══
+ *  Impersonation or account activity that is not right. It routes to
+ *  supervisor review and never changes a teen's clinical tier. v1–v2 offered
+ *  it as a fourth option in the tier picker; it is out of the taxonomy now —
+ *  a quiet link below the tiers opens its own report flow. The escalation
+ *  record still carries it, as a CATEGORY (`requested: "platform"`). */
 export const PLATFORM = "platform" as const;
 export type RaiseTarget = Exclude<Tier, 4> | typeof PLATFORM;
 
-/** What a mentor can raise. Tier 4 is never a raise target. */
-export const RAISE_TARGETS: readonly RaiseTarget[] = [1, 2, 3, PLATFORM];
+/** What a mentor can raise as a tier — strictly Tiers 1–3 (blocked
+ *  constant). Tier 4 is never a raise target; a platform concern is not a
+ *  tier at all. */
+export const RAISE_TIERS: readonly Exclude<Tier, 4>[] = [1, 2, 3];
 
 export const RAISE_LABEL: Record<RaiseTarget, string> = {
   1: "Tier 1 · Active crisis",
   2: "Tier 2 · High risk",
   3: "Tier 3 · Medium risk",
-  platform: "Platform safety",
+  platform: "Platform concern",
 };
 
 /** The picker's plain-language line per option, in FCP-2's voice with the

@@ -214,16 +214,17 @@ console.log("\nPhase 1 · the grouped rail\n");
        Flags folded into ONE Monitoring item, and the group holds two rows:
        Monitoring, then Chats. Activity had already left the rail for the
        bell (2026-10-16), so the row after Chats is the next group's first. */
+    /* ═══ AND REMOVED (pack v3.0, Supersession 7) ═══ A supervisor reaches a
+       conversation only through Monitoring entries and the Support hub, so
+       the claim inverts: there is NO Chats row on the supervisor-tier rail.
+       The reachability the old check protected is asserted where it now
+       lives — Monitoring's entries link into the conversation
+       (monitoring-tiers.mjs, step 5). */
     check(
-      "rail.chat-present",
-      "and Chats is in the Monitoring group, below Monitoring and last in it",
-      r.chatRow != null &&
-        r.chatRow.grouped === true &&
-        r.chatRow.after === "Monitoring" &&
-        r.chatRow.before === "Care Reviews",
-      r.chatRow
-        ? `"${r.chatRow.label}" ${r.chatRow.grouped ? "in the Monitoring group" : "in the ungrouped top"}, after "${r.chatRow.after}" and before "${r.chatRow.before}"`
-        : "no Chats row"
+      "rail.chat-absent",
+      "and Chats is not on the supervisor's rail — conversations are reached from Monitoring",
+      r.chatRow == null,
+      r.chatRow ? `"${r.chatRow.label}" is still there` : "no Chats row"
     );
   }
   await context.close();

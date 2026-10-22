@@ -9,28 +9,33 @@
 // reorder), and enters a distinct ESCALATION STATE while one is open — a
 // red dot on the tab, and the tab selected once (`chat-page.tsx`).
 //
-// Three states:
-//   steady    TierCard · Care brief · History / Safety plan / Emergency info /
-//             Resources
-//   raising   the raise flow, as a rail takeover (RaiseFlow)
-//   active    the escalation exchange — a staged baton panel, mentor and
-//             supervisor lenses on one record (`escalation/exchange.tsx`,
-//             pack v2.0, which superseded the flat v1 active state)
+// ═══ FIVE TABS, FIRST-CLASS, AT THE TOP (pack v3.0, Workstream B) ═══
+// Overview · Safety plan · Emergency info · Resources · History. They replace
+// the mid-panel sub-chips. Overview has three states:
+//   steady    TierCard · Care brief
+//   raising   the raise flow, as an Overview takeover (RaiseFlow)
+//   active    the escalation exchange (`escalation/exchange.tsx`)
+// An escalation takes over OVERVIEW ONLY: the other four tabs stay reachable,
+// and the Overview tab carries the escalation dot. The tab is held by the page
+// (`chat-page.tsx`), because the banner's "Emergency info" opens this panel on
+// the Emergency info tab.
 //
 // ═══ ONE STORE, TWO VIEWS ═══ A supervisor watching the conversation reads
-// the same records — checklist, safety answers, guidance — without the
-// controls, and gets "Update tier" where a mentor gets "Escalate".
+// the same record — the assessment, the tier, the note, added chat moments —
+// on its own lens of the timeline, and gets "Update tier" where a mentor gets
+// "Escalate".
 //
-// ═══ RED ONLY IN TIER 1–2 CONTEXTS ═══ The Emergency information button is
-// the one filled red action here, and only while the escalation is Tier 1 or
-// 2; a Tier 3 or Platform safety escalation gets it outlined.
+// ═══ RED ONLY IN TIER 1–2 CONTEXTS ═══ The in-panel Emergency information
+// button is gone (pack v3.0, Supersession 5): the banner chip is the one entry,
+// and it lands on the Emergency info tab, whose Call 911 is the canon's other
+// red.
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PanelSection } from "@/components/chat/rail/rail-panel";
 import { EscalationExchange } from "@/components/chat/escalation/exchange";
-import { EmergencyInfoList } from "@/components/chat/escalation/crisis-view";
+import { EmergencyInfoPanel } from "@/components/chat/escalation/crisis-view";
 import { RaiseFlow } from "@/components/tiering/raise-flow";
 import { TierCard } from "@/components/tiering/tier-card";
 import { TierHistory } from "@/components/tiering/tier-history";
@@ -53,15 +58,16 @@ export interface CareBrief {
 }
 
 
-// ── STEADY: the sub-sections ───────────────────────────────────────────────
+// ── THE TABS ────────────────────────────────────────────────────────────────
 
-type SubId = "history" | "safety-plan" | "emergency" | "resources";
-/* TODO-COPY. Sentence case, the FCP-2 chip pattern. */
-const SUB: { id: SubId; label: string }[] = [
-  { id: "history", label: "History" },
+export type CareTab = "overview" | "safety-plan" | "emergency" | "resources" | "history";
+/* TODO-COPY. Sentence case. */
+export const CARE_TABS: { id: CareTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
   { id: "safety-plan", label: "Safety plan" },
   { id: "emergency", label: "Emergency info" },
   { id: "resources", label: "Resources" },
+  { id: "history", label: "History" },
 ];
 
 /** TODO-COPY / TODO-CLINICAL: the list needs the same review as the rest. */
@@ -71,65 +77,71 @@ const RESOURCES: { name: string; how: string }[] = [
   { name: "The Trevor Project", how: "Call 1-866-488-7386, or text START to 678-678" },
 ];
 
-function SubSections({
-  children,
-}: {
-  children: (active: SubId) => React.ReactNode;
-}) {
-  const [active, setActive] = useState<SubId>("history");
-  const refs = useRef<Partial<Record<SubId, HTMLButtonElement | null>>>({});
-  const onKey = (e: React.KeyboardEvent, id: SubId) => {
-    const i = SUB.findIndex((s) => s.id === id);
+function CareTabs({ tab, onTab, dot }: { tab: CareTab; onTab: (t: CareTab) => void; dot: "alert" | "neutral" | null }) {
+  const refs = useRef<Partial<Record<CareTab, HTMLButtonElement | null>>>({});
+  const onKey = (e: React.KeyboardEvent, id: CareTab) => {
+    const i = CARE_TABS.findIndex((s) => s.id === id);
     const to =
-      e.key === "ArrowRight" ? SUB[(i + 1) % SUB.length].id
-      : e.key === "ArrowLeft" ? SUB[(i - 1 + SUB.length) % SUB.length].id
-      : e.key === "Home" ? SUB[0].id
-      : e.key === "End" ? SUB[SUB.length - 1].id
+      e.key === "ArrowRight" ? CARE_TABS[(i + 1) % CARE_TABS.length].id
+      : e.key === "ArrowLeft" ? CARE_TABS[(i - 1 + CARE_TABS.length) % CARE_TABS.length].id
+      : e.key === "Home" ? CARE_TABS[0].id
+      : e.key === "End" ? CARE_TABS[CARE_TABS.length - 1].id
       : null;
     if (!to) return;
     e.preventDefault();
-    setActive(to);
+    onTab(to);
     refs.current[to]?.focus();
   };
   return (
-    <div>
-      <div role="tablist" aria-label="Care details" className="flex flex-wrap gap-1.5">
-        {SUB.map((s) => {
-          const on = s.id === active;
-          return (
-            <button
-              key={s.id}
-              ref={(el) => {
-                refs.current[s.id] = el;
-              }}
-              type="button"
-              role="tab"
-              data-care-sub={s.id}
-              aria-selected={on}
-              aria-controls={on ? `care-sub-${s.id}` : undefined}
-              tabIndex={on ? 0 : -1}
-              onClick={() => setActive(s.id)}
-              onKeyDown={(e) => onKey(e, s.id)}
-              className={cn(
-                "inline-flex min-h-8 items-center rounded-full border px-3",
-                on
-                  ? "border-transparent bg-[var(--surface-sunken-strong)] text-[var(--text-primary)]"
-                  : "border-[color:var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
-                RING
-              )}
-              style={{ font: "var(--type-body)" }}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
-      <div id={`care-sub-${active}`} role="tabpanel" className="mt-3">
-        {children(active)}
-      </div>
+    /* A wrapping row rather than a scroller: five labels fit the 360 rail in
+       two lines at worst, and nothing is ever hidden behind an overflow. */
+    <div role="tablist" aria-label="Care" data-care-tabs className="flex flex-wrap gap-1.5">
+      {CARE_TABS.map((s) => {
+        const on = s.id === tab;
+        const withDot = s.id === "overview" && dot;
+        return (
+          <button
+            key={s.id}
+            ref={(el) => {
+              refs.current[s.id] = el;
+            }}
+            type="button"
+            role="tab"
+            id={`care-tab-${s.id}`}
+            data-care-tab={s.id}
+            aria-selected={on}
+            aria-controls="care-tabpanel"
+            tabIndex={on ? 0 : -1}
+            onClick={() => onTab(s.id)}
+            onKeyDown={(e) => onKey(e, s.id)}
+            className={cn(
+              "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3",
+              on
+                ? "border-transparent bg-[var(--surface-sunken-strong)] text-[var(--text-primary)]"
+                : "border-[color:var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--tint-hover)]",
+              RING
+            )}
+            style={{ font: "var(--type-body)" }}
+          >
+            {s.label}
+            {withDot && (
+              <>
+                <span
+                  aria-hidden
+                  data-overview-dot={dot}
+                  className={cn("size-1.5 rounded-full", dot === "alert" ? "bg-[var(--alert-critical-accent)]" : "bg-[var(--text-primary)]")}
+                />
+                <span className="sr-only">, escalation open</span>
+              </>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
+
+// ── THE PANEL ───────────────────────────────────────────────────────────────
 
 export function CarePanel({
   teenId,
@@ -139,11 +151,13 @@ export function CarePanel({
   escalation,
   observer,
   raising,
+  tab,
+  onTab,
+  dot,
   onStartRaise,
   onCancelRaise,
   onConfirmRaise,
   onUseWording,
-  onOpenCrisis,
   onUpdateTier,
   onRequestStepDown,
   supervisorName,
@@ -164,11 +178,15 @@ export function CarePanel({
   escalation?: EscalationState;
   observer: boolean;
   raising: boolean;
+  /** Which tab is up. Held by the page — see the module note. */
+  tab: CareTab;
+  onTab: (t: CareTab) => void;
+  /** The escalation dot on the Overview tab: alert for Tier 1–2. */
+  dot: "alert" | "neutral" | null;
   onStartRaise: () => void;
   onCancelRaise: () => void;
   onConfirmRaise: (input: { target: RaiseTarget; note: string }) => void;
   onUseWording: (text: string) => void;
-  onOpenCrisis: () => void;
   onUpdateTier: () => void;
   onRequestStepDown: () => void;
   supervisorName: string;
@@ -184,123 +202,122 @@ export function CarePanel({
 }) {
   const state = tiering.stateFor(teenId);
 
-  // ── RAISING ──────────────────────────────────────────────────────────────
-  if (raising && !observer && !escalation) {
-    return (
-      <div data-care-state="raising">
-        <RaiseFlow name={name} current={state.tier} onCancel={onCancelRaise} onConfirm={onConfirmRaise} />
-      </div>
-    );
-  }
-
-  // ── THE EXCHANGE (pack v2.0) ─────────────────────────────────────────────
-  /* SUPERSEDED: the flat active state (status header · guidance · checklist
-     · safety check · Emergency/Resolve · what happens next) is the staged
-     baton panel now — `EscalationExchange`, one record, two lenses. */
-  if (escalation) {
-    return (
-      <div data-care-state="active" data-care-target={String(escalation.requested ?? 1)}>
-        <EscalationExchange
-          e={escalation}
-          teenId={teenId}
-          name={name}
-          lens={observer ? "supervisor" : "mentor"}
-          tiering={tiering}
-          supervisorName={supervisorName}
-          presence={presence}
-          onUseWording={onUseWording}
-          onOpenCrisis={onOpenCrisis}
-          onReplyInSupport={onReplyInSupport}
-          teenLines={teenLines}
-          mentorLines={mentorLines}
-          onSettled={onSettled}
-        />
-      </div>
-    );
-  }
-
-  // ── STEADY ───────────────────────────────────────────────────────────────
-  return (
-    <div data-care-state="steady" className="space-y-5">
-      <TierCard
-        state={state}
-        now={now}
-        name={name}
-        role={observer ? "supervisor" : "mentor"}
-        onEscalate={onStartRaise}
-        onRequestStepDown={onRequestStepDown}
-        onUpdateTier={onUpdateTier}
-      />
-
-      <PanelSection label="Care brief" divided>
-        <div data-care-brief>
-          {brief.presentation ? (
-            <p className="text-[var(--text-primary)]" style={{ font: "var(--type-card-title)" }}>
-              {brief.presentation}
-              {brief.code && <span className="ml-1.5 font-mono text-[12px] font-normal text-[var(--text-secondary)]">{brief.code}</span>}
-            </p>
-          ) : (
-            <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
-              {/* TODO-COPY */}
-              No presentation assigned yet.
-            </p>
-          )}
-          {brief.summary && (
-            <p className="mt-1 line-clamp-3 text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
-              {brief.summary}
-            </p>
-          )}
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-            {brief.freshAt !== null && (
-              <span className="tabular-nums text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
-                {/* TODO-COPY */}
-                Updated {DATE.format(brief.freshAt)}
-              </span>
-            )}
-            <Link
-              href={brief.href}
-              data-care-record
-              className={cn("inline-flex min-h-8 items-center gap-1 rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
-              style={{ font: "var(--type-body)" }}
-            >
-              {/* TODO-COPY */}
-              View full care record <ArrowRight aria-hidden className="size-4" />
-            </Link>
-          </div>
+  const overview = (() => {
+    // ── RAISING ────────────────────────────────────────────────────────────
+    if (raising && !observer && !escalation) {
+      return (
+        <div data-care-state="raising">
+          <RaiseFlow name={name} current={state.tier} onCancel={onCancelRaise} onConfirm={onConfirmRaise} />
         </div>
-      </PanelSection>
-
-      <PanelSection divided>
-        <SubSections>
-          {(active) =>
-            active === "history" ? (
-              <TierHistory
-                events={tiering.eventsFor(teenId)}
-                escalations={tiering.escalationsFor(teenId)}
-                nameOf={tiering.nameOf}
-                mentorName={observer ? tiering.liveMentorName || "The mentor" : "You"}
-                emptyName={name}
-              />
-            ) : active === "safety-plan" ? (
-              <p data-care-safety-plan className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
-                {/* TODO-COPY. A designed empty state, not a dash. */}
-                No safety plan on file for {name}. A supervisor writes one with them after a Tier 1 or 2 escalation, and it shows here.
+      );
+    }
+    // ── THE EXCHANGE (pack v2.0), on Overview only (pack v3.0) ─────────────
+    if (escalation) {
+      return (
+        <div data-care-state="active" data-care-target={String(escalation.requested ?? 1)}>
+          <EscalationExchange
+            e={escalation}
+            teenId={teenId}
+            name={name}
+            lens={observer ? "supervisor" : "mentor"}
+            tiering={tiering}
+            supervisorName={supervisorName}
+            mentorName={tiering.liveMentorName || "the mentor"}
+            presence={presence}
+            onUseWording={onUseWording}
+            onReplyInSupport={onReplyInSupport}
+            teenLines={teenLines}
+            mentorLines={mentorLines}
+            onSettled={onSettled}
+          />
+        </div>
+      );
+    }
+    // ── STEADY: the tier card and the care brief ───────────────────────────
+    return (
+      <div data-care-state="steady" className="space-y-5">
+        <TierCard
+          state={state}
+          now={now}
+          name={name}
+          role={observer ? "supervisor" : "mentor"}
+          onEscalate={onStartRaise}
+          onRequestStepDown={onRequestStepDown}
+          onUpdateTier={onUpdateTier}
+        />
+        <PanelSection label="Care brief" divided>
+          <div data-care-brief>
+            {brief.presentation ? (
+              <p className="text-[var(--text-primary)]" style={{ font: "var(--type-card-title)" }}>
+                {brief.presentation}
+                {brief.code && <span className="ml-1.5 font-mono text-[12px] font-normal text-[var(--text-secondary)]">{brief.code}</span>}
               </p>
-            ) : active === "emergency" ? (
-              <EmergencyInfoList info={emergency} theirName={name} />
             ) : (
-              <ul data-care-resources className="space-y-2">
-                {RESOURCES.map((r) => (
-                  <li key={r.name} className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
-                    <p className="text-[var(--text-primary)]" style={{ font: "var(--type-body)" }}>{r.name}</p>
-                    <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-field-label)" }}>{r.how}</p>
-                  </li>
-                ))}
-              </ul>
-            )
-          }
-        </SubSections>
-      </PanelSection>
+              <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+                {/* TODO-COPY */}
+                No presentation assigned yet.
+              </p>
+            )}
+            {brief.summary && (
+              <p className="mt-1 line-clamp-3 text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+                {brief.summary}
+              </p>
+            )}
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+              {brief.freshAt !== null && (
+                <span className="tabular-nums text-[var(--text-muted)]" style={{ font: "var(--type-field-label)" }}>
+                  {/* TODO-COPY */}
+                  Updated {DATE.format(brief.freshAt)}
+                </span>
+              )}
+              <Link
+                href={brief.href}
+                data-care-record
+                className={cn("inline-flex min-h-8 items-center gap-1 rounded-sm text-[var(--text-primary)] underline underline-offset-2 hover:no-underline", RING)}
+                style={{ font: "var(--type-body)" }}
+              >
+                {/* TODO-COPY */}
+                View full care record <ArrowRight aria-hidden className="size-4" />
+              </Link>
+            </div>
+          </div>
+        </PanelSection>
+      </div>
+    );
+  })();
+
+  return (
+    <div data-care-panel className="space-y-4">
+      <CareTabs tab={tab} onTab={onTab} dot={dot} />
+      <div id="care-tabpanel" role="tabpanel" aria-labelledby={`care-tab-${tab}`} data-care-tabpanel={tab}>
+        {tab === "overview" ? (
+          overview
+        ) : tab === "history" ? (
+          <TierHistory
+            events={tiering.eventsFor(teenId)}
+            escalations={tiering.escalationsFor(teenId)}
+            nameOf={tiering.nameOf}
+            mentorName={observer ? tiering.liveMentorName || "The mentor" : "You"}
+            emptyName={name}
+          />
+        ) : tab === "safety-plan" ? (
+          <p data-care-safety-plan className="text-[var(--text-secondary)]" style={{ font: "var(--type-body)" }}>
+            {/* TODO-COPY. A designed empty state, not a dash. */}
+            No safety plan on file for {name}. A supervisor writes one with them after a Tier 1 or 2 escalation, and it shows here.
+          </p>
+        ) : tab === "emergency" ? (
+          <EmergencyInfoPanel info={emergency} theirName={name} />
+        ) : (
+          <ul data-care-resources className="space-y-2">
+            {RESOURCES.map((r) => (
+              <li key={r.name} className="rounded-[var(--radius-inset)] bg-[var(--surface-s1)] px-3 py-2.5">
+                <p className="text-[var(--text-primary)]" style={{ font: "var(--type-body)" }}>{r.name}</p>
+                <p className="text-[var(--text-secondary)]" style={{ font: "var(--type-field-label)" }}>{r.how}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

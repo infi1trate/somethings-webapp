@@ -256,12 +256,16 @@ export interface EscalationState {
   confirmedAt?: number;
   /** RECORD METADATA, NEVER RENDERED: how long the confirmation took. */
   meta?: { timeToConfirmMs?: number };
-  /** S2: the supervisor's guidance to the mentor, append-only, newest last.
-   *  Stored on the record rather than in the Support outbox, which keeps
-   *  no author and does not persist (answered 2026-10-21). */
-  guidance?: GuidanceEntry[];
+  /* ═══ NO GUIDANCE FIELD (pack v3.0, Supersession 2) ═══ v2 stored the
+     supervisor's guidance here; coaching happens in the Support thread now,
+     and the timeline links to it. */
   /** S2: the crisis note, section by section. Append-only once closed. */
   crisisNote?: CrisisNote;
+  /** ═══ CHAT MOMENTS ADDED TO THE ESCALATION (pack v3.0, Workstream C) ═══
+   *  APPEND-ONLY. A message the mentor attached from the thread, with an
+   *  optional note, quote-framed on the timeline in both lenses. The quote is
+   *  a SNAPSHOT, so the record stands on its own if the thread is rebuilt. */
+  moments?: EscalationMoment[];
   /** S3: the outcome and debrief. */
   outcome?: EscalationOutcome;
   /** S4: the follow-up filed when the escalation closed. */
@@ -270,15 +274,10 @@ export interface EscalationState {
   wrapSeenAt?: number;
 }
 
-export interface GuidanceEntry {
-  id: string;
-  at: number;
-  text: string;
-  /** Who wrote it, as the record signs it. */
-  author: string;
-}
-
 export interface CrisisNote {
+  /** When each section was first completed — its own node's time on the
+   *  timeline (pack v3.0). `updatedAt` stays the note's last write. */
+  sectionAt?: Partial<Record<"subtype" | "safety-plan" | "resources" | "referral" | "emergency", number>>;
   subtype?: string;
   tags?: string[];
   safetyPlan?: { status: string; usage: string };
@@ -298,7 +297,21 @@ export interface EscalationOutcome {
   debriefIsDraft: boolean;
   plan: string;
   additional: string;
+  /** When the outcome was chosen — its own timeline node, before the debrief
+   *  (pack v3.0). Absent on records written before the split. */
+  chosenAt?: number | null;
+  /** When the debrief was saved: the outcome step is done. */
   savedAt: number | null;
+}
+
+export interface EscalationMoment {
+  id: string;
+  at: number;
+  messageId: string;
+  /** Optional — an empty string when the mentor added none. */
+  note: string;
+  actor: { id: string; name: string; role: "mentor" | "supervisor" };
+  quote: { text: string; sender: Sender; senderName: string; at: number };
 }
 
 export interface SafetyCheck {

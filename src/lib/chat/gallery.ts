@@ -113,7 +113,8 @@ export const GALLERY_EVENTS: ChatEvent[] = [
     threadId: CALEB.id,
     at: GALLERY_NOW - 30 * 60_000,
     kind: "escalation-resolved",
-    actorId: LIVE_ID,
+    /* A supervisor closes — never the mentor, never the teen (pack v3.0). */
+    actorId: "s-brandy",
     artifactId: "e1",
     artifactName: "the escalation",
   },

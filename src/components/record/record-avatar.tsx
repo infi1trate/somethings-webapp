@@ -82,6 +82,9 @@ export function RecordAvatar({
   const s = SIZE[size];
   return (
     <span
+      /* An identity tint, never a status colour — the red-concentration
+         census (care-timeline.mjs) excludes it by this attribute. */
+      data-record-avatar
       // Decorative: the name is always rendered as text beside it, so announcing
       // the initial would read the same person twice.
       aria-hidden

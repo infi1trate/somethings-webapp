@@ -233,7 +233,9 @@ legible.** Answered 2026-10-19:
   `CLOSE_OUT_TIER` (Tier 3).
 - **Chats stays a separate job.** Monitoring is the global view for actions that
   need taking; Chats is the one-conversation experience. Monitoring points into
-  Chats; it does not replace it.
+  Chats; it does not replace it. **Narrowed by pack v3.0:** for the supervisor
+  tier, Monitoring is now the ONLY way into a conversation — Chats left their
+  nav, and every Monitoring entry links to its thread.
 
 ### Tiering & Escalation (pack v1.0, feat/tiering-escalation)
 
@@ -263,7 +265,9 @@ FCP-2 tier names, and parts of the Monitoring section above, each in place.**
   is one fixture raised by either dev axis. The C-SSRS answers stream into the
   same escalation record the supervisor's view renders.
 - **Care replaces Now.** Persistent, fixed after Context, for every teen; an
-  escalation changes its STATE (and adds a dot), not its existence. Raising
+  escalation changes its STATE (and adds a dot), not its existence. **Refined
+  by v3.0:** five top tabs (Overview · Safety plan · Emergency info ·
+  Resources · History), and an escalation takes over Overview only. Raising
   from any of the three doors opens one flow in it — pick a tier, say what is
   happening, confirm — and Confirm opens the escalation at once (the tier is
   the part that waits for a supervisor).
@@ -275,7 +279,9 @@ FCP-2 tier names, and parts of the Monitoring section above, each in place.**
   once, reversed on instruction (2026-10-21): a mentor reaching for it in a
   hurry is looking for the red one.
 - **Platform safety is a category, not a tier.** It routes to review and writes
-  no tier event.
+  no tier event. **SUPERSEDED IN PART by v3.0 (Supersession 3):** it is out of
+  the tier picker too — a quiet "Report a platform concern" link below Tiers
+  1–3 opens its own flow; the record keeps it as `requested: "platform"`.
 - **C-SSRS question text is a placeholder** until the verbatim Columbia wording
   is supplied — and it says so on screen. No paraphrase, ever. **SUPERSEDED by
   v2:** the pack supplied the wording; `ASSESSMENT_QUESTIONS` carries it
@@ -292,7 +298,8 @@ mentor safety check, the mentor Resolve dialog — each marked in place above.**
   (`components/chat/escalation/exchange.tsx`). Mentor lens M2 assess → M3 stay
   → M4 wrap; supervisor lens S1 confirm → S2 guide + crisis note → S3 outcome →
   S4 close. A baton strip says whose turn it is; done stages collapse into the
-  spine.
+  spine. **SUPERSEDED by v3.0:** one timeline — the baton strip, spine and
+  tier line are gone; see the v3.0 section below.
 - **Stage is derived, never stored.** `mentorStage`, `supervisorStage` and
   `batonHolder` (`lib/tiering/escalation.ts`) read the record's fields, so no
   stage field can fall out of step with what was actually written.
@@ -304,7 +311,9 @@ mentor safety check, the mentor Resolve dialog — each marked in place above.**
   confirmation at S1 closes the escalation as a standard tier update; Platform
   safety is "Mark reviewed".
 - **Guidance lives on the escalation record**, not the Support outbox — the
-  outbox is in-memory and carries no author.
+  outbox is in-memory and carries no author. **SUPERSEDED by v3.0
+  (Supersession 2):** guidance is deleted from the record; coaching is the
+  Support thread, and the cost is the one v2 named — it does not persist.
 - **The debrief is a fake AI draft** (`draftDebrief`), templated from the
   record and badged "AI draft · edit before saving". It writes narrative only:
   never a tier, never a subtype.
@@ -326,6 +335,49 @@ mentor safety check, the mentor Resolve dialog — each marked in place above.**
   `escalation-note-module`, `tasks/chips`, `tasks/domain-tabs`,
   `lib/monitoring/{disposition,flag-group,surfacing,timeline,timeline-fixtures}`,
   `lib/record/escalation-note`, `lib/tasks/obligations`) with their tests.
+
+### Care Panel & Escalation Timeline (pack v3.0, feat/care-timeline)
+
+Answered 2026-10-21 ("go" on the Phase 0 defaults). **Supersedes the v2
+exchange's presentation and five v1/v2 rules, each marked in place above.**
+
+- **One timeline, two lenses** (`escalation/exchange.tsx`). A header states
+  every status once — title + tier, "Opened · notified", the confirmation (or,
+  closed, the movement "Tier 1 → Tier 3 Medium risk"), the Support link — and
+  nothing below restates it. Then upcoming (ghosted, locked: the NEXT step and
+  the EXIT only, each with its condition), exactly one current node (pulsing in
+  the Bloom ink, its action card inside), completed (newest first, one line,
+  expandable). Orientation is one constant, `TIMELINE_ORDER`.
+- **Nodes are derived, never stored** (`lib/tiering/timeline.ts`), and "exactly
+  one current node per lens" is a unit test over the whole arc. The baton
+  MODEL survives (`batonHolder`); its banner does not.
+- **The crisis note assembles as nodes**, a section at a time, each stamped
+  once (`crisisNote.sectionAt`); **outcome and debrief are two nodes**
+  (`chooseOutcome` → `saveDebrief`).
+- **Supervisor S0:** while the mentor assesses, the current node is the count
+  only, and Confirm waits for the assessment — the pack's sequence. THE COST,
+  STATED: v2 let a supervisor confirm early; now a mentor who never submits
+  holds the supervisor at S0.
+- **Neutral until confirmed** (blocked constant): the tier picker and Confirm
+  carry no alert colour; red arrives with the confirmation, in the header.
+- **Red in the mentor's escalation view** is the banner, the two escalation
+  dots (rail and Overview tab), Tier 1–2 lozenges, and the live raise chip in
+  the thread (Workstream E2: alert family while open; clay once closed; the
+  close is sage). The risk chip is neutral. Counted in `care-timeline.mjs`;
+  avatar identity tints are excluded by `data-record-avatar`.
+- **Add to escalation:** a message action while one is open; an append-only
+  `moments[]` entry with a quote snapshot, both lenses; a corner glyph on the
+  message.
+- **Actors are named by id** (`lib/chat/actor-name.ts`): "{teen} resolved the
+  escalation" was the defect — the teen never closes one; a supervisor does.
+- **Supervisor navigation:** no Chats (the phone bar's cell is Monitoring);
+  the chat route has no conversation list and a "← Monitoring" way back;
+  entries link to the thread, else the record, else nothing.
+- **One emergency door:** the banner's "Emergency info" opens Care on its
+  Emergency info tab, 911 first; the crisis dialog and the in-panel red button
+  are deleted, and "Open Care" with them.
+- **Send sends.** The composer was never wired (Phase 1 shell); `chatMessages`
+  is append-only and merged at read time.
 
 ### Monitoring asserts only what it can compute (arch-mon)
 

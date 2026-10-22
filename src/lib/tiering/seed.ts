@@ -159,7 +159,6 @@ export function seedEscalationHistory(now: number): EscalationState[] {
       confirmedTier: 1,
       confirmedAt: opened + 4 * MINUTE,
       meta: { timeToConfirmMs: 4 * MINUTE },
-      guidance: [{ id: "g-t21-1", at: opened + 6 * MINUTE, author: "Stephen Rowe", text: "Ask whether anyone is home with her, and stay on until they are." }],
       crisisNote: {
         subtype: "suicidal_ideation",
         tags: ["housing"],

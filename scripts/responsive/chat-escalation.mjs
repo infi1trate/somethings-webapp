@@ -132,9 +132,11 @@ console.log("\n── the banner @ escalation-active");
      checklist is the assessment in Care, and the mentor no longer resolves —
      the supervisor closes, so a Resolve here would be a door that is not
      theirs. */
+  /* SUPERSEDED AGAIN (pack v3.0, Supersession 6): "Open Care" is gone too —
+     the Care tab is a tap away and carries the dot. One action remains. */
   check(
-    banner.buttons.map((x) => x.slot).join() === "banner-crisis,banner-assessment",
-    "crisis first, then Open Care — and no Resolve",
+    banner.buttons.map((x) => x.slot).join() === "banner-crisis",
+    "one action: Emergency info — no Open Care, no Resolve",
     banner.buttons.map((x) => x.text).join(" | ")
   );
   await p.context().close();
@@ -174,7 +176,9 @@ console.log("\n── the rail @ escalation-active");
   check(rail.selected?.startsWith("Care"), "and selected on open", String(rail.selected));
   check(rail.assessmentOpen, "the assessment is what it shows");
   check(rail.progress === "2 of 6", "with a count of what is answered", String(rail.progress));
-  check(!rail.hasPercent && !rail.riskOutsideChip && /^Assessment suggests: /.test(rail.chip ?? ""), "no score or percentage; risk is named only in the advisory chip", String(rail.chip));
+  /* pack v3.0: the mentor's question card carries no live chip; the risk
+     arrives on the completed node once the assessment is sent. */
+  check(!rail.hasPercent && !rail.riskOutsideChip && rail.chip === null, "no score, percentage or risk word while the mentor is still answering", String(rail.chip));
   await p.context().close();
 }
 
@@ -257,9 +261,14 @@ console.log("\n── the crisis view @ escalation-active");
          this is a young mentor waiting to be sure enough. */
       permission: /do not need to be certain/i.test(d.innerText),
       rows: [...d.querySelectorAll("p")].map((x) => x.textContent.trim()),
+      /* A TAB, NOT A DIALOG (pack v3.0, Supersession 5). */
+      inTab: !!d.closest('[data-care-tabpanel="emergency"]'),
+      dialog: !!d.closest('[role="dialog"]'),
+      tab: document.querySelector('[data-care-tab][aria-selected="true"]')?.dataset.careTab,
     };
   })()`);
   check(!!crisis, "the crisis view opened");
+  check(crisis.inTab && !crisis.dialog && crisis.tab === "emergency", "the banner chip opens Care on its Emergency info tab — not a dialog", JSON.stringify({ inTab: crisis.inTab, dialog: crisis.dialog, tab: crisis.tab }));
   check(crisis.callIsLink, "911 is a link, not a button");
   check(crisis.callHref === "tel:911", "pointing at the dialer", String(crisis.callHref));
   check(/^Call 911$/.test(crisis.callLabel ?? ""), "and the number IS the label", String(crisis.callLabel));
@@ -387,7 +396,9 @@ console.log("\n── raising one @ active-mentorship");
   await bubbles.nth(3).locator('button[aria-label="React to this message"]').click();
   await p.waitForTimeout(250);
   const second = await p.evaluate(
-    `!!document.querySelector('[role="menu"] [role="menuitem"][aria-label*="escalation"]')`
+    /* "Raise an escalation" specifically: "Add this message to the escalation"
+       is offered while one is open, by design (pack v3.0). */
+    `!!document.querySelector('[role="menu"] [role="menuitem"][aria-label^="Raise an escalation"]')`
   );
   check(!second, "and Escalate is gone while one is open");
   await p.keyboard.press("Escape");
@@ -415,7 +426,18 @@ console.log("\n── raising one @ active-mentorship");
    is the shortest close; tiering.mjs walks the full Tier 1 path. */
 console.log("\n── closing @ escalation-active");
 {
-  const sup = await chat("escalation-active", 1440, 1000, { persona: "supervisor", path: "/app/chat/t13" });
+  /* The assessment arrives first: Confirm waits for it (pack v3.0, S0). */
+  const men = await chat("escalation-active", 1440, 1000, { path: "/app/chat/t13" });
+  for (const id of ["q3:no", "q4:no", "q5:no", "q6:no"]) {
+    await men.locator(`[data-yes-no="${id}"]`).click();
+    await men.waitForTimeout(120);
+  }
+  await men.locator('[data-exchange-field="mentor-summary"]').fill("Aunt is home now; Jordan is calmer.");
+  await men.locator('[data-exchange-primary="submit-assessment"]').click();
+  await men.waitForTimeout(400);
+  const sent = await men.evaluate(`JSON.parse(localStorage.getItem("${KEY}")).state`);
+  await men.context().close();
+  const sup = await chat("escalation-active", 1440, 1000, { persona: "supervisor", path: "/app/chat/t13", extra: { escalations: sent.escalations, tierEvents: sent.tierEvents } });
   const noResolve = await sup.evaluate(`!document.querySelector('[data-slot="banner-resolve"]')`);
   check(noResolve, "the supervisor's banner carries no Resolve either — closing is a stage, not a button");
   await sup.locator('[data-s1-tier="3"]').click();
@@ -434,19 +456,25 @@ console.log("\n── closing @ escalation-active");
       /* THE HISTORY SURVIVES: both events, opened and resolved. Closing
          writes resolvedAt rather than deleting the row. */
       opened: chips.some((c) => /raised an escalation/.test(c)),
-      resolvedChip: chips.some((c) => /resolved the escalation/.test(c)),
+      /* pack v3.0 (E1): "closed", and the actor is the supervisor — never
+         the teen ("Jordan resolved the escalation" was the defect). */
+      resolvedChip: chips.some((c) => /^Brandy closed the escalation/.test(c)),
+      teenActor: chips.some((c) => /^Jordan (closed|resolved)/.test(c)),
       stage: document.querySelector("[data-exchange]")?.dataset.stage,
       outcome: document.querySelector("[data-wrap-outcome]")?.textContent,
       tab: [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) => t.textContent.trim()),
     };
   })()`);
   check(resolved.bannerGone, "the banner is gone");
-  check(resolved.opened && resolved.resolvedChip, "both events survive in the transcript");
+  check(resolved.opened && resolved.resolvedChip && !resolved.teenActor, "both events survive in the transcript — the close names the supervisor, never the teen");
   /* AN ACCOUNT, NOT TWO TIMESTAMPS. An escalation whose only trace is when it
      opened and closed tells nobody whether a teenager is all right. */
-  check(resolved.stage === "M4" && /Tier 3 confirmed/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
+  check(resolved.stage === "M4" && /Standard tier update/.test(resolved.outcome ?? "") && resolved.tab.some((t) => t.startsWith("Care")), "the mentor is shown how it ended, in Care (M4)", JSON.stringify(resolved));
   await p.locator('[data-exchange-primary="back-to-care"]').click();
   await p.waitForTimeout(400);
+  /* History is a Care tab of its own now (pack v3.0). */
+  await p.locator('[data-care-tab="history"]').click();
+  await p.waitForTimeout(200);
   const story = await p.evaluate(`document.querySelector("[data-escalation-story]")?.innerText.replace(/\\s+/g, " ") ?? ""`);
   check(/tier update/.test(story), "and History keeps the account as one story", story.slice(0, 100));
 
@@ -457,7 +485,7 @@ console.log("\n── closing @ escalation-active");
     banner: !!document.querySelector('[data-slot="status-banner"]'),
     exchange: !!document.querySelector("[data-exchange]"),
     resolvedChip: [...document.querySelectorAll('${LIST} > li[data-slot="event-chip"]')]
-      .some((li) => /resolved the escalation/.test(li.innerText)),
+      .some((li) => /closed the escalation/.test(li.innerText)),
   }))()`);
   check(!after.banner && !after.exchange && after.resolvedChip, "and it stays closed through a reload");
   await p.context().close();

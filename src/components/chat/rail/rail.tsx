@@ -37,7 +37,7 @@
 // that starts identical and drifts.
 
 import { useId, useRef } from "react";
-import { Clock, Grid2x2Plus, LifeBuoy, Sparkles, UserRound } from "lucide-react";
+import { Clock, Grid2x2Plus, HeartHandshake, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PanelShell } from "@/components/chat/rail/rail-panel";
 import { ToolkitPanel } from "@/components/chat/rail/toolkit";
@@ -83,7 +83,11 @@ export const RAIL_TAB_LABEL: Record<RailTab, string> = {
  *  Context, a grid-plus for Tools, a clock for History; Profile joins them as
  *  a person (answered); Care is the pack's lifesaver. */
 export const RAIL_TAB_ICON: Record<RailTab, LucideIcon> = {
-  care: LifeBuoy,
+  /* ═══ CARE, NOT EMERGENCY (pack v3.0, Supersession 4) ═══ The lifesaver
+     read as an alarm on every teen's rail. Emergency lives in the escalation
+     dot and the Tier 1–2 treatments; this glyph says care. Lucide stands in
+     for Bloom's icon set, which has no code export (Phase 0). */
+  care: HeartHandshake,
   assist: Sparkles,
   profile: UserRound,
   toolkit: Grid2x2Plus,
@@ -242,6 +246,7 @@ export function Rail({
   onSendActivity,
   onSaveNote,
   onOpenEvent,
+  nameActor,
   onOpenReference,
   presence,
   className,
@@ -274,6 +279,7 @@ export function Rail({
     reminderAt: number | null;
   }) => void;
   onOpenEvent?: (event: ChatEvent) => void;
+  nameActor?: (actorId: string) => string;
   onOpenReference: (ref: ContextRef) => void;
   /** "Brandy is in this chat" — see the header. */
   presence?: string;
@@ -391,6 +397,7 @@ export function Rail({
                 }
                 onOpenNote={(n) => onModeChange({ kind: "reading", noteId: n.id })}
                 onOpenEvent={onOpenEvent}
+                nameActor={nameActor}
                 rescindedArtifactIds={rescinded}
               />
             ))}
