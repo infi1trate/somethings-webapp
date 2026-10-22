@@ -50,14 +50,17 @@ async function open(width = 1512, opts = {}) {
     deviceScaleFactor: opts.dpr ?? 1,
     reducedMotion: opts.reducedMotion ?? "no-preference",
   });
+  /* MONITORING v2: CARDS ARE THE DEFAULT. Steps written against the list seed
+     it; `layout: "default"` leaves storage empty to test a fresh session. */
   await ctx.addInitScript(
-    ([k, v]) => {
+    ([k, v, layout]) => {
       if (!sessionStorage.getItem("seeded")) {
         localStorage.setItem(k, JSON.stringify(v));
+        if (layout !== "default") localStorage.setItem("somethings.monitoring.layout", layout);
         sessionStorage.setItem("seeded", "1");
       }
     },
-    [KEY, { state: { persona: "supervisor", monitoringScenarioId: opts.scenario ?? "tiers-monitor" }, version: VERSION }]
+    [KEY, { state: { persona: "supervisor", monitoringScenarioId: opts.scenario ?? "tiers-monitor" }, version: VERSION }, opts.layout ?? "list"]
   );
   /* THE THEME COMES FROM STORAGE, not `emulateMedia`: this app applies a
      `.dark` class from `somethings.theme` and never reads the OS preference
@@ -379,7 +382,7 @@ const ENGINE = `(() => {
 // ── STEP 4 · the card view and the toggle ──────────────────────────────────
 {
   console.log("\n── step 4 · the toggle and the card view (1512)");
-  const { ctx, page } = await open(1512, { dpr: 2, scenario: "tiers-alert" });
+  const { ctx, page } = await open(1512, { dpr: 2, scenario: "tiers-alert", layout: "default" });
   const tg = await page.evaluate(() => {
     const g = document.querySelector("[data-layout-group]");
     const gs = getComputedStyle(g);
@@ -394,10 +397,11 @@ const ENGINE = `(() => {
   check(tg.role === "group" && tg.radius === "10px" && tg.border === "1px" && Math.abs(tg.right - tg.titleRow) <= 1, "a bordered 10px group, right-aligned in the title row", JSON.stringify({ r: tg.radius, right: tg.right, row: tg.titleRow }));
   check(tg.bs.length === 2 && tg.bs.every((b) => b.w === 36 && b.h === 32 && b.label), "two 36×32 named icon buttons", tg.bs.map((b) => `${b.label} ${b.w}×${b.h}`).join(" · "));
   const on = tg.bs.find((b) => b.pressed === "true");
-  check(on?.v === "list" && on.bg === raised && wears(on.shadow, elev1) && tg.bs.find((b) => b.v === "cards").pressed === "false", "list pressed by default: raised, Elevation 1, aria-pressed", JSON.stringify(on));
+  /* MONITORING v2: WAS "list pressed by default". Cards are the primary view
+     for a new session; the list is one tap away and persists. */
+  check(on?.v === "cards" && on.bg === raised && wears(on.shadow, elev1) && tg.bs.find((b) => b.v === "list").pressed === "false", "cards pressed by default for a new session: raised, Elevation 1, aria-pressed", JSON.stringify(on));
+  check(!!(await page.$("[data-monitoring-cards]")) && !(await page.$("[data-monitoring-list]")), "and the cards are what a new session sees");
 
-  await page.locator('[data-layout-toggle="cards"]').click();
-  await page.waitForTimeout(300);
   const c = await page.evaluate(() => {
     const root = document.querySelector("[data-monitoring-cards]");
     const grid = root.querySelector('[data-tier-group="2"] [data-card-grid]');
@@ -406,38 +410,57 @@ const ENGINE = `(() => {
       const s = getComputedStyle(a);
       const r = a.getBoundingClientRect();
       const name = document.getElementById(a.getAttribute("aria-labelledby"));
-      const loz = a.querySelector("[data-tier-lozenge]");
-      const av = a.querySelector("[data-tier-ring] > span");
+      const tag = a.querySelector("[data-tier-tag]");
+      const av = a.querySelector("[data-tier-avatar]");
+      const days = a.querySelector("[data-card-days]");
+      const spark = a.querySelector("[data-sparkline]");
+      const label = a.querySelector("[data-card-days-label]");
+      const signals = [...a.querySelectorAll("[data-card-signal]")];
+      const tit = a.querySelector("[data-card-tit]");
+      const pill = a.querySelector("[data-card-review]");
+      /* NO LINES INSIDE A CARD: any border on a descendant, the tag's own
+         outline excepted. */
+      const lines = [...a.querySelectorAll("*")].filter((el) => !el.closest("[data-tier-tag]") && ["Top", "Bottom", "Left", "Right"].some((k) => parseFloat(getComputedStyle(el)[`border${k}Width`]) > 0)).length;
+      const db = days.getBoundingClientRect();
       return {
-        id: a.dataset.monitoringCard, tier: +a.dataset.tier, tag: a.tagName, name: name?.textContent.trim(), nfs: getComputedStyle(name).fontSize,
-        radius: s.borderRadius, pad: `${s.paddingTop} ${s.paddingRight}`, bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`,
-        loz: loz?.textContent.trim(), lozRight: loz ? Math.round(r.right - loz.getBoundingClientRect().right) : null, av: av ? Math.round(av.getBoundingClientRect().width) : null,
-        days: a.querySelector("[data-card-days]")?.textContent.replace(/\s+/g, " ").replace(/ days engaged.*$/, "").trim(),
-        stats: a.querySelectorAll("[data-card-stats] > div").length,
-        tit: (() => { const b = a.querySelector("[data-card-tit] span[aria-hidden]"); return b ? Math.round(b.getBoundingClientRect().height) : null; })(),
-        footer: (() => { const f = a.querySelector("footer"); return { bt: getComputedStyle(f).borderTopWidth, text: f.textContent.replace(/\s+/g, " ").trim() }; })(),
-        open: (() => { const o = a.querySelector("[data-card-open]"); return o && { h: Math.round(o.getBoundingClientRect().height), label: o.getAttribute("aria-label") }; })(),
+        id: a.dataset.monitoringCard, tier: +a.dataset.tier, tagName: a.tagName, name: name?.textContent.trim(), nfs: getComputedStyle(name).fontSize, nlh: getComputedStyle(name).lineHeight,
+        radius: s.borderRadius, pad: `${s.paddingTop} ${s.paddingRight}`, h: Math.round(r.height), bg: s.backgroundColor, shadow: s.boxShadow, bt: `${s.borderTopWidth} ${s.borderTopColor}`, bl: `${s.borderLeftWidth} ${s.borderLeftColor}`,
+        tag: tag?.dataset.tierTag, tagRight: tag ? Math.round(r.right - tag.getBoundingClientRect().right) : null, tagTop: tag ? Math.round(tag.getBoundingClientRect().top - r.top) : null,
+        av: av ? Math.round(av.getBoundingClientRect().width) : null, ring: !!a.querySelector("[data-tier-ring]"),
+        days: days?.textContent.trim(), dfs: getComputedStyle(days).fontSize, dlh: getComputedStyle(days).lineHeight, dfam: getComputedStyle(days).fontFamily,
+        label: label?.textContent.trim(), lfs: getComputedStyle(label).fontSize,
+        spark: { w: Math.round(spark.getBoundingClientRect().width), h: Math.round(spark.getBoundingClientRect().height), bottomVsNumeral: Math.round(db.bottom - spark.getBoundingClientRect().bottom), right: spark.getBoundingClientRect().left > db.right },
+        signals: signals.map((g) => { const kids = [...g.children]; return { label: kids[0]?.textContent, lfs: getComputedStyle(kids[0]).fontSize, num: getComputedStyle(g.querySelector("[data-glyph-count] span.font-mono")).fontSize, detail: g.querySelector("[data-signal-detail]")?.textContent.trim(), w: Math.round(g.getBoundingClientRect().width) }; }),
+        tit: tit && { text: tit.innerText.replace(/\s+/g, " ").trim(), track: Math.round(tit.querySelector("[data-tit-track]").getBoundingClientRect().height) },
+        pill: pill && { bg: getComputedStyle(pill).backgroundColor, fs: getComputedStyle(pill).fontSize, border: getComputedStyle(pill).borderTopWidth, text: pill.textContent.trim() },
+        footerBorder: getComputedStyle(a.querySelector("footer")).borderTopWidth, chevron: !!a.querySelector("[data-card-chevron]"), lines,
       };
     });
     return { list: !!document.querySelector("[data-monitoring-list]"), lane: !!root.querySelector('[data-tier-group="1"] [data-t1-live]'), cols: gs.gridTemplateColumns.split(" ").length, gap: gs.columnGap, cards };
   });
   check(!c.list && c.lane, "the cards replace the list in place; the Tier 1 lane stays", JSON.stringify({ list: c.list, lane: c.lane }));
-  check(c.cols === 3 && c.gap === "12px", "a 3-column grid, 12px apart", `${c.cols} · ${c.gap}`);
+  /* MONITORING v2: WAS 3 × 12px, 16px radius, 14/16, 32px ringed avatar,
+     the long lozenge, a 2×2 and a hairline footer. */
+  check(c.cols === 3 && c.gap === "16px", "3-up at 1512, 16px apart", `${c.cols} · ${c.gap}`);
   const cs = c.cards;
-  check(cs.length > 0 && cs.every((x) => x.tag === "ARTICLE" && x.name), "each card is an article named by its teen", cs.slice(0, 3).map((x) => x.name).join(", "));
-  check(cs.every((x) => x.radius === "16px" && x.pad === "14px 16px"), "16px radius, padded 14 / 16", cs[0]?.pad);
-  check(cs.every((x) => x.av === 32 && x.nfs === "15px"), "32px ringed avatar, name 15px");
-  check(cs.every((x) => x.loz === `T${x.tier} · ${["", "Active crisis", "High risk", "Medium risk", "General"][x.tier]}` && x.lozRight <= 17), "the long lozenge, right-aligned", cs.map((x) => x.loz).filter((v, i, a) => a.indexOf(v) === i).join(" | "));
+  check(cs.length > 0 && cs.every((x) => x.tagName === "ARTICLE" && x.name), "each card is an article named by its teen", cs.slice(0, 3).map((x) => x.name).join(", "));
+  check(cs.every((x) => x.radius === "20px" && x.pad === "20px 20px" && x.h >= 240), "20px radius, padded 20, at least 240 tall", `${cs[0]?.radius} · ${cs[0]?.pad} · min ${Math.min(...cs.map((x) => x.h))}`);
+  check(cs.every((x) => x.av === 36 && !x.ring && x.nfs === "17px" && x.nlh === "22px"), "header: a 36px neutral avatar (no ring), the name 17/22", JSON.stringify(cs[0] && { av: cs[0].av, nfs: cs[0].nfs }));
+  /* 20px of padding plus the surface's 1px border (transparent on T2/T3). */
+  check(cs.every((x) => x.tag === String(x.tier) && x.tagRight === 21 && x.tagTop <= 25), "the tier tag top-right, inside the 20px padding", cs.map((x) => `${x.tag}@${x.tagRight}`).slice(0, 4).join(" "));
   const leo = cs.find((x) => x.id === "t21");
-  check(leo?.days === "48 / 151", "days engaged / on platform — Imani's record tenure", leo?.days);
-  check(cs.every((x) => x.stats === 4), "a 2×2 stat grid");
-  check(leo?.tit === 3, "time in tier over a 3px bar", `${leo?.tit}`);
+  check(leo?.days === "48" && leo.dfs === "28px" && leo.dlh === "32px" && !/mono/i.test(leo.dfam) && leo.label === "engaged · of 151 on platform" && leo.lfs === "13px", "the primary metric: 48 in the 28/32 heading face, 'engaged · of 151 on platform' beneath — Imani's record tenure", JSON.stringify(leo && { d: leo.days, fs: leo.dfs, l: leo.label }));
+  check(cs.every((x) => x.spark.w === 96 && x.spark.h === 24 && x.spark.right && Math.abs(x.spark.bottomVsNumeral) <= 8), "the 96×24 sparkline on the right, on the numeral's baseline", JSON.stringify(leo?.spark));
+  check(cs.every((x) => x.signals.map((g) => g.label).join() === "Risk flags,Escalations,Surveys" && x.signals.every((g) => g.lfs === "12px" && g.num === "15px") && new Set(x.signals.map((g) => g.w)).size === 1), "three signals in equal columns: label 12 above, the number 15", JSON.stringify(leo?.signals));
+  check(leo?.signals[0].detail === "7d" && leo.signals[1].detail === "closed Tue" && leo.signals[2].detail === "PHQ-9 · Fri", "each signal's detail beneath it: 7d · closed Tue · PHQ-9 · Fri", JSON.stringify(leo?.signals.map((g) => g.detail)));
+  check(leo?.tit?.text === "Time in tier Day 3 of 7" && leo.tit.track === 3 && cs.filter((x) => x.tier === 4).every((x) => !x.tit), "time in tier: one line over a 3px track — omitted on Tier 4", JSON.stringify(leo?.tit));
   const ravi = cs.find((x) => x.id === "t22");
-  check(cs.every((x) => x.footer.bt === "1px" && /Open ›$/.test(x.footer.text)) && /^No review due/.test(ravi?.footer.text ?? ""), "a hairline footer: reason (or 'No review due') and Open ›", ravi?.footer.text);
-  check(cs.every((x) => x.open.h >= 24 && /^Open /.test(x.open.label)), "Open is a ≥ 24px target, named for its teen");
-  const [t2soft, borderDefault, panel] = [await tok(page, "--t2-soft", "bg"), await tok(page, "--border-default"), await tok(page, "--shadow-panel", "shadow")];
+  const sunkenPill = await tok(page, "--surface-sunken", "bg");
+  check(leo?.pill?.bg === sunkenPill && leo.pill.fs === "12px" && leo.pill.border === "0px" && leo.pill.text === "From T1 · Fri" && ravi && !ravi.pill && cs.every((x) => x.footerBorder === "0px" && x.chevron), "footer: the review as a soft sunken pill (none when no review is due), a chevron, no hairline", JSON.stringify({ pill: leo?.pill, ravi: !!ravi?.pill }));
+  check(cs.every((x) => x.lines === 0), "no lines anywhere inside a card — spacing does the grouping", cs.map((x) => x.lines).join(","));
+  const [t2soft, borderSubtle, elSoft, canvas] = [await tok(page, "--t2-soft", "bg"), await tok(page, "--border-subtle"), await tok(page, "--el-soft", "shadow"), await tok(page, "--surface-canvas", "bg")];
   const by = (t) => cs.filter((x) => x.tier === t);
-  check(by(2).length > 0 && by(3).length > 0 && by(4).length > 0 && by(2).every((x) => x.bg === t2soft) && by(3).every((x) => x.bg === raised && wears(x.shadow, panel)) && by(4).every((x) => x.bg === "rgba(0, 0, 0, 0)" && x.bt === `1px ${borderDefault}` && x.shadow === "none"), "surfaces: T2 t2-soft, T3 raised with --shadow-panel (Elevation 2), T4 a hairline");
+  check(by(2).length > 0 && by(3).length > 0 && by(4).length > 0 && by(2).every((x) => x.bg === t2soft) && by(3).every((x) => x.bg === raised && wears(x.shadow, elSoft)) && by(4).every((x) => x.bg === canvas && x.bt === `1px ${borderSubtle}` && x.shadow === "none"), "surfaces: T2 t2-soft · T3 raised, set apart by elevation, not colour · T4 canvas with a hairline");
   check(cs.every((x) => x.bl === x.bt), "no coloured left border on any card");
   const alert = await page.evaluate((AVATAR) => {
     const probe = (v) => { const e = document.createElement("span"); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; };
@@ -468,17 +491,17 @@ const ENGINE = `(() => {
   check(!!(await page.$("[data-monitoring-cards]")) && (await page.locator('[data-layout-toggle="cards"]').getAttribute("aria-pressed")) === "true", "the choice survives a reload");
   await ctx.close();
 
-  /* LAYOUT STORAGE THAT THROWS: the page still renders, on the list. */
-  const blocked = await open(1512, { blockLayout: true });
+  /* LAYOUT STORAGE THAT THROWS: the page still renders, on the default. */
+  const blocked = await open(1512, { blockLayout: true, layout: "default" });
   const errors = [];
   blocked.page.on("pageerror", (e) => errors.push(String(e)));
   await blocked.page.reload({ waitUntil: "networkidle" });
   await blocked.page.waitForTimeout(900);
-  const listOk = !!(await blocked.page.$("[data-monitoring-list]"));
-  await blocked.page.locator('[data-layout-toggle="cards"]').click().catch(() => {});
-  await blocked.page.waitForTimeout(300);
   const cardsOk = !!(await blocked.page.$("[data-monitoring-cards]"));
-  check(listOk && cardsOk && errors.length === 0, "blocked storage: the list renders and the toggle still works", JSON.stringify({ listOk, cardsOk, errors: errors.slice(0, 2) }));
+  await blocked.page.locator('[data-layout-toggle="list"]').click().catch(() => {});
+  await blocked.page.waitForTimeout(300);
+  const listOk = !!(await blocked.page.$("[data-monitoring-list]"));
+  check(listOk && cardsOk && errors.length === 0, "blocked storage: the default cards render and the toggle still works", JSON.stringify({ listOk, cardsOk, errors: errors.slice(0, 2) }));
   await blocked.ctx.close();
 }
 
@@ -591,6 +614,11 @@ for (const layout of ["list", "cards"]) {
   await page.evaluate(() => document.querySelector("[data-tier4-toggle]").click());
   await page.waitForTimeout(500);
   const open1 = await page.evaluate(() => ({ exp: document.querySelector("[data-tier4-toggle]").getAttribute("aria-expanded"), text: document.querySelector("[data-tier4-toggle]").textContent.trim() }));
+  /* MONITORING v2: the cards are taller, so Tier 4 opens below the fold and
+     the window holds one row until it is scrolled to — bring it into view
+     before counting what renders. */
+  await page.evaluate(() => document.querySelector('[data-tier-group="4"]').scrollIntoView());
+  await page.waitForTimeout(400);
   const n1 = await rendered();
   check(open1.exp === "true" && open1.text === "Show fewer", "expanded: aria-expanded, Show fewer", JSON.stringify(open1));
   check(n1 > preview && n1 < 100, "only a window renders, not all 100", `${n1} of 100`);

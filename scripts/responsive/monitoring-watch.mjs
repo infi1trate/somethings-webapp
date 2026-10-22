@@ -11,6 +11,10 @@
 //      whole row is the link; reduced motion keeps it still
 //   5  the focus ring: 1px border-focus, 2px off, a soft halo
 //
+//   CARDS
+//   6  the default view; 3-up at 1440, 2-up at 1200; the whole card is the
+//      link; hover and keyboard focus lift it; reduced motion keeps it still
+//
 // Exit codes: 0 all passed · 1 a check failed.
 
 import { chromium } from "playwright";
@@ -30,7 +34,7 @@ async function open({ layout = "list", scenario = "tiers-alert", width = 1440, h
     ([k, v, layout]) => {
       if (!sessionStorage.getItem("seeded")) {
         localStorage.setItem(k, JSON.stringify(v));
-        localStorage.setItem("somethings.monitoring.layout", layout);
+        if (layout) localStorage.setItem("somethings.monitoring.layout", layout);
         sessionStorage.setItem("seeded", "1");
       }
     },
@@ -194,6 +198,55 @@ console.log("\n── 5 · the focus ring");
   const lifted = await page.evaluate(() => getComputedStyle(document.querySelector('[data-monitoring-row="t21"]')).transform);
   check(/-2\)$/.test(lifted), "and the focused row lifts, as hover does", lifted);
   await ctx.close();
+}
+
+// ── 6 · CARDS ─────────────────────────────────────────────────────────────
+console.log("\n── 6 · cards: the default; the whole card is the link; it lifts");
+{
+  /* No saved layout: a new session. */
+  const { ctx, page } = await open({ layout: "" });
+  const d = await page.evaluate(() => ({ cards: !!document.querySelector("[data-monitoring-cards]"), cols: getComputedStyle(document.querySelector('[data-tier-group="3"] [data-card-grid]')).gridTemplateColumns.split(" ").length }));
+  check(d.cards && d.cols === 3, "a new session opens on the cards, 3-up at 1440", JSON.stringify(d));
+  const card = page.locator('[data-monitoring-card="t19"]');
+  await card.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const bb = await card.boundingBox();
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height - 40);
+  await page.waitForTimeout(400);
+  const h = await card.evaluate((c) => ({ t: getComputedStyle(c).transform, shadow: getComputedStyle(c).boxShadow, cursor: getComputedStyle(c).cursor }));
+  const hover = await tok(page, "--el-soft-hover", "shadow");
+  check(/-2\)$/.test(h.t) && h.shadow === hover && h.cursor === "pointer", "hovered: up 2px, the hover shadow, a pointer", JSON.stringify(h));
+  /* Click the empty middle of the card — the signals — and follow it. */
+  const sig = await card.locator("[data-card-stats]").boundingBox();
+  await page.mouse.click(sig.x + sig.width / 2, sig.y + sig.height / 2);
+  await page.waitForURL(/\/app\/chat\/t19|\/admin\/person\/t19/, { timeout: 8000 }).catch(() => {});
+  check(/t19/.test(page.url()), "a click anywhere on the card follows its link", new URL(page.url()).pathname);
+  await ctx.close();
+
+  const k = await open({ layout: "" });
+  await k.page.locator('[data-monitoring-card="t19"] [data-card-open]').focus();
+  await k.page.keyboard.press("Shift+Tab");
+  await k.page.keyboard.press("Tab");
+  await k.page.waitForTimeout(300);
+  const f = await k.page.evaluate(() => ({ outline: getComputedStyle(document.activeElement).outlineColor, lifted: getComputedStyle(document.querySelector('[data-monitoring-card="t19"]')).transform }));
+  const focus = await tok(k.page, "--border-focus");
+  check(f.outline === focus && /-2\)$/.test(f.lifted), "keyboard focus: the periwinkle ring, and the card lifts", JSON.stringify(f));
+  await k.ctx.close();
+
+  const n = await open({ layout: "", width: 1200 });
+  const cols = await n.page.evaluate(() => getComputedStyle(document.querySelector('[data-tier-group="3"] [data-card-grid]')).gridTemplateColumns.split(" ").length);
+  check(cols === 2, "2-up at 1200", `${cols}`);
+  await n.ctx.close();
+
+  const rm = await open({ layout: "", reducedMotion: "reduce" });
+  const c2 = rm.page.locator('[data-monitoring-card="t19"]');
+  await c2.scrollIntoViewIfNeeded();
+  const b2 = await c2.boundingBox();
+  await rm.page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height - 40);
+  await rm.page.waitForTimeout(300);
+  const still = await c2.evaluate((c) => getComputedStyle(c).transform);
+  check(still === "none", "reduced motion: the card does not move", still);
+  await rm.ctx.close();
 }
 
 await b.close();

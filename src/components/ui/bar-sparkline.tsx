@@ -14,12 +14,14 @@
  *  (it was `border-default`, square). */
 export function BarSparkline({ values, height = 18, width }: { values: number[]; height?: 16 | 18 | 24; width?: number }) {
   return (
-    <span aria-hidden data-sparkline className={width ? "inline-flex shrink-0 items-end gap-1" : "inline-flex shrink-0 items-end gap-[2px]"} style={{ height, width }}>
+    /* The card's form: 8px bars spread across the width, a 3px round — a
+       full pill turned a low bar into a dot (measured at 24px tall). */
+    <span aria-hidden data-sparkline className={width ? "inline-flex shrink-0 items-end justify-between" : "inline-flex shrink-0 items-end gap-[2px]"} style={{ height, width }}>
       {values.map((v, i) => (
         <span
           key={i}
-          className={width ? "block flex-1 rounded-full bg-[var(--border-strong)]" : "block w-1 rounded-full bg-[var(--border-strong)]"}
-          style={{ height: `${Math.max(12, v)}%` }}
+          className={width ? "block w-2 rounded-[3px] bg-[var(--border-strong)]" : "block w-1 rounded-full bg-[var(--border-strong)]"}
+          style={{ height: `${Math.max(width ? 20 : 12, v)}%` }}
         />
       ))}
     </span>
