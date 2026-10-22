@@ -51,7 +51,15 @@ async function open(path, { persona = "mentor", chat = "active-mentorship", extr
 
 /* A Tier 2 placement on Sam (t14), with no escalation: the steady hero at an
    alert tier — the case where TierCard used to wash the whole card. */
-const T2 = { tierEvents: [{ id: "probe-t2", teenId: "t14", at: Date.now() - 3 * 864e5, kind: "placed", tier: 2, fromTier: 4, actor: { id: "s-brandy", name: "Brandy", role: "supervisor" }, reason: "Probe: a Tier 2 placement." }] };
+const BRANDY = { id: "s-brandy", name: "Brandy", role: "supervisor" };
+/* Two placements on top of the fixture's intake: three History rows, so
+   "the two newest" is a real cut. */
+const T2 = {
+  tierEvents: [
+    { id: "probe-t3", teenId: "t14", at: Date.now() - 20 * 864e5, kind: "placed", tier: 3, fromTier: 4, actor: BRANDY, reason: "Probe: a Tier 3 placement." },
+    { id: "probe-t2", teenId: "t14", at: Date.now() - 3 * 864e5, kind: "placed", tier: 2, fromTier: 3, actor: BRANDY, reason: "Probe: a Tier 2 placement." },
+  ],
+};
 
 /* Everything measured in one pass, in the page. */
 const measure = (page) =>
@@ -85,8 +93,10 @@ const measure = (page) =>
     const tabRow = document.querySelector("[data-care-tabs]");
     const banner = document.querySelector('[data-slot="status-banner"]');
     return {
-      canvasBg: bg(document.querySelector("[data-canvas-scroller]")),
-      base: tok("--surface-canvas"),
+      /* The chat's own surface is the thread card — the base the panel steps
+         down from. (The app canvas behind it is a different layer.) */
+      canvasBg: bg(document.querySelector('[data-slot="chat-thread"]')),
+      base: tok("--surface-card"),
       bodyBg: bg(body), s1: tok("--surface-s1"),
       heroKind: hero?.dataset.careHero ?? null,
       heroBg: bg(hero), raised,
@@ -122,11 +132,12 @@ for (const [label, extra] of [["Tier 4", {}], ["Tier 2", T2]]) {
   const m = await measure(page);
   check(m.heroKind === "steady" && m.heroFirst && m.tabsAfterHero, `${label}: the Teen Status card is the hero, above the tabs`, JSON.stringify({ k: m.heroKind, f: m.heroFirst, t: m.tabsAfterHero }));
   check(m.cells.join("|") === "Clinical diagnosis|Risk tier", `${label}: two cells — Clinical diagnosis · Risk tier`, m.cells.join(" · "));
-  check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: canvas on the base, Care body on s1, the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
+  check(m.heroBg === m.raised && m.bodyBg === m.s1 && m.canvasBg === m.base && m.s1 !== m.raised, `${label}: the thread on the base, the Care body one step deeper (s1), the card raised`, `${m.canvasBg} · ${m.bodyBg} · ${m.heroBg}`);
   check(m.washed === 0, `${label}: no whole-card wash — the tint lives in the lozenge alone`, String(m.washed));
   check(m.ringed.length === 0, `${label}: steady has no current step, so nothing is raised AND ringed`, m.ringed.join());
   check(m.filled.length === 0, `${label}: steady holds no filled button (the tier actions are outlined)`, m.filled.join(" · "));
   check(m.recent > 0 && m.recent <= 2, `${label}: Overview shows at most the two newest History rows`, String(m.recent));
+  if (label === "Tier 2") check(m.recent === 2, "with three on file, Overview shows exactly two", String(m.recent));
   if (label === "Tier 4") {
     check(m.careFirst && m.careLabel === "Care" && m.divider, "the Care control is first, labelled, behind a divider", JSON.stringify({ f: m.careFirst, l: m.careLabel, d: m.divider }));
     check(m.tabTops === 1 && m.underline && m.unselUnderline && !m.pill, "the Care tabs: one row, the selected tab underlined 2px in the ink, no pills", JSON.stringify({ rows: m.tabTops, u: m.underline, pill: m.pill }));
